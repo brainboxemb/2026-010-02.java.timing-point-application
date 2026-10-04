@@ -184,10 +184,13 @@ final class TimingPane extends VBox {
         historyPane.setCollapsible(false);
 
         VBox left = new VBox(10, nodePane, registrationPane);
-        left.setPrefWidth(470);
-        left.setMinWidth(420);
+        left.setPrefWidth(520);
+        left.setMinWidth(470);
+        HBox.setHgrow(left, Priority.ALWAYS);
 
         VBox right = new VBox(10, interpretedPane, historyPane);
+        right.setPrefWidth(650);
+        right.setMinWidth(580);
         HBox.setHgrow(right, Priority.ALWAYS);
         VBox.setVgrow(interpretedPane, Priority.SOMETIMES);
         VBox.setVgrow(historyPane, Priority.ALWAYS);
@@ -698,7 +701,10 @@ final class TimingPane extends VBox {
         type.setPrefWidth(80);
         team.setPrefWidth(110);
         code.setPrefWidth(80);
-        action.setPrefWidth(90);
+        action.setMinWidth(48);
+        action.setPrefWidth(48);
+        action.setMaxWidth(48);
+        action.setResizable(false);
 
         action.setCellFactory(column -> new TableCell<>() {
             private final Button button = new Button("🗑");
@@ -731,7 +737,7 @@ final class TimingPane extends VBox {
                 code,
                 action);
         registrations.setColumnResizePolicy(
-                TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+                TableView.CONSTRAINED_RESIZE_POLICY);
         registrations.setPlaceholder(new Label("No registrations"));
         registrations.setPrefHeight(220);
         registrations.setRowFactory(table -> new TableRow<>() {
