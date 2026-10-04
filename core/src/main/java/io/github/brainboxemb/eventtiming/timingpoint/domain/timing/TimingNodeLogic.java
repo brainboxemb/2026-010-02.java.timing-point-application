@@ -44,6 +44,12 @@ final class TimingNodeLogic {
     private Throwable timingDataCommitFailure;
     private List<Problem> problems = Collections.emptyList();
 
+    private volatile long timingDataAppendAttempts;
+    private volatile long timingDataAppendFailures;
+    private volatile long timingDataCommitCount;
+    private volatile long totalTimingDataAppendNanos;
+    private volatile long maxTimingDataAppendNanos;
+
     TimingNodeLogic(
             NodeId timingNodeId,
             TimingDataPersistence timingDataPersistence,
@@ -216,18 +222,51 @@ final class TimingNodeLogic {
         }
     }
 
+    long timingDataAppendAttempts() {
+        return timingDataAppendAttempts;
+    }
+
+    long timingDataAppendFailures() {
+        return timingDataAppendFailures;
+    }
+
+    long timingDataCommitCount() {
+        return timingDataCommitCount;
+    }
+
+    long totalTimingDataAppendNanos() {
+        return totalTimingDataAppendNanos;
+    }
+
+    long maxTimingDataAppendNanos() {
+        return maxTimingDataAppendNanos;
+    }
+
+    private void recordTimingDataAppend(long elapsedNanos) {
+        long safeElapsed = elapsedNanos < 0L ? 0L : elapsedNanos;
+        totalTimingDataAppendNanos += safeElapsed;
+        if (safeElapsed > maxTimingDataAppendNanos) {
+            maxTimingDataAppendNanos = safeElapsed;
+        }
+    }
+
     private RegistrationResult commitRegistration(TimingData data)
             throws TimingDataPersistence.PersistenceException {
         if (data == null) {
             throw new IllegalStateException("timingDataFactory returned null");
         }
 
+        timingDataAppendAttempts++;
+        long appendStartedNanos = System.nanoTime();
         try {
             timingDataPersistence.append(data);
         } catch (TimingDataPersistence.PersistenceException ex) {
+            recordTimingDataAppend(System.nanoTime() - appendStartedNanos);
+            timingDataAppendFailures++;
             timingDataCommitFailure = ex;
             throw ex;
         }
+        recordTimingDataAppend(System.nanoTime() - appendStartedNanos);
 
         try {
             logBook.add(data);
@@ -236,6 +275,7 @@ final class TimingNodeLogic {
             throw ex;
         }
 
+        timingDataCommitCount++;
         return RegistrationResult.committed(data);
     }
 }
