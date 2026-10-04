@@ -223,6 +223,159 @@ public final class TimingNodeTypes {
         }
     }
 
+    /**
+     * Pull-based engineering snapshot of one TimingNode runtime.
+     *
+     * <p>The hot path stores only primitive counters/timestamps. Constructing
+     * this snapshot is an explicit diagnostic action and is not performed for
+     * each registration.</p>
+     */
+    public static final class RuntimeMetrics {
+        private final int queueDepth;
+        private final int queueHighWaterMark;
+        private final long queueAcceptedCount;
+        private final long queueFullCount;
+        private final long queueNotRunningCount;
+        private final long queueCompletedCount;
+        private final long totalQueueWaitNanos;
+        private final long maxQueueWaitNanos;
+        private final long totalExecutionNanos;
+        private final long maxExecutionNanos;
+        private final long timingDataAppendAttempts;
+        private final long timingDataAppendFailures;
+        private final long timingDataCommitCount;
+        private final long totalTimingDataAppendNanos;
+        private final long maxTimingDataAppendNanos;
+        private final long timingDataEventDeliveries;
+        private final long timingDataEventListenerFailures;
+        private final long totalTimingDataEventNanos;
+        private final long maxTimingDataEventNanos;
+        private final long workerThreadCpuTimeNanos;
+
+        RuntimeMetrics(
+                int queueDepth,
+                int queueHighWaterMark,
+                long queueAcceptedCount,
+                long queueFullCount,
+                long queueNotRunningCount,
+                long queueCompletedCount,
+                long totalQueueWaitNanos,
+                long maxQueueWaitNanos,
+                long totalExecutionNanos,
+                long maxExecutionNanos,
+                long timingDataAppendAttempts,
+                long timingDataAppendFailures,
+                long timingDataCommitCount,
+                long totalTimingDataAppendNanos,
+                long maxTimingDataAppendNanos,
+                long timingDataEventDeliveries,
+                long timingDataEventListenerFailures,
+                long totalTimingDataEventNanos,
+                long maxTimingDataEventNanos,
+                long workerThreadCpuTimeNanos) {
+            this.queueDepth = queueDepth;
+            this.queueHighWaterMark = queueHighWaterMark;
+            this.queueAcceptedCount = queueAcceptedCount;
+            this.queueFullCount = queueFullCount;
+            this.queueNotRunningCount = queueNotRunningCount;
+            this.queueCompletedCount = queueCompletedCount;
+            this.totalQueueWaitNanos = totalQueueWaitNanos;
+            this.maxQueueWaitNanos = maxQueueWaitNanos;
+            this.totalExecutionNanos = totalExecutionNanos;
+            this.maxExecutionNanos = maxExecutionNanos;
+            this.timingDataAppendAttempts = timingDataAppendAttempts;
+            this.timingDataAppendFailures = timingDataAppendFailures;
+            this.timingDataCommitCount = timingDataCommitCount;
+            this.totalTimingDataAppendNanos = totalTimingDataAppendNanos;
+            this.maxTimingDataAppendNanos = maxTimingDataAppendNanos;
+            this.timingDataEventDeliveries = timingDataEventDeliveries;
+            this.timingDataEventListenerFailures = timingDataEventListenerFailures;
+            this.totalTimingDataEventNanos = totalTimingDataEventNanos;
+            this.maxTimingDataEventNanos = maxTimingDataEventNanos;
+            this.workerThreadCpuTimeNanos = workerThreadCpuTimeNanos;
+        }
+
+        public int queueDepth() {
+            return queueDepth;
+        }
+
+        public int queueHighWaterMark() {
+            return queueHighWaterMark;
+        }
+
+        public long queueAcceptedCount() {
+            return queueAcceptedCount;
+        }
+
+        public long queueFullCount() {
+            return queueFullCount;
+        }
+
+        public long queueNotRunningCount() {
+            return queueNotRunningCount;
+        }
+
+        public long queueCompletedCount() {
+            return queueCompletedCount;
+        }
+
+        public long totalQueueWaitNanos() {
+            return totalQueueWaitNanos;
+        }
+
+        public long maxQueueWaitNanos() {
+            return maxQueueWaitNanos;
+        }
+
+        public long totalExecutionNanos() {
+            return totalExecutionNanos;
+        }
+
+        public long maxExecutionNanos() {
+            return maxExecutionNanos;
+        }
+
+        public long timingDataAppendAttempts() {
+            return timingDataAppendAttempts;
+        }
+
+        public long timingDataAppendFailures() {
+            return timingDataAppendFailures;
+        }
+
+        public long timingDataCommitCount() {
+            return timingDataCommitCount;
+        }
+
+        public long totalTimingDataAppendNanos() {
+            return totalTimingDataAppendNanos;
+        }
+
+        public long maxTimingDataAppendNanos() {
+            return maxTimingDataAppendNanos;
+        }
+
+        public long timingDataEventDeliveries() {
+            return timingDataEventDeliveries;
+        }
+
+        public long timingDataEventListenerFailures() {
+            return timingDataEventListenerFailures;
+        }
+
+        public long totalTimingDataEventNanos() {
+            return totalTimingDataEventNanos;
+        }
+
+        public long maxTimingDataEventNanos() {
+            return maxTimingDataEventNanos;
+        }
+
+        public long workerThreadCpuTimeNanos() {
+            return workerThreadCpuTimeNanos;
+        }
+    }
+
     public static final class StartupException extends RuntimeException {
         StartupException(String message, Throwable cause) {
             super(message, cause);
