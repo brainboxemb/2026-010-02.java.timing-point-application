@@ -93,9 +93,15 @@ public final class TestClientFxApplication extends Application {
 
         Tab apiTab = tab("API", apiPane);
         Tab eventsTab = tab("Events", eventsPane());
-        Tab logsTab = tab("Logs", logsPane());
+        Tab deviceLogTab = tab("Device Log", deviceLogPane());
         Tab terminalTab = tab("Terminal", terminalPane());
-        TabPane tabs = new TabPane(apiTab, eventsTab, logsTab, terminalTab);
+        Tab clientLogTab = tab("Client Log", clientLogPane());
+        TabPane tabs = new TabPane(
+                apiTab,
+                eventsTab,
+                deviceLogTab,
+                terminalTab,
+                clientLogTab);
 
         MenuItem about = new MenuItem("About");
         about.setOnAction(event -> showAbout(stage));
@@ -217,7 +223,7 @@ public final class TestClientFxApplication extends Application {
         return pane;
     }
 
-    private VBox logsPane() {
+    private VBox deviceLogPane() {
         deviceLogLevel.setDisable(true);
         applyDeviceLogLevel.setDisable(true);
         deviceLogLevel.getItems().setAll("TRACE", "DEBUG", "INFO", "WARN", "ERROR");
@@ -231,9 +237,27 @@ public final class TestClientFxApplication extends Application {
                 deviceLogLevel,
                 applyDeviceLogLevel);
 
+        liveLogs.setEditable(false);
+        liveLogs.setWrapText(false);
+        liveLogs.setStyle(
+                "-fx-control-inner-background: black;"
+                        + "-fx-text-fill: #e8e8e8;"
+                        + "-fx-font-family: 'Consolas';"
+                        + "-fx-font-size: 12px;");
+
+        applyDeviceLogLevel.setOnAction(event -> applyDeviceLogLevel());
+
+        VBox pane = new VBox(8, deviceLevel, liveLogs);
+        pane.setPadding(new Insets(12));
+        VBox.setVgrow(liveLogs, Priority.ALWAYS);
+        return pane;
+    }
+
+    private VBox clientLogPane() {
         clientLogLevel.getItems().setAll("TRACE", "DEBUG", "INFO", "WARN", "ERROR");
         clientLogLevel.setValue(clientLog.level());
         currentClientLogLevel.setText(clientLog.level());
+
         HBox clientLevel = new HBox(
                 8,
                 new Label("Client current level"),
@@ -255,29 +279,11 @@ public final class TestClientFxApplication extends Application {
             clientLogs.positionCaret(clientLogs.getLength());
         }));
 
-        liveLogs.setEditable(false);
-        liveLogs.setWrapText(false);
-        liveLogs.setStyle(
-                "-fx-control-inner-background: black;"
-                        + "-fx-text-fill: #e8e8e8;"
-                        + "-fx-font-family: 'Consolas';"
-                        + "-fx-font-size: 12px;");
-
-        applyDeviceLogLevel.setOnAction(event -> applyDeviceLogLevel());
         applyClientLogLevel.setOnAction(event -> applyClientLogLevel());
 
-        VBox device = new VBox(8, deviceLevel, liveLogs);
-        VBox.setVgrow(liveLogs, Priority.ALWAYS);
-        VBox client = new VBox(8, clientLevel, clientLogs);
-        VBox.setVgrow(clientLogs, Priority.ALWAYS);
-
-        Tab deviceTab = tab("Device Log", device);
-        Tab clientTab = tab("Client Log", client);
-        TabPane sources = new TabPane(deviceTab, clientTab);
-
-        VBox pane = new VBox(sources);
+        VBox pane = new VBox(8, clientLevel, clientLogs);
         pane.setPadding(new Insets(12));
-        VBox.setVgrow(sources, Priority.ALWAYS);
+        VBox.setVgrow(clientLogs, Priority.ALWAYS);
         return pane;
     }
 

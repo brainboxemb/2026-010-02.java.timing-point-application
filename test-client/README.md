@@ -80,7 +80,7 @@ the client's own build identity and selected client-config path.
 The reviewed tab order is:
 
 ```text
-API | Events | Logs | Terminal
+API | Events | Device Log | Terminal | Client Log
 ```
 
 The top target bar is config-driven. It identifies the target host and shows separate
@@ -111,27 +111,27 @@ Its connection is controlled from the target bar. `STATUS_SNAPSHOT` /
 `STATUS_CHANGED` and `TIMING_DATA_COMMITTED` are parsed separately while unknown
 future event types remain visible as raw diagnostics.
 
-### Logs
+### Device Log
 
-The **Logs** tab has two explicit sources in this order:
-
-- **Device Log** — live records from the connected SI-01 `LoggingServer`, with its own
-  current-level display and temporary runtime level control;
-- **Client Log** — retained local Development Client startup/configuration/connection/request
-  diagnostics, with an independent current-level display and runtime threshold control.
-
-The sources and level states remain independent. **Client Log** remains available and its
-level remains controllable when SI-01 is offline. A client-level change is runtime-only;
-the configured startup level is restored on the next Development Client start.
-
-Both sources use the readable project log-line shape
-`HH:mm:ss.SSS - [LEVEL] - message - [sourceClass.sourceMethod]`; Development Client
-records use their actual caller source context rather than one generic client marker.
+**Device Log** is a top-level tab. It shows live records from the connected SI-01
+`LoggingServer` and has its own current-level display and temporary runtime level control.
 
 ### Terminal
 
 The **Terminal** tab remains the line-oriented Remote Shell client with its connection
 controlled from the target bar. It is raw UTF-8 TCP, not an SSH/Telnet emulator.
+
+### Client Log
+
+**Client Log** is the final top-level tab. It contains retained local Development Client
+startup/configuration/connection/request diagnostics and has an independent current-level
+display and runtime threshold control. It remains available and controllable when SI-01 is
+offline. A client-level change is runtime-only; the configured startup level is restored
+on the next Development Client start.
+
+Device Log and Client Log remain independent. Both use the readable project log-line shape
+`HH:mm:ss.SSS - [LEVEL] - message - [sourceClass.sourceMethod]`; Development Client
+records use their actual caller source context rather than one generic client marker.
 
 ## Step-4 behaviour retained inside the API workbench
 
