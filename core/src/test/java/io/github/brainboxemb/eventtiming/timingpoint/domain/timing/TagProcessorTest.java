@@ -100,7 +100,10 @@ public class TagProcessorTest {
         try {
             assertEquals(
                     TagProcessor.ObservationResult.ADMITTED,
-                    processor.process("TAG-001", OBSERVED_AT));
+                    processor.process(
+                            new io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Antenna.Observation(
+                                    "TAG-001",
+                                    OBSERVED_AT)));
 
             // The command was admitted while the node was CLOSED, so the later
             // domain operation rejects it without creating committed TimingData.
