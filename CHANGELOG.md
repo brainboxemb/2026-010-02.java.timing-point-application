@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Promote **Device Log** and **Client Log** to independent top-level Development Client tabs, removing the nested Logs/source-tab structure while preserving separate runtime log-level controls.
 - Correct the Development Client Logs tab: show Device Log first and Client Log last, and give both sources independent current/set-level controls while keeping the local client log usable when SI-01 is offline.
 - Rename the standalone JavaFX tool to **Development Client** and align the API-first workbench: remove the prominent Set Location button, split TimingData Type/Code columns, retain node-scoped IF-03 problems, and give client log lines real source context while keeping Client and SI-01/Device logs separate.
 - Contain TimingData startup-recovery failures to the affected TimingNode: keep SI-01 and diagnostic interfaces running, expose node state `ERROR` with `TIMING_DATA_RECOVERY_FAILED`, reject normal operations on the errored node, and add black-box `VC-ST1-004` for a persisted NodeId mismatch.
