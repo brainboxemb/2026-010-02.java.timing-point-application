@@ -3,7 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.ap
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
-import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -51,11 +51,11 @@ public final class WebSocketEndpoint implements AutoCloseable {
     private final TimingNodeProxy timingNode;
     private final Clock clock;
     private final TimingDataCodec timingDataCodec;
-    private final Consumer<ApplicationStatus> statusChangedListener =
+    private final Consumer<TimingNodeStatus> statusChangedListener =
             this::broadcastStatusChanged;
     private final Consumer<TimingData> timingDataListener =
             this::broadcastTimingDataCommitted;
-    private final EventSource<ApplicationStatus> statusChanged;
+    private final EventSource<TimingNodeStatus> statusChanged;
     private final EventSource<TimingData> timingDataCommitted;
 
     private Server server;
@@ -170,7 +170,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
         broadcastStatusChanged(timingNode.status());
     }
 
-    private void broadcastStatusChanged(ApplicationStatus status) {
+    private void broadcastStatusChanged(TimingNodeStatus status) {
         Server current = currentServer();
         if (current != null) {
             current.broadcast(
