@@ -19,6 +19,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTyp
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.ProblemSeverity;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Status;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 
 import java.util.Collections;
 import java.util.List;
@@ -37,6 +38,7 @@ final class TimingNodeLogic {
     private final TimingDataPersistence timingDataPersistence;
     private final TimingDataFactory timingDataFactory;
     private final TimeSource timeSource;
+    private final MonotonicClock monotonicClock;
 
     private Lifecycle lifecycle = Lifecycle.CLOSED;
     private LocationId locationId;
@@ -54,7 +56,8 @@ final class TimingNodeLogic {
             NodeId timingNodeId,
             TimingDataPersistence timingDataPersistence,
             TimingDataFactory timingDataFactory,
-            TimeSource timeSource) {
+            TimeSource timeSource,
+            MonotonicClock monotonicClock) {
         if (timingNodeId == null) {
             throw new IllegalArgumentException("timingNodeId must not be null");
         }
@@ -68,11 +71,15 @@ final class TimingNodeLogic {
         if (timeSource == null) {
             throw new IllegalArgumentException("timeSource must not be null");
         }
+        if (monotonicClock == null) {
+            throw new IllegalArgumentException("monotonicClock must not be null");
+        }
 
         this.timingNodeId = timingNodeId;
         this.timingDataPersistence = timingDataPersistence;
         this.timingDataFactory = timingDataFactory;
         this.timeSource = timeSource;
+        this.monotonicClock = monotonicClock;
         this.logBook = new LogBook(timingNodeId);
     }
 
@@ -257,16 +264,16 @@ final class TimingNodeLogic {
         }
 
         timingDataAppendAttempts++;
-        long appendStartedNanos = System.nanoTime();
+        long appendStartedNanos = monotonicClock.nowNanos();
         try {
             timingDataPersistence.append(data);
         } catch (TimingDataPersistence.PersistenceException ex) {
-            recordTimingDataAppend(System.nanoTime() - appendStartedNanos);
+            recordTimingDataAppend(monotonicClock.nowNanos() - appendStartedNanos);
             timingDataAppendFailures++;
             timingDataCommitFailure = ex;
             throw ex;
         }
-        recordTimingDataAppend(System.nanoTime() - appendStartedNanos);
+        recordTimingDataAppend(monotonicClock.nowNanos() - appendStartedNanos);
 
         try {
             logBook.add(data);
