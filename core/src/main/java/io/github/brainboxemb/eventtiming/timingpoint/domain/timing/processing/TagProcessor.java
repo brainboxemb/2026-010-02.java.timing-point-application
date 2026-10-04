@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 
@@ -105,19 +106,13 @@ public final class TagProcessor {
                 counters.recordDuplicate();
                 return;
             case ACCEPTED:
-                counters.recordAdmission(
-                        io.github.brainboxemb.eventtiming.timingpoint.domain.timing
-                                .TimingNodeTypes.CommandAdmission.ACCEPTED);
+                counters.recordAdmission(CommandAdmission.ACCEPTED);
                 return;
             case FULL:
-                counters.recordAdmission(
-                        io.github.brainboxemb.eventtiming.timingpoint.domain.timing
-                                .TimingNodeTypes.CommandAdmission.FULL);
+                counters.recordAdmission(CommandAdmission.FULL);
                 return;
             case NOT_RUNNING:
-                counters.recordAdmission(
-                        io.github.brainboxemb.eventtiming.timingpoint.domain.timing
-                                .TimingNodeTypes.CommandAdmission.NOT_RUNNING);
+                counters.recordAdmission(CommandAdmission.NOT_RUNNING);
                 return;
             default:
                 throw new IllegalStateException(
