@@ -114,9 +114,7 @@ public class ApiClientTest {
             String path = exchange.getRequestURI().getPath();
             String query = exchange.getRequestURI().getQuery();
 
-            if (path.endsWith("/location")) {
-                respond(exchange, 200, "{\"result\":\"UPDATED\"}");
-            } else if (path.endsWith("/open")) {
+            if (path.endsWith("/open")) {
                 respond(exchange, 200, "{\"result\":\"OPENED\"}");
             } else if (path.endsWith("/close")) {
                 respond(exchange, 200, "{\"result\":\"CLOSED\"}");
@@ -144,7 +142,6 @@ public class ApiClientTest {
         server.start();
 
         ApiClient client = client();
-        assertEquals("UPDATED", client.setLocation("TN-01", 23).result());
         assertEquals("OPENED", client.open("TN-01", 24).result());
         assertEquals(2L, client.autoReg(
                 "TN-01",
@@ -174,20 +171,16 @@ public class ApiClientTest {
 
         assertEquals("CLOSED", client.close("TN-01").result());
 
-        assertEquals("PUT", requests.get(0).method());
-        assertEquals("/api/v1/node/TN-01/location", requests.get(0).uri());
-        assertTrue(requests.get(0).body().contains("\"locationId\":23"));
+        assertEquals("POST", requests.get(0).method());
+        assertEquals("/api/v1/node/TN-01/open", requests.get(0).uri());
+        assertTrue(requests.get(0).body().contains("\"locationId\":24"));
 
         assertEquals("POST", requests.get(1).method());
-        assertEquals("/api/v1/node/TN-01/open", requests.get(1).uri());
-        assertTrue(requests.get(1).body().contains("\"locationId\":24"));
-
-        assertEquals("POST", requests.get(2).method());
         assertEquals(
                 "/api/v1/dev/node/TN-01/auto-reg",
-                requests.get(2).uri());
-        assertTrue(requests.get(2).body().contains("\"id\":\"N0002\""));
-        assertTrue(requests.get(2).body().contains(
+                requests.get(1).uri());
+        assertTrue(requests.get(1).body().contains("\"id\":\"N0002\""));
+        assertTrue(requests.get(1).body().contains(
                 "\"time\":\"2026-10-01T12:00:04.000000000Z\""));
     }
 
