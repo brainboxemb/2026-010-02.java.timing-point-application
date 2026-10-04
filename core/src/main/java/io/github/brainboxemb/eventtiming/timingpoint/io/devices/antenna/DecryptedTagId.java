@@ -1,16 +1,19 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
 
 /**
- * Opaque decoded RFID/tag identity.
+ * Provider-decoded/decrypted RFID tag identity.
  *
- * <p>Concrete event/provider configuration owns the actual encoding and meaning.</p>
+ * <p>Provider bytes, framing, encryption and decryption stay behind the
+ * antenna/provider boundary. This value is the identity exposed to generic tag
+ * processing.</p>
  */
-public final class TagId {
+public final class DecryptedTagId {
     private final String value;
 
-    public TagId(String value) {
+    public DecryptedTagId(String value) {
         if (value == null || value.trim().isEmpty()) {
-            throw new IllegalArgumentException("TagId must not be blank");
+            throw new IllegalArgumentException(
+                    "DecryptedTagId must not be blank");
         }
         this.value = value.trim();
     }
@@ -24,10 +27,10 @@ public final class TagId {
         if (this == other) {
             return true;
         }
-        if (!(other instanceof TagId)) {
+        if (!(other instanceof DecryptedTagId)) {
             return false;
         }
-        TagId that = (TagId) other;
+        DecryptedTagId that = (DecryptedTagId) other;
         return value.equals(that.value);
     }
 

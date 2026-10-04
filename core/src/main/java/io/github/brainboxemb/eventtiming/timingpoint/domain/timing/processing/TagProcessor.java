@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.CommandAdmission;
@@ -12,10 +13,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.Periodic
 /**
  * Coordinates decoded antenna observations on their way to TimingNode.
  *
- * <p>TagObservationFilter owns passage/RSSI selection,
- * RegistrationDuplicateFilter owns the accepted-registration window, and
- * TagProcessingCounters owns the low-allocation counters. This class only
- * defines the order in which those steps are applied.</p>
+ * <p>TagRegistrationMapper resolves provider-decoded tag identity before
+ * TagObservationFilter groups observations by RegistrationId.
+ * RegistrationDuplicateFilter owns the later accepted-registration window, and
+ * TagProcessingCounters owns the low-allocation counters.</p>
  */
 public final class TagProcessor {
     private final TimingNode timingNode;
@@ -106,13 +107,26 @@ public final class TagProcessor {
     }
 
     /**
-     * Event callback for decoded antenna observations.
+     * Event callback for provider-decoded/decrypted antenna observations.
      *
-     * <p>The EventSource-facing method stays here. The filter itself receives
-     * plain items through its collection-style add operation.</p>
+     * <p>Mapping happens before passage filtering so different physical tags
+     * that resolve to the same RegistrationId contribute to one burst.</p>
      */
     public void onObservation(TagObservation observation) {
-        observationFilter.add(observation);
+        if (observation == null) {
+            throw new IllegalArgumentException("observation must not be null");
+        }
+
+        counters.recordObservation();
+
+        RegistrationId registrationId = mapper.map(observation.tagId());
+        if (registrationId == null) {
+            counters.recordUnmapped();
+            return;
+        }
+
+        counters.recordMapped();
+        observationFilter.add(registrationId, observation);
     }
 
     /**
@@ -126,21 +140,16 @@ public final class TagProcessor {
         duplicateFilter.periodic();
     }
 
-    private void processValidObservation(TagObservation observation) {
-        RegistrationId registrationId = mapper.map(observation.tagId());
-        if (registrationId == null) {
-            counters.recordUnmapped();
-            return;
-        }
-        counters.recordMapped();
-
+    private void processValidObservation(
+            RegistrationId registrationId,
+            TimingTimestamp observedAt) {
         RegistrationDuplicateFilter.Result result =
                 duplicateFilter.submitIfNew(
                         registrationId,
                         () -> timingNode.submit(
                                 TimingNodeCommands.addAutomaticRegistration(
                                         registrationId,
-                                        observation.observedAt())));
+                                        observedAt)));
 
         switch (result) {
             case DUPLICATE:
