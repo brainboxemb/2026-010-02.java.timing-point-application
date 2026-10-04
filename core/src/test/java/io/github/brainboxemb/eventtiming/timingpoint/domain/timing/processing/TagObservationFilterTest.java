@@ -44,11 +44,11 @@ public class TagObservationFilterTest {
                 counters,
                 selected::add);
         try {
-            filter.onObservation(observation("TAG-001", -60, OBSERVED_1));
+            filter.add(observation("TAG-001", -60, OBSERVED_1));
             clock.advanceNanos(10L);
-            filter.onObservation(observation("TAG-001", -40, OBSERVED_2));
+            filter.add(observation("TAG-001", -40, OBSERVED_2));
             clock.advanceNanos(10L);
-            filter.onObservation(observation("TAG-001", -40, OBSERVED_3));
+            filter.add(observation("TAG-001", -40, OBSERVED_3));
 
             clock.advanceNanos(100L);
             filter.expireBursts();
@@ -83,9 +83,9 @@ public class TagObservationFilterTest {
                 new TagProcessingCounters(),
                 selected::add);
         try {
-            filter.onObservation(observation("TAG-001", -60, OBSERVED_1));
+            filter.add(observation("TAG-001", -60, OBSERVED_1));
             clock.advanceNanos(90L);
-            filter.onObservation(observation("TAG-001", -40, OBSERVED_2));
+            filter.add(observation("TAG-001", -40, OBSERVED_2));
             clock.advanceNanos(60L);
 
             filter.expireBursts();
@@ -116,12 +116,12 @@ public class TagObservationFilterTest {
         try {
             Future<?> first = emitters.submit(() -> {
                 await(start);
-                filter.onObservation(
+                filter.add(
                         observation("TAG-001", -60, OBSERVED_1));
             });
             Future<?> second = emitters.submit(() -> {
                 await(start);
-                filter.onObservation(
+                filter.add(
                         observation("TAG-001", -30, OBSERVED_2));
             });
 
@@ -158,7 +158,7 @@ public class TagObservationFilterTest {
                 new TagProcessingCounters(),
                 observation -> selected.countDown());
         try {
-            filter.onObservation(
+            filter.add(
                     observation("TAG-001", -50, OBSERVED_1));
 
             assertTrue(
