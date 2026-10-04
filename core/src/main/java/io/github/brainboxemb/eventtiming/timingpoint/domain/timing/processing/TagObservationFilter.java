@@ -10,73 +10,59 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Groups repeated reads for one TagId and emits one selected observation.
+ * Groups repeated reads for one TagId and returns one valid observation per passage.
  *
  * <p>This class owns only passage detection and strongest-RSSI selection. It
- * knows nothing about RegistrationId mapping or TimingNode admission.</p>
+ * knows nothing about RegistrationId mapping, TimingNode admission or runtime
+ * scheduling.</p>
  */
-final class TagObservationFilter implements AutoCloseable {
+final class TagObservationFilter {
     private static final Logger LOG =
             LoggerFactory.getLogger(TagObservationFilter.class);
 
     private final TagProcessingPolicy policy;
     private final MonotonicClock monotonicClock;
     private final TagProcessingCounters counters;
-    private final Consumer<TagObservation> selectedObservationConsumer;
+    private final Consumer<TagObservation> validObservationCallback;
     private final Object lock = new Object();
-    private final Map<TagId, BurstState> bursts = new HashMap<>();
-    private final ScheduledFuture<?> expiryTask;
 
-    private boolean closed;
+    /*
+     * Default HashMap sizing is intentional. We do not yet have an
+     * evidence-backed expected number of simultaneously active TagIds. An
+     * explicit capacity is useful only when a profile bound or Step-5
+     * measurement gives a defensible expected count.
+     */
+    private final Map<TagId, BurstState> bursts = new HashMap<>();
 
     TagObservationFilter(
             TagProcessingPolicy policy,
             MonotonicClock monotonicClock,
-            ScheduledExecutorService scheduler,
             TagProcessingCounters counters,
-            Consumer<TagObservation> selectedObservationConsumer) {
+            Consumer<TagObservation> validObservationCallback) {
         if (policy == null) {
             throw new IllegalArgumentException("policy must not be null");
         }
         if (monotonicClock == null) {
             throw new IllegalArgumentException("monotonicClock must not be null");
         }
-        if (scheduler == null) {
-            throw new IllegalArgumentException("scheduler must not be null");
-        }
         if (counters == null) {
             throw new IllegalArgumentException("counters must not be null");
         }
-        if (selectedObservationConsumer == null) {
+        if (validObservationCallback == null) {
             throw new IllegalArgumentException(
-                    "selectedObservationConsumer must not be null");
+                    "validObservationCallback must not be null");
         }
 
         this.policy = policy;
         this.monotonicClock = monotonicClock;
         this.counters = counters;
-        this.selectedObservationConsumer = selectedObservationConsumer;
-
-        /*
-         * One periodic sweep per filter keeps scheduling work bounded. Creating a
-         * ScheduledFuture for every RFID read would make scheduler state grow with
-         * the observation rate and is unnecessary: only the per-TagId deadlines in
-         * BurstState matter.
-         */
-        expiryTask = scheduler.scheduleWithFixedDelay(
-                this::runExpirySweep,
-                policy.sweepCadenceNanos(),
-                policy.sweepCadenceNanos(),
-                TimeUnit.NANOSECONDS);
+        this.validObservationCallback = validObservationCallback;
     }
 
     /**
@@ -90,23 +76,22 @@ final class TagObservationFilter implements AutoCloseable {
             throw new IllegalArgumentException("observation must not be null");
         }
 
-        TagObservation selected = null;
+        TagObservation validObservation = null;
         long now = monotonicClock.nowNanos();
 
         synchronized (lock) {
-            requireOpen();
             counters.recordObservation();
 
             BurstState state = bursts.get(observation.tagId());
 
             /*
-             * The periodic sweep normally closes expired passages. This check also
-             * handles a delayed scheduler: a new read must never be merged into a
-             * passage whose quiet/max deadline already passed.
+             * A periodic expiry call normally closes old passages. This check
+             * also handles delayed scheduling: a new read must never be merged
+             * into a passage whose quiet/max deadline already passed.
              */
             if (state != null && state.expired(now, policy)) {
                 bursts.remove(observation.tagId());
-                selected = state.selectedObservation();
+                validObservation = state.validObservation();
                 counters.recordClosedBurst();
                 state = null;
             }
@@ -120,83 +105,52 @@ final class TagObservationFilter implements AutoCloseable {
             }
         }
 
-        publishSelected(selected);
+        sendValidObservation(validObservation);
     }
 
     /**
      * Closes every passage whose quiet or maximum duration has expired.
      *
-     * <p>Package-private for deterministic filter tests. Runtime execution is
-     * driven by the one periodic scheduler task created in the constructor.</p>
+     * <p>The caller decides when this method runs. Runtime code uses
+     * TagProcessingExpiryScheduler; deterministic tests may call it directly.</p>
      */
-    void expireBursts() {
-        List<TagObservation> selected = new ArrayList<>();
+    void expire() {
+        List<TagObservation> validObservations = new ArrayList<>();
         long now = monotonicClock.nowNanos();
 
         synchronized (lock) {
-            if (closed) {
-                return;
-            }
-
             Iterator<Map.Entry<TagId, BurstState>> iterator =
                     bursts.entrySet().iterator();
             while (iterator.hasNext()) {
                 BurstState state = iterator.next().getValue();
                 if (state.expired(now, policy)) {
                     iterator.remove();
-                    selected.add(state.selectedObservation());
+                    validObservations.add(state.validObservation());
                     counters.recordClosedBurst();
                 }
             }
         }
 
-        for (TagObservation observation : selected) {
-            publishSelected(observation);
+        for (TagObservation observation : validObservations) {
+            sendValidObservation(observation);
         }
     }
 
-    private void runExpirySweep() {
-        try {
-            expireBursts();
-        } catch (RuntimeException ex) {
-            // A scheduler task that escapes with an exception stops future sweeps.
-            LOG.warn("Tag observation expiry sweep failed", ex);
-        }
-    }
-
-    private void publishSelected(TagObservation observation) {
+    private void sendValidObservation(TagObservation observation) {
         if (observation == null) {
             return;
         }
         try {
-            selectedObservationConsumer.accept(observation);
+            validObservationCallback.accept(observation);
         } catch (RuntimeException ex) {
             /*
-             * Filtering must keep accepting later RFID reads even when mapping or
-             * admission of one selected passage fails unexpectedly.
+             * One failed mapping/admission attempt must not corrupt filter state
+             * or prevent later RFID passages from being processed.
              */
             LOG.warn(
-                    "Could not process selected observation for {}",
+                    "Could not process valid observation for {}",
                     observation.tagId().value(),
                     ex);
-        }
-    }
-
-    @Override
-    public void close() {
-        synchronized (lock) {
-            if (closed) {
-                return;
-            }
-            closed = true;
-            bursts.clear();
-        }
-        expiryTask.cancel(false);
-    }
-
-    private void requireOpen() {
-        if (closed) {
-            throw new IllegalStateException("TagObservationFilter is closed");
         }
     }
 
@@ -239,7 +193,7 @@ final class TagObservationFilter implements AutoCloseable {
                     || now - firstSeenNanos >= policy.maxBurstDurationNanos();
         }
 
-        private TagObservation selectedObservation() {
+        private TagObservation validObservation() {
             return new TagObservation(
                     tagId,
                     maxRssi,
