@@ -1,8 +1,14 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.timing;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing;
 
 import java.time.Duration;
 
-/** Timing values used by TagProcessor passage grouping and duplicate suppression. */
+/**
+ * Timing policy used while converting repeated antenna reads into registrations.
+ *
+ * <p>Observation timestamps are deliberately not used for these deadlines. The
+ * timeouts describe elapsed process time, so callers provide a monotonic clock
+ * separately.</p>
+ */
 public final class TagProcessingPolicy {
     private final long quietTimeoutNanos;
     private final long maxBurstDurationNanos;
