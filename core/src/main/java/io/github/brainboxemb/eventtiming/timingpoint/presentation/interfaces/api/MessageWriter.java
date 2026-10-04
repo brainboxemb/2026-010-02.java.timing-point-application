@@ -2,7 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.ap
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
-import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Problem;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
@@ -26,7 +26,7 @@ public final class MessageWriter {
                 + "}";
     }
 
-    public static String status(ApplicationStatus status) {
+    public static String status(TimingNodeStatus status) {
         String location = status.hasLocation()
                 ? Integer.toString(status.locationId().value())
                 : "null";
@@ -34,13 +34,13 @@ public final class MessageWriter {
                 + "\"nodes\":[{"
                 + "\"id\":" + quote(status.timingNodeId().value()) + ","
                 + "\"locationId\":" + location + ","
-                + "\"state\":" + quote(status.timingNodeLifecycle().name())
+                + "\"state\":" + quote(status.lifecycle().name())
                 + "}],"
                 + "\"problems\":" + problems(status)
                 + "}";
     }
 
-    private static String problems(ApplicationStatus status) {
+    private static String problems(TimingNodeStatus status) {
         StringBuilder json = new StringBuilder();
         json.append('[');
         for (Problem problem : status.problems()) {
@@ -127,7 +127,7 @@ public final class MessageWriter {
     public static String statusEvent(
             String eventType,
             java.time.Instant occurredAt,
-            ApplicationStatus status) {
+            TimingNodeStatus status) {
         if (eventType == null || eventType.trim().isEmpty()) {
             throw new IllegalArgumentException("eventType must not be blank");
         }

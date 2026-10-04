@@ -10,43 +10,43 @@ import java.util.Collections;
 import java.util.List;
 
 /** Transport-independent current TimingNode status used by presentation adapters. */
-public final class ApplicationStatus {
+public final class TimingNodeStatus {
     private final NodeId timingNodeId;
-    private final Lifecycle timingNodeLifecycle;
+    private final Lifecycle lifecycle;
     private final LocationId locationId;
     private final List<Problem> problems;
 
-    public ApplicationStatus(
+    public TimingNodeStatus(
             NodeId timingNodeId,
-            Lifecycle timingNodeLifecycle) {
+            Lifecycle lifecycle) {
         this(
                 timingNodeId,
-                timingNodeLifecycle,
+                lifecycle,
                 null,
                 Collections.<Problem>emptyList());
     }
 
-    public ApplicationStatus(
+    public TimingNodeStatus(
             NodeId timingNodeId,
-            Lifecycle timingNodeLifecycle,
+            Lifecycle lifecycle,
             LocationId locationId) {
         this(
                 timingNodeId,
-                timingNodeLifecycle,
+                lifecycle,
                 locationId,
                 Collections.<Problem>emptyList());
     }
 
-    public ApplicationStatus(
+    public TimingNodeStatus(
             NodeId timingNodeId,
-            Lifecycle timingNodeLifecycle,
+            Lifecycle lifecycle,
             LocationId locationId,
             List<Problem> problems) {
         if (timingNodeId == null) {
             throw new IllegalArgumentException("timingNodeId must not be null");
         }
-        if (timingNodeLifecycle == null) {
-            throw new IllegalArgumentException("timingNodeLifecycle must not be null");
+        if (lifecycle == null) {
+            throw new IllegalArgumentException("lifecycle must not be null");
         }
         if (problems == null) {
             throw new IllegalArgumentException("problems must not be null");
@@ -57,7 +57,7 @@ public final class ApplicationStatus {
             }
         }
         this.timingNodeId = timingNodeId;
-        this.timingNodeLifecycle = timingNodeLifecycle;
+        this.lifecycle = lifecycle;
         this.locationId = locationId;
         this.problems = Collections.unmodifiableList(
                 new ArrayList<Problem>(problems));
@@ -67,8 +67,8 @@ public final class ApplicationStatus {
         return timingNodeId;
     }
 
-    public Lifecycle timingNodeLifecycle() {
-        return timingNodeLifecycle;
+    public Lifecycle lifecycle() {
+        return lifecycle;
     }
 
     public boolean hasLocation() {

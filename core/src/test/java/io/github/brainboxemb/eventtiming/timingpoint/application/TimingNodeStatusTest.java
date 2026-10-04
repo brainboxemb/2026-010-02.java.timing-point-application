@@ -7,19 +7,19 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-public class ApplicationStatusTest {
+public class TimingNodeStatusTest {
     @Test
     public void exposesCurrentTimingNodeStatus() {
-        ApplicationStatus status = new ApplicationStatus(
+        TimingNodeStatus status = new TimingNodeStatus(
                 new NodeId("TN-01"),
                 TimingNodeTypes.Lifecycle.CLOSED);
 
         assertEquals("TN-01", status.timingNodeId().value());
-        assertEquals(TimingNodeTypes.Lifecycle.CLOSED, status.timingNodeLifecycle());
+        assertEquals(TimingNodeTypes.Lifecycle.CLOSED, status.lifecycle());
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsMissingNodeId() {
-        new ApplicationStatus(null, TimingNodeTypes.Lifecycle.CLOSED);
+        new TimingNodeStatus(null, TimingNodeTypes.Lifecycle.CLOSED);
     }
 }

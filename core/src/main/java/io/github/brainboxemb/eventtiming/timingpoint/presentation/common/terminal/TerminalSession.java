@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.common.terminal;
 
-import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Problem;
@@ -106,10 +106,10 @@ public final class TerminalSession {
     }
 
     private void showStatus(PrintWriter output) {
-        ApplicationStatus status = presentationGateway.timingNode().status();
+        TimingNodeStatus status = presentationGateway.timingNode().status();
         output.println("Timing node");
         output.println("  Id        : " + status.timingNodeId().value());
-        output.println("  Lifecycle : " + status.timingNodeLifecycle().name());
+        output.println("  Lifecycle : " + status.lifecycle().name());
         for (Problem problem : status.problems()) {
             output.println(
                     "  Problem   : "
