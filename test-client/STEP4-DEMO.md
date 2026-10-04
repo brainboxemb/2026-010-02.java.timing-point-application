@@ -102,8 +102,9 @@ the Events connection is what starts the history/status resynchronisation flow.
    - LocationId becomes `24`;
    - no preceding location-setting request is required.
 7. Enter registration prefix `N` and number `0001`.
-8. Use the explicit time below for deterministic evidence:
-   `2026-10-01T12:00:00Z`.
+8. Enter UTC date `2026-10-01` and **Time (UTC)** `12:00:00`.
+   Verify the client treats that explicit value as `2026-10-01T12:00:00Z`; it must not
+   shift it using the development host time zone.
 9. Choose **Send auto-reg**.
    - Last operation shows `seq 1`;
    - LogBook count becomes `1`;
@@ -171,6 +172,7 @@ Device/Client Log independence PASS / FAIL
 Initial CLOSED/no-location     PASS / FAIL
 OPEN with LocationId 24        PASS / FAIL
 Auto-reg N0001 -> seq 1        PASS / FAIL
+Explicit 12:00 UTC remains 12:00Z PASS / FAIL
 Type / Code separate columns   PASS / FAIL
 Raw selected record visible    PASS / FAIL
 Live committed event           PASS / FAIL
