@@ -44,7 +44,7 @@ public class TagObservationFilterTest {
         filter.add(observation("TAG-001", -40, OBSERVED_3));
 
         clock.advanceNanos(100L);
-        filter.expire();
+        filter.periodic();
 
         assertEquals(1, valid.size());
         assertEquals(-40, valid.get(0).rssi());
@@ -74,7 +74,7 @@ public class TagObservationFilterTest {
         filter.add(observation("TAG-001", -40, OBSERVED_2));
         clock.advanceNanos(60L);
 
-        filter.expire();
+        filter.periodic();
 
         assertEquals(1, valid.size());
         assertEquals(OBSERVED_2, valid.get(0).observedAt());
@@ -107,7 +107,7 @@ public class TagObservationFilterTest {
             second.get();
 
             clock.advanceNanos(100L);
-            filter.expire();
+            filter.periodic();
 
             assertEquals(1, valid.size());
             assertEquals(-30, valid.get(0).rssi());
@@ -130,7 +130,7 @@ public class TagObservationFilterTest {
         filter.add(observation("TAG-001", -50, OBSERVED_1));
         clock.advanceNanos(100L);
 
-        filter.expire();
+        filter.periodic();
 
         assertEquals(1, valid.size());
         assertEquals(OBSERVED_1, valid.get(0).observedAt());
