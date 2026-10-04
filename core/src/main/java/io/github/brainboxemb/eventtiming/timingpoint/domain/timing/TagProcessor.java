@@ -52,16 +52,9 @@ public final class TagProcessor {
         if (observation == null) {
             throw new IllegalArgumentException("observation must not be null");
         }
-        return process(observation.tagId(), observation.time());
-    }
 
-    /** Convenience form used by deterministic simulation/tests. */
-    public ObservationResult process(String tagId, TimingTimestamp time) {
-        TagId source = new TagId(tagId);
-        if (time == null) {
-            throw new IllegalArgumentException("time must not be null");
-        }
-
+        TagId source = new TagId(observation.tagId());
+        TimingTimestamp time = observation.time();
         RegistrationId registrationId = resolver.resolve(source);
         if (registrationId == null) {
             return ObservationResult.UNKNOWN_TAG;
