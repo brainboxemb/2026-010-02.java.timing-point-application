@@ -114,7 +114,7 @@ authoritative.
 The Timing workbench uses two complementary views of committed data:
 
 - **Registrations** is the interpreted operator-oriented projection. It shows normal local
-  clock time, RegistrationId, a compact **A/M** indicator and deletion state;
+  clock time, RegistrationId, a **Code** value such as `AUTO` or `MAN` and deletion state;
 - **LogBook / committed TimingData** is the technical/audit view and continues to show
   every committed source record, sequence, Type, Code, UTC-effective time and recorded
   time.
