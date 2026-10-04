@@ -1,0 +1,30 @@
+# VC-ST1-003 manual Development Client verification configuration.
+# Uses dedicated TimingData storage so normal development history is untouched.
+timingNodeId: TN-01
+
+io:
+  storage:
+    timingData:
+      path: data/vc-st1-003-timing-data.jsonl
+
+presentation:
+  remoteShell:
+    bindAddress: 127.0.0.1
+    port: 8023
+  api:
+    http:
+      bindAddress: 127.0.0.1
+      port: 8081
+    webSocket:
+      bindAddress: 127.0.0.1
+      port: 8082
+
+logging:
+  level: INFO
+  file:
+    path: logs
+    rotateBytes: 1048576
+    retainedFiles: 5
+  live:
+    bindAddress: 127.0.0.1
+    port: 8030
