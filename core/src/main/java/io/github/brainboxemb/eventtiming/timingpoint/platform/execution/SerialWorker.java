@@ -1,5 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
@@ -126,6 +128,14 @@ public final class SerialWorker implements AutoCloseable {
     private Thread thread;
     private Throwable failure;
     private int highWaterMark;
+    private long acceptedCount;
+    private long fullCount;
+    private long notRunningCount;
+    private volatile long completedCount;
+    private volatile long totalQueueWaitNanos;
+    private volatile long maxQueueWaitNanos;
+    private volatile long totalExecutionNanos;
+    private volatile long maxExecutionNanos;
 
     /**
      * Creates one stopped serial worker.
@@ -199,11 +209,17 @@ public final class SerialWorker implements AutoCloseable {
 
     private synchronized AdmissionResult offerTask(ResultTask<?> task) {
         if (state != State.RUNNING) {
+            notRunningCount++;
             return AdmissionResult.NOT_RUNNING;
         }
+
+        task.markAccepted(System.nanoTime());
         if (!queue.offer(task)) {
+            fullCount++;
             return AdmissionResult.FULL;
         }
+
+        acceptedCount++;
         int depth = queue.size();
         if (depth > highWaterMark) {
             highWaterMark = depth;
@@ -218,7 +234,19 @@ public final class SerialWorker implements AutoCloseable {
                 if (task == null) {
                     continue;
                 }
-                task.run();
+
+                long startedNanos = System.nanoTime();
+                long queueWaitNanos =
+                        elapsedNanos(task.acceptedAtNanos(), startedNanos);
+                try {
+                    task.run();
+                } finally {
+                    long finishedNanos = System.nanoTime();
+                    recordCompleted(
+                            queueWaitNanos,
+                            elapsedNanos(startedNanos, finishedNanos));
+                }
+
                 Error fatal = task.fatalError();
                 if (fatal != null) {
                     throw fatal;
@@ -266,6 +294,67 @@ public final class SerialWorker implements AutoCloseable {
         return queue.size();
     }
 
+    /** Returns accepted queue-admission attempts since construction. */
+    public synchronized long acceptedCount() {
+        return acceptedCount;
+    }
+
+    /** Returns queue-full admission rejections since construction. */
+    public synchronized long fullCount() {
+        return fullCount;
+    }
+
+    /** Returns admission attempts rejected because the worker was not running. */
+    public synchronized long notRunningCount() {
+        return notRunningCount;
+    }
+
+    /** Returns work items that reached execution completion. */
+    public long completedCount() {
+        return completedCount;
+    }
+
+    /** Returns cumulative queue-wait time for completed work. */
+    public long totalQueueWaitNanos() {
+        return totalQueueWaitNanos;
+    }
+
+    /** Returns the longest queue-wait time observed for completed work. */
+    public long maxQueueWaitNanos() {
+        return maxQueueWaitNanos;
+    }
+
+    /** Returns cumulative execution time for completed work. */
+    public long totalExecutionNanos() {
+        return totalExecutionNanos;
+    }
+
+    /** Returns the longest execution time observed for completed work. */
+    public long maxExecutionNanos() {
+        return maxExecutionNanos;
+    }
+
+    /**
+     * Returns CPU time for the dedicated worker thread, or {@code -1} when the
+     * JVM does not expose enabled per-thread CPU timing or the thread is gone.
+     */
+    public long threadCpuTimeNanos() {
+        Thread worker;
+        synchronized (this) {
+            worker = thread;
+        }
+        if (worker == null) {
+            return -1L;
+        }
+
+        ThreadMXBean bean = ManagementFactory.getThreadMXBean();
+        if (!bean.isThreadCpuTimeSupported() || !bean.isThreadCpuTimeEnabled()) {
+            return -1L;
+        }
+        long cpuTime = bean.getThreadCpuTime(worker.getId());
+        return cpuTime < 0L ? -1L : cpuTime;
+    }
+
     /**
      * Returns the highest queued depth observed since construction.
      *
@@ -281,6 +370,23 @@ public final class SerialWorker implements AutoCloseable {
      */
     public synchronized Throwable failure() {
         return failure;
+    }
+
+    private void recordCompleted(long queueWaitNanos, long executionNanos) {
+        completedCount++;
+        totalQueueWaitNanos += queueWaitNanos;
+        if (queueWaitNanos > maxQueueWaitNanos) {
+            maxQueueWaitNanos = queueWaitNanos;
+        }
+        totalExecutionNanos += executionNanos;
+        if (executionNanos > maxExecutionNanos) {
+            maxExecutionNanos = executionNanos;
+        }
+    }
+
+    private static long elapsedNanos(long startedNanos, long finishedNanos) {
+        long elapsed = finishedNanos - startedNanos;
+        return elapsed < 0L ? 0L : elapsed;
     }
 
     /**
@@ -331,6 +437,7 @@ public final class SerialWorker implements AutoCloseable {
     private static final class ResultTask<R> implements Runnable, Future<R> {
         private final FutureTask<R> delegate;
         private volatile Error fatalError;
+        private long acceptedAtNanos;
 
         private ResultTask(Callable<R> work) {
             this.delegate = new FutureTask<>(() -> {
@@ -341,6 +448,14 @@ public final class SerialWorker implements AutoCloseable {
                     throw ex;
                 }
             });
+        }
+
+        private void markAccepted(long acceptedAtNanos) {
+            this.acceptedAtNanos = acceptedAtNanos;
+        }
+
+        private long acceptedAtNanos() {
+            return acceptedAtNanos;
         }
 
         private Error fatalError() {
