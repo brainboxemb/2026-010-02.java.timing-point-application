@@ -43,8 +43,10 @@ final class TimingPane extends VBox {
     private final ClientLog clientLog;
     private final TimingViewModel model = new TimingViewModel();
 
-    private final Label historyState = new Label("NOT SYNCED");
-    private final Button syncViewButton = new Button("Sync history");
+    private final Label historyState = new Label("NOT SYNCED — connect Events");
+    private final Button syncViewButton = new Button("Sync view");
+    private final HBox syncStateBar = new HBox();
+    private boolean eventsConnected;
 
     private final ComboBox<String> node = new ComboBox<>();
     private final Label state = new Label("-");
@@ -90,9 +92,9 @@ final class TimingPane extends VBox {
 
         setSpacing(10);
 
-        HBox historyRow = new HBox(
-                8,
-                new Label("History"),
+        syncStateBar.setSpacing(8);
+        syncStateBar.getChildren().setAll(
+                new Label("Timing view"),
                 historyState,
                 syncViewButton);
 
@@ -161,7 +163,7 @@ final class TimingPane extends VBox {
         historyPane.setCollapsible(false);
         VBox.setVgrow(historyPane, Priority.ALWAYS);
 
-        getChildren().addAll(historyRow, nodePane, registrationPane, historyPane);
+        getChildren().addAll(nodePane, registrationPane, historyPane);
         VBox.setVgrow(historyPane, Priority.ALWAYS);
 
         syncViewButton.setTooltip(new Tooltip(
@@ -189,19 +191,25 @@ final class TimingPane extends VBox {
         refresh();
     }
 
+    HBox syncStateBar() {
+        return syncStateBar;
+    }
+
     void connected() {
-        bufferedEvents.clear();
-        model.viewState(TimingViewModel.ViewState.SYNCING);
-        historyState.setText("CONNECTED / syncing");
-        refresh();
+        eventsConnected = true;
+        syncView();
     }
 
     void disconnected(boolean stale) {
+        eventsConnected = false;
         bufferedEvents.clear();
         model.viewState(stale
                 ? TimingViewModel.ViewState.STALE
                 : TimingViewModel.ViewState.DISCONNECTED);
-        historyState.setText(stale ? "STALE" : "NOT SYNCED");
+        historyState.setText(
+                stale
+                        ? "STALE — reconnect Events"
+                        : "NOT SYNCED — connect Events");
         refresh();
     }
 
@@ -212,16 +220,17 @@ final class TimingPane extends VBox {
     }
 
     void applyStatusEvent(ApiEventClient.StatusEvent event) {
-        if ("STATUS_SNAPSHOT".equals(event.eventType())) {
-            applyStatus(event.status());
-            syncView();
-            return;
-        }
-
         if (model.viewState() == TimingViewModel.ViewState.SYNCING) {
             bufferedEvents.add(event);
             return;
         }
+
+        if ("STATUS_SNAPSHOT".equals(event.eventType())
+                && model.viewState() != TimingViewModel.ViewState.LIVE) {
+            connected();
+            return;
+        }
+
         if (model.viewState() != TimingViewModel.ViewState.LIVE) {
             return;
         }
@@ -243,6 +252,14 @@ final class TimingPane extends VBox {
     }
 
     void syncView() {
+        if (!eventsConnected) {
+            model.viewState(TimingViewModel.ViewState.DISCONNECTED);
+            historyState.setText("NOT SYNCED — connect Events");
+            feedback.accept("Connect Events before synchronising the Timing view");
+            refresh();
+            return;
+        }
+
         bufferedEvents.clear();
         model.viewState(TimingViewModel.ViewState.SYNCING);
         historyState.setText("SYNCING");
@@ -315,7 +332,7 @@ final class TimingPane extends VBox {
                 .whenComplete((result, error) -> Platform.runLater(() -> {
                     if (error != null) {
                         model.viewState(TimingViewModel.ViewState.STALE);
-                        historyState.setText("STALE");
+                        historyState.setText("STALE — sync failed");
                         handleApiFailure("History sync", error);
                         refresh();
                         return;
@@ -583,24 +600,26 @@ final class TimingPane extends VBox {
 
     private void refreshControls() {
         TimingViewModel.Controls controls = model.controls();
-        if (model.viewState() != TimingViewModel.ViewState.LIVE) {
+        boolean live = model.viewState() == TimingViewModel.ViewState.LIVE;
+        if (!live) {
             autoRegCapability.setText("Capability state cached/not synchronised");
         } else if (model.autoRegEnabled()) {
             autoRegCapability.setText("DIRECT_REGISTRATION_SIMULATION enabled");
         } else {
             autoRegCapability.setText("DIRECT_REGISTRATION_SIMULATION unavailable");
         }
-        node.setDisable(model.nodes().size() <= 1);
-        locationInput.setDisable(!controls.open());
-        open.setDisable(!controls.open());
-        close.setDisable(!controls.close());
-        registrationPrefix.setDisable(!controls.autoReg());
-        registrationNumber.setDisable(!controls.autoReg());
-        registrationDate.setDisable(!controls.autoReg());
-        registrationTime.setDisable(!controls.autoReg());
-        now.setDisable(!controls.autoReg());
-        autoReg.setDisable(!controls.autoReg());
-        syncViewButton.setDisable(model.viewState() == TimingViewModel.ViewState.SYNCING);
+        node.setDisable(!live || model.nodes().size() <= 1);
+        locationInput.setDisable(!live || !controls.open());
+        open.setDisable(!live || !controls.open());
+        close.setDisable(!live || !controls.close());
+        registrationPrefix.setDisable(!live || !controls.autoReg());
+        registrationNumber.setDisable(!live || !controls.autoReg());
+        registrationDate.setDisable(!live || !controls.autoReg());
+        registrationTime.setDisable(!live || !controls.autoReg());
+        now.setDisable(!live || !controls.autoReg());
+        autoReg.setDisable(!live || !controls.autoReg());
+        syncViewButton.setDisable(
+                !eventsConnected || model.viewState() == TimingViewModel.ViewState.SYNCING);
     }
 
     private void refreshLogBook() {
