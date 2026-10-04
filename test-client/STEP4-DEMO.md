@@ -109,7 +109,7 @@ the Events connection is what starts the history/status resynchronisation flow.
 9. Choose **Send auto-reg**.
    - Last operation shows `seq 1`;
    - the interpreted **Registrations** view contains one row with local clock time,
-     RegistrationId `N0001`, **A** and no deleted state;
+     RegistrationId `N0001`, Code **AUTO** and no deleted state;
    - LogBook count becomes `1`;
    - the technical LogBook contains sequence 1 / Type `AUTO_REG` / Code `ADD` /
      LocationId 24 / RegistrationId `N0001`;
@@ -176,7 +176,7 @@ Initial CLOSED/no-location     PASS / FAIL
 OPEN with LocationId 24        PASS / FAIL
 Auto-reg N0001 -> seq 1        PASS / FAIL
 Displayed time zone + UTC conversion PASS / FAIL
-Interpreted local-time A/M row PASS / FAIL
+Interpreted local-time Code row PASS / FAIL
 Type / Code separate LogBook columns PASS / FAIL
 Raw selected record visible    PASS / FAIL
 Live committed event           PASS / FAIL
