@@ -25,6 +25,12 @@ final class RegistrationDuplicateFilter {
 
     private final long duplicateWindowNanos;
     private final MonotonicClock monotonicClock;
+    /*
+     * Default HashMap sizing is intentional. The useful initial capacity depends
+     * on the number of distinct accepted RegistrationIds that can still be inside
+     * the duplicate window. Use an explicit capacity only when a deployment bound
+     * or Step-5 measurement gives a defensible expected count.
+     */
     private final Map<RegistrationId, Long> acceptedRegistrations =
             new HashMap<>();
 
@@ -90,11 +96,6 @@ final class RegistrationDuplicateFilter {
         }
 
         return resultFor(admission);
-    }
-
-    synchronized void clear() {
-        acceptedRegistrations.clear();
-        cleanupStarted = false;
     }
 
     private void removeOldEntriesWhenDue(long now) {
