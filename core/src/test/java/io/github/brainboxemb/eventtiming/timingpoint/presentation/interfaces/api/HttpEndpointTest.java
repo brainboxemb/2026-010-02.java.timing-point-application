@@ -80,18 +80,13 @@ public class HttpEndpointTest {
             assertEquals(400, openWithoutLocation.status);
             assertTrue(openWithoutLocation.body.contains("\"code\":\"MALFORMED_REQUEST\""));
 
-            Response setLocation = request(
+            Response obsoleteLocationResource = request(
                     server.boundPort(),
                     "PUT",
                     "/api/v1/node/TN-01/location",
                     "{\"locationId\":23}");
-            assertEquals(200, setLocation.status);
-            assertTrue(setLocation.body.contains("\"result\":\"UPDATED\""));
-
-            Response locatedStatus =
-                    request(server.boundPort(), "GET", "/api/v1/status", null);
-            assertTrue(locatedStatus.body.contains("\"locationId\":23"));
-            assertTrue(locatedStatus.body.contains("\"state\":\"CLOSED\""));
+            assertEquals(404, obsoleteLocationResource.status);
+            assertTrue(obsoleteLocationResource.body.contains("\"code\":\"NOT_FOUND\""));
 
             Response opened =
                     request(
@@ -119,15 +114,6 @@ public class HttpEndpointTest {
             Response stillOpenStatus =
                     request(server.boundPort(), "GET", "/api/v1/status", null);
             assertTrue(stillOpenStatus.body.contains("\"locationId\":24"));
-
-            Response changeWhileOpen = request(
-                    server.boundPort(),
-                    "PUT",
-                    "/api/v1/node/TN-01/location",
-                    "{\"locationId\":25}");
-            assertEquals(409, changeWhileOpen.status);
-            assertTrue(changeWhileOpen.body.contains(
-                    "\"code\":\"NODE_NOT_CLOSED\""));
 
             Response registration = request(
                     server.boundPort(),
@@ -256,16 +242,16 @@ public class HttpEndpointTest {
 
             Response malformed = request(
                     server.boundPort(),
-                    "PUT",
-                    "/api/v1/node/TN-01/location",
+                    "POST",
+                    "/api/v1/node/TN-01/open",
                     "{not-json}");
             assertEquals(400, malformed.status);
             assertTrue(malformed.body.contains("\"code\":\"MALFORMED_REQUEST\""));
 
             Response invalid = request(
                     server.boundPort(),
-                    "PUT",
-                    "/api/v1/node/TN-01/location",
+                    "POST",
+                    "/api/v1/node/TN-01/open",
                     "{\"locationId\":0}");
             assertEquals(400, invalid.status);
             assertTrue(invalid.body.contains("\"code\":\"INVALID_VALUE\""));
