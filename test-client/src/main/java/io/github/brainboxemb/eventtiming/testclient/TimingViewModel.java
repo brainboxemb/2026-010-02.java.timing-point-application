@@ -5,11 +5,13 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Small presentation model for the Step-4 Timing view.
@@ -29,6 +31,19 @@ public final class TimingViewModel {
             boolean open,
             boolean close,
             boolean autoReg) {
+    }
+
+    /** One user-facing registration projected from immutable committed TimingData. */
+    public record InterpretedRegistration(
+            String registrationId,
+            String displayTime,
+            String source,
+            boolean deleted,
+            long firstSequence,
+            Long revokeSequence) {
+        public String state() {
+            return deleted ? "DELETED" : "";
+        }
     }
 
     private static final DateTimeFormatter CANONICAL_TIME =
@@ -166,6 +181,96 @@ public final class TimingViewModel {
         List<ApiClient.TimingDataInfo> values = new ArrayList<>(records.values());
         values.sort(java.util.Comparator.comparingLong(ApiClient.TimingDataInfo::sequenceNumber));
         return List.copyOf(values);
+    }
+
+
+    /**
+     * Projects immutable registration records into the user-facing registration view.
+     *
+     * <p>The default/reference profile keeps absolute UTC time in TimingData. This view
+     * converts that value to the supplied civil-time zone. A future profile that exposes
+     * another time representation is not rewritten here; unparseable profile text is
+     * retained verbatim for diagnosis until that profile provides its own presentation
+     * mapping.</p>
+     */
+    public List<InterpretedRegistration> interpretedRegistrations(ZoneId zone) {
+        if (zone == null) {
+            throw new IllegalArgumentException("zone must not be null");
+        }
+
+        Map<RegistrationProjectionKey, InterpretedRegistration> projected =
+                new LinkedHashMap<>();
+
+        for (ApiClient.TimingDataInfo record : records()) {
+            String source = registrationSource(record);
+            if (source == null) {
+                continue;
+            }
+
+            RegistrationProjectionKey key = new RegistrationProjectionKey(
+                    record.recordType(),
+                    record.registrationId(),
+                    record.effectiveTime());
+            boolean revoke = record.codes().contains("REV");
+            InterpretedRegistration previous = projected.get(key);
+
+            if (previous == null) {
+                projected.put(
+                        key,
+                        new InterpretedRegistration(
+                                record.registrationId(),
+                                displayTime(record.effectiveTime(), zone),
+                                source,
+                                revoke,
+                                record.sequenceNumber(),
+                                revoke ? Long.valueOf(record.sequenceNumber()) : null));
+                continue;
+            }
+
+            projected.put(
+                    key,
+                    new InterpretedRegistration(
+                            previous.registrationId(),
+                            previous.displayTime(),
+                            previous.source(),
+                            previous.deleted() || revoke,
+                            previous.firstSequence(),
+                            revoke
+                                    ? Long.valueOf(record.sequenceNumber())
+                                    : previous.revokeSequence()));
+        }
+
+        return List.copyOf(projected.values());
+    }
+
+    private static String registrationSource(ApiClient.TimingDataInfo record) {
+        if ("AUTO_REG".equals(record.recordType())) {
+            return "A";
+        }
+        if ("MAN_REG".equals(record.recordType())) {
+            return "M";
+        }
+        return null;
+    }
+
+    private static String displayTime(String value, ZoneId zone) {
+        try {
+            return DateTimeFormatter.ofPattern("HH:mm:ss")
+                    .format(Instant.parse(value).atZone(zone));
+        } catch (DateTimeParseException ex) {
+            return value;
+        }
+    }
+
+    private record RegistrationProjectionKey(
+            String recordType,
+            String registrationId,
+            String effectiveTime) {
+        private RegistrationProjectionKey {
+            Objects.requireNonNull(recordType, "recordType");
+            Objects.requireNonNull(registrationId, "registrationId");
+            Objects.requireNonNull(effectiveTime, "effectiveTime");
+        }
     }
 
     public Long latestSequence() {
