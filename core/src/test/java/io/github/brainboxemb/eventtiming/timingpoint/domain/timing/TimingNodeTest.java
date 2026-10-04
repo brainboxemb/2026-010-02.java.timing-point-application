@@ -57,19 +57,12 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void setLocationRemainsSeparateAndOpenAppliesRequestedLocationAtomically() {
+    public void openAppliesRequestedLocationAtomically() {
         TimingNode node = node(new NodeId("TN-01"));
         LocationId openLocation = new LocationId(24);
 
         node.start();
         try {
-            assertEquals(
-                    TimingNodeTypes.SetLocationResult.UPDATED,
-                    node.invoke(TimingNodeCommands.setLocation(new LocationId(23))));
-            assertEquals(
-                    new LocationId(23),
-                    node.query(TimingNodeQueries.status()).locationId());
-
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
                     node.invoke(TimingNodeCommands.open(openLocation)));
@@ -77,11 +70,6 @@ public class TimingNodeTest {
             TimingNodeTypes.Status openStatus = node.query(TimingNodeQueries.status());
             assertEquals(TimingNodeTypes.Lifecycle.OPEN, openStatus.lifecycle());
             assertEquals(openLocation, openStatus.locationId());
-
-            assertEquals(
-                    TimingNodeTypes.SetLocationResult.NODE_NOT_CLOSED,
-                    node.invoke(TimingNodeCommands.setLocation(new LocationId(25))));
-            assertEquals(openLocation, node.query(TimingNodeQueries.status()).locationId());
 
             assertEquals(
                     TimingNodeTypes.CloseResult.CLOSED,
@@ -120,9 +108,9 @@ public class TimingNodeTest {
             assertEquals(
                     TimingNodeTypes.OpenResult.ALREADY_OPEN,
                     node.invoke(TimingNodeCommands.open(new LocationId(25))));
-            assertEquals(
-                    new LocationId(24),
-                    node.query(TimingNodeQueries.status()).locationId());
+            TimingNodeTypes.Status submittedStatus = node.query(TimingNodeQueries.status());
+            assertEquals(TimingNodeTypes.Lifecycle.OPEN, submittedStatus.lifecycle());
+            assertEquals(new LocationId(24), submittedStatus.locationId());
             assertEquals(TimingNodeTypes.CloseResult.CLOSED, node.invoke(TimingNodeCommands.close()));
             assertEquals(TimingNodeTypes.CloseResult.ALREADY_CLOSED, node.invoke(TimingNodeCommands.close()));
         } finally {
@@ -150,7 +138,7 @@ public class TimingNodeTest {
             assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
             try {
-                node.invoke(TimingNodeCommands.setLocation(new LocationId(24)));
+                node.invoke(TimingNodeCommands.open(new LocationId(24)));
                 fail("expected timeout");
             } catch (TimingNodeTypes.OperationException expected) {
                 assertEquals(
@@ -164,6 +152,7 @@ public class TimingNodeTest {
 
             assertTrue(afterTimedOutOperation.await(1, TimeUnit.SECONDS));
             TimingNodeTypes.Status status = node.query(TimingNodeQueries.status());
+            assertEquals(TimingNodeTypes.Lifecycle.OPEN, status.lifecycle());
             assertTrue(status.hasLocation());
             assertEquals(new LocationId(24), status.locationId());
         } finally {
@@ -192,14 +181,14 @@ public class TimingNodeTest {
             assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
             final TimingNodeTypes.OpenResult[] openResult = new TimingNodeTypes.OpenResult[1];
-            final TimingNodeTypes.SetLocationResult[] setLocationResult =
-                    new TimingNodeTypes.SetLocationResult[1];
+            final TimingNodeTypes.CloseResult[] closeResult = new TimingNodeTypes.CloseResult[1];
 
             Thread openCaller = new Thread(
                     () -> openResult[0] =
                             node.invoke(TimingNodeCommands.open(new LocationId(24))));
-            Thread locationCaller = new Thread(
-                    () -> setLocationResult[0] = node.invoke(TimingNodeCommands.setLocation(new LocationId(25))));
+            Thread closeCaller = new Thread(
+                    () -> closeResult[0] =
+                            node.invoke(TimingNodeCommands.close()));
 
             openCaller.start();
             long queueDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
@@ -208,7 +197,7 @@ public class TimingNodeTest {
             }
             assertEquals(1, worker.queueDepth());
 
-            locationCaller.start();
+            closeCaller.start();
             queueDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
             while (worker.queueDepth() < 2 && System.nanoTime() < queueDeadline) {
                 Thread.yield();
@@ -218,15 +207,15 @@ public class TimingNodeTest {
             releaseBlocker.countDown();
 
             openCaller.join(1000);
-            locationCaller.join(1000);
+            closeCaller.join(1000);
             assertFalse(openCaller.isAlive());
-            assertFalse(locationCaller.isAlive());
+            assertFalse(closeCaller.isAlive());
 
             assertEquals(TimingNodeTypes.OpenResult.OPENED, openResult[0]);
-            assertEquals(
-                    TimingNodeTypes.SetLocationResult.NODE_NOT_CLOSED,
-                    setLocationResult[0]);
-            assertEquals(new LocationId(24), node.query(TimingNodeQueries.status()).locationId());
+            assertEquals(TimingNodeTypes.CloseResult.CLOSED, closeResult[0]);
+            TimingNodeTypes.Status status = node.query(TimingNodeQueries.status());
+            assertEquals(TimingNodeTypes.Lifecycle.CLOSED, status.lifecycle());
+            assertEquals(new LocationId(24), status.locationId());
         } finally {
             releaseBlocker.countDown();
             node.stop();
@@ -259,7 +248,7 @@ public class TimingNodeTest {
             Thread producer = new Thread(() -> {
                 admission[0] =
                         node.submit(
-                                TimingNodeCommands.setLocation(
+                                TimingNodeCommands.open(
                                         new LocationId(24)));
                 producerReturned.countDown();
             });
