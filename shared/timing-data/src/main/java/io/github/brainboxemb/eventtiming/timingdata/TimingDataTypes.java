@@ -1,7 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingdata;
 
-import java.util.Objects;
-
 /**
  * Shared value types used by the TimingData boundary.
  *
@@ -90,7 +88,7 @@ public final class TimingDataTypes {
 
         @Override
         public int hashCode() {
-            return Objects.hash(value);
+            return Integer.hashCode(value);
         }
 
         @Override
@@ -134,7 +132,7 @@ public final class TimingDataTypes {
 
         @Override
         public int hashCode() {
-            return Objects.hash(value);
+            return value.hashCode();
         }
 
         @Override

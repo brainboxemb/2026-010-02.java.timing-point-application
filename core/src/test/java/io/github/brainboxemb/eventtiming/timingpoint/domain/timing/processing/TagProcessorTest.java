@@ -11,8 +11,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.DecryptedTagId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.PeriodicExecutor;
@@ -33,11 +33,14 @@ import static org.junit.Assert.assertTrue;
 public class TagProcessorTest {
     private static final TimingTimestamp OBSERVED_AT =
             TimingTimestamp.parse("2026-10-01T12:00:00.000000000Z");
+    private static final TimingTimestamp STRONGER_OBSERVED_AT =
+            TimingTimestamp.parse("2026-10-01T12:00:00.050000000Z");
     private static final TimingTimestamp RECORDED_AT =
             TimingTimestamp.parse("2026-10-01T12:00:01.000000000Z");
 
     @Test
-    public void selectedObservationUsesNormalTimingNodeCommitPath() throws Exception {
+    public void selectedObservationUsesNormalTimingNodeCommitPath()
+            throws Exception {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
         FakeMonotonicClock clock = new FakeMonotonicClock();
@@ -62,7 +65,10 @@ public class TagProcessorTest {
         antenna.observations().subscribe(listener);
         antenna.startInventory();
         try {
-            antenna.emit(new TagId("TAG-001"), -42, OBSERVED_AT);
+            antenna.emit(
+                    new DecryptedTagId("TAG-001"),
+                    -42,
+                    OBSERVED_AT);
             clock.advanceNanos(100L);
             periodicExecutor.runOnce();
 
@@ -87,28 +93,91 @@ public class TagProcessorTest {
     }
 
     @Test
-    public void unmappedSelectedObservationNeverReachesTimingNode() {
+    public void differentTagsForSameRegistrationShareOnePassage()
+            throws Exception {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
         FakeMonotonicClock clock = new FakeMonotonicClock();
         ManualPeriodicExecutor periodicExecutor = new ManualPeriodicExecutor();
+        TagProcessingCounters counters = new TagProcessingCounters();
+        TagProcessor processor = new TagProcessor(
+                node,
+                tagId -> new RegistrationId("N-001"),
+                manualPolicy(),
+                clock,
+                counters,
+                periodicExecutor);
+        CountDownLatch committed = new CountDownLatch(1);
+        node.timingDataCommittedEvent().subscribe(
+                data -> committed.countDown());
+
+        node.start();
+        node.invoke(TimingNodeCommands.open(new LocationId(24)));
+        processor.start();
+        try {
+            processor.onObservation(new TagObservation(
+                    new DecryptedTagId("TAG-A"),
+                    -60,
+                    OBSERVED_AT));
+            clock.advanceNanos(10L);
+            processor.onObservation(new TagObservation(
+                    new DecryptedTagId("TAG-B"),
+                    -30,
+                    STRONGER_OBSERVED_AT));
+            clock.advanceNanos(100L);
+            periodicExecutor.runOnce();
+
+            assertTrue(
+                    "shared registration passage was not committed",
+                    committed.await(2, TimeUnit.SECONDS));
+
+            assertEquals(1, store.appended.size());
+            AutomaticRegistration registration =
+                    (AutomaticRegistration) store.appended.get(0);
+            assertEquals(
+                    new RegistrationId("N-001"),
+                    registration.registrationId());
+            assertEquals(
+                    STRONGER_OBSERVED_AT,
+                    registration.effectiveTime());
+
+            TagProcessingCounters.Snapshot snapshot = counters.snapshot();
+            assertEquals(2L, snapshot.observations());
+            assertEquals(2L, snapshot.mapped());
+            assertEquals(1L, snapshot.closedBursts());
+            assertEquals(1L, snapshot.admitted());
+        } finally {
+            processor.stop();
+            node.stop();
+        }
+    }
+
+    @Test
+    public void unmappedObservationNeverOpensPassage() {
+        RecordingStore store = new RecordingStore();
+        TimingNode node = node(store);
+        FakeMonotonicClock clock = new FakeMonotonicClock();
+        ManualPeriodicExecutor periodicExecutor = new ManualPeriodicExecutor();
+        TagProcessingCounters counters = new TagProcessingCounters();
         TagProcessor processor = new TagProcessor(
                 node,
                 tagId -> null,
                 manualPolicy(),
                 clock,
-                new TagProcessingCounters(),
+                counters,
                 periodicExecutor);
         processor.start();
 
         processor.onObservation(
                 new TagObservation(
-                        new TagId("TAG-UNKNOWN"),
+                        new DecryptedTagId("TAG-UNKNOWN"),
                         -30,
                         OBSERVED_AT));
-        clock.advanceNanos(100L);
-        periodicExecutor.runOnce();
 
+        TagProcessingCounters.Snapshot snapshot = counters.snapshot();
+        assertEquals(1L, snapshot.observations());
+        assertEquals(1L, snapshot.unmapped());
+        assertEquals(0L, snapshot.closedBursts());
         assertTrue(store.appended.isEmpty());
         processor.stop();
     }
@@ -121,7 +190,7 @@ public class TagProcessorTest {
                 Duration.ofDays(1));
     }
 
-    private static RegistrationId mapReferenceTag(TagId tagId) {
+    private static RegistrationId mapReferenceTag(DecryptedTagId tagId) {
         String value = tagId.value();
         if (!value.startsWith("TAG-") || value.length() == 4) {
             return null;

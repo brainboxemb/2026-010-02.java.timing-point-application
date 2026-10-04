@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Map provider-decoded `DecryptedTagId` values to `RegistrationId` before passage filtering so multiple tags for one registration share one strongest-RSSI burst; keep `RegistrationId` as the typed HashMap key and use direct one-field hash codes instead of `Objects.hash(...)` for `RegistrationId`/`LocationId`.
+
 - Simplify tag-processing APIs: one TagProcessor constructor, collection-style filter APIs, TagProcessor-owned periodic-task lifecycle through `platform.execution.PeriodicExecutor`, and no lifecycle/threading knowledge in child filters.
 
 - Fix protected-main black-box evidence publication by checking out the exact integrated source revision before running the repository evidence-staging script.

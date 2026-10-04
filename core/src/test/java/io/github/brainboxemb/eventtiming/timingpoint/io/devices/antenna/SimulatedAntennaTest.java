@@ -32,7 +32,10 @@ public class SimulatedAntennaTest {
         assertTrue(antenna.inventoryRunning());
 
         TagObservation observation =
-                new TagObservation(new TagId("TAG-001"), -42, OBSERVED_AT);
+                new TagObservation(
+                        new DecryptedTagId("TAG-001"),
+                        -42,
+                        OBSERVED_AT);
         antenna.emit(observation);
         assertSame(observation, received.get());
 

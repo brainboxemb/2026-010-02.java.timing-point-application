@@ -77,7 +77,10 @@ public final class SimulatedAntenna implements Antenna {
     }
 
     /** Convenience overload for deterministic tests and simulation controls. */
-    public void emit(TagId tagId, int rssi, TimingTimestamp observedAt) {
+    public void emit(
+            DecryptedTagId tagId,
+            int rssi,
+            TimingTimestamp observedAt) {
         emit(new TagObservation(tagId, rssi, observedAt));
     }
 
