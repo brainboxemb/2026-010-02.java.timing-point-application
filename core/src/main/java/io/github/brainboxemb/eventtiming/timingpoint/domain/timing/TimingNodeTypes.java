@@ -112,10 +112,6 @@ public final class TimingNodeTypes {
         ALREADY_CLOSED
     }
 
-    public enum SetLocationResult {
-        UPDATED,
-        NODE_NOT_CLOSED
-    }
 
     public static final class RegistrationResult {
         public enum Outcome {
