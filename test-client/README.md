@@ -121,8 +121,10 @@ The Timing workbench uses two complementary views of committed data:
   every committed source record, sequence, Type, Code, UTC-effective time and recorded
   time.
 
-The workbench is laid out with node/control input on the left and the interpreted
-Registrations view above the technical LogBook on the right. TeamID is an interpreted
+The workbench is laid out as two top-aligned columns. The left column starts with
+API/application identity and continues with TimingNode/control and registration input.
+The right column starts at the same vertical position with the interpreted Registrations
+view above the technical LogBook. TeamID is an interpreted
 reference-data value, not a renamed RegistrationId. Until reference/RaceData mapping is
 available, the normal view shows TeamID as unresolved while the technical LogBook keeps
 the actual RegistrationId. A manual registration with manually entered time therefore deliberately shows
