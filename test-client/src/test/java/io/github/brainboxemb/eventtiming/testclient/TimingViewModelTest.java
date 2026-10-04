@@ -120,6 +120,79 @@ class TimingViewModelTest {
     }
 
     @Test
+    void projectsAutomaticAndManualRegistrationsToLocalClockTime() {
+        TimingViewModel model = new TimingViewModel();
+        model.applyStatus(status(node("node-01", 24, "OPEN")));
+
+        model.mergeCommitted(new ApiClient.TimingDataInfo(
+                "node-01",
+                1L,
+                24,
+                "AUTO_REG",
+                "2026-10-01T10:00:00Z",
+                "N0001",
+                List.of("ADD"),
+                "2026-10-01T10:00:00.1Z",
+                "{}"));
+        model.mergeCommitted(new ApiClient.TimingDataInfo(
+                "node-01",
+                2L,
+                24,
+                "MAN_REG",
+                "2026-10-01T10:00:05Z",
+                "N0002",
+                List.of("ADD", "MAN"),
+                "2026-10-01T10:00:05.1Z",
+                "{}"));
+
+        List<TimingViewModel.InterpretedRegistration> values =
+                model.interpretedRegistrations(ZoneId.of("Europe/Amsterdam"));
+
+        assertEquals(2, values.size());
+        assertEquals("12:00:00", values.get(0).displayTime());
+        assertEquals("A", values.get(0).source());
+        assertEquals("12:00:05", values.get(1).displayTime());
+        assertEquals("M", values.get(1).source());
+    }
+
+    @Test
+    void marksRevokedRegistrationDeletedWithoutRemovingIt() {
+        TimingViewModel model = new TimingViewModel();
+        model.applyStatus(status(node("node-01", 24, "OPEN")));
+
+        model.mergeCommitted(new ApiClient.TimingDataInfo(
+                "node-01",
+                1L,
+                24,
+                "AUTO_REG",
+                "2026-10-01T10:00:00Z",
+                "N0001",
+                List.of("ADD"),
+                "2026-10-01T10:00:00.1Z",
+                "{}"));
+        model.mergeCommitted(new ApiClient.TimingDataInfo(
+                "node-01",
+                2L,
+                24,
+                "AUTO_REG",
+                "2026-10-01T10:00:00Z",
+                "N0001",
+                List.of("REV"),
+                "2026-10-01T10:05:00Z",
+                "{}"));
+
+        List<TimingViewModel.InterpretedRegistration> values =
+                model.interpretedRegistrations(ZoneId.of("Europe/Amsterdam"));
+
+        assertEquals(1, values.size());
+        assertTrue(values.get(0).deleted());
+        assertEquals("DELETED", values.get(0).state());
+        assertEquals(1L, values.get(0).firstSequence());
+        assertEquals(2L, values.get(0).revokeSequence());
+        assertEquals(2, model.records().size());
+    }
+
+    @Test
     void formatsCanonicalNineDigitUtcTime() {
         assertEquals(
                 "2026-10-01T12:00:00.123000000Z",

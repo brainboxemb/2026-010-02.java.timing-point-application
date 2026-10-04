@@ -7,7 +7,9 @@ import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
@@ -66,6 +68,8 @@ final class TimingPane extends VBox {
     private final Button now = new Button("Now");
     private final Button autoReg = new Button("Send auto-reg");
 
+    private final TableView<TimingViewModel.InterpretedRegistration> registrations =
+            new TableView<>();
     private final Label logBookCount = new Label("0");
     private final TableView<ApiClient.TimingDataInfo> logBook = new TableView<>();
 
@@ -137,24 +141,37 @@ final class TimingPane extends VBox {
                         + "; sent to IF-03 as canonical UTC."));
         updateNow();
 
-        HBox registrationRow = new HBox(
-                8,
-                new Label("Prefix"),
-                registrationPrefix,
-                new Label("Number"),
-                registrationNumber,
-                new Label("Date"),
-                registrationDate,
+        GridPane registrationGrid = new GridPane();
+        registrationGrid.setHgap(10);
+        registrationGrid.setVgap(8);
+        add(registrationGrid, 0, "Prefix", registrationPrefix);
+        add(registrationGrid, 1, "Number", registrationNumber);
+        add(registrationGrid, 2, "Date", registrationDate);
+        registrationGrid.add(
                 new Label("Time (" + INPUT_ZONE.getId() + ")"),
-                registrationTime,
-                now,
-                autoReg);
+                0,
+                3);
+        registrationGrid.add(
+                new HBox(8, registrationTime, now),
+                1,
+                3);
+        registrationGrid.add(autoReg, 1, 4);
 
-        VBox registrationBox = new VBox(8, autoRegCapability, registrationRow);
+        VBox registrationBox = new VBox(8, autoRegCapability, registrationGrid);
         registrationBox.setPadding(new Insets(10));
         TitledPane registrationPane =
-                new TitledPane("Registration test input", registrationBox);
+                new TitledPane("Registration input", registrationBox);
         registrationPane.setCollapsible(false);
+
+        configureRegistrationView();
+        VBox interpretedBox = new VBox(
+                6,
+                new Label("Times shown in " + INPUT_ZONE.getId()),
+                registrations);
+        VBox.setVgrow(registrations, Priority.ALWAYS);
+        TitledPane interpretedPane =
+                new TitledPane("Registrations", interpretedBox);
+        interpretedPane.setCollapsible(false);
 
         configureLogBook();
         VBox historyBox = new VBox(
@@ -165,10 +182,20 @@ final class TimingPane extends VBox {
         TitledPane historyPane =
                 new TitledPane("LogBook / committed TimingData", historyBox);
         historyPane.setCollapsible(false);
+
+        VBox left = new VBox(10, nodePane, registrationPane);
+        left.setPrefWidth(390);
+        left.setMinWidth(340);
+
+        VBox right = new VBox(10, interpretedPane, historyPane);
+        HBox.setHgrow(right, Priority.ALWAYS);
+        VBox.setVgrow(interpretedPane, Priority.SOMETIMES);
         VBox.setVgrow(historyPane, Priority.ALWAYS);
 
-        getChildren().addAll(nodePane, registrationPane, historyPane);
-        VBox.setVgrow(historyPane, Priority.ALWAYS);
+        HBox workbench = new HBox(12, left, right);
+        HBox.setHgrow(right, Priority.ALWAYS);
+        getChildren().add(workbench);
+        VBox.setVgrow(workbench, Priority.ALWAYS);
 
         syncViewButton.setTooltip(new Tooltip(
                 "Reload current status, capabilities and LogBook history, "
@@ -627,6 +654,8 @@ final class TimingPane extends VBox {
     }
 
     private void refreshLogBook() {
+        registrations.setItems(FXCollections.observableArrayList(
+                model.interpretedRegistrations(INPUT_ZONE)));
         logBookCount.setText(Long.toString(model.logBookCount()));
         logBook.setItems(FXCollections.observableArrayList(model.records()));
     }
@@ -643,6 +672,84 @@ final class TimingPane extends VBox {
         } finally {
             updatingNodeSelection = false;
         }
+    }
+
+    private void configureRegistrationView() {
+        TableColumn<TimingViewModel.InterpretedRegistration, String> time =
+                registrationColumn(
+                        "Time",
+                        TimingViewModel.InterpretedRegistration::displayTime);
+        TableColumn<TimingViewModel.InterpretedRegistration, String> registration =
+                registrationColumn(
+                        "RegistrationId",
+                        TimingViewModel.InterpretedRegistration::registrationId);
+        TableColumn<TimingViewModel.InterpretedRegistration, String> source =
+                registrationColumn(
+                        "A/M",
+                        TimingViewModel.InterpretedRegistration::source);
+        TableColumn<TimingViewModel.InterpretedRegistration, String> status =
+                registrationColumn(
+                        "State",
+                        TimingViewModel.InterpretedRegistration::state);
+        TableColumn<TimingViewModel.InterpretedRegistration, Void> delete =
+                new TableColumn<>("Delete");
+
+        time.setPrefWidth(100);
+        registration.setPrefWidth(150);
+        source.setPrefWidth(70);
+        status.setPrefWidth(100);
+        delete.setPrefWidth(90);
+
+        delete.setCellFactory(column -> new TableCell<>() {
+            private final Button button = new Button("Delete");
+            {
+                button.setDisable(true);
+                button.setTooltip(new Tooltip(
+                        "Delete will append a REV record; the public REV operation "
+                                + "is not available yet."));
+            }
+
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                setGraphic(empty ? null : button);
+            }
+        });
+
+        registrations.getColumns().setAll(
+                time,
+                registration,
+                source,
+                status,
+                delete);
+        registrations.setColumnResizePolicy(
+                TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        registrations.setPlaceholder(new Label("No registrations"));
+        registrations.setPrefHeight(220);
+        registrations.setRowFactory(table -> new TableRow<>() {
+            @Override
+            protected void updateItem(
+                    TimingViewModel.InterpretedRegistration item,
+                    boolean empty) {
+                super.updateItem(item, empty);
+                setStyle(!empty && item != null && item.deleted()
+                        ? "-fx-opacity: 0.55;"
+                        : "");
+            }
+        });
+    }
+
+    private static TableColumn<TimingViewModel.InterpretedRegistration, String>
+            registrationColumn(
+                    String title,
+                    java.util.function.Function<
+                            TimingViewModel.InterpretedRegistration,
+                            String> value) {
+        TableColumn<TimingViewModel.InterpretedRegistration, String> column =
+                new TableColumn<>(title);
+        column.setCellValueFactory(cell ->
+                new ReadOnlyStringWrapper(value.apply(cell.getValue())));
+        return column;
     }
 
     private void configureLogBook() {

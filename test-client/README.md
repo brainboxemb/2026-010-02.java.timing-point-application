@@ -111,6 +111,20 @@ results can be exercised and inspected. **Open** sends the LocationId currently 
 in the same request; there is no separate Set Location operation. SI-01 remains
 authoritative.
 
+The Timing workbench uses two complementary views of committed data:
+
+- **Registrations** is the interpreted operator-oriented projection. It shows normal local
+  clock time, RegistrationId, a compact **A/M** indicator and deletion state;
+- **LogBook / committed TimingData** is the technical/audit view and continues to show
+  every committed source record, sequence, Type, Code, UTC-effective time and recorded
+  time.
+
+The workbench is laid out with node/control input on the left and the interpreted
+Registrations view above the technical LogBook on the right. A future REV record marks
+the interpreted registration **DELETED** rather than removing it; the immutable LogBook
+continues to show both ADD and REV records. The Delete column is present but disabled
+until SI-01 exposes the corresponding public revoke capability.
+
 Registration input uses a separate prefix and numeric field plus readable local civil
 date and whole-second clock time. The UI shows the interpreted client time zone next to
 the field (for example `Europe/Amsterdam`) and converts that explicit local value to the

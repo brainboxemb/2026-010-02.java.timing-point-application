@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add a two-column Development Client Timing workbench with input/control on the left, an interpreted local-time Registrations projection on the right above the immutable technical LogBook, and future REV projection that marks entries DELETED rather than hiding history.
 - Make the Development Client registration time zone explicit: show the interpreted client zone beside the local civil Time field, keep **Now** in that same zone and convert to canonical UTC only at the IF-03 boundary.
 - Make Development Client Timing synchronisation prominent above Version/Status, start baseline sync immediately on Events connection, buffer the initial snapshot during sync, and keep mutating controls disabled until LIVE.
 - Introduce a node-scoped `TimingNodeProxy` behind `PresentationGateway`, remove the standalone Set Location operation in favor of `open(locationId)`, rename automatic-registration intent to `applyAutomaticRegistration(action, registrationId, time)`, and expose explicit `statusChangedEvent()` / `timingDataCommittedEvent()` facts.
