@@ -53,7 +53,7 @@ public class CompositionTest {
             assertEquals(Lifecycle.State.RUNNING, application.state());
             assertEquals(
                     TimingNodeTypes.Lifecycle.ERROR,
-                    application.presentationGateway().timingNode().status().timingNodeLifecycle());
+                    application.presentationGateway().timingNode().status().lifecycle());
             assertEquals(
                     1,
                     application.presentationGateway().timingNode().status().problems().size());
