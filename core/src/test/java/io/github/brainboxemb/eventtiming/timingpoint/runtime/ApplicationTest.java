@@ -37,7 +37,7 @@ public class ApplicationTest {
                     application.presentationGateway().timingNode().status().timingNodeId().value());
             assertEquals(
                     TimingNodeTypes.Lifecycle.CLOSED,
-                    application.presentationGateway().timingNode().status().timingNodeLifecycle());
+                    application.presentationGateway().timingNode().status().lifecycle());
         } finally {
             application.close();
         }
