@@ -18,7 +18,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTyp
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.ProblemCode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.ProblemSeverity;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.RegistrationResult;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.SetLocationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Status;
 
 import java.util.Collections;
@@ -97,18 +96,9 @@ final class TimingNodeLogic {
         return CloseResult.CLOSED;
     }
 
-    SetLocationResult setLocation(LocationId newLocationId) {
-        ensureOperational();
-        if (lifecycle != Lifecycle.CLOSED) {
-            return SetLocationResult.NODE_NOT_CLOSED;
-        }
-        locationId = newLocationId;
-        return SetLocationResult.UPDATED;
-    }
-
-    RegistrationResult commitAutomaticRegistration(
+    RegistrationResult addAutomaticRegistration(
             RegistrationId registrationId,
-            TimingTimestamp observationTime)
+            TimingTimestamp time)
             throws TimingDataPersistence.PersistenceException {
         ensureOperational();
         if (lifecycle != Lifecycle.OPEN) {
@@ -117,7 +107,7 @@ final class TimingNodeLogic {
         ensureTimingDataCommitAvailable();
 
         TimingData data = timingDataFactory.createAutomaticRegistration(
-                nextRegistrationContext(observationTime),
+                nextRegistrationContext(time),
                 registrationId);
         return commitRegistration(data);
     }
