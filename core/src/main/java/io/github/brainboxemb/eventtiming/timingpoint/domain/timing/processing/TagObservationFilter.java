@@ -109,12 +109,12 @@ final class TagObservationFilter {
     }
 
     /**
-     * Closes every passage whose quiet or maximum duration has expired.
+     * Performs periodic passage housekeeping.
      *
-     * <p>The caller decides when this method runs. Runtime code uses
-     * TagProcessingExpiryScheduler; deterministic tests may call it directly.</p>
+     * <p>TagProcessor decides when this component receives a periodic pass. The
+     * filter itself has no knowledge of threads, schedulers or lifecycle.</p>
      */
-    void expire() {
+    void periodic() {
         List<TagObservation> validObservations = new ArrayList<>();
         long now = monotonicClock.nowNanos();
 
