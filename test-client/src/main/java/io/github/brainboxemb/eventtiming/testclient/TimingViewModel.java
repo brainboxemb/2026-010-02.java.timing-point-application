@@ -264,7 +264,7 @@ public final class TimingViewModel {
             ApiClient.TimingDataInfo record,
             InterpretedRegistration previous) {
         if ("AUTO_REG".equals(record.recordType())) {
-            return "AUTO";
+            return "";
         }
         if (!"MAN_REG".equals(record.recordType())) {
             return "";
