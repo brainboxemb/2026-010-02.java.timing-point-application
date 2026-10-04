@@ -292,7 +292,6 @@ public class TagProcessorTest {
             clock.advanceNanos(100L);
             processor.expireBursts();
 
-            assertTrue(registrationCommitted.await(1, TimeUnit.SECONDS));
             assertEquals(1, node.query(TimingNodeQueries.timingDataCount()).intValue());
             assertEquals(1L, processor.admittedCount());
             assertEquals(0L, processor.duplicateCount());
@@ -362,6 +361,7 @@ public class TagProcessorTest {
             clock.advanceNanos(100L);
             processor.expireBursts();
 
+            assertTrue(registrationCommitted.await(1, TimeUnit.SECONDS));
             assertEquals(1, node.query(TimingNodeQueries.timingDataCount()).intValue());
             assertEquals(1L, processor.admittedCount());
             assertEquals(0L, processor.duplicateCount());
