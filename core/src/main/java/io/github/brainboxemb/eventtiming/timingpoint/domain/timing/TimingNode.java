@@ -7,6 +7,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialWorker;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.OperationException;
@@ -46,6 +48,7 @@ public final class TimingNode {
     private final TimingNodeLogic logic;
     private final SerialWorker serialWorker;
     private final long operationTimeoutMillis;
+    private final MonotonicClock monotonicClock;
     private final Event<Status> statusChangedEvent = new Event<>();
     private final Event<TimingData> timingDataCommittedEvent = new Event<>();
 
@@ -61,13 +64,29 @@ public final class TimingNode {
             TimingDataFactory timingDataFactory,
             TimeSource timeSource) {
         this(
+                timingNodeId,
+                timingDataPersistence,
+                timingDataFactory,
+                timeSource,
+                SystemMonotonicClock.INSTANCE);
+    }
+
+    TimingNode(
+            NodeId timingNodeId,
+            TimingDataPersistence timingDataPersistence,
+            TimingDataFactory timingDataFactory,
+            TimeSource timeSource,
+            MonotonicClock monotonicClock) {
+        this(
                 new TimingNodeLogic(
                         timingNodeId,
                         timingDataPersistence,
                         timingDataFactory,
-                        timeSource),
+                        timeSource,
+                        monotonicClock),
                 workerFor(timingNodeId),
-                DEFAULT_OPERATION_TIMEOUT_MILLIS);
+                DEFAULT_OPERATION_TIMEOUT_MILLIS,
+                monotonicClock);
     }
 
     /**
@@ -82,6 +101,18 @@ public final class TimingNode {
             TimingNodeLogic logic,
             SerialWorker serialWorker,
             long operationTimeoutMillis) {
+        this(
+                logic,
+                serialWorker,
+                operationTimeoutMillis,
+                SystemMonotonicClock.INSTANCE);
+    }
+
+    TimingNode(
+            TimingNodeLogic logic,
+            SerialWorker serialWorker,
+            long operationTimeoutMillis,
+            MonotonicClock monotonicClock) {
         if (logic == null) {
             throw new IllegalArgumentException("logic must not be null");
         }
@@ -91,9 +122,13 @@ public final class TimingNode {
         if (operationTimeoutMillis < 1L) {
             throw new IllegalArgumentException("operationTimeoutMillis must be positive");
         }
+        if (monotonicClock == null) {
+            throw new IllegalArgumentException("monotonicClock must not be null");
+        }
         this.logic = logic;
         this.serialWorker = serialWorker;
         this.operationTimeoutMillis = operationTimeoutMillis;
+        this.monotonicClock = monotonicClock;
     }
 
     public NodeId timingNodeId() {
@@ -256,10 +291,10 @@ public final class TimingNode {
         }
 
         TimingData data = result.timingData();
-        long eventStartedNanos = System.nanoTime();
+        long eventStartedNanos = monotonicClock.nowNanos();
         Event.DeliveryReport delivery = timingDataCommittedEvent.emit(data);
         recordTimingDataEventDelivery(
-                System.nanoTime() - eventStartedNanos,
+                monotonicClock.nowNanos() - eventStartedNanos,
                 delivery.failureCount());
         if (!delivery.successful()) {
             LOG.warn(
