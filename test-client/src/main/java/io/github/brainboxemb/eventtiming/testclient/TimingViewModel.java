@@ -36,8 +36,9 @@ public final class TimingViewModel {
     /** One user-facing registration projected from immutable committed TimingData. */
     public record InterpretedRegistration(
             String registrationId,
+            String teamId,
             String displayTime,
-            String source,
+            String code,
             boolean deleted,
             long firstSequence,
             Long revokeSequence) {
@@ -202,8 +203,8 @@ public final class TimingViewModel {
                 new LinkedHashMap<>();
 
         for (ApiClient.TimingDataInfo record : records()) {
-            String source = registrationSource(record);
-            if (source == null) {
+            String code = registrationCode(record);
+            if (code == null) {
                 continue;
             }
 
@@ -219,8 +220,9 @@ public final class TimingViewModel {
                         key,
                         new InterpretedRegistration(
                                 record.registrationId(),
+                                null,
                                 displayTime(record.effectiveTime(), zone),
-                                source,
+                                code,
                                 revoke,
                                 record.sequenceNumber(),
                                 revoke ? Long.valueOf(record.sequenceNumber()) : null));
@@ -231,8 +233,9 @@ public final class TimingViewModel {
                     key,
                     new InterpretedRegistration(
                             previous.registrationId(),
+                            previous.teamId(),
                             previous.displayTime(),
-                            previous.source(),
+                            previous.code(),
                             previous.deleted() || revoke,
                             previous.firstSequence(),
                             revoke
@@ -243,12 +246,12 @@ public final class TimingViewModel {
         return List.copyOf(projected.values());
     }
 
-    private static String registrationSource(ApiClient.TimingDataInfo record) {
+    private static String registrationCode(ApiClient.TimingDataInfo record) {
         if ("AUTO_REG".equals(record.recordType())) {
-            return "A";
+            return "AUTO";
         }
         if ("MAN_REG".equals(record.recordType())) {
-            return "M";
+            return "MAN";
         }
         return null;
     }
