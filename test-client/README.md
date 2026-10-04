@@ -108,8 +108,7 @@ raw response/selected-record pane.
 The Development Client deliberately does not predict SI-01 domain acceptance from cached
 TimingNode state. Once a TimingNode is known, supported Open/Close requests remain available so processed
 results can be exercised and inspected. **Open** sends the LocationId currently entered
-in the same request. The separate IF-03 Set Location operation remains available to
-protocol/automated tests, but is not a normal workbench control. SI-01 remains
+in the same request; there is no separate Set Location operation. SI-01 remains
 authoritative.
 
 Registration input uses a separate prefix and numeric field plus readable local date and
