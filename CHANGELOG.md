@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Resume Step-5 development as `0.2.4-SNAPSHOT` after the accepted `v0.2.3` Step-4 release.
+
 ## 0.2.3 — 2026-10-04
 
 - Top-align the API Timing workbench by moving application identity into the left column so Registrations starts at the same vertical position on the right.
