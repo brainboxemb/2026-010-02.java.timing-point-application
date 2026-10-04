@@ -36,16 +36,15 @@ public class TimingNodeRegistrationTest {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
         List<TimingData> delivered = new ArrayList<>();
-        node.newTimingData().subscribe(delivered::add);
+        node.timingDataCommittedEvent().subscribe(delivered::add);
 
         node.start();
         try {
-            node.invoke(TimingNodeCommands.setLocation(new LocationId(24)));
             node.invoke(TimingNodeCommands.open(new LocationId(24)));
 
             RegistrationId registrationId = new RegistrationId("1001");
             TimingNodeTypes.RegistrationResult result =
-                    node.invoke(TimingNodeCommands.commitAutomaticRegistration(registrationId, EFFECTIVE_TIME));
+                    node.invoke(TimingNodeCommands.addAutomaticRegistration(registrationId, EFFECTIVE_TIME));
 
             assertTrue(result.committed());
             assertTrue(result.timingData() instanceof AutomaticRegistration);
@@ -74,10 +73,9 @@ public class TimingNodeRegistrationTest {
 
         node.start();
         try {
-            node.invoke(TimingNodeCommands.setLocation(new LocationId(24)));
 
             TimingNodeTypes.RegistrationResult rejected =
-                    node.invoke(TimingNodeCommands.commitAutomaticRegistration(
+                    node.invoke(TimingNodeCommands.addAutomaticRegistration(
                             new RegistrationId("1001"),
                             EFFECTIVE_TIME));
 
@@ -89,7 +87,7 @@ public class TimingNodeRegistrationTest {
 
             node.invoke(TimingNodeCommands.open(new LocationId(24)));
             TimingNodeTypes.RegistrationResult committed =
-                    node.invoke(TimingNodeCommands.commitAutomaticRegistration(
+                    node.invoke(TimingNodeCommands.addAutomaticRegistration(
                             new RegistrationId("1002"),
                             EFFECTIVE_TIME));
             assertEquals(1L, committed.timingData().sequenceNumber());
@@ -105,7 +103,6 @@ public class TimingNodeRegistrationTest {
 
         node.start();
         try {
-            node.invoke(TimingNodeCommands.setLocation(new LocationId(24)));
             assertEquals(TimingNodeTypes.OpenResult.OPENED, node.invoke(TimingNodeCommands.open(new LocationId(24))));
 
             TimingNodeTypes.RegistrationResult result = node.invoke(TimingNodeCommands.commitManualRegistration(
@@ -152,10 +149,9 @@ public class TimingNodeRegistrationTest {
 
         node.start();
         try {
-            node.invoke(TimingNodeCommands.setLocation(new LocationId(24)));
             node.invoke(TimingNodeCommands.open(new LocationId(24)));
 
-            TimingNodeTypes.RegistrationResult first = node.invoke(TimingNodeCommands.commitAutomaticRegistration(
+            TimingNodeTypes.RegistrationResult first = node.invoke(TimingNodeCommands.addAutomaticRegistration(
                     new RegistrationId("1001"),
                     EFFECTIVE_TIME));
             TimingNodeTypes.RegistrationResult second = node.invoke(TimingNodeCommands.commitManualRegistration(
@@ -178,7 +174,6 @@ public class TimingNodeRegistrationTest {
 
         node.start();
         try {
-            node.invoke(TimingNodeCommands.setLocation(new LocationId(24)));
 
             TimingNodeTypes.RegistrationResult rejected = node.invoke(TimingNodeCommands.commitManualRegistration(
                     new RegistrationId("1001"),
@@ -210,7 +205,6 @@ public class TimingNodeRegistrationTest {
 
         node.start();
         try {
-            node.invoke(TimingNodeCommands.setLocation(new LocationId(24)));
             node.invoke(TimingNodeCommands.open(new LocationId(24)));
 
             try {
@@ -254,11 +248,10 @@ public class TimingNodeRegistrationTest {
         List<TimingData> delivered = new ArrayList<>();
         Consumer<TimingData> listener = delivered::add;
 
-        assertTrue(node.newTimingData().subscribe(listener));
+        assertTrue(node.timingDataCommittedEvent().subscribe(listener));
 
         node.start();
         try {
-            node.invoke(TimingNodeCommands.setLocation(new LocationId(24)));
 
             TimingNodeTypes.RegistrationResult rejected = node.invoke(TimingNodeCommands.commitManualRegistration(
                     new RegistrationId("1001"),
@@ -280,7 +273,7 @@ public class TimingNodeRegistrationTest {
             assertEquals(1, delivered.size());
             assertSame(committed.timingData(), delivered.get(0));
 
-            assertTrue(node.newTimingData().unsubscribe(listener));
+            assertTrue(node.timingDataCommittedEvent().unsubscribe(listener));
             node.invoke(TimingNodeCommands.commitManualRegistration(
                     new RegistrationId("1003"),
                     EFFECTIVE_TIME,
@@ -297,11 +290,10 @@ public class TimingNodeRegistrationTest {
         store.failNext = true;
         TimingNode node = node(store);
         List<TimingData> delivered = new ArrayList<>();
-        node.newTimingData().subscribe(delivered::add);
+        node.timingDataCommittedEvent().subscribe(delivered::add);
 
         node.start();
         try {
-            node.invoke(TimingNodeCommands.setLocation(new LocationId(24)));
             node.invoke(TimingNodeCommands.open(new LocationId(24)));
 
             try {
@@ -329,14 +321,13 @@ public class TimingNodeRegistrationTest {
         TimingNode node = node(store);
         List<TimingData> delivered = new ArrayList<>();
 
-        node.newTimingData().subscribe(data -> {
+        node.timingDataCommittedEvent().subscribe(data -> {
             throw new IllegalStateException("expected listener failure");
         });
-        node.newTimingData().subscribe(delivered::add);
+        node.timingDataCommittedEvent().subscribe(delivered::add);
 
         node.start();
         try {
-            node.invoke(TimingNodeCommands.setLocation(new LocationId(24)));
             node.invoke(TimingNodeCommands.open(new LocationId(24)));
 
             TimingNodeTypes.RegistrationResult committed = node.invoke(TimingNodeCommands.commitManualRegistration(
@@ -360,7 +351,7 @@ public class TimingNodeRegistrationTest {
         store.loaded.add(recoveredData(1L, 11));
         TimingNode node = node(store);
         List<TimingData> delivered = new ArrayList<>();
-        node.newTimingData().subscribe(delivered::add);
+        node.timingDataCommittedEvent().subscribe(delivered::add);
 
         node.start();
         try {

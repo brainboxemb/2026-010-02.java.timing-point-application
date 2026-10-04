@@ -32,7 +32,7 @@ public class CompositionTest {
         try {
             assertEquals(
                     "configured-node",
-                    application.presentationGateway().status().timingNodeId().value());
+                    application.presentationGateway().timingNode().status().timingNodeId().value());
         } finally {
             application.close();
         }
@@ -53,15 +53,15 @@ public class CompositionTest {
             assertEquals(Lifecycle.State.RUNNING, application.state());
             assertEquals(
                     TimingNodeTypes.Lifecycle.ERROR,
-                    application.presentationGateway().status().timingNodeLifecycle());
+                    application.presentationGateway().timingNode().status().timingNodeLifecycle());
             assertEquals(
                     1,
-                    application.presentationGateway().status().problems().size());
+                    application.presentationGateway().timingNode().status().problems().size());
             assertEquals(
                     TimingNodeTypes.ProblemCode.TIMING_DATA_RECOVERY_FAILED,
-                    application.presentationGateway().status().problems().get(0).code());
+                    application.presentationGateway().timingNode().status().problems().get(0).code());
             assertTrue(
-                    application.presentationGateway().status().problems().get(0).message()
+                    application.presentationGateway().timingNode().status().problems().get(0).message()
                             .contains("TimingData recovery failed"));
         } finally {
             application.close();

@@ -106,7 +106,7 @@ public final class TerminalSession {
     }
 
     private void showStatus(PrintWriter output) {
-        ApplicationStatus status = presentationGateway.status();
+        ApplicationStatus status = presentationGateway.timingNode().status();
         output.println("Timing node");
         output.println("  Id        : " + status.timingNodeId().value());
         output.println("  Lifecycle : " + status.timingNodeLifecycle().name());

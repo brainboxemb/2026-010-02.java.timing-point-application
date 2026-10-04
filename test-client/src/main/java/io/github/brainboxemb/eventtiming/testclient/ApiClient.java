@@ -53,16 +53,6 @@ public final class ApiClient {
         return parseCapabilities(request("GET", "/api/v1/capabilities", null));
     }
 
-    public OperationResult setLocation(String nodeId, int locationId)
-            throws IOException, InterruptedException {
-        ObjectNode body = JSON.createObjectNode();
-        body.put("locationId", locationId);
-        return parseOperation(request(
-                "PUT",
-                nodePath(nodeId, "/location"),
-                JSON.writeValueAsString(body)));
-    }
-
     public OperationResult open(String nodeId, int locationId)
             throws IOException, InterruptedException {
         ObjectNode body = JSON.createObjectNode();

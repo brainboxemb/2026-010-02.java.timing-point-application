@@ -23,7 +23,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class PresentationGatewayTest {
-    private static final TimingTimestamp OBSERVATION_TIME =
+    private static final TimingTimestamp TIME =
             TimingTimestamp.parse("2026-10-01T12:00:00.000000000Z");
     private static final TimingTimestamp RECORDED_AT =
             TimingTimestamp.parse("2026-10-01T12:00:01.000000000Z");
@@ -32,19 +32,19 @@ public class PresentationGatewayTest {
     public void versionReturnsAuthoritativeBuildIdentity() {
         BuildIdentity identity = identity();
         TimingNode node = node(new RecordingStore());
-        PresentationGateway handler = new PresentationGateway(identity, node);
+        PresentationGateway gateway = new PresentationGateway(identity, node);
 
-        assertSame(identity, handler.version());
+        assertSame(identity, gateway.version());
     }
 
     @Test
     public void statusComesFromTimingNode() {
         TimingNode node = node(new RecordingStore());
-        PresentationGateway handler = new PresentationGateway(identity(), node);
+        PresentationGateway gateway = new PresentationGateway(identity(), node);
 
         node.start();
         try {
-            ApplicationStatus status = handler.status();
+            ApplicationStatus status = gateway.timingNode().status();
             assertEquals(new NodeId("TN-01"), status.timingNodeId());
             assertEquals(
                     TimingNodeTypes.Lifecycle.CLOSED,
@@ -59,11 +59,11 @@ public class PresentationGatewayTest {
         RecordingStore store = new RecordingStore();
         store.failLoad = true;
         TimingNode node = node(store);
-        PresentationGateway handler = new PresentationGateway(identity(), node);
+        PresentationGateway gateway = new PresentationGateway(identity(), node);
 
         node.start();
         try {
-            ApplicationStatus status = handler.status();
+            ApplicationStatus status = gateway.timingNode().status();
             assertEquals(
                     TimingNodeTypes.Lifecycle.ERROR,
                     status.timingNodeLifecycle());
@@ -79,60 +79,50 @@ public class PresentationGatewayTest {
     }
 
     @Test
-    public void fullHandlerOwnsFirstRegistrationApplicationBoundary() {
+    public void timingNodeProxyOwnsNodeScopedPresentationBoundary() {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
-        PresentationGateway handler = new PresentationGateway(identity(), node);
+        PresentationGateway gateway = new PresentationGateway(identity(), node);
+        TimingNodeProxy proxy = gateway.timingNode();
         List<ApplicationStatus> statusChanges = new ArrayList<>();
         List<TimingData> committed = new ArrayList<>();
 
         node.start();
         try {
-            handler.statusChanged().subscribe(statusChanges::add);
-            handler.newTimingData().subscribe(committed::add);
+            proxy.statusChangedEvent().subscribe(statusChanges::add);
+            proxy.timingDataCommittedEvent().subscribe(committed::add);
 
-            PresentationGateway.Capabilities capabilities = handler.capabilities();
+            PresentationGateway.Capabilities capabilities = gateway.capabilities();
             assertTrue(capabilities.directRegistrationSimulationSupported());
             assertTrue(capabilities.directRegistrationSimulationEnabled());
 
-            assertFalse(handler.status().hasLocation());
-
-            assertEquals(
-                    TimingNodeTypes.SetLocationResult.UPDATED,
-                    handler.setLocation(new LocationId(23)));
-            assertEquals(1, statusChanges.size());
-            assertEquals(new LocationId(23), statusChanges.get(0).locationId());
-
-            // The domain returns UPDATED again, but the authoritative state did
-            // not change, so no duplicate STATUS_CHANGED event is manufactured.
-            assertEquals(
-                    TimingNodeTypes.SetLocationResult.UPDATED,
-                    handler.setLocation(new LocationId(23)));
-            assertEquals(1, statusChanges.size());
+            assertFalse(proxy.status().hasLocation());
 
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
-                    handler.open(new LocationId(24)));
-            assertEquals(2, statusChanges.size());
+                    proxy.open(new LocationId(24)));
+            assertEquals(1, statusChanges.size());
             assertEquals(
                     TimingNodeTypes.Lifecycle.OPEN,
-                    statusChanges.get(1).timingNodeLifecycle());
+                    statusChanges.get(0).timingNodeLifecycle());
             assertEquals(
                     new LocationId(24),
-                    statusChanges.get(1).locationId());
+                    statusChanges.get(0).locationId());
 
-            TimingNodeTypes.RegistrationResult registration = handler.commitAutomaticRegistration(
-                    new RegistrationId("N0001"),
-                    OBSERVATION_TIME);
+            TimingNodeTypes.RegistrationResult registration =
+                    proxy.applyAutomaticRegistration(
+                            TimingNodeProxy.AutomaticRegistrationAction.ADD,
+                            new RegistrationId("N0001"),
+                            TIME);
             assertTrue(registration.committed());
             assertEquals(1, committed.size());
             assertSame(registration.timingData(), committed.get(0));
-            assertEquals(1, handler.logBookCount());
+            assertEquals(1, proxy.logBookCount());
 
             List<TimingData> visited = new ArrayList<>();
             assertEquals(
                     1,
-                    handler.visitLogBookFrom(
+                    proxy.visitLogBookFrom(
                             1L,
                             10,
                             visited::add));
@@ -142,17 +132,17 @@ public class PresentationGatewayTest {
             visited.clear();
             assertEquals(
                     1,
-                    handler.visitLatestLogBook(
+                    proxy.visitLatestLogBook(
                             10,
                             visited::add));
             assertEquals(1, visited.size());
             assertSame(registration.timingData(), visited.get(0));
 
-            assertEquals(TimingNodeTypes.CloseResult.CLOSED, handler.close());
-            assertEquals(3, statusChanges.size());
+            assertEquals(TimingNodeTypes.CloseResult.CLOSED, proxy.close());
+            assertEquals(2, statusChanges.size());
             assertEquals(
                     TimingNodeTypes.Lifecycle.CLOSED,
-                    statusChanges.get(2).timingNodeLifecycle());
+                    statusChanges.get(1).timingNodeLifecycle());
         } finally {
             node.stop();
         }

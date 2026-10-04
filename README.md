@@ -53,6 +53,7 @@ Current real application-core behaviour is deliberately small and follows the pa
 
 ```text
 io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway
+io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy
 io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationStatus
 io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode
 io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeLogic   # package-private
@@ -110,9 +111,9 @@ A constructed `TimingNode` is always complete: TimingData persistence, factory a
 
 `TimingNodeTypes` groups the public status/result/exception value types in one Java source file; it has no runtime state and is not a separate architecture component.
 
-Local events keep publish ownership inside the component. Consumers receive a subscription-only `EventSource<T>` and subscribe directly, e.g. `handler.statusChanged().subscribe(...)`. The underlying `Event<T>` registry is thread-safe, but delivery remains synchronous on the emitting thread and concurrent emits are not serialized by the generic event primitive.
+Local events keep publish ownership inside the component. Consumers receive a subscription-only `EventSource<T>` and subscribe directly, e.g. `gateway.timingNode().statusChangedEvent().subscribe(...)`. The underlying `Event<T>` registry is thread-safe, but delivery remains synchronous on the emitting thread and concurrent emits are not serialized by the generic event primitive.
 
-`TimingNode` remains the visible Domain component boundary used by higher layers. It serializes typed commands and consistency-sensitive queries through `SerialWorker`, while package-private `TimingNodeLogic` keeps the mutable node state, `LocationId`, LogBook interaction and registration commit behaviour readable. Result-bearing callers use `invoke(TimingNodeCommands....)` and may wait for the processed domain result. Producer/callback paths use `submit(TimingNodeCommands....)` and receive only immediate bounded-queue admission, so RFID/TagProcessor ingress does not wait for later node processing. Reads use `query(TimingNodeQueries....)`; bounded LogBook reads copy a stable shallow view on the serial lane and perform longer formatting/calculation afterwards. The automatic registration command is `commitAutomaticRegistration(...)`; the IF-03 engineering resource remains `/auto-reg`.
+`TimingNode` remains the visible Domain component boundary used by Application. Presentation adapters reach it only through `PresentationGateway` and the node-scoped `TimingNodeProxy`. It serializes typed commands and consistency-sensitive queries through `SerialWorker`, while package-private `TimingNodeLogic` keeps the mutable node state, `LocationId`, LogBook interaction and registration commit behaviour readable. Result-bearing callers use `invoke(TimingNodeCommands....)` and may wait for the processed domain result. Producer/callback paths use `submit(TimingNodeCommands....)` and receive only immediate bounded-queue admission, so RFID/TagProcessor ingress does not wait for later node processing. Reads use `query(TimingNodeQueries....)`; bounded LogBook reads copy a stable shallow view on the serial lane and perform longer formatting/calculation afterwards. The Domain automatic-registration command is `addAutomaticRegistration(...)`. Presentation uses the node-scoped `TimingNodeProxy.applyAutomaticRegistration(action, registrationId, time)` boundary; the current IF-03 engineering resource remains `/auto-reg` and supplies the implemented `ADD` action.
 
 The executable artifact remains thin:
 

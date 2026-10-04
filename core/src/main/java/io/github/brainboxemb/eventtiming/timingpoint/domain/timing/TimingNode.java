@@ -46,7 +46,7 @@ public final class TimingNode {
     private final SerialWorker serialWorker;
     private final long operationTimeoutMillis;
     private final Event<Status> statusChangedEvent = new Event<>();
-    private final Event<TimingData> newTimingDataEvent = new Event<>();
+    private final Event<TimingData> timingDataCommittedEvent = new Event<>();
 
 
     public TimingNode(
@@ -176,13 +176,13 @@ public final class TimingNode {
     }
 
     /** Returns the subscription-only stream of authoritative status changes. */
-    public EventSource<Status> statusChanged() {
+    public EventSource<Status> statusChangedEvent() {
         return statusChangedEvent;
     }
 
     /** Returns the subscription-only stream of newly committed TimingData. */
-    public EventSource<TimingData> newTimingData() {
-        return newTimingDataEvent;
+    public EventSource<TimingData> timingDataCommittedEvent() {
+        return timingDataCommittedEvent;
     }
 
     private <R> R applyCommand(TimingNodeCommand<R> command) throws Exception {
@@ -250,12 +250,12 @@ public final class TimingNode {
         }
 
         TimingData data = result.timingData();
-        Event.DeliveryReport delivery = newTimingDataEvent.emit(data);
+        Event.DeliveryReport delivery = timingDataCommittedEvent.emit(data);
         if (!delivery.successful()) {
             LOG.warn(
                     "TimingData committed but "
                             + delivery.failureCount()
-                            + " newTimingData listener(s) failed for "
+                            + " timingDataCommittedEvent listener(s) failed for "
                             + timingNodeId().value()
                             + ":"
                             + data.sequenceNumber(),

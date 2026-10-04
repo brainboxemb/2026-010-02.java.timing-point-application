@@ -34,10 +34,10 @@ public class ApplicationTest {
         try {
             assertEquals(
                     "TN-01",
-                    application.presentationGateway().status().timingNodeId().value());
+                    application.presentationGateway().timingNode().status().timingNodeId().value());
             assertEquals(
                     TimingNodeTypes.Lifecycle.CLOSED,
-                    application.presentationGateway().status().timingNodeLifecycle());
+                    application.presentationGateway().timingNode().status().timingNodeLifecycle());
         } finally {
             application.close();
         }
