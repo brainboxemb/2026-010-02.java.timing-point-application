@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Make Development Client registration Date/Time explicitly UTC: manual `12:00:00` now sends `12:00:00Z` independent of the host time zone, and **Now** fills current UTC time instead of silently converting local civil time.
 - Make Development Client Timing synchronisation prominent above Version/Status, start baseline sync immediately on Events connection, buffer the initial snapshot during sync, and keep mutating controls disabled until LIVE.
 - Introduce a node-scoped `TimingNodeProxy` behind `PresentationGateway`, remove the standalone Set Location operation in favor of `open(locationId)`, rename automatic-registration intent to `applyAutomaticRegistration(action, registrationId, time)`, and expose explicit `statusChangedEvent()` / `timingDataCommittedEvent()` facts.
 - Make the Development Client target host/IP editable at runtime with an explicit Apply target action, and turn the previously grey API indicator into a clickable stateless HTTP CHECK that reports CHECKING / READY / UNREACHABLE.
