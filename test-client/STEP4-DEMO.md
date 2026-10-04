@@ -1,7 +1,6 @@
 # Step-4 V04 / VC-ST1-003 Development Client demo
 
-This checklist is the executable/manual procedure for `VC-ST1-003 — Engineering
-Client reconnect/resynchronisation integration`, the Step-4 V04 running-system evidence,
+This checklist is the executable/manual procedure for `VC-ST1-003 — Development Client reconnect/resynchronisation integration`, the Step-4 V04 running-system evidence,
 after `VC-ST1-002` is green. It uses only public interfaces and the
 JavaFX Development Client.
 

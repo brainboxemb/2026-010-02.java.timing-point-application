@@ -28,7 +28,7 @@ entry point is `TestClientApplication`, a plain Java class. The actual JavaFX su
 is kept internal as `TestClientFxApplication`; this prevents the JVM or an IDE from
 treating the selected main class as a special JavaFX launcher target.
 
-## Engineering boundaries
+## External boundaries
 
 The Development Client communicates with SI-01 only through supported external
 interfaces.
