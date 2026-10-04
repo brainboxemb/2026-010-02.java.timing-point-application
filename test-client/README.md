@@ -163,10 +163,15 @@ the API workbench:
   `TimingNodeId + sequenceNumber` key;
 - marks cached history stale during disconnect/reconnect while leaving SI-01 responsible
   for accepting/rejecting supported API commands;
-- exposes **Sync view** as the manual resynchronisation action; it refreshes the client-side status/capabilities/LogBook baseline and does not rebuild SI-01 domain data;
-- buffers live status/TimingData events that arrive during resynchronisation, applies them
-  after the HTTP status/LogBook baseline in delivery order, and only then marks
-  the Timing view LIVE.
+- shows the Timing-view synchronisation state prominently at the top of the API tab,
+  above Version/Status;
+- connecting **Events** immediately starts the status/capabilities/LogBook baseline
+  synchronisation; the client does not wait for a later snapshot to decide to start;
+- exposes **Sync view** as the manual re-synchronisation action while Events is connected;
+- buffers live status/TimingData events, including an initial STATUS_SNAPSHOT, while the
+  HTTP baseline is rebuilt, applies them after that baseline in delivery order and only
+  then marks the Timing view LIVE;
+- keeps Open/Close/auto-reg controls disabled while the Timing view is not LIVE.
 
 The current SI-01 runtime may compose one TimingNode, but the client model does not
 hard-code that limitation. With one node selection is implicit; with multiple reported

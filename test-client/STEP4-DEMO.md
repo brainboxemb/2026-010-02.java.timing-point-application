@@ -15,8 +15,8 @@ prove:
   than being presented as a persistent connection;
 - the main tabs are **API | Events | Device Log | Terminal | Client Log**;
 - Device Log and Client Log are independent sources with independent level controls;
-- connecting Events starts the client resynchronisation path before the history view
-  becomes LIVE;
+- connecting Events immediately starts the client resynchronisation path before the
+  Timing view becomes LIVE;
 - supported state-changing controls become available once the selected TimingNode view is
   LIVE without the client reimplementing SI-01 lifecycle-acceptance rules;
 - current status and bounded LogBook history are rebuilt before LIVE;
@@ -91,7 +91,8 @@ the Events connection is what starts the history/status resynchronisation flow.
 4. Verify **Client Log** is usable before connecting SI-01 Device Log and that each log
    tab has its own current/set level controls.
 5. Connect **Events**.
-   - the API history state becomes **CONNECTED / syncing** or **SYNCING**;
+   - the prominent **Timing view** state above Version/Status changes from
+     **NOT SYNCED — connect Events** to **SYNCING**;
    - state-changing controls remain unavailable while synchronising;
    - the view becomes **LIVE** only after status/capabilities/LogBook baseline recovery;
    - TimingNode `TN-01` is shown as `CLOSED` with no current LocationId.
@@ -175,6 +176,7 @@ Raw selected record visible    PASS / FAIL
 Live committed event           PASS / FAIL
 LogBook count/row              PASS / FAIL
 Re-open with LocationId 25     PASS / FAIL
+Prominent Timing-view sync state PASS / FAIL
 Reconnect/resynchronisation before LIVE PASS / FAIL
 History/live deduplication     PASS / FAIL
 Client Log remains available   PASS / FAIL
