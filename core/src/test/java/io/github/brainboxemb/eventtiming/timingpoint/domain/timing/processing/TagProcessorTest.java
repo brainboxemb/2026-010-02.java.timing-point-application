@@ -15,7 +15,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Simulate
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 
 import java.time.Duration;
 import java.util.ArrayList;
