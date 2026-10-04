@@ -120,7 +120,10 @@ The Timing workbench uses two complementary views of committed data:
   time.
 
 The workbench is laid out with node/control input on the left and the interpreted
-Registrations view above the technical LogBook on the right. A future REV record marks
+Registrations view above the technical LogBook on the right. TeamID is an interpreted
+reference-data value, not a renamed RegistrationId. Until reference/RaceData mapping is
+available, the normal view shows TeamID as unresolved while the technical LogBook keeps
+the actual RegistrationId. A future REV record marks
 the interpreted registration **DELETED** rather than removing it; the immutable LogBook
 continues to show both ADD and REV records. The Delete column is present but disabled
 until SI-01 exposes the corresponding public revoke capability.
