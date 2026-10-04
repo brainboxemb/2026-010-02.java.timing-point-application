@@ -292,6 +292,7 @@ public class TagProcessorTest {
             clock.advanceNanos(100L);
             processor.expireBursts();
 
+            assertTrue(registrationCommitted.await(1, TimeUnit.SECONDS));
             assertEquals(1, node.query(TimingNodeQueries.timingDataCount()).intValue());
             assertEquals(1L, processor.admittedCount());
             assertEquals(0L, processor.duplicateCount());
@@ -318,6 +319,9 @@ public class TagProcessorTest {
         CountDownLatch blockingCommandStarted = new CountDownLatch(1);
         CountDownLatch releaseBlockingCommand = new CountDownLatch(1);
         CountDownLatch queuedCommandCompleted = new CountDownLatch(1);
+        CountDownLatch registrationCommitted = new CountDownLatch(1);
+        node.timingDataCommittedEvent().subscribe(
+                data -> registrationCommitted.countDown());
         TimingNodeCommand<Void> blockingCommand = new TimingNodeCommand<>(
                 "blocking-test-command",
                 logic -> {
