@@ -11,6 +11,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialWo
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.RegistrationResult;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.RuntimeMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Status;
 
 import java.util.concurrent.Callable;
@@ -47,6 +48,11 @@ public final class TimingNode {
     private final long operationTimeoutMillis;
     private final Event<Status> statusChangedEvent = new Event<>();
     private final Event<TimingData> timingDataCommittedEvent = new Event<>();
+
+    private volatile long timingDataEventDeliveries;
+    private volatile long timingDataEventListenerFailures;
+    private volatile long totalTimingDataEventNanos;
+    private volatile long maxTimingDataEventNanos;
 
 
     public TimingNode(
@@ -250,7 +256,11 @@ public final class TimingNode {
         }
 
         TimingData data = result.timingData();
+        long eventStartedNanos = System.nanoTime();
         Event.DeliveryReport delivery = timingDataCommittedEvent.emit(data);
+        recordTimingDataEventDelivery(
+                System.nanoTime() - eventStartedNanos,
+                delivery.failureCount());
         if (!delivery.successful()) {
             LOG.warn(
                     "TimingData committed but "
@@ -262,6 +272,49 @@ public final class TimingNode {
                     delivery.failures().get(0));
         }
         return result;
+    }
+
+    /**
+     * Returns an explicit pull-based engineering snapshot of runtime counters.
+     *
+     * <p>Calling this method may allocate the snapshot itself and query JVM
+     * thread CPU state. The registration hot path retains only primitive
+     * counters and monotonic timestamps.</p>
+     */
+    public RuntimeMetrics runtimeMetrics() {
+        return new RuntimeMetrics(
+                serialWorker.queueDepth(),
+                serialWorker.highWaterMark(),
+                serialWorker.acceptedCount(),
+                serialWorker.fullCount(),
+                serialWorker.notRunningCount(),
+                serialWorker.completedCount(),
+                serialWorker.totalQueueWaitNanos(),
+                serialWorker.maxQueueWaitNanos(),
+                serialWorker.totalExecutionNanos(),
+                serialWorker.maxExecutionNanos(),
+                logic.timingDataAppendAttempts(),
+                logic.timingDataAppendFailures(),
+                logic.timingDataCommitCount(),
+                logic.totalTimingDataAppendNanos(),
+                logic.maxTimingDataAppendNanos(),
+                timingDataEventDeliveries,
+                timingDataEventListenerFailures,
+                totalTimingDataEventNanos,
+                maxTimingDataEventNanos,
+                serialWorker.threadCpuTimeNanos());
+    }
+
+    private void recordTimingDataEventDelivery(
+            long elapsedNanos,
+            int listenerFailures) {
+        long safeElapsed = elapsedNanos < 0L ? 0L : elapsedNanos;
+        timingDataEventDeliveries++;
+        timingDataEventListenerFailures += listenerFailures;
+        totalTimingDataEventNanos += safeElapsed;
+        if (safeElapsed > maxTimingDataEventNanos) {
+            maxTimingDataEventNanos = safeElapsed;
+        }
     }
 
     private <R> R runSerialized(Callable<R> work, String operation) {
