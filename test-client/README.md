@@ -115,7 +115,8 @@ The Timing workbench uses two complementary views of committed data:
 
 - **Registrations** is the interpreted operator-oriented projection. Its compact columns
   are **Time | Type | TeamID | Code | action**. Type is `AUTO` or `MAN` for the
-  registration origin; Code is the effective-time origin (`AUTO` or `MAN`);
+  registration origin. Code is only needed for manual registrations to show the
+  effective-time origin (`AUTO` or `MAN`); automatic registrations leave Code blank;
 - **LogBook / committed TimingData** is the technical/audit view and continues to show
   every committed source record, sequence, Type, Code, UTC-effective time and recorded
   time.
@@ -126,7 +127,8 @@ reference-data value, not a renamed RegistrationId. Until reference/RaceData map
 available, the normal view shows TeamID as unresolved while the technical LogBook keeps
 the actual RegistrationId. A manual registration with manually entered time therefore deliberately shows
 `Type = MAN` and `Code = MAN`; a manual registration using system-assigned time shows
-`Type = MAN` and `Code = AUTO`. A future REV keeps the interpreted row present and
+`Type = MAN` and `Code = AUTO`. An automatic registration already carries all needed
+meaning in `Type = AUTO`, so its Code cell is empty. A future REV keeps the interpreted row present and
 replaces the icon-only trash action with a visible **DELETED** marker. The trash action
 has no text header and remains disabled until SI-01 exposes the public revoke capability.
 The immutable LogBook continues to show all ADD/REV records.
