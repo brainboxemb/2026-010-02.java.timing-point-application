@@ -5,6 +5,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import java.io.IOException;
@@ -47,6 +48,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
     private final String bindAddress;
     private final int port;
     private final PresentationGateway presentationGateway;
+    private final TimingNodeProxy timingNode;
     private final Clock clock;
     private final TimingDataCodec timingDataCodec;
     private final Consumer<ApplicationStatus> statusChangedListener =
@@ -54,7 +56,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
     private final Consumer<TimingData> timingDataListener =
             this::broadcastTimingDataCommitted;
     private final EventSource<ApplicationStatus> statusChanged;
-    private final EventSource<TimingData> newTimingData;
+    private final EventSource<TimingData> timingDataCommitted;
 
     private Server server;
     private boolean statusSubscribed;
@@ -92,10 +94,11 @@ public final class WebSocketEndpoint implements AutoCloseable {
         this.bindAddress = bindAddress.trim();
         this.port = port;
         this.presentationGateway = presentationGateway;
+        this.timingNode = presentationGateway.timingNode();
         this.clock = clock;
         this.timingDataCodec = new DefaultTimingDataCodec();
-        this.statusChanged = presentationGateway.statusChanged();
-        this.newTimingData = presentationGateway.newTimingData();
+        this.statusChanged = timingNode.statusChangedEvent();
+        this.timingDataCommitted = timingNode.timingDataCommittedEvent();
     }
 
     /**
@@ -135,7 +138,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
         server = candidate;
         try {
             statusSubscribed = statusChanged.subscribe(statusChangedListener);
-            timingDataSubscribed = newTimingData.subscribe(timingDataListener);
+            timingDataSubscribed = timingDataCommitted.subscribe(timingDataListener);
         } catch (RuntimeException ex) {
             unsubscribeApplicationEvents();
             server = null;
@@ -164,7 +167,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
      * published automatically from the PresentationGateway subscription.</p>
      */
     public void publishStatusChanged() {
-        broadcastStatusChanged(presentationGateway.status());
+        broadcastStatusChanged(timingNode.status());
     }
 
     private void broadcastStatusChanged(ApplicationStatus status) {
@@ -207,7 +210,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
         return MessageWriter.statusEvent(
                 "STATUS_SNAPSHOT",
                 clock.instant(),
-                presentationGateway.status());
+                timingNode.status());
     }
 
     @Override
@@ -232,7 +235,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
             statusSubscribed = false;
         }
         if (timingDataSubscribed) {
-            newTimingData.unsubscribe(timingDataListener);
+            timingDataCommitted.unsubscribe(timingDataListener);
             timingDataSubscribed = false;
         }
     }
