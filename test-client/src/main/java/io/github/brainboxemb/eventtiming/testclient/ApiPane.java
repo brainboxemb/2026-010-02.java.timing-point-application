@@ -83,7 +83,7 @@ final class ApiPane extends VBox {
                 rawResponse);
         rawPane.setCollapsible(false);
 
-        getChildren().addAll(identityPane, timingPane, rawPane);
+        getChildren().addAll(timingPane.syncStateBar(), identityPane, timingPane, rawPane);
         VBox.setVgrow(timingPane, Priority.ALWAYS);
 
         versionButton.setOnAction(event -> loadVersion());
