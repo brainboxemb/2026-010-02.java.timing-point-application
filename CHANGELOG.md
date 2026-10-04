@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Make the Development Client target host/IP editable at runtime with an explicit Apply target action, and turn the previously grey API indicator into a clickable stateless HTTP CHECK that reports CHECKING / READY / UNREACHABLE.
 - Promote **Device Log** and **Client Log** to independent top-level Development Client tabs, removing the nested Logs/source-tab structure while preserving separate runtime log-level controls.
 - Correct the Development Client Logs tab: show Device Log first and Client Log last, and give both sources independent current/set-level controls while keeping the local client log usable when SI-01 is offline.
 - Rename the standalone JavaFX tool to **Development Client** and align the API-first workbench: remove the prominent Set Location button, split TimingData Type/Code columns, retain node-scoped IF-03 problems, and give client log lines real source context while keeping Client and SI-01/Device logs separate.

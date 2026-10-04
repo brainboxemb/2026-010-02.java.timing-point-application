@@ -66,11 +66,17 @@ The Development Client reads its target and presentation defaults from one file:
 config/development-client.properties
 ```
 
-The default file configures HTTP :8081, Events :8082, Remote Shell :8023 and
-LoggingServer :8030 on `127.0.0.1`, plus the Development Client's own log path/level
-and initial registration prefix. The resolver accepts both the repository root and
-`test-client` as the working directory, so root-level Maven and NetBeans launches use
-the same file. Use `--config=<path>` to select another client configuration file.
+The default file configures the startup target host, HTTP :8081, Events :8082,
+Remote Shell :8023 and LoggingServer :8030, plus the Development Client's own log
+path/level and initial registration prefix. The target host/IP remains editable in the
+top target bar at runtime; **Apply target** changes the active host for all external
+boundaries without rewriting the config file. Changing the active host disconnects
+stateful Events/Terminal/Device Log connections so they cannot silently remain attached
+to the previous target.
+
+The resolver accepts both the repository root and `test-client` as the working
+directory, so root-level Maven and NetBeans launches use the same file. Use
+`--config=<path>` to select another client configuration file.
 
 The window title includes the Development Client software version. **Help → About** shows
 the client's own build identity and selected client-config path.
@@ -83,9 +89,15 @@ The reviewed tab order is:
 API | Events | Device Log | Terminal | Client Log
 ```
 
-The top target bar is config-driven. It identifies the target host and shows separate
-port/state controls for IF-03 HTTP, Events, Remote Shell and SI-01/Device logging.
-Client-local logging is always available independently from SI-01.
+The top target bar starts from the configured host but exposes the host/IP as an editable
+field. **Apply target** makes the entered host active for IF-03 HTTP, Events, Remote
+Shell and Device Log while the per-boundary ports remain config-driven.
+
+The API control is deliberately clickable. IF-03 HTTP has no persistent connection, so
+the control performs an explicit availability **CHECK** and reports CHECKING, READY or
+UNREACHABLE instead of pretending that a long-lived HTTP session was opened. Events,
+Terminal and Device Log retain their explicit connect/disconnect controls. Client-local
+logging is always available independently from SI-01.
 
 ### API
 

@@ -24,6 +24,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -45,7 +46,8 @@ public final class TestClientFxApplication extends Application {
     private final Button terminalBoundary = new Button();
     private final Button deviceLogBoundary = new Button();
     private final Button clientLogBoundary = new Button();
-    private final Label target = new Label();
+    private final TextField targetHost = new TextField();
+    private final Button applyTarget = new Button("Apply target");
 
     private final ApiEventClient eventClient = new ApiEventClient();
     private final Label eventType = valueLabel();
@@ -71,6 +73,7 @@ public final class TestClientFxApplication extends Application {
 
     private ClientConfig config;
     private Path configPath;
+    private String activeTargetHost;
     private ClientLog clientLog;
     private ApiPane apiPane;
 
@@ -78,6 +81,7 @@ public final class TestClientFxApplication extends Application {
     public void start(Stage stage) throws Exception {
         configPath = resolveConfigPath();
         config = ClientConfig.load(configPath);
+        activeTargetHost = config.host();
         clientLog = ClientLog.open(config.clientLogPath(), config.clientLogLevel());
         clientLog.info("Development Client starting with config " + configPath);
 
@@ -131,32 +135,42 @@ public final class TestClientFxApplication extends Application {
     }
 
     private HBox targetBar() {
-        target.setText("Target\n" + config.host());
-        target.setTooltip(new Tooltip("Client config: " + configPath));
-        target.setMinWidth(190);
+        targetHost.setText(activeTargetHost);
+        targetHost.setPromptText("host or IP");
+        targetHost.setPrefColumnCount(15);
+        targetHost.setTooltip(new Tooltip(
+                "Startup default from " + configPath
+                        + ". Edit the host/IP and apply it for all external boundaries."));
+        targetHost.setOnAction(event -> applyTargetHost());
+        applyTarget.setOnAction(event -> applyTargetHost());
 
-        apiBoundary.setDisable(true);
+        apiBoundary.setTooltip(new Tooltip(
+                "IF-03 HTTP is stateless. Click to check that the API at the active target is reachable."));
         clientLogBoundary.setDisable(true);
 
         HBox bar = new HBox(
                 8,
-                target,
+                new Label("Target"),
+                targetHost,
+                applyTarget,
                 apiBoundary,
                 eventBoundary,
                 terminalBoundary,
                 deviceLogBoundary,
                 clientLogBoundary);
+        HBox.setHgrow(targetHost, Priority.NEVER);
         bar.setPadding(new Insets(10, 12, 10, 12));
         return bar;
     }
 
     private void configureBoundaryButtons() {
-        setApiState("UNKNOWN");
+        setApiState("CHECK");
         setEventConnected(false, "CONNECT");
         setShellConnected(false, "CONNECT");
         setLogConnected(false, "CONNECT");
         clientLogBoundary.setText("Client log\nACTIVE");
 
+        apiBoundary.setOnAction(event -> checkApi());
         eventBoundary.setOnAction(event -> {
             if (eventClient.isConnected()) {
                 disconnectEvents();
@@ -288,12 +302,15 @@ public final class TestClientFxApplication extends Application {
     }
 
     private void connectEvents() {
+        if (!applyTargetHost()) {
+            return;
+        }
         eventBoundary.setDisable(true);
         eventBoundary.setText("Events :" + config.eventPort() + "\nCONNECTING");
-        clientLog.info("Connecting IF-03 Events to " + config.eventEndpoint());
+        clientLog.info("Connecting IF-03 Events to " + eventEndpoint());
 
         try {
-            eventClient.connect(config.eventEndpoint(), new ApiEventClient.Listener() {
+            eventClient.connect(eventEndpoint(), new ApiEventClient.Listener() {
                 @Override
                 public void onConnected() {
                     Platform.runLater(() -> {
@@ -387,6 +404,9 @@ public final class TestClientFxApplication extends Application {
     }
 
     private void connectLogs() {
+        if (!applyTargetHost()) {
+            return;
+        }
         deviceLogBoundary.setDisable(true);
         deviceLogBoundary.setText(
                 "Device log :" + config.loggingServerPort() + "\nCONNECTING");
@@ -396,7 +416,7 @@ public final class TestClientFxApplication extends Application {
                 .runAsync(() -> {
                     try {
                         liveLogClient.connect(
-                                config.host(),
+                                activeTargetHost,
                                 config.loggingServerPort(),
                                 new LiveLogClient.Listener() {
                                     @Override
@@ -480,6 +500,9 @@ public final class TestClientFxApplication extends Application {
     }
 
     private void connectShell() {
+        if (!applyTargetHost()) {
+            return;
+        }
         terminalBoundary.setDisable(true);
         terminalBoundary.setText(
                 "Terminal :" + config.shellPort() + "\nCONNECTING");
@@ -489,7 +512,7 @@ public final class TestClientFxApplication extends Application {
                 .runAsync(() -> {
                     try {
                         shellClient.connect(
-                                config.host(),
+                                activeTargetHost,
                                 config.shellPort(),
                                 new RemoteShellClient.Listener() {
                                     @Override
@@ -552,10 +575,90 @@ public final class TestClientFxApplication extends Application {
     }
 
     private ApiClient client() {
-        return new ApiClient(config.apiEndpoint());
+        return new ApiClient(apiEndpoint());
+    }
+
+    private URI apiEndpoint() {
+        return URI.create("http://" + uriHost(activeTargetHost) + ":" + config.apiHttpPort());
+    }
+
+    private URI eventEndpoint() {
+        return URI.create(
+                "ws://" + uriHost(activeTargetHost) + ":" + config.eventPort() + "/api/v1/events");
+    }
+
+    private static String uriHost(String host) {
+        return host.indexOf(':') >= 0 && !host.startsWith("[")
+                ? "[" + host + "]"
+                : host;
+    }
+
+    private boolean applyTargetHost() {
+        String value = targetHost.getText() == null ? "" : targetHost.getText().trim();
+        if (value.isEmpty()) {
+            feedback.setText("Target host/IP must not be empty");
+            return false;
+        }
+        if (value.contains("://") || value.contains("/") || value.contains("\\")) {
+            feedback.setText("Target must be a host or IP address, not a URL");
+            return false;
+        }
+        if (value.equals(activeTargetHost)) {
+            targetHost.setText(activeTargetHost);
+            return true;
+        }
+
+        if (eventClient.isConnected()) {
+            disconnectEvents();
+        }
+        if (shellClient.isConnected()) {
+            shellClient.disconnect();
+        }
+        if (liveLogClient.isConnected()) {
+            liveLogClient.disconnect();
+        }
+
+        activeTargetHost = value;
+        targetHost.setText(activeTargetHost);
+        setApiState("CHECK");
+        apiPane.disconnected(true);
+        feedback.setText("Target changed to " + activeTargetHost);
+        clientLog.info("Development Client target changed to " + activeTargetHost);
+        return true;
+    }
+
+    private void checkApi() {
+        if (!applyTargetHost()) {
+            return;
+        }
+        setApiState("CHECKING");
+        feedback.setText("Checking API " + apiEndpoint() + "...");
+        clientLog.info("Checking IF-03 API at " + apiEndpoint());
+
+        CompletableFuture
+                .supplyAsync(() -> {
+                    try {
+                        return client().getVersion();
+                    } catch (Exception ex) {
+                        throw new CompletionException(ex);
+                    }
+                }, requests)
+                .whenComplete((result, error) -> Platform.runLater(() -> {
+                    if (error != null) {
+                        setApiState("UNREACHABLE");
+                        clientLog.error("IF-03 API check failed: " + rootMessage(error));
+                        feedback.setText("API error: " + rootMessage(error));
+                        return;
+                    }
+                    setApiState("READY");
+                    clientLog.info("IF-03 API ready: " + result.build().application()
+                            + " " + result.build().version());
+                    feedback.setText("API ready");
+                }));
     }
 
     private void setApiState(String state) {
+        apiBoundary.setDisable("CHECKING".equals(state));
         apiBoundary.setText("API :" + config.apiHttpPort() + "\n" + state);
     }
 
