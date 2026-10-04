@@ -44,11 +44,11 @@ public class PresentationGatewayTest {
 
         node.start();
         try {
-            ApplicationStatus status = gateway.timingNode().status();
+            TimingNodeStatus status = gateway.timingNode().status();
             assertEquals(new NodeId("TN-01"), status.timingNodeId());
             assertEquals(
                     TimingNodeTypes.Lifecycle.CLOSED,
-                    status.timingNodeLifecycle());
+                    status.lifecycle());
         } finally {
             node.stop();
         }
@@ -63,10 +63,10 @@ public class PresentationGatewayTest {
 
         node.start();
         try {
-            ApplicationStatus status = gateway.timingNode().status();
+            TimingNodeStatus status = gateway.timingNode().status();
             assertEquals(
                     TimingNodeTypes.Lifecycle.ERROR,
-                    status.timingNodeLifecycle());
+                    status.lifecycle());
             assertEquals(1, status.problems().size());
             assertEquals(
                     TimingNodeTypes.ProblemCode.TIMING_DATA_RECOVERY_FAILED,
@@ -84,7 +84,7 @@ public class PresentationGatewayTest {
         TimingNode node = node(store);
         PresentationGateway gateway = new PresentationGateway(identity(), node);
         TimingNodeProxy proxy = gateway.timingNode();
-        List<ApplicationStatus> statusChanges = new ArrayList<>();
+        List<TimingNodeStatus> statusChanges = new ArrayList<>();
         List<TimingData> committed = new ArrayList<>();
 
         node.start();
@@ -104,7 +104,7 @@ public class PresentationGatewayTest {
             assertEquals(1, statusChanges.size());
             assertEquals(
                     TimingNodeTypes.Lifecycle.OPEN,
-                    statusChanges.get(0).timingNodeLifecycle());
+                    statusChanges.get(0).lifecycle());
             assertEquals(
                     new LocationId(24),
                     statusChanges.get(0).locationId());
@@ -142,7 +142,7 @@ public class PresentationGatewayTest {
             assertEquals(2, statusChanges.size());
             assertEquals(
                     TimingNodeTypes.Lifecycle.CLOSED,
-                    statusChanges.get(1).timingNodeLifecycle());
+                    statusChanges.get(1).lifecycle());
         } finally {
             node.stop();
         }
