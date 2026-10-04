@@ -113,8 +113,9 @@ authoritative.
 
 The Timing workbench uses two complementary views of committed data:
 
-- **Registrations** is the interpreted operator-oriented projection. It shows normal local
-  clock time, RegistrationId, a **Code** value such as `AUTO` or `MAN` and deletion state;
+- **Registrations** is the interpreted operator-oriented projection. Its compact columns
+  are **Time | Type | TeamID | Code | action**. Type is `AUTO` or `MAN` for the
+  registration origin; Code is the effective-time origin (`AUTO` or `MAN`);
 - **LogBook / committed TimingData** is the technical/audit view and continues to show
   every committed source record, sequence, Type, Code, UTC-effective time and recorded
   time.
@@ -123,10 +124,12 @@ The workbench is laid out with node/control input on the left and the interprete
 Registrations view above the technical LogBook on the right. TeamID is an interpreted
 reference-data value, not a renamed RegistrationId. Until reference/RaceData mapping is
 available, the normal view shows TeamID as unresolved while the technical LogBook keeps
-the actual RegistrationId. A future REV record marks
-the interpreted registration **DELETED** rather than removing it; the immutable LogBook
-continues to show both ADD and REV records. The Delete column is present but disabled
-until SI-01 exposes the corresponding public revoke capability.
+the actual RegistrationId. A manual registration with manually entered time therefore deliberately shows
+`Type = MAN` and `Code = MAN`; a manual registration using system-assigned time shows
+`Type = MAN` and `Code = AUTO`. A future REV keeps the interpreted row present and
+replaces the icon-only trash action with a visible **DELETED** marker. The trash action
+has no text header and remains disabled until SI-01 exposes the public revoke capability.
+The immutable LogBook continues to show all ADD/REV records.
 
 Registration input uses a separate prefix and numeric field plus readable local civil
 date and whole-second clock time. The UI shows the interpreted client time zone next to
