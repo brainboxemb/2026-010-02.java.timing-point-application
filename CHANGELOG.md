@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Align current repository documentation with its existing Java-project structure: shorten the root README to an entrypoint, remove implementation-step narration from Development Client docs, and rename the manual VC-ST1-003 checklist/config away from Step-4 demo terminology.
 - Add Step-5 A02 pull-based runtime instrumentation: fixed SerialWorker admission/wait/execution counters, TimingNode append/commit/event metrics, TagProcessor ingress counters and on-demand JDK heap/thread/GC observations without per-event sample allocation or measurement logging.
 - Start Step-5 A01 with a normal `Antenna` callback contract, deterministic built-in `SimulatedAntenna`, distinct `TagId` resolution and `TagProcessor` submission into the existing bounded TimingNode registration/commit path; unknown synthetic tags are filtered before commit.
 - Rename the node-scoped Application-layer status projection from `ApplicationStatus` to `TimingNodeStatus`; `TimingNodeProxy.status()` and `statusChangedEvent()` now expose the node-specific type and lifecycle naming directly.
