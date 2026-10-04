@@ -79,8 +79,13 @@ final class TagObservationFilter implements AutoCloseable {
                 TimeUnit.NANOSECONDS);
     }
 
-    /** Adds one decoded antenna observation to its TagId passage. */
-    void onObservation(TagObservation observation) {
+    /**
+     * Adds one decoded observation to the current passage for its TagId.
+     *
+     * <p>This is deliberately not an event-handler API. TagProcessor owns the
+     * Antenna EventSource callback and feeds observations into this filter.</p>
+     */
+    void add(TagObservation observation) {
         if (observation == null) {
             throw new IllegalArgumentException("observation must not be null");
         }
