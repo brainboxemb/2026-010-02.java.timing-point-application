@@ -6,6 +6,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialWorker;
 
 import java.util.Collections;
@@ -323,7 +324,8 @@ public class TimingNodeTest {
                 id,
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),
-                TimingNodeTest::now);
+                TimingNodeTest::now,
+                SystemMonotonicClock.INSTANCE);
         return new TimingNode(logic, worker, timeoutMillis);
     }
 

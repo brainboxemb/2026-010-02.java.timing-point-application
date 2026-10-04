@@ -67,6 +67,9 @@ io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenn
 io.github.brainboxemb.eventtiming.timingpoint.io.storage.AppendOnlyRecordStore
 io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore
 io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialWorker
+io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock
+io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock
+io.github.brainboxemb.eventtiming.timingpoint.platform.environment.RuntimeObservation
 io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity
 io.github.brainboxemb.eventtiming.timingpoint.runtime.config.YamlLoader
 io.github.brainboxemb.eventtiming.timingpoint.runtime.Application
@@ -108,6 +111,10 @@ io/
 platform/
   execution/
     SerialWorker
+  environment/
+    MonotonicClock
+    SystemMonotonicClock
+    RuntimeObservation
   events/
     Event
 ```
@@ -125,6 +132,8 @@ Local events keep publish ownership inside the component. Consumers receive a su
 `TimingNode` remains the visible Domain component boundary used by Application. Presentation adapters reach it only through `PresentationGateway` and the node-scoped `TimingNodeProxy`. It serializes typed commands and consistency-sensitive queries through `SerialWorker`, while package-private `TimingNodeLogic` keeps the mutable node state, `LocationId`, LogBook interaction and registration commit behaviour readable. Result-bearing callers use `invoke(TimingNodeCommands....)` and may wait for the processed domain result. Producer/callback paths use `submit(TimingNodeCommands....)` and receive only immediate bounded-queue admission, so RFID/TagProcessor ingress does not wait for later node processing. Reads use `query(TimingNodeQueries....)`; the current bounded LogBook queries traverse the owned history on the serial lane and build only the requested response representation. The Domain automatic-registration command is `addAutomaticRegistration(...)`. Presentation uses the node-scoped `TimingNodeProxy.applyAutomaticRegistration(action, registrationId, time)` boundary; the current IF-03 engineering resource remains `/auto-reg` and supplies the implemented `ADD` action.
 
 Step-5 antenna ingress uses a separate path into the same command: `SimulatedAntenna` emits a decoded tag observation through the normal `Antenna` callback, `TagProcessor` resolves the source `TagId` to the canonical `RegistrationId`, filters unknown tags and calls `TimingNode.submit(TimingNodeCommands.addAutomaticRegistration(...))`. The antenna callback receives only immediate bounded-lane admission; sequence allocation, active LocationId, recorded time, persistence, LogBook visibility and the committed event remain owned by the existing TimingNode path.
+
+Step-5 runtime instrumentation is pull-based. `SerialWorker` retains fixed admission/queue-wait/execution counters and monotonic duration totals/maxima; `TimingNode.runtimeMetrics()` combines those with TimingData append/commit and post-commit event-delivery counters. Domain code receives monotonic elapsed-time values through the Platform `MonotonicClock`; normal runtime uses `SystemMonotonicClock` backed by `System.nanoTime()`, kept separate from Domain `TimingTimestamp` semantics. `TagProcessor` exposes fixed ingress/resolution/admission counts. `RuntimeObservation.capture()` reads heap, live-thread and GC observations from JDK management APIs only when explicitly requested. No registration allocates a metrics/sample object and the measurement path does not emit per-event log records.
 
 The executable artifact remains thin:
 

@@ -150,6 +150,56 @@ public class SerialWorkerTest {
     }
 
     @Test
+    public void recordsLowAllocationRuntimeCountersAndDurations() throws Exception {
+        SerialWorker worker = new SerialWorker(1, "serial-worker-metrics-test");
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        CountDownLatch queuedDone = new CountDownLatch(1);
+
+        assertEquals(
+                SerialWorker.AdmissionResult.NOT_RUNNING,
+                worker.offer(() -> { }));
+
+        worker.start();
+        try {
+            worker.offer(() -> {
+                firstStarted.countDown();
+                try {
+                    releaseFirst.await();
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
+
+            assertEquals(
+                    SerialWorker.AdmissionResult.ACCEPTED,
+                    worker.offer(queuedDone::countDown));
+            assertEquals(
+                    SerialWorker.AdmissionResult.FULL,
+                    worker.offer(() -> { }));
+
+            Thread.sleep(10L);
+            releaseFirst.countDown();
+            assertTrue(queuedDone.await(1, TimeUnit.SECONDS));
+        } finally {
+            releaseFirst.countDown();
+            worker.close();
+        }
+
+        assertEquals(2L, worker.acceptedCount());
+        assertEquals(1L, worker.fullCount());
+        assertEquals(1L, worker.notRunningCount());
+        assertEquals(2L, worker.completedCount());
+        assertTrue(worker.highWaterMark() >= 1);
+        assertTrue(worker.maxQueueWaitNanos() > 0L);
+        assertTrue(worker.totalQueueWaitNanos() >= worker.maxQueueWaitNanos());
+        assertTrue(worker.maxExecutionNanos() > 0L);
+        assertTrue(worker.totalExecutionNanos() >= worker.maxExecutionNanos());
+        assertTrue(worker.threadCpuTimeNanos() >= -1L);
+    }
+
+    @Test
     public void fatalErrorFaultsWorkerAndCancelsQueuedWork() throws Exception {
         SerialWorker worker = new SerialWorker(2, "serial-worker-test");
         CountDownLatch fatalStarted = new CountDownLatch(1);

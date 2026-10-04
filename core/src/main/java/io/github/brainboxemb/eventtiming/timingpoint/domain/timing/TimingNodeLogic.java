@@ -19,6 +19,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTyp
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.ProblemSeverity;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Status;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 
 import java.util.Collections;
 import java.util.List;
@@ -37,6 +38,7 @@ final class TimingNodeLogic {
     private final TimingDataPersistence timingDataPersistence;
     private final TimingDataFactory timingDataFactory;
     private final TimeSource timeSource;
+    private final MonotonicClock monotonicClock;
 
     private Lifecycle lifecycle = Lifecycle.CLOSED;
     private LocationId locationId;
@@ -44,11 +46,18 @@ final class TimingNodeLogic {
     private Throwable timingDataCommitFailure;
     private List<Problem> problems = Collections.emptyList();
 
+    private volatile long timingDataAppendAttempts;
+    private volatile long timingDataAppendFailures;
+    private volatile long timingDataCommitCount;
+    private volatile long totalTimingDataAppendNanos;
+    private volatile long maxTimingDataAppendNanos;
+
     TimingNodeLogic(
             NodeId timingNodeId,
             TimingDataPersistence timingDataPersistence,
             TimingDataFactory timingDataFactory,
-            TimeSource timeSource) {
+            TimeSource timeSource,
+            MonotonicClock monotonicClock) {
         if (timingNodeId == null) {
             throw new IllegalArgumentException("timingNodeId must not be null");
         }
@@ -62,11 +71,15 @@ final class TimingNodeLogic {
         if (timeSource == null) {
             throw new IllegalArgumentException("timeSource must not be null");
         }
+        if (monotonicClock == null) {
+            throw new IllegalArgumentException("monotonicClock must not be null");
+        }
 
         this.timingNodeId = timingNodeId;
         this.timingDataPersistence = timingDataPersistence;
         this.timingDataFactory = timingDataFactory;
         this.timeSource = timeSource;
+        this.monotonicClock = monotonicClock;
         this.logBook = new LogBook(timingNodeId);
     }
 
@@ -216,18 +229,51 @@ final class TimingNodeLogic {
         }
     }
 
+    long timingDataAppendAttempts() {
+        return timingDataAppendAttempts;
+    }
+
+    long timingDataAppendFailures() {
+        return timingDataAppendFailures;
+    }
+
+    long timingDataCommitCount() {
+        return timingDataCommitCount;
+    }
+
+    long totalTimingDataAppendNanos() {
+        return totalTimingDataAppendNanos;
+    }
+
+    long maxTimingDataAppendNanos() {
+        return maxTimingDataAppendNanos;
+    }
+
+    private void recordTimingDataAppend(long elapsedNanos) {
+        long safeElapsed = elapsedNanos < 0L ? 0L : elapsedNanos;
+        totalTimingDataAppendNanos += safeElapsed;
+        if (safeElapsed > maxTimingDataAppendNanos) {
+            maxTimingDataAppendNanos = safeElapsed;
+        }
+    }
+
     private RegistrationResult commitRegistration(TimingData data)
             throws TimingDataPersistence.PersistenceException {
         if (data == null) {
             throw new IllegalStateException("timingDataFactory returned null");
         }
 
+        timingDataAppendAttempts++;
+        long appendStartedNanos = monotonicClock.nowNanos();
         try {
             timingDataPersistence.append(data);
         } catch (TimingDataPersistence.PersistenceException ex) {
+            recordTimingDataAppend(monotonicClock.nowNanos() - appendStartedNanos);
+            timingDataAppendFailures++;
             timingDataCommitFailure = ex;
             throw ex;
         }
+        recordTimingDataAppend(monotonicClock.nowNanos() - appendStartedNanos);
 
         try {
             logBook.add(data);
@@ -236,6 +282,7 @@ final class TimingNodeLogic {
             throw ex;
         }
 
+        timingDataCommitCount++;
         return RegistrationResult.committed(data);
     }
 }
