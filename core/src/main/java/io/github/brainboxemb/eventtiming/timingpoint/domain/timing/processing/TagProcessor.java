@@ -105,12 +105,17 @@ public final class TagProcessor implements AutoCloseable {
                         this::processSelectedObservation);
     }
 
-    /** Receives one decoded observation from an Antenna EventSource. */
+    /**
+     * Event callback for decoded antenna observations.
+     *
+     * <p>The EventSource-facing method stays here. The filter itself only
+     * receives items through its collection-style add operation.</p>
+     */
     public void onObservation(TagObservation observation) {
         if (closed) {
             throw new IllegalStateException("TagProcessor is closed");
         }
-        observationFilter.onObservation(observation);
+        observationFilter.add(observation);
     }
 
     private void processSelectedObservation(TagObservation observation) {
