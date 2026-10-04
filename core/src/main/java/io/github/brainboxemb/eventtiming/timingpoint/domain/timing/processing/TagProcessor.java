@@ -76,13 +76,14 @@ public final class TagProcessor {
     }
 
     /**
-     * Runs one expiry pass for observation passages.
+     * Runs one periodic processing pass.
      *
-     * <p>Package-private because runtime scheduling is owned by
-     * TagProcessingExpiryScheduler, not by the filter itself.</p>
+     * <p>The execution model decides when this is called. TagProcessor owns the
+     * processing components and delegates their periodic housekeeping here.</p>
      */
-    void expireObservations() {
-        observationFilter.expire();
+    public void periodic() {
+        observationFilter.periodic();
+        duplicateFilter.periodic();
     }
 
     private void processValidObservation(TagObservation observation) {
