@@ -58,6 +58,10 @@ public class TagProcessorTest {
             assertEquals(new RegistrationId("N0001"), registration.registrationId());
             assertEquals(OBSERVED_AT, registration.effectiveTime());
             assertEquals(RECORDED_AT, registration.recordedAt());
+            assertEquals(1L, processor.observationCount());
+            assertEquals(1L, processor.resolvedCount());
+            assertEquals(0L, processor.unknownTagCount());
+            assertEquals(1L, processor.admittedCount());
         } finally {
             antenna.close();
             node.stop();
@@ -82,6 +86,9 @@ public class TagProcessorTest {
 
             assertEquals(0, node.query(TimingNodeQueries.timingDataCount()).intValue());
             assertTrue(store.appended.isEmpty());
+            assertEquals(1L, processor.observationCount());
+            assertEquals(0L, processor.resolvedCount());
+            assertEquals(1L, processor.unknownTagCount());
         } finally {
             antenna.close();
             node.stop();
