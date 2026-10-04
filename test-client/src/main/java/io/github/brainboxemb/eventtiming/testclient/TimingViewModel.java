@@ -36,6 +36,7 @@ public final class TimingViewModel {
     /** One user-facing registration projected from immutable committed TimingData. */
     public record InterpretedRegistration(
             String registrationId,
+            String teamId,
             String displayTime,
             String code,
             boolean deleted,
@@ -219,6 +220,7 @@ public final class TimingViewModel {
                         key,
                         new InterpretedRegistration(
                                 record.registrationId(),
+                                null,
                                 displayTime(record.effectiveTime(), zone),
                                 code,
                                 revoke,
@@ -231,6 +233,7 @@ public final class TimingViewModel {
                     key,
                     new InterpretedRegistration(
                             previous.registrationId(),
+                            previous.teamId(),
                             previous.displayTime(),
                             previous.code(),
                             previous.deleted() || revoke,
