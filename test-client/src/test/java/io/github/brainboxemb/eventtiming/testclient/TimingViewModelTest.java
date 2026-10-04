@@ -3,7 +3,7 @@ package io.github.brainboxemb.eventtiming.testclient;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.ZoneOffset;
+import java.util.TimeZone;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -128,13 +128,19 @@ class TimingViewModelTest {
     }
 
     @Test
-    void convertsReadableDateAndWholeSecondTimeToCanonicalUtc() {
-        assertEquals(
-                "2026-10-03T15:33:00.000000000Z",
-                TimingViewModel.canonicalTime(
-                        LocalDate.parse("2026-10-03"),
-                        LocalTime.parse("15:33:00"),
-                        ZoneOffset.UTC));
+    void treatsExplicitReadableDateAndTimeAsUtcIndependentOfHostZone() {
+        TimeZone previous = TimeZone.getDefault();
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("Europe/Amsterdam"));
+
+            assertEquals(
+                    "2026-10-01T12:00:00.000000000Z",
+                    TimingViewModel.canonicalTime(
+                            LocalDate.parse("2026-10-01"),
+                            LocalTime.parse("12:00:00")));
+        } finally {
+            TimeZone.setDefault(previous);
+        }
     }
 
     private static ApiClient.StatusResult status(ApiClient.TimingNodeInfo... nodes) {
