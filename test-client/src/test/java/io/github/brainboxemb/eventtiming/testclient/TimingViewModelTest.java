@@ -152,7 +152,7 @@ class TimingViewModelTest {
         assertEquals("12:00:00", values.get(0).displayTime());
         assertEquals("AUTO", values.get(0).type());
         assertNull(values.get(0).teamId());
-        assertEquals("AUTO", values.get(0).code());
+        assertEquals("", values.get(0).code());
         assertEquals("12:00:05", values.get(1).displayTime());
         assertEquals("MAN", values.get(1).type());
         assertEquals("MAN", values.get(1).code());
