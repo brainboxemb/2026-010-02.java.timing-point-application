@@ -184,8 +184,8 @@ final class TimingPane extends VBox {
         historyPane.setCollapsible(false);
 
         VBox left = new VBox(10, nodePane, registrationPane);
-        left.setPrefWidth(390);
-        left.setMinWidth(340);
+        left.setPrefWidth(470);
+        left.setMinWidth(420);
 
         VBox right = new VBox(10, interpretedPane, historyPane);
         HBox.setHgrow(right, Priority.ALWAYS);
@@ -679,6 +679,10 @@ final class TimingPane extends VBox {
                 registrationColumn(
                         "Time",
                         TimingViewModel.InterpretedRegistration::displayTime);
+        TableColumn<TimingViewModel.InterpretedRegistration, String> type =
+                registrationColumn(
+                        "Type",
+                        TimingViewModel.InterpretedRegistration::type);
         TableColumn<TimingViewModel.InterpretedRegistration, String> team =
                 registrationColumn(
                         "TeamID",
@@ -687,41 +691,45 @@ final class TimingPane extends VBox {
                 registrationColumn(
                         "Code",
                         TimingViewModel.InterpretedRegistration::code);
-        TableColumn<TimingViewModel.InterpretedRegistration, String> status =
-                registrationColumn(
-                        "State",
-                        TimingViewModel.InterpretedRegistration::state);
-        TableColumn<TimingViewModel.InterpretedRegistration, Void> delete =
-                new TableColumn<>("Delete");
+        TableColumn<TimingViewModel.InterpretedRegistration, Void> action =
+                new TableColumn<>("");
 
         time.setPrefWidth(100);
-        team.setPrefWidth(120);
-        code.setPrefWidth(85);
-        status.setPrefWidth(100);
-        delete.setPrefWidth(90);
+        type.setPrefWidth(80);
+        team.setPrefWidth(110);
+        code.setPrefWidth(80);
+        action.setPrefWidth(90);
 
-        delete.setCellFactory(column -> new TableCell<>() {
-            private final Button button = new Button("Delete");
+        action.setCellFactory(column -> new TableCell<>() {
+            private final Button button = new Button("🗑");
+            private final Label deleted = new Label("DELETED");
             {
                 button.setDisable(true);
+                button.setAccessibleText("Delete registration");
                 button.setTooltip(new Tooltip(
-                        "Delete will append a REV record; the public REV operation "
+                        "Delete appends a REV record; the public REV operation "
                                 + "is not available yet."));
             }
 
             @Override
             protected void updateItem(Void item, boolean empty) {
                 super.updateItem(item, empty);
-                setGraphic(empty ? null : button);
+                if (empty || getTableRow() == null || getTableRow().getItem() == null) {
+                    setGraphic(null);
+                    return;
+                }
+                TimingViewModel.InterpretedRegistration registration =
+                        (TimingViewModel.InterpretedRegistration) getTableRow().getItem();
+                setGraphic(registration.deleted() ? deleted : button);
             }
         });
 
         registrations.getColumns().setAll(
                 time,
+                type,
                 team,
                 code,
-                status,
-                delete);
+                action);
         registrations.setColumnResizePolicy(
                 TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         registrations.setPlaceholder(new Label("No registrations"));
