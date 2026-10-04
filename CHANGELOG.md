@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Refactor tag processing into `domain.timing.processing`: focused passage/RSSI and RegistrationId duplicate filters, a small orchestration-only `TagProcessor`, and separate low-allocation `TagProcessingCounters` with pull-based snapshots.
+
 - Repair the Step-5 antenna/tag path against D04: Event-based TagObservation with RSSI/time, Antenna lifecycle methods, strongest-RSSI passage selection, injected TagRegistrationMapper, timed burst closure and RegistrationId duplicate suppression before bounded TimingNode submission.
 
 - Align current repository documentation with its existing Java-project structure: shorten the root README to an entrypoint, remove implementation-step narration from Development Client docs, and rename the manual VC-ST1-003 checklist/config away from Step-4 demo terminology.
