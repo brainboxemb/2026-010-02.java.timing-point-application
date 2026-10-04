@@ -21,8 +21,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -41,20 +39,13 @@ public class TagProcessorTest {
     public void selectedObservationUsesNormalTimingNodeCommitPath() throws Exception {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
-        ScheduledExecutorService scheduler =
-                Executors.newSingleThreadScheduledExecutor();
-        TagProcessingPolicy policy = runtimePolicy();
+        FakeMonotonicClock clock = new FakeMonotonicClock();
         TagProcessor processor = new TagProcessor(
                 node,
                 TagProcessorTest::mapReferenceTag,
-                policy,
-                SystemMonotonicClock.INSTANCE,
+                manualPolicy(),
+                clock,
                 new TagProcessingCounters());
-        TagProcessingExpiryScheduler expiryScheduler =
-                new TagProcessingExpiryScheduler(
-                        processor,
-                        policy,
-                        scheduler);
         SimulatedAntenna antenna = new SimulatedAntenna();
         Consumer<TagObservation> listener = processor::onObservation;
         CountDownLatch committed = new CountDownLatch(1);
@@ -68,6 +59,8 @@ public class TagProcessorTest {
         antenna.startInventory();
         try {
             antenna.emit(new TagId("TAG-001"), -42, OBSERVED_AT);
+            clock.advanceNanos(100L);
+            processor.periodic();
 
             assertTrue(
                     "selected tag was not committed",
@@ -83,8 +76,6 @@ public class TagProcessorTest {
         } finally {
             antenna.stopInventory();
             antenna.observations().unsubscribe(listener);
-            expiryScheduler.close();
-            scheduler.shutdownNow();
             antenna.close();
             node.stop();
         }
@@ -108,17 +99,9 @@ public class TagProcessorTest {
                         -30,
                         OBSERVED_AT));
         clock.advanceNanos(100L);
-        processor.expireObservations();
+        processor.periodic();
 
         assertTrue(store.appended.isEmpty());
-    }
-
-    private static TagProcessingPolicy runtimePolicy() {
-        return new TagProcessingPolicy(
-                Duration.ofMillis(10),
-                Duration.ofSeconds(1),
-                Duration.ofSeconds(1),
-                Duration.ofMillis(2));
     }
 
     private static TagProcessingPolicy manualPolicy() {
