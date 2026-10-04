@@ -9,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Antenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
 
 import java.util.ArrayList;
@@ -101,9 +102,7 @@ public class TagProcessorTest {
             assertEquals(
                     TagProcessor.ObservationResult.ADMITTED,
                     processor.process(
-                            new io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Antenna.Observation(
-                                    "TAG-001",
-                                    OBSERVED_AT)));
+                            new Antenna.Observation("TAG-001", OBSERVED_AT)));
 
             // The command was admitted while the node was CLOSED, so the later
             // domain operation rejects it without creating committed TimingData.
