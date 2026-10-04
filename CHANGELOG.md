@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Rename the node-scoped Application-layer status projection from `ApplicationStatus` to `TimingNodeStatus`; `TimingNodeProxy.status()` and `statusChangedEvent()` now expose the node-specific type and lifecycle naming directly.
 - Resume Step-5 development as `0.2.4-SNAPSHOT` after the accepted `v0.2.3` Step-4 release.
 
 ## 0.2.3 — 2026-10-04
