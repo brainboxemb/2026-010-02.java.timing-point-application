@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Simplify tag-processing APIs: one TagProcessor constructor, collection-style `TagObservationFilter.add(...)`, separate expiry-scheduler lifecycle, and no processor/filter closed state.
+
 - Fix protected-main black-box evidence publication by checking out the exact integrated source revision before running the repository evidence-staging script.
 
 - Refactor tag processing into `domain.timing.processing`: focused passage/RSSI and RegistrationId duplicate filters, a small orchestration-only `TagProcessor`, and separate low-allocation `TagProcessingCounters` with pull-based snapshots.
