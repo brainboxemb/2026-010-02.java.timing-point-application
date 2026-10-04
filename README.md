@@ -67,6 +67,8 @@ io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenn
 io.github.brainboxemb.eventtiming.timingpoint.io.storage.AppendOnlyRecordStore
 io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore
 io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialWorker
+io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock
+io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock
 io.github.brainboxemb.eventtiming.timingpoint.platform.environment.RuntimeObservation
 io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity
 io.github.brainboxemb.eventtiming.timingpoint.runtime.config.YamlLoader
@@ -110,6 +112,8 @@ platform/
   execution/
     SerialWorker
   environment/
+    MonotonicClock
+    SystemMonotonicClock
     RuntimeObservation
   events/
     Event
@@ -129,7 +133,7 @@ Local events keep publish ownership inside the component. Consumers receive a su
 
 Step-5 antenna ingress uses a separate path into the same command: `SimulatedAntenna` emits a decoded tag observation through the normal `Antenna` callback, `TagProcessor` resolves the source `TagId` to the canonical `RegistrationId`, filters unknown tags and calls `TimingNode.submit(TimingNodeCommands.addAutomaticRegistration(...))`. The antenna callback receives only immediate bounded-lane admission; sequence allocation, active LocationId, recorded time, persistence, LogBook visibility and the committed event remain owned by the existing TimingNode path.
 
-Step-5 runtime instrumentation is pull-based. `SerialWorker` retains fixed admission/queue-wait/execution counters and monotonic duration totals/maxima; `TimingNode.runtimeMetrics()` combines those with TimingData append/commit and post-commit event-delivery counters. `TagProcessor` exposes fixed ingress/resolution/admission counts. `RuntimeObservation.capture()` reads heap, live-thread and GC observations from JDK management APIs only when explicitly requested. No registration allocates a metrics/sample object and the measurement path does not emit per-event log records.
+Step-5 runtime instrumentation is pull-based. `SerialWorker` retains fixed admission/queue-wait/execution counters and monotonic duration totals/maxima; `TimingNode.runtimeMetrics()` combines those with TimingData append/commit and post-commit event-delivery counters. Domain code receives monotonic elapsed-time values through the Platform `MonotonicClock`; normal runtime uses `SystemMonotonicClock` backed by `System.nanoTime()`, kept separate from Domain `TimingTimestamp` semantics. `TagProcessor` exposes fixed ingress/resolution/admission counts. `RuntimeObservation.capture()` reads heap, live-thread and GC observations from JDK management APIs only when explicitly requested. No registration allocates a metrics/sample object and the measurement path does not emit per-event log records.
 
 The executable artifact remains thin:
 
