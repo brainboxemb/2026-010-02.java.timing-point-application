@@ -38,6 +38,7 @@ public final class TimingViewModel {
             String registrationId,
             String teamId,
             String displayTime,
+            String type,
             String code,
             boolean deleted,
             long firstSequence,
@@ -203,8 +204,8 @@ public final class TimingViewModel {
                 new LinkedHashMap<>();
 
         for (ApiClient.TimingDataInfo record : records()) {
-            String code = registrationCode(record);
-            if (code == null) {
+            String type = registrationType(record);
+            if (type == null) {
                 continue;
             }
 
@@ -214,6 +215,7 @@ public final class TimingViewModel {
                     record.effectiveTime());
             boolean revoke = record.codes().contains("REV");
             InterpretedRegistration previous = projected.get(key);
+            String code = registrationCode(record, previous);
 
             if (previous == null) {
                 projected.put(
@@ -222,6 +224,7 @@ public final class TimingViewModel {
                                 record.registrationId(),
                                 null,
                                 displayTime(record.effectiveTime(), zone),
+                                type,
                                 code,
                                 revoke,
                                 record.sequenceNumber(),
@@ -235,6 +238,7 @@ public final class TimingViewModel {
                             previous.registrationId(),
                             previous.teamId(),
                             previous.displayTime(),
+                            previous.type(),
                             previous.code(),
                             previous.deleted() || revoke,
                             previous.firstSequence(),
@@ -246,7 +250,7 @@ public final class TimingViewModel {
         return List.copyOf(projected.values());
     }
 
-    private static String registrationCode(ApiClient.TimingDataInfo record) {
+    private static String registrationType(ApiClient.TimingDataInfo record) {
         if ("AUTO_REG".equals(record.recordType())) {
             return "AUTO";
         }
@@ -254,6 +258,24 @@ public final class TimingViewModel {
             return "MAN";
         }
         return null;
+    }
+
+    private static String registrationCode(
+            ApiClient.TimingDataInfo record,
+            InterpretedRegistration previous) {
+        if ("AUTO_REG".equals(record.recordType())) {
+            return "";
+        }
+        if (!"MAN_REG".equals(record.recordType())) {
+            return "";
+        }
+        if (record.codes().contains("MAN")) {
+            return "MAN";
+        }
+        if (record.codes().contains("AUTO")) {
+            return "AUTO";
+        }
+        return previous == null ? "" : previous.code();
     }
 
     private static String displayTime(String value, ZoneId zone) {

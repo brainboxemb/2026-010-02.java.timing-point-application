@@ -150,10 +150,35 @@ class TimingViewModelTest {
 
         assertEquals(2, values.size());
         assertEquals("12:00:00", values.get(0).displayTime());
+        assertEquals("AUTO", values.get(0).type());
         assertNull(values.get(0).teamId());
-        assertEquals("AUTO", values.get(0).code());
+        assertEquals("", values.get(0).code());
         assertEquals("12:00:05", values.get(1).displayTime());
+        assertEquals("MAN", values.get(1).type());
         assertEquals("MAN", values.get(1).code());
+    }
+
+    @Test
+    void manualRegistrationCanHaveManualTypeAndAutomaticTimeCode() {
+        TimingViewModel model = new TimingViewModel();
+        model.applyStatus(status(node("node-01", 24, "OPEN")));
+
+        model.mergeCommitted(new ApiClient.TimingDataInfo(
+                "node-01",
+                1L,
+                24,
+                "MAN_REG",
+                "2026-10-01T10:00:00Z",
+                "N0001",
+                List.of("ADD", "AUTO"),
+                "2026-10-01T10:00:00.1Z",
+                "{}"));
+
+        TimingViewModel.InterpretedRegistration value =
+                model.interpretedRegistrations(ZoneId.of("Europe/Amsterdam")).get(0);
+
+        assertEquals("MAN", value.type());
+        assertEquals("AUTO", value.code());
     }
 
     @Test
