@@ -1,11 +1,11 @@
-# Step-4 V04 manual Engineering Client demo configuration.
+# VC-ST1-003 manual Development Client verification configuration.
 # Uses dedicated TimingData storage so normal development history is untouched.
 timingNodeId: TN-01
 
 io:
   storage:
     timingData:
-      path: data/step4-demo-timing-data.jsonl
+      path: data/vc-st1-003-timing-data.jsonl
 
 presentation:
   remoteShell:

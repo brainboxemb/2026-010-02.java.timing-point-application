@@ -56,8 +56,8 @@ With `JAVA_HOME` pointing to a JDK 17 installation:
 ```
 
 Start SI-01 separately from the normal Java-8 project/NetBeans run configuration.
-For the formal Step-4 V04 / `VC-ST1-003` running-system check, follow
-[STEP4-DEMO.md](STEP4-DEMO.md); it uses a dedicated demo storage file so normal
+For the formal `VC-ST1-003` running-system check, follow
+[VC-ST1-003.md](VC-ST1-003.md); it uses dedicated verification storage so normal
 development TimingData is not modified.
 
 The Development Client reads its target and presentation defaults from one file:
@@ -130,9 +130,9 @@ available, the normal view shows TeamID as unresolved while the technical LogBoo
 the actual RegistrationId. A manual registration with manually entered time therefore deliberately shows
 `Type = MAN` and `Code = MAN`; a manual registration using system-assigned time shows
 `Type = MAN` and `Code = AUTO`. An automatic registration already carries all needed
-meaning in `Type = AUTO`, so its Code cell is empty. A future REV keeps the interpreted row present and
-replaces the icon-only trash action with a visible **DELETED** marker. The trash action
-has no text header and remains disabled until SI-01 exposes the public revoke capability.
+meaning in `Type = AUTO`, so its Code cell is empty. A REV record keeps the interpreted row present and replaces the icon-only trash action
+with a visible **DELETED** marker. The trash action has no text header and remains
+disabled when SI-01 does not expose the public revoke capability.
 The immutable LogBook continues to show all ADD/REV records.
 
 Registration input uses a separate prefix and numeric field plus readable local civil
@@ -170,10 +170,9 @@ Device Log and Client Log remain independent. Both use the readable project log-
 `HH:mm:ss.SSS - [LEVEL] - message - [sourceClass.sourceMethod]`; Development Client
 records use their actual caller source context rather than one generic client marker.
 
-## Step-4 behaviour retained inside the API workbench
+## Timing workbench behaviour
 
-The LogBook/live-event synchronisation from the Step-4 Timing implementation remains in
-the API workbench:
+The API workbench uses the following LogBook/live-event synchronisation behaviour:
 
 - reads the 1..N `nodes[]` status model and addresses one selected TimingNode;
 - shows current node state and LocationId;
@@ -204,9 +203,10 @@ The current SI-01 runtime may compose one TimingNode, but the client model does 
 hard-code that limitation. With one node selection is implicit; with multiple reported
 nodes the same API workbench addresses the selected node.
 
-The Step-4 slice deliberately does **not** add RFID/tag/filter controls,
+The Development Client does not expose RFID/tag/filter controls,
 StageStartTimes/NextUpTeams/RaceData editors or Upstream/DebugConnector simulation UI.
-Those remain later increments.
+Those capabilities require their own public engineering/client use case before they are
+added here.
 
 ### Current IF-03 resources used
 
@@ -229,10 +229,10 @@ WS   /api/v1/events
 
 ## Documentation screenshots
 
-The planned documentation workflow uses a deterministic Development Client
+Documentation screenshots use a deterministic Development Client
 **documentation/demo mode** with public synthetic fixture data.
 
-The intended CI flow is:
+The documentation flow is:
 
 ```text
 GitHub Actions
@@ -248,15 +248,15 @@ This is intentionally not generic desktop mouse/keyboard automation. A JavaFX-ow
 snapshot can wait until the scene is rendered and does not depend on window-manager
 coordinates.
 
-The first screenshot proof should stay small; the API-first workbench is the primary
-candidate, with Events/Logs/Terminal captured only when they add useful evidence.
+The API-first workbench is the primary screenshot view; Events/Logs/Terminal are
+captured only when they add useful evidence.
 Screenshot generation remains presentation evidence rather than behavioural proof.
 
-## VC-ST1-003 transition
+## Manual verification
 
-Issue #127 / `VC-ST1-003` owns the manual running-system Development Client
-verification against the current API-first workbench. `STEP4-DEMO.md` is the maintained
-procedure for that baseline.
+The meta-repository VTS owns `VC-ST1-003` as the manual running-system Development
+Client verification case. [VC-ST1-003.md](VC-ST1-003.md) is the repository-local
+execution checklist and shall not redefine the VTS.
 
 ## Verify
 
