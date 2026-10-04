@@ -685,7 +685,7 @@ final class TimingPane extends VBox {
                         TimingViewModel.InterpretedRegistration::registrationId);
         TableColumn<TimingViewModel.InterpretedRegistration, String> source =
                 registrationColumn(
-                        "Source",
+                        "A/M",
                         TimingViewModel.InterpretedRegistration::source);
         TableColumn<TimingViewModel.InterpretedRegistration, String> status =
                 registrationColumn(
