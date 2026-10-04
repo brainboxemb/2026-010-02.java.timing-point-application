@@ -70,6 +70,7 @@ final class ApiPane extends VBox {
                 clientSupplier,
                 requests,
                 initialPrefix,
+                identityPane,
                 this::showRaw,
                 feedback,
                 apiState,
@@ -83,7 +84,7 @@ final class ApiPane extends VBox {
                 rawResponse);
         rawPane.setCollapsible(false);
 
-        getChildren().addAll(timingPane.syncStateBar(), identityPane, timingPane, rawPane);
+        getChildren().addAll(timingPane.syncStateBar(), timingPane, rawPane);
         VBox.setVgrow(timingPane, Priority.ALWAYS);
 
         versionButton.setOnAction(event -> loadVersion());
