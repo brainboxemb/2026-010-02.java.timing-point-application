@@ -108,11 +108,13 @@ the Events connection is what starts the history/status resynchronisation flow.
    becomes `2026-10-01T10:00:00Z`.
 9. Choose **Send auto-reg**.
    - Last operation shows `seq 1`;
+   - the interpreted **Registrations** view contains one row with local clock time,
+     RegistrationId `N0001`, **A** and no deleted state;
    - LogBook count becomes `1`;
-   - the table contains sequence 1 / Type `AUTO_REG` / Code `ADD` /
+   - the technical LogBook contains sequence 1 / Type `AUTO_REG` / Code `ADD` /
      LocationId 24 / RegistrationId `N0001`;
-   - **Type** and **Code** are separate columns;
-   - selecting the row exposes the complete public record/raw representation;
+   - **Type** and **Code** are separate LogBook columns;
+   - selecting the LogBook row exposes the complete public record/raw representation;
    - the **Events** tab contains one `TIMING_DATA_COMMITTED` event for that same record.
 10. Connect **Device Log** and verify it remains a separate top-level source from
     **Client Log**. Change one source's level and verify the other source's level is
@@ -174,7 +176,8 @@ Initial CLOSED/no-location     PASS / FAIL
 OPEN with LocationId 24        PASS / FAIL
 Auto-reg N0001 -> seq 1        PASS / FAIL
 Displayed time zone + UTC conversion PASS / FAIL
-Type / Code separate columns   PASS / FAIL
+Interpreted local-time A/M row PASS / FAIL
+Type / Code separate LogBook columns PASS / FAIL
 Raw selected record visible    PASS / FAIL
 Live committed event           PASS / FAIL
 LogBook count/row              PASS / FAIL
