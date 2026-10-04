@@ -15,6 +15,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Simulate
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.PeriodicExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.PeriodicTask;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -39,12 +41,14 @@ public class TagProcessorTest {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
         FakeMonotonicClock clock = new FakeMonotonicClock();
+        ManualPeriodicExecutor periodicExecutor = new ManualPeriodicExecutor();
         TagProcessor processor = new TagProcessor(
                 node,
                 TagProcessorTest::mapReferenceTag,
                 manualPolicy(),
                 clock,
-                new TagProcessingCounters());
+                new TagProcessingCounters(),
+                periodicExecutor);
         SimulatedAntenna antenna = new SimulatedAntenna();
         Consumer<TagObservation> listener = processor::onObservation;
         CountDownLatch committed = new CountDownLatch(1);
@@ -53,13 +57,14 @@ public class TagProcessorTest {
 
         node.start();
         node.invoke(TimingNodeCommands.open(new LocationId(24)));
+        processor.start();
         antenna.initialize();
         antenna.observations().subscribe(listener);
         antenna.startInventory();
         try {
             antenna.emit(new TagId("TAG-001"), -42, OBSERVED_AT);
             clock.advanceNanos(100L);
-            processor.periodic();
+            periodicExecutor.runOnce();
 
             assertTrue(
                     "selected tag was not committed",
@@ -75,6 +80,7 @@ public class TagProcessorTest {
         } finally {
             antenna.stopInventory();
             antenna.observations().unsubscribe(listener);
+            processor.stop();
             antenna.close();
             node.stop();
         }
@@ -85,12 +91,15 @@ public class TagProcessorTest {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
         FakeMonotonicClock clock = new FakeMonotonicClock();
+        ManualPeriodicExecutor periodicExecutor = new ManualPeriodicExecutor();
         TagProcessor processor = new TagProcessor(
                 node,
                 tagId -> null,
                 manualPolicy(),
                 clock,
-                new TagProcessingCounters());
+                new TagProcessingCounters(),
+                periodicExecutor);
+        processor.start();
 
         processor.onObservation(
                 new TagObservation(
@@ -98,9 +107,10 @@ public class TagProcessorTest {
                         -30,
                         OBSERVED_AT));
         clock.advanceNanos(100L);
-        processor.periodic();
+        periodicExecutor.runOnce();
 
         assertTrue(store.appended.isEmpty());
+        processor.stop();
     }
 
     private static TagProcessingPolicy manualPolicy() {
@@ -138,6 +148,40 @@ public class TagProcessorTest {
 
         private void advanceNanos(long nanos) {
             now += nanos;
+        }
+    }
+
+    private static final class ManualPeriodicExecutor
+            implements PeriodicExecutor {
+        private Runnable task;
+        private boolean active;
+
+        @Override
+        public PeriodicTask scheduleWithFixedDelay(
+                Runnable task,
+                long delayNanos) {
+            if (task == null) {
+                throw new IllegalArgumentException("task must not be null");
+            }
+            if (delayNanos < 1L) {
+                throw new IllegalArgumentException(
+                        "delayNanos must be positive");
+            }
+            if (active) {
+                throw new IllegalStateException(
+                        "periodic task is already active");
+            }
+            this.task = task;
+            active = true;
+            return () -> active = false;
+        }
+
+        private void runOnce() {
+            if (!active) {
+                throw new IllegalStateException(
+                        "periodic task is not active");
+            }
+            task.run();
         }
     }
 
