@@ -10,11 +10,11 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 
 import java.time.Duration;
@@ -24,7 +24,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import org.junit.Test;
 
@@ -43,15 +43,20 @@ public class TagProcessorTest {
         TimingNode node = node(store);
         ScheduledExecutorService scheduler =
                 Executors.newSingleThreadScheduledExecutor();
-        TagProcessingCounters counters = new TagProcessingCounters();
+        TagProcessingPolicy policy = runtimePolicy();
         TagProcessor processor = new TagProcessor(
                 node,
                 TagProcessorTest::mapReferenceTag,
-                runtimePolicy(),
+                policy,
                 SystemMonotonicClock.INSTANCE,
-                scheduler,
-                counters);
+                new TagProcessingCounters());
+        TagProcessingExpiryScheduler expiryScheduler =
+                new TagProcessingExpiryScheduler(
+                        processor,
+                        policy,
+                        scheduler);
         SimulatedAntenna antenna = new SimulatedAntenna();
+        Consumer<TagObservation> listener = processor::onObservation;
         CountDownLatch committed = new CountDownLatch(1);
         node.timingDataCommittedEvent().subscribe(
                 data -> committed.countDown());
@@ -59,7 +64,7 @@ public class TagProcessorTest {
         node.start();
         node.invoke(TimingNodeCommands.open(new LocationId(24)));
         antenna.initialize();
-        antenna.observations().subscribe(processor::onObservation);
+        antenna.observations().subscribe(listener);
         antenna.startInventory();
         try {
             antenna.emit(new TagId("TAG-001"), -42, OBSERVED_AT);
@@ -75,48 +80,37 @@ public class TagProcessorTest {
                     new RegistrationId("N-001"),
                     registration.registrationId());
             assertEquals(OBSERVED_AT, registration.effectiveTime());
-
         } finally {
-            antenna.close();
-            processor.close();
+            antenna.stopInventory();
+            antenna.observations().unsubscribe(listener);
+            expiryScheduler.close();
             scheduler.shutdownNow();
+            antenna.close();
             node.stop();
         }
     }
 
     @Test
-    public void unmappedSelectedObservationNeverSubmits() throws Exception {
-        ScheduledExecutorService scheduler =
-                Executors.newSingleThreadScheduledExecutor();
-        CountDownLatch mappingAttempted = new CountDownLatch(1);
-        AtomicInteger submissions = new AtomicInteger();
-        TagProcessingCounters counters = new TagProcessingCounters();
+    public void unmappedSelectedObservationNeverReachesTimingNode() {
+        RecordingStore store = new RecordingStore();
+        TimingNode node = node(store);
+        FakeMonotonicClock clock = new FakeMonotonicClock();
         TagProcessor processor = new TagProcessor(
-                (registrationId, observedAt) -> {
-                    submissions.incrementAndGet();
-                    return CommandAdmission.ACCEPTED;
-                },
-                tagId -> {
-                    mappingAttempted.countDown();
-                    return null;
-                },
-                runtimePolicy(),
-                SystemMonotonicClock.INSTANCE,
-                scheduler,
-                counters);
-        try {
-            processor.onObservation(
-                    new TagObservation(
-                            new TagId("TAG-UNKNOWN"),
-                            -30,
-                            OBSERVED_AT));
+                node,
+                tagId -> null,
+                manualPolicy(),
+                clock,
+                new TagProcessingCounters());
 
-            assertTrue(mappingAttempted.await(2, TimeUnit.SECONDS));
-            assertEquals(0, submissions.get());
-        } finally {
-            processor.close();
-            scheduler.shutdownNow();
-        }
+        processor.onObservation(
+                new TagObservation(
+                        new TagId("TAG-UNKNOWN"),
+                        -30,
+                        OBSERVED_AT));
+        clock.advanceNanos(100L);
+        processor.expireObservations();
+
+        assertTrue(store.appended.isEmpty());
     }
 
     private static TagProcessingPolicy runtimePolicy() {
@@ -125,6 +119,14 @@ public class TagProcessorTest {
                 Duration.ofSeconds(1),
                 Duration.ofSeconds(1),
                 Duration.ofMillis(2));
+    }
+
+    private static TagProcessingPolicy manualPolicy() {
+        return new TagProcessingPolicy(
+                Duration.ofNanos(100L),
+                Duration.ofNanos(500L),
+                Duration.ofNanos(1000L),
+                Duration.ofDays(1));
     }
 
     private static RegistrationId mapReferenceTag(TagId tagId) {
@@ -142,6 +144,19 @@ public class TagProcessorTest {
                 store,
                 new DefaultTimingDataFactory(),
                 timeSource);
+    }
+
+    private static final class FakeMonotonicClock implements MonotonicClock {
+        private long now;
+
+        @Override
+        public long nowNanos() {
+            return now;
+        }
+
+        private void advanceNanos(long nanos) {
+            now += nanos;
+        }
     }
 
     private static final class RecordingStore implements TimingDataPersistence {
