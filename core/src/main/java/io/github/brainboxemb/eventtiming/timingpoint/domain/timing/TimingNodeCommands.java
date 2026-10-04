@@ -7,7 +7,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.RegistrationResult;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.SetLocationResult;
 
 /**
  * Standard state-changing commands supported by TimingNode.
@@ -36,32 +35,22 @@ public final class TimingNodeCommands {
         return CLOSE;
     }
 
-    public static TimingNodeCommand<SetLocationResult> setLocation(
-            LocationId locationId) {
-        if (locationId == null) {
-            throw new IllegalArgumentException("locationId must not be null");
-        }
-        return simple(
-                "setLocation",
-                logic -> logic.setLocation(locationId));
-    }
-
     public static TimingNodeCommand<RegistrationResult>
-            commitAutomaticRegistration(
+            addAutomaticRegistration(
                     RegistrationId registrationId,
-                    TimingTimestamp observationTime) {
+                    TimingTimestamp time) {
         if (registrationId == null) {
             throw new IllegalArgumentException("registrationId must not be null");
         }
-        if (observationTime == null) {
-            throw new IllegalArgumentException("observationTime must not be null");
+        if (time == null) {
+            throw new IllegalArgumentException("time must not be null");
         }
 
         return registrationCommand(
-                "commitAutomaticRegistration",
-                logic -> logic.commitAutomaticRegistration(
+                "addAutomaticRegistration",
+                logic -> logic.addAutomaticRegistration(
                         registrationId,
-                        observationTime));
+                        time));
     }
 
     public static TimingNodeCommand<RegistrationResult>
