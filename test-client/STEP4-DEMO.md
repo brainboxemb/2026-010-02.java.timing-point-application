@@ -109,7 +109,7 @@ the Events connection is what starts the history/status resynchronisation flow.
 9. Choose **Send auto-reg**.
    - Last operation shows `seq 1`;
    - the interpreted **Registrations** view contains one row with local clock time,
-     Type **AUTO**, unresolved TeamID (`-`), Code **AUTO** and an icon-only disabled delete action; RegistrationId `N0001` remains visible in the technical LogBook;
+     Type **AUTO**, unresolved TeamID (`-`), an empty Code cell and an icon-only disabled delete action; RegistrationId `N0001` remains visible in the technical LogBook;
    - LogBook count becomes `1`;
    - the technical LogBook contains sequence 1 / Type `AUTO_REG` / Code `ADD` /
      LocationId 24 / RegistrationId `N0001`;
