@@ -6,6 +6,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCom
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.PeriodicExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.PeriodicTask;
 
 /**
  * Coordinates decoded antenna observations on their way to TimingNode.
@@ -21,6 +23,10 @@ public final class TagProcessor {
     private final RegistrationDuplicateFilter duplicateFilter;
     private final TagProcessingCounters counters;
     private final TagObservationFilter observationFilter;
+    private final PeriodicExecutor periodicExecutor;
+    private final long sweepCadenceNanos;
+
+    private PeriodicTask periodicTask;
 
     /**
      * Creates one tag-processing path for a TimingNode.
@@ -35,7 +41,8 @@ public final class TagProcessor {
             TagRegistrationMapper mapper,
             TagProcessingPolicy policy,
             MonotonicClock monotonicClock,
-            TagProcessingCounters counters) {
+            TagProcessingCounters counters,
+            PeriodicExecutor periodicExecutor) {
         if (timingNode == null) {
             throw new IllegalArgumentException("timingNode must not be null");
         }
@@ -51,10 +58,15 @@ public final class TagProcessor {
         if (counters == null) {
             throw new IllegalArgumentException("counters must not be null");
         }
+        if (periodicExecutor == null) {
+            throw new IllegalArgumentException("periodicExecutor must not be null");
+        }
 
         this.timingNode = timingNode;
         this.mapper = mapper;
         this.counters = counters;
+        this.periodicExecutor = periodicExecutor;
+        this.sweepCadenceNanos = policy.sweepCadenceNanos();
         duplicateFilter =
                 new RegistrationDuplicateFilter(policy, monotonicClock);
         observationFilter =
@@ -63,6 +75,34 @@ public final class TagProcessor {
                         monotonicClock,
                         counters,
                         this::processValidObservation);
+    }
+
+    /**
+     * Starts the periodic processing registration.
+     *
+     * <p>Observation callbacks themselves stay on the antenna/provider caller
+     * thread. Only housekeeping is scheduled through PeriodicExecutor.</p>
+     */
+    public synchronized void start() {
+        if (periodicTask != null) {
+            throw new IllegalStateException("TagProcessor is already started");
+        }
+        periodicTask = periodicExecutor.scheduleWithFixedDelay(
+                this::periodic,
+                sweepCadenceNanos);
+    }
+
+    /**
+     * Stops this processor's periodic registration.
+     *
+     * <p>The PeriodicExecutor may be shared and is therefore not closed here.</p>
+     */
+    public synchronized void stop() {
+        if (periodicTask == null) {
+            return;
+        }
+        periodicTask.close();
+        periodicTask = null;
     }
 
     /**
