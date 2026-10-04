@@ -4,7 +4,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -14,13 +13,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class TagObservationFilterTest {
     private static final TimingTimestamp OBSERVED_1 =
@@ -33,45 +29,36 @@ public class TagObservationFilterTest {
     @Test
     public void selectsStrongestRssiAndKeepsEarlierObservationOnEqualMaximum() {
         FakeMonotonicClock clock = new FakeMonotonicClock();
-        ScheduledExecutorService scheduler =
-                Executors.newSingleThreadScheduledExecutor();
         TagProcessingCounters counters = new TagProcessingCounters();
-        List<TagObservation> selected = new ArrayList<>();
+        List<TagObservation> valid = new ArrayList<>();
         TagObservationFilter filter = new TagObservationFilter(
                 manualPolicy(),
                 clock,
-                scheduler,
                 counters,
-                selected::add);
-        try {
-            filter.onObservation(observation("TAG-001", -60, OBSERVED_1));
-            clock.advanceNanos(10L);
-            filter.onObservation(observation("TAG-001", -40, OBSERVED_2));
-            clock.advanceNanos(10L);
-            filter.onObservation(observation("TAG-001", -40, OBSERVED_3));
+                valid::add);
 
-            clock.advanceNanos(100L);
-            filter.expireBursts();
+        filter.add(observation("TAG-001", -60, OBSERVED_1));
+        clock.advanceNanos(10L);
+        filter.add(observation("TAG-001", -40, OBSERVED_2));
+        clock.advanceNanos(10L);
+        filter.add(observation("TAG-001", -40, OBSERVED_3));
 
-            assertEquals(1, selected.size());
-            assertEquals(-40, selected.get(0).rssi());
-            assertEquals(OBSERVED_2, selected.get(0).observedAt());
+        clock.advanceNanos(100L);
+        filter.periodic();
 
-            TagProcessingCounters.Snapshot snapshot = counters.snapshot();
-            assertEquals(3L, snapshot.observations());
-            assertEquals(1L, snapshot.closedBursts());
-        } finally {
-            filter.close();
-            scheduler.shutdownNow();
-        }
+        assertEquals(1, valid.size());
+        assertEquals(-40, valid.get(0).rssi());
+        assertEquals(OBSERVED_2, valid.get(0).observedAt());
+
+        TagProcessingCounters.Snapshot snapshot = counters.snapshot();
+        assertEquals(3L, snapshot.observations());
+        assertEquals(1L, snapshot.closedBursts());
     }
 
     @Test
     public void maximumDurationClosesContinuouslyVisibleTag() {
         FakeMonotonicClock clock = new FakeMonotonicClock();
-        ScheduledExecutorService scheduler =
-                Executors.newSingleThreadScheduledExecutor();
-        List<TagObservation> selected = new ArrayList<>();
+        List<TagObservation> valid = new ArrayList<>();
         TagObservationFilter filter = new TagObservationFilter(
                 new TagProcessingPolicy(
                         Duration.ofNanos(100L),
@@ -79,50 +66,40 @@ public class TagObservationFilterTest {
                         Duration.ZERO,
                         Duration.ofDays(1)),
                 clock,
-                scheduler,
                 new TagProcessingCounters(),
-                selected::add);
-        try {
-            filter.onObservation(observation("TAG-001", -60, OBSERVED_1));
-            clock.advanceNanos(90L);
-            filter.onObservation(observation("TAG-001", -40, OBSERVED_2));
-            clock.advanceNanos(60L);
+                valid::add);
 
-            filter.expireBursts();
+        filter.add(observation("TAG-001", -60, OBSERVED_1));
+        clock.advanceNanos(90L);
+        filter.add(observation("TAG-001", -40, OBSERVED_2));
+        clock.advanceNanos(60L);
 
-            assertEquals(1, selected.size());
-            assertEquals(OBSERVED_2, selected.get(0).observedAt());
-        } finally {
-            filter.close();
-            scheduler.shutdownNow();
-        }
+        filter.periodic();
+
+        assertEquals(1, valid.size());
+        assertEquals(OBSERVED_2, valid.get(0).observedAt());
     }
 
     @Test
-    public void concurrentAntennaCallbacksUpdateOneBurstSafely() throws Exception {
+    public void concurrentAddsUpdateOneBurstSafely() throws Exception {
         FakeMonotonicClock clock = new FakeMonotonicClock();
-        ScheduledExecutorService scheduler =
-                Executors.newSingleThreadScheduledExecutor();
-        ExecutorService emitters = Executors.newFixedThreadPool(2);
-        List<TagObservation> selected =
+        ExecutorService callers = Executors.newFixedThreadPool(2);
+        List<TagObservation> valid =
                 Collections.synchronizedList(new ArrayList<TagObservation>());
         TagObservationFilter filter = new TagObservationFilter(
                 manualPolicy(),
                 clock,
-                scheduler,
                 new TagProcessingCounters(),
-                selected::add);
+                valid::add);
         CountDownLatch start = new CountDownLatch(1);
         try {
-            Future<?> first = emitters.submit(() -> {
+            Future<?> first = callers.submit(() -> {
                 await(start);
-                filter.onObservation(
-                        observation("TAG-001", -60, OBSERVED_1));
+                filter.add(observation("TAG-001", -60, OBSERVED_1));
             });
-            Future<?> second = emitters.submit(() -> {
+            Future<?> second = callers.submit(() -> {
                 await(start);
-                filter.onObservation(
-                        observation("TAG-001", -30, OBSERVED_2));
+                filter.add(observation("TAG-001", -30, OBSERVED_2));
             });
 
             start.countDown();
@@ -130,44 +107,33 @@ public class TagObservationFilterTest {
             second.get();
 
             clock.advanceNanos(100L);
-            filter.expireBursts();
+            filter.periodic();
 
-            assertEquals(1, selected.size());
-            assertEquals(-30, selected.get(0).rssi());
-            assertEquals(OBSERVED_2, selected.get(0).observedAt());
+            assertEquals(1, valid.size());
+            assertEquals(-30, valid.get(0).rssi());
+            assertEquals(OBSERVED_2, valid.get(0).observedAt());
         } finally {
-            filter.close();
-            emitters.shutdownNow();
-            scheduler.shutdownNow();
+            callers.shutdownNow();
         }
     }
 
     @Test
-    public void quietTimeoutClosesWithoutAnotherObservation() throws Exception {
-        ScheduledExecutorService scheduler =
-                Executors.newSingleThreadScheduledExecutor();
-        CountDownLatch selected = new CountDownLatch(1);
+    public void quietTimeoutClosesOnExpiryPass() {
+        FakeMonotonicClock clock = new FakeMonotonicClock();
+        List<TagObservation> valid = new ArrayList<>();
         TagObservationFilter filter = new TagObservationFilter(
-                new TagProcessingPolicy(
-                        Duration.ofMillis(10),
-                        Duration.ofSeconds(1),
-                        Duration.ZERO,
-                        Duration.ofMillis(2)),
-                SystemMonotonicClock.INSTANCE,
-                scheduler,
+                manualPolicy(),
+                clock,
                 new TagProcessingCounters(),
-                observation -> selected.countDown());
-        try {
-            filter.onObservation(
-                    observation("TAG-001", -50, OBSERVED_1));
+                valid::add);
 
-            assertTrue(
-                    "filter did not close the quiet passage",
-                    selected.await(2, TimeUnit.SECONDS));
-        } finally {
-            filter.close();
-            scheduler.shutdownNow();
-        }
+        filter.add(observation("TAG-001", -50, OBSERVED_1));
+        clock.advanceNanos(100L);
+
+        filter.periodic();
+
+        assertEquals(1, valid.size());
+        assertEquals(OBSERVED_1, valid.get(0).observedAt());
     }
 
     private static TagProcessingPolicy manualPolicy() {
@@ -190,7 +156,9 @@ public class TagObservationFilterTest {
             latch.await();
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("interrupted while awaiting test start", ex);
+            throw new IllegalStateException(
+                    "interrupted while awaiting test start",
+                    ex);
         }
     }
 

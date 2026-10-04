@@ -1,79 +1,50 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
-
-import java.util.concurrent.ScheduledExecutorService;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.PeriodicExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.PeriodicTask;
 
 /**
- * Coordinates the steps between decoded antenna observations and TimingNode.
+ * Coordinates decoded antenna observations on their way to TimingNode.
  *
- * <p>The detailed filtering state deliberately lives in focused collaborators:
- * TagObservationFilter owns passage/RSSI selection, RegistrationDuplicateFilter
- * owns the accepted-registration window, and TagProcessingCounters owns the
- * low-allocation counters. This class only defines their processing order.</p>
+ * <p>TagObservationFilter owns passage/RSSI selection,
+ * RegistrationDuplicateFilter owns the accepted-registration window, and
+ * TagProcessingCounters owns the low-allocation counters. This class only
+ * defines the order in which those steps are applied.</p>
  */
-public final class TagProcessor implements AutoCloseable {
-    private final RegistrationSubmitter registrationSubmitter;
+public final class TagProcessor {
+    private final TimingNode timingNode;
     private final TagRegistrationMapper mapper;
     private final RegistrationDuplicateFilter duplicateFilter;
     private final TagProcessingCounters counters;
     private final TagObservationFilter observationFilter;
+    private final PeriodicExecutor periodicExecutor;
+    private final long sweepCadenceNanos;
 
-    private volatile boolean closed;
-
-    public TagProcessor(
-            TimingNode timingNode,
-            TagRegistrationMapper mapper,
-            TagProcessingPolicy policy,
-            MonotonicClock monotonicClock,
-            ScheduledExecutorService scheduler) {
-        this(
-                timingNode,
-                mapper,
-                policy,
-                monotonicClock,
-                scheduler,
-                new TagProcessingCounters());
-    }
+    private PeriodicTask periodicTask;
 
     /**
-     * Creates a processor with an explicitly retained counter set.
+     * Creates one tag-processing path for a TimingNode.
      *
-     * <p>Runtime/engineering composition may retain the same counter object for
-     * pull-based measurement without making counters part of the TimingNode API.</p>
+     * <p>The counter owner is injected explicitly so runtime/engineering
+     * composition can retain the same instance for pull-based measurement
+     * without adding a second TagProcessor constructor or exposing counters
+     * through TimingNode.</p>
      */
     public TagProcessor(
             TimingNode timingNode,
             TagRegistrationMapper mapper,
             TagProcessingPolicy policy,
             MonotonicClock monotonicClock,
-            ScheduledExecutorService scheduler,
-            TagProcessingCounters counters) {
-        this(
-                submitterFor(timingNode),
-                mapper,
-                policy,
-                monotonicClock,
-                scheduler,
-                counters);
-    }
-
-    TagProcessor(
-            RegistrationSubmitter registrationSubmitter,
-            TagRegistrationMapper mapper,
-            TagProcessingPolicy policy,
-            MonotonicClock monotonicClock,
-            ScheduledExecutorService scheduler,
-            TagProcessingCounters counters) {
-        if (registrationSubmitter == null) {
-            throw new IllegalArgumentException(
-                    "registrationSubmitter must not be null");
+            TagProcessingCounters counters,
+            PeriodicExecutor periodicExecutor) {
+        if (timingNode == null) {
+            throw new IllegalArgumentException("timingNode must not be null");
         }
         if (mapper == null) {
             throw new IllegalArgumentException("mapper must not be null");
@@ -84,40 +55,78 @@ public final class TagProcessor implements AutoCloseable {
         if (monotonicClock == null) {
             throw new IllegalArgumentException("monotonicClock must not be null");
         }
-        if (scheduler == null) {
-            throw new IllegalArgumentException("scheduler must not be null");
-        }
         if (counters == null) {
             throw new IllegalArgumentException("counters must not be null");
         }
+        if (periodicExecutor == null) {
+            throw new IllegalArgumentException("periodicExecutor must not be null");
+        }
 
-        this.registrationSubmitter = registrationSubmitter;
+        this.timingNode = timingNode;
         this.mapper = mapper;
         this.counters = counters;
+        this.periodicExecutor = periodicExecutor;
+        this.sweepCadenceNanos = policy.sweepCadenceNanos();
         duplicateFilter =
                 new RegistrationDuplicateFilter(policy, monotonicClock);
         observationFilter =
                 new TagObservationFilter(
                         policy,
                         monotonicClock,
-                        scheduler,
                         counters,
-                        this::processSelectedObservation);
+                        this::processValidObservation);
     }
 
-    /** Receives one decoded observation from an Antenna EventSource. */
-    public void onObservation(TagObservation observation) {
-        if (closed) {
-            throw new IllegalStateException("TagProcessor is closed");
+    /**
+     * Starts the periodic processing registration.
+     *
+     * <p>Observation callbacks themselves stay on the antenna/provider caller
+     * thread. Only housekeeping is scheduled through PeriodicExecutor.</p>
+     */
+    public synchronized void start() {
+        if (periodicTask != null) {
+            throw new IllegalStateException("TagProcessor is already started");
         }
-        observationFilter.onObservation(observation);
+        periodicTask = periodicExecutor.scheduleWithFixedDelay(
+                this::periodic,
+                sweepCadenceNanos);
     }
 
-    private void processSelectedObservation(TagObservation observation) {
-        if (closed) {
+    /**
+     * Stops this processor's periodic registration.
+     *
+     * <p>The PeriodicExecutor may be shared and is therefore not closed here.</p>
+     */
+    public synchronized void stop() {
+        if (periodicTask == null) {
             return;
         }
+        periodicTask.close();
+        periodicTask = null;
+    }
 
+    /**
+     * Event callback for decoded antenna observations.
+     *
+     * <p>The EventSource-facing method stays here. The filter itself receives
+     * plain items through its collection-style add operation.</p>
+     */
+    public void onObservation(TagObservation observation) {
+        observationFilter.add(observation);
+    }
+
+    /**
+     * Runs one periodic processing pass.
+     *
+     * <p>The execution model decides when this is called. TagProcessor owns the
+     * processing components and delegates their periodic housekeeping here.</p>
+     */
+    public void periodic() {
+        observationFilter.periodic();
+        duplicateFilter.periodic();
+    }
+
+    private void processValidObservation(TagObservation observation) {
         RegistrationId registrationId = mapper.map(observation.tagId());
         if (registrationId == null) {
             counters.recordUnmapped();
@@ -128,9 +137,10 @@ public final class TagProcessor implements AutoCloseable {
         RegistrationDuplicateFilter.Result result =
                 duplicateFilter.submitIfNew(
                         registrationId,
-                        () -> registrationSubmitter.submit(
-                                registrationId,
-                                observation.observedAt()));
+                        () -> timingNode.submit(
+                                TimingNodeCommands.addAutomaticRegistration(
+                                        registrationId,
+                                        observation.observedAt())));
 
         switch (result) {
             case DUPLICATE:
@@ -149,30 +159,5 @@ public final class TagProcessor implements AutoCloseable {
                 throw new IllegalStateException(
                         "Unsupported duplicate-filter result " + result);
         }
-    }
-
-    @Override
-    public void close() {
-        closed = true;
-        observationFilter.close();
-        duplicateFilter.clear();
-    }
-
-    private static RegistrationSubmitter submitterFor(TimingNode timingNode) {
-        if (timingNode == null) {
-            throw new IllegalArgumentException("timingNode must not be null");
-        }
-        return (registrationId, observedAt) ->
-                timingNode.submit(
-                        TimingNodeCommands.addAutomaticRegistration(
-                                registrationId,
-                                observedAt));
-    }
-
-    @FunctionalInterface
-    interface RegistrationSubmitter {
-        CommandAdmission submit(
-                RegistrationId registrationId,
-                TimingTimestamp observedAt);
     }
 }

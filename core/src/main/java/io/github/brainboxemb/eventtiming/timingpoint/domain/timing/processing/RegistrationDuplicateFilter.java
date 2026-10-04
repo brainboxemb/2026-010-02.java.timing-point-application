@@ -25,6 +25,12 @@ final class RegistrationDuplicateFilter {
 
     private final long duplicateWindowNanos;
     private final MonotonicClock monotonicClock;
+    /*
+     * Default HashMap sizing is intentional. The useful initial capacity depends
+     * on the number of distinct accepted RegistrationIds that can still be inside
+     * the duplicate window. Use an explicit capacity only when a deployment bound
+     * or Step-5 measurement gives a defensible expected count.
+     */
     private final Map<RegistrationId, Long> acceptedRegistrations =
             new HashMap<>();
 
@@ -64,7 +70,6 @@ final class RegistrationDuplicateFilter {
         }
 
         long now = monotonicClock.nowNanos();
-        removeOldEntriesWhenDue(now);
 
         if (duplicateWindowNanos > 0L) {
             Long acceptedAt = acceptedRegistrations.get(registrationId);
@@ -92,9 +97,15 @@ final class RegistrationDuplicateFilter {
         return resultFor(admission);
     }
 
-    synchronized void clear() {
-        acceptedRegistrations.clear();
-        cleanupStarted = false;
+    /**
+     * Performs periodic cleanup of expired duplicate-window entries.
+     *
+     * <p>Correct duplicate detection does not depend on cleanup timing:
+     * submitIfNew(...) still checks the current RegistrationId exactly. This
+     * periodic pass only keeps old map entries from accumulating.</p>
+     */
+    synchronized void periodic() {
+        removeOldEntriesWhenDue(monotonicClock.nowNanos());
     }
 
     private void removeOldEntriesWhenDue(long now) {
