@@ -7,6 +7,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
@@ -28,7 +29,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class WebSocketEndpointTest {
-    private static final TimingTimestamp OBSERVATION_TIME =
+    private static final TimingTimestamp TIME =
             TimingTimestamp.parse("2026-10-01T12:00:00.000000000Z");
     private static final TimingTimestamp RECORDED_AT =
             TimingTimestamp.parse("2026-10-01T12:00:01.000000000Z");
@@ -42,11 +43,11 @@ public class WebSocketEndpointTest {
         fixture.start();
 
         // Commit history before the WebSocket endpoint/client exists.
-        fixture.handler.setLocation(new LocationId(24));
-        fixture.handler.open(new LocationId(24));
-        fixture.handler.commitAutomaticRegistration(
+        fixture.handler.timingNode().open(new LocationId(24));
+        fixture.handler.timingNode().applyAutomaticRegistration(
+                TimingNodeProxy.AutomaticRegistrationAction.ADD,
                 new RegistrationId("N0000"),
-                OBSERVATION_TIME);
+                TIME);
 
         WebSocketEndpoint server = new WebSocketEndpoint(
                 "127.0.0.1",
@@ -99,20 +100,16 @@ public class WebSocketEndpointTest {
                     "CLOSED",
                     "null");
 
-            fixture.handler.setLocation(new LocationId(24));
-            String located = client.awaitMessage();
-            assertTrue(located.contains("\"eventType\":\"STATUS_CHANGED\""));
-            assertTrue(located.contains("\"locationId\":24"));
-            assertTrue(located.contains("\"state\":\"CLOSED\""));
-
-            fixture.handler.open(new LocationId(24));
+            fixture.handler.timingNode().open(new LocationId(24));
             String opened = client.awaitMessage();
             assertTrue(opened.contains("\"eventType\":\"STATUS_CHANGED\""));
+            assertTrue(opened.contains("\"locationId\":24"));
             assertTrue(opened.contains("\"state\":\"OPEN\""));
 
-            fixture.handler.commitAutomaticRegistration(
+            fixture.handler.timingNode().applyAutomaticRegistration(
+                    TimingNodeProxy.AutomaticRegistrationAction.ADD,
                     new RegistrationId("N0001"),
-                    OBSERVATION_TIME);
+                    TIME);
             String committed = client.awaitMessage();
             assertTrue(committed.contains(
                     "\"eventType\":\"TIMING_DATA_COMMITTED\""));
