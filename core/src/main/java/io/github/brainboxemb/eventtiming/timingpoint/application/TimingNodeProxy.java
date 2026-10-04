@@ -34,7 +34,7 @@ public final class TimingNodeProxy {
     }
 
     private final TimingNode timingNode;
-    private final Event<ApplicationStatus> statusChangedEvent = new Event<>();
+    private final Event<TimingNodeStatus> statusChangedEvent = new Event<>();
 
     TimingNodeProxy(TimingNode timingNode) {
         if (timingNode == null) {
@@ -45,8 +45,8 @@ public final class TimingNodeProxy {
     }
 
     /** Returns the current authoritative node status. */
-    public ApplicationStatus status() {
-        return applicationStatus(
+    public TimingNodeStatus status() {
+        return timingNodeStatus(
                 timingNode.query(TimingNodeQueries.status()));
     }
 
@@ -120,7 +120,7 @@ public final class TimingNodeProxy {
     }
 
     /** Returns the subscription-only authoritative status-change event. */
-    public EventSource<ApplicationStatus> statusChangedEvent() {
+    public EventSource<TimingNodeStatus> statusChangedEvent() {
         return statusChangedEvent;
     }
 
@@ -130,11 +130,11 @@ public final class TimingNodeProxy {
     }
 
     private void updateStatus(Status status) {
-        ApplicationStatus update = applicationStatus(status);
+        TimingNodeStatus update = timingNodeStatus(status);
         Event.DeliveryReport delivery = statusChangedEvent.emit(update);
         if (!delivery.successful()) {
             LOG.warn(
-                    "Application status changed but "
+                    "TimingNode status changed but "
                             + delivery.failureCount()
                             + " status listener(s) failed for "
                             + update.timingNodeId().value(),
@@ -142,8 +142,8 @@ public final class TimingNodeProxy {
         }
     }
 
-    private static ApplicationStatus applicationStatus(Status status) {
-        return new ApplicationStatus(
+    private static TimingNodeStatus timingNodeStatus(Status status) {
+        return new TimingNodeStatus(
                 status.timingNodeId(),
                 status.lifecycle(),
                 status.locationId(),
