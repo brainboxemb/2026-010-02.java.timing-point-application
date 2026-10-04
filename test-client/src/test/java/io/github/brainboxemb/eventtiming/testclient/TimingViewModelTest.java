@@ -150,9 +150,9 @@ class TimingViewModelTest {
 
         assertEquals(2, values.size());
         assertEquals("12:00:00", values.get(0).displayTime());
-        assertEquals("A", values.get(0).source());
+        assertEquals("AUTO", values.get(0).code());
         assertEquals("12:00:05", values.get(1).displayTime());
-        assertEquals("M", values.get(1).source());
+        assertEquals("MAN", values.get(1).code());
     }
 
     @Test
