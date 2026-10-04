@@ -492,34 +492,10 @@ jobs:
         shell: bash
         env:
           RELEASE_VERSION: ${{ needs.release-metadata.outputs.version }}
-          RELEASE_TAG: ${{ needs.release-metadata.outputs.release_tag }}
           APP_JAR: ${{ needs.release-metadata.outputs.app_jar }}
           CORE_JAR: ${{ needs.release-metadata.outputs.core_jar }}
           TIMING_DATA_JAR: ${{ needs.release-metadata.outputs.timing_data_jar }}
-        run: |
-          set -euo pipefail
-          test "$(cat publication/source-sha.txt)" = "${GITHUB_SHA}"
-          test -f "publication/artifacts/${APP_JAR}"
-          test -f "publication/artifacts/${CORE_JAR}"
-          test -f "publication/artifacts/${TIMING_DATA_JAR}"
-
-          python3 tools/release_metadata.py verify-artifact \
-            --jar "publication/artifacts/${APP_JAR}" \
-            --version "${RELEASE_VERSION}" \
-            --revision "${GITHUB_SHA}"
-          python3 tools/release_metadata.py release-notes \
-            --version "${RELEASE_VERSION}" \
-            --output release-notes.md
-
-          (cd publication/artifacts && sha256sum "${TIMING_DATA_JAR}" "${CORE_JAR}" "${APP_JAR}") \
-            > "SHA256SUMS-${RELEASE_VERSION}.txt"
-
-          mkdir -p publication/evidence/system-test/linux publication/evidence/system-test/windows
-          cp -R system-test-evidence/linux/. publication/evidence/system-test/linux/
-          cp -R system-test-evidence/windows/. publication/evidence/system-test/windows/
-
-          tar -czf "event-timing-release-evidence-${RELEASE_VERSION}.tar.gz" \
-            -C publication README.md source-sha.txt evidence orchestration
+        run: bash tools/prepare_release_assets.sh
 
       - name: Create or update GitHub Release
         shell: bash
