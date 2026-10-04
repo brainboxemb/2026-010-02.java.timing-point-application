@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.testclient;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -191,11 +192,12 @@ public final class TimingViewModel {
 
     public static String canonicalTime(
             LocalDate date,
-            LocalTime time) {
-        if (date == null || time == null) {
-            throw new IllegalArgumentException("date and time must not be null");
+            LocalTime time,
+            ZoneId zone) {
+        if (date == null || time == null || zone == null) {
+            throw new IllegalArgumentException("date, time and zone must not be null");
         }
-        return canonicalTime(date.atTime(time).toInstant(ZoneOffset.UTC));
+        return canonicalTime(date.atTime(time).atZone(zone).toInstant());
     }
 
     private ApiClient.TimingNodeInfo findNode(String nodeId) {
