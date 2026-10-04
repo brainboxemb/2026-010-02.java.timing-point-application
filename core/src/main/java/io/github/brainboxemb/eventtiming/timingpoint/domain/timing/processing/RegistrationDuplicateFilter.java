@@ -70,7 +70,6 @@ final class RegistrationDuplicateFilter {
         }
 
         long now = monotonicClock.nowNanos();
-        removeOldEntriesWhenDue(now);
 
         if (duplicateWindowNanos > 0L) {
             Long acceptedAt = acceptedRegistrations.get(registrationId);
@@ -96,6 +95,17 @@ final class RegistrationDuplicateFilter {
         }
 
         return resultFor(admission);
+    }
+
+    /**
+     * Performs periodic cleanup of expired duplicate-window entries.
+     *
+     * <p>Correct duplicate detection does not depend on cleanup timing:
+     * submitIfNew(...) still checks the current RegistrationId exactly. This
+     * periodic pass only keeps old map entries from accumulating.</p>
+     */
+    synchronized void periodic() {
+        removeOldEntriesWhenDue(monotonicClock.nowNanos());
     }
 
     private void removeOldEntriesWhenDue(long now) {
