@@ -1,10 +1,9 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.timing;
+package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
 
 /**
- * RFID/tag source identity resolved before definitive TimingData construction.
+ * Opaque decoded RFID/tag identity.
  *
- * <p>The public baseline treats the value as opaque. Concrete event/provider
- * configuration owns real formats, categories and mappings.</p>
+ * <p>Concrete event/provider configuration owns the actual encoding and meaning.</p>
  */
 public final class TagId {
     private final String value;

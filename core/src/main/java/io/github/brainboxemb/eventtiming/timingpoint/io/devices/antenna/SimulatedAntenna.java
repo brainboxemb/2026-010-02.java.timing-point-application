@@ -1,56 +1,96 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
-/**
- * Built-in deterministic antenna implementation for simulation and verification.
- *
- * <p>The Step-5 implementation has no hidden worker. Calling {@link #emit}
- * invokes the configured observation callback on the caller thread. The normal
- * TagProcessor/TimingNode boundary decides whether later state-changing work is
- * admitted to the bounded TimingNode lane.</p>
- */
+/** Built-in deterministic antenna implementation for simulation and verification. */
 public final class SimulatedAntenna implements Antenna {
-    private ObservationListener listener;
-    private boolean running;
+    private static final AntennaInfo INFO =
+            new AntennaInfo("simulated-antenna", "1");
+
+    private final Event<TagObservation> observationEvent = new Event<>();
+
+    private boolean initialized;
+    private boolean inventoryRunning;
     private boolean closed;
 
     @Override
-    public synchronized void start(ObservationListener listener) {
-        if (listener == null) {
-            throw new IllegalArgumentException("listener must not be null");
-        }
-        if (closed) {
-            throw new IllegalStateException("SimulatedAntenna is closed");
-        }
-        if (running) {
-            throw new IllegalStateException("SimulatedAntenna is already running");
-        }
-        this.listener = listener;
-        running = true;
+    public synchronized AntennaInfo probe() {
+        requireOpen();
+        return INFO;
     }
 
     @Override
-    public synchronized boolean running() {
-        return running;
+    public synchronized void initialize() {
+        requireOpen();
+        if (inventoryRunning) {
+            throw new IllegalStateException(
+                    "SimulatedAntenna cannot initialize while inventory is running");
+        }
+        initialized = true;
     }
 
-    /** Emits one deterministic decoded observation. */
-    public void emit(String tagId, TimingTimestamp time) {
-        ObservationListener current;
-        synchronized (this) {
-            if (!running || listener == null) {
-                throw new IllegalStateException("SimulatedAntenna is not running");
-            }
-            current = listener;
+    @Override
+    public synchronized void startInventory() {
+        requireOpen();
+        if (!initialized) {
+            throw new IllegalStateException(
+                    "SimulatedAntenna must be initialized before inventory starts");
         }
-        current.onObservation(new Observation(tagId, time));
+        if (inventoryRunning) {
+            throw new IllegalStateException(
+                    "SimulatedAntenna inventory is already running");
+        }
+        inventoryRunning = true;
+    }
+
+    @Override
+    public synchronized void stopInventory() {
+        requireOpen();
+        inventoryRunning = false;
+    }
+
+    @Override
+    public synchronized boolean inventoryRunning() {
+        return inventoryRunning;
+    }
+
+    @Override
+    public EventSource<TagObservation> observations() {
+        return observationEvent;
+    }
+
+    /** Emits one deterministic observation on the calling thread. */
+    public void emit(TagObservation observation) {
+        if (observation == null) {
+            throw new IllegalArgumentException("observation must not be null");
+        }
+        synchronized (this) {
+            requireOpen();
+            if (!inventoryRunning) {
+                throw new IllegalStateException(
+                        "SimulatedAntenna inventory is not running");
+            }
+        }
+        observationEvent.emit(observation);
+    }
+
+    /** Convenience overload for deterministic tests and simulation controls. */
+    public void emit(TagId tagId, int rssi, TimingTimestamp observedAt) {
+        emit(new TagObservation(tagId, rssi, observedAt));
     }
 
     @Override
     public synchronized void close() {
-        running = false;
-        listener = null;
+        inventoryRunning = false;
+        initialized = false;
         closed = true;
+    }
+
+    private void requireOpen() {
+        if (closed) {
+            throw new IllegalStateException("SimulatedAntenna is closed");
+        }
     }
 }

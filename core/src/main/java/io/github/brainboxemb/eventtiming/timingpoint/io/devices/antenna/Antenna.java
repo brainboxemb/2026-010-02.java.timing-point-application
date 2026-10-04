@@ -1,59 +1,35 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 /**
- * Stable decoded antenna-observation boundary used by SI-01.
+ * Decoded antenna boundary used by SI-01.
  *
- * <p>Concrete antenna implementations own device/protocol mechanics. They
- * publish decoded observations through this callback contract and do not mutate
- * TimingNode state or persistence directly.</p>
+ * <p>Concrete implementations keep vendor protocol and device-session details
+ * behind this interface. Observations are published as decoded immutable values.
+ * TimingNode state and TimingData persistence are not antenna responsibilities.</p>
  */
 public interface Antenna extends AutoCloseable {
 
-    /** Listener for decoded antenna observations. */
-    @FunctionalInterface
-    interface ObservationListener {
-        void onObservation(Observation observation);
-    }
+    /** Performs a one-shot identity/version probe without starting inventory. */
+    AntennaInfo probe();
 
-    /** One decoded tag observation with its accepted observation time. */
-    final class Observation {
-        private final String tagId;
-        private final TimingTimestamp time;
+    /** Initializes the antenna for normal inventory operation. */
+    void initialize();
 
-        public Observation(String tagId, TimingTimestamp time) {
-            if (tagId == null || tagId.trim().isEmpty()) {
-                throw new IllegalArgumentException("tagId must not be blank");
-            }
-            if (time == null) {
-                throw new IllegalArgumentException("time must not be null");
-            }
-            this.tagId = tagId.trim();
-            this.time = time;
-        }
+    /** Starts decoded tag-observation delivery. */
+    void startInventory();
 
-        public String tagId() {
-            return tagId;
-        }
+    /** Stops decoded tag-observation delivery. */
+    void stopInventory();
 
-        public TimingTimestamp time() {
-            return time;
-        }
-    }
+    /** Returns whether normal inventory delivery is active. */
+    boolean inventoryRunning();
 
-    /**
-     * Starts observation delivery to one listener.
-     *
-     * <p>The callback is an ingress boundary. It must be able to return after
-     * bounded TimingNode admission rather than waiting for persistence/commit.</p>
-     */
-    void start(ObservationListener listener);
+    /** Returns the subscription-only decoded observation event. */
+    EventSource<TagObservation> observations();
 
-    /** Returns whether this antenna is currently delivering observations. */
-    boolean running();
-
-    /** Stops observation delivery. */
+    /** Stops delivery and releases antenna resources. */
     @Override
     void close();
 }

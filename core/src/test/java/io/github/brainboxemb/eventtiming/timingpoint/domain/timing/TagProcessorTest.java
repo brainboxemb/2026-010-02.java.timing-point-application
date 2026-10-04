@@ -9,13 +9,19 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Antenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagId;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 
+import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
@@ -23,101 +29,265 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class TagProcessorTest {
-    private static final TimingTimestamp OBSERVED_AT =
+    private static final TimingTimestamp OBSERVED_1 =
             TimingTimestamp.parse("2026-10-01T12:00:00.000000000Z");
+    private static final TimingTimestamp OBSERVED_2 =
+            TimingTimestamp.parse("2026-10-01T12:00:00.100000000Z");
+    private static final TimingTimestamp OBSERVED_3 =
+            TimingTimestamp.parse("2026-10-01T12:00:00.200000000Z");
     private static final TimingTimestamp RECORDED_AT =
             TimingTimestamp.parse("2026-10-01T12:00:01.000000000Z");
 
     @Test
-    public void simulatedKnownTagUsesNormalTimingNodeCommitPath() {
+    public void strongestObservationSuppliesRegistrationTimeAndEqualRssiKeepsEarlierRead() {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
-        Map<TagId, RegistrationId> references = new HashMap<>();
-        references.put(new TagId("TAG-001"), new RegistrationId("N0001"));
+        FakeMonotonicClock clock = new FakeMonotonicClock();
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
         TagProcessor processor =
-                new TagProcessor(node, new MapTagRegistrationResolver(references));
+                new TagProcessor(
+                        node,
+                        TagProcessorTest::mapReferenceTag,
+                        manualPolicy(),
+                        clock,
+                        scheduler);
         SimulatedAntenna antenna = new SimulatedAntenna();
 
         node.start();
-        antenna.start(processor::onObservation);
+        antenna.initialize();
+        antenna.observations().subscribe(processor::onObservation);
+        antenna.startInventory();
         try {
             node.invoke(TimingNodeCommands.open(new LocationId(24)));
 
-            antenna.emit("TAG-001", OBSERVED_AT);
+            antenna.emit(new TagId("TAG-001"), -60, OBSERVED_1);
+            clock.advanceNanos(10L);
+            antenna.emit(new TagId("TAG-001"), -40, OBSERVED_2);
+            clock.advanceNanos(10L);
+            antenna.emit(new TagId("TAG-001"), -40, OBSERVED_3);
 
-            // This ordered query runs after the admitted registration command.
+            clock.advanceNanos(100L);
+            processor.expireBursts();
+
             assertEquals(1, node.query(TimingNodeQueries.timingDataCount()).intValue());
             assertEquals(1, store.appended.size());
 
-            TimingData data = store.appended.get(0);
-            assertTrue(data instanceof AutomaticRegistration);
-            AutomaticRegistration registration = (AutomaticRegistration) data;
-            assertEquals(new NodeId("TN-01"), registration.timingNodeId());
-            assertEquals(1L, registration.sequenceNumber());
-            assertEquals(new LocationId(24), registration.locationId());
-            assertEquals(new RegistrationId("N0001"), registration.registrationId());
-            assertEquals(OBSERVED_AT, registration.effectiveTime());
+            AutomaticRegistration registration =
+                    (AutomaticRegistration) store.appended.get(0);
+            assertEquals(new RegistrationId("N-001"), registration.registrationId());
+            assertEquals(OBSERVED_2, registration.effectiveTime());
             assertEquals(RECORDED_AT, registration.recordedAt());
-            assertEquals(1L, processor.observationCount());
-            assertEquals(1L, processor.resolvedCount());
-            assertEquals(0L, processor.unknownTagCount());
+            assertEquals(3L, processor.observationCount());
+            assertEquals(1L, processor.closedBurstCount());
+            assertEquals(1L, processor.mappedCount());
             assertEquals(1L, processor.admittedCount());
         } finally {
             antenna.close();
+            processor.close();
+            scheduler.shutdownNow();
             node.stop();
         }
     }
 
     @Test
-    public void unknownTagIsFilteredBeforeTimingNodeCommit() {
+    public void maximumDurationClosesContinuouslyVisibleTagBeforeQuietTimeout() {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
-        TagProcessor processor =
-                new TagProcessor(node, new MapTagRegistrationResolver(
-                        new HashMap<TagId, RegistrationId>()));
-        SimulatedAntenna antenna = new SimulatedAntenna();
+        FakeMonotonicClock clock = new FakeMonotonicClock();
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        TagProcessingPolicy policy = new TagProcessingPolicy(
+                Duration.ofNanos(100L),
+                Duration.ofNanos(150L),
+                Duration.ofNanos(1000L),
+                Duration.ofDays(1));
+        TagProcessor processor = new TagProcessor(
+                node,
+                TagProcessorTest::mapReferenceTag,
+                policy,
+                clock,
+                scheduler);
 
         node.start();
-        antenna.start(processor::onObservation);
         try {
             node.invoke(TimingNodeCommands.open(new LocationId(24)));
 
-            antenna.emit("TAG-UNKNOWN", OBSERVED_AT);
+            processor.onObservation(observation("TAG-001", -60, OBSERVED_1));
+            clock.advanceNanos(90L);
+            processor.onObservation(observation("TAG-001", -40, OBSERVED_2));
+            clock.advanceNanos(60L);
 
-            assertEquals(0, node.query(TimingNodeQueries.timingDataCount()).intValue());
-            assertTrue(store.appended.isEmpty());
-            assertEquals(1L, processor.observationCount());
-            assertEquals(0L, processor.resolvedCount());
-            assertEquals(1L, processor.unknownTagCount());
+            processor.expireBursts();
+
+            assertEquals(1, node.query(TimingNodeQueries.timingDataCount()).intValue());
+            AutomaticRegistration registration =
+                    (AutomaticRegistration) store.appended.get(0);
+            assertEquals(OBSERVED_2, registration.effectiveTime());
         } finally {
-            antenna.close();
+            processor.close();
+            scheduler.shutdownNow();
             node.stop();
         }
     }
 
     @Test
-    public void admissionIsNotTheLaterDomainCommitResult() {
+    public void quietTimeoutClosesBurstWithoutAnotherObservation() throws Exception {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
-        Map<TagId, RegistrationId> references = new HashMap<>();
-        references.put(new TagId("TAG-001"), new RegistrationId("N0001"));
-        TagProcessor processor =
-                new TagProcessor(node, new MapTagRegistrationResolver(references));
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        TagProcessingPolicy policy = new TagProcessingPolicy(
+                Duration.ofMillis(10),
+                Duration.ofSeconds(1),
+                Duration.ofSeconds(1),
+                Duration.ofMillis(2));
+        TagProcessor processor = new TagProcessor(
+                node,
+                TagProcessorTest::mapReferenceTag,
+                policy,
+                SystemMonotonicClock.INSTANCE,
+                scheduler);
+        CountDownLatch committed = new CountDownLatch(1);
+        node.timingDataCommittedEvent().subscribe(data -> committed.countDown());
 
         node.start();
         try {
-            assertEquals(
-                    TagProcessor.ObservationResult.ADMITTED,
-                    processor.process(
-                            new Antenna.Observation("TAG-001", OBSERVED_AT)));
+            node.invoke(TimingNodeCommands.open(new LocationId(24)));
+            processor.onObservation(observation("TAG-001", -50, OBSERVED_1));
 
-            // The command was admitted while the node was CLOSED, so the later
-            // domain operation rejects it without creating committed TimingData.
-            assertEquals(0, node.query(TimingNodeQueries.timingDataCount()).intValue());
-            assertTrue(store.appended.isEmpty());
+            assertTrue(
+                    "registration was not committed after quiet timeout",
+                    committed.await(2, TimeUnit.SECONDS));
+            assertEquals(1, node.query(TimingNodeQueries.timingDataCount()).intValue());
         } finally {
+            processor.close();
+            scheduler.shutdownNow();
             node.stop();
         }
+    }
+
+    @Test
+    public void duplicateWindowUsesRegistrationIdAcrossDifferentTags() {
+        RecordingStore store = new RecordingStore();
+        TimingNode node = node(store);
+        FakeMonotonicClock clock = new FakeMonotonicClock();
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        TagRegistrationMapper mapper = tagId -> {
+            if ("TAG-A".equals(tagId.value()) || "TAG-B".equals(tagId.value())) {
+                return new RegistrationId("N-001");
+            }
+            return null;
+        };
+        TagProcessor processor =
+                new TagProcessor(node, mapper, manualPolicy(), clock, scheduler);
+
+        node.start();
+        try {
+            node.invoke(TimingNodeCommands.open(new LocationId(24)));
+
+            processor.onObservation(observation("TAG-A", -50, OBSERVED_1));
+            clock.advanceNanos(100L);
+            processor.expireBursts();
+            assertEquals(1, node.query(TimingNodeQueries.timingDataCount()).intValue());
+
+            clock.advanceNanos(10L);
+            processor.onObservation(observation("TAG-B", -45, OBSERVED_2));
+            clock.advanceNanos(100L);
+            processor.expireBursts();
+
+            assertEquals(1, node.query(TimingNodeQueries.timingDataCount()).intValue());
+            assertEquals(1L, processor.duplicateCount());
+        } finally {
+            processor.close();
+            scheduler.shutdownNow();
+            node.stop();
+        }
+    }
+
+    @Test
+    public void notRunningAdmissionDoesNotStartDuplicateWindow() {
+        RecordingStore store = new RecordingStore();
+        TimingNode node = node(store);
+        FakeMonotonicClock clock = new FakeMonotonicClock();
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        TagProcessor processor =
+                new TagProcessor(
+                        node,
+                        TagProcessorTest::mapReferenceTag,
+                        manualPolicy(),
+                        clock,
+                        scheduler);
+
+        try {
+            processor.onObservation(observation("TAG-001", -50, OBSERVED_1));
+            clock.advanceNanos(100L);
+            processor.expireBursts();
+            assertEquals(1L, processor.nodeNotRunningCount());
+
+            node.start();
+            node.invoke(TimingNodeCommands.open(new LocationId(24)));
+
+            clock.advanceNanos(10L);
+            processor.onObservation(observation("TAG-001", -45, OBSERVED_2));
+            clock.advanceNanos(100L);
+            processor.expireBursts();
+
+            assertEquals(1, node.query(TimingNodeQueries.timingDataCount()).intValue());
+            assertEquals(1L, processor.admittedCount());
+            assertEquals(0L, processor.duplicateCount());
+        } finally {
+            processor.close();
+            scheduler.shutdownNow();
+            node.stop();
+        }
+    }
+
+    @Test
+    public void unmappedTagDoesNotReachTimingNode() {
+        RecordingStore store = new RecordingStore();
+        TimingNode node = node(store);
+        FakeMonotonicClock clock = new FakeMonotonicClock();
+        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+        TagProcessor processor =
+                new TagProcessor(node, tagId -> null, manualPolicy(), clock, scheduler);
+
+        node.start();
+        try {
+            node.invoke(TimingNodeCommands.open(new LocationId(24)));
+            processor.onObservation(observation("TAG-UNKNOWN", -30, OBSERVED_1));
+            clock.advanceNanos(100L);
+            processor.expireBursts();
+
+            assertEquals(0, node.query(TimingNodeQueries.timingDataCount()).intValue());
+            assertTrue(store.appended.isEmpty());
+            assertEquals(1L, processor.unmappedCount());
+            assertEquals(0L, processor.admittedCount());
+        } finally {
+            processor.close();
+            scheduler.shutdownNow();
+            node.stop();
+        }
+    }
+
+    private static TagObservation observation(
+            String tagId,
+            int rssi,
+            TimingTimestamp observedAt) {
+        return new TagObservation(new TagId(tagId), rssi, observedAt);
+    }
+
+    private static RegistrationId mapReferenceTag(TagId tagId) {
+        String value = tagId.value();
+        if (!value.startsWith("TAG-") || value.length() == 4) {
+            return null;
+        }
+        return new RegistrationId("N-" + value.substring(4));
+    }
+
+    private static TagProcessingPolicy manualPolicy() {
+        return new TagProcessingPolicy(
+                Duration.ofNanos(100L),
+                Duration.ofNanos(500L),
+                Duration.ofNanos(1000L),
+                Duration.ofDays(1));
     }
 
     private static TimingNode node(RecordingStore store) {
@@ -127,6 +297,19 @@ public class TagProcessorTest {
                 store,
                 new DefaultTimingDataFactory(),
                 timeSource);
+    }
+
+    private static final class FakeMonotonicClock implements MonotonicClock {
+        private long now;
+
+        @Override
+        public long nowNanos() {
+            return now;
+        }
+
+        private void advanceNanos(long nanos) {
+            now += nanos;
+        }
     }
 
     private static final class RecordingStore implements TimingDataPersistence {
