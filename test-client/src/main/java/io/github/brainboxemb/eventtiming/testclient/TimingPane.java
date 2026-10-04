@@ -4,6 +4,7 @@ import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
+import javafx.geometry.VPos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
@@ -81,11 +82,12 @@ final class TimingPane extends VBox {
             Supplier<ApiClient> clientSupplier,
             ExecutorService requests,
             String initialPrefix,
+            javafx.scene.Node leftHeader,
             Consumer<String> rawSink,
             Consumer<String> feedback,
             Consumer<String> apiState,
             ClientLog clientLog) {
-        if (clientSupplier == null || requests == null || rawSink == null
+        if (clientSupplier == null || requests == null || leftHeader == null || rawSink == null
                 || feedback == null || apiState == null || clientLog == null) {
             throw new IllegalArgumentException("TimingPane dependencies must not be null");
         }
@@ -184,7 +186,7 @@ final class TimingPane extends VBox {
                 new TitledPane("LogBook / committed TimingData", historyBox);
         historyPane.setCollapsible(false);
 
-        VBox left = new VBox(10, nodePane, registrationPane);
+        VBox left = new VBox(10, leftHeader, nodePane, registrationPane);
         VBox right = new VBox(10, interpretedPane, historyPane);
         VBox.setVgrow(interpretedPane, Priority.SOMETIMES);
         VBox.setVgrow(historyPane, Priority.ALWAYS);
@@ -205,6 +207,8 @@ final class TimingPane extends VBox {
         GridPane.setHgrow(right, Priority.ALWAYS);
         GridPane.setVgrow(left, Priority.ALWAYS);
         GridPane.setVgrow(right, Priority.ALWAYS);
+        GridPane.setValignment(left, VPos.TOP);
+        GridPane.setValignment(right, VPos.TOP);
 
         getChildren().add(workbench);
         VBox.setVgrow(workbench, Priority.ALWAYS);
