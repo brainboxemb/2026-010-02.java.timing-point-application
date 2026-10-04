@@ -183,7 +183,6 @@ GET  /api/v1/version
 GET  /api/v1/status
 GET  /api/v1/capabilities
 
-PUT  /api/v1/node/{id}/location        {"locationId": <positive integer>}  # protocol/test use
 POST /api/v1/node/{id}/open             {"locationId": <positive integer>}
 POST /api/v1/node/{id}/close
 
