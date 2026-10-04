@@ -14,6 +14,7 @@ import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
 import javafx.scene.control.Tooltip;
+import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -184,19 +185,27 @@ final class TimingPane extends VBox {
         historyPane.setCollapsible(false);
 
         VBox left = new VBox(10, nodePane, registrationPane);
-        left.setPrefWidth(520);
-        left.setMinWidth(470);
-        HBox.setHgrow(left, Priority.ALWAYS);
-
         VBox right = new VBox(10, interpretedPane, historyPane);
-        right.setPrefWidth(650);
-        right.setMinWidth(580);
-        HBox.setHgrow(right, Priority.ALWAYS);
         VBox.setVgrow(interpretedPane, Priority.SOMETIMES);
         VBox.setVgrow(historyPane, Priority.ALWAYS);
 
-        HBox workbench = new HBox(12, left, right);
-        HBox.setHgrow(right, Priority.ALWAYS);
+        ColumnConstraints leftColumn = new ColumnConstraints();
+        leftColumn.setPercentWidth(50.0);
+        leftColumn.setHgrow(Priority.ALWAYS);
+        ColumnConstraints rightColumn = new ColumnConstraints();
+        rightColumn.setPercentWidth(50.0);
+        rightColumn.setHgrow(Priority.ALWAYS);
+
+        GridPane workbench = new GridPane();
+        workbench.setHgap(12);
+        workbench.getColumnConstraints().setAll(leftColumn, rightColumn);
+        workbench.add(left, 0, 0);
+        workbench.add(right, 1, 0);
+        GridPane.setHgrow(left, Priority.ALWAYS);
+        GridPane.setHgrow(right, Priority.ALWAYS);
+        GridPane.setVgrow(left, Priority.ALWAYS);
+        GridPane.setVgrow(right, Priority.ALWAYS);
+
         getChildren().add(workbench);
         VBox.setVgrow(workbench, Priority.ALWAYS);
 
