@@ -111,9 +111,11 @@ results can be exercised and inspected. **Open** sends the LocationId currently 
 in the same request; there is no separate Set Location operation. SI-01 remains
 authoritative.
 
-Registration input uses a separate prefix and numeric field plus readable local date and
-whole-second clock time. The client converts that structured value to the canonical API
-timestamp only when sending the request.
+Registration input uses a separate prefix and numeric field plus readable local civil
+date and whole-second clock time. The UI shows the interpreted client time zone next to
+the field (for example `Europe/Amsterdam`) and converts that explicit local value to the
+canonical UTC API timestamp when sending. **Now** fills the current date/time in that same
+displayed zone.
 
 ### Events
 
@@ -154,8 +156,9 @@ the API workbench:
 - sends node-addressed IF-03 Open/Close controls without local lifecycle-state
   permission rules; OPEN carries the entered LocationId as one request;
 - discovers `DIRECT_REGISTRATION_SIMULATION` before enabling dev `auto-reg`;
-- composes RegistrationId from the presentation prefix + numeric field and converts
-  readable date/time to the canonical API timestamp at send time;
+- composes RegistrationId from the presentation prefix + numeric field, shows the
+  interpreted client time zone explicitly and converts the entered local civil time to
+  the canonical UTC API timestamp;
 - shows the returned source `seq` as the operation result;
 - shows committed TimingData **Type** and **Code** in separate LogBook columns;
 - queries LogBook metadata without downloading the full LogBook;
