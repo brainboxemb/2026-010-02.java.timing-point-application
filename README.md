@@ -6,7 +6,7 @@ Project-wide planning, requirements, architecture, interface design and verifica
 
 ## Current scope
 
-This repository is the public implementation repository for **SI-01 — Timing Point Application**. `v0.2.2` is the accepted SIP Step-3 application/API foundation baseline; development continues on `0.2.3-SNAPSHOT`. Step 4 now adds the first controlled registration slice: TimingNode location/open/close behaviour, committed TimingData + LogBook persistence, compact node-addressed IF-03 control/LogBook/live resources, the Development Client Timing view and separate-process VC-ST1-002 verification. RFID/antenna input, CAN/display behaviour and real upstream/backoffice integration remain later-step work.
+This repository is the public implementation repository for **SI-01 — Timing Point Application**. `v0.2.3` is the accepted SIP Step-4 first-registration baseline; development continues on `0.2.4-SNAPSHOT`. Step 5 moves one TimingNode's input boundary outward through a built-in `SimulatedAntenna` and `TagProcessor`, using deterministic synthetic TagId-to-RegistrationId reference data while retaining the existing TimingNode-owned commit, LogBook and persistence path. Runtime measurement/characterization is developed alongside that simulated-input path. Real RFID hardware, multi-node field behaviour and upstream/backoffice integration remain later-step work.
 
 ## Artifact and package model
 
@@ -54,11 +54,16 @@ Current real application-core behaviour is deliberately small and follows the pa
 ```text
 io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway
 io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy
-io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationStatus
+io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus
 io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode
 io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeLogic   # package-private
 io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes   # source-code grouping
+io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TagProcessor
+io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TagId
+io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TagRegistrationResolver
 io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTimingDataPersistence
+io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Antenna
+io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna
 io.github.brainboxemb.eventtiming.timingpoint.io.storage.AppendOnlyRecordStore
 io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore
 io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialWorker
@@ -92,6 +97,10 @@ infra/
   loggingserver/
 
 io/
+  devices/
+    antenna/
+      Antenna
+      SimulatedAntenna
   storage/
     AppendOnlyRecordStore
     FileAppendOnlyRecordStore
@@ -113,7 +122,9 @@ A constructed `TimingNode` is always complete: TimingData persistence, factory a
 
 Local events keep publish ownership inside the component. Consumers receive a subscription-only `EventSource<T>` and subscribe directly, e.g. `gateway.timingNode().statusChangedEvent().subscribe(...)`. The underlying `Event<T>` registry is thread-safe, but delivery remains synchronous on the emitting thread and concurrent emits are not serialized by the generic event primitive.
 
-`TimingNode` remains the visible Domain component boundary used by Application. Presentation adapters reach it only through `PresentationGateway` and the node-scoped `TimingNodeProxy`. It serializes typed commands and consistency-sensitive queries through `SerialWorker`, while package-private `TimingNodeLogic` keeps the mutable node state, `LocationId`, LogBook interaction and registration commit behaviour readable. Result-bearing callers use `invoke(TimingNodeCommands....)` and may wait for the processed domain result. Producer/callback paths use `submit(TimingNodeCommands....)` and receive only immediate bounded-queue admission, so RFID/TagProcessor ingress does not wait for later node processing. Reads use `query(TimingNodeQueries....)`; bounded LogBook reads copy a stable shallow view on the serial lane and perform longer formatting/calculation afterwards. The Domain automatic-registration command is `addAutomaticRegistration(...)`. Presentation uses the node-scoped `TimingNodeProxy.applyAutomaticRegistration(action, registrationId, time)` boundary; the current IF-03 engineering resource remains `/auto-reg` and supplies the implemented `ADD` action.
+`TimingNode` remains the visible Domain component boundary used by Application. Presentation adapters reach it only through `PresentationGateway` and the node-scoped `TimingNodeProxy`. It serializes typed commands and consistency-sensitive queries through `SerialWorker`, while package-private `TimingNodeLogic` keeps the mutable node state, `LocationId`, LogBook interaction and registration commit behaviour readable. Result-bearing callers use `invoke(TimingNodeCommands....)` and may wait for the processed domain result. Producer/callback paths use `submit(TimingNodeCommands....)` and receive only immediate bounded-queue admission, so RFID/TagProcessor ingress does not wait for later node processing. Reads use `query(TimingNodeQueries....)`; the current bounded LogBook queries traverse the owned history on the serial lane and build only the requested response representation. The Domain automatic-registration command is `addAutomaticRegistration(...)`. Presentation uses the node-scoped `TimingNodeProxy.applyAutomaticRegistration(action, registrationId, time)` boundary; the current IF-03 engineering resource remains `/auto-reg` and supplies the implemented `ADD` action.
+
+Step-5 antenna ingress uses a separate path into the same command: `SimulatedAntenna` emits a decoded tag observation through the normal `Antenna` callback, `TagProcessor` resolves the source `TagId` to the canonical `RegistrationId`, filters unknown tags and calls `TimingNode.submit(TimingNodeCommands.addAutomaticRegistration(...))`. The antenna callback receives only immediate bounded-lane admission; sequence allocation, active LocationId, recorded time, persistence, LogBook visibility and the committed event remain owned by the existing TimingNode path.
 
 The executable artifact remains thin:
 
@@ -148,10 +159,10 @@ Those applications should reuse the same application-core library and inject/sel
 
 The working design is coordinated in the meta repository, especially `docs/31-01-SDD-02-java-component-design.md`.
 
-### Current Step-3 application
+### Current application configuration
 
 The executable uses one external YAML file for the single TimingNode currently composed by the
-application. Step 3 now configures the implemented presentation listeners explicitly:
+application. The current configuration baseline includes the implemented presentation listeners explicitly:
 
 ```yaml
 timingNodeId: TN-01
