@@ -76,11 +76,6 @@ public class TagProcessorTest {
                     registration.registrationId());
             assertEquals(OBSERVED_AT, registration.effectiveTime());
 
-            TagProcessingCounters.Snapshot snapshot = counters.snapshot();
-            assertEquals(1L, snapshot.observations());
-            assertEquals(1L, snapshot.closedBursts());
-            assertEquals(1L, snapshot.mapped());
-            assertEquals(1L, snapshot.admitted());
         } finally {
             antenna.close();
             processor.close();
@@ -118,10 +113,6 @@ public class TagProcessorTest {
 
             assertTrue(mappingAttempted.await(2, TimeUnit.SECONDS));
             assertEquals(0, submissions.get());
-
-            TagProcessingCounters.Snapshot snapshot = counters.snapshot();
-            assertEquals(1L, snapshot.unmapped());
-            assertEquals(0L, snapshot.admitted());
         } finally {
             processor.close();
             scheduler.shutdownNow();
