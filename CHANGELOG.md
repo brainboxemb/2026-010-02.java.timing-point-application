@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.2.3 — 2026-10-04
+
 - Top-align the API Timing workbench by moving application identity into the left column so Registrations starts at the same vertical position on the right.
 - Refine the interpreted Registrations table to `Time | Type | TeamID | Code | <action>`, distinguish registration Type from time-origin Code, use an icon-only delete action with no header, and rebalance the two-column workbench.
 - Add a two-column Development Client Timing workbench with input/control on the left, an interpreted local-time Registrations projection with Code `AUTO`/`MAN` on the right above the immutable technical LogBook, and future REV projection that marks entries DELETED rather than hiding history.
