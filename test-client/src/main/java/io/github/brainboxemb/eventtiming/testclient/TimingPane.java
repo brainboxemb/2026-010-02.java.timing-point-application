@@ -17,10 +17,9 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
-import java.time.Clock;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,6 +34,7 @@ final class TimingPane extends VBox {
     private static final int INITIAL_LOGBOOK_ROWS = 100;
     private static final DateTimeFormatter CLOCK_TIME =
             DateTimeFormatter.ofPattern("HH:mm:ss");
+    private static final ZoneId INPUT_ZONE = ZoneId.systemDefault();
 
     private final Supplier<ApiClient> clientSupplier;
     private final ExecutorService requests;
@@ -132,6 +132,9 @@ final class TimingPane extends VBox {
         registrationNumber.setPrefColumnCount(10);
         registrationDate.setPrefColumnCount(12);
         registrationTime.setPrefColumnCount(10);
+        registrationTime.setTooltip(new Tooltip(
+                "Local civil time in " + INPUT_ZONE.getId()
+                        + "; sent to IF-03 as canonical UTC."));
         updateNow();
 
         HBox registrationRow = new HBox(
@@ -142,7 +145,7 @@ final class TimingPane extends VBox {
                 registrationNumber,
                 new Label("Date"),
                 registrationDate,
-                new Label("Time (UTC)"),
+                new Label("Time (" + INPUT_ZONE.getId() + ")"),
                 registrationTime,
                 now,
                 autoReg);
@@ -453,7 +456,8 @@ final class TimingPane extends VBox {
         try {
             time = TimingViewModel.canonicalTime(
                     LocalDate.parse(registrationDate.getText().trim()),
-                    LocalTime.parse(registrationTime.getText().trim(), CLOCK_TIME));
+                    LocalTime.parse(registrationTime.getText().trim(), CLOCK_TIME),
+                    INPUT_ZONE);
         } catch (RuntimeException ex) {
             lastOperation.setText("Date/time must use YYYY-MM-DD and HH:mm:ss");
             return;
@@ -683,9 +687,8 @@ final class TimingPane extends VBox {
     }
 
     private void updateNow() {
-        LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
-        registrationDate.setText(now.toLocalDate().toString());
-        registrationTime.setText(CLOCK_TIME.format(now.toLocalTime()));
+        registrationDate.setText(LocalDate.now(INPUT_ZONE).toString());
+        registrationTime.setText(CLOCK_TIME.format(LocalTime.now(INPUT_ZONE)));
     }
 
     private static TableColumn<ApiClient.TimingDataInfo, String> column(
