@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Refine the interpreted Registrations table to `Time | Type | TeamID | Code | <action>`, distinguish registration Type from time-origin Code, use an icon-only delete action with no header, and rebalance the two-column workbench.
 - Add a two-column Development Client Timing workbench with input/control on the left, an interpreted local-time Registrations projection with Code `AUTO`/`MAN` on the right above the immutable technical LogBook, and future REV projection that marks entries DELETED rather than hiding history.
 - Make the Development Client registration time zone explicit: show the interpreted client zone beside the local civil Time field, keep **Now** in that same zone and convert to canonical UTC only at the IF-03 boundary.
 - Make Development Client Timing synchronisation prominent above Version/Status, start baseline sync immediately on Events connection, buffer the initial snapshot during sync, and keep mutating controls disabled until LIVE.
