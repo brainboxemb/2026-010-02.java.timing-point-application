@@ -1,0 +1,16 @@
+toolchain_contract=2
+repository=brainboxemb/2026-010-02.java.timing-point-application
+source_revision=a8de3739faf311f0cc8987387bb350f2b6adc78d
+checked_out_sha=a8de3739faf311f0cc8987387bb350f2b6adc78d
+tool_java_project_version=0.3.2
+tool_java_project_revision=c0ca2e1365a64bc626ca331a8170d13340ae0b36
+java_baseline=8.0.504+1
+maven_baseline=3.9.16
+maven_wrapper_baseline=3.3.4
+java_runtime=openjdk version "1.8.0_504"
+maven_runtime=Apache Maven 3.9.16 (2bdd9fddda4b155ebf8000e807eb73fd829a51d5)
+event_name=workflow_dispatch
+source_ref=refs/tags/v0.2.3
+workflow_ref=brainboxemb/2026-010-02.java.timing-point-application/.github/workflows/java-verify.yml@refs/tags/v0.2.3
+runner_os=Linux
+runner_arch=X64
