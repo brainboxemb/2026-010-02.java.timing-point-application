@@ -317,6 +317,7 @@ public class TagProcessorTest {
                         scheduler);
         CountDownLatch blockingCommandStarted = new CountDownLatch(1);
         CountDownLatch releaseBlockingCommand = new CountDownLatch(1);
+        CountDownLatch queuedCommandCompleted = new CountDownLatch(1);
         TimingNodeCommand<Void> blockingCommand = new TimingNodeCommand<>(
                 "blocking-test-command",
                 logic -> {
@@ -327,7 +328,10 @@ public class TagProcessorTest {
                 (timingNode, result) -> result);
         TimingNodeCommand<Void> queuedCommand = new TimingNodeCommand<>(
                 "queued-test-command",
-                logic -> null,
+                logic -> {
+                    queuedCommandCompleted.countDown();
+                    return null;
+                },
                 (timingNode, result) -> result);
 
         node.start();
@@ -346,6 +350,7 @@ public class TagProcessorTest {
             assertEquals(1L, processor.queueFullCount());
 
             releaseBlockingCommand.countDown();
+            assertTrue(queuedCommandCompleted.await(1, TimeUnit.SECONDS));
             node.invoke(TimingNodeCommands.open(new LocationId(24)));
 
             clock.advanceNanos(10L);
