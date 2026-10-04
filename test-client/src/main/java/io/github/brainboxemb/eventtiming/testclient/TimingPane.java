@@ -683,10 +683,10 @@ final class TimingPane extends VBox {
                 registrationColumn(
                         "RegistrationId",
                         TimingViewModel.InterpretedRegistration::registrationId);
-        TableColumn<TimingViewModel.InterpretedRegistration, String> source =
+        TableColumn<TimingViewModel.InterpretedRegistration, String> code =
                 registrationColumn(
-                        "A/M",
-                        TimingViewModel.InterpretedRegistration::source);
+                        "Code",
+                        TimingViewModel.InterpretedRegistration::code);
         TableColumn<TimingViewModel.InterpretedRegistration, String> status =
                 registrationColumn(
                         "State",
@@ -696,7 +696,7 @@ final class TimingPane extends VBox {
 
         time.setPrefWidth(100);
         registration.setPrefWidth(150);
-        source.setPrefWidth(70);
+        code.setPrefWidth(85);
         status.setPrefWidth(100);
         delete.setPrefWidth(90);
 
@@ -719,7 +719,7 @@ final class TimingPane extends VBox {
         registrations.getColumns().setAll(
                 time,
                 registration,
-                source,
+                code,
                 status,
                 delete);
         registrations.setColumnResizePolicy(
