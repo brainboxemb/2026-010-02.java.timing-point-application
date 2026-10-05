@@ -361,16 +361,16 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                 }
             }
 
-            SerialExecutor lane;
+            SerialExecutor activeLane;
             synchronized (SerialScheduledExecutor.this) {
                 if (state != State.RUNNING) {
                     return;
                 }
-                lane = lane;
+                activeLane = SerialScheduledExecutor.this.lane;
             }
 
             SerialExecutor.AdmissionResult admission =
-                    lane.offer(() -> {
+                    activeLane.offer(() -> {
                         try {
                             wrapPeriodic(task).run();
                         } finally {
