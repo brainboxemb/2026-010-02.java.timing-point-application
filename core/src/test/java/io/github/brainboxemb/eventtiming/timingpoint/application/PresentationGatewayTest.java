@@ -151,12 +151,28 @@ public class PresentationGatewayTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsMissingBuildIdentity() {
-        new PresentationGateway(null, node(new RecordingStore()));
+        new PresentationGateway(
+                null,
+                node(new RecordingStore()),
+                PresentationGatewayFixture.configurationControl(
+                        new NodeId("TN-01")));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsMissingTimingNode() {
-        new PresentationGateway(identity(), null);
+        new PresentationGateway(
+                identity(),
+                null,
+                PresentationGatewayFixture.configurationControl(
+                        new NodeId("TN-01")));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsMissingConfigurationControl() {
+        new PresentationGateway(
+                identity(),
+                node(new RecordingStore()),
+                null);
     }
 
     private static TimingNode node(RecordingStore store) {
