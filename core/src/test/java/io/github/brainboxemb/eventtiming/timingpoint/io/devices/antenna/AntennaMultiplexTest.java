@@ -91,7 +91,7 @@ public class AntennaMultiplexTest {
         SimulatedAntenna healthy = new SimulatedAntenna();
         SimulatedAntenna failed = new SimulatedAntenna();
 
-        AntennaManager manager = new AntennaManager(
+        AntennaManager manager = manager(
                 Arrays.asList(
                         AntennaInstallation.direct(healthy)
                                 .inInventoryGroup(
