@@ -2,9 +2,9 @@ package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
-import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.RejectedExecutionException;
@@ -16,14 +16,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Bounded one-at-a-time execution backed by a JDK ThreadPoolExecutor.
+ * One bounded serial execution lane.
  *
- * <p>The JDK owns thread coordination and queue waiting. This class owns the
- * project semantics around bounded admission, lifecycle, processed Future
- * results and component-local engineering metrics.</p>
+ * <p>The lane owns bounded admission, FIFO ordering, lifecycle and lane-local
+ * metrics. Production composition may supply a shared role executor; in that
+ * mode multiple SerialExecutor instances keep independent queues while one
+ * physical worker services their drain tasks. The standalone constructor keeps
+ * a one-thread JDK executor for focused tests and isolated uses.</p>
  */
 public final class SerialExecutor implements AutoCloseable {
-    private static final Logger LOG = LoggerFactory.getLogger(SerialExecutor.class);
+    private static final Logger LOG =
+            LoggerFactory.getLogger(SerialExecutor.class);
 
     public enum State {
         NEW,
@@ -63,15 +66,7 @@ public final class SerialExecutor implements AutoCloseable {
         }
     }
 
-    /**
-     * Component-owned engineering metrics for one SerialExecutor instance.
-     *
-     * <p>Admission counters are updated while the owning executor lock is held.
-     * Completion/duration counters are updated by the single worker thread and
-     * remain primitive volatile fields. Snapshot creation is explicit and may
-     * allocate or query JVM thread-management state; the execution hot path does
-     * neither.</p>
-     */
+    /** Lane-local engineering metrics. */
     public static final class Metrics {
         private final SerialExecutor owner;
 
@@ -84,14 +79,14 @@ public final class SerialExecutor implements AutoCloseable {
         private volatile long maxQueueWaitNanos;
         private volatile long totalExecutionNanos;
         private volatile long maxExecutionNanos;
-        private volatile Thread workerThread;
+        private volatile Thread standaloneWorkerThread;
 
         private Metrics(SerialExecutor owner) {
             this.owner = owner;
         }
 
-        private void recordWorkerThread(Thread thread) {
-            workerThread = thread;
+        private void recordStandaloneWorkerThread(Thread thread) {
+            standaloneWorkerThread = thread;
         }
 
         private void recordAccepted(int queueDepth) {
@@ -123,15 +118,7 @@ public final class SerialExecutor implements AutoCloseable {
             }
         }
 
-        /**
-         * Returns a pull-based immutable view of the current executor metrics.
-         *
-         * <p>The snapshot is diagnostic rather than transactional. Worker-owned
-         * duration counters can advance while this method reads the component,
-         * but every individual field is safely published.</p>
-         */
         public Snapshot snapshot() {
-            ThreadPoolExecutor active;
             int queueDepth;
             int queueHighWaterMark;
             long queueAcceptedCount;
@@ -139,8 +126,7 @@ public final class SerialExecutor implements AutoCloseable {
             long queueNotRunningCount;
 
             synchronized (owner) {
-                active = owner.executor;
-                queueDepth = active == null ? 0 : active.getQueue().size();
+                queueDepth = owner.queue.size();
                 queueHighWaterMark = highWaterMark;
                 queueAcceptedCount = acceptedCount;
                 queueFullCount = fullCount;
@@ -161,8 +147,18 @@ public final class SerialExecutor implements AutoCloseable {
                     workerThreadCpuTimeNanos());
         }
 
+        /**
+         * CPU time is attributable only when this lane owns its worker.
+         *
+         * <p>For a lane on a shared role executor the worker CPU time belongs to
+         * the shared executor rather than one lane, so this field is unavailable
+         * and returns -1.</p>
+         */
         private long workerThreadCpuTimeNanos() {
-            Thread worker = workerThread;
+            if (!owner.ownsBackingExecutor) {
+                return -1L;
+            }
+            Thread worker = standaloneWorkerThread;
             if (worker == null) {
                 return -1L;
             }
@@ -176,7 +172,6 @@ public final class SerialExecutor implements AutoCloseable {
             return cpuTime < 0L ? -1L : cpuTime;
         }
 
-        /** Immutable point-in-time engineering view of SerialExecutor metrics. */
         public static final class Snapshot {
             private final int queueDepth;
             private final int queueHighWaterMark;
@@ -263,98 +258,220 @@ public final class SerialExecutor implements AutoCloseable {
 
     private interface TrackedTask extends Runnable {
         void markAccepted(long acceptedAtNanos);
+
+        void cancelIfFuture();
     }
 
     private final int capacity;
-    private final String threadName;
+    private final String laneName;
+    private final ExecutorService suppliedBackingExecutor;
+    private final boolean ownsBackingExecutor;
+    private final ArrayBlockingQueue<TrackedTask> queue;
     private final Metrics metrics = new Metrics(this);
 
     private State state = State.NEW;
-    private ThreadPoolExecutor executor;
+    private ExecutorService backingExecutor;
     private Throwable failure;
+    private boolean drainScheduled;
+    private boolean taskRunning;
 
+    /**
+     * Standalone lane with its own physical worker.
+     *
+     * <p>Production runtime composition should prefer the shared-executor
+     * constructor so one worker can service multiple logical lanes.</p>
+     */
     public SerialExecutor(int capacity, String threadName) {
+        this(capacity, threadName, null, true);
+    }
+
+    /**
+     * Logical serial lane serviced by a runtime-owned shared role executor.
+     */
+    public SerialExecutor(
+            int capacity,
+            String laneName,
+            ExecutorService sharedExecutor) {
+        this(capacity, laneName, sharedExecutor, false);
+    }
+
+    private SerialExecutor(
+            int capacity,
+            String laneName,
+            ExecutorService suppliedBackingExecutor,
+            boolean ownsBackingExecutor) {
         if (capacity < 1) {
-            throw new IllegalArgumentException("capacity must be positive");
+            throw new IllegalArgumentException(
+                    "capacity must be positive");
         }
-        if (threadName == null || threadName.trim().isEmpty()) {
-            throw new IllegalArgumentException("threadName must not be blank");
+        if (laneName == null || laneName.trim().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "laneName must not be blank");
         }
+        if (!ownsBackingExecutor && suppliedBackingExecutor == null) {
+            throw new IllegalArgumentException(
+                    "sharedExecutor must not be null");
+        }
+
         this.capacity = capacity;
-        this.threadName = threadName.trim();
+        this.laneName = laneName.trim();
+        this.suppliedBackingExecutor = suppliedBackingExecutor;
+        this.ownsBackingExecutor = ownsBackingExecutor;
+        this.queue = new ArrayBlockingQueue<TrackedTask>(capacity);
     }
 
     public synchronized void start() {
         if (state != State.NEW) {
             throw new IllegalStateException(
-                    "SerialExecutor can only start from NEW; current state=" + state);
+                    "SerialExecutor can only start from NEW; current state="
+                            + state);
         }
 
-        ThreadFactory threadFactory = runnable -> {
-            Thread thread = new Thread(runnable, threadName);
-            metrics.recordWorkerThread(thread);
-            return thread;
-        };
+        if (ownsBackingExecutor) {
+            ThreadFactory threadFactory = runnable -> {
+                Thread thread = new Thread(runnable, laneName);
+                metrics.recordStandaloneWorkerThread(thread);
+                return thread;
+            };
 
-        executor = new ThreadPoolExecutor(
-                1,
-                1,
-                0L,
-                TimeUnit.MILLISECONDS,
-                new ArrayBlockingQueue<Runnable>(capacity),
-                threadFactory,
-                new ThreadPoolExecutor.AbortPolicy());
+            /*
+             * Workload buffering lives in the lane-local bounded queue. The
+             * backing executor only ever needs room for the next drain token.
+             */
+            ThreadPoolExecutor standalone =
+                    new ThreadPoolExecutor(
+                            1,
+                            1,
+                            0L,
+                            TimeUnit.MILLISECONDS,
+                            new ArrayBlockingQueue<Runnable>(1),
+                            threadFactory,
+                            new ThreadPoolExecutor.AbortPolicy());
+            standalone.prestartCoreThread();
+            backingExecutor = standalone;
+        } else {
+            backingExecutor = suppliedBackingExecutor;
+        }
+
         state = State.RUNNING;
-        executor.prestartCoreThread();
     }
 
     public <R> SubmitResult<R> submit(Callable<R> work) {
         if (work == null) {
-            throw new IllegalArgumentException("work must not be null");
+            throw new IllegalArgumentException(
+                    "work must not be null");
         }
 
-        TrackedFutureTask<R> task = new TrackedFutureTask<>(work);
+        TrackedFutureTask<R> task =
+                new TrackedFutureTask<R>(work);
         AdmissionResult admission = admit(task);
-        return new SubmitResult<>(
+        return new SubmitResult<R>(
                 admission,
-                admission == AdmissionResult.ACCEPTED ? task : null);
+                admission == AdmissionResult.ACCEPTED
+                        ? task
+                        : null);
     }
 
     public AdmissionResult offer(Runnable work) {
         if (work == null) {
-            throw new IllegalArgumentException("work must not be null");
+            throw new IllegalArgumentException(
+                    "work must not be null");
         }
         return admit(new TrackedRunnable(work));
     }
 
     private AdmissionResult admit(TrackedTask task) {
-        ThreadPoolExecutor active;
         synchronized (this) {
             if (state != State.RUNNING) {
                 metrics.recordNotRunning();
                 return AdmissionResult.NOT_RUNNING;
             }
-            active = executor;
-            task.markAccepted(System.nanoTime());
-        }
 
-        try {
-            active.execute(task);
-        } catch (RejectedExecutionException ex) {
-            synchronized (this) {
-                if (state != State.RUNNING || active.isShutdown()) {
-                    metrics.recordNotRunning();
-                    return AdmissionResult.NOT_RUNNING;
-                }
+            task.markAccepted(System.nanoTime());
+            if (!queue.offer(task)) {
                 metrics.recordFull();
                 return AdmissionResult.FULL;
             }
+
+            if (!drainScheduled) {
+                drainScheduled = true;
+                if (!scheduleDrainLocked()) {
+                    queue.remove(task);
+                    task.cancelIfFuture();
+                    metrics.recordNotRunning();
+                    return AdmissionResult.NOT_RUNNING;
+                }
+            }
+
+            metrics.recordAccepted(queue.size());
+            return AdmissionResult.ACCEPTED;
+        }
+    }
+
+    private boolean scheduleDrainLocked() {
+        try {
+            backingExecutor.execute(this::drainOne);
+            return true;
+        } catch (RejectedExecutionException ex) {
+            failure = ex;
+            state = State.FAILED;
+            drainScheduled = false;
+            cancelQueuedLocked();
+            notifyAll();
+            return false;
+        }
+    }
+
+    /**
+     * Executes one lane item and resubmits one drain token when more work exists.
+     *
+     * <p>Processing one item per token is intentional: on a shared one-worker
+     * role executor, another lane already waiting in the role queue can run
+     * before this lane resubmits its next item. One busy TimingNode therefore
+     * does not drain its complete backlog before another node gets a turn.</p>
+     */
+    private void drainOne() {
+        final TrackedTask task;
+        synchronized (this) {
+            if (state == State.FAILED) {
+                drainScheduled = false;
+                notifyAll();
+                return;
+            }
+
+            task = queue.poll();
+            if (task == null) {
+                drainScheduled = false;
+                notifyAll();
+                return;
+            }
+            taskRunning = true;
         }
 
-        synchronized (this) {
-            metrics.recordAccepted(active.getQueue().size());
+        try {
+            task.run();
+        } finally {
+            synchronized (this) {
+                taskRunning = false;
+
+                if (state == State.FAILED) {
+                    cancelQueuedLocked();
+                    drainScheduled = false;
+                    notifyAll();
+                    return;
+                }
+
+                if (queue.isEmpty()) {
+                    drainScheduled = false;
+                    notifyAll();
+                    return;
+                }
+
+                if (!scheduleDrainLocked()) {
+                    notifyAll();
+                }
+            }
         }
-        return AdmissionResult.ACCEPTED;
     }
 
     public synchronized State state() {
@@ -365,14 +482,14 @@ public final class SerialExecutor implements AutoCloseable {
         return failure;
     }
 
-    /** Returns the stable component-owned metrics handle for this executor. */
     public Metrics metrics() {
         return metrics;
     }
 
     @Override
     public void close() {
-        ThreadPoolExecutor active;
+        ExecutorService owned = null;
+
         synchronized (this) {
             if (state == State.NEW) {
                 state = State.STOPPED;
@@ -381,27 +498,46 @@ public final class SerialExecutor implements AutoCloseable {
             if (state == State.RUNNING) {
                 state = State.STOPPING;
             }
-            if (state == State.STOPPED || state == State.FAILED) {
+            if (state == State.STOPPED) {
                 return;
             }
-            active = executor;
+
+            if (state != State.FAILED) {
+                boolean interrupted = false;
+                while (drainScheduled
+                        || taskRunning
+                        || !queue.isEmpty()) {
+                    try {
+                        wait(100L);
+                    } catch (InterruptedException ex) {
+                        interrupted = true;
+                    }
+                }
+                state = State.STOPPED;
+                if (interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+
+            if (ownsBackingExecutor) {
+                owned = backingExecutor;
+            }
         }
 
-        active.shutdown();
-        awaitTermination(active);
-
-        synchronized (this) {
-            if (state != State.FAILED) {
-                state = State.STOPPED;
-            }
+        if (owned != null) {
+            owned.shutdown();
+            awaitTermination(owned);
         }
     }
 
-    private void awaitTermination(ThreadPoolExecutor active) {
+    private static void awaitTermination(
+            ExecutorService executor) {
         boolean interrupted = false;
-        while (!active.isTerminated()) {
+        while (!executor.isTerminated()) {
             try {
-                active.awaitTermination(100L, TimeUnit.MILLISECONDS);
+                executor.awaitTermination(
+                        100L,
+                        TimeUnit.MILLISECONDS);
             } catch (InterruptedException ex) {
                 interrupted = true;
             }
@@ -412,33 +548,46 @@ public final class SerialExecutor implements AutoCloseable {
     }
 
     private void markFailed(Error cause) {
-        ThreadPoolExecutor active;
+        ExecutorService owned = null;
         synchronized (this) {
             if (state == State.FAILED) {
                 return;
             }
             failure = cause;
             state = State.FAILED;
-            active = executor;
+            cancelQueuedLocked();
+            drainScheduled = false;
+            notifyAll();
+            if (ownsBackingExecutor) {
+                owned = backingExecutor;
+            }
         }
 
-        if (active == null) {
-            return;
-        }
-        List<Runnable> queued = active.shutdownNow();
-        for (Runnable task : queued) {
-            if (task instanceof Future<?>) {
-                ((Future<?>) task).cancel(false);
-            }
+        /*
+         * A lane fault must not stop a runtime-owned shared role executor.
+         * Standalone lanes still own and stop their private worker.
+         */
+        if (owned != null) {
+            owned.shutdownNow();
         }
     }
 
-    private static long elapsedNanos(long startedNanos, long finishedNanos) {
+    private void cancelQueuedLocked() {
+        TrackedTask queued;
+        while ((queued = queue.poll()) != null) {
+            queued.cancelIfFuture();
+        }
+    }
+
+    private static long elapsedNanos(
+            long startedNanos,
+            long finishedNanos) {
         long elapsed = finishedNanos - startedNanos;
         return elapsed < 0L ? 0L : elapsed;
     }
 
-    private final class TrackedRunnable implements TrackedTask {
+    private final class TrackedRunnable
+            implements TrackedTask {
         private final Runnable delegate;
         private long acceptedAtNanos;
 
@@ -452,19 +601,31 @@ public final class SerialExecutor implements AutoCloseable {
         }
 
         @Override
+        public void cancelIfFuture() {
+            // Fire-and-forget work has no Future to cancel.
+        }
+
+        @Override
         public void run() {
             long startedNanos = System.nanoTime();
             try {
                 delegate.run();
             } catch (RuntimeException ex) {
-                LOG.warn("Serial executor task failed", ex);
+                LOG.warn(
+                        "Serial lane {} task failed",
+                        laneName,
+                        ex);
             } catch (Error ex) {
                 markFailed(ex);
                 throw ex;
             } finally {
                 metrics.recordCompleted(
-                        elapsedNanos(acceptedAtNanos, startedNanos),
-                        elapsedNanos(startedNanos, System.nanoTime()));
+                        elapsedNanos(
+                                acceptedAtNanos,
+                                startedNanos),
+                        elapsedNanos(
+                                startedNanos,
+                                System.nanoTime()));
             }
         }
     }
@@ -479,7 +640,8 @@ public final class SerialExecutor implements AutoCloseable {
             this(new FatalTrackingCallable<R>(work));
         }
 
-        private TrackedFutureTask(FatalTrackingCallable<R> trackedCallable) {
+        private TrackedFutureTask(
+                FatalTrackingCallable<R> trackedCallable) {
             super(trackedCallable);
             this.trackedCallable = trackedCallable;
         }
@@ -490,14 +652,23 @@ public final class SerialExecutor implements AutoCloseable {
         }
 
         @Override
+        public void cancelIfFuture() {
+            cancel(false);
+        }
+
+        @Override
         public void run() {
             long startedNanos = System.nanoTime();
             try {
                 super.run();
             } finally {
                 metrics.recordCompleted(
-                        elapsedNanos(acceptedAtNanos, startedNanos),
-                        elapsedNanos(startedNanos, System.nanoTime()));
+                        elapsedNanos(
+                                acceptedAtNanos,
+                                startedNanos),
+                        elapsedNanos(
+                                startedNanos,
+                                System.nanoTime()));
                 Error fatal = trackedCallable.fatalError();
                 if (fatal != null) {
                     markFailed(fatal);
@@ -506,7 +677,8 @@ public final class SerialExecutor implements AutoCloseable {
         }
     }
 
-    private static final class FatalTrackingCallable<R> implements Callable<R> {
+    private static final class FatalTrackingCallable<R>
+            implements Callable<R> {
         private final Callable<R> delegate;
         private volatile Error fatalError;
 
