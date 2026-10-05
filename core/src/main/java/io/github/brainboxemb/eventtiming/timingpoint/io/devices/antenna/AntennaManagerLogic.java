@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManagerTypes.AntennaState;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManagerTypes.AntennaStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManagerTypes.State;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -32,7 +33,7 @@ final class AntennaManagerLogic {
     }
 
     private final List<ManagedAntenna> managedAntennas;
-    private final List<Antenna> antennas;
+    private final List<AntennaId> antennaIds;
     private final List<ManagedAntenna> inventoryGroup;
     private final Duration inventoryInterval;
 
@@ -49,8 +50,8 @@ final class AntennaManagerLogic {
         List<ManagedAntenna> managed =
                 new ArrayList<ManagedAntenna>(
                         installations.size());
-        List<Antenna> antennaCopy =
-                new ArrayList<Antenna>(
+        List<AntennaId> antennaIdCopy =
+                new ArrayList<AntennaId>(
                         installations.size());
         List<ManagedAntenna> group =
                 new ArrayList<ManagedAntenna>();
@@ -64,10 +65,19 @@ final class AntennaManagerLogic {
                         "installations must not contain null");
             }
 
+            for (ManagedAntenna existing : managed) {
+                if (existing.installation.antennaId().equals(
+                        installation.antennaId())) {
+                    throw new IllegalArgumentException(
+                            "duplicate AntennaId "
+                                    + installation.antennaId());
+                }
+            }
+
             ManagedAntenna managedAntenna =
                     new ManagedAntenna(installation);
             managed.add(managedAntenna);
-            antennaCopy.add(installation.antenna());
+            antennaIdCopy.add(installation.antennaId());
 
             if (installation.inInventoryGroup()) {
                 if (groupInterval == null) {
@@ -90,15 +100,23 @@ final class AntennaManagerLogic {
 
         managedAntennas =
                 Collections.unmodifiableList(managed);
-        antennas =
-                Collections.unmodifiableList(antennaCopy);
+        antennaIds =
+                Collections.unmodifiableList(antennaIdCopy);
         inventoryGroup =
                 Collections.unmodifiableList(group);
         inventoryInterval = groupInterval;
     }
 
-    List<Antenna> antennas() {
-        return antennas;
+    List<AntennaId> antennaIds() {
+        return antennaIds;
+    }
+
+    EventSource<TagObservation> tagObservedEvent(
+            AntennaId antennaId) {
+        return managedAntenna(antennaId)
+                .installation
+                .antenna()
+                .tagObservedEvent();
     }
 
     List<AntennaStatus> statuses() {
@@ -111,19 +129,10 @@ final class AntennaManagerLogic {
         return Collections.unmodifiableList(result);
     }
 
-    AntennaStatus status(Antenna antenna) {
-        if (antenna == null) {
-            throw new IllegalArgumentException(
-                    "antenna must not be null");
-        }
-        for (ManagedAntenna managed : managedAntennas) {
-            if (managed.installation.antenna()
-                    == antenna) {
-                return snapshot(managed);
-            }
-        }
-        throw new IllegalArgumentException(
-                "antenna is not managed by this AntennaManager");
+    AntennaStatus status(
+            AntennaId antennaId) {
+        return snapshot(
+                managedAntenna(antennaId));
     }
 
     Throwable failure() {
@@ -524,10 +533,26 @@ final class AntennaManagerLogic {
         }
     }
 
+    private ManagedAntenna managedAntenna(
+            AntennaId antennaId) {
+        if (antennaId == null) {
+            throw new IllegalArgumentException(
+                    "antennaId must not be null");
+        }
+        for (ManagedAntenna managed : managedAntennas) {
+            if (managed.installation.antennaId()
+                    .equals(antennaId)) {
+                return managed;
+            }
+        }
+        throw new IllegalArgumentException(
+                "unknown AntennaId " + antennaId);
+    }
+
     private static AntennaStatus snapshot(
             ManagedAntenna managed) {
         return new AntennaStatus(
-                managed.installation.antenna(),
+                managed.installation.antennaId(),
                 managed.state,
                 managed.failure);
     }
