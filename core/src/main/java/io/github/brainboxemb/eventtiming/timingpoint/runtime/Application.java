@@ -1,19 +1,13 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.Conductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeQueries;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
-import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.DynamicConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
  * Top-level runtime object for one SI-01 application composition.
@@ -27,33 +21,17 @@ public final class Application implements AutoCloseable {
     private final BuildIdentity buildIdentity;
     private final TimingNode timingNode;
     private final ApplicationConfiguration configuration;
-    private final ConfigurationControl configurationControl;
     private final PresentationGateway presentationGateway;
     private final Lifecycle lifecycle;
     private final Conductor conductor;
     private final AntennaManager antennaManager;
     private final RuntimeExecutors runtimeExecutors;
 
-    /**
-     * Package-private unit-test seam for Application lifecycle tests.
-     *
-     * <p>Production objects are built by ApplicationBootstrap so executor and I/O
-     * ownership remains explicit at one composition point.</p>
-     */
-    Application(BuildIdentity buildIdentity, TimingNode timingNode) {
-        this(
-                buildIdentity,
-                timingNode,
-                defaultConfiguration(timingNode),
-                new Conductor(null),
-                null,
-                null);
-    }
-
     Application(
             BuildIdentity buildIdentity,
             TimingNode timingNode,
             ApplicationConfiguration configuration,
+            PresentationGateway presentationGateway,
             Conductor conductor,
             AntennaManager antennaManager,
             RuntimeExecutors runtimeExecutors) {
@@ -69,6 +47,10 @@ public final class Application implements AutoCloseable {
             throw new IllegalArgumentException(
                     "configuration must not be null");
         }
+        if (presentationGateway == null) {
+            throw new IllegalArgumentException(
+                    "presentationGateway must not be null");
+        }
         if (conductor == null) {
             throw new IllegalArgumentException(
                     "conductor must not be null");
@@ -81,13 +63,7 @@ public final class Application implements AutoCloseable {
         this.buildIdentity = buildIdentity;
         this.timingNode = timingNode;
         this.configuration = configuration;
-        this.configurationControl =
-                createConfigurationControl(configuration);
-        this.presentationGateway =
-                new PresentationGateway(
-                        buildIdentity,
-                        timingNode,
-                        configurationControl);
+        this.presentationGateway = presentationGateway;
         this.lifecycle = new Lifecycle(buildIdentity);
         this.conductor = conductor;
         this.antennaManager = antennaManager;
@@ -205,33 +181,6 @@ public final class Application implements AutoCloseable {
         if (firstFailure != null) {
             throw firstFailure;
         }
-    }
-
-    private static ConfigurationControl createConfigurationControl(
-            ApplicationConfiguration configuration) {
-        Map<NodeId,
-                DynamicConfiguration<TagProcessingPolicy>> tagProcessing =
-                new LinkedHashMap<NodeId,
-                        DynamicConfiguration<TagProcessingPolicy>>();
-
-        for (NodeId nodeId
-                : configuration.timingNodeIds()) {
-            tagProcessing.put(
-                    nodeId,
-                    configuration.timingNode(nodeId).tagProcessing());
-        }
-        return new ConfigurationControl(tagProcessing);
-    }
-
-    private static ApplicationConfiguration defaultConfiguration(
-            TimingNode timingNode) {
-        if (timingNode == null) {
-            throw new IllegalArgumentException(
-                    "timingNode must not be null");
-        }
-        return ApplicationConfiguration.singleTimingNode(
-                timingNode.timingNodeId(),
-                TagProcessingPolicy.defaults());
     }
 
     public static String smokeOutput(
