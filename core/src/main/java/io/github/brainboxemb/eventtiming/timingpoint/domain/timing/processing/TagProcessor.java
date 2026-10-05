@@ -164,10 +164,10 @@ public final class TagProcessor {
     }
 
     /**
-     * Antenna EventSource callback. It does no mapping/filtering on the provider
+     * Antenna tag-observed EventSource callback. It does no mapping/filtering on the provider
      * thread.
      */
-    public void onObservation(TagObservation observation) {
+    public void onTagObserved(TagObservation observation) {
         if (observation == null) {
             throw new IllegalArgumentException("observation must not be null");
         }
