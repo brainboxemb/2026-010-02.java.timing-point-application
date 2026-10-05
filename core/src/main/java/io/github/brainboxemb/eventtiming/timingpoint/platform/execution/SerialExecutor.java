@@ -49,7 +49,7 @@ public final class SerialExecutor implements AutoCloseable {
         private final AdmissionResult admission;
         private final Future<R> futureResult;
 
-        private SubmitResult(
+        SubmitResult(
                 AdmissionResult admission,
                 Future<R> futureResult) {
             this.admission = admission;
