@@ -9,6 +9,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManagerTypes.AntennaState;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManagerTypes.ControlException;
@@ -77,6 +78,85 @@ public class AntennaManagerTest {
                             "B.close",
                             "A.close"),
                     calls);
+        } finally {
+            shared.shutdownNow();
+        }
+    }
+
+    @Test
+    public void exposesTagObservedEventByConfiguredAntennaId() {
+        ExecutorService shared = sharedExecutor();
+        List<String> calls =
+                Collections.synchronizedList(
+                        new ArrayList<String>());
+        RecordingAntenna antenna =
+                new RecordingAntenna("A", calls);
+        AntennaManager manager = manager(
+                Collections.<Antenna>singletonList(
+                        antenna),
+                shared,
+                4,
+                Duration.ofSeconds(1));
+
+        AtomicReference<TagObservation> received =
+                new AtomicReference<TagObservation>();
+        manager.tagObservedEvent(
+                        new AntennaId("ANT1"))
+                .subscribe(received::set);
+
+        try {
+            manager.start();
+            manager.setOperational(true);
+
+            TagObservation observation =
+                    new TagObservation(
+                            new DecryptedTagId("TAG-1"),
+                            -40,
+                            io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp
+                                    .parse("2026-10-05T12:00:00.000000000Z"));
+            antenna.emit(observation);
+
+            assertEquals(
+                    observation,
+                    received.get());
+        } finally {
+            manager.close();
+            shared.shutdownNow();
+        }
+    }
+
+    @Test
+    public void rejectsDuplicateConfiguredAntennaIds() {
+        ExecutorService shared = sharedExecutor();
+        try {
+            List<AntennaInstallation> installations =
+                    Arrays.asList(
+                            AntennaInstallation.direct(
+                                    new AntennaId("ANT1"),
+                                    new RecordingAntenna(
+                                            "A",
+                                            new ArrayList<String>())),
+                            AntennaInstallation.direct(
+                                    new AntennaId("ANT1"),
+                                    new RecordingAntenna(
+                                            "B",
+                                            new ArrayList<String>())));
+
+            try {
+                new AntennaManager(
+                        installations,
+                        new SerialExecutor(
+                                4,
+                                "antenna-manager-test",
+                                shared),
+                        null,
+                        Duration.ofSeconds(1));
+                fail("expected duplicate AntennaId rejection");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(
+                        expected.getMessage()
+                                .contains("duplicate AntennaId"));
+            }
         } finally {
             shared.shutdownNow();
         }
@@ -270,6 +350,11 @@ public class AntennaManagerTest {
         @Override
         public EventSource<TagObservation> tagObservedEvent() {
             return tagObservedEvent;
+        }
+
+        private void emit(
+                TagObservation observation) {
+            tagObservedEvent.emit(observation);
         }
 
         @Override
