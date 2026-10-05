@@ -6,11 +6,13 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
+import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGatewayFixture;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 
 import java.net.URI;
@@ -130,13 +132,135 @@ public class WebSocketEndpointTest {
     }
 
     @Test
+    public void broadcastsAppliedConfigurationChangesOnly()
+            throws Exception {
+        Fixture fixture = new Fixture();
+        fixture.start();
+        WebSocketEndpoint server = new WebSocketEndpoint(
+                "127.0.0.1",
+                0,
+                fixture.handler,
+                EVENT_CLOCK);
+        server.start();
+        TestClient client = connect(server.boundPort());
+
+        try {
+            assertSnapshot(
+                    client.awaitMessage(),
+                    "TN-01",
+                    "CLOSED",
+                    "null");
+
+            ConfigurationControl.Update applied =
+                    fixture.handler
+                            .configuration()
+                            .setTagProcessing(
+                                    new NodeId("TN-01"),
+                                    new ConfigurationControl
+                                            .TagProcessingPatch(
+                                                    300L,
+                                                    null,
+                                                    null,
+                                                    75L,
+                                                    null));
+            assertTrue(
+                    applied.result()
+                            == ConfigurationControl
+                                    .UpdateResult.APPLIED);
+
+            String changed = client.awaitMessage();
+            assertNotNull(changed);
+            assertTrue(changed.contains(
+                    "\"eventType\":\"CONFIGURATION_CHANGED\""));
+            assertTrue(changed.contains(
+                    "\"occurredAt\":\"2026-10-01T12:00:02Z\""));
+            assertTrue(changed.contains(
+                    "\"nodeId\":\"TN-01\""));
+            assertTrue(changed.contains(
+                    "\"section\":\"tagProcessing\""));
+            assertTrue(changed.contains(
+                    "\"quietTimeoutMillis\":300"));
+            assertTrue(changed.contains(
+                    "\"sweepCadenceMillis\":75"));
+            assertTrue(changed.contains(
+                    "\"overridden\":true"));
+
+            ConfigurationControl.Update noChange =
+                    fixture.handler
+                            .configuration()
+                            .setTagProcessing(
+                                    new NodeId("TN-01"),
+                                    new ConfigurationControl
+                                            .TagProcessingPatch(
+                                                    300L,
+                                                    null,
+                                                    null,
+                                                    null,
+                                                    null));
+            assertTrue(
+                    noChange.result()
+                            == ConfigurationControl
+                                    .UpdateResult.NO_CHANGE);
+            assertNull(client.pollMessage(250));
+
+            ConfigurationControl.Update restartRequired =
+                    fixture.handler
+                            .configuration()
+                            .setTagProcessing(
+                                    new NodeId("TN-01"),
+                                    new ConfigurationControl
+                                            .TagProcessingPatch(
+                                                    null,
+                                                    null,
+                                                    null,
+                                                    null,
+                                                    128L));
+            assertTrue(
+                    restartRequired.result()
+                            == ConfigurationControl
+                                    .UpdateResult.RESTART_REQUIRED);
+            assertNull(client.pollMessage(250));
+
+            ConfigurationControl.Update cleared =
+                    fixture.handler
+                            .configuration()
+                            .clearTagProcessing(
+                                    new NodeId("TN-01"));
+            assertTrue(
+                    cleared.result()
+                            == ConfigurationControl
+                                    .UpdateResult.APPLIED);
+
+            String restored = client.awaitMessage();
+            assertNotNull(restored);
+            assertTrue(restored.contains(
+                    "\"eventType\":\"CONFIGURATION_CHANGED\""));
+            assertTrue(restored.contains(
+                    "\"quietTimeoutMillis\":250"));
+            assertTrue(restored.contains(
+                    "\"sweepCadenceMillis\":50"));
+            assertTrue(restored.contains(
+                    "\"overridden\":false"));
+        } finally {
+            client.closeBlocking();
+            server.close();
+            fixture.close();
+        }
+    }
+
+    @Test
     public void snapshotExposesContainedTimingDataRecoveryFailure()
             throws Exception {
         TimingNode node = TimingNodeFixture.create(
                 new NodeId("TN-01"),
                 new FailingRecoveryStore(),
                 () -> RECORDED_AT);
-        PresentationGateway handler = new PresentationGateway(identity(), node);
+        PresentationGateway handler =
+                new PresentationGateway(
+                        identity(),
+                        node,
+                        PresentationGatewayFixture.configurationControl(
+                                new NodeId("TN-01")));
         node.start();
         WebSocketEndpoint server = new WebSocketEndpoint(
                 "127.0.0.1",
@@ -208,7 +332,12 @@ public class WebSocketEndpointTest {
                     new NodeId("TN-01"),
                     new MemoryStore(),
                     () -> RECORDED_AT);
-            handler = new PresentationGateway(identity(), node);
+            handler =
+                    new PresentationGateway(
+                            identity(),
+                            node,
+                            PresentationGatewayFixture.configurationControl(
+                                    new NodeId("TN-01")));
         }
 
         private void start() {

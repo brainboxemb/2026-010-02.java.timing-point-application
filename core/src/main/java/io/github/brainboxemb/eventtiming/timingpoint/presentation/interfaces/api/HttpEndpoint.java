@@ -8,6 +8,9 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
+import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl.TagProcessingPatch;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy.AutomaticRegistrationAction;
@@ -40,6 +43,7 @@ public final class HttpEndpoint implements AutoCloseable {
     private final int port;
     private final PresentationGateway presentationGateway;
     private final TimingNodeProxy timingNode;
+    private final ConfigurationControl configuration;
     private final TimingDataCodec timingDataCodec;
     private final HttpRequestReader requestReader = new HttpRequestReader();
 
@@ -60,6 +64,7 @@ public final class HttpEndpoint implements AutoCloseable {
         this.port = port;
         this.presentationGateway = presentationGateway;
         this.timingNode = presentationGateway.timingNode();
+        this.configuration = presentationGateway.configuration();
         this.timingDataCodec = new DefaultTimingDataCodec();
     }
 
@@ -124,6 +129,15 @@ public final class HttpEndpoint implements AutoCloseable {
             sendJson(exchange, 200, MessageWriter.status(timingNode.status()));
             return;
         }
+        if ("/api/v1/configuration".equals(path)) {
+            requireMethod(exchange, "GET");
+            sendJson(
+                    exchange,
+                    200,
+                    MessageWriter.configuration(
+                            configuration.snapshot()));
+            return;
+        }
         if ("/api/v1/capabilities".equals(path)) {
             requireMethod(exchange, "GET");
             sendJson(
@@ -175,6 +189,12 @@ public final class HttpEndpoint implements AutoCloseable {
         if ("/logbook".equals(route.resource)) {
             requireMethod(exchange, "GET");
             handleLogBook(exchange);
+            return;
+        }
+        if ("/configuration/tag-processing".equals(
+                route.resource)) {
+            requireMethod(exchange, "POST");
+            handleTagProcessingConfiguration(exchange);
             return;
         }
 
@@ -281,6 +301,61 @@ public final class HttpEndpoint implements AutoCloseable {
                 200,
                 MessageWriter.committedRegistration(
                         result.timingData()));
+    }
+
+    private void handleTagProcessingConfiguration(
+            HttpExchange exchange)
+            throws IOException {
+        HttpRequestReader.TagProcessingUpdateRequest request =
+                requestReader.readTagProcessingUpdateRequest(
+                        exchange);
+
+        NodeId nodeId =
+                timingNode.status().timingNodeId();
+        ConfigurationControl.Update update;
+
+        if (request.action
+                == HttpRequestReader
+                        .TagProcessingUpdateRequest
+                        .Action.CLEAR) {
+            update =
+                    configuration.clearTagProcessing(nodeId);
+        } else {
+            HttpRequestReader.TagProcessingValues values =
+                    request.values;
+            update =
+                    configuration.setTagProcessing(
+                            nodeId,
+                            new TagProcessingPatch(
+                                    values.quietTimeoutMillis,
+                                    values.maxBurstDurationMillis,
+                                    values.duplicateWindowMillis,
+                                    values.sweepCadenceMillis,
+                                    values.observationQueueCapacity));
+        }
+
+        int status;
+        switch (update.result()) {
+            case APPLIED:
+            case NO_CHANGE:
+                status = 200;
+                break;
+            case INVALID:
+                status = 400;
+                break;
+            case RESTART_REQUIRED:
+                status = 409;
+                break;
+            default:
+                throw new IllegalStateException(
+                        "Unsupported configuration result "
+                                + update.result());
+        }
+
+        sendJson(
+                exchange,
+                status,
+                MessageWriter.configurationUpdate(update));
     }
 
     private void handleLogBook(HttpExchange exchange) throws IOException {

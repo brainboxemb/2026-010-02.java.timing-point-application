@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.ap
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
+import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
@@ -55,12 +56,18 @@ public final class WebSocketEndpoint implements AutoCloseable {
             this::broadcastStatusChanged;
     private final Consumer<TimingData> timingDataListener =
             this::broadcastTimingDataCommitted;
+    private final Consumer<ConfigurationControl.Change>
+            configurationChangedListener =
+                    this::broadcastConfigurationChanged;
     private final EventSource<TimingNodeStatus> statusChanged;
     private final EventSource<TimingData> timingDataCommitted;
+    private final EventSource<ConfigurationControl.Change>
+            configurationChanged;
 
     private Server server;
     private boolean statusSubscribed;
     private boolean timingDataSubscribed;
+    private boolean configurationSubscribed;
 
     public WebSocketEndpoint(
             String bindAddress,
@@ -99,6 +106,8 @@ public final class WebSocketEndpoint implements AutoCloseable {
         this.timingDataCodec = new DefaultTimingDataCodec();
         this.statusChanged = timingNode.statusChangedEvent();
         this.timingDataCommitted = timingNode.timingDataCommittedEvent();
+        this.configurationChanged =
+                presentationGateway.configuration().changes();
     }
 
     /**
@@ -139,6 +148,9 @@ public final class WebSocketEndpoint implements AutoCloseable {
         try {
             statusSubscribed = statusChanged.subscribe(statusChangedListener);
             timingDataSubscribed = timingDataCommitted.subscribe(timingDataListener);
+            configurationSubscribed =
+                    configurationChanged.subscribe(
+                            configurationChangedListener);
         } catch (RuntimeException ex) {
             unsubscribeApplicationEvents();
             server = null;
@@ -202,6 +214,17 @@ public final class WebSocketEndpoint implements AutoCloseable {
         }
     }
 
+    private void broadcastConfigurationChanged(
+            ConfigurationControl.Change change) {
+        Server current = currentServer();
+        if (current != null) {
+            current.broadcast(
+                    MessageWriter.configurationChangedEvent(
+                            clock.instant(),
+                            change));
+        }
+    }
+
     private synchronized Server currentServer() {
         return server;
     }
@@ -237,6 +260,11 @@ public final class WebSocketEndpoint implements AutoCloseable {
         if (timingDataSubscribed) {
             timingDataCommitted.unsubscribe(timingDataListener);
             timingDataSubscribed = false;
+        }
+        if (configurationSubscribed) {
+            configurationChanged.unsubscribe(
+                    configurationChangedListener);
+            configurationSubscribed = false;
         }
     }
 

@@ -10,6 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
+import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGatewayFixture;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 
 import java.util.ArrayList;
@@ -33,7 +34,7 @@ public class PresentationGatewayTest {
     public void versionReturnsAuthoritativeBuildIdentity() {
         BuildIdentity identity = identity();
         TimingNode node = node(new RecordingStore());
-        PresentationGateway gateway = new PresentationGateway(identity, node);
+        PresentationGateway gateway = new PresentationGateway(identity, node, configuration());
 
         assertSame(identity, gateway.version());
     }
@@ -41,7 +42,7 @@ public class PresentationGatewayTest {
     @Test
     public void statusComesFromTimingNode() {
         TimingNode node = node(new RecordingStore());
-        PresentationGateway gateway = new PresentationGateway(identity(), node);
+        PresentationGateway gateway = new PresentationGateway(identity(), node, configuration());
 
         node.start();
         try {
@@ -60,7 +61,7 @@ public class PresentationGatewayTest {
         RecordingStore store = new RecordingStore();
         store.failLoad = true;
         TimingNode node = node(store);
-        PresentationGateway gateway = new PresentationGateway(identity(), node);
+        PresentationGateway gateway = new PresentationGateway(identity(), node, configuration());
 
         node.start();
         try {
@@ -83,7 +84,7 @@ public class PresentationGatewayTest {
     public void timingNodeProxyOwnsNodeScopedPresentationBoundary() {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
-        PresentationGateway gateway = new PresentationGateway(identity(), node);
+        PresentationGateway gateway = new PresentationGateway(identity(), node, configuration());
         TimingNodeProxy proxy = gateway.timingNode();
         List<TimingNodeStatus> statusChanges = new ArrayList<>();
         List<TimingData> committed = new ArrayList<>();
@@ -151,12 +152,33 @@ public class PresentationGatewayTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsMissingBuildIdentity() {
-        new PresentationGateway(null, node(new RecordingStore()));
+        new PresentationGateway(
+                null,
+                node(new RecordingStore()),
+                PresentationGatewayFixture.configurationControl(
+                        new NodeId("TN-01")));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsMissingTimingNode() {
-        new PresentationGateway(identity(), null);
+        new PresentationGateway(
+                identity(),
+                null,
+                PresentationGatewayFixture.configurationControl(
+                        new NodeId("TN-01")));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsMissingConfigurationControl() {
+        new PresentationGateway(
+                identity(),
+                node(new RecordingStore()),
+                null);
+    }
+
+    private static ConfigurationControl configuration() {
+        return PresentationGatewayFixture.configurationControl(
+                new NodeId("TN-01"));
     }
 
     private static TimingNode node(RecordingStore store) {

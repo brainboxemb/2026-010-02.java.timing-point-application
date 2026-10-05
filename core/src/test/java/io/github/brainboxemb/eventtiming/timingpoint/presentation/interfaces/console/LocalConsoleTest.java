@@ -21,18 +21,36 @@ public class LocalConsoleTest {
             LocalConsole console = new LocalConsole(
                     fixture.handler(),
                     () -> stopped.set(true),
-                    new StringReader("help\nversion\nstatus\nquit\n"),
+                    new StringReader(
+                            "help\n"
+                                    + "version\n"
+                                    + "status\n"
+                                    + "open 24\n"
+                                    + "status\n"
+                                    + "auto-reg N0001 2026-10-01T12:00:00Z\n"
+                                    + "config\n"
+                                    + "config tag-processing set "
+                                    + "quietTimeoutMillis=300 "
+                                    + "sweepCadenceMillis=75\n"
+                                    + "config tag-processing clear\n"
+                                    + "close\n"
+                                    + "status\n"
+                                    + "quit\n"),
                     output);
 
             console.run();
         }
 
         String text = output.toString();
-        assertTrue(text.contains("help     Show available commands"));
-        assertTrue(text.contains("version  Show application version"));
-        assertTrue(text.contains("status   Show TimingNode status"));
-        assertTrue(text.contains("quit     Stop the application"));
-        assertTrue(text.contains("exit     Alias for quit"));
+        assertTrue(text.contains("help                         Show available commands"));
+        assertTrue(text.contains("version                      Show application version"));
+        assertTrue(text.contains("status                       Show TimingNode status"));
+        assertTrue(text.contains("open <locationId>            Open TimingNode at location"));
+        assertTrue(text.contains("close                        Close TimingNode"));
+        assertTrue(text.contains("auto-reg <id> <time>"));
+        assertTrue(text.contains("config                       Show current configuration"));
+        assertTrue(text.contains("quit                         Stop the application"));
+        assertTrue(text.contains("exit                         Alias for quit"));
         assertTrue(text.contains("event-timing-app"));
         assertTrue(text.contains("Version      : test-version"));
         assertTrue(text.contains("Revision     : abc123def456"));
@@ -42,6 +60,17 @@ public class LocalConsoleTest {
         assertTrue(text.contains("Timing node"));
         assertTrue(text.contains("Id        : TN-01"));
         assertTrue(text.contains("Lifecycle : CLOSED"));
+        assertTrue(text.contains("Open: OPENED"));
+        assertTrue(text.contains("Location  : 24"));
+        assertTrue(text.contains("Automatic registration: COMMITTED seq=1"));
+        assertTrue(text.contains("Configuration"));
+        assertTrue(text.contains("quietTimeoutMillis : current=250 startup=250 runtimeMutable=true"));
+        assertTrue(text.contains("Tag processing update: APPLIED"));
+        assertTrue(text.contains("quietTimeoutMillis : current=300 startup=250 runtimeMutable=true"));
+        assertTrue(text.contains("sweepCadenceMillis : current=75 startup=50 runtimeMutable=true"));
+        assertTrue(text.contains("Tag processing overridden : false"));
+        assertTrue(text.contains("Close: CLOSED"));
+        assertTrue(text.contains("Location  : -"));
         assertTrue(stopped.get());
     }
 

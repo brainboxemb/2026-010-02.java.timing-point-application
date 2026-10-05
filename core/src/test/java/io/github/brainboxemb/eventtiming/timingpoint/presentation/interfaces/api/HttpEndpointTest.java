@@ -179,13 +179,158 @@ public class HttpEndpointTest {
     }
 
     @Test
+    public void queriesSetsAndClearsRuntimeConfigurationThroughPublicHttp()
+            throws Exception {
+        PresentationGatewayFixture fixture =
+                new PresentationGatewayFixture(identity());
+        HttpEndpoint server =
+                new HttpEndpoint(
+                        "127.0.0.1",
+                        0,
+                        fixture.handler());
+        server.start();
+
+        try {
+            Response initial = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/configuration",
+                    null);
+            assertEquals(200, initial.status);
+            assertTrue(initial.body.contains("\"id\":\"TN-01\""));
+            assertTrue(initial.body.contains(
+                    "\"quietTimeoutMillis\":250"));
+            assertTrue(initial.body.contains(
+                    "\"observationQueueCapacity\":256"));
+            assertTrue(initial.body.contains(
+                    "\"overridden\":false"));
+            assertTrue(initial.body.contains(
+                    "\"observationQueueCapacity\":false"));
+
+            Response applied = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/TN-01/configuration/tag-processing",
+                    "{"
+                            + "\"action\":\"SET\","
+                            + "\"value\":{"
+                            + "\"quietTimeoutMillis\":300,"
+                            + "\"sweepCadenceMillis\":75"
+                            + "}"
+                            + "}");
+            assertEquals(200, applied.status);
+            assertTrue(applied.body.contains(
+                    "\"result\":\"APPLIED\""));
+            assertTrue(applied.body.contains(
+                    "\"quietTimeoutMillis\":300"));
+            assertTrue(applied.body.contains(
+                    "\"sweepCadenceMillis\":75"));
+            assertTrue(applied.body.contains(
+                    "\"overridden\":true"));
+
+            Response current = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/configuration",
+                    null);
+            assertEquals(200, current.status);
+            assertTrue(current.body.contains(
+                    "\"quietTimeoutMillis\":300"));
+            assertTrue(current.body.contains(
+                    "\"sweepCadenceMillis\":75"));
+            assertTrue(current.body.contains(
+                    "\"overridden\":true"));
+
+            Response noChange = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/TN-01/configuration/tag-processing",
+                    "{"
+                            + "\"action\":\"SET\","
+                            + "\"value\":{"
+                            + "\"quietTimeoutMillis\":300"
+                            + "}"
+                            + "}");
+            assertEquals(200, noChange.status);
+            assertTrue(noChange.body.contains(
+                    "\"result\":\"NO_CHANGE\""));
+
+            Response restartRequired = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/TN-01/configuration/tag-processing",
+                    "{"
+                            + "\"action\":\"SET\","
+                            + "\"value\":{"
+                            + "\"observationQueueCapacity\":128"
+                            + "}"
+                            + "}");
+            assertEquals(409, restartRequired.status);
+            assertTrue(restartRequired.body.contains(
+                    "\"result\":\"RESTART_REQUIRED\""));
+            assertTrue(restartRequired.body.contains(
+                    "\"observationQueueCapacity\":256"));
+            assertTrue(restartRequired.body.contains(
+                    "\"quietTimeoutMillis\":300"));
+
+            Response invalid = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/TN-01/configuration/tag-processing",
+                    "{"
+                            + "\"action\":\"SET\","
+                            + "\"value\":{"
+                            + "\"quietTimeoutMillis\":0"
+                            + "}"
+                            + "}");
+            assertEquals(400, invalid.status);
+            assertTrue(invalid.body.contains(
+                    "\"result\":\"INVALID\""));
+            assertTrue(invalid.body.contains(
+                    "\"quietTimeoutMillis\":300"));
+
+            Response cleared = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/TN-01/configuration/tag-processing",
+                    "{\"action\":\"CLEAR\"}");
+            assertEquals(200, cleared.status);
+            assertTrue(cleared.body.contains(
+                    "\"result\":\"APPLIED\""));
+            assertTrue(cleared.body.contains(
+                    "\"quietTimeoutMillis\":250"));
+            assertTrue(cleared.body.contains(
+                    "\"sweepCadenceMillis\":50"));
+            assertTrue(cleared.body.contains(
+                    "\"overridden\":false"));
+
+            Response wrongNode = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/TN-99/configuration/tag-processing",
+                    "{\"action\":\"CLEAR\"}");
+            assertEquals(404, wrongNode.status);
+            assertTrue(wrongNode.body.contains(
+                    "\"code\":\"NODE_NOT_FOUND\""));
+        } finally {
+            server.close();
+            fixture.close();
+        }
+    }
+
+    @Test
     public void exposesContainedRecoveryFailureAndRejectsNormalNodeOperation()
             throws Exception {
         TimingNode node = TimingNodeFixture.create(
                 new NodeId("TN-01"),
                 new FailingRecoveryStore(),
                 () -> RECORDED_AT);
-        PresentationGateway handler = new PresentationGateway(identity(), node);
+        PresentationGateway handler =
+                new PresentationGateway(
+                        identity(),
+                        node,
+                        PresentationGatewayFixture.configurationControl(
+                                new NodeId("TN-01")));
         node.start();
         HttpEndpoint server = new HttpEndpoint("127.0.0.1", 0, handler);
         server.start();
@@ -327,7 +472,12 @@ public class HttpEndpointTest {
                     new NodeId("TN-01"),
                     new MemoryStore(),
                     () -> RECORDED_AT);
-            handler = new PresentationGateway(identity(), node);
+            handler =
+                    new PresentationGateway(
+                            identity(),
+                            node,
+                            PresentationGatewayFixture.configurationControl(
+                                    new NodeId("TN-01")));
         }
 
         private void start() {
