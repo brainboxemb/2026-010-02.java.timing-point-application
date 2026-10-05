@@ -32,6 +32,7 @@ public final class SerialExecutor implements AutoCloseable {
     private static final Logger LOG =
             LoggerFactory.getLogger(SerialExecutor.class);
 
+    /** Lifecycle of this logical lane, independent of any shared worker lifecycle. */
     public enum State {
         NEW,
         RUNNING,
@@ -40,12 +41,14 @@ public final class SerialExecutor implements AutoCloseable {
         FAILED
     }
 
+    /** Result of non-blocking admission to this lane's bounded queue. */
     public enum AdmissionResult {
         ACCEPTED,
         FULL,
         NOT_RUNNING
     }
 
+    /** Admission result plus Future for result-bearing work when accepted. */
     public static final class SubmitResult<R> {
         private final AdmissionResult admission;
         private final Future<R> futureResult;
@@ -70,6 +73,9 @@ public final class SerialExecutor implements AutoCloseable {
         }
     }
 
+    /**
+     * Internal queue entry that adds timing/cancellation hooks around Runnable/FutureTask.
+     */
     private interface TrackedTask extends Runnable {
         void markAccepted(long acceptedAtNanos);
 
@@ -177,6 +183,12 @@ public final class SerialExecutor implements AutoCloseable {
         return sharedWorkerExecutor != null;
     }
 
+    /**
+     * Starts this logical lane.
+     *
+     * <p>Shared mode only attaches the already-running runtime worker. Standalone
+     * mode creates and prestarts one private worker thread.</p>
+     */
     public synchronized void start() {
         if (state != State.NEW) {
             throw new IllegalStateException(
@@ -193,7 +205,7 @@ public final class SerialExecutor implements AutoCloseable {
 
             /*
              * Workload buffering lives in the lane-local bounded queue. The
-             * backing executor only ever needs room for the next drain token.
+             * private worker executor only ever needs room for the next drain token.
              */
             ThreadPoolExecutor standalone =
                     new ThreadPoolExecutor(
@@ -347,10 +359,18 @@ public final class SerialExecutor implements AutoCloseable {
         return failure;
     }
 
+    /** Returns the separate pull-based metrics owner for this lane. */
     public SerialExecutorMetrics metrics() {
         return metrics;
     }
 
+    /**
+     * Stops new admission and waits for work already accepted by this lane.
+     *
+     * <p>Only a standalone lane shuts down a physical worker. A shared lane
+     * drains/stops itself but leaves the runtime-owned worker available to sibling
+     * lanes.</p>
+     */
     @Override
     public void close() {
         ExecutorService owned = null;
