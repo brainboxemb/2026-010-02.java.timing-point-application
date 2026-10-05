@@ -106,10 +106,10 @@ public class AntennaManagerTest {
                     manager.state());
             assertEquals(
                     AntennaState.READY,
-                    manager.status(healthy).state());
+                    manager.status(new AntennaId("ANT1")).state());
             assertEquals(
                     AntennaState.ERROR,
-                    manager.status(failed).state());
+                    manager.status(new AntennaId("ANT2")).state());
 
             manager.setOperational(true);
 
@@ -188,12 +188,26 @@ public class AntennaManagerTest {
             ExecutorService shared,
             int capacity,
             Duration timeout) {
+        List<AntennaInstallation> installations =
+                new ArrayList<AntennaInstallation>(
+                        antennas.size());
+        for (int index = 0;
+                index < antennas.size();
+                index++) {
+            installations.add(
+                    AntennaInstallation.direct(
+                            new AntennaId(
+                                    "ANT" + (index + 1)),
+                            antennas.get(index)));
+        }
+
         return new AntennaManager(
-                antennas,
+                installations,
                 new SerialExecutor(
                         capacity,
                         "antenna-manager-test",
                         shared),
+                null,
                 timeout);
     }
 
@@ -214,7 +228,7 @@ public class AntennaManagerTest {
     private static class RecordingAntenna implements Antenna {
         private final String name;
         private final List<String> calls;
-        private final Event<TagObservation> observations =
+        private final Event<TagObservation> tagObservedEvent =
                 new Event<TagObservation>();
         private boolean running;
 
@@ -254,8 +268,8 @@ public class AntennaManagerTest {
         }
 
         @Override
-        public EventSource<TagObservation> observations() {
-            return observations;
+        public EventSource<TagObservation> tagObservedEvent() {
+            return tagObservedEvent;
         }
 
         @Override
