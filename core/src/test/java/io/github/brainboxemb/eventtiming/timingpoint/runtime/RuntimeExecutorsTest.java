@@ -148,7 +148,7 @@ public class RuntimeExecutorsTest {
                             TimeUnit.SECONDS));
             assertTrue(
                     firstThread.get()
-                            .startsWith("tp-io-shared-"));
+                            .equals("tp-io-shared-worker"));
 
             first.close();
 
