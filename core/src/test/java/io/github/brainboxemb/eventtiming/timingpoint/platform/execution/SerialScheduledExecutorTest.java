@@ -130,9 +130,15 @@ public class SerialScheduledExecutorTest {
                         periodicDone::countDown,
                         TimeUnit.MILLISECONDS.toNanos(5));
         try {
+            assertTrue(periodicDone.await(1, TimeUnit.SECONDS));
+
+            /*
+             * Run one normal lane task after the periodic callback. Serial lane
+             * ordering guarantees the periodic wrapper's finally block (which
+             * records periodicExecutionCount) completed before this task runs.
+             */
             assertTrue(executor.execute(immediateDone::countDown));
             assertTrue(immediateDone.await(1, TimeUnit.SECONDS));
-            assertTrue(periodicDone.await(1, TimeUnit.SECONDS));
 
             periodic.close();
 
