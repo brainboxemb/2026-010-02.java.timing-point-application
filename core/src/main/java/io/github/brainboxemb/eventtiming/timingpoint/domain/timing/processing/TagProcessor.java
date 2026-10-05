@@ -39,7 +39,7 @@ public final class TagProcessor {
     private final TimingNode timingNode;
     private final TagRegistrationMapper mapper;
     private final RegistrationDuplicateFilter duplicateFilter;
-    private final TagProcessingCounters counters;
+    private final TagProcessingMetrics metrics;
     private final TagObservationFilter observationFilter;
     private final SerialScheduledExecutor executor;
     private final long sweepCadenceNanos;
@@ -55,7 +55,7 @@ public final class TagProcessor {
             TagRegistrationMapper mapper,
             TagProcessingPolicy policy,
             MonotonicClock monotonicClock,
-            TagProcessingCounters counters,
+            TagProcessingMetrics metrics,
             SerialScheduledExecutor executor) {
         if (timingNode == null) {
             throw new IllegalArgumentException("timingNode must not be null");
@@ -69,8 +69,8 @@ public final class TagProcessor {
         if (monotonicClock == null) {
             throw new IllegalArgumentException("monotonicClock must not be null");
         }
-        if (counters == null) {
-            throw new IllegalArgumentException("counters must not be null");
+        if (metrics == null) {
+            throw new IllegalArgumentException("metrics must not be null");
         }
         if (executor == null) {
             throw new IllegalArgumentException("executor must not be null");
@@ -78,7 +78,7 @@ public final class TagProcessor {
 
         this.timingNode = timingNode;
         this.mapper = mapper;
-        this.counters = counters;
+        this.metrics = metrics;
         this.executor = executor;
         this.sweepCadenceNanos = policy.sweepCadenceNanos();
         this.inputQueue =
@@ -89,7 +89,7 @@ public final class TagProcessor {
                 new TagObservationFilter(
                         policy,
                         monotonicClock,
-                        counters,
+                        metrics,
                         this::processValidObservation);
     }
 
@@ -138,15 +138,15 @@ public final class TagProcessor {
             throw new IllegalArgumentException("observation must not be null");
         }
 
-        counters.recordObservation();
+        metrics.recordObservation();
 
         synchronized (lifecycleLock) {
             if (state != State.RUNNING) {
-                counters.recordProcessorNotRunning();
+                metrics.recordProcessorNotRunning();
                 return;
             }
             if (!inputQueue.offer(observation)) {
-                counters.recordObservationQueueFull();
+                metrics.recordObservationQueueFull();
                 return;
             }
             scheduleDrainLocked();
@@ -159,7 +159,7 @@ public final class TagProcessor {
         }
         if (!executor.execute(this::drainBatch)) {
             drainScheduled.set(false);
-            counters.recordProcessorNotRunning();
+            metrics.recordProcessorNotRunning();
         }
     }
 
@@ -204,13 +204,13 @@ public final class TagProcessor {
     private void processObservation(TagObservation observation) {
         RegistrationId registrationId = mapper.map(observation.tagId());
         if (registrationId == null) {
-            counters.recordUnmapped();
+            metrics.recordUnmapped();
             return;
         }
 
-        counters.recordMapped();
+        metrics.recordMapped();
         if (duplicateFilter.isDuplicate(registrationId)) {
-            counters.recordDuplicate();
+            metrics.recordDuplicate();
             return;
         }
 
@@ -283,6 +283,6 @@ public final class TagProcessor {
             observationFilter.discard(registrationId);
         }
 
-        counters.recordAdmission(admission);
+        metrics.recordAdmission(admission);
     }
 }
