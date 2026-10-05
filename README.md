@@ -35,6 +35,43 @@ Formal packaged-process black-box verification is explicit:
 ./mvnw verify -Psystem-test
 ```
 
+## Startup command line
+
+Show the startup options provided by the packaged application:
+
+```text
+java -jar app/target/timing-point-app-<version>.jar --help
+```
+
+Start explicitly with an IF-11 YAML file:
+
+```text
+java -jar app/target/timing-point-app-<version>.jar --config config/application.yml
+```
+
+The original positional form remains supported:
+
+```text
+java -jar app/target/timing-point-app-<version>.jar config/application.yml
+```
+
+Generate a complete example configuration from the same JAR:
+
+```text
+java -jar app/target/timing-point-app-<version>.jar --generate-config
+java -jar app/target/timing-point-app-<version>.jar --generate-config my-application.yml
+```
+
+Without an explicit output path the generator writes `application.yml`. It
+creates missing parent directories but deliberately refuses to overwrite an
+existing file. The generated example is packaged from the repository's canonical
+`config/application.yml`, so the example belongs to the exact application
+version being executed.
+
+Use `--version` to print application version and source provenance. Running the
+JAR without arguments remains the packaged-artifact smoke check used by build
+verification.
+
 ## Repository map
 
 ```text
