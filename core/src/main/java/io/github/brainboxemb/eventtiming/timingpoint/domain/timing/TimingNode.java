@@ -15,6 +15,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutorMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.OperationException;
@@ -473,7 +474,7 @@ public final class TimingNode {
      * counters and monotonic timestamps.</p>
      */
     public RuntimeMetrics runtimeMetrics() {
-        SerialExecutor.Metrics.Snapshot executorMetrics =
+        SerialExecutorMetrics.Snapshot executorMetrics =
                 serialExecutor.metrics().snapshot();
 
         return new RuntimeMetrics(
