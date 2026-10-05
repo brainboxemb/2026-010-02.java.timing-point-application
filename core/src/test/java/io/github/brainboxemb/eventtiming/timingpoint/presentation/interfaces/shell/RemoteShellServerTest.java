@@ -65,11 +65,25 @@ public class RemoteShellServerTest {
 
                 Writer writer =
                         new OutputStreamWriter(second.getOutputStream(), StandardCharsets.UTF_8);
-                writer.write("version\nstatus\nquit\n");
+                writer.write(
+                        "version\n"
+                                + "open 24\n"
+                                + "auto-reg N0002 2026-10-01T12:00:00Z\n"
+                                + "config tag-processing set "
+                                + "quietTimeoutMillis=300\n"
+                                + "close\n"
+                                + "status\n"
+                                + "quit\n");
                 writer.flush();
 
                 String response = readToEnd(second.getInputStream());
                 assertTrue(response.contains("Version      : test-version"));
+                assertTrue(response.contains("Open: OPENED"));
+                assertTrue(response.contains(
+                        "Automatic registration: COMMITTED seq=1"));
+                assertTrue(response.contains(
+                        "Tag processing update: APPLIED"));
+                assertTrue(response.contains("Close: CLOSED"));
                 assertTrue(response.contains("Timing node"));
                 assertTrue(response.contains("Id        : TN-01"));
                 assertTrue(response.contains("Lifecycle : CLOSED"));
