@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -121,6 +122,126 @@ public class SerialScheduledExecutorTest {
         } finally {
             periodic.close();
             executor.close();
+        }
+    }
+
+
+    @Test
+    public void sharedScheduledLanesUseOneRoleWorkerAndCloseIndependently()
+            throws Exception {
+        ScheduledThreadPoolExecutor shared =
+                new ScheduledThreadPoolExecutor(
+                        1,
+                        runnable -> new Thread(
+                                runnable,
+                                "shared-tag-worker"));
+        shared.setRemoveOnCancelPolicy(true);
+
+        SerialScheduledExecutor first =
+                new SerialScheduledExecutor(
+                        4,
+                        "tag-A",
+                        shared);
+        SerialScheduledExecutor second =
+                new SerialScheduledExecutor(
+                        4,
+                        "tag-B",
+                        shared);
+
+        AtomicReference<String> firstThread =
+                new AtomicReference<String>();
+        AtomicReference<String> secondThread =
+                new AtomicReference<String>();
+        CountDownLatch firstDone = new CountDownLatch(1);
+        CountDownLatch secondDone = new CountDownLatch(1);
+
+        first.start();
+        second.start();
+        try {
+            assertTrue(first.execute(() -> {
+                firstThread.set(
+                        Thread.currentThread().getName());
+                firstDone.countDown();
+            }));
+            assertTrue(second.execute(() -> {
+                secondThread.set(
+                        Thread.currentThread().getName());
+                secondDone.countDown();
+            }));
+
+            assertTrue(
+                    firstDone.await(
+                            1,
+                            TimeUnit.SECONDS));
+            assertTrue(
+                    secondDone.await(
+                            1,
+                            TimeUnit.SECONDS));
+            assertEquals(
+                    "shared-tag-worker",
+                    firstThread.get());
+            assertEquals(
+                    firstThread.get(),
+                    secondThread.get());
+
+            first.close();
+            assertFalse(shared.isShutdown());
+
+            CountDownLatch siblingStillRuns =
+                    new CountDownLatch(1);
+            assertTrue(
+                    second.execute(
+                            siblingStillRuns::countDown));
+            assertTrue(
+                    siblingStillRuns.await(
+                            1,
+                            TimeUnit.SECONDS));
+        } finally {
+            first.close();
+            second.close();
+            shared.shutdownNow();
+        }
+    }
+
+    @Test
+    public void sharedPeriodicWorkRunsOnTheSharedRoleWorker()
+            throws Exception {
+        ScheduledThreadPoolExecutor shared =
+                new ScheduledThreadPoolExecutor(
+                        1,
+                        runnable -> new Thread(
+                                runnable,
+                                "shared-tag-worker"));
+        shared.setRemoveOnCancelPolicy(true);
+        SerialScheduledExecutor lane =
+                new SerialScheduledExecutor(
+                        4,
+                        "tag-A",
+                        shared);
+        AtomicReference<String> periodicThread =
+                new AtomicReference<String>();
+        CountDownLatch periodicDone =
+                new CountDownLatch(1);
+
+        lane.start();
+        SerialScheduledExecutor.ScheduledTask periodic =
+                lane.scheduleWithFixedDelay(() -> {
+                    periodicThread.set(
+                            Thread.currentThread().getName());
+                    periodicDone.countDown();
+                }, TimeUnit.MILLISECONDS.toNanos(5));
+        try {
+            assertTrue(
+                    periodicDone.await(
+                            1,
+                            TimeUnit.SECONDS));
+            assertEquals(
+                    "shared-tag-worker",
+                    periodicThread.get());
+        } finally {
+            periodic.close();
+            lane.close();
+            shared.shutdownNow();
         }
     }
 
