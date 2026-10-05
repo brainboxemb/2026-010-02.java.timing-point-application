@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Split SerialExecutor and SerialScheduledExecutor measurement state into dedicated metrics classes and clarify logical-lane versus physical-worker lifecycle ownership in code documentation.
+
 - Share TimingNode and TagProcessor physical workers by runtime role while keeping per-node bounded serial lanes; worker thread names now describe the shared role rather than a specific TimingNode.
 
 - Add conventional packaged-application startup options (`--help`, `--version`, `--config`) and `--generate-config`, which writes the complete version-matched example IF-11 YAML without silently overwriting an existing target.
