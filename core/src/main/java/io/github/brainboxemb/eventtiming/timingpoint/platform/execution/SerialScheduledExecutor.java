@@ -2,7 +2,10 @@ package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
@@ -12,11 +15,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * One JDK-backed serial execution lane with delayed/fixed-delay scheduling.
+ * One serial execution lane with delayed/fixed-delay scheduling.
  *
- * <p>This executor does not own a domain input queue. Components such as
- * TagProcessor keep their bounded input data separately and use this type only
- * for coalesced execution and scheduled housekeeping.</p>
+ * <p>The standalone constructor owns one JDK scheduled worker. Production
+ * runtime composition may instead provide a shared scheduled role executor.
+ * In shared mode immediate and periodic work still enters one lane-local serial
+ * queue, while the physical worker is shared by all TagProcessor lanes.</p>
  */
 public final class SerialScheduledExecutor implements AutoCloseable {
     private static final Logger LOG =
@@ -35,14 +39,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         void close();
     }
 
-    /**
-     * Component-owned engineering metrics for the scheduled serial lane.
-     *
-     * <p>These values describe executor work only. They deliberately do not
-     * mirror a component's own input queue, such as TagProcessor's bounded
-     * TagObservation queue. Snapshot creation is an explicit diagnostic read and
-     * may allocate or query JVM thread-management state.</p>
-     */
+    /** Lane-local engineering metrics. */
     public static final class Metrics {
         private final SerialScheduledExecutor owner;
 
@@ -53,14 +50,14 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         private volatile long immediateExecutionCount;
         private volatile long periodicExecutionCount;
         private volatile long runtimeFailureCount;
-        private volatile Thread workerThread;
+        private volatile Thread standaloneWorkerThread;
 
         private Metrics(SerialScheduledExecutor owner) {
             this.owner = owner;
         }
 
-        private void recordWorkerThread(Thread thread) {
-            workerThread = thread;
+        private void recordStandaloneWorkerThread(Thread thread) {
+            standaloneWorkerThread = thread;
         }
 
         private void recordImmediateAccepted() {
@@ -99,9 +96,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
             runtimeFailureCount++;
         }
 
-        /** Returns an immutable pull-based snapshot of this lane's metrics. */
         public Snapshot snapshot() {
-            ScheduledThreadPoolExecutor active;
             int queueDepth;
             long immediateAccepted;
             long immediateRejected;
@@ -109,12 +104,25 @@ public final class SerialScheduledExecutor implements AutoCloseable {
             long scheduledCancellations;
 
             synchronized (owner) {
-                active = owner.executor;
-                queueDepth = active == null ? 0 : active.getQueue().size();
+                if (owner.sharedMode
+                        && owner.sharedLane != null) {
+                    queueDepth = owner.sharedLane
+                            .metrics()
+                            .snapshot()
+                            .queueDepth();
+                } else {
+                    ScheduledThreadPoolExecutor active =
+                            owner.standaloneExecutor;
+                    queueDepth = active == null
+                            ? 0
+                            : active.getQueue().size();
+                }
                 immediateAccepted = immediateAcceptedCount;
                 immediateRejected = immediateRejectedCount;
-                scheduledRegistrations = scheduledRegistrationCount;
-                scheduledCancellations = scheduledCancellationCount;
+                scheduledRegistrations =
+                        scheduledRegistrationCount;
+                scheduledCancellations =
+                        scheduledCancellationCount;
             }
 
             return new Snapshot(
@@ -130,21 +138,25 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         }
 
         private long workerThreadCpuTimeNanos() {
-            Thread worker = workerThread;
+            if (owner.sharedMode) {
+                return -1L;
+            }
+            Thread worker = standaloneWorkerThread;
             if (worker == null) {
                 return -1L;
             }
 
-            ThreadMXBean bean = ManagementFactory.getThreadMXBean();
+            ThreadMXBean bean =
+                    ManagementFactory.getThreadMXBean();
             if (!bean.isThreadCpuTimeSupported()
                     || !bean.isThreadCpuTimeEnabled()) {
                 return -1L;
             }
-            long cpuTime = bean.getThreadCpuTime(worker.getId());
+            long cpuTime =
+                    bean.getThreadCpuTime(worker.getId());
             return cpuTime < 0L ? -1L : cpuTime;
         }
 
-        /** Immutable point-in-time engineering view of scheduled-lane metrics. */
         public static final class Snapshot {
             private final int queueDepth;
             private final long immediateAcceptedCount;
@@ -167,14 +179,22 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                     long runtimeFailureCount,
                     long workerThreadCpuTimeNanos) {
                 this.queueDepth = queueDepth;
-                this.immediateAcceptedCount = immediateAcceptedCount;
-                this.immediateRejectedCount = immediateRejectedCount;
-                this.scheduledRegistrationCount = scheduledRegistrationCount;
-                this.scheduledCancellationCount = scheduledCancellationCount;
-                this.immediateExecutionCount = immediateExecutionCount;
-                this.periodicExecutionCount = periodicExecutionCount;
-                this.runtimeFailureCount = runtimeFailureCount;
-                this.workerThreadCpuTimeNanos = workerThreadCpuTimeNanos;
+                this.immediateAcceptedCount =
+                        immediateAcceptedCount;
+                this.immediateRejectedCount =
+                        immediateRejectedCount;
+                this.scheduledRegistrationCount =
+                        scheduledRegistrationCount;
+                this.scheduledCancellationCount =
+                        scheduledCancellationCount;
+                this.immediateExecutionCount =
+                        immediateExecutionCount;
+                this.periodicExecutionCount =
+                        periodicExecutionCount;
+                this.runtimeFailureCount =
+                        runtimeFailureCount;
+                this.workerThreadCpuTimeNanos =
+                        workerThreadCpuTimeNanos;
             }
 
             public int queueDepth() {
@@ -215,18 +235,55 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         }
     }
 
-    private final String threadName;
+    private final String laneName;
+    private final int sharedLaneCapacity;
+    private final ScheduledExecutorService suppliedSharedExecutor;
+    private final boolean sharedMode;
     private final Metrics metrics = new Metrics(this);
+    private final List<SharedPeriodicTask> sharedPeriodicTasks =
+            new ArrayList<SharedPeriodicTask>();
 
     private State state = State.NEW;
-    private ScheduledThreadPoolExecutor executor;
+    private ScheduledThreadPoolExecutor standaloneExecutor;
+    private SerialExecutor sharedLane;
     private Throwable failure;
 
+    /** Standalone serial scheduled lane with a private worker. */
     public SerialScheduledExecutor(String threadName) {
         if (threadName == null || threadName.trim().isEmpty()) {
-            throw new IllegalArgumentException("threadName must not be blank");
+            throw new IllegalArgumentException(
+                    "threadName must not be blank");
         }
-        this.threadName = threadName.trim();
+        laneName = threadName.trim();
+        sharedLaneCapacity = 0;
+        suppliedSharedExecutor = null;
+        sharedMode = false;
+    }
+
+    /**
+     * Logical scheduled lane serviced by a runtime-owned shared role executor.
+     */
+    public SerialScheduledExecutor(
+            int laneCapacity,
+            String laneName,
+            ScheduledExecutorService sharedExecutor) {
+        if (laneCapacity < 1) {
+            throw new IllegalArgumentException(
+                    "laneCapacity must be positive");
+        }
+        if (laneName == null || laneName.trim().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "laneName must not be blank");
+        }
+        if (sharedExecutor == null) {
+            throw new IllegalArgumentException(
+                    "sharedExecutor must not be null");
+        }
+
+        this.laneName = laneName.trim();
+        this.sharedLaneCapacity = laneCapacity;
+        this.suppliedSharedExecutor = sharedExecutor;
+        sharedMode = true;
     }
 
     public synchronized void start() {
@@ -236,33 +293,66 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                             + state);
         }
 
-        ThreadFactory threadFactory = runnable -> {
-            Thread thread = new Thread(runnable, threadName);
-            metrics.recordWorkerThread(thread);
-            return thread;
-        };
-        executor = new ScheduledThreadPoolExecutor(1, threadFactory);
-        executor.setRemoveOnCancelPolicy(true);
-        /*
-         * Immediate execute(...) work is represented by zero-delay scheduled
-         * tasks in ScheduledThreadPoolExecutor. Keep already accepted immediate
-         * drain work executable during graceful shutdown. Periodic work is
-         * cancelled separately by its owner and must not continue after shutdown.
-         */
-        executor.setExecuteExistingDelayedTasksAfterShutdownPolicy(true);
-        executor.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
+        if (sharedMode) {
+            sharedLane = new SerialExecutor(
+                    sharedLaneCapacity,
+                    laneName,
+                    suppliedSharedExecutor);
+            sharedLane.start();
+        } else {
+            ThreadFactory threadFactory = runnable -> {
+                Thread thread =
+                        new Thread(runnable, laneName);
+                metrics.recordStandaloneWorkerThread(thread);
+                return thread;
+            };
+            standaloneExecutor =
+                    new ScheduledThreadPoolExecutor(
+                            1,
+                            threadFactory);
+            standaloneExecutor.setRemoveOnCancelPolicy(true);
+            standaloneExecutor
+                    .setExecuteExistingDelayedTasksAfterShutdownPolicy(
+                            true);
+            standaloneExecutor
+                    .setContinueExistingPeriodicTasksAfterShutdownPolicy(
+                            false);
+            standaloneExecutor.prestartCoreThread();
+        }
+
         state = State.RUNNING;
-        executor.prestartCoreThread();
     }
 
     /**
-     * Queues one immediate operation on the serial lane.
+     * Queues one immediate operation on this logical serial lane.
      *
-     * @return false when the executor no longer accepts work
+     * @return false when this lane no longer accepts work
      */
     public boolean execute(Runnable task) {
         if (task == null) {
-            throw new IllegalArgumentException("task must not be null");
+            throw new IllegalArgumentException(
+                    "task must not be null");
+        }
+
+        if (sharedMode) {
+            SerialExecutor lane;
+            synchronized (this) {
+                if (state != State.RUNNING) {
+                    metrics.recordImmediateRejected();
+                    return false;
+                }
+                lane = sharedLane;
+            }
+
+            SerialExecutor.AdmissionResult admission =
+                    lane.offer(wrapImmediate(task));
+            if (admission
+                    == SerialExecutor.AdmissionResult.ACCEPTED) {
+                metrics.recordImmediateAccepted();
+                return true;
+            }
+            metrics.recordImmediateRejected();
+            return false;
         }
 
         ScheduledThreadPoolExecutor active;
@@ -271,7 +361,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                 metrics.recordImmediateRejected();
                 return false;
             }
-            active = executor;
+            active = standaloneExecutor;
         }
 
         try {
@@ -288,10 +378,30 @@ public final class SerialScheduledExecutor implements AutoCloseable {
             Runnable task,
             long delayNanos) {
         if (task == null) {
-            throw new IllegalArgumentException("task must not be null");
+            throw new IllegalArgumentException(
+                    "task must not be null");
         }
         if (delayNanos < 1L) {
-            throw new IllegalArgumentException("delayNanos must be positive");
+            throw new IllegalArgumentException(
+                    "delayNanos must be positive");
+        }
+
+        if (sharedMode) {
+            final SharedPeriodicTask periodic;
+            synchronized (this) {
+                if (state != State.RUNNING) {
+                    throw new IllegalStateException(
+                            "SerialScheduledExecutor is not running");
+                }
+                periodic =
+                        new SharedPeriodicTask(
+                                task,
+                                delayNanos);
+                sharedPeriodicTasks.add(periodic);
+                metrics.recordScheduledRegistration();
+            }
+            periodic.scheduleNext();
+            return periodic;
         }
 
         ScheduledThreadPoolExecutor active;
@@ -300,15 +410,16 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                 throw new IllegalStateException(
                         "SerialScheduledExecutor is not running");
             }
-            active = executor;
+            active = standaloneExecutor;
         }
 
         try {
-            ScheduledFuture<?> future = active.scheduleWithFixedDelay(
-                    wrapPeriodic(task),
-                    delayNanos,
-                    delayNanos,
-                    TimeUnit.NANOSECONDS);
+            ScheduledFuture<?> future =
+                    active.scheduleWithFixedDelay(
+                            wrapPeriodic(task),
+                            delayNanos,
+                            delayNanos,
+                            TimeUnit.NANOSECONDS);
             metrics.recordScheduledRegistration();
             return () -> {
                 if (future.cancel(false)) {
@@ -330,14 +441,16 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         return failure;
     }
 
-    /** Returns the stable component-owned metrics handle for this executor. */
     public Metrics metrics() {
         return metrics;
     }
 
     @Override
     public void close() {
-        ScheduledThreadPoolExecutor active;
+        final SerialExecutor lane;
+        final ScheduledThreadPoolExecutor standalone;
+        final List<SharedPeriodicTask> periodicTasks;
+
         synchronized (this) {
             if (state == State.NEW) {
                 state = State.STOPPED;
@@ -346,23 +459,28 @@ public final class SerialScheduledExecutor implements AutoCloseable {
             if (state == State.RUNNING) {
                 state = State.STOPPING;
             }
-            if (state == State.STOPPED || state == State.FAILED) {
+            if (state == State.STOPPED) {
                 return;
             }
-            active = executor;
+
+            lane = sharedLane;
+            standalone = standaloneExecutor;
+            periodicTasks =
+                    new ArrayList<SharedPeriodicTask>(
+                            sharedPeriodicTasks);
         }
 
-        active.shutdown();
-        boolean interrupted = false;
-        while (!active.isTerminated()) {
-            try {
-                active.awaitTermination(100L, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException ex) {
-                interrupted = true;
-            }
+        for (SharedPeriodicTask periodic : periodicTasks) {
+            periodic.close();
         }
-        if (interrupted) {
-            Thread.currentThread().interrupt();
+
+        if (sharedMode) {
+            if (lane != null) {
+                lane.close();
+            }
+        } else if (standalone != null) {
+            standalone.shutdown();
+            awaitStandaloneTermination(standalone);
         }
 
         synchronized (this) {
@@ -372,13 +490,33 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         }
     }
 
+    private static void awaitStandaloneTermination(
+            ScheduledThreadPoolExecutor executor) {
+        boolean interrupted = false;
+        while (!executor.isTerminated()) {
+            try {
+                executor.awaitTermination(
+                        100L,
+                        TimeUnit.MILLISECONDS);
+            } catch (InterruptedException ex) {
+                interrupted = true;
+            }
+        }
+        if (interrupted) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     private Runnable wrapImmediate(Runnable task) {
         return () -> {
             try {
                 task.run();
             } catch (RuntimeException ex) {
                 metrics.recordRuntimeFailure();
-                LOG.warn("Serial scheduled executor task failed", ex);
+                LOG.warn(
+                        "Serial scheduled lane {} task failed",
+                        laneName,
+                        ex);
             } catch (Error ex) {
                 metrics.recordRuntimeFailure();
                 markFailed(ex);
@@ -395,12 +533,10 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                 task.run();
             } catch (RuntimeException ex) {
                 metrics.recordRuntimeFailure();
-                /*
-                 * ScheduledThreadPoolExecutor suppresses later fixed-delay
-                 * executions when a task escapes with an exception. Keep the
-                 * lane alive and make the failure visible instead.
-                 */
-                LOG.warn("Serial scheduled periodic task failed", ex);
+                LOG.warn(
+                        "Serial scheduled lane {} periodic task failed",
+                        laneName,
+                        ex);
             } catch (Error ex) {
                 metrics.recordRuntimeFailure();
                 markFailed(ex);
@@ -412,17 +548,145 @@ public final class SerialScheduledExecutor implements AutoCloseable {
     }
 
     private void markFailed(Error cause) {
-        ScheduledThreadPoolExecutor active;
+        ScheduledThreadPoolExecutor standalone = null;
+        List<SharedPeriodicTask> periodicTasks;
         synchronized (this) {
             if (state == State.FAILED) {
                 return;
             }
             failure = cause;
             state = State.FAILED;
-            active = executor;
+            periodicTasks =
+                    new ArrayList<SharedPeriodicTask>(
+                            sharedPeriodicTasks);
+            if (!sharedMode) {
+                standalone = standaloneExecutor;
+            }
         }
-        if (active != null) {
-            active.shutdownNow();
+
+        for (SharedPeriodicTask periodic : periodicTasks) {
+            periodic.close();
+        }
+
+        /*
+         * A shared lane failure is isolated to this lane. Never stop the
+         * runtime-owned TagProcessor role executor from component code.
+         */
+        if (standalone != null) {
+            standalone.shutdownNow();
+        }
+    }
+
+    private final class SharedPeriodicTask
+            implements ScheduledTask {
+        private final Runnable task;
+        private final long delayNanos;
+
+        private boolean closed;
+        private ScheduledFuture<?> trigger;
+
+        private SharedPeriodicTask(
+                Runnable task,
+                long delayNanos) {
+            this.task = task;
+            this.delayNanos = delayNanos;
+        }
+
+        private void scheduleNext() {
+            synchronized (this) {
+                if (closed) {
+                    return;
+                }
+            }
+            synchronized (SerialScheduledExecutor.this) {
+                if (state != State.RUNNING) {
+                    return;
+                }
+            }
+
+            try {
+                ScheduledFuture<?> next =
+                        suppliedSharedExecutor.schedule(
+                                this::enqueueExecution,
+                                delayNanos,
+                                TimeUnit.NANOSECONDS);
+                synchronized (this) {
+                    if (closed) {
+                        next.cancel(false);
+                    } else {
+                        trigger = next;
+                    }
+                }
+            } catch (RejectedExecutionException ex) {
+                synchronized (SerialScheduledExecutor.this) {
+                    if (state == State.RUNNING) {
+                        failure = ex;
+                        state = State.FAILED;
+                    }
+                }
+            }
+        }
+
+        private void enqueueExecution() {
+            synchronized (this) {
+                trigger = null;
+                if (closed) {
+                    return;
+                }
+            }
+
+            SerialExecutor lane;
+            synchronized (SerialScheduledExecutor.this) {
+                if (state != State.RUNNING) {
+                    return;
+                }
+                lane = sharedLane;
+            }
+
+            SerialExecutor.AdmissionResult admission =
+                    lane.offer(() -> {
+                        try {
+                            wrapPeriodic(task).run();
+                        } finally {
+                            scheduleNext();
+                        }
+                    });
+
+            if (admission
+                    != SerialExecutor.AdmissionResult.ACCEPTED) {
+                /*
+                 * This is control/scheduling work, not TagObservation ingress.
+                 * Retry after the normal fixed delay rather than creating an
+                 * unbounded second queue.
+                 */
+                scheduleNext();
+            }
+        }
+
+        @Override
+        public void close() {
+            ScheduledFuture<?> pending;
+            boolean recordCancellation = false;
+            synchronized (this) {
+                if (closed) {
+                    return;
+                }
+                closed = true;
+                pending = trigger;
+                trigger = null;
+                recordCancellation = true;
+            }
+
+            if (pending != null) {
+                pending.cancel(false);
+            }
+
+            synchronized (SerialScheduledExecutor.this) {
+                sharedPeriodicTasks.remove(this);
+            }
+            if (recordCancellation) {
+                metrics.recordScheduledCancellation();
+            }
         }
     }
 }
