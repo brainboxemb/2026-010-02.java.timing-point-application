@@ -24,7 +24,7 @@ import java.util.concurrent.TimeoutException;
  * operations are serialized by one supplied {@link SerialExecutor}; this class
  * does not implement or own another physical worker/queue implementation.</p>
  */
-public final class AntennaManager implements AutoCloseable {
+public final class AntennaManager {
 
     private final AntennaManagerLogic logic;
     private final SerialExecutor controlLane;
