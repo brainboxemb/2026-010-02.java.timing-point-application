@@ -19,14 +19,19 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObser
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutorMetrics;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.After;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -34,6 +39,40 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class TagProcessorTest {
+    private final List<ExecutorService> ownedWorkers =
+            new ArrayList<ExecutorService>();
+
+    @After
+    public void stopOwnedWorkers() {
+        for (ExecutorService worker : ownedWorkers) {
+            worker.shutdownNow();
+        }
+    }
+
+    private SerialExecutor newSerialExecutor(
+            int capacity,
+            String threadName) {
+        ExecutorService worker =
+                Executors.newSingleThreadExecutor(
+                        runnable -> new Thread(runnable, threadName));
+        ownedWorkers.add(worker);
+        return new SerialExecutor(capacity, threadName, worker);
+    }
+
+    private SerialScheduledExecutor newScheduledExecutor(
+            String threadName) {
+        ScheduledThreadPoolExecutor worker =
+                new ScheduledThreadPoolExecutor(
+                        1,
+                        runnable -> new Thread(runnable, threadName));
+        worker.setRemoveOnCancelPolicy(true);
+        ownedWorkers.add(worker);
+        return new SerialScheduledExecutor(
+                32,
+                threadName,
+                worker);
+    }
+
     private static final TimingTimestamp OBSERVED_AT =
             TimingTimestamp.parse("2026-10-01T12:00:00.000000000Z");
     private static final TimingTimestamp STRONGER_OBSERVED_AT =
@@ -47,7 +86,7 @@ public class TagProcessorTest {
         TimingNode node = node(new RecordingStore());
         FakeMonotonicClock clock = new FakeMonotonicClock();
         SerialScheduledExecutor executor =
-                new SerialScheduledExecutor("tp-tag-test");
+                newScheduledExecutor("tp-tag-test");
         AtomicReference<String> mapperThread = new AtomicReference<>();
         TagProcessor processor = new TagProcessor(
                 node,
@@ -80,7 +119,7 @@ public class TagProcessorTest {
         TimingNode node = node(store);
         FakeMonotonicClock clock = new FakeMonotonicClock();
         SerialScheduledExecutor executor =
-                new SerialScheduledExecutor("tp-tag-test");
+                newScheduledExecutor("tp-tag-test");
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                 node,
@@ -134,7 +173,7 @@ public class TagProcessorTest {
         TimingNode node = node(store);
         FakeMonotonicClock clock = new FakeMonotonicClock();
         SerialScheduledExecutor executor =
-                new SerialScheduledExecutor("tp-tag-test");
+                newScheduledExecutor("tp-tag-test");
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                 node,
@@ -189,7 +228,7 @@ public class TagProcessorTest {
         TimingNode node = node(new RecordingStore());
         FakeMonotonicClock clock = new FakeMonotonicClock();
         SerialScheduledExecutor executor =
-                new SerialScheduledExecutor("tp-tag-test");
+                newScheduledExecutor("tp-tag-test");
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                 node,
@@ -233,7 +272,7 @@ public class TagProcessorTest {
         TimingNode node = node(store);
         FakeMonotonicClock clock = new FakeMonotonicClock();
         SerialScheduledExecutor executor =
-                new SerialScheduledExecutor("tp-tag-test");
+                newScheduledExecutor("tp-tag-test");
         TagProcessingPolicy startup = policy(8);
         ApplicationConfiguration configuration =
                 ApplicationConfiguration.singleTimingNode(
@@ -288,7 +327,7 @@ public class TagProcessorTest {
         TimingNode node = node(new RecordingStore());
         FakeMonotonicClock clock = new FakeMonotonicClock();
         SerialScheduledExecutor executor =
-                new SerialScheduledExecutor("tp-tag-test");
+                newScheduledExecutor("tp-tag-test");
         TagProcessingPolicy startup = policy(8);
         ApplicationConfiguration configuration =
                 ApplicationConfiguration.singleTimingNode(
@@ -308,7 +347,7 @@ public class TagProcessorTest {
                     observation("TAG-001", -42, OBSERVED_AT));
             awaitLane(executor);
 
-            SerialScheduledExecutor.Metrics.Snapshot before =
+            SerialScheduledExecutorMetrics.Snapshot before =
                     executor.metrics().snapshot();
             assertEquals(1L, before.scheduledRegistrationCount());
 
@@ -327,7 +366,7 @@ public class TagProcessorTest {
                             .override(fasterSweep));
             awaitLane(executor);
 
-            SerialScheduledExecutor.Metrics.Snapshot after =
+            SerialScheduledExecutorMetrics.Snapshot after =
                     executor.metrics().snapshot();
             assertTrue(after.scheduledRegistrationCount() >= 2L);
             assertTrue(after.scheduledCancellationCount() >= 1L);
@@ -341,7 +380,7 @@ public class TagProcessorTest {
         TimingNode node = node(new RecordingStore());
         FakeMonotonicClock clock = new FakeMonotonicClock();
         SerialScheduledExecutor executor =
-                new SerialScheduledExecutor("tp-tag-test");
+                newScheduledExecutor("tp-tag-test");
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                 node,
@@ -382,7 +421,7 @@ public class TagProcessorTest {
         TimingNode node = node(store);
         FakeMonotonicClock clock = new FakeMonotonicClock();
         SerialScheduledExecutor executor =
-                new SerialScheduledExecutor("tp-tag-test");
+                newScheduledExecutor("tp-tag-test");
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                 node,
@@ -467,9 +506,7 @@ public class TagProcessorTest {
                 ReadOnlyConfiguration.fixed(
                         TagProcessingPolicy.defaults()),
                 tagId -> null,
-                new SerialExecutor(
-                        32,
-                        "tag-processor-test-node"),
+                newSerialExecutor(32, "tag-processor-test-node"),
                 new SerialScheduledExecutor(
                         "tag-processor-test-owned-tag"));
     }
