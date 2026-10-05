@@ -199,7 +199,7 @@ public final class Main {
         Runtime runtime = Runtime.getRuntime();
         Thread shutdownHook =
                 new Thread(
-                        application::close,
+                        application::deactivate,
                         "tp-run-shutdown");
         runtime.addShutdownHook(
                 shutdownHook);
@@ -209,7 +209,7 @@ public final class Main {
         RemoteShellServer remoteShell = null;
 
         try {
-            application.start();
+            application.activate();
 
             http =
                     startHttp(
@@ -241,7 +241,7 @@ public final class Main {
                 remoteShell.close();
             }
 
-            application.close();
+            application.deactivate();
             removeShutdownHook(
                     runtime,
                     shutdownHook);
@@ -319,7 +319,7 @@ public final class Main {
                         endpoint.port(),
                         application
                                 .presentationGateway(),
-                        application::close);
+                        application::deactivate);
         server.start();
         return server;
     }
@@ -330,7 +330,7 @@ public final class Main {
                 new LocalConsole(
                         application
                                 .presentationGateway(),
-                        application::close,
+                        application::deactivate,
                         new InputStreamReader(
                                 System.in),
                         new OutputStreamWriter(
