@@ -72,6 +72,45 @@ public class SerialScheduledExecutorTest {
     }
 
     @Test
+    public void recordsLaneMetricsThroughImmutableSnapshot()
+            throws Exception {
+        SerialScheduledExecutor executor =
+                new SerialScheduledExecutor("serial-scheduled-metrics-test");
+        CountDownLatch immediateDone = new CountDownLatch(1);
+        CountDownLatch periodicDone = new CountDownLatch(1);
+
+        assertFalse(executor.execute(() -> { }));
+
+        executor.start();
+        SerialScheduledExecutor.ScheduledTask periodic =
+                executor.scheduleWithFixedDelay(
+                        periodicDone::countDown,
+                        TimeUnit.MILLISECONDS.toNanos(5));
+        try {
+            assertTrue(executor.execute(immediateDone::countDown));
+            assertTrue(immediateDone.await(1, TimeUnit.SECONDS));
+            assertTrue(periodicDone.await(1, TimeUnit.SECONDS));
+
+            periodic.close();
+
+            SerialScheduledExecutor.Metrics.Snapshot metrics =
+                    executor.metrics().snapshot();
+            assertEquals(1L, metrics.immediateAcceptedCount());
+            assertEquals(1L, metrics.immediateRejectedCount());
+            assertEquals(1L, metrics.scheduledRegistrationCount());
+            assertEquals(1L, metrics.scheduledCancellationCount());
+            assertEquals(1L, metrics.immediateExecutionCount());
+            assertTrue(metrics.periodicExecutionCount() >= 1L);
+            assertEquals(0L, metrics.runtimeFailureCount());
+            assertTrue(metrics.queueDepth() >= 0);
+            assertTrue(metrics.workerThreadCpuTimeNanos() >= -1L);
+        } finally {
+            periodic.close();
+            executor.close();
+        }
+    }
+
+    @Test
     public void closeStopsNewImmediateWork() {
         SerialScheduledExecutor executor =
                 new SerialScheduledExecutor("serial-scheduled-test");
