@@ -79,6 +79,42 @@ public class RuntimeExecutorsTest {
     }
 
     @Test
+    public void conductorUsesSeparateApplicationWorker()
+            throws Exception {
+        RuntimeExecutors runtime = new RuntimeExecutors();
+        SerialExecutor conductor =
+                runtime.createConductorExecutor();
+        runtime.start();
+
+        AtomicReference<String> threadName =
+                new AtomicReference<String>();
+        CountDownLatch done =
+                new CountDownLatch(1);
+
+        conductor.start();
+        try {
+            assertEquals(
+                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    conductor.offer(() -> {
+                        threadName.set(
+                                Thread.currentThread().getName());
+                        done.countDown();
+                    }));
+
+            assertTrue(
+                    done.await(
+                            1,
+                            TimeUnit.SECONDS));
+            assertEquals(
+                    "tp-apl-worker",
+                    threadName.get());
+        } finally {
+            conductor.close();
+            runtime.close();
+        }
+    }
+
+    @Test
     public void antennaControlLanesUseRuntimeOwnedSharedIoWorkers()
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
