@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Simplify AntennaManager into a SerialExecutor-backed lifecycle boundary plus package-private device logic and separate manager types; constrain multiplexing to one optional 2..N-member inventory group instead of multiple named group maps.
+
 - Expose authoritative TagProcessingPolicy startup/current runtime configuration through Application ConfigurationControl, IF-03 HTTP/WebSocket change events, and shared local/remote terminal commands including open, close and automatic-registration control.
 
 - Map the current single-TimingNode YAML subset through the IF-11 `timingSystems -> timingNodes -> tagProcessing` hierarchy, apply partial TagProcessingPolicy startup overrides over compiled defaults, and keep invalid policy values rejected before composition.
