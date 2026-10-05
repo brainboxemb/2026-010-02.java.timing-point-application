@@ -111,6 +111,27 @@ public class ApplicationConfigurationTest {
     }
 
     @Test
+    public void nullOverrideIsInvalidAndProducesNoEvent() {
+        TagProcessingPolicy startup = TagProcessingPolicy.defaults();
+        ApplicationConfiguration configuration =
+                ApplicationConfiguration.singleTimingNode(
+                        new NodeId("TN-01"),
+                        startup);
+        DynamicConfiguration<TagProcessingPolicy> tagProcessing =
+                configuration.timingNode(new NodeId("TN-01")).tagProcessing();
+
+        AtomicInteger changes = new AtomicInteger();
+        tagProcessing.changes().subscribe(change -> changes.incrementAndGet());
+
+        assertEquals(
+                ConfigurationUpdateResult.INVALID,
+                tagProcessing.override(null));
+        assertSame(startup, tagProcessing.currentValue());
+        assertFalse(tagProcessing.overridden());
+        assertEquals(0, changes.get());
+    }
+
+    @Test
     public void sameValueIsNoChangeAndProducesNoEvent() {
         TagProcessingPolicy startup = TagProcessingPolicy.defaults();
         ApplicationConfiguration configuration =
