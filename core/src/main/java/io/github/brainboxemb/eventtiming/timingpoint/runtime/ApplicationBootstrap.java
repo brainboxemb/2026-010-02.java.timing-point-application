@@ -1,14 +1,19 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.Conductor;
+import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagRegistrationMapper;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.DynamicConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInstallation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
@@ -19,7 +24,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Builds one complete {@link Application} object graph from validated runtime input.
@@ -154,6 +161,15 @@ public final class ApplicationBootstrap {
             Conductor conductor =
                     new Conductor(antennaManager);
 
+            ConfigurationControl configurationControl =
+                    createConfigurationControl(
+                            applicationConfiguration);
+            PresentationGateway presentationGateway =
+                    new PresentationGateway(
+                            buildIdentity,
+                            timingNode,
+                            configurationControl);
+
             /*
              * Application wiring is explicit here. AntennaManager keeps ownership
              * of the concrete Antenna objects and exposes only addressed events.
@@ -182,6 +198,7 @@ public final class ApplicationBootstrap {
                     buildIdentity,
                     timingNode,
                     applicationConfiguration,
+                    presentationGateway,
                     conductor,
                     antennaManager,
                     executors);
@@ -189,6 +206,25 @@ public final class ApplicationBootstrap {
             executors.close();
             throw ex;
         }
+    }
+
+    private static ConfigurationControl createConfigurationControl(
+            ApplicationConfiguration configuration) {
+        Map<NodeId,
+                DynamicConfiguration<TagProcessingPolicy>> tagProcessing =
+                new LinkedHashMap<NodeId,
+                        DynamicConfiguration<TagProcessingPolicy>>();
+
+        for (NodeId nodeId : configuration.timingNodeIds()) {
+            tagProcessing.put(
+                    nodeId,
+                    configuration
+                            .timingNode(nodeId)
+                            .tagProcessing());
+        }
+
+        return new ConfigurationControl(
+                tagProcessing);
     }
 
     private void requireCompleteConfig() {
