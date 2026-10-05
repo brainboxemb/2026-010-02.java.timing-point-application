@@ -12,7 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTyp
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInstallation;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.DecryptedTagId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.simulator.SimulationRuntime;
@@ -47,13 +47,13 @@ public class TimingApplicationTest {
                 temporaryFolder.getRoot().toPath().resolve("timing-data.jsonl"));
 
         TimingApplication application = TimingApplication.create(identity(), config);
-        application.start();
+        application.activate();
         try {
             assertEquals(
                     "configured-node",
                     application.presentationGateway().timingNode().status().timingNodeId().value());
         } finally {
-            application.close();
+            application.deactivate();
         }
     }
 
@@ -67,7 +67,7 @@ public class TimingApplicationTest {
 
         TimingApplication application = TimingApplication.create(identity(), config(file));
 
-        application.start();
+        application.activate();
         try {
             assertEquals(Lifecycle.State.RUNNING, application.state());
             assertEquals(
@@ -83,7 +83,7 @@ public class TimingApplicationTest {
                     application.presentationGateway().timingNode().status().problems().get(0).message()
                             .contains("TimingData recovery failed"));
         } finally {
-            application.close();
+            application.deactivate();
         }
     }
 
@@ -115,7 +115,7 @@ public class TimingApplicationTest {
                         .tagProcessing()
                         .startupValue());
 
-        application.start();
+        application.activate();
         try {
             assertFalse(antenna.inventoryRunning());
 
@@ -152,7 +152,7 @@ public class TimingApplicationTest {
                     TimingNodeCommands.close());
             await(() -> !antenna.inventoryRunning(), 1000L);
         } finally {
-            application.close();
+            application.deactivate();
         }
 
         assertFalse(antenna.inventoryRunning());
