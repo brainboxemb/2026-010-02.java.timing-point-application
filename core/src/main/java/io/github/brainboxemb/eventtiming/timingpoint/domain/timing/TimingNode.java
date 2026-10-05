@@ -9,7 +9,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialWorker;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.RegistrationResult;
@@ -46,7 +46,7 @@ public final class TimingNode {
     private static final long DEFAULT_OPERATION_TIMEOUT_MILLIS = 2000L;
 
     private final TimingNodeLogic logic;
-    private final SerialWorker serialWorker;
+    private final SerialExecutor serialExecutor;
     private final long operationTimeoutMillis;
     private final MonotonicClock monotonicClock;
     private final Event<Status> statusChangedEvent = new Event<>();
@@ -84,7 +84,7 @@ public final class TimingNode {
                         timingDataFactory,
                         timeSource,
                         monotonicClock),
-                workerFor(timingNodeId),
+                executorFor(timingNodeId),
                 DEFAULT_OPERATION_TIMEOUT_MILLIS,
                 monotonicClock);
     }
@@ -99,25 +99,25 @@ public final class TimingNode {
      */
     TimingNode(
             TimingNodeLogic logic,
-            SerialWorker serialWorker,
+            SerialExecutor serialExecutor,
             long operationTimeoutMillis) {
         this(
                 logic,
-                serialWorker,
+                serialExecutor,
                 operationTimeoutMillis,
                 SystemMonotonicClock.INSTANCE);
     }
 
     TimingNode(
             TimingNodeLogic logic,
-            SerialWorker serialWorker,
+            SerialExecutor serialExecutor,
             long operationTimeoutMillis,
             MonotonicClock monotonicClock) {
         if (logic == null) {
             throw new IllegalArgumentException("logic must not be null");
         }
-        if (serialWorker == null) {
-            throw new IllegalArgumentException("serialWorker must not be null");
+        if (serialExecutor == null) {
+            throw new IllegalArgumentException("serialExecutor must not be null");
         }
         if (operationTimeoutMillis < 1L) {
             throw new IllegalArgumentException("operationTimeoutMillis must be positive");
@@ -126,7 +126,7 @@ public final class TimingNode {
             throw new IllegalArgumentException("monotonicClock must not be null");
         }
         this.logic = logic;
-        this.serialWorker = serialWorker;
+        this.serialExecutor = serialExecutor;
         this.operationTimeoutMillis = operationTimeoutMillis;
         this.monotonicClock = monotonicClock;
     }
@@ -141,9 +141,9 @@ public final class TimingNode {
      * <p>Recovery does not restore the operational LocationId or OPEN state.</p>
      */
     public void start() {
-        if (serialWorker.state() != SerialWorker.State.NEW) {
+        if (serialExecutor.state() != SerialExecutor.State.NEW) {
             throw new IllegalStateException(
-                    "TimingNode can only start once; worker state=" + serialWorker.state());
+                    "TimingNode can only start once; executor state=" + serialExecutor.state());
         }
         try {
             logic.recoverTimingData();
@@ -154,11 +154,11 @@ public final class TimingNode {
                     timingNodeId().value(),
                     ex);
         }
-        serialWorker.start();
+        serialExecutor.start();
     }
 
     public void stop() {
-        serialWorker.close();
+        serialExecutor.close();
     }
 
     /**
@@ -190,8 +190,8 @@ public final class TimingNode {
             throw new IllegalArgumentException("command must not be null");
         }
 
-        SerialWorker.AdmissionResult admission =
-                serialWorker.offer(() -> applySubmitted(command));
+        SerialExecutor.AdmissionResult admission =
+                serialExecutor.offer(() -> applySubmitted(command));
         switch (admission) {
             case ACCEPTED:
                 return CommandAdmission.ACCEPTED;
@@ -318,16 +318,16 @@ public final class TimingNode {
      */
     public RuntimeMetrics runtimeMetrics() {
         return new RuntimeMetrics(
-                serialWorker.queueDepth(),
-                serialWorker.highWaterMark(),
-                serialWorker.acceptedCount(),
-                serialWorker.fullCount(),
-                serialWorker.notRunningCount(),
-                serialWorker.completedCount(),
-                serialWorker.totalQueueWaitNanos(),
-                serialWorker.maxQueueWaitNanos(),
-                serialWorker.totalExecutionNanos(),
-                serialWorker.maxExecutionNanos(),
+                serialExecutor.queueDepth(),
+                serialExecutor.highWaterMark(),
+                serialExecutor.acceptedCount(),
+                serialExecutor.fullCount(),
+                serialExecutor.notRunningCount(),
+                serialExecutor.completedCount(),
+                serialExecutor.totalQueueWaitNanos(),
+                serialExecutor.maxQueueWaitNanos(),
+                serialExecutor.totalExecutionNanos(),
+                serialExecutor.maxExecutionNanos(),
                 logic.timingDataAppendAttempts(),
                 logic.timingDataAppendFailures(),
                 logic.timingDataCommitCount(),
@@ -337,7 +337,7 @@ public final class TimingNode {
                 timingDataEventListenerFailures,
                 totalTimingDataEventNanos,
                 maxTimingDataEventNanos,
-                serialWorker.threadCpuTimeNanos());
+                serialExecutor.threadCpuTimeNanos());
     }
 
     private void recordTimingDataEventDelivery(
@@ -353,18 +353,18 @@ public final class TimingNode {
     }
 
     private <R> R runSerialized(Callable<R> work, String operation) {
-        SerialWorker.SubmitResult<R> submitResult = serialWorker.submit(work);
+        SerialExecutor.SubmitResult<R> submitResult = serialExecutor.submit(work);
         switch (submitResult.admission()) {
             case FULL:
                 throw new OperationException(
                         OperationException.Reason.BUSY,
                         operation + " could not be admitted because the TimingNode queue is full");
             case NOT_RUNNING:
-                if (serialWorker.state() == SerialWorker.State.FAILED) {
+                if (serialExecutor.state() == SerialExecutor.State.FAILED) {
                     throw new OperationException(
                             OperationException.Reason.FAILED,
-                            operation + " could not run because the TimingNode worker failed",
-                            serialWorker.failure());
+                            operation + " could not run because the TimingNode serial executor failed",
+                            serialExecutor.failure());
                 }
                 throw new OperationException(
                         OperationException.Reason.UNAVAILABLE,
@@ -394,7 +394,7 @@ public final class TimingNode {
         } catch (CancellationException ex) {
             throw new OperationException(
                     OperationException.Reason.FAILED,
-                    operation + " was cancelled because the TimingNode worker failed",
+                    operation + " was cancelled because the TimingNode serial executor failed",
                     ex);
         } catch (ExecutionException ex) {
             Throwable cause = ex.getCause();
@@ -409,9 +409,9 @@ public final class TimingNode {
         }
     }
 
-    private static SerialWorker workerFor(NodeId timingNodeId) {
+    private static SerialExecutor executorFor(NodeId timingNodeId) {
         NodeId id = requireId(timingNodeId);
-        return new SerialWorker(
+        return new SerialExecutor(
                 DEFAULT_QUEUE_CAPACITY,
                 "tp-dml-node-" + id.value());
     }

@@ -45,7 +45,7 @@ public class TimingNodeRuntimeMetricsTest {
                             EVENT_TIME));
             assertTrue(result.committed());
 
-            // invoke() returns when its Future completes. SerialWorker updates its
+            // invoke() returns when its Future completes. SerialExecutor updates its
             // completed counter immediately afterwards, so use one ordered query
             // as a barrier before sampling those asynchronous worker counters.
             assertEquals(

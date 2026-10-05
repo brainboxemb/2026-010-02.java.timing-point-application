@@ -14,6 +14,8 @@ public class TagProcessingCountersTest {
 
         counters.recordObservation();
         counters.recordObservation();
+        counters.recordObservationQueueFull();
+        counters.recordProcessorNotRunning();
         counters.recordClosedBurst();
         counters.recordMapped();
         counters.recordUnmapped();
@@ -25,6 +27,8 @@ public class TagProcessingCountersTest {
         TagProcessingCounters.Snapshot snapshot = counters.snapshot();
 
         assertEquals(2L, snapshot.observations());
+        assertEquals(1L, snapshot.observationQueueFull());
+        assertEquals(1L, snapshot.processorNotRunning());
         assertEquals(1L, snapshot.closedBursts());
         assertEquals(1L, snapshot.mapped());
         assertEquals(1L, snapshot.unmapped());

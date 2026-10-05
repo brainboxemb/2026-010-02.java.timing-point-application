@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replace the hand-written TimingNode `SerialWorker` with JDK-backed `SerialExecutor`, add `SerialScheduledExecutor`, and move TagProcessor to a bounded observation input queue with coalesced serial draining and same-lane housekeeping.
+
 - Map provider-decoded `DecryptedTagId` values to `RegistrationId` before passage filtering so multiple tags for one registration share one strongest-RSSI burst; keep `RegistrationId` as the typed HashMap key and use direct one-field hash codes instead of `Objects.hash(...)` for `RegistrationId`/`LocationId`.
 
 - Simplify tag-processing APIs: one TagProcessor constructor, collection-style filter APIs, TagProcessor-owned periodic-task lifecycle through `platform.execution.PeriodicExecutor`, and no lifecycle/threading knowledge in child filters.
