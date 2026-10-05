@@ -496,7 +496,7 @@ public class TagProcessorTest {
         }
     }
 
-    private static TimingNode node(RecordingStore store) {
+    private TimingNode node(RecordingStore store) {
         TimeSource timeSource = () -> RECORDED_AT;
         return new TimingNode(
                 new NodeId("TN-01"),
@@ -507,7 +507,7 @@ public class TagProcessorTest {
                         TagProcessingPolicy.defaults()),
                 tagId -> null,
                 newSerialExecutor(32, "tag-processor-test-node"),
-                new SerialScheduledExecutor(
+                newScheduledExecutor(
                         "tag-processor-test-owned-tag"));
     }
 
