@@ -190,7 +190,7 @@ public final class ApplicationBootstrap {
                                     installation.antennaId())
                             .subscribe(
                                     timingNode.tagProcessor()
-                                            ::onObservation);
+                                            ::onTagObserved);
                 }
             }
 
