@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
@@ -274,13 +275,12 @@ public final class Application implements AutoCloseable {
 
     private static ConfigurationControl createConfigurationControl(
             ApplicationConfiguration configuration) {
-        Map<io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId,
+        Map<NodeId,
                 DynamicConfiguration<TagProcessingPolicy>> tagProcessing =
-                new LinkedHashMap<
-                        io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId,
+                new LinkedHashMap<NodeId,
                         DynamicConfiguration<TagProcessingPolicy>>();
 
-        for (io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId nodeId
+        for (NodeId nodeId
                 : configuration.timingNodeIds()) {
             tagProcessing.put(
                     nodeId,
