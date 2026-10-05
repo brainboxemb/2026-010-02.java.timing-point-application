@@ -11,6 +11,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
+import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 
 import java.net.URI;
 import java.time.Clock;
@@ -131,10 +132,9 @@ public class WebSocketEndpointTest {
     @Test
     public void snapshotExposesContainedTimingDataRecoveryFailure()
             throws Exception {
-        TimingNode node = new TimingNode(
+        TimingNode node = TimingNodeFixture.create(
                 new NodeId("TN-01"),
                 new FailingRecoveryStore(),
-                new DefaultTimingDataFactory(),
                 () -> RECORDED_AT);
         PresentationGateway handler = new PresentationGateway(identity(), node);
         node.start();
@@ -204,10 +204,9 @@ public class WebSocketEndpointTest {
         private final PresentationGateway handler;
 
         private Fixture() {
-            node = new TimingNode(
+            node = TimingNodeFixture.create(
                     new NodeId("TN-01"),
                     new MemoryStore(),
-                    new DefaultTimingDataFactory(),
                     () -> RECORDED_AT);
             handler = new PresentationGateway(identity(), node);
         }
