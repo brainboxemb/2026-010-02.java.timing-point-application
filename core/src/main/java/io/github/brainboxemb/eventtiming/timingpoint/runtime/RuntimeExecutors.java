@@ -31,7 +31,13 @@ final class RuntimeExecutors implements AutoCloseable {
     static final int ANTENNA_CONTROL_QUEUE_CAPACITY = 8;
     static final int CONDUCTOR_QUEUE_CAPACITY = 8;
 
-    private static final int SHARED_IO_WORKERS = 2;
+    /*
+     * Step-5 baseline: one physical blocking-I/O worker.
+     *
+     * Additional physical I/O parallelism is a measurement-driven decision.
+     * V01 must demonstrate a real bottleneck before this count is increased.
+     */
+    private static final int SHARED_IO_WORKERS = 1;
 
     static final class TimingNodeExecutors {
         private final SerialExecutor timingNode;
