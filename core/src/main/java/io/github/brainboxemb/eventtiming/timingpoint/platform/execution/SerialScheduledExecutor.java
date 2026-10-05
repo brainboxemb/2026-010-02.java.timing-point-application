@@ -2,7 +2,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -116,55 +115,6 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                 workerExecutor);
         lane.start();
         state = State.RUNNING;
-    }
-
-    /**
-     * Attempts to admit result-bearing work to this serial lane.
-     *
-     * <p>The returned admission/future contract is the same as for
-     * {@link SerialExecutor#submit(Callable)}. The work is serialized with
-     * immediate and scheduled work on this lane.</p>
-     */
-    public <R> SerialExecutor.SubmitResult<R> submit(
-            Callable<R> work) {
-        if (work == null) {
-            throw new IllegalArgumentException(
-                    "work must not be null");
-        }
-
-        SerialExecutor activeLane;
-        synchronized (this) {
-            if (state != State.RUNNING) {
-                metrics.recordImmediateRejected();
-                return rejectedSubmitResult();
-            }
-            activeLane = lane;
-        }
-
-        SerialExecutor.SubmitResult<R> result =
-                activeLane.submit(work);
-        if (result.admission()
-                == SerialExecutor.AdmissionResult.ACCEPTED) {
-            metrics.recordImmediateAccepted();
-        } else {
-            metrics.recordImmediateRejected();
-        }
-        return result;
-    }
-
-    private static <R> SerialExecutor.SubmitResult<R>
-            rejectedSubmitResult() {
-        /*
-         * SerialExecutor owns construction of SubmitResult. Use a stopped
-         * one-item lane only to obtain the normal NOT_RUNNING result shape.
-         * This keeps one public admission/result type across both lane classes.
-         */
-        SerialExecutor stopped =
-                new SerialExecutor(
-                        1,
-                        "rejected-scheduled-submit",
-                        Runnable::run);
-        return stopped.submit(() -> null);
     }
 
     /**
