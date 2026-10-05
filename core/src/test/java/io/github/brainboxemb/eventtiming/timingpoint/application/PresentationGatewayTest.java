@@ -10,6 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
+import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -159,10 +160,9 @@ public class PresentationGatewayTest {
     }
 
     private static TimingNode node(RecordingStore store) {
-        return new TimingNode(
+        return TimingNodeFixture.create(
                 new NodeId("TN-01"),
                 store,
-                new DefaultTimingDataFactory(),
                 () -> RECORDED_AT);
     }
 
