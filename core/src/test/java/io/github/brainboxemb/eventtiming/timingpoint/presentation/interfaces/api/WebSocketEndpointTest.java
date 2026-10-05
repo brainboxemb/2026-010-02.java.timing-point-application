@@ -261,7 +261,7 @@ public class WebSocketEndpointTest {
                         node,
                         PresentationGatewayFixture.configurationControl(
                                 new NodeId("TN-01")));
-        node.start();
+        node.activate();
         WebSocketEndpoint server = new WebSocketEndpoint(
                 "127.0.0.1",
                 0,
@@ -288,7 +288,7 @@ public class WebSocketEndpointTest {
             }
         } finally {
             server.close();
-            node.stop();
+            node.deactivate();
         }
     }
 
@@ -341,12 +341,12 @@ public class WebSocketEndpointTest {
         }
 
         private void start() {
-            node.start();
+            node.activate();
         }
 
         @Override
         public void close() {
-            node.stop();
+            node.deactivate();
         }
     }
 
