@@ -2,6 +2,8 @@ package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntSupplier;
 
 /**
@@ -15,15 +17,15 @@ public final class SerialExecutorMetrics {
     private final IntSupplier queueDepthSupplier;
     private final boolean workerCpuTimeAttributable;
 
-    private int highWaterMark;
-    private long acceptedCount;
-    private long fullCount;
-    private long notRunningCount;
-    private long completedCount;
-    private long totalQueueWaitNanos;
-    private long maxQueueWaitNanos;
-    private long totalExecutionNanos;
-    private long maxExecutionNanos;
+    private final AtomicInteger highWaterMark = new AtomicInteger();
+    private final AtomicLong acceptedCount = new AtomicLong();
+    private final AtomicLong fullCount = new AtomicLong();
+    private final AtomicLong notRunningCount = new AtomicLong();
+    private final AtomicLong completedCount = new AtomicLong();
+    private final AtomicLong totalQueueWaitNanos = new AtomicLong();
+    private final AtomicLong maxQueueWaitNanos = new AtomicLong();
+    private final AtomicLong totalExecutionNanos = new AtomicLong();
+    private final AtomicLong maxExecutionNanos = new AtomicLong();
     private volatile Thread standaloneWorkerThread;
 
     SerialExecutorMetrics(
@@ -42,51 +44,65 @@ public final class SerialExecutorMetrics {
         standaloneWorkerThread = thread;
     }
 
-    synchronized void recordAccepted(int queueDepth) {
-        acceptedCount++;
-        if (queueDepth > highWaterMark) {
-            highWaterMark = queueDepth;
-        }
+    void recordAccepted(int queueDepth) {
+        acceptedCount.incrementAndGet();
+        updateMaximum(highWaterMark, queueDepth);
     }
 
-    synchronized void recordFull() {
-        fullCount++;
+    void recordFull() {
+        fullCount.incrementAndGet();
     }
 
-    synchronized void recordNotRunning() {
-        notRunningCount++;
+    void recordNotRunning() {
+        notRunningCount.incrementAndGet();
     }
 
-    synchronized void recordCompleted(
+    void recordCompleted(
             long queueWaitNanos,
             long executionNanos) {
-        completedCount++;
-        totalQueueWaitNanos += queueWaitNanos;
-        if (queueWaitNanos > maxQueueWaitNanos) {
-            maxQueueWaitNanos = queueWaitNanos;
-        }
-        totalExecutionNanos += executionNanos;
-        if (executionNanos > maxExecutionNanos) {
-            maxExecutionNanos = executionNanos;
-        }
+        completedCount.incrementAndGet();
+        totalQueueWaitNanos.addAndGet(queueWaitNanos);
+        updateMaximum(maxQueueWaitNanos, queueWaitNanos);
+        totalExecutionNanos.addAndGet(executionNanos);
+        updateMaximum(maxExecutionNanos, executionNanos);
     }
 
     /**
      * Returns an immutable pull-based view of the current lane metrics.
      */
-    public synchronized Snapshot snapshot() {
+    public Snapshot snapshot() {
         return new Snapshot(
                 queueDepthSupplier.getAsInt(),
-                highWaterMark,
-                acceptedCount,
-                fullCount,
-                notRunningCount,
-                completedCount,
-                totalQueueWaitNanos,
-                maxQueueWaitNanos,
-                totalExecutionNanos,
-                maxExecutionNanos,
+                highWaterMark.get(),
+                acceptedCount.get(),
+                fullCount.get(),
+                notRunningCount.get(),
+                completedCount.get(),
+                totalQueueWaitNanos.get(),
+                maxQueueWaitNanos.get(),
+                totalExecutionNanos.get(),
+                maxExecutionNanos.get(),
                 workerThreadCpuTimeNanos());
+    }
+
+    private static void updateMaximum(
+            AtomicInteger maximum,
+            int candidate) {
+        int current = maximum.get();
+        while (candidate > current
+                && !maximum.compareAndSet(current, candidate)) {
+            current = maximum.get();
+        }
+    }
+
+    private static void updateMaximum(
+            AtomicLong maximum,
+            long candidate) {
+        long current = maximum.get();
+        while (candidate > current
+                && !maximum.compareAndSet(current, candidate)) {
+            current = maximum.get();
+        }
     }
 
     /**
