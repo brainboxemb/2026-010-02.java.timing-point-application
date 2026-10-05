@@ -268,6 +268,14 @@ public class YamlLoaderTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
+    public void rejectsEmptyTagProcessingSection() throws Exception {
+        load(
+                timingNode("TN-01")
+                        + "        tagProcessing:\n"
+                        + timingDataStorage());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
     public void rejectsUnknownTagProcessingField() throws Exception {
         load(
                 timingNode(
