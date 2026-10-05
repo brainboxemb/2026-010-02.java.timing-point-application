@@ -2,13 +2,10 @@ package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,11 +19,10 @@ import org.slf4j.LoggerFactory;
  * and lifecycle. The shared worker only executes short drain tokens submitted by
  * those lanes.</p>
  *
- * <p>The two-argument constructor is a standalone convenience: the lane creates
- * one private worker when {@link #start()} is called and shuts that worker down
- * from {@link #close()}. The three-argument constructor uses a worker supplied by
- * the runtime. That shared worker is runtime-owned and is therefore never shut
- * down by this lane.</p>
+ * <p>The physical worker is supplied from outside this lane. The lane uses it
+ * only to execute drain tokens; it never creates, configures or shuts down the
+ * underlying worker. Runtime composition therefore owns physical worker
+ * lifecycle while this class owns only lane-local execution behaviour.</p>
  */
 public final class SerialExecutor implements AutoCloseable {
     private static final Logger LOG =
@@ -86,27 +82,18 @@ public final class SerialExecutor implements AutoCloseable {
     private final String laneName;
 
     /**
-     * Runtime-owned physical worker used by production/shared lanes.
+     * Physical execution dependency supplied by the composition owner.
      *
-     * <p>{@code null} means standalone mode. In standalone mode this class
-     * creates and owns a private worker in {@link #start()}.</p>
+     * <p>This lane may submit drain tokens but never owns this executor's
+     * lifecycle.</p>
      */
-    private final ExecutorService sharedWorkerExecutor;
+    private final Executor workerExecutor;
 
     /** Bounded workload queue owned by this lane. */
     private final ArrayBlockingQueue<TrackedTask> queue;
     private final SerialExecutorMetrics metrics;
 
     private State state = State.NEW;
-
-    /**
-     * Physical executor currently servicing this lane after start.
-     *
-     * <p>In shared mode this is the same object as
-     * {@link #sharedWorkerExecutor}. In standalone mode it is the private
-     * one-thread executor created by this class.</p>
-     */
-    private ExecutorService workerExecutor;
 
     /** First fatal lane/executor failure, if any. */
     private Throwable failure;
@@ -121,43 +108,25 @@ public final class SerialExecutor implements AutoCloseable {
     private boolean taskRunning;
 
     /**
-     * Creates a standalone lane that owns one private physical worker.
+     * Creates a bounded logical lane on an externally owned worker.
      *
-     * <p>This form is useful for focused tests and isolated tools. Production
-     * application composition normally uses the shared-worker constructor.</p>
-     */
-    public SerialExecutor(int capacity, String threadName) {
-        validateCapacity(capacity);
-        this.laneName = requireLaneName(threadName);
-        this.sharedWorkerExecutor = null;
-        this.queue = new ArrayBlockingQueue<TrackedTask>(capacity);
-        this.metrics = new SerialExecutorMetrics(
-                queue::size,
-                true);
-    }
-
-    /**
-     * Creates a logical lane serviced by a runtime-owned shared role worker.
-     *
-     * <p>The supplied executor's lifecycle stays with the runtime. Closing or
-     * faulting this lane never shuts the shared executor down.</p>
+     * <p>The supplied executor is a dependency only. Closing or faulting this
+     * lane never shuts it down.</p>
      */
     public SerialExecutor(
             int capacity,
             String laneName,
-            ExecutorService sharedWorkerExecutor) {
+            Executor workerExecutor) {
         validateCapacity(capacity);
-        if (sharedWorkerExecutor == null) {
+        if (workerExecutor == null) {
             throw new IllegalArgumentException(
-                    "sharedWorkerExecutor must not be null");
+                    "workerExecutor must not be null");
         }
 
         this.laneName = requireLaneName(laneName);
-        this.sharedWorkerExecutor = sharedWorkerExecutor;
+        this.workerExecutor = workerExecutor;
         this.queue = new ArrayBlockingQueue<TrackedTask>(capacity);
-        this.metrics = new SerialExecutorMetrics(
-                queue::size,
-                false);
+        this.metrics = new SerialExecutorMetrics(queue::size);
     }
 
     private static void validateCapacity(int capacity) {
@@ -175,53 +144,13 @@ public final class SerialExecutor implements AutoCloseable {
         return laneName.trim();
     }
 
-    /**
-     * Shared mode is represented directly by the presence of the runtime-owned
-     * worker dependency; no separate ownership flag is needed.
-     */
-    private boolean usesSharedWorker() {
-        return sharedWorkerExecutor != null;
-    }
-
-    /**
-     * Starts this logical lane.
-     *
-     * <p>Shared mode only attaches the already-running runtime worker. Standalone
-     * mode creates and prestarts one private worker thread.</p>
-     */
+    /** Starts this logical lane; the supplied worker is already externally owned. */
     public synchronized void start() {
         if (state != State.NEW) {
             throw new IllegalStateException(
                     "SerialExecutor can only start from NEW; current state="
                             + state);
         }
-
-        if (!usesSharedWorker()) {
-            ThreadFactory threadFactory = runnable -> {
-                Thread thread = new Thread(runnable, laneName);
-                metrics.recordStandaloneWorkerThread(thread);
-                return thread;
-            };
-
-            /*
-             * Workload buffering lives in the lane-local bounded queue. The
-             * private worker executor only ever needs room for the next drain token.
-             */
-            ThreadPoolExecutor standalone =
-                    new ThreadPoolExecutor(
-                            1,
-                            1,
-                            0L,
-                            TimeUnit.MILLISECONDS,
-                            new ArrayBlockingQueue<Runnable>(1),
-                            threadFactory,
-                            new ThreadPoolExecutor.AbortPolicy());
-            standalone.prestartCoreThread();
-            workerExecutor = standalone;
-        } else {
-            workerExecutor = sharedWorkerExecutor;
-        }
-
         state = State.RUNNING;
     }
 
@@ -367,94 +296,48 @@ public final class SerialExecutor implements AutoCloseable {
     /**
      * Stops new admission and waits for work already accepted by this lane.
      *
-     * <p>Only a standalone lane shuts down a physical worker. A shared lane
-     * drains/stops itself but leaves the runtime-owned worker available to sibling
-     * lanes.</p>
+     * <p>Closing the lane never shuts down its externally owned worker.</p>
      */
     @Override
-    public void close() {
-        ExecutorService owned = null;
-
-        synchronized (this) {
-            if (state == State.NEW) {
-                state = State.STOPPED;
-                return;
-            }
-            if (state == State.RUNNING) {
-                state = State.STOPPING;
-            }
-            if (state == State.STOPPED) {
-                return;
-            }
-
-            if (state != State.FAILED) {
-                boolean interrupted = false;
-                while (drainScheduled
-                        || taskRunning
-                        || !queue.isEmpty()) {
-                    try {
-                        wait(100L);
-                    } catch (InterruptedException ex) {
-                        interrupted = true;
-                    }
-                }
-                state = State.STOPPED;
-                if (interrupted) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-
-            if (!usesSharedWorker()) {
-                owned = workerExecutor;
-            }
+    public synchronized void close() {
+        if (state == State.NEW) {
+            state = State.STOPPED;
+            return;
+        }
+        if (state == State.RUNNING) {
+            state = State.STOPPING;
+        }
+        if (state == State.STOPPED) {
+            return;
         }
 
-        if (owned != null) {
-            owned.shutdown();
-            awaitTermination(owned);
+        if (state != State.FAILED) {
+            boolean interrupted = false;
+            while (drainScheduled
+                    || taskRunning
+                    || !queue.isEmpty()) {
+                try {
+                    wait(100L);
+                } catch (InterruptedException ex) {
+                    interrupted = true;
+                }
+            }
+            state = State.STOPPED;
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
-    private static void awaitTermination(
-            ExecutorService executor) {
-        boolean interrupted = false;
-        while (!executor.isTerminated()) {
-            try {
-                executor.awaitTermination(
-                        100L,
-                        TimeUnit.MILLISECONDS);
-            } catch (InterruptedException ex) {
-                interrupted = true;
-            }
+    private synchronized void markFailed(Error cause) {
+        if (state == State.FAILED) {
+            return;
         }
-        if (interrupted) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    private void markFailed(Error cause) {
-        ExecutorService owned = null;
-        synchronized (this) {
-            if (state == State.FAILED) {
-                return;
-            }
-            failure = cause;
-            state = State.FAILED;
-            cancelQueuedLocked();
-            drainScheduled = false;
-            notifyAll();
-            if (!usesSharedWorker()) {
-                owned = workerExecutor;
-            }
-        }
-
-        /*
-         * A lane fault must not stop a runtime-owned shared role executor.
-         * Standalone lanes still own and stop their private worker.
-         */
-        if (owned != null) {
-            owned.shutdownNow();
-        }
+        failure = cause;
+        state = State.FAILED;
+        cancelQueuedLocked();
+        drainScheduled = false;
+        notifyAll();
     }
 
     private void cancelQueuedLocked() {
