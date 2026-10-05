@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.application.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 
@@ -22,7 +23,7 @@ final class TagObservationFilter {
     private static final Logger LOG =
             LoggerFactory.getLogger(TagObservationFilter.class);
 
-    private final TagProcessingPolicy policy;
+    private final ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration;
     private final MonotonicClock monotonicClock;
     private final TagProcessingMetrics metrics;
     private final BiConsumer<RegistrationId, TimingTimestamp>
@@ -36,8 +37,22 @@ final class TagObservationFilter {
             TagProcessingMetrics metrics,
             BiConsumer<RegistrationId, TimingTimestamp>
                     validObservationCallback) {
-        if (policy == null) {
-            throw new IllegalArgumentException("policy must not be null");
+        this(
+                ReadOnlyConfiguration.fixed(policy),
+                monotonicClock,
+                metrics,
+                validObservationCallback);
+    }
+
+    TagObservationFilter(
+            ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
+            MonotonicClock monotonicClock,
+            TagProcessingMetrics metrics,
+            BiConsumer<RegistrationId, TimingTimestamp>
+                    validObservationCallback) {
+        if (policyConfiguration == null) {
+            throw new IllegalArgumentException(
+                    "policyConfiguration must not be null");
         }
         if (monotonicClock == null) {
             throw new IllegalArgumentException("monotonicClock must not be null");
@@ -49,7 +64,7 @@ final class TagObservationFilter {
             throw new IllegalArgumentException(
                     "validObservationCallback must not be null");
         }
-        this.policy = policy;
+        this.policyConfiguration = policyConfiguration;
         this.monotonicClock = monotonicClock;
         this.metrics = metrics;
         this.validObservationCallback = validObservationCallback;
@@ -68,6 +83,7 @@ final class TagObservationFilter {
 
         ClosedBurst closedBurst = null;
         long now = monotonicClock.nowNanos();
+        TagProcessingPolicy policy = policyConfiguration.currentValue();
         BurstState state = bursts.get(registrationId);
 
         if (state != null && state.expired(now, policy)) {
@@ -93,6 +109,7 @@ final class TagObservationFilter {
     void periodic() {
         List<ClosedBurst> closedBursts = new ArrayList<>();
         long now = monotonicClock.nowNanos();
+        TagProcessingPolicy policy = policyConfiguration.currentValue();
 
         Iterator<Map.Entry<RegistrationId, BurstState>> iterator =
                 bursts.entrySet().iterator();
