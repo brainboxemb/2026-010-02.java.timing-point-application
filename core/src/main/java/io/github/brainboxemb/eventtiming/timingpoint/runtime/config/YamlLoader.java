@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime.config;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingConfig;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingFileConfig;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevel;
@@ -288,7 +289,7 @@ public final class YamlLoader {
             throw new IllegalArgumentException(
                     field + " entry name must be a non-blank YAML string");
         }
-        return ((String) rawKey).trim();
+        return (String) rawKey;
     }
 
     private static Path mapTimingDataPath(Object rawIo) {
