@@ -6,6 +6,13 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
 
 /** Built-in deterministic antenna implementation for simulation and verification. */
 public final class SimulatedAntenna implements Antenna {
+    public enum FailurePoint {
+        NONE,
+        PROBE,
+        INITIALIZE,
+        START_INVENTORY
+    }
+
     private static final AntennaInfo INFO =
             new AntennaInfo("simulated-antenna", "1");
 
@@ -14,16 +21,24 @@ public final class SimulatedAntenna implements Antenna {
     private boolean initialized;
     private boolean inventoryRunning;
     private boolean closed;
+    private boolean externalPowerControlled;
+    private boolean powered = true;
+    private FailurePoint failurePoint = FailurePoint.NONE;
+    private int inventoryStartCount;
 
     @Override
     public synchronized AntennaInfo probe() {
         requireOpen();
+        requirePowered();
+        failIf(FailurePoint.PROBE);
         return INFO;
     }
 
     @Override
     public synchronized void initialize() {
         requireOpen();
+        requirePowered();
+        failIf(FailurePoint.INITIALIZE);
         if (inventoryRunning) {
             throw new IllegalStateException(
                     "SimulatedAntenna cannot initialize while inventory is running");
@@ -34,6 +49,8 @@ public final class SimulatedAntenna implements Antenna {
     @Override
     public synchronized void startInventory() {
         requireOpen();
+        requirePowered();
+        failIf(FailurePoint.START_INVENTORY);
         if (!initialized) {
             throw new IllegalStateException(
                     "SimulatedAntenna must be initialized before inventory starts");
@@ -43,6 +60,7 @@ public final class SimulatedAntenna implements Antenna {
                     "SimulatedAntenna inventory is already running");
         }
         inventoryRunning = true;
+        inventoryStartCount++;
     }
 
     @Override
@@ -68,6 +86,7 @@ public final class SimulatedAntenna implements Antenna {
         }
         synchronized (this) {
             requireOpen();
+            requirePowered();
             if (!inventoryRunning) {
                 throw new IllegalStateException(
                         "SimulatedAntenna inventory is not running");
@@ -84,11 +103,71 @@ public final class SimulatedAntenna implements Antenna {
         emit(new TagObservation(tagId, rssi, observedAt));
     }
 
+    public synchronized void setFailurePoint(FailurePoint failurePoint) {
+        if (failurePoint == null) {
+            throw new IllegalArgumentException("failurePoint must not be null");
+        }
+        this.failurePoint = failurePoint;
+    }
+
+    public synchronized void clearFailure() {
+        failurePoint = FailurePoint.NONE;
+    }
+
+    public synchronized boolean powered() {
+        return powered;
+    }
+
+    public synchronized int inventoryStartCount() {
+        return inventoryStartCount;
+    }
+
     @Override
     public synchronized void close() {
         inventoryRunning = false;
         initialized = false;
+        if (externalPowerControlled) {
+            powered = false;
+        }
         closed = true;
+    }
+
+    synchronized void attachExternalPowerControl() {
+        requireOpen();
+        if (externalPowerControlled) {
+            throw new IllegalStateException(
+                    "SimulatedAntenna already has external power control");
+        }
+        externalPowerControlled = true;
+        powered = false;
+        initialized = false;
+        inventoryRunning = false;
+    }
+
+    synchronized void setExternallyPowered(boolean powered) {
+        requireOpen();
+        if (!externalPowerControlled) {
+            throw new IllegalStateException(
+                    "SimulatedAntenna has no external power control");
+        }
+        this.powered = powered;
+        if (!powered) {
+            inventoryRunning = false;
+            initialized = false;
+        }
+    }
+
+    private void failIf(FailurePoint point) {
+        if (failurePoint == point) {
+            throw new IllegalStateException(
+                    "SimulatedAntenna configured failure at " + point);
+        }
+    }
+
+    private void requirePowered() {
+        if (!powered) {
+            throw new IllegalStateException("SimulatedAntenna is not powered");
+        }
     }
 
     private void requireOpen() {
