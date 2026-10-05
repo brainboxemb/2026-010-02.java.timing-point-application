@@ -1,18 +1,22 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
+import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.DynamicConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Antenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -27,6 +31,7 @@ public final class Application implements AutoCloseable {
     private final BuildIdentity buildIdentity;
     private final TimingNode timingNode;
     private final ApplicationConfiguration configuration;
+    private final ConfigurationControl configurationControl;
     private final PresentationGateway presentationGateway;
     private final Lifecycle lifecycle;
     private final AntennaManager antennaManager;
@@ -78,8 +83,13 @@ public final class Application implements AutoCloseable {
         this.buildIdentity = buildIdentity;
         this.timingNode = timingNode;
         this.configuration = configuration;
+        this.configurationControl =
+                createConfigurationControl(configuration);
         this.presentationGateway =
-                new PresentationGateway(buildIdentity, timingNode);
+                new PresentationGateway(
+                        buildIdentity,
+                        timingNode,
+                        configurationControl);
         this.lifecycle = new Lifecycle(buildIdentity);
         this.antennaManager = antennaManager;
         this.runtimeExecutors = runtimeExecutors;
@@ -260,6 +270,23 @@ public final class Application implements AutoCloseable {
             antenna.observations().unsubscribe(observationListener);
         }
         subscribedAntennas.clear();
+    }
+
+    private static ConfigurationControl createConfigurationControl(
+            ApplicationConfiguration configuration) {
+        Map<io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId,
+                DynamicConfiguration<TagProcessingPolicy>> tagProcessing =
+                new LinkedHashMap<
+                        io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId,
+                        DynamicConfiguration<TagProcessingPolicy>>();
+
+        for (io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId nodeId
+                : configuration.timingNodeIds()) {
+            tagProcessing.put(
+                    nodeId,
+                    configuration.timingNode(nodeId).tagProcessing());
+        }
+        return new ConfigurationControl(tagProcessing);
     }
 
     private static ApplicationConfiguration defaultConfiguration(
