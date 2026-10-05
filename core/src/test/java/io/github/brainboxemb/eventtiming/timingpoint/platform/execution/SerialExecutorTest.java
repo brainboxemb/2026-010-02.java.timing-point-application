@@ -189,7 +189,7 @@ public class SerialExecutorTest {
             executor.close();
         }
 
-        SerialExecutor.Metrics.Snapshot metrics =
+        SerialExecutorMetrics.Snapshot metrics =
                 executor.metrics().snapshot();
 
         assertEquals(2L, metrics.acceptedCount());
