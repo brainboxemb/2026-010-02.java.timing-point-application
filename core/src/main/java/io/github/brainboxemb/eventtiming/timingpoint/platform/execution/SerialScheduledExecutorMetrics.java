@@ -145,6 +145,10 @@ public final class SerialScheduledExecutorMetrics {
             return runtimeFailureCount;
         }
 
+        /**
+         * Returns {@code -1}: physical worker CPU time belongs to the externally
+         * owned worker and is not attributable to one logical lane.
+         */
         public long workerThreadCpuTimeNanos() {
             return workerThreadCpuTimeNanos;
         }
