@@ -70,6 +70,9 @@ final class RuntimeExecutors implements AutoCloseable {
     private final ThreadPoolExecutor sharedIoExecutor;
     private final ScheduledThreadPoolExecutor antennaScheduler;
 
+    private boolean started;
+    private boolean closed;
+
     RuntimeExecutors() {
         timingNodeWorker = new ThreadPoolExecutor(
                 1,
@@ -85,8 +88,6 @@ final class RuntimeExecutors implements AutoCloseable {
                     return thread;
                 },
                 new ThreadPoolExecutor.AbortPolicy());
-        timingNodeWorker.prestartCoreThread();
-
         tagProcessorWorker = new ScheduledThreadPoolExecutor(
                 1,
                 runnable -> {
@@ -97,7 +98,6 @@ final class RuntimeExecutors implements AutoCloseable {
                     return thread;
                 });
         tagProcessorWorker.setRemoveOnCancelPolicy(true);
-        tagProcessorWorker.prestartCoreThread();
 
         AtomicInteger ioWorkerNumber = new AtomicInteger();
         sharedIoExecutor = new ThreadPoolExecutor(
@@ -127,6 +127,33 @@ final class RuntimeExecutors implements AutoCloseable {
                     return thread;
                 });
         antennaScheduler.setRemoveOnCancelPolicy(true);
+    }
+
+    /**
+     * Starts the physical workers owned by this Runtime.
+     *
+     * <p>Construction deliberately does not start threads. Runtime composition
+     * calls this method only after the complete object graph has been constructed
+     * and application relationships have been wired.</p>
+     */
+    synchronized void start() {
+        if (closed) {
+            throw new IllegalStateException(
+                    "RuntimeExecutors is already closed");
+        }
+        if (started) {
+            return;
+        }
+
+        timingNodeWorker.prestartAllCoreThreads();
+        tagProcessorWorker.prestartAllCoreThreads();
+        sharedIoExecutor.prestartAllCoreThreads();
+        antennaScheduler.prestartAllCoreThreads();
+        started = true;
+    }
+
+    synchronized boolean started() {
+        return started;
     }
 
     /**
@@ -183,7 +210,12 @@ final class RuntimeExecutors implements AutoCloseable {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+
         /*
          * Components normally close their lanes first. Closing again here is
          * intentional and idempotent: this is the bootstrap/failure fallback
