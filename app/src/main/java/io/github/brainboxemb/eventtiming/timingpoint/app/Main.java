@@ -4,14 +4,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.EmbeddedBuildIdentityLoader;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.Logging;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.loggingserver.LoggingServer;
-import io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api.HttpEndpoint;
-import io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api.WebSocketEndpoint;
-import io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.console.LocalConsole;
-import io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.shell.RemoteShellServer;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.TimingApplication;
-import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Api;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
-import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Presentation;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.YamlLoader;
 
 import java.io.IOException;
@@ -131,7 +125,7 @@ public final class Main {
             Config config = YamlLoader.load(configPath);
             runConfiguredApplication(buildIdentity, config);
             return 0;
-        } catch (IOException | IllegalArgumentException ex) {
+        } catch (IOException | RuntimeException ex) {
             err.println(
                     "Unable to start application from configuration: "
                             + configPath
@@ -183,17 +177,20 @@ public final class Main {
     /**
      * Runs one already configured application process.
      *
-     * <p>The process flow is intentionally explicit: compose the application,
-     * start it, start Presentation endpoints, wait, then close in reverse order.</p>
+     * <p>Main owns only process concerns. TimingApplication composition owns all
+     * concrete Presentation adapters and their activation/deactivation order.</p>
      */
     private static void runTimingApplication(
             BuildIdentity buildIdentity,
-            Config config)
-            throws IOException {
+            Config config) {
         TimingApplication application =
                 TimingApplication.create(
                         buildIdentity,
-                        config);
+                        config,
+                        new InputStreamReader(
+                                System.in),
+                        new OutputStreamWriter(
+                                System.out));
 
         Runtime runtime = Runtime.getRuntime();
         Thread shutdownHook =
@@ -203,43 +200,15 @@ public final class Main {
         runtime.addShutdownHook(
                 shutdownHook);
 
-        HttpEndpoint http = null;
-        WebSocketEndpoint webSocket = null;
-        RemoteShellServer remoteShell = null;
-
         try {
             application.activate();
 
-            http =
-                    startHttp(
-                            config,
-                            application);
-            webSocket =
-                    startWebSocket(
-                            config,
-                            application);
-            remoteShell =
-                    startRemoteShell(
-                            config,
-                            application);
-            startLocalConsole(application);
-
             try {
-                application.awaitInactive();
+                application.awaitShutdownRequest();
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
             }
         } finally {
-            if (webSocket != null) {
-                webSocket.close();
-            }
-            if (http != null) {
-                http.close();
-            }
-            if (remoteShell != null) {
-                remoteShell.close();
-            }
-
             application.deactivate();
             removeShutdownHook(
                     runtime,
@@ -248,99 +217,6 @@ public final class Main {
 
         System.out.println(
                 application.smokeOutput());
-    }
-
-    private static HttpEndpoint startHttp(
-            Config config,
-            TimingApplication application)
-            throws IOException {
-        Api api =
-                config.presentation().api();
-        Api.Http endpoint =
-                api == null
-                        ? null
-                        : api.http();
-
-        if (endpoint == null) {
-            return null;
-        }
-
-        HttpEndpoint server =
-                new HttpEndpoint(
-                        endpoint.bindAddress(),
-                        endpoint.port(),
-                        application
-                                .presentationGateway());
-        server.start();
-        return server;
-    }
-
-    private static WebSocketEndpoint startWebSocket(
-            Config config,
-            TimingApplication application)
-            throws IOException {
-        Api api =
-                config.presentation().api();
-        Api.WebSocket endpoint =
-                api == null
-                        ? null
-                        : api.webSocket();
-
-        if (endpoint == null) {
-            return null;
-        }
-
-        WebSocketEndpoint server =
-                new WebSocketEndpoint(
-                        endpoint.bindAddress(),
-                        endpoint.port(),
-                        application
-                                .presentationGateway());
-        server.start();
-        return server;
-    }
-
-    private static RemoteShellServer startRemoteShell(
-            Config config,
-            TimingApplication application)
-            throws IOException {
-        Presentation.RemoteShell endpoint =
-                config.presentation()
-                        .remoteShell();
-
-        if (endpoint == null) {
-            return null;
-        }
-
-        RemoteShellServer server =
-                new RemoteShellServer(
-                        endpoint.bindAddress(),
-                        endpoint.port(),
-                        application
-                                .presentationGateway(),
-                        application::deactivate);
-        server.start();
-        return server;
-    }
-
-    private static void startLocalConsole(
-            TimingApplication application) {
-        LocalConsole console =
-                new LocalConsole(
-                        application
-                                .presentationGateway(),
-                        application::deactivate,
-                        new InputStreamReader(
-                                System.in),
-                        new OutputStreamWriter(
-                                System.out));
-
-        Thread consoleThread =
-                new Thread(
-                        console,
-                        "tp-prl-console");
-        consoleThread.setDaemon(true);
-        consoleThread.start();
     }
 
     private static void removeShutdownHook(
