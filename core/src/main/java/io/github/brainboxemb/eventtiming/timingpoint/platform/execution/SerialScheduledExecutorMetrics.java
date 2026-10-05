@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntSupplier;
 
 /**
@@ -14,13 +15,13 @@ public final class SerialScheduledExecutorMetrics {
     private final IntSupplier queueDepthSupplier;
     private final boolean workerCpuTimeAttributable;
 
-    private long immediateAcceptedCount;
-    private long immediateRejectedCount;
-    private long scheduledRegistrationCount;
-    private long scheduledCancellationCount;
-    private long immediateExecutionCount;
-    private long periodicExecutionCount;
-    private long runtimeFailureCount;
+    private final AtomicLong immediateAcceptedCount = new AtomicLong();
+    private final AtomicLong immediateRejectedCount = new AtomicLong();
+    private final AtomicLong scheduledRegistrationCount = new AtomicLong();
+    private final AtomicLong scheduledCancellationCount = new AtomicLong();
+    private final AtomicLong immediateExecutionCount = new AtomicLong();
+    private final AtomicLong periodicExecutionCount = new AtomicLong();
+    private final AtomicLong runtimeFailureCount = new AtomicLong();
     private volatile Thread standaloneWorkerThread;
 
     SerialScheduledExecutorMetrics(
@@ -39,47 +40,47 @@ public final class SerialScheduledExecutorMetrics {
         standaloneWorkerThread = thread;
     }
 
-    synchronized void recordImmediateAccepted() {
-        immediateAcceptedCount++;
+    void recordImmediateAccepted() {
+        immediateAcceptedCount.incrementAndGet();
     }
 
-    synchronized void recordImmediateRejected() {
-        immediateRejectedCount++;
+    void recordImmediateRejected() {
+        immediateRejectedCount.incrementAndGet();
     }
 
-    synchronized void recordScheduledRegistration() {
-        scheduledRegistrationCount++;
+    void recordScheduledRegistration() {
+        scheduledRegistrationCount.incrementAndGet();
     }
 
-    synchronized void recordScheduledCancellation() {
-        scheduledCancellationCount++;
+    void recordScheduledCancellation() {
+        scheduledCancellationCount.incrementAndGet();
     }
 
-    synchronized void recordImmediateExecution() {
-        immediateExecutionCount++;
+    void recordImmediateExecution() {
+        immediateExecutionCount.incrementAndGet();
     }
 
-    synchronized void recordPeriodicExecution() {
-        periodicExecutionCount++;
+    void recordPeriodicExecution() {
+        periodicExecutionCount.incrementAndGet();
     }
 
-    synchronized void recordRuntimeFailure() {
-        runtimeFailureCount++;
+    void recordRuntimeFailure() {
+        runtimeFailureCount.incrementAndGet();
     }
 
     /**
      * Returns an immutable pull-based view of the current scheduled-lane metrics.
      */
-    public synchronized Snapshot snapshot() {
+    public Snapshot snapshot() {
         return new Snapshot(
                 queueDepthSupplier.getAsInt(),
-                immediateAcceptedCount,
-                immediateRejectedCount,
-                scheduledRegistrationCount,
-                scheduledCancellationCount,
-                immediateExecutionCount,
-                periodicExecutionCount,
-                runtimeFailureCount,
+                immediateAcceptedCount.get(),
+                immediateRejectedCount.get(),
+                scheduledRegistrationCount.get(),
+                scheduledCancellationCount.get(),
+                immediateExecutionCount.get(),
+                periodicExecutionCount.get(),
+                runtimeFailureCount.get(),
                 workerThreadCpuTimeNanos());
     }
 
