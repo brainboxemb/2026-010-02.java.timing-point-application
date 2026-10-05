@@ -3,6 +3,9 @@
 ## Unreleased
 
 - Collapse runtime construction into one `TimingApplication.create(...)` composition root: create `PlatformEnvironment`, construct without starting physical workers, wire cross-component behaviour explicitly, then `start()` Runtime execution resources and `activate()` application components in visible order.
+- Give `Conductor` its own serial application-coordination lane so synchronous local events only hand off immutable state; cross-component behaviour no longer executes on the emitting TimingNode thread.
+- Move concrete HTTP/WebSocket/remote-shell/local-console construction and lifecycle out of `Main` into runtime-owned `PresentationRuntime`; `Main` now supplies only process console I/O and shutdown-hook handling.
+- Use one physical shared I/O worker for the Step-5 baseline; additional I/O parallelism is deferred to V01 evidence.
 
 - Refactor antenna ownership under `io.devices.antenna.manager`: `AntennaManager` exposes activation/inventory/status only, one `SerialScheduledExecutor` lane handles immediate/result-bearing/scheduled control, `AntennaSwitchController` coordinates the set/multiplex group, and `ManagedAntenna` owns one physical power/probe/init/inventory sequence. Remove the separate JDK scheduler dependency from AntennaManager.
 
