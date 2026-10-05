@@ -11,7 +11,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Central construction and lifecycle owner for runtime execution resources.
@@ -131,14 +130,12 @@ final class RuntimeExecutors implements AutoCloseable {
                 },
                 new ThreadPoolExecutor.AbortPolicy());
 
-        AtomicInteger ioWorkerNumber = new AtomicInteger();
         sharedIoWorker = new ScheduledThreadPoolExecutor(
                 SHARED_IO_WORKERS,
                 runnable -> {
                     Thread thread = new Thread(
                             runnable,
-                            "tp-io-shared-"
-                                    + ioWorkerNumber.incrementAndGet());
+                            "tp-io-shared-worker");
                     thread.setPriority(Thread.NORM_PRIORITY);
                     return thread;
                 });
