@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 final class RuntimeExecutors implements AutoCloseable {
     static final int TIMING_NODE_QUEUE_CAPACITY = 32;
     static final int TAG_PROCESSOR_LANE_QUEUE_CAPACITY = 32;
+    static final int ANTENNA_CONTROL_QUEUE_CAPACITY = 8;
 
     private static final int SHARED_IO_WORKERS = 2;
     private static final int SHARED_IO_QUEUE_CAPACITY = 16;
@@ -158,6 +159,19 @@ final class RuntimeExecutors implements AutoCloseable {
         return new TimingNodeExecutors(
                 timingNode,
                 tagProcessor);
+    }
+
+    /**
+     * Creates the AntennaManager logical control lane on the shared blocking-I/O pool.
+     */
+    synchronized SerialExecutor createAntennaControlExecutor() {
+        SerialExecutor antennaControl =
+                new SerialExecutor(
+                        ANTENNA_CONTROL_QUEUE_CAPACITY,
+                        "AntennaManager",
+                        sharedIoExecutor);
+        serialLanes.add(antennaControl);
+        return antennaControl;
     }
 
     ExecutorService sharedIoExecutor() {
