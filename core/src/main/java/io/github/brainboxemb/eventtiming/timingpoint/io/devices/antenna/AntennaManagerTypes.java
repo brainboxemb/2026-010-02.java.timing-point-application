@@ -50,21 +50,21 @@ public final class AntennaManagerTypes {
 
     /** Immutable point-in-time view of one configured antenna. */
     public static final class AntennaStatus {
-        private final Antenna antenna;
+        private final AntennaId antennaId;
         private final AntennaState state;
         private final Throwable failure;
 
         AntennaStatus(
-                Antenna antenna,
+                AntennaId antennaId,
                 AntennaState state,
                 Throwable failure) {
-            this.antenna = antenna;
+            this.antennaId = antennaId;
             this.state = state;
             this.failure = failure;
         }
 
-        public Antenna antenna() {
-            return antenna;
+        public AntennaId antennaId() {
+            return antennaId;
         }
 
         public AntennaState state() {
