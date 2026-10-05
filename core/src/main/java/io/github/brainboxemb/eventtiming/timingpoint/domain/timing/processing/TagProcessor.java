@@ -7,43 +7,51 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCom
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.PeriodicExecutor;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.PeriodicTask;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
+
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Coordinates decoded antenna observations on their way to TimingNode.
+ * Active tag-processing boundary between antenna observations and TimingNode.
  *
- * <p>TagRegistrationMapper resolves provider-decoded tag identity before
- * TagObservationFilter groups observations by RegistrationId.
- * RegistrationDuplicateFilter owns the later accepted-registration window, and
- * TagProcessingCounters owns the low-allocation counters.</p>
+ * <p>The antenna callback only performs bounded queue ingress. Mapping, passage
+ * state, duplicate filtering and TimingNode admission run on one serial
+ * execution lane owned by this processor.</p>
  */
 public final class TagProcessor {
+    private static final Logger LOG = LoggerFactory.getLogger(TagProcessor.class);
+
+    private enum State {
+        NEW,
+        RUNNING,
+        STOPPED
+    }
+
     private final TimingNode timingNode;
     private final TagRegistrationMapper mapper;
     private final RegistrationDuplicateFilter duplicateFilter;
     private final TagProcessingCounters counters;
     private final TagObservationFilter observationFilter;
-    private final PeriodicExecutor periodicExecutor;
+    private final SerialScheduledExecutor executor;
     private final long sweepCadenceNanos;
+    private final ArrayBlockingQueue<TagObservation> inputQueue;
+    private final AtomicBoolean drainScheduled = new AtomicBoolean();
+    private final Object lifecycleLock = new Object();
 
-    private PeriodicTask periodicTask;
+    private volatile State state = State.NEW;
+    private volatile SerialScheduledExecutor.ScheduledTask housekeepingTask;
 
-    /**
-     * Creates one tag-processing path for a TimingNode.
-     *
-     * <p>The counter owner is injected explicitly so runtime/engineering
-     * composition can retain the same instance for pull-based measurement
-     * without adding a second TagProcessor constructor or exposing counters
-     * through TimingNode.</p>
-     */
     public TagProcessor(
             TimingNode timingNode,
             TagRegistrationMapper mapper,
             TagProcessingPolicy policy,
             MonotonicClock monotonicClock,
             TagProcessingCounters counters,
-            PeriodicExecutor periodicExecutor) {
+            SerialScheduledExecutor executor) {
         if (timingNode == null) {
             throw new IllegalArgumentException("timingNode must not be null");
         }
@@ -59,15 +67,17 @@ public final class TagProcessor {
         if (counters == null) {
             throw new IllegalArgumentException("counters must not be null");
         }
-        if (periodicExecutor == null) {
-            throw new IllegalArgumentException("periodicExecutor must not be null");
+        if (executor == null) {
+            throw new IllegalArgumentException("executor must not be null");
         }
 
         this.timingNode = timingNode;
         this.mapper = mapper;
         this.counters = counters;
-        this.periodicExecutor = periodicExecutor;
+        this.executor = executor;
         this.sweepCadenceNanos = policy.sweepCadenceNanos();
+        this.inputQueue =
+                new ArrayBlockingQueue<>(policy.observationQueueCapacity());
         duplicateFilter =
                 new RegistrationDuplicateFilter(policy, monotonicClock);
         observationFilter =
@@ -78,39 +88,45 @@ public final class TagProcessor {
                         this::processValidObservation);
     }
 
-    /**
-     * Starts the periodic processing registration.
-     *
-     * <p>Observation callbacks themselves stay on the antenna/provider caller
-     * thread. Only housekeeping is scheduled through PeriodicExecutor.</p>
-     */
-    public synchronized void start() {
-        if (periodicTask != null) {
-            throw new IllegalStateException("TagProcessor is already started");
+    public void start() {
+        synchronized (lifecycleLock) {
+            if (state != State.NEW) {
+                throw new IllegalStateException(
+                        "TagProcessor can only start from NEW; current state=" + state);
+            }
+            executor.start();
+            state = State.RUNNING;
         }
-        periodicTask = periodicExecutor.scheduleWithFixedDelay(
-                this::periodic,
-                sweepCadenceNanos);
+    }
+
+    public void stop() {
+        boolean drainRemaining;
+        synchronized (lifecycleLock) {
+            if (state == State.STOPPED) {
+                return;
+            }
+            if (state == State.NEW) {
+                state = State.STOPPED;
+                executor.close();
+                inputQueue.clear();
+                return;
+            }
+
+            state = State.STOPPED;
+            closeHousekeepingLocked();
+            drainRemaining = !inputQueue.isEmpty();
+            if (drainRemaining && !executor.execute(this::drainAll)) {
+                inputQueue.clear();
+            }
+        }
+
+        executor.close();
+        inputQueue.clear();
     }
 
     /**
-     * Stops this processor's periodic registration.
-     *
-     * <p>The PeriodicExecutor may be shared and is therefore not closed here.</p>
-     */
-    public synchronized void stop() {
-        if (periodicTask == null) {
-            return;
-        }
-        periodicTask.close();
-        periodicTask = null;
-    }
-
-    /**
-     * Event callback for provider-decoded/decrypted antenna observations.
-     *
-     * <p>Mapping happens before passage filtering so different physical tags
-     * that resolve to the same RegistrationId contribute to one burst.</p>
+     * Antenna EventSource callback. It does no mapping/filtering on the provider
+     * thread.
      */
     public void onObservation(TagObservation observation) {
         if (observation == null) {
@@ -119,6 +135,68 @@ public final class TagProcessor {
 
         counters.recordObservation();
 
+        synchronized (lifecycleLock) {
+            if (state != State.RUNNING) {
+                counters.recordProcessorNotRunning();
+                return;
+            }
+            if (!inputQueue.offer(observation)) {
+                counters.recordObservationQueueFull();
+                return;
+            }
+            scheduleDrainLocked();
+        }
+    }
+
+    private void scheduleDrainLocked() {
+        if (!drainScheduled.compareAndSet(false, true)) {
+            return;
+        }
+        if (!executor.execute(this::drainBatch)) {
+            drainScheduled.set(false);
+            counters.recordProcessorNotRunning();
+        }
+    }
+
+    private void drainBatch() {
+        try {
+            int count = inputQueue.size();
+            for (int index = 0; index < count; index++) {
+                TagObservation observation = inputQueue.poll();
+                if (observation == null) {
+                    break;
+                }
+                processObservationSafely(observation);
+            }
+        } finally {
+            drainScheduled.set(false);
+            synchronized (lifecycleLock) {
+                if (state == State.RUNNING && !inputQueue.isEmpty()) {
+                    scheduleDrainLocked();
+                }
+            }
+        }
+    }
+
+    private void drainAll() {
+        TagObservation observation;
+        while ((observation = inputQueue.poll()) != null) {
+            processObservationSafely(observation);
+        }
+    }
+
+    private void processObservationSafely(TagObservation observation) {
+        try {
+            processObservation(observation);
+        } catch (RuntimeException ex) {
+            LOG.warn(
+                    "Could not process tag observation {}",
+                    observation.tagId().value(),
+                    ex);
+        }
+    }
+
+    private void processObservation(TagObservation observation) {
         RegistrationId registrationId = mapper.map(observation.tagId());
         if (registrationId == null) {
             counters.recordUnmapped();
@@ -127,17 +205,51 @@ public final class TagProcessor {
 
         counters.recordMapped();
         observationFilter.add(registrationId, observation);
+        ensureHousekeeping();
     }
 
-    /**
-     * Runs one periodic processing pass.
-     *
-     * <p>The execution model decides when this is called. TagProcessor owns the
-     * processing components and delegates their periodic housekeeping here.</p>
-     */
-    public void periodic() {
-        observationFilter.periodic();
-        duplicateFilter.periodic();
+    private void ensureHousekeeping() {
+        if (!hasTimedState()) {
+            return;
+        }
+
+        synchronized (lifecycleLock) {
+            if (state != State.RUNNING || housekeepingTask != null) {
+                return;
+            }
+            housekeepingTask = executor.scheduleWithFixedDelay(
+                    this::housekeeping,
+                    sweepCadenceNanos);
+        }
+    }
+
+    private void housekeeping() {
+        try {
+            observationFilter.periodic();
+            duplicateFilter.periodic();
+        } catch (RuntimeException ex) {
+            LOG.warn("Tag-processing housekeeping failed", ex);
+        } finally {
+            synchronized (lifecycleLock) {
+                if (housekeepingTask != null
+                        && (state != State.RUNNING || !hasTimedState())) {
+                    closeHousekeepingLocked();
+                }
+            }
+        }
+    }
+
+    private boolean hasTimedState() {
+        return observationFilter.hasPendingState()
+                || duplicateFilter.hasPendingState();
+    }
+
+    private void closeHousekeepingLocked() {
+        SerialScheduledExecutor.ScheduledTask task = housekeepingTask;
+        housekeepingTask = null;
+        if (task != null) {
+            task.close();
+        }
     }
 
     private void processValidObservation(

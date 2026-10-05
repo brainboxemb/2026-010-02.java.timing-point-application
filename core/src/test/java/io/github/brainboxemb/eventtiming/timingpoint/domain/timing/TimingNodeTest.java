@@ -7,7 +7,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialWorker;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 
 import java.util.Collections;
 
@@ -121,17 +121,17 @@ public class TimingNodeTest {
 
     @Test
     public void timeoutDoesNotCancelAcceptedOperation() throws Exception {
-        SerialWorker worker = new SerialWorker(2, "timing-node-test");
+        SerialExecutor executor = new SerialExecutor(2, "timing-node-test");
         TimingNode node = node(
                 new NodeId("TN-01"),
-                worker,
+                executor,
                 25L);
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
         node.start();
         try {
-            worker.submit(() -> {
+            executor.submit(() -> {
                 blockerStarted.countDown();
                 releaseBlocker.await();
                 return null;
@@ -148,7 +148,7 @@ public class TimingNodeTest {
             }
 
             CountDownLatch afterTimedOutOperation = new CountDownLatch(1);
-            worker.offer(afterTimedOutOperation::countDown);
+            executor.offer(afterTimedOutOperation::countDown);
             releaseBlocker.countDown();
 
             assertTrue(afterTimedOutOperation.await(1, TimeUnit.SECONDS));
@@ -164,17 +164,17 @@ public class TimingNodeTest {
 
     @Test
     public void stateDependentOperationsAreDecidedInQueueOrder() throws Exception {
-        SerialWorker worker = new SerialWorker(4, "timing-node-test");
+        SerialExecutor executor = new SerialExecutor(4, "timing-node-test");
         TimingNode node = node(
                 new NodeId("TN-01"),
-                worker,
+                executor,
                 1000L);
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
         node.start();
         try {
-            worker.submit(() -> {
+            executor.submit(() -> {
                 blockerStarted.countDown();
                 releaseBlocker.await();
                 return null;
@@ -193,17 +193,17 @@ public class TimingNodeTest {
 
             openCaller.start();
             long queueDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
-            while (worker.queueDepth() < 1 && System.nanoTime() < queueDeadline) {
+            while (executor.queueDepth() < 1 && System.nanoTime() < queueDeadline) {
                 Thread.yield();
             }
-            assertEquals(1, worker.queueDepth());
+            assertEquals(1, executor.queueDepth());
 
             closeCaller.start();
             queueDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
-            while (worker.queueDepth() < 2 && System.nanoTime() < queueDeadline) {
+            while (executor.queueDepth() < 2 && System.nanoTime() < queueDeadline) {
                 Thread.yield();
             }
-            assertEquals(2, worker.queueDepth());
+            assertEquals(2, executor.queueDepth());
 
             releaseBlocker.countDown();
 
@@ -226,10 +226,10 @@ public class TimingNodeTest {
     @Test
     public void submissionOnlyCommandReturnsAfterAdmissionWithoutWaitingForExecution()
             throws Exception {
-        SerialWorker worker = new SerialWorker(2, "timing-node-submit-test");
+        SerialExecutor executor = new SerialExecutor(2, "timing-node-submit-test");
         TimingNode node = node(
                 new NodeId("TN-01"),
-                worker,
+                executor,
                 1000L);
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
@@ -239,7 +239,7 @@ public class TimingNodeTest {
 
         node.start();
         try {
-            worker.submit(() -> {
+            executor.submit(() -> {
                 blockerStarted.countDown();
                 releaseBlocker.await();
                 return null;
@@ -268,8 +268,8 @@ public class TimingNodeTest {
 
             CountDownLatch afterSubmittedCommand = new CountDownLatch(1);
             assertEquals(
-                    SerialWorker.AdmissionResult.ACCEPTED,
-                    worker.offer(afterSubmittedCommand::countDown));
+                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    executor.offer(afterSubmittedCommand::countDown));
             assertTrue(afterSubmittedCommand.await(1, TimeUnit.SECONDS));
 
             assertEquals(
@@ -313,12 +313,12 @@ public class TimingNodeTest {
     }
 
     /**
-     * Creates a complete node while exposing worker/timeout control only to
+     * Creates a complete node while exposing executor/timeout control only to
      * these boundary tests. Production code never uses this construction path.
      */
     private static TimingNode node(
             NodeId id,
-            SerialWorker worker,
+            SerialExecutor executor,
             long timeoutMillis) {
         TimingNodeLogic logic = new TimingNodeLogic(
                 id,
@@ -326,7 +326,7 @@ public class TimingNodeTest {
                 new DefaultTimingDataFactory(),
                 TimingNodeTest::now,
                 SystemMonotonicClock.INSTANCE);
-        return new TimingNode(logic, worker, timeoutMillis);
+        return new TimingNode(logic, executor, timeoutMillis);
     }
 
     private static TimingTimestamp now() {

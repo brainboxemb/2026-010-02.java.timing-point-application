@@ -4,15 +4,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTyp
 
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Low-allocation counters for the tag-processing path.
- *
- * <p>The hot path only increments AtomicLong values. Creating a Snapshot is a
- * pull operation for tests/engineering measurement and is not done for every
- * antenna observation or registration.</p>
- */
+/** Low-allocation cumulative counters for the tag-processing path. */
 public final class TagProcessingCounters {
     private final AtomicLong observationCount = new AtomicLong();
+    private final AtomicLong observationQueueFullCount = new AtomicLong();
+    private final AtomicLong processorNotRunningCount = new AtomicLong();
     private final AtomicLong closedBurstCount = new AtomicLong();
     private final AtomicLong mappedCount = new AtomicLong();
     private final AtomicLong unmappedCount = new AtomicLong();
@@ -23,6 +19,14 @@ public final class TagProcessingCounters {
 
     void recordObservation() {
         observationCount.incrementAndGet();
+    }
+
+    void recordObservationQueueFull() {
+        observationQueueFullCount.incrementAndGet();
+    }
+
+    void recordProcessorNotRunning() {
+        processorNotRunningCount.incrementAndGet();
     }
 
     void recordClosedBurst() {
@@ -58,10 +62,11 @@ public final class TagProcessingCounters {
         }
     }
 
-    /** Returns one immutable diagnostic view of the current cumulative counters. */
     public Snapshot snapshot() {
         return new Snapshot(
                 observationCount.get(),
+                observationQueueFullCount.get(),
+                processorNotRunningCount.get(),
                 closedBurstCount.get(),
                 mappedCount.get(),
                 unmappedCount.get(),
@@ -71,9 +76,10 @@ public final class TagProcessingCounters {
                 nodeNotRunningCount.get());
     }
 
-    /** Immutable cumulative tag-processing counter snapshot. */
     public static final class Snapshot {
         private final long observations;
+        private final long observationQueueFull;
+        private final long processorNotRunning;
         private final long closedBursts;
         private final long mapped;
         private final long unmapped;
@@ -84,6 +90,8 @@ public final class TagProcessingCounters {
 
         private Snapshot(
                 long observations,
+                long observationQueueFull,
+                long processorNotRunning,
                 long closedBursts,
                 long mapped,
                 long unmapped,
@@ -92,6 +100,8 @@ public final class TagProcessingCounters {
                 long queueFull,
                 long nodeNotRunning) {
             this.observations = observations;
+            this.observationQueueFull = observationQueueFull;
+            this.processorNotRunning = processorNotRunning;
             this.closedBursts = closedBursts;
             this.mapped = mapped;
             this.unmapped = unmapped;
@@ -103,6 +113,14 @@ public final class TagProcessingCounters {
 
         public long observations() {
             return observations;
+        }
+
+        public long observationQueueFull() {
+            return observationQueueFull;
+        }
+
+        public long processorNotRunning() {
+            return processorNotRunning;
         }
 
         public long closedBursts() {

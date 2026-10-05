@@ -9,12 +9,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.function.Supplier;
 
-/**
- * Suppresses recently accepted registrations by RegistrationId.
- *
- * <p>A duplicate window starts only after TimingNode queue admission succeeds.
- * FULL and NOT_RUNNING therefore remain retryable.</p>
- */
+/** Passive duplicate-window state owned by the TagProcessor execution lane. */
 final class RegistrationDuplicateFilter {
     enum Result {
         DUPLICATE,
@@ -25,12 +20,6 @@ final class RegistrationDuplicateFilter {
 
     private final long duplicateWindowNanos;
     private final MonotonicClock monotonicClock;
-    /*
-     * Default HashMap sizing is intentional. The useful initial capacity depends
-     * on the number of distinct accepted RegistrationIds that can still be inside
-     * the duplicate window. Use an explicit capacity only when a deployment bound
-     * or Step-5 measurement gives a defensible expected count.
-     */
     private final Map<RegistrationId, Long> acceptedRegistrations =
             new HashMap<>();
 
@@ -50,16 +39,7 @@ final class RegistrationDuplicateFilter {
         this.monotonicClock = monotonicClock;
     }
 
-    /**
-     * Checks duplicate state and performs one non-blocking TimingNode submission.
-     *
-     * <p>The lock intentionally covers both the duplicate check and queue
-     * admission. Two concurrent TagIds may map to the same RegistrationId; this
-     * makes it impossible for both callers to observe "not duplicate" before the
-     * first accepted submission is remembered. The supplied action must therefore
-     * remain the normal bounded/non-blocking TimingNode.submit operation.</p>
-     */
-    synchronized Result submitIfNew(
+    Result submitIfNew(
             RegistrationId registrationId,
             Supplier<CommandAdmission> submission) {
         if (registrationId == null) {
@@ -82,30 +62,21 @@ final class RegistrationDuplicateFilter {
         }
 
         CommandAdmission admission = submission.get();
-
-        /*
-         * Do not remember attempts that never entered the TimingNode queue. A
-         * later RFID passage must be allowed to retry after FULL/NOT_RUNNING.
-         */
         if (admission == CommandAdmission.ACCEPTED
                 && duplicateWindowNanos > 0L) {
             acceptedRegistrations.put(
                     registrationId,
                     monotonicClock.nowNanos());
         }
-
         return resultFor(admission);
     }
 
-    /**
-     * Performs periodic cleanup of expired duplicate-window entries.
-     *
-     * <p>Correct duplicate detection does not depend on cleanup timing:
-     * submitIfNew(...) still checks the current RegistrationId exactly. This
-     * periodic pass only keeps old map entries from accumulating.</p>
-     */
-    synchronized void periodic() {
+    void periodic() {
         removeOldEntriesWhenDue(monotonicClock.nowNanos());
+    }
+
+    boolean hasPendingState() {
+        return !acceptedRegistrations.isEmpty();
     }
 
     private void removeOldEntriesWhenDue(long now) {
@@ -119,12 +90,6 @@ final class RegistrationDuplicateFilter {
             return;
         }
 
-        /*
-         * Scanning the complete map on every accepted registration would turn a
-         * cheap duplicate check into O(n) hot-path work. A bounded periodic lazy
-         * cleanup is enough; the current RegistrationId is still checked exactly
-         * on every submission.
-         */
         if (now - lastCleanupNanos < duplicateWindowNanos) {
             return;
         }

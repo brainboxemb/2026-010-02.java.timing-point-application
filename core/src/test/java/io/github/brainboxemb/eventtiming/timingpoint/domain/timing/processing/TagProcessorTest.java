@@ -12,22 +12,21 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.DecryptedTagId;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.PeriodicExecutor;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.PeriodicTask;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class TagProcessorTest {
@@ -39,98 +38,70 @@ public class TagProcessorTest {
             TimingTimestamp.parse("2026-10-01T12:00:01.000000000Z");
 
     @Test
-    public void selectedObservationUsesNormalTimingNodeCommitPath()
+    public void eventCallbackOnlyQueuesAndMappingRunsOnExecutionLane()
             throws Exception {
-        RecordingStore store = new RecordingStore();
-        TimingNode node = node(store);
+        TimingNode node = node(new RecordingStore());
         FakeMonotonicClock clock = new FakeMonotonicClock();
-        ManualPeriodicExecutor periodicExecutor = new ManualPeriodicExecutor();
+        SerialScheduledExecutor executor =
+                new SerialScheduledExecutor("tp-tag-test");
+        AtomicReference<String> mapperThread = new AtomicReference<>();
         TagProcessor processor = new TagProcessor(
                 node,
-                TagProcessorTest::mapReferenceTag,
-                manualPolicy(),
+                tagId -> {
+                    mapperThread.set(Thread.currentThread().getName());
+                    return null;
+                },
+                policy(8),
                 clock,
                 new TagProcessingCounters(),
-                periodicExecutor);
-        SimulatedAntenna antenna = new SimulatedAntenna();
-        Consumer<TagObservation> listener = processor::onObservation;
-        CountDownLatch committed = new CountDownLatch(1);
-        node.timingDataCommittedEvent().subscribe(
-                data -> committed.countDown());
+                executor);
 
-        node.start();
-        node.invoke(TimingNodeCommands.open(new LocationId(24)));
         processor.start();
-        antenna.initialize();
-        antenna.observations().subscribe(listener);
-        antenna.startInventory();
         try {
-            antenna.emit(
-                    new DecryptedTagId("TAG-001"),
-                    -42,
-                    OBSERVED_AT);
-            clock.advanceNanos(100L);
-            periodicExecutor.runOnce();
+            String callbackThread = Thread.currentThread().getName();
+            processor.onObservation(observation("TAG-001", -42, OBSERVED_AT));
+            awaitLane(executor);
 
-            assertTrue(
-                    "selected tag was not committed",
-                    committed.await(2, TimeUnit.SECONDS));
-
-            assertEquals(1, store.appended.size());
-            AutomaticRegistration registration =
-                    (AutomaticRegistration) store.appended.get(0);
-            assertEquals(
-                    new RegistrationId("N-001"),
-                    registration.registrationId());
-            assertEquals(OBSERVED_AT, registration.effectiveTime());
+            assertEquals("tp-tag-test", mapperThread.get());
+            assertFalse(callbackThread.equals(mapperThread.get()));
         } finally {
-            antenna.stopInventory();
-            antenna.observations().unsubscribe(listener);
             processor.stop();
-            antenna.close();
-            node.stop();
         }
     }
 
     @Test
-    public void differentTagsForSameRegistrationShareOnePassage()
+    public void differentTagsForSameRegistrationShareOneScheduledPassage()
             throws Exception {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
         FakeMonotonicClock clock = new FakeMonotonicClock();
-        ManualPeriodicExecutor periodicExecutor = new ManualPeriodicExecutor();
+        SerialScheduledExecutor executor =
+                new SerialScheduledExecutor("tp-tag-test");
         TagProcessingCounters counters = new TagProcessingCounters();
         TagProcessor processor = new TagProcessor(
                 node,
                 tagId -> new RegistrationId("N-001"),
-                manualPolicy(),
+                policy(8),
                 clock,
                 counters,
-                periodicExecutor);
+                executor);
         CountDownLatch committed = new CountDownLatch(1);
-        node.timingDataCommittedEvent().subscribe(
-                data -> committed.countDown());
+        node.timingDataCommittedEvent().subscribe(data -> committed.countDown());
 
         node.start();
         node.invoke(TimingNodeCommands.open(new LocationId(24)));
         processor.start();
         try {
-            processor.onObservation(new TagObservation(
-                    new DecryptedTagId("TAG-A"),
-                    -60,
-                    OBSERVED_AT));
-            clock.advanceNanos(10L);
-            processor.onObservation(new TagObservation(
-                    new DecryptedTagId("TAG-B"),
-                    -30,
-                    STRONGER_OBSERVED_AT));
+            processor.onObservation(
+                    observation("TAG-A", -60, OBSERVED_AT));
+            processor.onObservation(
+                    observation("TAG-B", -30, STRONGER_OBSERVED_AT));
+            awaitLane(executor);
+
             clock.advanceNanos(100L);
-            periodicExecutor.runOnce();
 
-            assertTrue(
-                    "shared registration passage was not committed",
-                    committed.await(2, TimeUnit.SECONDS));
-
+            assertTrue(committed.await(1, TimeUnit.SECONDS));
+            awaitLane(executor);
             assertEquals(1, store.appended.size());
             AutomaticRegistration registration =
                     (AutomaticRegistration) store.appended.get(0);
@@ -153,41 +124,100 @@ public class TagProcessorTest {
     }
 
     @Test
-    public void unmappedObservationNeverOpensPassage() {
-        RecordingStore store = new RecordingStore();
-        TimingNode node = node(store);
+    public void boundedObservationQueueReportsOverload() throws Exception {
+        TimingNode node = node(new RecordingStore());
         FakeMonotonicClock clock = new FakeMonotonicClock();
-        ManualPeriodicExecutor periodicExecutor = new ManualPeriodicExecutor();
+        SerialScheduledExecutor executor =
+                new SerialScheduledExecutor("tp-tag-test");
         TagProcessingCounters counters = new TagProcessingCounters();
         TagProcessor processor = new TagProcessor(
                 node,
-                tagId -> null,
-                manualPolicy(),
+                TagProcessorTest::mapReferenceTag,
+                policy(1),
                 clock,
                 counters,
-                periodicExecutor);
+                executor);
+        CountDownLatch blockerStarted = new CountDownLatch(1);
+        CountDownLatch releaseBlocker = new CountDownLatch(1);
+
         processor.start();
+        try {
+            assertTrue(executor.execute(() -> {
+                blockerStarted.countDown();
+                await(releaseBlocker);
+            }));
+            assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
-        processor.onObservation(
-                new TagObservation(
-                        new DecryptedTagId("TAG-UNKNOWN"),
-                        -30,
-                        OBSERVED_AT));
+            processor.onObservation(
+                    observation("TAG-001", -42, OBSERVED_AT));
+            processor.onObservation(
+                    observation("TAG-002", -41, OBSERVED_AT));
 
-        TagProcessingCounters.Snapshot snapshot = counters.snapshot();
-        assertEquals(1L, snapshot.observations());
-        assertEquals(1L, snapshot.unmapped());
-        assertEquals(0L, snapshot.closedBursts());
-        assertTrue(store.appended.isEmpty());
-        processor.stop();
+            assertEquals(
+                    1L,
+                    counters.snapshot().observationQueueFull());
+        } finally {
+            releaseBlocker.countDown();
+            processor.stop();
+        }
     }
 
-    private static TagProcessingPolicy manualPolicy() {
+    @Test
+    public void stopDrainsAcceptedInputWithoutForceClosingPassage()
+            throws Exception {
+        RecordingStore store = new RecordingStore();
+        TimingNode node = node(store);
+        FakeMonotonicClock clock = new FakeMonotonicClock();
+        SerialScheduledExecutor executor =
+                new SerialScheduledExecutor("tp-tag-test");
+        TagProcessingCounters counters = new TagProcessingCounters();
+        TagProcessor processor = new TagProcessor(
+                node,
+                TagProcessorTest::mapReferenceTag,
+                policy(4),
+                clock,
+                counters,
+                executor);
+        CountDownLatch blockerStarted = new CountDownLatch(1);
+        CountDownLatch releaseBlocker = new CountDownLatch(1);
+
+        processor.start();
+        assertTrue(executor.execute(() -> {
+            blockerStarted.countDown();
+            await(releaseBlocker);
+        }));
+        assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
+
+        processor.onObservation(
+                observation("TAG-001", -42, OBSERVED_AT));
+
+        Thread stopper = new Thread(processor::stop);
+        stopper.start();
+        releaseBlocker.countDown();
+        stopper.join(1000);
+
+        assertFalse(stopper.isAlive());
+        assertEquals(1L, counters.snapshot().mapped());
+        assertTrue(store.appended.isEmpty());
+    }
+
+    private static TagProcessingPolicy policy(int queueCapacity) {
         return new TagProcessingPolicy(
                 Duration.ofNanos(100L),
                 Duration.ofNanos(500L),
                 Duration.ofNanos(1000L),
-                Duration.ofDays(1));
+                Duration.ofMillis(5L),
+                queueCapacity);
+    }
+
+    private static TagObservation observation(
+            String tagId,
+            int rssi,
+            TimingTimestamp observedAt) {
+        return new TagObservation(
+                new DecryptedTagId(tagId),
+                rssi,
+                observedAt);
     }
 
     private static RegistrationId mapReferenceTag(DecryptedTagId tagId) {
@@ -196,6 +226,22 @@ public class TagProcessorTest {
             return null;
         }
         return new RegistrationId("N-" + value.substring(4));
+    }
+
+    private static void awaitLane(SerialScheduledExecutor executor)
+            throws Exception {
+        CountDownLatch barrier = new CountDownLatch(1);
+        assertTrue(executor.execute(barrier::countDown));
+        assertTrue(barrier.await(1, TimeUnit.SECONDS));
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            latch.await();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("interrupted while awaiting test", ex);
+        }
     }
 
     private static TimingNode node(RecordingStore store) {
@@ -208,7 +254,7 @@ public class TagProcessorTest {
     }
 
     private static final class FakeMonotonicClock implements MonotonicClock {
-        private long now;
+        private volatile long now;
 
         @Override
         public long nowNanos() {
@@ -217,40 +263,6 @@ public class TagProcessorTest {
 
         private void advanceNanos(long nanos) {
             now += nanos;
-        }
-    }
-
-    private static final class ManualPeriodicExecutor
-            implements PeriodicExecutor {
-        private Runnable task;
-        private boolean active;
-
-        @Override
-        public PeriodicTask scheduleWithFixedDelay(
-                Runnable task,
-                long delayNanos) {
-            if (task == null) {
-                throw new IllegalArgumentException("task must not be null");
-            }
-            if (delayNanos < 1L) {
-                throw new IllegalArgumentException(
-                        "delayNanos must be positive");
-            }
-            if (active) {
-                throw new IllegalStateException(
-                        "periodic task is already active");
-            }
-            this.task = task;
-            active = true;
-            return () -> active = false;
-        }
-
-        private void runOnce() {
-            if (!active) {
-                throw new IllegalStateException(
-                        "periodic task is not active");
-            }
-            task.run();
         }
     }
 

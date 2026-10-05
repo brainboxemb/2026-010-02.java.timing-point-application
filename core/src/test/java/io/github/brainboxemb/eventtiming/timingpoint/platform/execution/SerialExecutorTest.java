@@ -16,34 +16,34 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class SerialWorkerTest {
+public class SerialExecutorTest {
     @Test
     public void rejectsWorkBeforeStartAndAfterStop() {
-        SerialWorker worker = new SerialWorker(1, "serial-worker-test");
+        SerialExecutor executor = new SerialExecutor(1, "serial-executor-test");
 
         assertEquals(
-                SerialWorker.AdmissionResult.NOT_RUNNING,
-                worker.offer(() -> { }));
+                SerialExecutor.AdmissionResult.NOT_RUNNING,
+                executor.offer(() -> { }));
 
-        worker.start();
-        worker.close();
+        executor.start();
+        executor.close();
 
-        assertEquals(SerialWorker.State.STOPPED, worker.state());
+        assertEquals(SerialExecutor.State.STOPPED, executor.state());
         assertEquals(
-                SerialWorker.AdmissionResult.NOT_RUNNING,
-                worker.offer(() -> { }));
+                SerialExecutor.AdmissionResult.NOT_RUNNING,
+                executor.offer(() -> { }));
     }
 
     @Test
     public void processesAcceptedWorkInFifoOrder() throws Exception {
-        SerialWorker worker = new SerialWorker(4, "serial-worker-test");
+        SerialExecutor executor = new SerialExecutor(4, "serial-executor-test");
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
         List<Integer> order = Collections.synchronizedList(new ArrayList<>());
 
-        worker.start();
+        executor.start();
         try {
-            SerialWorker.SubmitResult<Integer> first = worker.submit(() -> {
+            SerialExecutor.SubmitResult<Integer> first = executor.submit(() -> {
                 firstStarted.countDown();
                 releaseFirst.await();
                 order.add(1);
@@ -51,7 +51,7 @@ public class SerialWorkerTest {
             });
             assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
 
-            SerialWorker.SubmitResult<Integer> second = worker.submit(() -> {
+            SerialExecutor.SubmitResult<Integer> second = executor.submit(() -> {
                 order.add(2);
                 return 20;
             });
@@ -62,19 +62,19 @@ public class SerialWorkerTest {
             assertEquals(Arrays.asList(1, 2), order);
         } finally {
             releaseFirst.countDown();
-            worker.close();
+            executor.close();
         }
     }
 
     @Test
     public void reportsFullWhileCapacityIsOccupied() throws Exception {
-        SerialWorker worker = new SerialWorker(1, "serial-worker-test");
+        SerialExecutor executor = new SerialExecutor(1, "serial-executor-test");
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
 
-        worker.start();
+        executor.start();
         try {
-            worker.submit(() -> {
+            executor.submit(() -> {
                 firstStarted.countDown();
                 releaseFirst.await();
                 return null;
@@ -82,27 +82,27 @@ public class SerialWorkerTest {
             assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
 
             assertEquals(
-                    SerialWorker.AdmissionResult.ACCEPTED,
-                    worker.offer(() -> { }));
+                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    executor.offer(() -> { }));
             assertEquals(
-                    SerialWorker.AdmissionResult.FULL,
-                    worker.offer(() -> { }));
-            assertTrue(worker.highWaterMark() >= 1);
+                    SerialExecutor.AdmissionResult.FULL,
+                    executor.offer(() -> { }));
+            assertTrue(executor.highWaterMark() >= 1);
         } finally {
             releaseFirst.countDown();
-            worker.close();
+            executor.close();
         }
     }
 
     @Test
     public void closeDrainsAlreadyAcceptedWork() throws Exception {
-        SerialWorker worker = new SerialWorker(2, "serial-worker-test");
+        SerialExecutor executor = new SerialExecutor(2, "serial-executor-test");
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
         CountDownLatch secondDone = new CountDownLatch(1);
 
-        worker.start();
-        worker.offer(() -> {
+        executor.start();
+        executor.offer(() -> {
             firstStarted.countDown();
             try {
                 releaseFirst.await();
@@ -111,9 +111,9 @@ public class SerialWorkerTest {
             }
         });
         assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
-        worker.offer(secondDone::countDown);
+        executor.offer(secondDone::countDown);
 
-        Thread closer = new Thread(worker::close);
+        Thread closer = new Thread(executor::close);
         closer.start();
 
         assertFalse(secondDone.await(50, TimeUnit.MILLISECONDS));
@@ -122,18 +122,18 @@ public class SerialWorkerTest {
         closer.join(1000);
         assertFalse(closer.isAlive());
         assertTrue(secondDone.await(1, TimeUnit.SECONDS));
-        assertEquals(SerialWorker.State.STOPPED, worker.state());
+        assertEquals(SerialExecutor.State.STOPPED, executor.state());
     }
 
     @Test
     public void ordinaryTaskFailureDoesNotStopLaterWork() throws Exception {
-        SerialWorker worker = new SerialWorker(2, "serial-worker-test");
-        worker.start();
+        SerialExecutor executor = new SerialExecutor(2, "serial-executor-test");
+        executor.start();
         try {
-            SerialWorker.SubmitResult<Integer> failing = worker.submit(() -> {
+            SerialExecutor.SubmitResult<Integer> failing = executor.submit(() -> {
                 throw new IllegalStateException("expected");
             });
-            SerialWorker.SubmitResult<Integer> next = worker.submit(() -> 42);
+            SerialExecutor.SubmitResult<Integer> next = executor.submit(() -> 42);
 
             try {
                 failing.futureResult().get(1, TimeUnit.SECONDS);
@@ -143,26 +143,26 @@ public class SerialWorkerTest {
             }
 
             assertEquals(Integer.valueOf(42), next.futureResult().get(1, TimeUnit.SECONDS));
-            assertEquals(SerialWorker.State.RUNNING, worker.state());
+            assertEquals(SerialExecutor.State.RUNNING, executor.state());
         } finally {
-            worker.close();
+            executor.close();
         }
     }
 
     @Test
     public void recordsLowAllocationRuntimeCountersAndDurations() throws Exception {
-        SerialWorker worker = new SerialWorker(1, "serial-worker-metrics-test");
+        SerialExecutor executor = new SerialExecutor(1, "serial-executor-metrics-test");
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
         CountDownLatch queuedDone = new CountDownLatch(1);
 
         assertEquals(
-                SerialWorker.AdmissionResult.NOT_RUNNING,
-                worker.offer(() -> { }));
+                SerialExecutor.AdmissionResult.NOT_RUNNING,
+                executor.offer(() -> { }));
 
-        worker.start();
+        executor.start();
         try {
-            worker.offer(() -> {
+            executor.offer(() -> {
                 firstStarted.countDown();
                 try {
                     releaseFirst.await();
@@ -173,46 +173,46 @@ public class SerialWorkerTest {
             assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
 
             assertEquals(
-                    SerialWorker.AdmissionResult.ACCEPTED,
-                    worker.offer(queuedDone::countDown));
+                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    executor.offer(queuedDone::countDown));
             assertEquals(
-                    SerialWorker.AdmissionResult.FULL,
-                    worker.offer(() -> { }));
+                    SerialExecutor.AdmissionResult.FULL,
+                    executor.offer(() -> { }));
 
             Thread.sleep(10L);
             releaseFirst.countDown();
             assertTrue(queuedDone.await(1, TimeUnit.SECONDS));
         } finally {
             releaseFirst.countDown();
-            worker.close();
+            executor.close();
         }
 
-        assertEquals(2L, worker.acceptedCount());
-        assertEquals(1L, worker.fullCount());
-        assertEquals(1L, worker.notRunningCount());
-        assertEquals(2L, worker.completedCount());
-        assertTrue(worker.highWaterMark() >= 1);
-        assertTrue(worker.maxQueueWaitNanos() > 0L);
-        assertTrue(worker.totalQueueWaitNanos() >= worker.maxQueueWaitNanos());
-        assertTrue(worker.maxExecutionNanos() > 0L);
-        assertTrue(worker.totalExecutionNanos() >= worker.maxExecutionNanos());
-        assertTrue(worker.threadCpuTimeNanos() >= -1L);
+        assertEquals(2L, executor.acceptedCount());
+        assertEquals(1L, executor.fullCount());
+        assertEquals(1L, executor.notRunningCount());
+        assertEquals(2L, executor.completedCount());
+        assertTrue(executor.highWaterMark() >= 1);
+        assertTrue(executor.maxQueueWaitNanos() > 0L);
+        assertTrue(executor.totalQueueWaitNanos() >= executor.maxQueueWaitNanos());
+        assertTrue(executor.maxExecutionNanos() > 0L);
+        assertTrue(executor.totalExecutionNanos() >= executor.maxExecutionNanos());
+        assertTrue(executor.threadCpuTimeNanos() >= -1L);
     }
 
     @Test
     public void fatalErrorFaultsWorkerAndCancelsQueuedWork() throws Exception {
-        SerialWorker worker = new SerialWorker(2, "serial-worker-test");
+        SerialExecutor executor = new SerialExecutor(2, "serial-executor-test");
         CountDownLatch fatalStarted = new CountDownLatch(1);
         CountDownLatch releaseFatal = new CountDownLatch(1);
-        worker.start();
+        executor.start();
 
-        SerialWorker.SubmitResult<Void> fatal = worker.submit(() -> {
+        SerialExecutor.SubmitResult<Void> fatal = executor.submit(() -> {
             fatalStarted.countDown();
             releaseFatal.await();
             throw new AssertionError("fatal");
         });
         assertTrue(fatalStarted.await(1, TimeUnit.SECONDS));
-        SerialWorker.SubmitResult<Integer> queued = worker.submit(() -> 42);
+        SerialExecutor.SubmitResult<Integer> queued = executor.submit(() -> 42);
         releaseFatal.countDown();
 
         try {
@@ -223,17 +223,17 @@ public class SerialWorkerTest {
         }
 
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
-        while (worker.state() != SerialWorker.State.FAILED && System.nanoTime() < deadline) {
+        while (executor.state() != SerialExecutor.State.FAILED && System.nanoTime() < deadline) {
             Thread.yield();
         }
-        assertEquals(SerialWorker.State.FAILED, worker.state());
-        assertTrue(worker.failure() instanceof AssertionError);
+        assertEquals(SerialExecutor.State.FAILED, executor.state());
+        assertTrue(executor.failure() instanceof AssertionError);
 
         try {
             queued.futureResult().get();
             fail("expected queued work to be cancelled");
         } catch (CancellationException expected) {
-            // Expected after worker fault.
+            // Expected after executor fault.
         }
     }
 }
