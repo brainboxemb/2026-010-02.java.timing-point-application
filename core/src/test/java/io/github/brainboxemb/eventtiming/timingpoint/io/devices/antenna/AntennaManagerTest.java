@@ -46,7 +46,7 @@ public class AntennaManagerTest {
         try {
             manager.start();
             assertEquals(
-                    AntennaManager.State.RUNNING,
+                    State.RUNNING,
                     manager.state());
             assertFalse(first.inventoryRunning());
             assertFalse(second.inventoryRunning());
@@ -61,7 +61,7 @@ public class AntennaManagerTest {
 
             manager.close();
             assertEquals(
-                    AntennaManager.State.STOPPED,
+                    State.STOPPED,
                     manager.state());
 
             assertEquals(
@@ -102,7 +102,7 @@ public class AntennaManagerTest {
             manager.start();
 
             assertEquals(
-                    AntennaManager.State.DEGRADED,
+                    State.DEGRADED,
                     manager.state());
             assertEquals(
                     AntennaState.READY,
@@ -116,7 +116,7 @@ public class AntennaManagerTest {
             assertTrue(healthy.inventoryRunning());
             assertFalse(failed.inventoryRunning());
             assertEquals(
-                    AntennaManager.State.DEGRADED,
+                    State.DEGRADED,
                     manager.state());
         } finally {
             manager.close();
@@ -146,7 +146,7 @@ public class AntennaManagerTest {
                     FailureReason.OVERLOADED,
                     expected.reason());
             assertEquals(
-                    AntennaManager.State.FAILED,
+                    State.FAILED,
                     manager.state());
         }
     }
@@ -170,7 +170,7 @@ public class AntennaManagerTest {
                         FailureReason.TIMEOUT,
                         expected.reason());
                 assertEquals(
-                        AntennaManager.State.FAILED,
+                        State.FAILED,
                         manager.state());
             }
         } finally {
