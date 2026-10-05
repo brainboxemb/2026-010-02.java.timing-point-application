@@ -269,8 +269,8 @@ public class TimingNodeTest {
             CountDownLatch afterOfferedCommand = new CountDownLatch(1);
             assertEquals(
                     SerialExecutor.AdmissionResult.ACCEPTED,
-                    executor.offer(afterSubmittedCommand::countDown));
-            assertTrue(afterSubmittedCommand.await(1, TimeUnit.SECONDS));
+                    executor.offer(afterOfferedCommand::countDown));
+            assertTrue(afterOfferedCommand.await(1, TimeUnit.SECONDS));
 
             assertEquals(
                     new LocationId(24),
