@@ -6,10 +6,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialSc
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -67,8 +65,12 @@ final class RuntimeExecutors implements AutoCloseable {
     private final ThreadPoolExecutor timingNodeWorker;
     private final ScheduledThreadPoolExecutor tagProcessorWorker;
 
-    private final ThreadPoolExecutor sharedIoExecutor;
-    private final ScheduledThreadPoolExecutor antennaScheduler;
+    /**
+     * Shared physical I/O worker. It is scheduled-capable because AntennaManager
+     * needs delayed multiplex rotation, while normal provider calls use the same
+     * worker as immediate tasks.
+     */
+    private final ScheduledThreadPoolExecutor sharedIoWorker;
 
     private boolean started;
     private boolean closed;
@@ -100,13 +102,8 @@ final class RuntimeExecutors implements AutoCloseable {
         tagProcessorWorker.setRemoveOnCancelPolicy(true);
 
         AtomicInteger ioWorkerNumber = new AtomicInteger();
-        sharedIoExecutor = new ThreadPoolExecutor(
+        sharedIoWorker = new ScheduledThreadPoolExecutor(
                 SHARED_IO_WORKERS,
-                SHARED_IO_WORKERS,
-                0L,
-                TimeUnit.MILLISECONDS,
-                new ArrayBlockingQueue<Runnable>(
-                        SHARED_IO_QUEUE_CAPACITY),
                 runnable -> {
                     Thread thread = new Thread(
                             runnable,
@@ -114,19 +111,8 @@ final class RuntimeExecutors implements AutoCloseable {
                                     + ioWorkerNumber.incrementAndGet());
                     thread.setPriority(Thread.NORM_PRIORITY);
                     return thread;
-                },
-                new ThreadPoolExecutor.AbortPolicy());
-
-        antennaScheduler = new ScheduledThreadPoolExecutor(
-                1,
-                runnable -> {
-                    Thread thread = new Thread(
-                            runnable,
-                            "tp-io-antenna-scheduler");
-                    thread.setPriority(Thread.NORM_PRIORITY);
-                    return thread;
                 });
-        antennaScheduler.setRemoveOnCancelPolicy(true);
+        sharedIoWorker.setRemoveOnCancelPolicy(true);
     }
 
     /**
@@ -147,8 +133,7 @@ final class RuntimeExecutors implements AutoCloseable {
 
         timingNodeWorker.prestartAllCoreThreads();
         tagProcessorWorker.prestartAllCoreThreads();
-        sharedIoExecutor.prestartAllCoreThreads();
-        antennaScheduler.prestartAllCoreThreads();
+        sharedIoWorker.prestartAllCoreThreads();
         started = true;
     }
 
@@ -189,24 +174,19 @@ final class RuntimeExecutors implements AutoCloseable {
     }
 
     /**
-     * Creates the AntennaManager logical control lane on the shared blocking-I/O pool.
+     * Creates one AntennaManager control lane on the shared scheduled I/O worker.
+     *
+     * <p>The manager sees only the project SerialScheduledExecutor abstraction.
+     * The JDK ScheduledExecutorService remains a Runtime implementation detail.</p>
      */
-    synchronized SerialExecutor createAntennaControlExecutor() {
-        SerialExecutor antennaControl =
-                new SerialExecutor(
+    synchronized SerialScheduledExecutor createAntennaControlExecutor() {
+        SerialScheduledExecutor antennaControl =
+                new SerialScheduledExecutor(
                         ANTENNA_CONTROL_QUEUE_CAPACITY,
                         "AntennaManager",
-                        sharedIoExecutor);
+                        sharedIoWorker);
         serialLanes.add(antennaControl);
         return antennaControl;
-    }
-
-    ExecutorService sharedIoExecutor() {
-        return sharedIoExecutor;
-    }
-
-    ScheduledExecutorService antennaScheduler() {
-        return antennaScheduler;
     }
 
     @Override
@@ -233,13 +213,11 @@ final class RuntimeExecutors implements AutoCloseable {
 
         tagProcessorWorker.shutdownNow();
         timingNodeWorker.shutdownNow();
-        antennaScheduler.shutdownNow();
-        sharedIoExecutor.shutdownNow();
+        sharedIoWorker.shutdownNow();
 
         awaitTermination(tagProcessorWorker);
         awaitTermination(timingNodeWorker);
-        awaitTermination(antennaScheduler);
-        awaitTermination(sharedIoExecutor);
+        awaitTermination(sharedIoWorker);
     }
 
     private static void awaitTermination(
