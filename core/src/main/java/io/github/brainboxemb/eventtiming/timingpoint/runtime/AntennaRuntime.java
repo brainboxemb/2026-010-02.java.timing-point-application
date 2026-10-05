@@ -60,6 +60,11 @@ final class AntennaRuntime implements AutoCloseable {
             antennaManager.start();
             started = true;
         } catch (RuntimeException ex) {
+            try {
+                antennaManager.close();
+            } catch (RuntimeException ignored) {
+                // Preserve the startup failure.
+            }
             if (subscribed) {
                 unsubscribeAll();
             }
@@ -130,15 +135,14 @@ final class AntennaRuntime implements AutoCloseable {
     private void shutdownSharedIo() {
         sharedIoExecutor.shutdown();
         boolean interrupted = false;
-        while (!sharedIoExecutor.isTerminated()) {
-            try {
-                if (!sharedIoExecutor.awaitTermination(100L, TimeUnit.MILLISECONDS)) {
-                    continue;
-                }
-            } catch (InterruptedException ex) {
-                interrupted = true;
+        try {
+            if (!sharedIoExecutor.awaitTermination(2L, TimeUnit.SECONDS)) {
                 sharedIoExecutor.shutdownNow();
+                sharedIoExecutor.awaitTermination(2L, TimeUnit.SECONDS);
             }
+        } catch (InterruptedException ex) {
+            interrupted = true;
+            sharedIoExecutor.shutdownNow();
         }
         if (interrupted) {
             Thread.currentThread().interrupt();
