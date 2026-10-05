@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replace all-or-nothing antenna startup with independent per-antenna health/lifecycle, optional external power control, TimingNode-driven inventory activation and mutual-exclusion inventory multiplexing; extend the simulated antenna path with power and injected-failure behaviour.
+
 - Correct configuration package ownership: move generic typed configuration mechanics to `infra.configuration`, move the concrete running `ApplicationConfiguration` tree to `runtime.configuration`, and stop exposing the writable runtime tree directly from `Application`.
 
 - Introduce central typed `ApplicationConfiguration` with read-only/dynamic configuration views, compiled `TagProcessingPolicy` defaults, runtime override/clear notifications, startup-only queue-capacity protection, and live TagProcessor policy consumption without coupling policy to antenna I/O composition.
