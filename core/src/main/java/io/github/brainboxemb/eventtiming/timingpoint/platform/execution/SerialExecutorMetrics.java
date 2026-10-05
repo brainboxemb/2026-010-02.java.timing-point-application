@@ -1,7 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.ThreadMXBean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntSupplier;
@@ -15,8 +13,6 @@ import java.util.function.IntSupplier;
  */
 public final class SerialExecutorMetrics {
     private final IntSupplier queueDepthSupplier;
-    private final boolean workerCpuTimeAttributable;
-
     private final AtomicInteger highWaterMark = new AtomicInteger();
     private final AtomicLong acceptedCount = new AtomicLong();
     private final AtomicLong fullCount = new AtomicLong();
@@ -26,22 +22,14 @@ public final class SerialExecutorMetrics {
     private final AtomicLong maxQueueWaitNanos = new AtomicLong();
     private final AtomicLong totalExecutionNanos = new AtomicLong();
     private final AtomicLong maxExecutionNanos = new AtomicLong();
-    private volatile Thread standaloneWorkerThread;
 
     SerialExecutorMetrics(
-            IntSupplier queueDepthSupplier,
-            boolean workerCpuTimeAttributable) {
+            IntSupplier queueDepthSupplier) {
         if (queueDepthSupplier == null) {
             throw new IllegalArgumentException(
                     "queueDepthSupplier must not be null");
         }
         this.queueDepthSupplier = queueDepthSupplier;
-        this.workerCpuTimeAttributable =
-                workerCpuTimeAttributable;
-    }
-
-    void recordStandaloneWorkerThread(Thread thread) {
-        standaloneWorkerThread = thread;
     }
 
     void recordAccepted(int queueDepth) {
@@ -82,7 +70,7 @@ public final class SerialExecutorMetrics {
                 maxQueueWaitNanos.get(),
                 totalExecutionNanos.get(),
                 maxExecutionNanos.get(),
-                workerThreadCpuTimeNanos());
+                -1L);
     }
 
     private static void updateMaximum(
@@ -103,32 +91,6 @@ public final class SerialExecutorMetrics {
                 && !maximum.compareAndSet(current, candidate)) {
             current = maximum.get();
         }
-    }
-
-    /**
-     * CPU time is attributable only when the lane owns its physical worker.
-     *
-     * <p>For a lane on a shared role executor, worker CPU time belongs to the
-     * shared executor rather than to one lane and is therefore unavailable.</p>
-     */
-    private long workerThreadCpuTimeNanos() {
-        if (!workerCpuTimeAttributable) {
-            return -1L;
-        }
-        Thread worker = standaloneWorkerThread;
-        if (worker == null) {
-            return -1L;
-        }
-
-        ThreadMXBean bean =
-                ManagementFactory.getThreadMXBean();
-        if (!bean.isThreadCpuTimeSupported()
-                || !bean.isThreadCpuTimeEnabled()) {
-            return -1L;
-        }
-        long cpuTime =
-                bean.getThreadCpuTime(worker.getId());
-        return cpuTime < 0L ? -1L : cpuTime;
     }
 
     /** Immutable snapshot returned to diagnostic/engineering readers. */
