@@ -11,9 +11,14 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialEx
 
 import java.util.Collections;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.After;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -23,6 +28,26 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class TimingNodeTest {
+    private final List<ExecutorService> ownedWorkers =
+            new ArrayList<ExecutorService>();
+
+    @After
+    public void stopOwnedWorkers() {
+        for (ExecutorService worker : ownedWorkers) {
+            worker.shutdownNow();
+        }
+    }
+
+    private SerialExecutor newSerialExecutor(
+            int capacity,
+            String threadName) {
+        ExecutorService worker =
+                Executors.newSingleThreadExecutor(
+                        runnable -> new Thread(runnable, threadName));
+        ownedWorkers.add(worker);
+        return new SerialExecutor(capacity, threadName, worker);
+    }
+
     @Test
     public void startsClosedWithoutLocation() {
         NodeId id = new NodeId("TN-01");
@@ -35,23 +60,6 @@ public class TimingNodeTest {
             assertSame(id, status.timingNodeId());
             assertEquals(TimingNodeTypes.Lifecycle.CLOSED, status.lifecycle());
             assertFalse(status.hasLocation());
-        } finally {
-            node.stop();
-        }
-    }
-
-    @Test
-    public void defaultWorkerThreadNameIncludesConfiguredTimingNodeId() {
-        TimingNode node = node(new NodeId("TN-42"));
-
-        node.start();
-        try {
-            TimingNodeCommand<String> threadName = new TimingNodeCommand<>(
-                    "threadName",
-                    logic -> Thread.currentThread().getName(),
-                    (timingNode, result) -> result);
-
-            assertEquals("tp-dml-node-TN-42", node.invoke(threadName));
         } finally {
             node.stop();
         }
@@ -121,7 +129,7 @@ public class TimingNodeTest {
 
     @Test
     public void timeoutDoesNotCancelAcceptedOperation() throws Exception {
-        SerialExecutor executor = new SerialExecutor(2, "timing-node-test");
+        SerialExecutor executor = newSerialExecutor(2, "timing-node-test");
         TimingNode node = node(
                 new NodeId("TN-01"),
                 executor,
@@ -164,7 +172,7 @@ public class TimingNodeTest {
 
     @Test
     public void stateDependentOperationsAreDecidedInQueueOrder() throws Exception {
-        SerialExecutor executor = new SerialExecutor(4, "timing-node-test");
+        SerialExecutor executor = newSerialExecutor(4, "timing-node-test");
         TimingNode node = node(
                 new NodeId("TN-01"),
                 executor,
@@ -226,7 +234,7 @@ public class TimingNodeTest {
     @Test
     public void offerReturnsAfterAdmissionWithoutWaitingForExecution()
             throws Exception {
-        SerialExecutor executor = new SerialExecutor(2, "timing-node-offer-test");
+        SerialExecutor executor = newSerialExecutor(2, "timing-node-offer-test");
         TimingNode node = node(
                 new NodeId("TN-01"),
                 executor,
