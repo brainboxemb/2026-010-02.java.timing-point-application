@@ -8,7 +8,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -155,7 +154,10 @@ public final class AntennaManager implements AutoCloseable {
     }
 
     /**
-     * Returns the event emitted when the addressed antenna observes a tag.
+     * Returns the subscription-only event for one configured antenna.
+     *
+     * <p>This accessor is intended for composition-time wiring and may be called
+     * before {@link #start()}. The concrete Antenna remains owned by this manager.</p>
      */
     public EventSource<TagObservation> tagObservedEvent(
             AntennaId antennaId) {
