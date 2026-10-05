@@ -31,7 +31,6 @@ final class RuntimeExecutors implements AutoCloseable {
     static final int ANTENNA_CONTROL_QUEUE_CAPACITY = 8;
 
     private static final int SHARED_IO_WORKERS = 2;
-    private static final int SHARED_IO_QUEUE_CAPACITY = 16;
 
     static final class TimingNodeExecutors {
         private final SerialExecutor timingNode;
