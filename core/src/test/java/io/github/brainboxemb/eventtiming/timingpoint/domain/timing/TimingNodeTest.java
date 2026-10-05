@@ -248,7 +248,7 @@ public class TimingNodeTest {
 
             Thread producer = new Thread(() -> {
                 admission[0] =
-                        node.submit(
+                        node.offer(
                                 TimingNodeCommands.open(
                                         new LocationId(24)));
                 producerReturned.countDown();
@@ -256,7 +256,7 @@ public class TimingNodeTest {
             producer.start();
 
             assertTrue(
-                    "submission-only producer must not wait for command execution",
+                    "offer-only producer must not wait for command execution",
                     producerReturned.await(250, TimeUnit.MILLISECONDS));
             assertEquals(
                     TimingNodeTypes.CommandAdmission.ACCEPTED,
