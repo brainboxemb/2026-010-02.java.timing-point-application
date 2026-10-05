@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.app;
 
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.YamlLoader;
 
@@ -46,6 +47,9 @@ public class ExampleConfigurationTest {
         assertNotNull(config.presentation().api());
         assertNotNull(config.logging());
         assertNotNull(config.loggingServer());
+        assertEquals(
+                TagProcessingPolicy.defaults(),
+                config.tagProcessingPolicy());
     }
 
     @Test(expected = FileAlreadyExistsException.class)

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Map the current single-TimingNode YAML subset through the IF-11 `timingSystems -> timingNodes -> tagProcessing` hierarchy, apply partial TagProcessingPolicy startup overrides over compiled defaults, and keep invalid policy values rejected before composition.
+
 - Split SerialExecutor and SerialScheduledExecutor measurement state into dedicated metrics classes; make both classes pure logical lanes on externally owned workers, removing standalone/private-worker modes and keeping physical worker construction/shutdown in composition/test owners.
 
 - Share TimingNode and TagProcessor physical workers by runtime role while keeping per-node bounded serial lanes; worker thread names now describe the shared role rather than a specific TimingNode.

@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime.config;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingConfig;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingFileConfig;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevel;
@@ -8,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.loggingserver.Logging
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -28,7 +30,15 @@ import org.yaml.snakeyaml.error.YAMLException;
  * YAML utility.</p>
  */
 public final class YamlLoader {
+    private static final String TIMING_SYSTEMS = "timingSystems";
+    private static final String TIMING_NODES = "timingNodes";
     private static final String TIMING_NODE_ID = "timingNodeId";
+    private static final String TAG_PROCESSING = "tagProcessing";
+    private static final String QUIET_TIMEOUT_MILLIS = "quietTimeoutMillis";
+    private static final String MAX_BURST_DURATION_MILLIS = "maxBurstDurationMillis";
+    private static final String DUPLICATE_WINDOW_MILLIS = "duplicateWindowMillis";
+    private static final String SWEEP_CADENCE_MILLIS = "sweepCadenceMillis";
+    private static final String OBSERVATION_QUEUE_CAPACITY = "observationQueueCapacity";
     private static final String PRESENTATION = "presentation";
     private static final String IO = "io";
     private static final String STORAGE = "storage";
@@ -67,21 +77,223 @@ public final class YamlLoader {
         }
 
         Map<?, ?> root = requireMapping(document, "configuration root");
-        rejectUnknownFields(root, "configuration root", TIMING_NODE_ID, PRESENTATION, LOGGING, IO);
+        rejectUnknownFields(
+                root,
+                "configuration root",
+                TIMING_SYSTEMS,
+                PRESENTATION,
+                LOGGING,
+                IO);
 
-        if (!root.containsKey(TIMING_NODE_ID)) {
-            throw new IllegalArgumentException(
-                    "Missing required configuration field: " + TIMING_NODE_ID);
-        }
+        TimingNodeStartup timingNode =
+                mapSingleTimingNode(root.get(TIMING_SYSTEMS));
 
-        NodeId timingNodeId = new NodeId(
-                requireString(root.get(TIMING_NODE_ID), TIMING_NODE_ID));
         return new Config(
-                timingNodeId,
+                timingNode.timingNodeId,
                 mapPresentation(root.get(PRESENTATION)),
                 mapLogging(root.get(LOGGING)),
                 mapLoggingLive(root.get(LOGGING)),
-                mapTimingDataPath(root.get(IO)));
+                mapTimingDataPath(root.get(IO)),
+                timingNode.tagProcessingPolicy);
+    }
+
+    /**
+     * Maps the current single-TimingNode executable subset from the canonical
+     * IF-11 ownership hierarchy.
+     */
+    private static TimingNodeStartup mapSingleTimingNode(
+            Object rawTimingSystems) {
+        if (rawTimingSystems == null) {
+            throw new IllegalArgumentException(
+                    "Missing required configuration field: " + TIMING_SYSTEMS);
+        }
+
+        Map<?, ?> timingSystems =
+                requireMapping(rawTimingSystems, TIMING_SYSTEMS);
+        String timingSystemKey =
+                requireSingleMappingKey(timingSystems, TIMING_SYSTEMS);
+        String timingSystemField =
+                TIMING_SYSTEMS + "." + timingSystemKey;
+        Map<?, ?> timingSystem =
+                requireMapping(
+                        timingSystems.get(timingSystemKey),
+                        timingSystemField);
+        rejectUnknownFields(
+                timingSystem,
+                timingSystemField,
+                TIMING_NODES);
+
+        if (!timingSystem.containsKey(TIMING_NODES)) {
+            throw new IllegalArgumentException(
+                    "Missing required configuration field: "
+                            + timingSystemField + "." + TIMING_NODES);
+        }
+
+        String timingNodesField =
+                timingSystemField + "." + TIMING_NODES;
+        Map<?, ?> timingNodes =
+                requireMapping(
+                        timingSystem.get(TIMING_NODES),
+                        timingNodesField);
+        String timingNodeKey =
+                requireSingleMappingKey(timingNodes, timingNodesField);
+        String timingNodeField =
+                timingNodesField + "." + timingNodeKey;
+        Map<?, ?> timingNode =
+                requireMapping(
+                        timingNodes.get(timingNodeKey),
+                        timingNodeField);
+        rejectUnknownFields(
+                timingNode,
+                timingNodeField,
+                TIMING_NODE_ID,
+                TAG_PROCESSING);
+
+        if (!timingNode.containsKey(TIMING_NODE_ID)) {
+            throw new IllegalArgumentException(
+                    "Missing required configuration field: "
+                            + timingNodeField + "." + TIMING_NODE_ID);
+        }
+
+        NodeId timingNodeId = new NodeId(
+                requireString(
+                        timingNode.get(TIMING_NODE_ID),
+                        timingNodeField + "." + TIMING_NODE_ID));
+        return new TimingNodeStartup(
+                timingNodeId,
+                mapTagProcessing(
+                        timingNode,
+                        timingNodeField));
+    }
+
+    private static TagProcessingPolicy mapTagProcessing(
+            Map<?, ?> timingNode,
+            String timingNodeField) {
+        TagProcessingPolicy defaults =
+                TagProcessingPolicy.defaults();
+        if (!timingNode.containsKey(TAG_PROCESSING)) {
+            return defaults;
+        }
+
+        String field =
+                timingNodeField + "." + TAG_PROCESSING;
+        Map<?, ?> values =
+                requireMapping(
+                        timingNode.get(TAG_PROCESSING),
+                        field);
+        rejectUnknownFields(
+                values,
+                field,
+                QUIET_TIMEOUT_MILLIS,
+                MAX_BURST_DURATION_MILLIS,
+                DUPLICATE_WINDOW_MILLIS,
+                SWEEP_CADENCE_MILLIS,
+                OBSERVATION_QUEUE_CAPACITY);
+
+        return new TagProcessingPolicy(
+                durationOverride(
+                        values,
+                        field,
+                        QUIET_TIMEOUT_MILLIS,
+                        defaults.quietTimeoutNanos(),
+                        false),
+                durationOverride(
+                        values,
+                        field,
+                        MAX_BURST_DURATION_MILLIS,
+                        defaults.maxBurstDurationNanos(),
+                        false),
+                durationOverride(
+                        values,
+                        field,
+                        DUPLICATE_WINDOW_MILLIS,
+                        defaults.duplicateWindowNanos(),
+                        true),
+                durationOverride(
+                        values,
+                        field,
+                        SWEEP_CADENCE_MILLIS,
+                        defaults.sweepCadenceNanos(),
+                        false),
+                integerOverride(
+                        values,
+                        field,
+                        OBSERVATION_QUEUE_CAPACITY,
+                        defaults.observationQueueCapacity()));
+    }
+
+    private static Duration durationOverride(
+            Map<?, ?> values,
+            String field,
+            String name,
+            long defaultNanos,
+            boolean zeroAllowed) {
+        if (!values.containsKey(name)) {
+            return Duration.ofNanos(defaultNanos);
+        }
+
+        long millis =
+                requireYamlLong(
+                        values.get(name),
+                        field + "." + name);
+        if (zeroAllowed ? millis < 0L : millis < 1L) {
+            throw new IllegalArgumentException(
+                    field + "." + name
+                            + (zeroAllowed
+                                    ? " must not be negative"
+                                    : " must be positive"));
+        }
+        return Duration.ofMillis(millis);
+    }
+
+    private static int integerOverride(
+            Map<?, ?> values,
+            String field,
+            String name,
+            int defaultValue) {
+        if (!values.containsKey(name)) {
+            return defaultValue;
+        }
+
+        Object raw = values.get(name);
+        if (!(raw instanceof Integer)
+                || ((Integer) raw).intValue() < 1) {
+            throw new IllegalArgumentException(
+                    field + "." + name
+                            + " must be a positive YAML integer");
+        }
+        return ((Integer) raw).intValue();
+    }
+
+    private static long requireYamlLong(
+            Object value,
+            String field) {
+        if (value instanceof Integer) {
+            return ((Integer) value).longValue();
+        }
+        if (value instanceof Long) {
+            return ((Long) value).longValue();
+        }
+        throw new IllegalArgumentException(
+                field + " must be a YAML integer");
+    }
+
+    private static String requireSingleMappingKey(
+            Map<?, ?> values,
+            String field) {
+        if (values.size() != 1) {
+            throw new IllegalArgumentException(
+                    field
+                            + " must contain exactly one entry in the current executable");
+        }
+
+        Object rawKey = values.keySet().iterator().next();
+        if (!(rawKey instanceof String)
+                || ((String) rawKey).trim().isEmpty()) {
+            throw new IllegalArgumentException(
+                    field + " entry name must be a non-blank YAML string");
+        }
+        return (String) rawKey;
     }
 
     private static Path mapTimingDataPath(Object rawIo) {
@@ -294,4 +506,16 @@ public final class YamlLoader {
             }
         }
     }
+    private static final class TimingNodeStartup {
+        private final NodeId timingNodeId;
+        private final TagProcessingPolicy tagProcessingPolicy;
+
+        private TimingNodeStartup(
+                NodeId timingNodeId,
+                TagProcessingPolicy tagProcessingPolicy) {
+            this.timingNodeId = timingNodeId;
+            this.tagProcessingPolicy = tagProcessingPolicy;
+        }
+    }
+
 }

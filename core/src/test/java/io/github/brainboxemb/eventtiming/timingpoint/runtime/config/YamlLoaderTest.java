@@ -1,12 +1,12 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime.config;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
-import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -20,9 +20,10 @@ public class YamlLoaderTest {
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @Test
-    public void loadsSingleTimingNodeIdAndStorageWithoutPresentation() throws Exception {
+    public void loadsSingleTimingNodeIdAndStorageWithoutPresentation()
+            throws Exception {
         Config config = load(
-                "timingNodeId: TN-01\n"
+                timingNode("TN-01")
                         + timingDataStorage());
 
         assertEquals("TN-01", config.timingNodeId().value());
@@ -39,9 +40,74 @@ public class YamlLoaderTest {
     }
 
     @Test
+    public void loadsPartialTimingNodeTagProcessingOverride()
+            throws Exception {
+        Config config = load(
+                timingNode(
+                        "TN-01",
+                        "          quietTimeoutMillis: 300\n"
+                                + "          duplicateWindowMillis: 0\n"
+                                + "          observationQueueCapacity: 64\n")
+                        + timingDataStorage());
+
+        TagProcessingPolicy defaults =
+                TagProcessingPolicy.defaults();
+        TagProcessingPolicy policy =
+                config.tagProcessingPolicy();
+
+        assertEquals(
+                TimeUnit.MILLISECONDS.toNanos(300L),
+                policy.quietTimeoutNanos());
+        assertEquals(
+                defaults.maxBurstDurationNanos(),
+                policy.maxBurstDurationNanos());
+        assertEquals(
+                0L,
+                policy.duplicateWindowNanos());
+        assertEquals(
+                defaults.sweepCadenceNanos(),
+                policy.sweepCadenceNanos());
+        assertEquals(
+                64,
+                policy.observationQueueCapacity());
+    }
+
+    @Test
+    public void loadsCompleteTimingNodeTagProcessingOverride()
+            throws Exception {
+        Config config = load(
+                timingNode(
+                        "TN-01",
+                        "          quietTimeoutMillis: 200\n"
+                                + "          maxBurstDurationMillis: 900\n"
+                                + "          duplicateWindowMillis: 12000\n"
+                                + "          sweepCadenceMillis: 25\n"
+                                + "          observationQueueCapacity: 128\n")
+                        + timingDataStorage());
+
+        TagProcessingPolicy policy =
+                config.tagProcessingPolicy();
+        assertEquals(
+                TimeUnit.MILLISECONDS.toNanos(200L),
+                policy.quietTimeoutNanos());
+        assertEquals(
+                TimeUnit.MILLISECONDS.toNanos(900L),
+                policy.maxBurstDurationNanos());
+        assertEquals(
+                TimeUnit.MILLISECONDS.toNanos(12000L),
+                policy.duplicateWindowNanos());
+        assertEquals(
+                TimeUnit.MILLISECONDS.toNanos(25L),
+                policy.sweepCadenceNanos());
+        assertEquals(
+                128,
+                policy.observationQueueCapacity());
+    }
+
+    @Test
     public void loadsImplementedPresentationConfig() throws Exception {
         Config config = load(
-                "timingNodeId: TN-01\n"
+                timingNode("TN-01")
                         + timingDataStorage()
                         + "presentation:\n"
                         + "  remoteShell:\n"
@@ -55,20 +121,30 @@ public class YamlLoaderTest {
                         + "      bindAddress: 127.0.0.1\n"
                         + "      port: 8082\n");
 
-        assertEquals("127.0.0.1", config.presentation().remoteShell().bindAddress());
-        assertEquals(8023, config.presentation().remoteShell().port());
-        assertEquals("127.0.0.1", config.presentation().api().http().bindAddress());
-        assertEquals(8081, config.presentation().api().http().port());
+        assertEquals(
+                "127.0.0.1",
+                config.presentation().remoteShell().bindAddress());
+        assertEquals(
+                8023,
+                config.presentation().remoteShell().port());
+        assertEquals(
+                "127.0.0.1",
+                config.presentation().api().http().bindAddress());
+        assertEquals(
+                8081,
+                config.presentation().api().http().port());
         assertEquals(
                 "127.0.0.1",
                 config.presentation().api().webSocket().bindAddress());
-        assertEquals(8082, config.presentation().api().webSocket().port());
+        assertEquals(
+                8082,
+                config.presentation().api().webSocket().port());
     }
 
     @Test
     public void loadsRuntimeLoggingConfig() throws Exception {
         Config config = load(
-                "timingNodeId: TN-01\n"
+                timingNode("TN-01")
                         + timingDataStorage()
                         + "logging:\n"
                         + "  level: DEBUG\n"
@@ -84,16 +160,25 @@ public class YamlLoaderTest {
                 io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevel.DEBUG,
                 config.logging().level());
         assertEquals("logs", config.logging().file().path());
-        assertEquals(1048576, config.logging().file().rotateBytes());
-        assertEquals(5, config.logging().file().retainedFiles());
-        assertEquals("127.0.0.1", config.loggingServer().bindAddress());
-        assertEquals(8030, config.loggingServer().port());
+        assertEquals(
+                1048576,
+                config.logging().file().rotateBytes());
+        assertEquals(
+                5,
+                config.logging().file().retainedFiles());
+        assertEquals(
+                "127.0.0.1",
+                config.loggingServer().bindAddress());
+        assertEquals(
+                8030,
+                config.loggingServer().port());
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsUnsupportedLoggingLevel() throws Exception {
         load(
-                "timingNodeId: TN-01\n"
+                timingNode("TN-01")
+                        + timingDataStorage()
                         + "logging:\n"
                         + "  level: VERBOSE\n"
                         + "  file:\n"
@@ -104,13 +189,13 @@ public class YamlLoaderTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsMissingTimingDataStorage() throws Exception {
-        load("timingNodeId: TN-01\n");
+        load(timingNode("TN-01"));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsBlankTimingDataPath() throws Exception {
         load(
-                "timingNodeId: TN-01\n"
+                timingNode("TN-01")
                         + "io:\n"
                         + "  storage:\n"
                         + "    timingData:\n"
@@ -118,24 +203,127 @@ public class YamlLoaderTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void rejectsMissingTimingNodeId() throws Exception {
+    public void rejectsMissingTimingSystems() throws Exception {
         load("{}\n");
     }
 
     @Test(expected = IllegalArgumentException.class)
+    public void rejectsMultipleTimingSystemsInCurrentExecutable()
+            throws Exception {
+        load(
+                "timingSystems:\n"
+                        + "  timing-system-01:\n"
+                        + "    timingNodes:\n"
+                        + "      timing-node-01:\n"
+                        + "        timingNodeId: TN-01\n"
+                        + "  timing-system-02:\n"
+                        + "    timingNodes:\n"
+                        + "      timing-node-02:\n"
+                        + "        timingNodeId: TN-02\n"
+                        + timingDataStorage());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsMultipleTimingNodesInCurrentExecutable()
+            throws Exception {
+        load(
+                "timingSystems:\n"
+                        + "  timing-system-01:\n"
+                        + "    timingNodes:\n"
+                        + "      timing-node-01:\n"
+                        + "        timingNodeId: TN-01\n"
+                        + "      timing-node-02:\n"
+                        + "        timingNodeId: TN-02\n"
+                        + timingDataStorage());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsMissingTimingNodeId() throws Exception {
+        load(
+                "timingSystems:\n"
+                        + "  timing-system-01:\n"
+                        + "    timingNodes:\n"
+                        + "      timing-node-01: {}\n"
+                        + timingDataStorage());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
     public void rejectsBlankTimingNodeId() throws Exception {
-        load("timingNodeId: '   '\n");
+        load(
+                "timingSystems:\n"
+                        + "  timing-system-01:\n"
+                        + "    timingNodes:\n"
+                        + "      timing-node-01:\n"
+                        + "        timingNodeId: '   '\n"
+                        + timingDataStorage());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsRootTagProcessingShortcut() throws Exception {
+        load(
+                timingNode("TN-01")
+                        + "tagProcessing:\n"
+                        + "  quietTimeoutMillis: 200\n"
+                        + timingDataStorage());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsEmptyTagProcessingSection() throws Exception {
+        load(
+                timingNode("TN-01")
+                        + "        tagProcessing:\n"
+                        + timingDataStorage());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsUnknownTagProcessingField() throws Exception {
+        load(
+                timingNode(
+                        "TN-01",
+                        "          batchSize: 8\n")
+                        + timingDataStorage());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsZeroQuietTimeout() throws Exception {
+        load(
+                timingNode(
+                        "TN-01",
+                        "          quietTimeoutMillis: 0\n")
+                        + timingDataStorage());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsNegativeDuplicateWindow() throws Exception {
+        load(
+                timingNode(
+                        "TN-01",
+                        "          duplicateWindowMillis: -1\n")
+                        + timingDataStorage());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsZeroObservationQueueCapacity() throws Exception {
+        load(
+                timingNode(
+                        "TN-01",
+                        "          observationQueueCapacity: 0\n")
+                        + timingDataStorage());
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsUnknownRootField() throws Exception {
-        load("timingNodeId: TN-01\nunknown: true\n");
+        load(
+                timingNode("TN-01")
+                        + timingDataStorage()
+                        + "unknown: true\n");
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsUnknownHttpField() throws Exception {
         load(
-                "timingNodeId: TN-01\n"
+                timingNode("TN-01")
+                        + timingDataStorage()
                         + "presentation:\n"
                         + "  api:\n"
                         + "    http:\n"
@@ -147,7 +335,8 @@ public class YamlLoaderTest {
     @Test(expected = IllegalArgumentException.class)
     public void rejectsMissingHttpBindAddress() throws Exception {
         load(
-                "timingNodeId: TN-01\n"
+                timingNode("TN-01")
+                        + timingDataStorage()
                         + "presentation:\n"
                         + "  api:\n"
                         + "    http:\n"
@@ -157,7 +346,8 @@ public class YamlLoaderTest {
     @Test(expected = IllegalArgumentException.class)
     public void rejectsInvalidHttpPort() throws Exception {
         load(
-                "timingNodeId: TN-01\n"
+                timingNode("TN-01")
+                        + timingDataStorage()
                         + "presentation:\n"
                         + "  api:\n"
                         + "    http:\n"
@@ -168,9 +358,31 @@ public class YamlLoaderTest {
     @Test(expected = IllegalArgumentException.class)
     public void rejectsEmptyApi() throws Exception {
         load(
-                "timingNodeId: TN-01\n"
+                timingNode("TN-01")
+                        + timingDataStorage()
                         + "presentation:\n"
                         + "  api: {}\n");
+    }
+
+    private static String timingNode(String nodeId) {
+        return timingNode(nodeId, null);
+    }
+
+    private static String timingNode(
+            String nodeId,
+            String tagProcessingFields) {
+        String yaml =
+                "timingSystems:\n"
+                        + "  timing-system-01:\n"
+                        + "    timingNodes:\n"
+                        + "      timing-node-01:\n"
+                        + "        timingNodeId: " + nodeId + "\n";
+        if (tagProcessingFields != null) {
+            yaml +=
+                    "        tagProcessing:\n"
+                            + tagProcessingFields;
+        }
+        return yaml;
     }
 
     private static String timingDataStorage() {
@@ -182,7 +394,9 @@ public class YamlLoaderTest {
 
     private Config load(String yaml) throws Exception {
         File file = temporaryFolder.newFile("application.yml");
-        Files.write(file.toPath(), yaml.getBytes(StandardCharsets.UTF_8));
+        Files.write(
+                file.toPath(),
+                yaml.getBytes(StandardCharsets.UTF_8));
         return YamlLoader.load(file.toPath());
     }
 }
