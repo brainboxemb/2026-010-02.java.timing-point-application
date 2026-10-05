@@ -102,7 +102,7 @@ public class TagProcessorTest {
         processor.start();
         try {
             String callbackThread = Thread.currentThread().getName();
-            processor.onObservation(observation("TAG-001", -42, OBSERVED_AT));
+            processor.onTagObserved(observation("TAG-001", -42, OBSERVED_AT));
             awaitLane(executor);
 
             assertEquals("tp-tag-test", mapperThread.get());
@@ -135,9 +135,9 @@ public class TagProcessorTest {
         node.invoke(TimingNodeCommands.open(new LocationId(24)));
         processor.start();
         try {
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-A", -60, OBSERVED_AT));
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-B", -30, STRONGER_OBSERVED_AT));
             awaitLane(executor);
 
@@ -189,7 +189,7 @@ public class TagProcessorTest {
         node.invoke(TimingNodeCommands.open(new LocationId(24)));
         processor.start();
         try {
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-A", -60, OBSERVED_AT));
             awaitLane(executor);
 
@@ -200,12 +200,12 @@ public class TagProcessorTest {
              * suppression and discard that just-created next burst.
              */
             clock.advanceNanos(100L);
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-B", -50, STRONGER_OBSERVED_AT));
             awaitLane(executor);
             assertTrue(committed.await(1, TimeUnit.SECONDS));
 
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-C", -40, STRONGER_OBSERVED_AT));
             awaitLane(executor);
 
@@ -241,17 +241,17 @@ public class TagProcessorTest {
         // TimingNode deliberately remains NEW so every offer is NOT_RUNNING.
         processor.start();
         try {
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-A", -60, OBSERVED_AT));
             awaitLane(executor);
 
             clock.advanceNanos(100L);
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-B", -50, STRONGER_OBSERVED_AT));
             awaitLane(executor);
 
             clock.advanceNanos(100L);
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-C", -40, STRONGER_OBSERVED_AT));
             awaitLane(executor);
 
@@ -292,7 +292,7 @@ public class TagProcessorTest {
         node.invoke(TimingNodeCommands.open(new LocationId(24)));
         processor.start();
         try {
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-A", -50, OBSERVED_AT));
             awaitLane(executor);
 
@@ -343,7 +343,7 @@ public class TagProcessorTest {
 
         processor.start();
         try {
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-001", -42, OBSERVED_AT));
             awaitLane(executor);
 
@@ -400,9 +400,9 @@ public class TagProcessorTest {
             }));
             assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-001", -42, OBSERVED_AT));
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-002", -41, OBSERVED_AT));
 
             assertEquals(
@@ -440,7 +440,7 @@ public class TagProcessorTest {
         }));
         assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
-        processor.onObservation(
+        processor.onTagObserved(
                 observation("TAG-001", -42, OBSERVED_AT));
 
         Thread stopper = new Thread(processor::stop);
