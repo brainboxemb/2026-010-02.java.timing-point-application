@@ -1,23 +1,21 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.function.Supplier;
 
-/** Passive duplicate-window state owned by the TagProcessor execution lane. */
+/**
+ * Passive accepted-registration duplicate window owned by the TagProcessor lane.
+ *
+ * <p>The filter only remembers registrations after TimingNode accepted their
+ * submission. Checking and recording are deliberately separate so TagProcessor
+ * can suppress repeated observations before passage aggregation without
+ * suppressing retries after FULL or NOT_RUNNING admission.</p>
+ */
 final class RegistrationDuplicateFilter {
-    enum Result {
-        DUPLICATE,
-        ACCEPTED,
-        FULL,
-        NOT_RUNNING
-    }
-
     private final long duplicateWindowNanos;
     private final MonotonicClock monotonicClock;
     private final Map<RegistrationId, Long> acceptedRegistrations =
@@ -39,36 +37,34 @@ final class RegistrationDuplicateFilter {
         this.monotonicClock = monotonicClock;
     }
 
-    Result submitIfNew(
-            RegistrationId registrationId,
-            Supplier<CommandAdmission> submission) {
-        if (registrationId == null) {
-            throw new IllegalArgumentException("registrationId must not be null");
-        }
-        if (submission == null) {
-            throw new IllegalArgumentException("submission must not be null");
+    boolean isDuplicate(RegistrationId registrationId) {
+        requireRegistrationId(registrationId);
+
+        if (duplicateWindowNanos == 0L) {
+            return false;
         }
 
         long now = monotonicClock.nowNanos();
-
-        if (duplicateWindowNanos > 0L) {
-            Long acceptedAt = acceptedRegistrations.get(registrationId);
-            if (acceptedAt != null) {
-                if (now - acceptedAt < duplicateWindowNanos) {
-                    return Result.DUPLICATE;
-                }
-                acceptedRegistrations.remove(registrationId);
-            }
+        Long acceptedAt = acceptedRegistrations.get(registrationId);
+        if (acceptedAt == null) {
+            return false;
+        }
+        if (now - acceptedAt < duplicateWindowNanos) {
+            return true;
         }
 
-        CommandAdmission admission = submission.get();
-        if (admission == CommandAdmission.ACCEPTED
-                && duplicateWindowNanos > 0L) {
-            acceptedRegistrations.put(
-                    registrationId,
-                    monotonicClock.nowNanos());
+        acceptedRegistrations.remove(registrationId);
+        return false;
+    }
+
+    void recordAccepted(RegistrationId registrationId) {
+        requireRegistrationId(registrationId);
+        if (duplicateWindowNanos == 0L) {
+            return;
         }
-        return resultFor(admission);
+        acceptedRegistrations.put(
+                registrationId,
+                monotonicClock.nowNanos());
     }
 
     void periodic() {
@@ -105,17 +101,9 @@ final class RegistrationDuplicateFilter {
         lastCleanupNanos = now;
     }
 
-    private static Result resultFor(CommandAdmission admission) {
-        switch (admission) {
-            case ACCEPTED:
-                return Result.ACCEPTED;
-            case FULL:
-                return Result.FULL;
-            case NOT_RUNNING:
-                return Result.NOT_RUNNING;
-            default:
-                throw new IllegalStateException(
-                        "Unsupported TimingNode admission result " + admission);
+    private static void requireRegistrationId(RegistrationId registrationId) {
+        if (registrationId == null) {
+            throw new IllegalArgumentException("registrationId must not be null");
         }
     }
 }
