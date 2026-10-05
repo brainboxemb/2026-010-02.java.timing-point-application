@@ -38,12 +38,14 @@ public class AntennaMultiplexTest {
         AntennaManager manager = manager(
                 Arrays.asList(
                         AntennaInstallation.powered(
+                                        new AntennaId("ANT1"),
                                         first,
                                         firstPower,
                                         Duration.ZERO)
                                 .inInventoryGroup(
                                         Duration.ofMillis(30)),
                         AntennaInstallation.powered(
+                                        new AntennaId("ANT2"),
                                         second,
                                         secondPower,
                                         Duration.ZERO)
@@ -93,10 +95,14 @@ public class AntennaMultiplexTest {
 
         AntennaManager manager = manager(
                 Arrays.asList(
-                        AntennaInstallation.direct(healthy)
+                        AntennaInstallation.direct(
+                                        new AntennaId("ANT1"),
+                                        healthy)
                                 .inInventoryGroup(
                                         Duration.ofMillis(25)),
-                        AntennaInstallation.direct(failed)
+                        AntennaInstallation.direct(
+                                        new AntennaId("ANT2"),
+                                        failed)
                                 .inInventoryGroup(
                                         Duration.ofMillis(25))),
                 shared,
@@ -111,7 +117,8 @@ public class AntennaMultiplexTest {
             manager.setOperational(true);
 
             await(
-                    () -> manager.status(failed).state()
+                    () -> manager.status(
+                            new AntennaId("ANT2")).state()
                             == AntennaState.ERROR,
                     1000L);
             await(healthy::inventoryRunning, 1000L);
@@ -137,10 +144,12 @@ public class AntennaMultiplexTest {
             manager(
                     Arrays.asList(
                             AntennaInstallation.direct(
+                                            new AntennaId("ANT1"),
                                             new SimulatedAntenna())
                                     .inInventoryGroup(
                                             Duration.ofMillis(25)),
                             AntennaInstallation.direct(
+                                            new AntennaId("ANT2"),
                                             new SimulatedAntenna())
                                     .inInventoryGroup(
                                             Duration.ofMillis(30))),
@@ -163,6 +172,7 @@ public class AntennaMultiplexTest {
             manager(
                     Arrays.asList(
                             AntennaInstallation.direct(
+                                            new AntennaId("ANT3"),
                                             new SimulatedAntenna())
                                     .inInventoryGroup(
                                             Duration.ofMillis(25))),
