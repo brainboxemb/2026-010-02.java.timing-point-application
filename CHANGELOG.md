@@ -2,13 +2,15 @@
 
 ## Unreleased
 
-- Collapse runtime construction into one `TimingApplication.create(...)` composition root: construct without starting workers, wire cross-component behaviour explicitly, then start the already composed Runtime/Domain/I/O graph through `TimingApplication.start()`.
+- Collapse runtime construction into one `TimingApplication.create(...)` composition root: create `PlatformEnvironment`, construct without starting physical workers, wire cross-component behaviour explicitly, then `start()` Runtime execution resources and `activate()` application components in visible order.
 
-- Simplify AntennaManager into a SerialExecutor-backed lifecycle boundary plus package-private device logic and separate manager types; constrain multiplexing to one optional 2..N-member inventory group instead of multiple named group maps.
+- Refactor antenna ownership under `io.devices.antenna.manager`: `AntennaManager` exposes activation/inventory/status only, one `SerialScheduledExecutor` lane handles immediate/result-bearing/scheduled control, `AntennaSwitchController` coordinates the set/multiplex group, and `ManagedAntenna` owns one physical power/probe/init/inventory sequence. Remove the separate JDK scheduler dependency from AntennaManager.
 
 - Expose authoritative TagProcessingPolicy startup/current runtime configuration through Application ConfigurationControl, IF-03 HTTP/WebSocket change events, and shared local/remote terminal commands including open, close and automatic-registration control.
 
 - Map the current single-TimingNode YAML subset through the IF-11 `timingSystems -> timingNodes -> tagProcessing` hierarchy, apply partial TagProcessingPolicy startup overrides over compiled defaults, and keep invalid policy values rejected before composition.
+
+- Move explicit JVM heap/thread/GC sampling from `platform.environment.RuntimeObservation` to `platform.metrics.RuntimeObservation`; keep `PlatformEnvironment` focused on wall-clock and monotonic-clock dependencies.
 
 - Split SerialExecutor and SerialScheduledExecutor measurement state into dedicated metrics classes; make both classes pure logical lanes on externally owned workers, removing standalone/private-worker modes and keeping physical worker construction/shutdown in composition/test owners.
 
