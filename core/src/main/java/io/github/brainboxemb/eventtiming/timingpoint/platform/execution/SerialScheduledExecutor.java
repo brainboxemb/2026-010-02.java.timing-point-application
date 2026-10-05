@@ -1,7 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.RejectedExecutionException;
@@ -39,207 +37,11 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         void close();
     }
 
-    /** Lane-local engineering metrics. */
-    public static final class Metrics {
-        private final SerialScheduledExecutor owner;
-
-        private long immediateAcceptedCount;
-        private long immediateRejectedCount;
-        private long scheduledRegistrationCount;
-        private long scheduledCancellationCount;
-        private volatile long immediateExecutionCount;
-        private volatile long periodicExecutionCount;
-        private volatile long runtimeFailureCount;
-        private volatile Thread standaloneWorkerThread;
-
-        private Metrics(SerialScheduledExecutor owner) {
-            this.owner = owner;
-        }
-
-        private void recordStandaloneWorkerThread(Thread thread) {
-            standaloneWorkerThread = thread;
-        }
-
-        private void recordImmediateAccepted() {
-            synchronized (owner) {
-                immediateAcceptedCount++;
-            }
-        }
-
-        private void recordImmediateRejected() {
-            synchronized (owner) {
-                immediateRejectedCount++;
-            }
-        }
-
-        private void recordScheduledRegistration() {
-            synchronized (owner) {
-                scheduledRegistrationCount++;
-            }
-        }
-
-        private void recordScheduledCancellation() {
-            synchronized (owner) {
-                scheduledCancellationCount++;
-            }
-        }
-
-        private void recordImmediateExecution() {
-            immediateExecutionCount++;
-        }
-
-        private void recordPeriodicExecution() {
-            periodicExecutionCount++;
-        }
-
-        private void recordRuntimeFailure() {
-            runtimeFailureCount++;
-        }
-
-        public Snapshot snapshot() {
-            int queueDepth;
-            long immediateAccepted;
-            long immediateRejected;
-            long scheduledRegistrations;
-            long scheduledCancellations;
-
-            synchronized (owner) {
-                if (owner.sharedMode
-                        && owner.sharedLane != null) {
-                    queueDepth = owner.sharedLane
-                            .metrics()
-                            .snapshot()
-                            .queueDepth();
-                } else {
-                    ScheduledThreadPoolExecutor active =
-                            owner.standaloneExecutor;
-                    queueDepth = active == null
-                            ? 0
-                            : active.getQueue().size();
-                }
-                immediateAccepted = immediateAcceptedCount;
-                immediateRejected = immediateRejectedCount;
-                scheduledRegistrations =
-                        scheduledRegistrationCount;
-                scheduledCancellations =
-                        scheduledCancellationCount;
-            }
-
-            return new Snapshot(
-                    queueDepth,
-                    immediateAccepted,
-                    immediateRejected,
-                    scheduledRegistrations,
-                    scheduledCancellations,
-                    immediateExecutionCount,
-                    periodicExecutionCount,
-                    runtimeFailureCount,
-                    workerThreadCpuTimeNanos());
-        }
-
-        private long workerThreadCpuTimeNanos() {
-            if (owner.sharedMode) {
-                return -1L;
-            }
-            Thread worker = standaloneWorkerThread;
-            if (worker == null) {
-                return -1L;
-            }
-
-            ThreadMXBean bean =
-                    ManagementFactory.getThreadMXBean();
-            if (!bean.isThreadCpuTimeSupported()
-                    || !bean.isThreadCpuTimeEnabled()) {
-                return -1L;
-            }
-            long cpuTime =
-                    bean.getThreadCpuTime(worker.getId());
-            return cpuTime < 0L ? -1L : cpuTime;
-        }
-
-        public static final class Snapshot {
-            private final int queueDepth;
-            private final long immediateAcceptedCount;
-            private final long immediateRejectedCount;
-            private final long scheduledRegistrationCount;
-            private final long scheduledCancellationCount;
-            private final long immediateExecutionCount;
-            private final long periodicExecutionCount;
-            private final long runtimeFailureCount;
-            private final long workerThreadCpuTimeNanos;
-
-            private Snapshot(
-                    int queueDepth,
-                    long immediateAcceptedCount,
-                    long immediateRejectedCount,
-                    long scheduledRegistrationCount,
-                    long scheduledCancellationCount,
-                    long immediateExecutionCount,
-                    long periodicExecutionCount,
-                    long runtimeFailureCount,
-                    long workerThreadCpuTimeNanos) {
-                this.queueDepth = queueDepth;
-                this.immediateAcceptedCount =
-                        immediateAcceptedCount;
-                this.immediateRejectedCount =
-                        immediateRejectedCount;
-                this.scheduledRegistrationCount =
-                        scheduledRegistrationCount;
-                this.scheduledCancellationCount =
-                        scheduledCancellationCount;
-                this.immediateExecutionCount =
-                        immediateExecutionCount;
-                this.periodicExecutionCount =
-                        periodicExecutionCount;
-                this.runtimeFailureCount =
-                        runtimeFailureCount;
-                this.workerThreadCpuTimeNanos =
-                        workerThreadCpuTimeNanos;
-            }
-
-            public int queueDepth() {
-                return queueDepth;
-            }
-
-            public long immediateAcceptedCount() {
-                return immediateAcceptedCount;
-            }
-
-            public long immediateRejectedCount() {
-                return immediateRejectedCount;
-            }
-
-            public long scheduledRegistrationCount() {
-                return scheduledRegistrationCount;
-            }
-
-            public long scheduledCancellationCount() {
-                return scheduledCancellationCount;
-            }
-
-            public long immediateExecutionCount() {
-                return immediateExecutionCount;
-            }
-
-            public long periodicExecutionCount() {
-                return periodicExecutionCount;
-            }
-
-            public long runtimeFailureCount() {
-                return runtimeFailureCount;
-            }
-
-            public long workerThreadCpuTimeNanos() {
-                return workerThreadCpuTimeNanos;
-            }
-        }
-    }
-
     private final String laneName;
     private final int sharedLaneCapacity;
     private final ScheduledExecutorService suppliedSharedExecutor;
     private final boolean sharedMode;
-    private final Metrics metrics = new Metrics(this);
+    private final SerialScheduledExecutorMetrics metrics;
     private final List<SharedPeriodicTask> sharedPeriodicTasks =
             new ArrayList<SharedPeriodicTask>();
 
@@ -258,6 +60,9 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         sharedLaneCapacity = 0;
         suppliedSharedExecutor = null;
         sharedMode = false;
+        metrics = new SerialScheduledExecutorMetrics(
+                this::metricQueueDepth,
+                true);
     }
 
     /**
@@ -284,6 +89,9 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         this.sharedLaneCapacity = laneCapacity;
         this.suppliedSharedExecutor = sharedExecutor;
         sharedMode = true;
+        metrics = new SerialScheduledExecutorMetrics(
+                this::metricQueueDepth,
+                false);
     }
 
     public synchronized void start() {
@@ -441,8 +249,19 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         return failure;
     }
 
-    public Metrics metrics() {
+    public SerialScheduledExecutorMetrics metrics() {
         return metrics;
+    }
+
+    private synchronized int metricQueueDepth() {
+        if (sharedMode) {
+            return sharedLane == null
+                    ? 0
+                    : sharedLane.metrics().snapshot().queueDepth();
+        }
+        return standaloneExecutor == null
+                ? 0
+                : standaloneExecutor.getQueue().size();
     }
 
     @Override
