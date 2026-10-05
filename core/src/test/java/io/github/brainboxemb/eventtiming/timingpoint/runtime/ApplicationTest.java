@@ -5,7 +5,11 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
 import java.util.Collections;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes;
@@ -75,7 +79,15 @@ public class ApplicationTest {
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),
                 () -> TimingTimestamp.parse(
-                        "2026-10-02T08:00:00.000000000Z"));
+                        "2026-10-02T08:00:00.000000000Z"),
+                ReadOnlyConfiguration.fixed(
+                        TagProcessingPolicy.defaults()),
+                tagId -> null,
+                new SerialExecutor(
+                        32,
+                        "application-test-node"),
+                new SerialScheduledExecutor(
+                        "application-test-tag"));
     }
 
     private static final class NoOpPersistence implements TimingDataPersistence {
