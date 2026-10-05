@@ -4,7 +4,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.Ta
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInstallation;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.Application;
-import io.github.brainboxemb.eventtiming.timingpoint.runtime.ApplicationBootstrap;
+import io.github.brainboxemb.eventtiming.timingpoint.runtime.Composition;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 
 import java.util.List;
@@ -26,10 +26,10 @@ public final class SimulationRuntime {
             Config config,
             List<AntennaInstallation> antennaInstallations,
             TagRegistrationMapper tagRegistrationMapper) {
-        return ApplicationBootstrap
-                .builder(buildIdentity, config)
-                .antennaInstallations(antennaInstallations)
-                .tagRegistrationMapper(tagRegistrationMapper)
-                .build();
+        return Composition.create(
+                buildIdentity,
+                config,
+                antennaInstallations,
+                tagRegistrationMapper);
     }
 }
