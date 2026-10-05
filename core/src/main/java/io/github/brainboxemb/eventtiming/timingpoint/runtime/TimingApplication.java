@@ -76,7 +76,8 @@ public final class TimingApplication {
             PresentationGateway presentationGateway,
             Conductor conductor,
             AntennaManager antennaManager,
-            RuntimeExecutors runtimeExecutors) {
+            RuntimeExecutors runtimeExecutors,
+            ActivationManager activationManager) {
         this.buildIdentity = buildIdentity;
         this.timingNode = timingNode;
         this.configuration = configuration;
@@ -84,16 +85,7 @@ public final class TimingApplication {
         this.conductor = conductor;
         this.antennaManager = antennaManager;
         this.runtimeExecutors = runtimeExecutors;
-
-        activationManager = new ActivationManager();
-        activationManager.register(
-                timingNode::activate,
-                timingNode::deactivate);
-        if (antennaManager != null) {
-            activationManager.register(
-                    antennaManager::activate,
-                    antennaManager::deactivate);
-        }
+        this.activationManager = activationManager;
     }
 
     /**
@@ -234,7 +226,25 @@ public final class TimingApplication {
             }
 
             /*
-             * 7. Return the composed graph. activation is a separate phase.
+             * 7. Define component activation order explicitly.
+             *
+             * Registration order is activation order; ActivationManager
+             * deactivates successful components in reverse order.
+             */
+            ActivationManager activation =
+                    new ActivationManager();
+            activation.register(
+                    timingNode::activate,
+                    timingNode::deactivate);
+            if (antennaManager != null) {
+                activation.register(
+                        antennaManager::activate,
+                        antennaManager::deactivate);
+            }
+
+            /*
+             * 8. Return the fully constructed and wired graph.
+             *    Activation remains a separate phase.
              */
             return new TimingApplication(
                     buildIdentity,
@@ -243,7 +253,8 @@ public final class TimingApplication {
                     presentationGateway,
                     conductor,
                     antennaManager,
-                    executors);
+                    executors,
+                    activation);
         } catch (RuntimeException ex) {
             executors.close();
             throw ex;
