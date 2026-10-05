@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
@@ -200,6 +202,145 @@ public class SerialExecutorTest {
         assertTrue(metrics.maxExecutionNanos() > 0L);
         assertTrue(metrics.totalExecutionNanos() >= metrics.maxExecutionNanos());
         assertTrue(metrics.workerThreadCpuTimeNanos() >= -1L);
+    }
+
+
+    @Test
+    public void sharedLanesKeepIndependentFifoQueuesAndShareOneWorker()
+            throws Exception {
+        ThreadPoolExecutor shared = new ThreadPoolExecutor(
+                1,
+                1,
+                0L,
+                TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<Runnable>(),
+                runnable -> new Thread(
+                        runnable,
+                        "shared-node-worker"));
+
+        SerialExecutor first =
+                new SerialExecutor(
+                        4,
+                        "node-A",
+                        shared);
+        SerialExecutor second =
+                new SerialExecutor(
+                        4,
+                        "node-B",
+                        shared);
+
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        CountDownLatch allDone = new CountDownLatch(3);
+        List<String> order =
+                Collections.synchronizedList(
+                        new ArrayList<String>());
+        List<String> workerNames =
+                Collections.synchronizedList(
+                        new ArrayList<String>());
+
+        first.start();
+        second.start();
+        try {
+            first.offer(() -> {
+                workerNames.add(
+                        Thread.currentThread().getName());
+                order.add("A1");
+                firstStarted.countDown();
+                try {
+                    releaseFirst.await();
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+                allDone.countDown();
+            });
+            assertTrue(
+                    firstStarted.await(
+                            1,
+                            TimeUnit.SECONDS));
+
+            /*
+             * A2 stays in lane A's private queue. B1 schedules its own drain
+             * token directly on the shared role executor. When A1 completes,
+             * A's next drain token is appended behind B's already waiting token.
+             */
+            first.offer(() -> {
+                workerNames.add(
+                        Thread.currentThread().getName());
+                order.add("A2");
+                allDone.countDown();
+            });
+            second.offer(() -> {
+                workerNames.add(
+                        Thread.currentThread().getName());
+                order.add("B1");
+                allDone.countDown();
+            });
+
+            releaseFirst.countDown();
+            assertTrue(
+                    allDone.await(
+                            1,
+                            TimeUnit.SECONDS));
+
+            assertEquals(
+                    Arrays.asList("A1", "B1", "A2"),
+                    order);
+            assertEquals(
+                    Arrays.asList(
+                            "shared-node-worker",
+                            "shared-node-worker",
+                            "shared-node-worker"),
+                    workerNames);
+        } finally {
+            releaseFirst.countDown();
+            first.close();
+            second.close();
+            shared.shutdownNow();
+        }
+    }
+
+    @Test
+    public void closingSharedLaneDoesNotStopSiblingLane()
+            throws Exception {
+        ThreadPoolExecutor shared = new ThreadPoolExecutor(
+                1,
+                1,
+                0L,
+                TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<Runnable>());
+        SerialExecutor first =
+                new SerialExecutor(
+                        2,
+                        "node-A",
+                        shared);
+        SerialExecutor second =
+                new SerialExecutor(
+                        2,
+                        "node-B",
+                        shared);
+        CountDownLatch secondDone = new CountDownLatch(1);
+
+        first.start();
+        second.start();
+        try {
+            first.close();
+
+            assertEquals(
+                    SerialExecutor.State.STOPPED,
+                    first.state());
+            assertFalse(shared.isShutdown());
+            assertEquals(
+                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    second.offer(secondDone::countDown));
+            assertTrue(
+                    secondDone.await(
+                            1,
+                            TimeUnit.SECONDS));
+        } finally {
+            second.close();
+            shared.shutdownNow();
+        }
     }
 
     @Test
