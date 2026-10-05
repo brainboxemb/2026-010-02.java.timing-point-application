@@ -11,6 +11,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCom
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInstallation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.DecryptedTagId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
@@ -102,7 +103,9 @@ public class CompositionTest {
                 identity(),
                 config(file, tagProcessingPolicy),
                 Collections.singletonList(
-                        AntennaInstallation.direct(antenna)),
+                        AntennaInstallation.direct(
+                                new AntennaId("ANT1"),
+                                antenna)),
                 tagId -> new RegistrationId("R-1001"));
 
         assertEquals(
