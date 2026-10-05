@@ -76,7 +76,7 @@ public class SerialScheduledExecutorTest {
             assertTrue(executor.execute(afterSecondRun::countDown));
             assertTrue(afterSecondRun.await(1, TimeUnit.SECONDS));
 
-            SerialScheduledExecutor.Metrics.Snapshot metrics =
+            SerialScheduledExecutorMetrics.Snapshot metrics =
                     executor.metrics().snapshot();
             assertEquals(1L, metrics.runtimeFailureCount());
             assertTrue(metrics.periodicExecutionCount() >= 2L);
@@ -108,7 +108,7 @@ public class SerialScheduledExecutorTest {
 
             periodic.close();
 
-            SerialScheduledExecutor.Metrics.Snapshot metrics =
+            SerialScheduledExecutorMetrics.Snapshot metrics =
                     executor.metrics().snapshot();
             assertEquals(1L, metrics.immediateAcceptedCount());
             assertEquals(1L, metrics.immediateRejectedCount());
