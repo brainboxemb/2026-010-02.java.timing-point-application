@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Expose authoritative TagProcessingPolicy startup/current runtime configuration through Application ConfigurationControl, IF-03 HTTP/WebSocket change events, and shared local/remote terminal commands including open, close and automatic-registration control.
+
 - Map the current single-TimingNode YAML subset through the IF-11 `timingSystems -> timingNodes -> tagProcessing` hierarchy, apply partial TagProcessingPolicy startup overrides over compiled defaults, and keep invalid policy values rejected before composition.
 
 - Split SerialExecutor and SerialScheduledExecutor measurement state into dedicated metrics classes; make both classes pure logical lanes on externally owned workers, removing standalone/private-worker modes and keeping physical worker construction/shutdown in composition/test owners.
