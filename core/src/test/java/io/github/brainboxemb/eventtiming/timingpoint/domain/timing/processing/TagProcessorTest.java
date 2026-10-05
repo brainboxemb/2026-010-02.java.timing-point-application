@@ -124,6 +124,105 @@ public class TagProcessorTest {
     }
 
     @Test
+    public void acceptedRegistrationSuppressesLaterMappedObservationsBeforePassageFiltering()
+            throws Exception {
+        RecordingStore store = new RecordingStore();
+        TimingNode node = node(store);
+        FakeMonotonicClock clock = new FakeMonotonicClock();
+        SerialScheduledExecutor executor =
+                new SerialScheduledExecutor("tp-tag-test");
+        TagProcessingCounters counters = new TagProcessingCounters();
+        TagProcessor processor = new TagProcessor(
+                node,
+                tagId -> new RegistrationId("N-001"),
+                policy(8),
+                clock,
+                counters,
+                executor);
+        CountDownLatch committed = new CountDownLatch(1);
+        node.timingDataCommittedEvent().subscribe(data -> committed.countDown());
+
+        node.start();
+        node.invoke(TimingNodeCommands.open(new LocationId(24)));
+        processor.start();
+        try {
+            processor.onObservation(
+                    observation("TAG-A", -60, OBSERVED_AT));
+            awaitLane(executor);
+
+            /*
+             * This closes the first passage. TagObservationFilter has already
+             * created a new burst for TAG-B before the callback performs the
+             * TimingNode offer; ACCEPTED must therefore start duplicate
+             * suppression and discard that just-created next burst.
+             */
+            clock.advanceNanos(100L);
+            processor.onObservation(
+                    observation("TAG-B", -50, STRONGER_OBSERVED_AT));
+            awaitLane(executor);
+            assertTrue(committed.await(1, TimeUnit.SECONDS));
+
+            processor.onObservation(
+                    observation("TAG-C", -40, STRONGER_OBSERVED_AT));
+            awaitLane(executor);
+
+            TagProcessingCounters.Snapshot snapshot = counters.snapshot();
+            assertEquals(3L, snapshot.observations());
+            assertEquals(3L, snapshot.mapped());
+            assertEquals(1L, snapshot.closedBursts());
+            assertEquals(1L, snapshot.admitted());
+            assertEquals(1L, snapshot.duplicates());
+            assertEquals(1, store.appended.size());
+        } finally {
+            processor.stop();
+            node.stop();
+        }
+    }
+
+    @Test
+    public void rejectedTimingNodeOfferDoesNotStartDuplicateSuppression()
+            throws Exception {
+        TimingNode node = node(new RecordingStore());
+        FakeMonotonicClock clock = new FakeMonotonicClock();
+        SerialScheduledExecutor executor =
+                new SerialScheduledExecutor("tp-tag-test");
+        TagProcessingCounters counters = new TagProcessingCounters();
+        TagProcessor processor = new TagProcessor(
+                node,
+                tagId -> new RegistrationId("N-001"),
+                policy(8),
+                clock,
+                counters,
+                executor);
+
+        // TimingNode deliberately remains NEW so every offer is NOT_RUNNING.
+        processor.start();
+        try {
+            processor.onObservation(
+                    observation("TAG-A", -60, OBSERVED_AT));
+            awaitLane(executor);
+
+            clock.advanceNanos(100L);
+            processor.onObservation(
+                    observation("TAG-B", -50, STRONGER_OBSERVED_AT));
+            awaitLane(executor);
+
+            clock.advanceNanos(100L);
+            processor.onObservation(
+                    observation("TAG-C", -40, STRONGER_OBSERVED_AT));
+            awaitLane(executor);
+
+            TagProcessingCounters.Snapshot snapshot = counters.snapshot();
+            assertEquals(3L, snapshot.mapped());
+            assertEquals(0L, snapshot.duplicates());
+            assertEquals(2L, snapshot.closedBursts());
+            assertEquals(2L, snapshot.nodeNotRunning());
+        } finally {
+            processor.stop();
+        }
+    }
+
+    @Test
     public void boundedObservationQueueReportsOverload() throws Exception {
         TimingNode node = node(new RecordingStore());
         FakeMonotonicClock clock = new FakeMonotonicClock();
