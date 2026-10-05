@@ -4,6 +4,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaM
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManagerTypes.ControlException;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManagerTypes.FailureReason;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManagerTypes.State;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 
 import java.time.Duration;
@@ -36,18 +37,6 @@ public final class AntennaManager implements AutoCloseable {
     private volatile boolean desiredOperational;
 
     private ScheduledFuture<?> rotationSchedule;
-
-    /** Convenience constructor for directly powered, non-multiplexed antennas. */
-    public AntennaManager(
-            List<Antenna> antennas,
-            SerialExecutor controlLane,
-            Duration controlTimeout) {
-        this(
-                directInstallations(antennas),
-                controlLane,
-                null,
-                controlTimeout);
-    }
 
     public AntennaManager(
             List<AntennaInstallation> installations,
@@ -165,8 +154,22 @@ public final class AntennaManager implements AutoCloseable {
                 : logic.failure();
     }
 
-    public List<Antenna> antennas() {
-        return logic.antennas();
+    /**
+     * Returns the configured antenna identities owned by this manager.
+     *
+     * <p>The concrete Antenna objects stay inside the antenna package. Runtime
+     * wiring addresses observation sources through AntennaId.</p>
+     */
+    public List<AntennaId> antennaIds() {
+        return logic.antennaIds();
+    }
+
+    /**
+     * Returns the event emitted when the addressed antenna observes a tag.
+     */
+    public EventSource<TagObservation> tagObservedEvent(
+            AntennaId antennaId) {
+        return logic.tagObservedEvent(antennaId);
     }
 
     public List<AntennaStatus> statuses() {
@@ -174,8 +177,8 @@ public final class AntennaManager implements AutoCloseable {
     }
 
     public AntennaStatus status(
-            Antenna antenna) {
-        return logic.status(antenna);
+            AntennaId antennaId) {
+        return logic.status(antennaId);
     }
 
     @Override
@@ -375,30 +378,6 @@ public final class AntennaManager implements AutoCloseable {
         if (failure == null) {
             failure = cause;
         }
-    }
-
-    private static List<AntennaInstallation>
-            directInstallations(
-                    List<Antenna> antennas) {
-        if (antennas == null
-                || antennas.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "antennas must contain at least one antenna");
-        }
-
-        List<AntennaInstallation> result =
-                new ArrayList<AntennaInstallation>(
-                        antennas.size());
-        for (Antenna antenna : antennas) {
-            if (antenna == null) {
-                throw new IllegalArgumentException(
-                        "antennas must not contain null");
-            }
-            result.add(
-                    AntennaInstallation.direct(
-                            antenna));
-        }
-        return result;
     }
 
     private static ControlException controlFailure(
