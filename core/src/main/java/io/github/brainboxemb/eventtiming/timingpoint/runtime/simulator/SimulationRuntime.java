@@ -2,7 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime.simulator;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagRegistrationMapper;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInstallation;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.TimingApplication;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 
