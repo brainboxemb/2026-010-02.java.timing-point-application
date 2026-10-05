@@ -69,9 +69,8 @@ public final class TimingNode {
      * Test-only convenience construction for tests in the TimingNode package.
      *
      * <p>Production runtime composition must use the public constructor that
-     * receives centrally constructed execution lanes. Keeping this seam
-     * package-private prevents production code from silently creating its own
-     * threads.</p>
+     * receives centrally constructed execution lanes. This seam uses direct
+     * execution and therefore creates no physical worker thread.</p>
      */
     TimingNode(
             NodeId timingNodeId,
@@ -87,7 +86,8 @@ public final class TimingNode {
                         SystemMonotonicClock.INSTANCE),
                 new SerialExecutor(
                         32,
-                        "tp-dml-node-" + requireId(timingNodeId).value()),
+                        "test-node-" + requireId(timingNodeId).value(),
+                        Runnable::run),
                 DEFAULT_OPERATION_TIMEOUT_MILLIS,
                 SystemMonotonicClock.INSTANCE,
                 null);
