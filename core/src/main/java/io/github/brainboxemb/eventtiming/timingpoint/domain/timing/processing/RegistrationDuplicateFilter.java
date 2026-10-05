@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingpoint.application.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 
 import java.util.HashMap;
@@ -16,7 +17,7 @@ import java.util.Map;
  * suppressing retries after FULL or NOT_RUNNING admission.</p>
  */
 final class RegistrationDuplicateFilter {
-    private final long duplicateWindowNanos;
+    private final ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration;
     private final MonotonicClock monotonicClock;
     private final Map<RegistrationId, Long> acceptedRegistrations =
             new HashMap<>();
@@ -27,20 +28,30 @@ final class RegistrationDuplicateFilter {
     RegistrationDuplicateFilter(
             TagProcessingPolicy policy,
             MonotonicClock monotonicClock) {
-        if (policy == null) {
-            throw new IllegalArgumentException("policy must not be null");
+        this(ReadOnlyConfiguration.fixed(policy), monotonicClock);
+    }
+
+    RegistrationDuplicateFilter(
+            ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
+            MonotonicClock monotonicClock) {
+        if (policyConfiguration == null) {
+            throw new IllegalArgumentException(
+                    "policyConfiguration must not be null");
         }
         if (monotonicClock == null) {
             throw new IllegalArgumentException("monotonicClock must not be null");
         }
-        duplicateWindowNanos = policy.duplicateWindowNanos();
+        this.policyConfiguration = policyConfiguration;
         this.monotonicClock = monotonicClock;
     }
 
     boolean isDuplicate(RegistrationId registrationId) {
         requireRegistrationId(registrationId);
 
+        long duplicateWindowNanos =
+                policyConfiguration.currentValue().duplicateWindowNanos();
         if (duplicateWindowNanos == 0L) {
+            acceptedRegistrations.remove(registrationId);
             return false;
         }
 
@@ -59,6 +70,8 @@ final class RegistrationDuplicateFilter {
 
     void recordAccepted(RegistrationId registrationId) {
         requireRegistrationId(registrationId);
+        long duplicateWindowNanos =
+                policyConfiguration.currentValue().duplicateWindowNanos();
         if (duplicateWindowNanos == 0L) {
             return;
         }
@@ -71,12 +84,26 @@ final class RegistrationDuplicateFilter {
         removeOldEntriesWhenDue(monotonicClock.nowNanos());
     }
 
+    void onPolicyChanged() {
+        if (policyConfiguration.currentValue().duplicateWindowNanos() == 0L) {
+            acceptedRegistrations.clear();
+            cleanupStarted = false;
+            lastCleanupNanos = 0L;
+        }
+    }
+
     boolean hasPendingState() {
-        return !acceptedRegistrations.isEmpty();
+        return policyConfiguration.currentValue().duplicateWindowNanos() != 0L
+                && !acceptedRegistrations.isEmpty();
     }
 
     private void removeOldEntriesWhenDue(long now) {
+        long duplicateWindowNanos =
+                policyConfiguration.currentValue().duplicateWindowNanos();
         if (duplicateWindowNanos == 0L) {
+            acceptedRegistrations.clear();
+            cleanupStarted = false;
+            lastCleanupNanos = 0L;
             return;
         }
 
