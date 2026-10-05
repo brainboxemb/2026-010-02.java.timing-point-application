@@ -2,23 +2,18 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
+import io.github.brainboxemb.eventtiming.timingpoint.application.Conductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeQueries;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.DynamicConfiguration;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Antenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManager;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 /**
  * Top-level runtime object for one SI-01 application composition.
@@ -35,13 +30,9 @@ public final class Application implements AutoCloseable {
     private final ConfigurationControl configurationControl;
     private final PresentationGateway presentationGateway;
     private final Lifecycle lifecycle;
+    private final Conductor conductor;
     private final AntennaManager antennaManager;
     private final RuntimeExecutors runtimeExecutors;
-
-    private final Consumer<TagObservation> observationListener;
-    private final Consumer<Status> timingNodeStatusListener;
-    private final List<Antenna> subscribedAntennas =
-            new ArrayList<Antenna>();
 
     /**
      * Package-private unit-test seam for Application lifecycle tests.
@@ -54,6 +45,7 @@ public final class Application implements AutoCloseable {
                 buildIdentity,
                 timingNode,
                 defaultConfiguration(timingNode),
+                new Conductor(timingNode, null),
                 null,
                 null);
     }
@@ -62,6 +54,7 @@ public final class Application implements AutoCloseable {
             BuildIdentity buildIdentity,
             TimingNode timingNode,
             ApplicationConfiguration configuration,
+            Conductor conductor,
             AntennaManager antennaManager,
             RuntimeExecutors runtimeExecutors) {
         if (buildIdentity == null) {
@@ -75,6 +68,10 @@ public final class Application implements AutoCloseable {
         if (configuration == null) {
             throw new IllegalArgumentException(
                     "configuration must not be null");
+        }
+        if (conductor == null) {
+            throw new IllegalArgumentException(
+                    "conductor must not be null");
         }
         if (antennaManager != null && runtimeExecutors == null) {
             throw new IllegalArgumentException(
@@ -92,70 +89,64 @@ public final class Application implements AutoCloseable {
                         timingNode,
                         configurationControl);
         this.lifecycle = new Lifecycle(buildIdentity);
+        this.conductor = conductor;
         this.antennaManager = antennaManager;
         this.runtimeExecutors = runtimeExecutors;
-
-        if (antennaManager == null) {
-            observationListener = null;
-            timingNodeStatusListener = null;
-        } else {
-            /*
-             * These are wiring callbacks only. Event delivery enters the owning
-             * component immediately and returns; potentially blocking device work
-             * is submitted by AntennaManager to the runtime-owned shared I/O pool.
-             */
-            observationListener =
-                    timingNode.tagProcessor()::onObservation;
-            timingNodeStatusListener =
-                    status -> antennaManager.requestOperational(
-                            status.lifecycle()
-                                    == io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Lifecycle.OPEN);
-        }
     }
 
     /**
-     * Starts component ownership from the inside out.
+     * Starts the already constructed application in an explicit order.
      *
-     * <p>TimingNode starts its node and TagProcessor lanes first. AntennaManager
-     * then performs independent startup probes. Normal inventory follows the
-     * TimingNode OPEN/CLOSED event and therefore cannot begin before the node
-     * processing path exists.</p>
+     * <p>The order is intentionally visible here: start Runtime workers, install
+     * application wiring, start Domain/I/O components, synchronize their current
+     * state, then publish the application lifecycle as RUNNING.</p>
      */
     public void start() {
-        timingNode.start();
-        boolean antennaWiringInstalled = false;
+        boolean conductorConnected = false;
+        boolean timingNodeStarted = false;
+        boolean antennaManagerStarted = false;
 
         try {
-            if (antennaManager != null) {
-                subscribeAntennaPath();
-                antennaWiringInstalled = true;
-                antennaManager.start();
+            if (runtimeExecutors != null) {
+                runtimeExecutors.start();
+            }
 
-                Status current = timingNode.query(
-                        TimingNodeQueries.status());
-                antennaManager.requestOperational(
-                        current.lifecycle()
-                                == io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Lifecycle.OPEN);
+            conductor.connect();
+            conductorConnected = true;
+
+            timingNode.start();
+            timingNodeStarted = true;
+
+            if (antennaManager != null) {
+                antennaManager.start();
+                antennaManagerStarted = true;
+                conductor.synchronize();
             }
 
             lifecycle.start();
         } catch (RuntimeException ex) {
-            if (antennaManager != null) {
+            if (antennaManagerStarted) {
                 try {
                     antennaManager.close();
                 } catch (RuntimeException ignored) {
                     // Preserve the original startup failure.
                 }
             }
-            if (antennaWiringInstalled) {
-                unsubscribeAntennaPath();
-            }
-            try {
-                timingNode.stop();
-            } finally {
-                if (runtimeExecutors != null) {
-                    runtimeExecutors.close();
+
+            if (timingNodeStarted) {
+                try {
+                    timingNode.stop();
+                } catch (RuntimeException ignored) {
+                    // Preserve the original startup failure.
                 }
+            }
+
+            if (conductorConnected) {
+                conductor.close();
+            }
+
+            if (runtimeExecutors != null) {
+                runtimeExecutors.close();
             }
             throw ex;
         }
@@ -195,25 +186,19 @@ public final class Application implements AutoCloseable {
         RuntimeException firstFailure = null;
 
         /*
-         * Stop new lifecycle requests before device shutdown. AntennaManager then
-         * stops inventory/power and closes providers before observation listeners
-         * are detached.
+         * Disconnect application-level relationships first so shutdown does not
+         * create new cross-component work while owned components are stopping.
          */
+        conductor.close();
+
         if (antennaManager != null) {
-            timingNode.statusChangedEvent()
-                    .unsubscribe(timingNodeStatusListener);
             try {
                 antennaManager.close();
             } catch (RuntimeException ex) {
                 firstFailure = ex;
             }
-            unsubscribeObservationListeners();
         }
 
-        /*
-         * TimingNode stops TagProcessor before its own serial lane, allowing
-         * already admitted tag work to finish its TimingNode.offer(...) handoff.
-         */
         try {
             timingNode.stop();
         } catch (RuntimeException ex) {
@@ -231,46 +216,6 @@ public final class Application implements AutoCloseable {
         if (firstFailure != null) {
             throw firstFailure;
         }
-    }
-
-    private void subscribeAntennaPath() {
-        if (!timingNode.statusChangedEvent()
-                .subscribe(timingNodeStatusListener)) {
-            throw new IllegalStateException(
-                    "Antenna lifecycle listener was already subscribed");
-        }
-
-        try {
-            for (Antenna antenna : antennaManager.antennas()) {
-                if (!antenna.observations()
-                        .subscribe(observationListener)) {
-                    throw new IllegalStateException(
-                            "TagProcessor observation listener was already subscribed");
-                }
-                subscribedAntennas.add(antenna);
-            }
-        } catch (RuntimeException ex) {
-            unsubscribeAntennaPath();
-            throw ex;
-        }
-    }
-
-    private void unsubscribeAntennaPath() {
-        if (timingNodeStatusListener != null) {
-            timingNode.statusChangedEvent()
-                    .unsubscribe(timingNodeStatusListener);
-        }
-        unsubscribeObservationListeners();
-    }
-
-    private void unsubscribeObservationListeners() {
-        if (observationListener == null) {
-            return;
-        }
-        for (Antenna antenna : subscribedAntennas) {
-            antenna.observations().unsubscribe(observationListener);
-        }
-        subscribedAntennas.clear();
     }
 
     private static ConfigurationControl createConfigurationControl(
