@@ -9,7 +9,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api
 import io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.console.LocalConsole;
 import io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.shell.RemoteShellServer;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.TimingApplication;
-import io.github.brainboxemb.eventtiming.timingpoint.runtime.Lifecycle;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Api;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Presentation;
@@ -226,7 +225,7 @@ public final class Main {
             startLocalConsole(application);
 
             try {
-                application.awaitStopped();
+                application.awaitInactive();
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
             }
@@ -358,15 +357,9 @@ public final class Main {
     private static void runArtifactSmoke(
             BuildIdentity buildIdentity,
             PrintStream out) {
-        Lifecycle lifecycle = new Lifecycle(buildIdentity);
-        try {
-            lifecycle.start();
-        } finally {
-            lifecycle.close();
-        }
         out.println(
                 TimingApplication.smokeOutput(
                         buildIdentity,
-                        lifecycle.state()));
+                        TimingApplication.State.INACTIVE));
     }
 }
