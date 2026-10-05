@@ -115,9 +115,11 @@ public class CompositionTest {
 
         application.start();
         try {
-            assertTrue(antenna.inventoryRunning());
+            assertFalse(antenna.inventoryRunning());
+
             application.timingNode().invoke(
                     TimingNodeCommands.open(new LocationId(24)));
+            await(antenna::inventoryRunning, 1000L);
 
             CountDownLatch committed = new CountDownLatch(1);
             AtomicReference<AutomaticRegistration> automatic =
@@ -143,6 +145,10 @@ public class CompositionTest {
                     new RegistrationId("R-1001"),
                     automatic.get().registrationId());
             assertEquals(observedAt, automatic.get().effectiveTime());
+
+            application.timingNode().invoke(
+                    TimingNodeCommands.close());
+            await(() -> !antenna.inventoryRunning(), 1000L);
         } finally {
             application.close();
         }
@@ -156,6 +162,23 @@ public class CompositionTest {
             fail("expected closed antenna after application shutdown");
         } catch (IllegalStateException expected) {
             assertTrue(expected.getMessage().contains("closed"));
+        }
+    }
+
+    private static void await(
+            java.util.function.BooleanSupplier condition,
+            long timeoutMillis)
+            throws Exception {
+        long deadline =
+                System.nanoTime()
+                        + TimeUnit.MILLISECONDS.toNanos(
+                                timeoutMillis);
+        while (!condition.getAsBoolean()) {
+            if (System.nanoTime() >= deadline) {
+                throw new AssertionError(
+                        "condition did not become true before timeout");
+            }
+            Thread.sleep(5L);
         }
     }
 
