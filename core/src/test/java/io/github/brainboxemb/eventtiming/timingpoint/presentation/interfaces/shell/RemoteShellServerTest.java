@@ -36,7 +36,7 @@ public class RemoteShellServerTest {
 
             assertTrue(response.contains("Remote terminal ready."));
             assertTrue(response.contains("Commands:"));
-            assertTrue(response.contains("help     Show available commands"));
+            assertTrue(response.contains("help                         Show available commands"));
             assertFalse(response.contains("Unknown command"));
         } finally {
             server.close();
