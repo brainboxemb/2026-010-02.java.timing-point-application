@@ -11,7 +11,7 @@ import java.util.Map;
  * Passive accepted-registration duplicate window owned by the TagProcessor lane.
  *
  * <p>The filter only remembers registrations after TimingNode accepted their
- * submission. Checking and recording are deliberately separate so TagProcessor
+ * fire-and-forget offer. Checking and recording are deliberately separate so TagProcessor
  * can suppress repeated observations before passage aggregation without
  * suppressing retries after FULL or NOT_RUNNING admission.</p>
  */
