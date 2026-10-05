@@ -125,11 +125,11 @@ public final class TagProcessor {
                         this::processValidObservation);
     }
 
-    public void start() {
+    public void activate() {
         synchronized (lifecycleLock) {
             if (state != State.NEW) {
                 throw new IllegalStateException(
-                        "TagProcessor can only start from NEW; current state=" + state);
+                        "TagProcessor can only activate from NEW; current state=" + state);
             }
             executor.start();
             state = State.RUNNING;
@@ -137,7 +137,7 @@ public final class TagProcessor {
         }
     }
 
-    public void stop() {
+    public void deactivate() {
         boolean drainRemaining;
         synchronized (lifecycleLock) {
             if (state == State.STOPPED) {
