@@ -33,7 +33,7 @@ public final class AntennaManager implements AutoCloseable {
 
     private volatile State state = State.NEW;
     private volatile Throwable failure;
-    private volatile boolean desiredOperational;
+    private volatile boolean inventoryEnabledRequested;
 
     private ScheduledFuture<?> rotationSchedule;
 
@@ -73,14 +73,18 @@ public final class AntennaManager implements AutoCloseable {
     }
 
     /**
-     * Starts the logical control lane and performs one non-inventory health
-     * probe for every configured antenna.
+     * Activates this manager.
+     *
+     * <p>Activation starts the manager's logical control lane and probes every
+     * configured antenna once. It does not enable inventory. Whether antennas
+     * may read tags is controlled separately through
+     * {@link #requestInventoryEnabled(boolean)}.</p>
      */
-    public void start() {
+    public void activate() {
         synchronized (this) {
             if (state != State.NEW) {
                 throw new IllegalStateException(
-                        "AntennaManager can only start from NEW; current state="
+                        "AntennaManager can only activate from NEW; current state="
                                 + state);
             }
             state = State.STARTING;
@@ -98,12 +102,12 @@ public final class AntennaManager implements AutoCloseable {
     }
 
     /**
-     * Requests the latest desired operational state without waiting for provider I/O.
+     * Requests the latest desired inventory-enabled state without waiting for provider I/O.
      *
      * <p>Used from TimingNode status callbacks. ACCEPTED means only that the
      * reconcile operation entered this manager's bounded serial lane.</p>
      */
-    public boolean requestOperational(
+    public boolean requestInventoryEnabled(
             boolean operational) {
         State current = state;
         if (current != State.RUNNING
@@ -111,9 +115,9 @@ public final class AntennaManager implements AutoCloseable {
             return false;
         }
 
-        desiredOperational = operational;
+        inventoryEnabledRequested = operational;
         SerialExecutor.AdmissionResult admission =
-                controlLane.offer(this::reconcileOperational);
+                controlLane.offer(this::reconcileInventoryEnabled);
         if (admission == SerialExecutor.AdmissionResult.ACCEPTED) {
             return true;
         }
@@ -121,25 +125,31 @@ public final class AntennaManager implements AutoCloseable {
         recordControlFailure(
                 controlFailure(
                         FailureReason.OVERLOADED,
-                        "AntennaManager control lane rejected operational work: "
+                        "AntennaManager control lane rejected inventory-enable work: "
                                 + admission,
                         controlLane.failure()));
         return false;
     }
 
-    /** Result-bearing form of the same operational reconcile operation. */
-    public void setOperational(
+    /**
+     * Result-bearing form of the same inventory-enable request.
+     *
+     * <p>Enabling inventory keeps the physical sequence internal to the manager:
+     * apply external power when configured, wait for stabilization, initialize
+     * the antenna, then start inventory according to the multiplex policy.</p>
+     */
+    public void setInventoryEnabled(
             boolean operational) {
         State current = state;
         if (current != State.RUNNING
                 && current != State.DEGRADED) {
             throw new IllegalStateException(
-                    "AntennaManager is not available for operation; current state="
+                    "AntennaManager is not active for inventory control; current state="
                             + current);
         }
 
-        desiredOperational = operational;
-        runControl(this::reconcileOperational);
+        inventoryEnabledRequested = operational;
+        runControl(this::reconcileInventoryEnabled);
     }
 
     public State state() {
@@ -173,8 +183,7 @@ public final class AntennaManager implements AutoCloseable {
         return logic.status(antennaId);
     }
 
-    @Override
-    public void close() {
+    public void deactivate() {
         State current;
         synchronized (this) {
             current = state;
@@ -190,7 +199,7 @@ public final class AntennaManager implements AutoCloseable {
             state = State.STOPPING;
         }
 
-        desiredOperational = false;
+        inventoryEnabledRequested = false;
         cancelRotationSchedule();
 
         RuntimeException closeFailure = null;
@@ -221,8 +230,8 @@ public final class AntennaManager implements AutoCloseable {
         }
     }
 
-    private void reconcileOperational() {
-        if (desiredOperational) {
+    private void reconcileInventoryEnabled() {
+        if (inventoryEnabledRequested) {
             logic.activateAvailableAntennas();
             ensureRotationSchedule();
         } else {
@@ -233,7 +242,7 @@ public final class AntennaManager implements AutoCloseable {
     }
 
     private synchronized void ensureRotationSchedule() {
-        if (!desiredOperational
+        if (!inventoryEnabledRequested
                 || !logic.hasInventoryGroup()
                 || !logic.inventoryGroupNeedsRotation()) {
             cancelRotationSchedule();
@@ -256,7 +265,7 @@ public final class AntennaManager implements AutoCloseable {
     }
 
     private void requestGroupRotation() {
-        if (!desiredOperational) {
+        if (!inventoryEnabledRequested) {
             return;
         }
 
@@ -274,7 +283,7 @@ public final class AntennaManager implements AutoCloseable {
     }
 
     private void rotateGroup() {
-        if (!desiredOperational) {
+        if (!inventoryEnabledRequested) {
             return;
         }
 
