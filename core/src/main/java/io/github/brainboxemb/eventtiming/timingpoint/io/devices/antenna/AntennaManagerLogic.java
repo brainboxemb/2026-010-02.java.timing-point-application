@@ -33,7 +33,6 @@ final class AntennaManagerLogic {
     }
 
     private final List<ManagedAntenna> managedAntennas;
-    private final List<AntennaId> antennaIds;
     private final List<ManagedAntenna> inventoryGroup;
     private final Duration inventoryInterval;
 
@@ -49,9 +48,6 @@ final class AntennaManagerLogic {
 
         List<ManagedAntenna> managed =
                 new ArrayList<ManagedAntenna>(
-                        installations.size());
-        List<AntennaId> antennaIdCopy =
-                new ArrayList<AntennaId>(
                         installations.size());
         List<ManagedAntenna> group =
                 new ArrayList<ManagedAntenna>();
@@ -77,7 +73,6 @@ final class AntennaManagerLogic {
             ManagedAntenna managedAntenna =
                     new ManagedAntenna(installation);
             managed.add(managedAntenna);
-            antennaIdCopy.add(installation.antennaId());
 
             if (installation.inInventoryGroup()) {
                 if (groupInterval == null) {
@@ -100,15 +95,9 @@ final class AntennaManagerLogic {
 
         managedAntennas =
                 Collections.unmodifiableList(managed);
-        antennaIds =
-                Collections.unmodifiableList(antennaIdCopy);
         inventoryGroup =
                 Collections.unmodifiableList(group);
         inventoryInterval = groupInterval;
-    }
-
-    List<AntennaId> antennaIds() {
-        return antennaIds;
     }
 
     EventSource<TagObservation> tagObservedEvent(
