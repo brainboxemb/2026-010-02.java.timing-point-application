@@ -40,7 +40,9 @@ public final class Conductor {
      *
      * <p>The event subscription handles later changes. Activation reconciles the
      * current TimingNode status once, using exactly the same behaviour as a later
-     * status-changed event. Startup/recovery semantics remain owned by TimingNode;
+     * status-changed event. This also covers a status event emitted while
+     * TimingNode was activating before AntennaManager was ready to accept
+     * inventory control. Startup/recovery semantics remain owned by TimingNode;
      * Conductor only reacts to the status TimingNode exposes.</p>
      */
     public void activate() {
