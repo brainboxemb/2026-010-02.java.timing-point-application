@@ -5,8 +5,6 @@ import java.util.List;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -20,10 +18,9 @@ import org.slf4j.LoggerFactory;
  * one runtime-owned scheduled role worker. Each lane still serializes its own
  * immediate work and periodic housekeeping.</p>
  *
- * <p>The one-argument constructor is a standalone convenience and creates one
- * private scheduled worker in {@link #start()}. The three-argument constructor
- * receives a runtime-owned shared worker. This lane may schedule work on that
- * worker but never owns or shuts down its lifecycle.</p>
+ * <p>The scheduled worker is supplied from outside this lane. This class may
+ * schedule timer triggers on it, but never creates, configures or shuts down the
+ * underlying worker.</p>
  */
 public final class SerialScheduledExecutor implements AutoCloseable {
     private static final Logger LOG =
@@ -52,58 +49,38 @@ public final class SerialScheduledExecutor implements AutoCloseable {
     /** Diagnostic identity of this logical scheduled lane. */
     private final String laneName;
 
-    /** Capacity of the lane-local immediate/control queue in shared-worker mode. */
-    private final int sharedLaneCapacity;
+    /** Capacity of the lane-local immediate/control queue. */
+    private final int laneCapacity;
 
     /**
-     * Runtime-owned scheduled role worker.
-     *
-     * <p>{@code null} means standalone mode. A non-null value means the worker
-     * is owned by RuntimeExecutors and must never be shut down here.</p>
+     * Externally owned scheduled worker used for timer triggers and drain work.
      */
-    private final ScheduledExecutorService sharedWorkerExecutor;
+    private final ScheduledExecutorService workerExecutor;
 
     private final SerialScheduledExecutorMetrics metrics;
 
-    /** Active fixed-delay registrations owned by this lane in shared-worker mode. */
-    private final List<SharedPeriodicTask> sharedPeriodicTasks =
-            new ArrayList<SharedPeriodicTask>();
+    /** Active fixed-delay registrations owned by this lane. */
+    private final List<PeriodicTask> periodicTasks =
+            new ArrayList<PeriodicTask>();
 
     private State state = State.NEW;
 
-    /** Private physical worker used only by the standalone constructor. */
-    private ScheduledThreadPoolExecutor standaloneExecutor;
-
     /**
-     * Lane-local serialization adapter used only with a shared role worker.
-     * Immediate and periodic work both enter this same lane.
+     * Lane-local serialization adapter. Immediate and periodic work both enter
+     * this same lane.
      */
-    private SerialExecutor sharedLane;
+    private SerialExecutor lane;
 
     /** First fatal lane/scheduling failure, if any. */
     private Throwable failure;
 
-    /** Standalone serial scheduled lane with a private worker. */
-    public SerialScheduledExecutor(String threadName) {
-        if (threadName == null || threadName.trim().isEmpty()) {
-            throw new IllegalArgumentException(
-                    "threadName must not be blank");
-        }
-        laneName = threadName.trim();
-        sharedLaneCapacity = 0;
-        sharedWorkerExecutor = null;
-        metrics = new SerialScheduledExecutorMetrics(
-                this::metricQueueDepth,
-                true);
-    }
-
     /**
-     * Logical scheduled lane serviced by a runtime-owned shared role executor.
+     * Creates a logical scheduled lane on an externally owned scheduled worker.
      */
     public SerialScheduledExecutor(
             int laneCapacity,
             String laneName,
-            ScheduledExecutorService sharedExecutor) {
+            ScheduledExecutorService workerExecutor) {
         if (laneCapacity < 1) {
             throw new IllegalArgumentException(
                     "laneCapacity must be positive");
@@ -112,34 +89,19 @@ public final class SerialScheduledExecutor implements AutoCloseable {
             throw new IllegalArgumentException(
                     "laneName must not be blank");
         }
-        if (sharedExecutor == null) {
+        if (workerExecutor == null) {
             throw new IllegalArgumentException(
-                    "sharedExecutor must not be null");
+                    "workerExecutor must not be null");
         }
 
         this.laneName = laneName.trim();
-        this.sharedLaneCapacity = laneCapacity;
-        this.sharedWorkerExecutor = sharedExecutor;
+        this.laneCapacity = laneCapacity;
+        this.workerExecutor = workerExecutor;
         metrics = new SerialScheduledExecutorMetrics(
-                this::metricQueueDepth,
-                false);
+                this::metricQueueDepth);
     }
 
-    /**
-     * Shared mode is represented by the presence of the runtime-owned worker
-     * dependency; no second lifecycle/ownership flag is kept.
-     */
-    private boolean usesSharedWorker() {
-        return sharedWorkerExecutor != null;
-    }
-
-    /**
-     * Activates this lane.
-     *
-     * <p>Shared mode creates only the lane-local serialization adapter. It does
-     * not create another physical worker. Standalone mode creates one private
-     * scheduled worker.</p>
-     */
+    /** Activates this logical lane on the supplied worker. */
     public synchronized void start() {
         if (state != State.NEW) {
             throw new IllegalStateException(
@@ -147,41 +109,14 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                             + state);
         }
 
-        if (usesSharedWorker()) {
-            sharedLane = new SerialExecutor(
-                    sharedLaneCapacity,
-                    laneName,
-                    sharedWorkerExecutor);
-            sharedLane.start();
-        } else {
-            ThreadFactory threadFactory = runnable -> {
-                Thread thread =
-                        new Thread(runnable, laneName);
-                metrics.recordStandaloneWorkerThread(thread);
-                return thread;
-            };
-            standaloneExecutor =
-                    new ScheduledThreadPoolExecutor(
-                            1,
-                            threadFactory);
-            standaloneExecutor.setRemoveOnCancelPolicy(true);
-            standaloneExecutor
-                    .setExecuteExistingDelayedTasksAfterShutdownPolicy(
-                            true);
-            standaloneExecutor
-                    .setContinueExistingPeriodicTasksAfterShutdownPolicy(
-                            false);
-            standaloneExecutor.prestartCoreThread();
-        }
-
+        lane = new SerialExecutor(
+                laneCapacity,
+                laneName,
+                workerExecutor);
+        lane.start();
         state = State.RUNNING;
     }
 
-    /**
-     * Queues one immediate operation on this logical serial lane.
-     *
-     * @return false when this lane no longer accepts work
-     */
     /**
      * Attempts to admit immediate work to this serial lane.
      *
@@ -193,53 +128,31 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                     "task must not be null");
         }
 
-        if (usesSharedWorker()) {
-            SerialExecutor lane;
-            synchronized (this) {
-                if (state != State.RUNNING) {
-                    metrics.recordImmediateRejected();
-                    return false;
-                }
-                lane = sharedLane;
-            }
-
-            SerialExecutor.AdmissionResult admission =
-                    lane.offer(wrapImmediate(task));
-            if (admission
-                    == SerialExecutor.AdmissionResult.ACCEPTED) {
-                metrics.recordImmediateAccepted();
-                return true;
-            }
-            metrics.recordImmediateRejected();
-            return false;
-        }
-
-        ScheduledThreadPoolExecutor active;
+        SerialExecutor activeLane;
         synchronized (this) {
             if (state != State.RUNNING) {
                 metrics.recordImmediateRejected();
                 return false;
             }
-            active = standaloneExecutor;
+            activeLane = lane;
         }
 
-        try {
-            active.execute(wrapImmediate(task));
+        SerialExecutor.AdmissionResult admission =
+                activeLane.offer(wrapImmediate(task));
+        if (admission == SerialExecutor.AdmissionResult.ACCEPTED) {
             metrics.recordImmediateAccepted();
             return true;
-        } catch (RejectedExecutionException ex) {
-            metrics.recordImmediateRejected();
-            return false;
         }
+        metrics.recordImmediateRejected();
+        return false;
     }
 
     /**
      * Registers fixed-delay work on this serial lane.
      *
-     * <p>In shared mode the timer trigger is scheduled on the runtime worker,
-     * but the actual callback is first admitted to {@link #sharedLane}; periodic
-     * state therefore never runs concurrently with immediate work from the same
-     * lane. The next trigger is scheduled only after that callback finishes.</p>
+     * <p>The timer trigger is scheduled on the supplied scheduler, while the
+     * actual callback is admitted to the same serial lane as immediate work.
+     * The next trigger is scheduled only after that callback finishes.</p>
      */
     public ScheduledTask scheduleWithFixedDelay(
             Runnable task,
@@ -253,51 +166,18 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                     "delayNanos must be positive");
         }
 
-        if (usesSharedWorker()) {
-            final SharedPeriodicTask periodic;
-            synchronized (this) {
-                if (state != State.RUNNING) {
-                    throw new IllegalStateException(
-                            "SerialScheduledExecutor is not running");
-                }
-                periodic =
-                        new SharedPeriodicTask(
-                                task,
-                                delayNanos);
-                sharedPeriodicTasks.add(periodic);
-                metrics.recordScheduledRegistration();
-            }
-            periodic.scheduleNext();
-            return periodic;
-        }
-
-        ScheduledThreadPoolExecutor active;
+        final PeriodicTask periodic;
         synchronized (this) {
             if (state != State.RUNNING) {
                 throw new IllegalStateException(
                         "SerialScheduledExecutor is not running");
             }
-            active = standaloneExecutor;
-        }
-
-        try {
-            ScheduledFuture<?> future =
-                    active.scheduleWithFixedDelay(
-                            wrapPeriodic(task),
-                            delayNanos,
-                            delayNanos,
-                            TimeUnit.NANOSECONDS);
+            periodic = new PeriodicTask(task, delayNanos);
+            periodicTasks.add(periodic);
             metrics.recordScheduledRegistration();
-            return () -> {
-                if (future.cancel(false)) {
-                    metrics.recordScheduledCancellation();
-                }
-            };
-        } catch (RejectedExecutionException ex) {
-            throw new IllegalStateException(
-                    "SerialScheduledExecutor stopped while scheduling work",
-                    ex);
         }
+        periodic.scheduleNext();
+        return periodic;
     }
 
     public synchronized State state() {
@@ -313,32 +193,22 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         return metrics;
     }
 
-    /**
-     * Supplies lane-local queue depth to the separate metrics object.
-     */
+    /** Supplies lane-local queue depth to the separate metrics object. */
     private synchronized int metricQueueDepth() {
-        if (usesSharedWorker()) {
-            return sharedLane == null
-                    ? 0
-                    : sharedLane.metrics().snapshot().queueDepth();
-        }
-        return standaloneExecutor == null
+        return lane == null
                 ? 0
-                : standaloneExecutor.getQueue().size();
+                : lane.metrics().snapshot().queueDepth();
     }
 
     /**
-     * Cancels this lane's periodic registrations and stops its local execution.
+     * Cancels this lane's periodic registrations and closes the logical lane.
      *
-     * <p>Standalone mode also stops its private scheduled worker. Shared mode
-     * closes only the lane-local serial adapter; Runtime remains responsible for
-     * the physical shared worker.</p>
+     * <p>The externally owned scheduled worker remains running.</p>
      */
     @Override
     public void close() {
-        final SerialExecutor lane;
-        final ScheduledThreadPoolExecutor standalone;
-        final List<SharedPeriodicTask> periodicTasks;
+        final SerialExecutor activeLane;
+        final List<PeriodicTask> tasks;
 
         synchronized (this) {
             if (state == State.NEW) {
@@ -352,47 +222,22 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                 return;
             }
 
-            lane = sharedLane;
-            standalone = standaloneExecutor;
-            periodicTasks =
-                    new ArrayList<SharedPeriodicTask>(
-                            sharedPeriodicTasks);
+            activeLane = lane;
+            tasks = new ArrayList<PeriodicTask>(periodicTasks);
         }
 
-        for (SharedPeriodicTask periodic : periodicTasks) {
+        for (PeriodicTask periodic : tasks) {
             periodic.close();
         }
 
-        if (usesSharedWorker()) {
-            if (lane != null) {
-                lane.close();
-            }
-        } else if (standalone != null) {
-            standalone.shutdown();
-            awaitStandaloneTermination(standalone);
+        if (activeLane != null) {
+            activeLane.close();
         }
 
         synchronized (this) {
             if (state != State.FAILED) {
                 state = State.STOPPED;
             }
-        }
-    }
-
-    private static void awaitStandaloneTermination(
-            ScheduledThreadPoolExecutor executor) {
-        boolean interrupted = false;
-        while (!executor.isTerminated()) {
-            try {
-                executor.awaitTermination(
-                        100L,
-                        TimeUnit.MILLISECONDS);
-            } catch (InterruptedException ex) {
-                interrupted = true;
-            }
-        }
-        if (interrupted) {
-            Thread.currentThread().interrupt();
         }
     }
 
@@ -437,42 +282,28 @@ public final class SerialScheduledExecutor implements AutoCloseable {
     }
 
     private void markFailed(Error cause) {
-        ScheduledThreadPoolExecutor standalone = null;
-        List<SharedPeriodicTask> periodicTasks;
+        List<PeriodicTask> tasks;
         synchronized (this) {
             if (state == State.FAILED) {
                 return;
             }
             failure = cause;
             state = State.FAILED;
-            periodicTasks =
-                    new ArrayList<SharedPeriodicTask>(
-                            sharedPeriodicTasks);
-            if (!usesSharedWorker()) {
-                standalone = standaloneExecutor;
-            }
+            tasks = new ArrayList<PeriodicTask>(periodicTasks);
         }
 
-        for (SharedPeriodicTask periodic : periodicTasks) {
+        for (PeriodicTask periodic : tasks) {
             periodic.close();
-        }
-
-        /*
-         * A shared lane failure is isolated to this lane. Never stop the
-         * runtime-owned TagProcessor role executor from component code.
-         */
-        if (standalone != null) {
-            standalone.shutdownNow();
         }
     }
 
     /**
-     * One logical fixed-delay registration in shared-worker mode.
+     * One logical fixed-delay registration.
      *
-     * <p>{@code trigger} is only the next timer wake-up on the shared scheduler.
-     * The actual user callback is serialized through {@link #sharedLane}.</p>
+     * <p>{@code trigger} is only the next timer wake-up on the supplied scheduler.
+     * The actual user callback is serialized through {@link #lane}.</p>
      */
-    private final class SharedPeriodicTask
+    private final class PeriodicTask
             implements ScheduledTask {
         private final Runnable task;
         private final long delayNanos;
@@ -480,7 +311,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         private boolean closed;
         private ScheduledFuture<?> trigger;
 
-        private SharedPeriodicTask(
+        private PeriodicTask(
                 Runnable task,
                 long delayNanos) {
             this.task = task;
@@ -501,7 +332,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
 
             try {
                 ScheduledFuture<?> next =
-                        sharedWorkerExecutor.schedule(
+                        workerExecutor.schedule(
                                 this::enqueueExecution,
                                 delayNanos,
                                 TimeUnit.NANOSECONDS);
@@ -535,7 +366,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                 if (state != State.RUNNING) {
                     return;
                 }
-                lane = sharedLane;
+                lane = lane;
             }
 
             SerialExecutor.AdmissionResult admission =
@@ -577,7 +408,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
             }
 
             synchronized (SerialScheduledExecutor.this) {
-                sharedPeriodicTasks.remove(this);
+                periodicTasks.remove(this);
             }
             if (recordCancellation) {
                 metrics.recordScheduledCancellation();
