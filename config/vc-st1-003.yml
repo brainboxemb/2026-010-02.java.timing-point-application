@@ -1,6 +1,10 @@
 # VC-ST1-003 manual Development Client verification configuration.
 # Uses dedicated TimingData storage so normal development history is untouched.
-timingNodeId: TN-01
+timingSystems:
+  timing-system-01:
+    timingNodes:
+      timing-node-01:
+        timingNodeId: TN-01
 
 io:
   storage:
