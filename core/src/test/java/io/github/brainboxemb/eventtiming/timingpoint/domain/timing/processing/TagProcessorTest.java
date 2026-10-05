@@ -53,7 +53,7 @@ public class TagProcessorTest {
                 },
                 policy(8),
                 clock,
-                new TagProcessingCounters(),
+                new TagProcessingMetrics(),
                 executor);
 
         processor.start();
@@ -77,13 +77,13 @@ public class TagProcessorTest {
         FakeMonotonicClock clock = new FakeMonotonicClock();
         SerialScheduledExecutor executor =
                 new SerialScheduledExecutor("tp-tag-test");
-        TagProcessingCounters counters = new TagProcessingCounters();
+        TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                 node,
                 tagId -> new RegistrationId("N-001"),
                 policy(8),
                 clock,
-                counters,
+                metrics,
                 executor);
         CountDownLatch committed = new CountDownLatch(1);
         node.timingDataCommittedEvent().subscribe(data -> committed.countDown());
@@ -112,7 +112,7 @@ public class TagProcessorTest {
                     STRONGER_OBSERVED_AT,
                     registration.effectiveTime());
 
-            TagProcessingCounters.Snapshot snapshot = counters.snapshot();
+            TagProcessingMetrics.Snapshot snapshot = metrics.snapshot();
             assertEquals(2L, snapshot.observations());
             assertEquals(2L, snapshot.mapped());
             assertEquals(1L, snapshot.closedBursts());
@@ -131,13 +131,13 @@ public class TagProcessorTest {
         FakeMonotonicClock clock = new FakeMonotonicClock();
         SerialScheduledExecutor executor =
                 new SerialScheduledExecutor("tp-tag-test");
-        TagProcessingCounters counters = new TagProcessingCounters();
+        TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                 node,
                 tagId -> new RegistrationId("N-001"),
                 policy(8),
                 clock,
-                counters,
+                metrics,
                 executor);
         CountDownLatch committed = new CountDownLatch(1);
         node.timingDataCommittedEvent().subscribe(data -> committed.countDown());
@@ -166,7 +166,7 @@ public class TagProcessorTest {
                     observation("TAG-C", -40, STRONGER_OBSERVED_AT));
             awaitLane(executor);
 
-            TagProcessingCounters.Snapshot snapshot = counters.snapshot();
+            TagProcessingMetrics.Snapshot snapshot = metrics.snapshot();
             assertEquals(3L, snapshot.observations());
             assertEquals(3L, snapshot.mapped());
             assertEquals(1L, snapshot.closedBursts());
@@ -186,13 +186,13 @@ public class TagProcessorTest {
         FakeMonotonicClock clock = new FakeMonotonicClock();
         SerialScheduledExecutor executor =
                 new SerialScheduledExecutor("tp-tag-test");
-        TagProcessingCounters counters = new TagProcessingCounters();
+        TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                 node,
                 tagId -> new RegistrationId("N-001"),
                 policy(8),
                 clock,
-                counters,
+                metrics,
                 executor);
 
         // TimingNode deliberately remains NEW so every offer is NOT_RUNNING.
@@ -212,7 +212,7 @@ public class TagProcessorTest {
                     observation("TAG-C", -40, STRONGER_OBSERVED_AT));
             awaitLane(executor);
 
-            TagProcessingCounters.Snapshot snapshot = counters.snapshot();
+            TagProcessingMetrics.Snapshot snapshot = metrics.snapshot();
             assertEquals(3L, snapshot.mapped());
             assertEquals(0L, snapshot.duplicates());
             assertEquals(2L, snapshot.closedBursts());
@@ -228,13 +228,13 @@ public class TagProcessorTest {
         FakeMonotonicClock clock = new FakeMonotonicClock();
         SerialScheduledExecutor executor =
                 new SerialScheduledExecutor("tp-tag-test");
-        TagProcessingCounters counters = new TagProcessingCounters();
+        TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                 node,
                 TagProcessorTest::mapReferenceTag,
                 policy(1),
                 clock,
-                counters,
+                metrics,
                 executor);
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
@@ -254,7 +254,7 @@ public class TagProcessorTest {
 
             assertEquals(
                     1L,
-                    counters.snapshot().observationQueueFull());
+                    metrics.snapshot().observationQueueFull());
         } finally {
             releaseBlocker.countDown();
             processor.stop();
@@ -269,13 +269,13 @@ public class TagProcessorTest {
         FakeMonotonicClock clock = new FakeMonotonicClock();
         SerialScheduledExecutor executor =
                 new SerialScheduledExecutor("tp-tag-test");
-        TagProcessingCounters counters = new TagProcessingCounters();
+        TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                 node,
                 TagProcessorTest::mapReferenceTag,
                 policy(4),
                 clock,
-                counters,
+                metrics,
                 executor);
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
@@ -296,7 +296,7 @@ public class TagProcessorTest {
         stopper.join(1000);
 
         assertFalse(stopper.isAlive());
-        assertEquals(1L, counters.snapshot().mapped());
+        assertEquals(1L, metrics.snapshot().mapped());
         assertTrue(store.appended.isEmpty());
     }
 
