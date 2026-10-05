@@ -2,6 +2,8 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.application.configuration.ConfigurationChange;
+import io.github.brainboxemb.eventtiming.timingpoint.application.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.CommandAdmission;
@@ -11,6 +13,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialSc
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,11 +41,13 @@ public final class TagProcessor {
 
     private final TimingNode timingNode;
     private final TagRegistrationMapper mapper;
+    private final ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration;
+    private final Consumer<ConfigurationChange<TagProcessingPolicy>>
+            policyChangeListener;
     private final RegistrationDuplicateFilter duplicateFilter;
     private final TagProcessingMetrics metrics;
     private final TagObservationFilter observationFilter;
     private final SerialScheduledExecutor executor;
-    private final long sweepCadenceNanos;
     private final ArrayBlockingQueue<TagObservation> inputQueue;
     private final AtomicBoolean drainScheduled = new AtomicBoolean();
     private final Object lifecycleLock = new Object();
@@ -57,14 +62,31 @@ public final class TagProcessor {
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
             SerialScheduledExecutor executor) {
+        this(
+                timingNode,
+                mapper,
+                ReadOnlyConfiguration.fixed(policy),
+                monotonicClock,
+                metrics,
+                executor);
+    }
+
+    public TagProcessor(
+            TimingNode timingNode,
+            TagRegistrationMapper mapper,
+            ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
+            MonotonicClock monotonicClock,
+            TagProcessingMetrics metrics,
+            SerialScheduledExecutor executor) {
         if (timingNode == null) {
             throw new IllegalArgumentException("timingNode must not be null");
         }
         if (mapper == null) {
             throw new IllegalArgumentException("mapper must not be null");
         }
-        if (policy == null) {
-            throw new IllegalArgumentException("policy must not be null");
+        if (policyConfiguration == null) {
+            throw new IllegalArgumentException(
+                    "policyConfiguration must not be null");
         }
         if (monotonicClock == null) {
             throw new IllegalArgumentException("monotonicClock must not be null");
@@ -76,18 +98,28 @@ public final class TagProcessor {
             throw new IllegalArgumentException("executor must not be null");
         }
 
+        TagProcessingPolicy startupPolicy = policyConfiguration.startupValue();
+        if (startupPolicy == null) {
+            throw new IllegalArgumentException(
+                    "policyConfiguration.startupValue must not be null");
+        }
+
         this.timingNode = timingNode;
         this.mapper = mapper;
+        this.policyConfiguration = policyConfiguration;
+        this.policyChangeListener = this::onPolicyChange;
         this.metrics = metrics;
         this.executor = executor;
-        this.sweepCadenceNanos = policy.sweepCadenceNanos();
         this.inputQueue =
-                new ArrayBlockingQueue<>(policy.observationQueueCapacity());
+                new ArrayBlockingQueue<>(
+                        startupPolicy.observationQueueCapacity());
         duplicateFilter =
-                new RegistrationDuplicateFilter(policy, monotonicClock);
+                new RegistrationDuplicateFilter(
+                        policyConfiguration,
+                        monotonicClock);
         observationFilter =
                 new TagObservationFilter(
-                        policy,
+                        policyConfiguration,
                         monotonicClock,
                         metrics,
                         this::processValidObservation);
@@ -101,6 +133,7 @@ public final class TagProcessor {
             }
             executor.start();
             state = State.RUNNING;
+            policyConfiguration.changes().subscribe(policyChangeListener);
         }
     }
 
@@ -118,6 +151,7 @@ public final class TagProcessor {
             }
 
             state = State.STOPPED;
+            policyConfiguration.changes().unsubscribe(policyChangeListener);
             closeHousekeepingLocked();
             drainRemaining = !inputQueue.isEmpty();
             if (drainRemaining && !executor.execute(this::drainAll)) {
@@ -229,8 +263,40 @@ public final class TagProcessor {
             }
             housekeepingTask = executor.scheduleWithFixedDelay(
                     this::housekeeping,
-                    sweepCadenceNanos);
+                    policyConfiguration.currentValue().sweepCadenceNanos());
         }
+    }
+
+    private void onPolicyChange(
+            ConfigurationChange<TagProcessingPolicy> change) {
+        synchronized (lifecycleLock) {
+            if (state != State.RUNNING) {
+                return;
+            }
+            if (!executor.execute(() -> applyPolicyChange(change))) {
+                LOG.warn("Could not queue TagProcessor policy change");
+            }
+        }
+    }
+
+    private void applyPolicyChange(
+            ConfigurationChange<TagProcessingPolicy> change) {
+        duplicateFilter.onPolicyChanged();
+
+        if (change.previousValue().sweepCadenceNanos()
+                != change.currentValue().sweepCadenceNanos()) {
+            synchronized (lifecycleLock) {
+                closeHousekeepingLocked();
+            }
+        }
+
+        /*
+         * Evaluate existing timed state immediately against the new policy.
+         * This makes shorter quiet/max/duplicate windows effective without
+         * waiting for the next old housekeeping interval.
+         */
+        housekeeping();
+        ensureHousekeeping();
     }
 
     private void housekeeping() {
