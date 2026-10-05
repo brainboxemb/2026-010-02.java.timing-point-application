@@ -9,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ConfigurationUpdateResult;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommands;
@@ -16,6 +17,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDat
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.DecryptedTagId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
 import java.time.Duration;
@@ -461,7 +463,15 @@ public class TagProcessorTest {
                 new NodeId("TN-01"),
                 store,
                 new DefaultTimingDataFactory(),
-                timeSource);
+                timeSource,
+                ReadOnlyConfiguration.fixed(
+                        TagProcessingPolicy.defaults()),
+                tagId -> null,
+                new SerialExecutor(
+                        32,
+                        "tag-processor-test-node"),
+                new SerialScheduledExecutor(
+                        "tag-processor-test-owned-tag"));
     }
 
     private static final class FakeMonotonicClock implements MonotonicClock {

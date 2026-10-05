@@ -10,6 +10,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManager.AntennaState;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManager.ControlException;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManager.FailureReason;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
@@ -18,16 +19,22 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class AntennaManagerTest {
 
     @Test
-    public void serializesLifecycleForMultipleAntennasOnSharedExecutor() {
+    public void startupChecksHealthBeforeTimingNodeDrivenInventory() {
         ExecutorService shared = sharedExecutor();
-        List<String> calls = Collections.synchronizedList(new ArrayList<String>());
-        RecordingAntenna first = new RecordingAntenna("A", calls);
-        RecordingAntenna second = new RecordingAntenna("B", calls);
+        List<String> calls =
+                Collections.synchronizedList(
+                        new ArrayList<String>());
+        RecordingAntenna first =
+                new RecordingAntenna("A", calls);
+        RecordingAntenna second =
+                new RecordingAntenna("B", calls);
         AntennaManager manager = new AntennaManager(
                 Arrays.<Antenna>asList(first, second),
                 shared,
@@ -36,18 +43,32 @@ public class AntennaManagerTest {
 
         try {
             manager.start();
-            assertEquals(AntennaManager.State.RUNNING, manager.state());
+            assertEquals(
+                    AntennaManager.State.RUNNING,
+                    manager.state());
+            assertFalse(first.inventoryRunning());
+            assertFalse(second.inventoryRunning());
+
+            manager.setOperational(true);
+            assertTrue(first.inventoryRunning());
+            assertTrue(second.inventoryRunning());
+
+            manager.setOperational(false);
+            assertFalse(first.inventoryRunning());
+            assertFalse(second.inventoryRunning());
 
             manager.close();
-            assertEquals(AntennaManager.State.STOPPED, manager.state());
+            assertEquals(
+                    AntennaManager.State.STOPPED,
+                    manager.state());
 
             assertEquals(
                     Arrays.asList(
                             "A.probe",
                             "B.probe",
                             "A.initialize",
-                            "B.initialize",
                             "A.start",
+                            "B.initialize",
                             "B.start",
                             "B.stop",
                             "A.stop",
@@ -55,6 +76,48 @@ public class AntennaManagerTest {
                             "A.close"),
                     calls);
         } finally {
+            shared.shutdownNow();
+        }
+    }
+
+    @Test
+    public void oneProbeFailureLeavesHealthyAntennaOperational() {
+        ExecutorService shared = sharedExecutor();
+        List<String> calls =
+                Collections.synchronizedList(
+                        new ArrayList<String>());
+        RecordingAntenna healthy =
+                new RecordingAntenna("healthy", calls);
+        RecordingAntenna failed =
+                new FailingProbeAntenna("failed", calls);
+        AntennaManager manager = new AntennaManager(
+                Arrays.<Antenna>asList(healthy, failed),
+                shared,
+                4,
+                Duration.ofSeconds(1));
+
+        try {
+            manager.start();
+
+            assertEquals(
+                    AntennaManager.State.DEGRADED,
+                    manager.state());
+            assertEquals(
+                    AntennaState.READY,
+                    manager.status(healthy).state());
+            assertEquals(
+                    AntennaState.ERROR,
+                    manager.status(failed).state());
+
+            manager.setOperational(true);
+
+            assertTrue(healthy.inventoryRunning());
+            assertFalse(failed.inventoryRunning());
+            assertEquals(
+                    AntennaManager.State.DEGRADED,
+                    manager.state());
+        } finally {
+            manager.close();
             shared.shutdownNow();
         }
     }
@@ -77,8 +140,12 @@ public class AntennaManagerTest {
             manager.start();
             fail("expected shared-I/O overload");
         } catch (ControlException expected) {
-            assertEquals(FailureReason.OVERLOADED, expected.reason());
-            assertEquals(AntennaManager.State.FAILED, manager.state());
+            assertEquals(
+                    FailureReason.OVERLOADED,
+                    expected.reason());
+            assertEquals(
+                    AntennaManager.State.FAILED,
+                    manager.state());
         }
     }
 
@@ -97,8 +164,12 @@ public class AntennaManagerTest {
                 manager.start();
                 fail("expected control timeout");
             } catch (ControlException expected) {
-                assertEquals(FailureReason.TIMEOUT, expected.reason());
-                assertEquals(AntennaManager.State.FAILED, manager.state());
+                assertEquals(
+                        FailureReason.TIMEOUT,
+                        expected.reason());
+                assertEquals(
+                        AntennaManager.State.FAILED,
+                        manager.state());
             }
         } finally {
             try {
@@ -117,17 +188,23 @@ public class AntennaManagerTest {
                 0L,
                 TimeUnit.MILLISECONDS,
                 new ArrayBlockingQueue<Runnable>(4),
-                runnable -> new Thread(runnable, "antenna-manager-test-io"),
+                runnable ->
+                        new Thread(
+                                runnable,
+                                "antenna-manager-test-io"),
                 new ThreadPoolExecutor.AbortPolicy());
     }
 
     private static class RecordingAntenna implements Antenna {
         private final String name;
         private final List<String> calls;
-        private final Event<TagObservation> observations = new Event<>();
+        private final Event<TagObservation> observations =
+                new Event<TagObservation>();
         private boolean running;
 
-        private RecordingAntenna(String name, List<String> calls) {
+        private RecordingAntenna(
+                String name,
+                List<String> calls) {
             this.name = name;
             this.calls = calls;
         }
@@ -172,11 +249,29 @@ public class AntennaManagerTest {
         }
     }
 
-    private static final class BlockingProbeAntenna extends RecordingAntenna {
+    private static final class FailingProbeAntenna
+            extends RecordingAntenna {
+        private FailingProbeAntenna(
+                String name,
+                List<String> calls) {
+            super(name, calls);
+        }
+
+        @Override
+        public AntennaInfo probe() {
+            super.probe();
+            throw new IllegalStateException(
+                    "configured probe failure");
+        }
+    }
+
+    private static final class BlockingProbeAntenna
+            extends RecordingAntenna {
         private BlockingProbeAntenna() {
             super(
                     "blocking",
-                    Collections.synchronizedList(new ArrayList<String>()));
+                    Collections.synchronizedList(
+                            new ArrayList<String>()));
         }
 
         @Override
@@ -187,7 +282,9 @@ public class AntennaManagerTest {
                 }
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
-                throw new IllegalStateException("probe interrupted", ex);
+                throw new IllegalStateException(
+                        "probe interrupted",
+                        ex);
             }
         }
     }

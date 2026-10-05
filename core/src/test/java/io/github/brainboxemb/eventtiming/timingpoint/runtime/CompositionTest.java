@@ -11,8 +11,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCom
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInstallation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.DecryptedTagId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
+import io.github.brainboxemb.eventtiming.timingpoint.runtime.simulator.SimulationRuntime;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Presentation;
 
@@ -96,15 +98,12 @@ public class CompositionTest {
                         Duration.ofMillis(100),
                         Duration.ofMillis(5),
                         8);
-        Composition.AntennaProcessing antennaProcessing =
-                new Composition.AntennaProcessing(
-                        Collections.singletonList(antenna),
-                        tagId -> new RegistrationId("R-1001"));
-
-        Application application = Composition.create(
+        Application application = SimulationRuntime.create(
                 identity(),
                 config(file, tagProcessingPolicy),
-                antennaProcessing);
+                Collections.singletonList(
+                        AntennaInstallation.direct(antenna)),
+                tagId -> new RegistrationId("R-1001"));
 
         assertEquals(
                 tagProcessingPolicy,
@@ -115,9 +114,11 @@ public class CompositionTest {
 
         application.start();
         try {
-            assertTrue(antenna.inventoryRunning());
+            assertFalse(antenna.inventoryRunning());
+
             application.timingNode().invoke(
                     TimingNodeCommands.open(new LocationId(24)));
+            await(antenna::inventoryRunning, 1000L);
 
             CountDownLatch committed = new CountDownLatch(1);
             AtomicReference<AutomaticRegistration> automatic =
@@ -143,6 +144,10 @@ public class CompositionTest {
                     new RegistrationId("R-1001"),
                     automatic.get().registrationId());
             assertEquals(observedAt, automatic.get().effectiveTime());
+
+            application.timingNode().invoke(
+                    TimingNodeCommands.close());
+            await(() -> !antenna.inventoryRunning(), 1000L);
         } finally {
             application.close();
         }
@@ -156,6 +161,23 @@ public class CompositionTest {
             fail("expected closed antenna after application shutdown");
         } catch (IllegalStateException expected) {
             assertTrue(expected.getMessage().contains("closed"));
+        }
+    }
+
+    private static void await(
+            java.util.function.BooleanSupplier condition,
+            long timeoutMillis)
+            throws Exception {
+        long deadline =
+                System.nanoTime()
+                        + TimeUnit.MILLISECONDS.toNanos(
+                                timeoutMillis);
+        while (!condition.getAsBoolean()) {
+            if (System.nanoTime() >= deadline) {
+                throw new AssertionError(
+                        "condition did not become true before timeout");
+            }
+            Thread.sleep(5L);
         }
     }
 
