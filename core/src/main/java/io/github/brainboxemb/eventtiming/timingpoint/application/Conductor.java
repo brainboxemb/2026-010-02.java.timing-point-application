@@ -5,22 +5,28 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeQue
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Lifecycle;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 
 /**
  * Coordinates application-wide behaviour between already constructed components.
  *
- * <p>Runtime composition owns object construction and event wiring. Conductor only
- * owns the application rule that relates those components; it does not discover
- * components, subscribe events or own worker threads.</p>
+ * <p>Runtime composition owns object construction and event wiring. Conductor owns
+ * the behaviour of those relationships and executes that behaviour on its own
+ * logical serial application lane.</p>
+ *
+ * <p>The lane is not a dedicated Java thread. Runtime owns the physical worker;
+ * Conductor owns only its ordering boundary and activation lifecycle.</p>
  */
 public final class Conductor {
 
     private final TimingNode timingNode;
     private final AntennaManager antennaManager;
+    private final SerialExecutor serialExecutor;
 
     public Conductor(
             TimingNode timingNode,
-            AntennaManager antennaManager) {
+            AntennaManager antennaManager,
+            SerialExecutor serialExecutor) {
         if (timingNode == null) {
             throw new IllegalArgumentException(
                     "timingNode must not be null");
@@ -29,42 +35,57 @@ public final class Conductor {
             throw new IllegalArgumentException(
                     "antennaManager must not be null");
         }
+        if (serialExecutor == null) {
+            throw new IllegalArgumentException(
+                    "serialExecutor must not be null");
+        }
 
         this.timingNode = timingNode;
         this.antennaManager = antennaManager;
+        this.serialExecutor = serialExecutor;
     }
 
     /**
-     * Activates application-wide coordination after the coordinated components
-     * themselves are active.
+     * Activates application coordination.
      *
-     * <p>The event subscription handles later changes. Activation reconciles the
-     * current TimingNode status once, using exactly the same behaviour as a later
-     * status-changed event. This also covers a status event emitted while
-     * TimingNode was activating before AntennaManager was ready to accept
-     * inventory control. Startup/recovery semantics remain owned by TimingNode;
-     * Conductor only reacts to the status TimingNode exposes.</p>
+     * <p>The initial reconcile is itself queued on the Conductor lane. It reads
+     * the current TimingNode status when it actually executes, so an event that
+     * races with activation cannot be overwritten by a stale startup snapshot.</p>
      */
     public void activate() {
-        applyTimingNodeStatus(
-                timingNode.query(
-                        TimingNodeQueries.status()));
+        serialExecutor.start();
+
+        SerialExecutor.AdmissionResult admission =
+                serialExecutor.offer(
+                        this::reconcileCurrentStatus);
+        if (admission != SerialExecutor.AdmissionResult.ACCEPTED) {
+            serialExecutor.close();
+            throw new IllegalStateException(
+                    "Conductor could not schedule initial status reconciliation: "
+                            + admission);
+        }
     }
 
     /**
-     * Conductor owns no worker or external resource.
+     * Stops accepting application coordination and drains already accepted work.
+     *
+     * <p>Activation order places Conductor after the coordinated components, so
+     * reverse deactivation drains this lane while those components are still
+     * available.</p>
      */
     public void deactivate() {
-        // Nothing to release.
+        serialExecutor.close();
     }
 
     /**
-     * Applies the current TimingNode lifecycle to antenna inventory permission.
+     * Receives a TimingNode status notification.
      *
-     * <p>The composition root subscribes this method to the relevant
-     * TimingNode status event. Startup/recovery lifecycle semantics are owned
-     * by the TimingNode OPEN/CLOSE TimingData design track; Conductor only
-     * applies status changes it receives.</p>
+     * <p>Event delivery is synchronous on the producer thread, so this callback
+     * deliberately performs no cross-component behaviour. It only hands the
+     * immutable status value to the Conductor lane and returns.</p>
+     *
+     * <p>Notifications received before activation or after deactivation may be
+     * ignored: activation always reconciles the current TimingNode status.</p>
      */
     public void onTimingNodeStatusChanged(
             Status status) {
@@ -72,12 +93,33 @@ public final class Conductor {
             throw new IllegalArgumentException(
                     "status must not be null");
         }
-        applyTimingNodeStatus(status);
+
+        if (serialExecutor.state()
+                != SerialExecutor.State.RUNNING) {
+            return;
+        }
+
+        SerialExecutor.AdmissionResult admission =
+                serialExecutor.offer(
+                        () -> applyTimingNodeStatus(status));
+        if (admission == SerialExecutor.AdmissionResult.FULL) {
+            throw new IllegalStateException(
+                    "Conductor queue is full while applying TimingNode status");
+        }
     }
 
     /**
-     * Applies the application rule shared by initial reconciliation and later
-     * status-change events.
+     * Reads the latest state on the Conductor lane instead of capturing a
+     * possibly stale status before the queued reconcile runs.
+     */
+    private void reconcileCurrentStatus() {
+        applyTimingNodeStatus(
+                timingNode.query(
+                        TimingNodeQueries.status()));
+    }
+
+    /**
+     * Application rule: an OPEN TimingNode permits antenna inventory.
      */
     private void applyTimingNodeStatus(
             Status status) {
