@@ -6,7 +6,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Simulate
 
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -146,7 +145,6 @@ public class AntennaMultiplexTest {
                                     .inInventoryGroup(
                                             Duration.ofMillis(30))),
                     shared,
-                    scheduler,
                     8,
                     Duration.ofSeconds(1));
         } finally {
@@ -166,7 +164,6 @@ public class AntennaMultiplexTest {
                                     .inInventoryGroup(
                                             Duration.ofMillis(25))),
                     shared,
-                    scheduler,
                     8,
                     Duration.ofSeconds(1));
         } finally {
@@ -201,12 +198,12 @@ public class AntennaMultiplexTest {
 
     private static AntennaManager manager(
             java.util.List<AntennaInstallation> installations,
-            ExecutorService shared,
+            ScheduledExecutorService shared,
             int capacity,
             Duration timeout) {
         return new AntennaManager(
                 installations,
-                new SerialExecutor(
+                new SerialScheduledExecutor(
                         capacity,
                         "antenna-multiplex-test",
                         shared),
