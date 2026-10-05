@@ -1,5 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.application;
 
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Lifecycle;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
@@ -13,11 +15,45 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
  */
 public final class Conductor {
 
+    private final TimingNode timingNode;
     private final AntennaManager antennaManager;
 
     public Conductor(
+            TimingNode timingNode,
             AntennaManager antennaManager) {
+        if (timingNode == null) {
+            throw new IllegalArgumentException(
+                    "timingNode must not be null");
+        }
+        if (antennaManager == null) {
+            throw new IllegalArgumentException(
+                    "antennaManager must not be null");
+        }
+
+        this.timingNode = timingNode;
         this.antennaManager = antennaManager;
+    }
+
+    /**
+     * Activates application-wide coordination after the coordinated components
+     * themselves are active.
+     *
+     * <p>The event subscription handles later changes. Activation reconciles the
+     * current TimingNode status once, using exactly the same behaviour as a later
+     * status-changed event. Startup/recovery semantics remain owned by TimingNode;
+     * Conductor only reacts to the status TimingNode exposes.</p>
+     */
+    public void activate() {
+        applyTimingNodeStatus(
+                timingNode.query(
+                        TimingNodeQueries.status()));
+    }
+
+    /**
+     * Conductor owns no worker or external resource.
+     */
+    public void deactivate() {
+        // Nothing to release.
     }
 
     /**
@@ -34,10 +70,15 @@ public final class Conductor {
             throw new IllegalArgumentException(
                     "status must not be null");
         }
-        if (antennaManager == null) {
-            return;
-        }
+        applyTimingNodeStatus(status);
+    }
 
+    /**
+     * Applies the application rule shared by initial reconciliation and later
+     * status-change events.
+     */
+    private void applyTimingNodeStatus(
+            Status status) {
         antennaManager.requestInventoryEnabled(
                 status.lifecycle() == Lifecycle.OPEN);
     }
