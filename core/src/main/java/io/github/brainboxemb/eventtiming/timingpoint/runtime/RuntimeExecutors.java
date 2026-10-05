@@ -29,6 +29,7 @@ final class RuntimeExecutors implements AutoCloseable {
     static final int TIMING_NODE_QUEUE_CAPACITY = 32;
     static final int TAG_PROCESSOR_LANE_QUEUE_CAPACITY = 32;
     static final int ANTENNA_CONTROL_QUEUE_CAPACITY = 8;
+    static final int CONDUCTOR_QUEUE_CAPACITY = 8;
 
     private static final int SHARED_IO_WORKERS = 2;
 
@@ -63,6 +64,15 @@ final class RuntimeExecutors implements AutoCloseable {
      */
     private final ThreadPoolExecutor timingNodeWorker;
     private final ScheduledThreadPoolExecutor tagProcessorWorker;
+
+    /**
+     * Shared worker for application-level coordination lanes.
+     *
+     * <p>Application coordination must not run synchronously on the emitting
+     * Domain or I/O component thread. Logical application lanes therefore use
+     * this separate worker.</p>
+     */
+    private final ThreadPoolExecutor applicationWorker;
 
     /**
      * Shared physical I/O worker. It is scheduled-capable because AntennaManager
@@ -100,6 +110,21 @@ final class RuntimeExecutors implements AutoCloseable {
                 });
         tagProcessorWorker.setRemoveOnCancelPolicy(true);
 
+        applicationWorker = new ThreadPoolExecutor(
+                1,
+                1,
+                0L,
+                TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<Runnable>(),
+                runnable -> {
+                    Thread thread = new Thread(
+                            runnable,
+                            "tp-apl-worker");
+                    thread.setPriority(Thread.NORM_PRIORITY);
+                    return thread;
+                },
+                new ThreadPoolExecutor.AbortPolicy());
+
         AtomicInteger ioWorkerNumber = new AtomicInteger();
         sharedIoWorker = new ScheduledThreadPoolExecutor(
                 SHARED_IO_WORKERS,
@@ -132,6 +157,7 @@ final class RuntimeExecutors implements AutoCloseable {
 
         timingNodeWorker.prestartAllCoreThreads();
         tagProcessorWorker.prestartAllCoreThreads();
+        applicationWorker.prestartAllCoreThreads();
         sharedIoWorker.prestartAllCoreThreads();
         started = true;
     }
@@ -170,6 +196,22 @@ final class RuntimeExecutors implements AutoCloseable {
         return new TimingNodeExecutors(
                 timingNode,
                 tagProcessor);
+    }
+
+    /**
+     * Creates the Conductor's serial application-coordination lane.
+     *
+     * <p>The lane is logically owned by Conductor. Runtime owns the physical
+     * application worker underneath it.</p>
+     */
+    synchronized SerialExecutor createConductorExecutor() {
+        SerialExecutor conductor =
+                new SerialExecutor(
+                        CONDUCTOR_QUEUE_CAPACITY,
+                        "Conductor",
+                        applicationWorker);
+        serialLanes.add(conductor);
+        return conductor;
     }
 
     /**
@@ -212,10 +254,12 @@ final class RuntimeExecutors implements AutoCloseable {
 
         tagProcessorWorker.shutdownNow();
         timingNodeWorker.shutdownNow();
+        applicationWorker.shutdownNow();
         sharedIoWorker.shutdownNow();
 
         awaitTermination(tagProcessorWorker);
         awaitTermination(timingNodeWorker);
+        awaitTermination(applicationWorker);
         awaitTermination(sharedIoWorker);
     }
 
