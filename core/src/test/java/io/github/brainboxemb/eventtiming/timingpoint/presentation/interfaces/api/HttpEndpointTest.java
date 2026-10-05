@@ -331,7 +331,7 @@ public class HttpEndpointTest {
                         node,
                         PresentationGatewayFixture.configurationControl(
                                 new NodeId("TN-01")));
-        node.start();
+        node.activate();
         HttpEndpoint server = new HttpEndpoint("127.0.0.1", 0, handler);
         server.start();
 
@@ -362,7 +362,7 @@ public class HttpEndpointTest {
             assertTrue(unchanged.body.contains("\"state\":\"ERROR\""));
         } finally {
             server.close();
-            node.stop();
+            node.deactivate();
         }
     }
 
@@ -481,12 +481,12 @@ public class HttpEndpointTest {
         }
 
         private void start() {
-            node.start();
+            node.activate();
         }
 
         @Override
         public void close() {
-            node.stop();
+            node.deactivate();
         }
     }
 
