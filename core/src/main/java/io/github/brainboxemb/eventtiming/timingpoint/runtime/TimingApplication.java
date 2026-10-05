@@ -8,7 +8,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationCo
 import io.github.brainboxemb.eventtiming.timingpoint.application.Conductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagRegistrationMapper;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTimingDataPersistence;
@@ -277,13 +276,6 @@ public final class TimingApplication {
         try {
             runtimeExecutors.start();
             activationManager.activateAll();
-
-            if (antennaManager != null) {
-                conductor.onTimingNodeStatusChanged(
-                        timingNode.query(
-                                TimingNodeQueries.status()));
-            }
-
             state = State.ACTIVE;
         } catch (RuntimeException ex) {
             try {
