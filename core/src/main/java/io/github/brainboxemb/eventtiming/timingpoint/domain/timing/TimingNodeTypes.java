@@ -19,7 +19,7 @@ public final class TimingNodeTypes {
     }
 
     /**
-     * Immediate result of submission-only command ingress.
+     * Immediate result of admission-only command ingress through TimingNode.offer(...).
      *
      * <p>This is deliberately not the later domain result.</p>
      */

@@ -224,9 +224,9 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void submissionOnlyCommandReturnsAfterAdmissionWithoutWaitingForExecution()
+    public void offerReturnsAfterAdmissionWithoutWaitingForExecution()
             throws Exception {
-        SerialExecutor executor = new SerialExecutor(2, "timing-node-submit-test");
+        SerialExecutor executor = new SerialExecutor(2, "timing-node-offer-test");
         TimingNode node = node(
                 new NodeId("TN-01"),
                 executor,
@@ -248,7 +248,7 @@ public class TimingNodeTest {
 
             Thread producer = new Thread(() -> {
                 admission[0] =
-                        node.submit(
+                        node.offer(
                                 TimingNodeCommands.open(
                                         new LocationId(24)));
                 producerReturned.countDown();
@@ -256,7 +256,7 @@ public class TimingNodeTest {
             producer.start();
 
             assertTrue(
-                    "submission-only producer must not wait for command execution",
+                    "offer-only producer must not wait for command execution",
                     producerReturned.await(250, TimeUnit.MILLISECONDS));
             assertEquals(
                     TimingNodeTypes.CommandAdmission.ACCEPTED,
@@ -266,11 +266,11 @@ public class TimingNodeTest {
             producer.join(1000);
             assertFalse(producer.isAlive());
 
-            CountDownLatch afterSubmittedCommand = new CountDownLatch(1);
+            CountDownLatch afterOfferedCommand = new CountDownLatch(1);
             assertEquals(
                     SerialExecutor.AdmissionResult.ACCEPTED,
-                    executor.offer(afterSubmittedCommand::countDown));
-            assertTrue(afterSubmittedCommand.await(1, TimeUnit.SECONDS));
+                    executor.offer(afterOfferedCommand::countDown));
+            assertTrue(afterOfferedCommand.await(1, TimeUnit.SECONDS));
 
             assertEquals(
                     new LocationId(24),

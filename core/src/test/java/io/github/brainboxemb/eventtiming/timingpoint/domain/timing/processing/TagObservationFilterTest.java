@@ -55,6 +55,25 @@ public class TagObservationFilterTest {
     }
 
     @Test
+    public void discardRemovesPendingPassageStateForAcceptedRegistration() {
+        FakeMonotonicClock clock = new FakeMonotonicClock();
+        TagObservationFilter filter = new TagObservationFilter(
+                policy(),
+                clock,
+                new TagProcessingCounters(),
+                (registrationId, observedAt) -> {
+                    throw new AssertionError("discarded passage must not close");
+                });
+
+        filter.add(REGISTRATION_ID, observation("TAG-A", -60, OBSERVED_1));
+
+        assertTrue(filter.hasPendingState());
+        assertTrue(filter.discard(REGISTRATION_ID));
+        assertFalse(filter.hasPendingState());
+        assertFalse(filter.discard(REGISTRATION_ID));
+    }
+
+    @Test
     public void maximumDurationClosesContinuouslyVisibleRegistration() {
         FakeMonotonicClock clock = new FakeMonotonicClock();
         List<SelectedObservation> valid = new ArrayList<>();

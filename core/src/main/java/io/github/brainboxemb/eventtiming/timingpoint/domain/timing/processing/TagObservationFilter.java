@@ -113,6 +113,22 @@ final class TagObservationFilter {
         }
     }
 
+    /**
+     * Discards any currently aggregated next passage for one RegistrationId.
+     *
+     * <p>This is used when closing a previous burst caused TimingNode to accept
+     * that registration. The observation that triggered closure may already
+     * have started the next burst inside add(...); once the duplicate window
+     * starts, retaining that burst would be wasted work.</p>
+     */
+    boolean discard(RegistrationId registrationId) {
+        if (registrationId == null) {
+            throw new IllegalArgumentException(
+                    "registrationId must not be null");
+        }
+        return bursts.remove(registrationId) != null;
+    }
+
     boolean hasPendingState() {
         return !bursts.isEmpty();
     }

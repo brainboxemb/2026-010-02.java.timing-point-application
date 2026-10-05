@@ -18,9 +18,14 @@ import org.slf4j.LoggerFactory;
 /**
  * Active tag-processing boundary between antenna observations and TimingNode.
  *
- * <p>The antenna callback only performs bounded queue ingress. Mapping, passage
- * state, duplicate filtering and TimingNode admission run on one serial
- * execution lane owned by this processor.</p>
+ * <p>The antenna callback only performs bounded queue ingress. Mapping,
+ * accepted-registration duplicate suppression, passage state and TimingNode
+ * admission run on one serial execution lane owned by this processor. Duplicate
+ * suppression happens after tag-to-registration mapping and before passage
+ * aggregation so recently accepted registrations do not create unnecessary
+ * burst/RSSI/housekeeping state. Completed passages are handed off with
+ * {@link TimingNode#offer(io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommand)};
+ * TagProcessor never waits for lower-priority TimingNode processing.</p>
  */
 public final class TagProcessor {
     private static final Logger LOG = LoggerFactory.getLogger(TagProcessor.class);
@@ -204,6 +209,11 @@ public final class TagProcessor {
         }
 
         counters.recordMapped();
+        if (duplicateFilter.isDuplicate(registrationId)) {
+            counters.recordDuplicate();
+            return;
+        }
+
         observationFilter.add(registrationId, observation);
         ensureHousekeeping();
     }
@@ -255,30 +265,24 @@ public final class TagProcessor {
     private void processValidObservation(
             RegistrationId registrationId,
             TimingTimestamp observedAt) {
-        RegistrationDuplicateFilter.Result result =
-                duplicateFilter.submitIfNew(
+        CommandAdmission admission = timingNode.offer(
+                TimingNodeCommands.addAutomaticRegistration(
                         registrationId,
-                        () -> timingNode.submit(
-                                TimingNodeCommands.addAutomaticRegistration(
-                                        registrationId,
-                                        observedAt)));
+                        observedAt));
 
-        switch (result) {
-            case DUPLICATE:
-                counters.recordDuplicate();
-                return;
-            case ACCEPTED:
-                counters.recordAdmission(CommandAdmission.ACCEPTED);
-                return;
-            case FULL:
-                counters.recordAdmission(CommandAdmission.FULL);
-                return;
-            case NOT_RUNNING:
-                counters.recordAdmission(CommandAdmission.NOT_RUNNING);
-                return;
-            default:
-                throw new IllegalStateException(
-                        "Unsupported duplicate-filter result " + result);
+        if (admission == CommandAdmission.ACCEPTED) {
+            duplicateFilter.recordAccepted(registrationId);
+
+            /*
+             * add(...) can close an expired previous burst and start a new burst
+             * from the observation that triggered that closure before this
+             * callback runs. Once the previous passage is accepted, that pending
+             * next burst is inside the duplicate window and must not remain as
+             * unnecessary timed state.
+             */
+            observationFilter.discard(registrationId);
         }
+
+        counters.recordAdmission(admission);
     }
 }
