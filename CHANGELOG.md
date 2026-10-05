@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make runtime startup explicit: construct without starting workers, wire cross-component behaviour through application `Conductor`, then start Runtime/Domain/I/O lifecycle in visible order.
+
 - Simplify AntennaManager into a SerialExecutor-backed lifecycle boundary plus package-private device logic and separate manager types; constrain multiplexing to one optional 2..N-member inventory group instead of multiple named group maps.
 
 - Expose authoritative TagProcessingPolicy startup/current runtime configuration through Application ConfigurationControl, IF-03 HTTP/WebSocket change events, and shared local/remote terminal commands including open, close and automatic-registration control.
