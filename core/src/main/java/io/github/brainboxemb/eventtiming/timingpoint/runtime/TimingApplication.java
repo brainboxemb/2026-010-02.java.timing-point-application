@@ -193,7 +193,9 @@ public final class TimingApplication {
                 conductor =
                         new Conductor(
                                 timingNode,
-                                antennaManager);
+                                antennaManager,
+                                executors
+                                        .createConductorExecutor());
             }
 
             ConfigurationControl configurationControl =
