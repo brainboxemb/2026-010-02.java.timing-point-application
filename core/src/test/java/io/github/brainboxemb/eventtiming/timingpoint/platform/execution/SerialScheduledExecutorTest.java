@@ -65,6 +65,16 @@ public class SerialScheduledExecutorTest {
                 }, TimeUnit.MILLISECONDS.toNanos(5));
         try {
             assertTrue(secondCall.await(1, TimeUnit.SECONDS));
+
+            /*
+             * The latch is released inside the periodic task. Queue one immediate
+             * barrier behind that task so its wrapper/finally metrics are visible
+             * before taking the snapshot.
+             */
+            CountDownLatch afterSecondRun = new CountDownLatch(1);
+            assertTrue(executor.execute(afterSecondRun::countDown));
+            assertTrue(afterSecondRun.await(1, TimeUnit.SECONDS));
+
             SerialScheduledExecutor.Metrics.Snapshot metrics =
                     executor.metrics().snapshot();
             assertEquals(1L, metrics.runtimeFailureCount());
