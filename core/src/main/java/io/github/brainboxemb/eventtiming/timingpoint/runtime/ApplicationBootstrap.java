@@ -152,9 +152,31 @@ public final class ApplicationBootstrap {
             }
 
             Conductor conductor =
-                    new Conductor(
-                            timingNode,
-                            antennaManager);
+                    new Conductor(antennaManager);
+
+            /*
+             * Application wiring is explicit here. AntennaManager keeps ownership
+             * of the concrete Antenna objects and exposes only addressed events.
+             *
+             * The current executable composes one TimingNode, so every configured
+             * antenna is routed to that node. IF-11's per-AntennaId TimingNode
+             * mapping can extend this loop without changing the manager boundary.
+             */
+            timingNode.statusChangedEvent()
+                    .subscribe(
+                            conductor::onTimingNodeStatusChanged);
+
+            if (antennaManager != null) {
+                for (AntennaInstallation installation
+                        : antennaInstallations) {
+                    antennaManager
+                            .tagObservedEvent(
+                                    installation.antennaId())
+                            .subscribe(
+                                    timingNode.tagProcessor()
+                                            ::onObservation);
+                }
+            }
 
             return new Application(
                     buildIdentity,
