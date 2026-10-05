@@ -3,20 +3,13 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.ControlException;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.FailureReason;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 /**
  * Public lifecycle and control boundary for one configured set of antennas.
@@ -35,8 +28,7 @@ import java.util.concurrent.TimeoutException;
 public final class AntennaManager {
 
     private final AntennaSwitchController switching;
-    private final SerialScheduledExecutor controlLane;
-    private final long controlTimeoutNanos;
+    private final AntennaControlLane control;
 
     private volatile State state = State.NEW;
     private volatile Throwable failure;
@@ -62,16 +54,10 @@ public final class AntennaManager {
         switching =
                 new AntennaSwitchController(
                         installations);
-        this.controlLane = controlLane;
-
-        try {
-            controlTimeoutNanos =
-                    controlTimeout.toNanos();
-        } catch (ArithmeticException ex) {
-            throw new IllegalArgumentException(
-                    "controlTimeout is too large",
-                    ex);
-        }
+        control =
+                new AntennaControlLane(
+                        controlLane,
+                        controlTimeout);
     }
 
     /**
@@ -92,8 +78,8 @@ public final class AntennaManager {
         }
 
         try {
-            controlLane.start();
-            runControl(switching::probeAll);
+            control.start();
+            control.run(switching::probeAll);
             refreshState();
         } catch (RuntimeException ex) {
             failure = ex;
@@ -120,16 +106,16 @@ public final class AntennaManager {
         }
 
         inventoryEnabledRequested = enabled;
-        if (controlLane.execute(
+        if (control.execute(
                 this::reconcileInventoryEnabled)) {
             return true;
         }
 
         recordFailure(
-                controlFailure(
+                AntennaControlLane.failure(
                         FailureReason.OVERLOADED,
                         "AntennaManager control lane rejected inventory-enable work",
-                        controlLane.failure()));
+                        control.failure()));
         return false;
     }
 
@@ -146,7 +132,7 @@ public final class AntennaManager {
         }
 
         inventoryEnabledRequested = enabled;
-        runControl(
+        control.run(
                 this::reconcileInventoryEnabled);
     }
 
@@ -206,18 +192,17 @@ public final class AntennaManager {
         RuntimeException firstFailure = null;
 
         try {
-            if (controlLane.state()
-                    == SerialScheduledExecutor.State.NEW) {
-                controlLane.start();
+            if (control.isNew()) {
+                control.start();
             }
-            runControl(
+            control.run(
                     switching::closeAll);
         } catch (RuntimeException ex) {
             firstFailure = ex;
         }
 
         try {
-            controlLane.close();
+            control.close();
         } catch (RuntimeException ex) {
             if (firstFailure == null) {
                 firstFailure = ex;
@@ -269,10 +254,9 @@ public final class AntennaManager {
         }
 
         rotationTask =
-                controlLane.scheduleWithFixedDelay(
+                control.scheduleWithFixedDelay(
                         this::rotateInventoryGroup,
-                        switching.inventoryInterval()
-                                .toNanos());
+                        switching.inventoryInterval());
     }
 
     private void rotateInventoryGroup() {
@@ -311,78 +295,11 @@ public final class AntennaManager {
         state = switching.aggregateState();
     }
 
-    /**
-     * Runs one result-bearing provider control operation on the serial lane.
-     */
-    private void runControl(
-            Runnable action) {
-        SerialExecutor.SubmitResult<Void> submission =
-                controlLane.submit(() -> {
-                    action.run();
-                    return null;
-                });
-
-        switch (submission.admission()) {
-            case FULL:
-                throw controlFailure(
-                        FailureReason.OVERLOADED,
-                        "AntennaManager control lane is full",
-                        null);
-            case NOT_RUNNING:
-                throw controlFailure(
-                        FailureReason.OVERLOADED,
-                        "AntennaManager control lane is not running",
-                        controlLane.failure());
-            case ACCEPTED:
-                await(
-                        submission.futureResult());
-                return;
-            default:
-                throw new IllegalStateException(
-                        "Unsupported control admission "
-                                + submission.admission());
-        }
-    }
-
-    private void await(
-            Future<Void> future) {
-        try {
-            future.get(
-                    controlTimeoutNanos,
-                    TimeUnit.NANOSECONDS);
-        } catch (TimeoutException ex) {
-            future.cancel(true);
-            throw controlFailure(
-                    FailureReason.TIMEOUT,
-                    "AntennaManager control operation timed out",
-                    ex);
-        } catch (InterruptedException ex) {
-            future.cancel(true);
-            Thread.currentThread().interrupt();
-            throw controlFailure(
-                    FailureReason.INTERRUPTED,
-                    "AntennaManager control operation was interrupted",
-                    ex);
-        } catch (CancellationException ex) {
-            throw controlFailure(
-                    FailureReason.OVERLOADED,
-                    "AntennaManager control operation was cancelled before completion",
-                    ex);
-        } catch (ExecutionException ex) {
-            Throwable cause = ex.getCause();
-            throw controlFailure(
-                    FailureReason.PROVIDER_FAILURE,
-                    "AntennaManager provider operation failed",
-                    cause == null ? ex : cause);
-        }
-    }
-
     private void cleanupAfterActivationFailure(
             RuntimeException activationFailure) {
         try {
-            if (controlLane.state()
-                    == SerialScheduledExecutor.State.RUNNING) {
-                runControl(
+            if (control.isRunning()) {
+                control.run(
                         switching::closeAll);
             }
         } catch (RuntimeException cleanupFailure) {
@@ -391,7 +308,7 @@ public final class AntennaManager {
         }
 
         try {
-            controlLane.close();
+            control.close();
         } catch (RuntimeException cleanupFailure) {
             activationFailure.addSuppressed(
                     cleanupFailure);
@@ -405,13 +322,4 @@ public final class AntennaManager {
         }
     }
 
-    private static ControlException controlFailure(
-            FailureReason reason,
-            String message,
-            Throwable cause) {
-        return new ControlException(
-                reason,
-                message,
-                cause);
-    }
 }
