@@ -14,12 +14,14 @@ import static org.junit.Assert.fail;
 
 public class SimulatedAntennaTest {
     private static final TimingTimestamp OBSERVED_AT =
-            TimingTimestamp.parse("2026-10-01T12:00:00.000000000Z");
+            TimingTimestamp.parse(
+                    "2026-10-01T12:00:00.000000000Z");
 
     @Test
     public void probeDoesNotStartInventoryAndObservationUsesEventSource() {
         SimulatedAntenna antenna = new SimulatedAntenna();
-        AtomicReference<TagObservation> received = new AtomicReference<>();
+        AtomicReference<TagObservation> received =
+                new AtomicReference<TagObservation>();
         antenna.observations().subscribe(received::set);
 
         AntennaInfo info = antenna.probe();
@@ -45,13 +47,80 @@ public class SimulatedAntennaTest {
     }
 
     @Test
+    public void externalPowerControlModelsPowerLossAndReinitialization() {
+        SimulatedAntenna antenna = new SimulatedAntenna();
+        SimulatedAntennaPowerControl power =
+                new SimulatedAntennaPowerControl(antenna);
+
+        assertFalse(power.powered());
+
+        power.powerOn();
+        assertTrue(power.powered());
+        antenna.probe();
+        antenna.initialize();
+        antenna.startInventory();
+        assertTrue(antenna.inventoryRunning());
+
+        power.powerOff();
+        assertFalse(power.powered());
+        assertFalse(antenna.inventoryRunning());
+
+        power.powerOn();
+        try {
+            antenna.startInventory();
+            fail("power cycling should require reinitialization");
+        } catch (IllegalStateException expected) {
+            assertTrue(
+                    expected.getMessage().contains("initialized"));
+        }
+
+        antenna.initialize();
+        antenna.startInventory();
+        assertTrue(antenna.inventoryRunning());
+        antenna.close();
+    }
+
+    @Test
+    public void configurableFailurePointSupportsHardwareIndependentFaultTests() {
+        SimulatedAntenna antenna = new SimulatedAntenna();
+        antenna.setFailurePoint(
+                SimulatedAntenna.FailurePoint.PROBE);
+
+        try {
+            antenna.probe();
+            fail("expected simulated probe failure");
+        } catch (IllegalStateException expected) {
+            assertTrue(
+                    expected.getMessage().contains("PROBE"));
+        }
+
+        antenna.clearFailure();
+        antenna.probe();
+        antenna.initialize();
+        antenna.setFailurePoint(
+                SimulatedAntenna.FailurePoint.START_INVENTORY);
+
+        try {
+            antenna.startInventory();
+            fail("expected simulated inventory-start failure");
+        } catch (IllegalStateException expected) {
+            assertTrue(
+                    expected.getMessage()
+                            .contains("START_INVENTORY"));
+        } finally {
+            antenna.close();
+        }
+    }
+
+    @Test
     public void inventoryCannotStartBeforeInitialize() {
         SimulatedAntenna antenna = new SimulatedAntenna();
         try {
             antenna.startInventory();
             fail("startInventory should require initialize");
         } catch (IllegalStateException expected) {
-            assertTrue(expected.getMessage().contains("initialized"));
+            assertTrue(
+                    expected.getMessage().contains("initialized"));
         } finally {
             antenna.close();
         }
