@@ -98,8 +98,8 @@ public final class AntennaManager implements AutoCloseable {
         }
 
         public boolean healthy() {
-            return state != AntennaState.ERROR
-                    && state != AntennaState.CLOSED;
+            return state == AntennaState.READY
+                    || state == AntennaState.INVENTORY;
         }
     }
 
