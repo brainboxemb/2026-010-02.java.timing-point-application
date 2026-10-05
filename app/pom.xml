@@ -37,6 +37,19 @@
         <directory>src/main/resources</directory>
         <filtering>true</filtering>
       </resource>
+      <!--
+        Keep one canonical checked-in IF-11 example. Packaging it directly into
+        the application JAR lets the config-generation command emit an example that
+        belongs to the exact application version being executed.
+      -->
+      <resource>
+        <directory>${maven.multiModuleProjectDirectory}/config</directory>
+        <includes>
+          <include>application.yml</include>
+        </includes>
+        <targetPath>example-config</targetPath>
+        <filtering>false</filtering>
+      </resource>
     </resources>
     <plugins>
       <plugin>

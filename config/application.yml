@@ -1,24 +1,24 @@
-# Step-4 development configuration: one TimingNode, TimingData storage and presentation interfaces.
+# Complete example configuration for one TimingNode and its external interfaces.
 timingNodeId: TN-01
 
 io:
   storage:
     timingData:
-      # Step-4 reference persistence for the configured TimingNode.
+      # Reference persistence for the configured TimingNode.
       path: data/timing-data.jsonl
 
 presentation:
   remoteShell:
-    # Development/service baseline: explicit loopback-only listener.
+    # Safe example baseline: explicit loopback-only listener.
     bindAddress: 127.0.0.1
     port: 8023
   api:
     http:
-      # IF-03 request/response development baseline: loopback-only.
+      # IF-03 request/response example: loopback-only.
       bindAddress: 127.0.0.1
       port: 8081
     webSocket:
-      # IF-03 live event development baseline: separate loopback-only listener.
+      # IF-03 live event example: separate loopback-only listener.
       bindAddress: 127.0.0.1
       port: 8082
 
