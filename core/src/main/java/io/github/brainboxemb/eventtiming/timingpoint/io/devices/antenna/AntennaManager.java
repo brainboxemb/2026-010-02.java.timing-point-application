@@ -155,16 +155,6 @@ public final class AntennaManager implements AutoCloseable {
     }
 
     /**
-     * Returns the configured antenna identities owned by this manager.
-     *
-     * <p>The concrete Antenna objects stay inside the antenna package. Runtime
-     * wiring addresses observation sources through AntennaId.</p>
-     */
-    public List<AntennaId> antennaIds() {
-        return logic.antennaIds();
-    }
-
-    /**
      * Returns the event emitted when the addressed antenna observes a tag.
      */
     public EventSource<TagObservation> tagObservedEvent(
