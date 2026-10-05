@@ -162,21 +162,25 @@ public final class YamlLoader {
         return new TimingNodeStartup(
                 timingNodeId,
                 mapTagProcessing(
-                        timingNode.get(TAG_PROCESSING),
-                        timingNodeField + "." + TAG_PROCESSING));
+                        timingNode,
+                        timingNodeField));
     }
 
     private static TagProcessingPolicy mapTagProcessing(
-            Object rawTagProcessing,
-            String field) {
+            Map<?, ?> timingNode,
+            String timingNodeField) {
         TagProcessingPolicy defaults =
                 TagProcessingPolicy.defaults();
-        if (rawTagProcessing == null) {
+        if (!timingNode.containsKey(TAG_PROCESSING)) {
             return defaults;
         }
 
+        String field =
+                timingNodeField + "." + TAG_PROCESSING;
         Map<?, ?> values =
-                requireMapping(rawTagProcessing, field);
+                requireMapping(
+                        timingNode.get(TAG_PROCESSING),
+                        field);
         rejectUnknownFields(
                 values,
                 field,
