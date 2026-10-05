@@ -49,6 +49,12 @@ import java.util.Map;
  */
 public final class TimingApplication {
 
+    public enum State {
+        NEW,
+        ACTIVE,
+        INACTIVE
+    }
+
     private static final Duration ANTENNA_CONTROL_TIMEOUT =
             Duration.ofSeconds(2);
 
@@ -56,11 +62,12 @@ public final class TimingApplication {
     private final TimingNode timingNode;
     private final ApplicationConfiguration configuration;
     private final PresentationGateway presentationGateway;
-    private final Lifecycle lifecycle;
     private final Conductor conductor;
     private final AntennaManager antennaManager;
     private final RuntimeExecutors runtimeExecutors;
     private final ActivationManager activationManager;
+
+    private State state = State.NEW;
 
     private TimingApplication(
             BuildIdentity buildIdentity,
@@ -74,7 +81,6 @@ public final class TimingApplication {
         this.timingNode = timingNode;
         this.configuration = configuration;
         this.presentationGateway = presentationGateway;
-        this.lifecycle = new Lifecycle(buildIdentity);
         this.conductor = conductor;
         this.antennaManager = antennaManager;
         this.runtimeExecutors = runtimeExecutors;
@@ -250,7 +256,13 @@ public final class TimingApplication {
      * <p>Runtime execution infrastructure starts first. Application components
      * then activate in their registration order through ActivationManager.</p>
      */
-    public void activate() {
+    public synchronized void activate() {
+        if (state != State.NEW) {
+            throw new IllegalStateException(
+                    "TimingApplication can only activate from NEW; current state="
+                            + state);
+        }
+
         try {
             runtimeExecutors.start();
             activationManager.activateAll();
@@ -261,7 +273,7 @@ public final class TimingApplication {
                                 TimingNodeQueries.status()));
             }
 
-            lifecycle.start();
+            state = State.ACTIVE;
         } catch (RuntimeException ex) {
             try {
                 activationManager.deactivateAll();
@@ -269,7 +281,8 @@ public final class TimingApplication {
                 ex.addSuppressed(deactivateFailure);
             }
             runtimeExecutors.close();
-            lifecycle.close();
+            state = State.INACTIVE;
+            notifyAll();
             throw ex;
         }
     }
@@ -290,26 +303,32 @@ public final class TimingApplication {
         return buildIdentity;
     }
 
-    Lifecycle.State state() {
-        return lifecycle.state();
+    public synchronized State state() {
+        return state;
     }
 
-    public void awaitStopped()
+    public synchronized void awaitInactive()
             throws InterruptedException {
-        lifecycle.awaitStopped();
+        while (state != State.INACTIVE) {
+            wait();
+        }
     }
 
     public String smokeOutput() {
         return smokeOutput(
                 buildIdentity,
-                lifecycle.state());
+                state());
     }
 
     /**
      * Deactivates application components in reverse order and then closes the
      * Runtime-owned execution infrastructure.
      */
-    public void deactivate() {
+    public synchronized void deactivate() {
+        if (state == State.INACTIVE) {
+            return;
+        }
+
         RuntimeException firstFailure = null;
 
         try {
@@ -328,7 +347,8 @@ public final class TimingApplication {
             }
         }
 
-        lifecycle.close();
+        state = State.INACTIVE;
+        notifyAll();
 
         if (firstFailure != null) {
             throw firstFailure;
@@ -337,7 +357,7 @@ public final class TimingApplication {
 
     public static String smokeOutput(
             BuildIdentity buildIdentity,
-            Lifecycle.State state) {
+            State state) {
         return buildIdentity.application()
                 + " lifecycle OK version="
                 + buildIdentity.version()
