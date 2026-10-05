@@ -130,21 +130,47 @@ public final class TimingNode {
             SerialExecutor serialExecutor,
             SerialScheduledExecutor tagProcessorExecutor,
             MonotonicClock monotonicClock) {
-        this(
-                new TimingNodeLogic(
-                        timingNodeId,
-                        timingDataPersistence,
-                        timingDataFactory,
-                        timeSource,
-                        monotonicClock),
-                serialExecutor,
-                DEFAULT_OPERATION_TIMEOUT_MILLIS,
+        if (serialExecutor == null) {
+            throw new IllegalArgumentException("serialExecutor must not be null");
+        }
+        if (tagProcessingConfiguration == null) {
+            throw new IllegalArgumentException(
+                    "tagProcessingConfiguration must not be null");
+        }
+        if (tagRegistrationMapper == null) {
+            throw new IllegalArgumentException(
+                    "tagRegistrationMapper must not be null");
+        }
+        if (tagProcessorExecutor == null) {
+            throw new IllegalArgumentException(
+                    "tagProcessorExecutor must not be null");
+        }
+        if (monotonicClock == null) {
+            throw new IllegalArgumentException("monotonicClock must not be null");
+        }
+
+        this.logic = new TimingNodeLogic(
+                timingNodeId,
+                timingDataPersistence,
+                timingDataFactory,
+                timeSource,
+                monotonicClock);
+        this.serialExecutor = serialExecutor;
+        this.operationTimeoutMillis = DEFAULT_OPERATION_TIMEOUT_MILLIS;
+        this.monotonicClock = monotonicClock;
+
+        /*
+         * TagProcessor is a child of this TimingNode aggregate. Runtime chooses
+         * the executor and deployment mapping/policy; the node creates and owns
+         * the processing component itself.
+         */
+        this.tagProcessor = new TagProcessor(
+                this,
+                tagRegistrationMapper,
+                tagProcessingConfiguration,
                 monotonicClock,
-                createTagProcessor(
-                        tagProcessingConfiguration,
-                        tagRegistrationMapper,
-                        tagProcessorExecutor,
-                        monotonicClock));
+                new TagProcessingMetrics(),
+                tagProcessorExecutor);
     }
 
     /**
@@ -231,7 +257,7 @@ public final class TimingNode {
 
         /*
          * The node serial lane starts before TagProcessor so every accepted tag
-         * result has a running lower-priority handoff target. TagProcessor owns
+         * result has a running downstream handoff target. TagProcessor owns
          * its own scheduled serial lane but its lifecycle belongs to this
          * TimingNode aggregate.
          */
@@ -540,33 +566,6 @@ public final class TimingNode {
                                     : ": " + detail.trim()),
                     cause);
         }
-    }
-
-    private TagProcessor createTagProcessor(
-            ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
-            TagRegistrationMapper tagRegistrationMapper,
-            SerialScheduledExecutor tagProcessorExecutor,
-            MonotonicClock monotonicClock) {
-        if (tagProcessingConfiguration == null) {
-            throw new IllegalArgumentException(
-                    "tagProcessingConfiguration must not be null");
-        }
-        if (tagRegistrationMapper == null) {
-            throw new IllegalArgumentException(
-                    "tagRegistrationMapper must not be null");
-        }
-        if (tagProcessorExecutor == null) {
-            throw new IllegalArgumentException(
-                    "tagProcessorExecutor must not be null");
-        }
-
-        return new TagProcessor(
-                this,
-                tagRegistrationMapper,
-                tagProcessingConfiguration,
-                monotonicClock,
-                new TagProcessingMetrics(),
-                tagProcessorExecutor);
     }
 
     private static NodeId requireId(NodeId timingNodeId) {
