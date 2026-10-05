@@ -133,7 +133,11 @@ final class TimingApplicationFixture {
     }
 
     private String configuration(Ports ports) {
-        return "timingNodeId: " + nodeId + "\n"
+        return "timingSystems:\n"
+                + "  timing-system-01:\n"
+                + "    timingNodes:\n"
+                + "      timing-node-01:\n"
+                + "        timingNodeId: " + nodeId + "\n"
                 + "io:\n"
                 + "  storage:\n"
                 + "    timingData:\n"
