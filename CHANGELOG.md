@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Complete the first antenna runtime lifecycle slice: add bounded shared-I/O `AntennaManager` control with per-manager ordering/timeouts, application-owned antenna subscriptions and TagProcessor lifecycle, and a normal `SimulatedAntenna -> TagProcessor -> TimingNode.offer(...) -> TimingData` composition path without adding IF-11 configuration fields.
+
 - Align runtime metric ownership: rename `TagProcessingCounters` to `TagProcessingMetrics`, group `SerialExecutor` and `SerialScheduledExecutor` measurements under component-owned `Metrics` objects, and expose immutable pull-based snapshots instead of loose executor metric getters.
 
 - Move accepted-registration duplicate suppression ahead of passage aggregation after tag-to-registration mapping, rename the TimingNode producer handoff to `offer(...)`, and keep that handoff bounded/fire-and-forget so TagProcessor never waits for lower-priority TimingNode processing.
