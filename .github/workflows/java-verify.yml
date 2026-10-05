@@ -108,6 +108,65 @@ jobs:
         core/target/${{ needs.release-metadata.outputs.core_jar }}
         app/target/${{ needs.release-metadata.outputs.app_jar }}
 
+  packaged-cli:
+    name: Packaged startup CLI verification
+    if: >-
+      !startsWith(github.ref, 'refs/tags/v') &&
+      needs.java-production.outputs.affected == 'true'
+    needs:
+      - release-metadata
+      - java-production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact source revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up exact Java 8 baseline
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: temurin
+          java-version: '8.0.504+1'
+          check-latest: false
+          verify-signature: true
+
+      - name: Download canonical packaged application
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: timing-point-canonical
+          path: packaged-cli
+
+      - name: Verify help, version and generated IF-11 example
+        shell: bash
+        env:
+          APP_JAR: ${{ needs.release-metadata.outputs.app_jar }}
+          APP_VERSION: ${{ needs.release-metadata.outputs.version }}
+        run: |
+          set -euo pipefail
+          jar="packaged-cli/${APP_JAR}"
+
+          java -jar "${jar}" --help > packaged-cli/help.txt
+          grep -F 'Startup options:' packaged-cli/help.txt
+          grep -F -- '--generate-config' packaged-cli/help.txt
+
+          java -jar "${jar}" --version > packaged-cli/version.txt
+          grep -F "timing-application ${APP_VERSION}" packaged-cli/version.txt
+
+          mkdir -p packaged-cli/generated
+          java -jar "${jar}"             --generate-config packaged-cli/generated/application.yml
+          cmp config/application.yml packaged-cli/generated/application.yml
+
+          if java -jar "${jar}"             --generate-config packaged-cli/generated/application.yml; then
+            echo "ERROR: --generate-config overwrote an existing file" >&2
+            exit 1
+          fi
+
   main-system-test:
     name: Main black-box system verification
     if: >-
