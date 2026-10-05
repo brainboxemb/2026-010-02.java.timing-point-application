@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Introduce central typed `ApplicationConfiguration` with read-only/dynamic configuration views, compiled `TagProcessingPolicy` defaults, runtime override/clear notifications, startup-only queue-capacity protection, and live TagProcessor policy consumption without coupling policy to antenna I/O composition.
+
 - Complete the first antenna runtime lifecycle slice: add bounded shared-I/O `AntennaManager` control with per-manager ordering/timeouts, application-owned antenna subscriptions and TagProcessor lifecycle, and a normal `SimulatedAntenna -> TagProcessor -> TimingNode.offer(...) -> TimingData` composition path without adding IF-11 configuration fields.
 
 - Align runtime metric ownership: rename `TagProcessingCounters` to `TagProcessingMetrics`, group `SerialExecutor` and `SerialScheduledExecutor` measurements under component-owned `Metrics` objects, and expose immutable pull-based snapshots instead of loose executor metric getters.
