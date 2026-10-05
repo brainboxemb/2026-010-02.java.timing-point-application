@@ -15,6 +15,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutorMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.OperationException;
@@ -68,9 +69,8 @@ public final class TimingNode {
      * Test-only convenience construction for tests in the TimingNode package.
      *
      * <p>Production runtime composition must use the public constructor that
-     * receives centrally constructed execution lanes. Keeping this seam
-     * package-private prevents production code from silently creating its own
-     * threads.</p>
+     * receives centrally constructed execution lanes. This seam uses direct
+     * execution and therefore creates no physical worker thread.</p>
      */
     TimingNode(
             NodeId timingNodeId,
@@ -86,7 +86,8 @@ public final class TimingNode {
                         SystemMonotonicClock.INSTANCE),
                 new SerialExecutor(
                         32,
-                        "tp-dml-node-" + requireId(timingNodeId).value()),
+                        "test-node-" + requireId(timingNodeId).value(),
+                        Runnable::run),
                 DEFAULT_OPERATION_TIMEOUT_MILLIS,
                 SystemMonotonicClock.INSTANCE,
                 null);
@@ -473,7 +474,7 @@ public final class TimingNode {
      * counters and monotonic timestamps.</p>
      */
     public RuntimeMetrics runtimeMetrics() {
-        SerialExecutor.Metrics.Snapshot executorMetrics =
+        SerialExecutorMetrics.Snapshot executorMetrics =
                 serialExecutor.metrics().snapshot();
 
         return new RuntimeMetrics(

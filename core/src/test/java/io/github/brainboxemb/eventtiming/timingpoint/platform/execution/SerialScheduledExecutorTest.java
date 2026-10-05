@@ -1,11 +1,14 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.After;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -13,12 +16,37 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class SerialScheduledExecutorTest {
+    private final List<ScheduledThreadPoolExecutor> ownedWorkers =
+            new ArrayList<ScheduledThreadPoolExecutor>();
+
+    @After
+    public void stopOwnedWorkers() {
+        for (ScheduledThreadPoolExecutor worker : ownedWorkers) {
+            worker.shutdownNow();
+        }
+    }
+
+    private SerialScheduledExecutor newLane(String threadName) {
+        ScheduledThreadPoolExecutor worker =
+                new ScheduledThreadPoolExecutor(
+                        1,
+                        runnable -> new Thread(
+                                runnable,
+                                threadName));
+        worker.setRemoveOnCancelPolicy(true);
+        ownedWorkers.add(worker);
+        return new SerialScheduledExecutor(
+                4,
+                threadName,
+                worker);
+    }
+
 
     @Test
     public void immediateAndPeriodicWorkUseTheSameSerialThread()
             throws Exception {
         SerialScheduledExecutor executor =
-                new SerialScheduledExecutor("serial-scheduled-test");
+                newLane("serial-scheduled-test");
         AtomicReference<String> immediateThread = new AtomicReference<>();
         AtomicReference<String> periodicThread = new AtomicReference<>();
         CountDownLatch immediateDone = new CountDownLatch(1);
@@ -52,7 +80,7 @@ public class SerialScheduledExecutorTest {
     public void periodicRuntimeFailureDoesNotSuppressLaterRuns()
             throws Exception {
         SerialScheduledExecutor executor =
-                new SerialScheduledExecutor("serial-scheduled-test");
+                newLane("serial-scheduled-test");
         AtomicInteger calls = new AtomicInteger();
         CountDownLatch secondCall = new CountDownLatch(1);
 
@@ -76,7 +104,7 @@ public class SerialScheduledExecutorTest {
             assertTrue(executor.execute(afterSecondRun::countDown));
             assertTrue(afterSecondRun.await(1, TimeUnit.SECONDS));
 
-            SerialScheduledExecutor.Metrics.Snapshot metrics =
+            SerialScheduledExecutorMetrics.Snapshot metrics =
                     executor.metrics().snapshot();
             assertEquals(1L, metrics.runtimeFailureCount());
             assertTrue(metrics.periodicExecutionCount() >= 2L);
@@ -90,7 +118,7 @@ public class SerialScheduledExecutorTest {
     public void recordsLaneMetricsThroughImmutableSnapshot()
             throws Exception {
         SerialScheduledExecutor executor =
-                new SerialScheduledExecutor("serial-scheduled-metrics-test");
+                newLane("serial-scheduled-metrics-test");
         CountDownLatch immediateDone = new CountDownLatch(1);
         CountDownLatch periodicDone = new CountDownLatch(1);
 
@@ -108,7 +136,7 @@ public class SerialScheduledExecutorTest {
 
             periodic.close();
 
-            SerialScheduledExecutor.Metrics.Snapshot metrics =
+            SerialScheduledExecutorMetrics.Snapshot metrics =
                     executor.metrics().snapshot();
             assertEquals(1L, metrics.immediateAcceptedCount());
             assertEquals(1L, metrics.immediateRejectedCount());
@@ -248,7 +276,7 @@ public class SerialScheduledExecutorTest {
     @Test
     public void closeStopsNewImmediateWork() {
         SerialScheduledExecutor executor =
-                new SerialScheduledExecutor("serial-scheduled-test");
+                newLane("serial-scheduled-test");
         executor.start();
         executor.close();
 

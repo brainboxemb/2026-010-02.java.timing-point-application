@@ -7,10 +7,13 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.After;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -19,9 +22,34 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class SerialExecutorTest {
+    private final List<ExecutorService> ownedWorkers =
+            new ArrayList<ExecutorService>();
+
+    @After
+    public void stopOwnedWorkers() {
+        for (ExecutorService worker : ownedWorkers) {
+            worker.shutdownNow();
+        }
+    }
+
+    private SerialExecutor newLane(
+            int capacity,
+            String threadName) {
+        ExecutorService worker =
+                Executors.newSingleThreadExecutor(
+                        runnable -> new Thread(
+                                runnable,
+                                threadName));
+        ownedWorkers.add(worker);
+        return new SerialExecutor(
+                capacity,
+                threadName,
+                worker);
+    }
+
     @Test
     public void rejectsWorkBeforeStartAndAfterStop() {
-        SerialExecutor executor = new SerialExecutor(1, "serial-executor-test");
+        SerialExecutor executor = newLane(1, "serial-executor-test");
 
         assertEquals(
                 SerialExecutor.AdmissionResult.NOT_RUNNING,
@@ -38,7 +66,7 @@ public class SerialExecutorTest {
 
     @Test
     public void processesAcceptedWorkInFifoOrder() throws Exception {
-        SerialExecutor executor = new SerialExecutor(4, "serial-executor-test");
+        SerialExecutor executor = newLane(4, "serial-executor-test");
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
         List<Integer> order = Collections.synchronizedList(new ArrayList<>());
@@ -70,7 +98,7 @@ public class SerialExecutorTest {
 
     @Test
     public void reportsFullWhileCapacityIsOccupied() throws Exception {
-        SerialExecutor executor = new SerialExecutor(1, "serial-executor-test");
+        SerialExecutor executor = newLane(1, "serial-executor-test");
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
 
@@ -98,7 +126,7 @@ public class SerialExecutorTest {
 
     @Test
     public void closeDrainsAlreadyAcceptedWork() throws Exception {
-        SerialExecutor executor = new SerialExecutor(2, "serial-executor-test");
+        SerialExecutor executor = newLane(2, "serial-executor-test");
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
         CountDownLatch secondDone = new CountDownLatch(1);
@@ -129,7 +157,7 @@ public class SerialExecutorTest {
 
     @Test
     public void ordinaryTaskFailureDoesNotStopLaterWork() throws Exception {
-        SerialExecutor executor = new SerialExecutor(2, "serial-executor-test");
+        SerialExecutor executor = newLane(2, "serial-executor-test");
         executor.start();
         try {
             SerialExecutor.SubmitResult<Integer> failing = executor.submit(() -> {
@@ -153,7 +181,7 @@ public class SerialExecutorTest {
 
     @Test
     public void recordsLowAllocationRuntimeCountersAndDurations() throws Exception {
-        SerialExecutor executor = new SerialExecutor(1, "serial-executor-metrics-test");
+        SerialExecutor executor = newLane(1, "serial-executor-metrics-test");
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
         CountDownLatch queuedDone = new CountDownLatch(1);
@@ -189,7 +217,7 @@ public class SerialExecutorTest {
             executor.close();
         }
 
-        SerialExecutor.Metrics.Snapshot metrics =
+        SerialExecutorMetrics.Snapshot metrics =
                 executor.metrics().snapshot();
 
         assertEquals(2L, metrics.acceptedCount());
@@ -417,7 +445,7 @@ public class SerialExecutorTest {
 
     @Test
     public void fatalErrorFaultsWorkerAndCancelsQueuedWork() throws Exception {
-        SerialExecutor executor = new SerialExecutor(2, "serial-executor-test");
+        SerialExecutor executor = newLane(2, "serial-executor-test");
         CountDownLatch fatalStarted = new CountDownLatch(1);
         CountDownLatch releaseFatal = new CountDownLatch(1);
         executor.start();

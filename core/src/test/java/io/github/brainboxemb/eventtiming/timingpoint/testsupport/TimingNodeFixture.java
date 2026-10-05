@@ -11,6 +11,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnl
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+
 /**
  * Test-only complete TimingNode construction with explicit execution lanes.
  *
@@ -19,6 +23,35 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialSc
  * executor wiring or fall back to hidden component-owned thread creation.</p>
  */
 public final class TimingNodeFixture {
+    /*
+     * Test-suite-owned workers. They are daemon threads so a failed test cannot
+     * keep the JVM alive; individual logical lanes still close with their node.
+     */
+    private static final ExecutorService NODE_WORKER =
+            Executors.newSingleThreadExecutor(
+                    runnable -> {
+                        Thread thread = new Thread(
+                                runnable,
+                                "test-node-worker");
+                        thread.setDaemon(true);
+                        return thread;
+                    });
+
+    private static final ScheduledThreadPoolExecutor TAG_WORKER =
+            new ScheduledThreadPoolExecutor(
+                    1,
+                    runnable -> {
+                        Thread thread = new Thread(
+                                runnable,
+                                "test-tag-worker");
+                        thread.setDaemon(true);
+                        return thread;
+                    });
+
+    static {
+        TAG_WORKER.setRemoveOnCancelPolicy(true);
+    }
+
     private TimingNodeFixture() {
     }
 
@@ -49,8 +82,11 @@ public final class TimingNodeFixture {
                 tagId -> null,
                 new SerialExecutor(
                         32,
-                        "test-node-" + suffix),
+                        "test-node-" + suffix,
+                        NODE_WORKER),
                 new SerialScheduledExecutor(
-                        "test-tag-" + suffix));
+                        32,
+                        "test-tag-" + suffix,
+                        TAG_WORKER));
     }
 }
