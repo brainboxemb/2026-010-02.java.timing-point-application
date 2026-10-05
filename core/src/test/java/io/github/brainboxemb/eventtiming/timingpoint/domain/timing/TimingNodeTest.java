@@ -224,9 +224,9 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void submissionOnlyCommandReturnsAfterAdmissionWithoutWaitingForExecution()
+    public void offerReturnsAfterAdmissionWithoutWaitingForExecution()
             throws Exception {
-        SerialExecutor executor = new SerialExecutor(2, "timing-node-submit-test");
+        SerialExecutor executor = new SerialExecutor(2, "timing-node-offer-test");
         TimingNode node = node(
                 new NodeId("TN-01"),
                 executor,
@@ -266,7 +266,7 @@ public class TimingNodeTest {
             producer.join(1000);
             assertFalse(producer.isAlive());
 
-            CountDownLatch afterSubmittedCommand = new CountDownLatch(1);
+            CountDownLatch afterOfferedCommand = new CountDownLatch(1);
             assertEquals(
                     SerialExecutor.AdmissionResult.ACCEPTED,
                     executor.offer(afterSubmittedCommand::countDown));
