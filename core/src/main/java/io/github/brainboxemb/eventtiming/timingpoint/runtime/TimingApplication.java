@@ -188,9 +188,13 @@ public final class TimingApplication {
             /*
              * 5. Construct Application-facing coordination/presentation objects.
              */
-            Conductor conductor =
-                    new Conductor(
-                            antennaManager);
+            Conductor conductor = null;
+            if (antennaManager != null) {
+                conductor =
+                        new Conductor(
+                                timingNode,
+                                antennaManager);
+            }
 
             ConfigurationControl configurationControl =
                     createConfigurationControl(
@@ -205,7 +209,7 @@ public final class TimingApplication {
             /*
              * 6. Wire the object graph explicitly.
              */
-            if (antennaManager != null) {
+            if (conductor != null) {
                 timingNode.statusChangedEvent()
                         .subscribe(
                                 conductor
@@ -239,6 +243,11 @@ public final class TimingApplication {
                 activation.register(
                         antennaManager::activate,
                         antennaManager::deactivate);
+            }
+            if (conductor != null) {
+                activation.register(
+                        conductor::activate,
+                        conductor::deactivate);
             }
 
             /*
