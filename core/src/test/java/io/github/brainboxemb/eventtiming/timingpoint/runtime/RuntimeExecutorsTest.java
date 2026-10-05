@@ -82,9 +82,9 @@ public class RuntimeExecutorsTest {
     public void antennaControlLanesUseRuntimeOwnedSharedIoWorkers()
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
-        SerialExecutor first =
+        SerialScheduledExecutor first =
                 runtime.createAntennaControlExecutor();
-        SerialExecutor second =
+        SerialScheduledExecutor second =
                 runtime.createAntennaControlExecutor();
         runtime.start();
 
@@ -100,9 +100,8 @@ public class RuntimeExecutorsTest {
         first.start();
         second.start();
         try {
-            assertEquals(
-                    SerialExecutor.AdmissionResult.ACCEPTED,
-                    first.offer(() -> {
+            assertTrue(
+                    first.execute(() -> {
                         firstThread.set(
                                 Thread.currentThread().getName());
                         firstDone.countDown();
@@ -117,9 +116,8 @@ public class RuntimeExecutorsTest {
 
             first.close();
 
-            assertEquals(
-                    SerialExecutor.AdmissionResult.ACCEPTED,
-                    second.offer(() -> {
+            assertTrue(
+                    second.execute(() -> {
                         secondThread.set(
                                 Thread.currentThread().getName());
                         secondDone.countDown();
