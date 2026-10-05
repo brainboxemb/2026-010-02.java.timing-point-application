@@ -75,7 +75,7 @@ public final class SimulatedAntenna implements Antenna {
     }
 
     @Override
-    public EventSource<TagObservation> observations() {
+    public EventSource<TagObservation> tagObservedEvent() {
         return observationEvent;
     }
 
