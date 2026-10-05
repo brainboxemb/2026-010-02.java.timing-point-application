@@ -1,10 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager;
 
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Antenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaPowerControl;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaState;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -13,38 +10,22 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
- * Performs the physical antenna switching sequence.
+ * Coordinates switching across the configured antennas.
  *
- * <p>This class contains the hardware-facing steps that should not obscure
- * {@link AntennaManager}: probe, external power, stabilization, initialize,
- * inventory start/stop, multiplex rotation and final close.</p>
+ * <p>Single-antenna power/provider behaviour lives in {@link ManagedAntenna}.
+ * This class only coordinates the set: validation, status lookup, enabling all
+ * independent antennas and rotating the optional mutual-exclusion group.</p>
  *
  * <p>It has no executor or timer dependency. AntennaManager serializes every
- * call into this controller on one control lane.</p>
+ * call into this class on its one control lane.</p>
  */
 final class AntennaSwitchController {
-
-    /** Mutable runtime state for one configured antenna. */
-    private static final class ManagedAntenna {
-        private final AntennaInstallation installation;
-        private AntennaState state = AntennaState.UNCHECKED;
-        private Throwable failure;
-        private boolean externalPowerApplied;
-
-        private ManagedAntenna(
-                AntennaInstallation installation) {
-            this.installation = installation;
-        }
-    }
 
     private final List<ManagedAntenna> antennas;
     private final List<ManagedAntenna> inventoryGroup;
     private final Duration inventoryInterval;
-
-    private Throwable failure;
 
     AntennaSwitchController(
             List<AntennaInstallation> installations) {
@@ -67,17 +48,17 @@ final class AntennaSwitchController {
                     installation,
                     configured);
 
-            ManagedAntenna managed =
+            ManagedAntenna antenna =
                     new ManagedAntenna(
                             installation);
-            configured.add(managed);
+            configured.add(antenna);
 
-            if (installation.inInventoryGroup()) {
+            if (antenna.inInventoryGroup()) {
                 groupInterval =
                         sharedGroupInterval(
                                 groupInterval,
-                                installation.inventoryInterval());
-                group.add(managed);
+                                antenna.inventoryInterval());
+                group.add(antenna);
             }
         }
 
@@ -98,8 +79,6 @@ final class AntennaSwitchController {
     EventSource<TagObservation> tagObservedEvent(
             AntennaId antennaId) {
         return find(antennaId)
-                .installation
-                .antenna()
                 .tagObservedEvent();
     }
 
@@ -108,7 +87,8 @@ final class AntennaSwitchController {
                 new ArrayList<AntennaStatus>(
                         antennas.size());
         for (ManagedAntenna antenna : antennas) {
-            result.add(snapshot(antenna));
+            result.add(
+                    antenna.status());
         }
         return Collections.unmodifiableList(
                 result);
@@ -116,12 +96,17 @@ final class AntennaSwitchController {
 
     AntennaStatus status(
             AntennaId antennaId) {
-        return snapshot(
-                find(antennaId));
+        return find(antennaId)
+                .status();
     }
 
     Throwable failure() {
-        return failure;
+        for (ManagedAntenna antenna : antennas) {
+            if (antenna.failure() != null) {
+                return antenna.failure();
+            }
+        }
+        return null;
     }
 
     boolean hasInventoryGroup() {
@@ -141,24 +126,21 @@ final class AntennaSwitchController {
                 inventoryGroup) > 1;
     }
 
-    /**
-     * Probes every antenna without leaving inventory or external power enabled.
-     */
+    /** Probes every configured antenna once. */
     void probeAll() {
         for (ManagedAntenna antenna : antennas) {
-            probe(antenna);
+            antenna.probe();
         }
     }
 
     /**
-     * Enables tag inventory on every healthy independent antenna and on one
-     * healthy member of the optional mutual-exclusion group.
+     * Enables all independent antennas and one member of the multiplex group.
      */
     void enableInventory() {
         for (ManagedAntenna antenna : antennas) {
-            if (!antenna.installation.inInventoryGroup()
-                    && prepareForInventory(antenna)) {
-                startInventory(antenna);
+            if (!antenna.inInventoryGroup()
+                    && antenna.prepareForInventory()) {
+                antenna.startInventory();
             }
         }
 
@@ -167,28 +149,24 @@ final class AntennaSwitchController {
         }
 
         for (ManagedAntenna antenna : inventoryGroup) {
-            prepareForInventory(antenna);
+            antenna.prepareForInventory();
         }
         startFirstAvailable(
                 inventoryGroup);
     }
 
-    /**
-     * Stops all inventory and removes external power where configured.
-     */
+    /** Stops inventory and removes power from every configured antenna. */
     void disableInventory() {
         for (int index = antennas.size() - 1;
                 index >= 0;
                 index--) {
-            ManagedAntenna antenna =
-                    antennas.get(index);
-            stopInventory(antenna);
-            powerOff(antenna);
+            antennas.get(index)
+                    .disableInventory();
         }
     }
 
     /**
-     * Moves the inventory role to the next healthy multiplex-group antenna.
+     * Rotates inventory to the next healthy member of the optional group.
      */
     void rotateInventoryGroup() {
         if (inventoryGroup.isEmpty()) {
@@ -204,9 +182,8 @@ final class AntennaSwitchController {
         int currentIndex =
                 currentInventoryIndex();
         if (currentIndex >= 0) {
-            stopInventory(
-                    inventoryGroup.get(
-                            currentIndex));
+            inventoryGroup.get(currentIndex)
+                    .stopInventory();
         }
 
         int firstCandidate =
@@ -221,55 +198,29 @@ final class AntennaSwitchController {
                     inventoryGroup.get(
                             (firstCandidate + offset)
                                     % inventoryGroup.size());
-            if (startInventory(candidate)) {
+            if (candidate.startInventory()) {
                 return;
             }
         }
     }
 
-    /**
-     * Final hardware cleanup used when AntennaManager itself deactivates.
-     */
+    /** Closes all physical antennas in reverse configuration order. */
     void closeAll() {
         RuntimeException firstFailure = null;
 
         for (int index = antennas.size() - 1;
                 index >= 0;
                 index--) {
-            ManagedAntenna managed =
-                    antennas.get(index);
-            Antenna antenna =
-                    managed.installation.antenna();
-
             try {
-                stopInventory(managed);
+                antennas.get(index)
+                        .close();
             } catch (RuntimeException ex) {
-                firstFailure =
-                        firstFailure(
-                                firstFailure,
-                                ex);
+                if (firstFailure == null) {
+                    firstFailure = ex;
+                } else {
+                    firstFailure.addSuppressed(ex);
+                }
             }
-
-            try {
-                powerOff(managed);
-            } catch (RuntimeException ex) {
-                firstFailure =
-                        firstFailure(
-                                firstFailure,
-                                ex);
-            }
-
-            try {
-                antenna.close();
-            } catch (RuntimeException ex) {
-                firstFailure =
-                        firstFailure(
-                                firstFailure,
-                                ex);
-            }
-
-            managed.state =
-                    AntennaState.CLOSED;
         }
 
         if (firstFailure != null) {
@@ -282,11 +233,9 @@ final class AntennaSwitchController {
         int failed = 0;
 
         for (ManagedAntenna antenna : antennas) {
-            if (antenna.state == AntennaState.ERROR) {
+            if (antenna.failure() != null) {
                 failed++;
-            } else if (antenna.state != AntennaState.CLOSED
-                    && antenna.state != AntennaState.UNCHECKED
-                    && antenna.state != AntennaState.CHECKING) {
+            } else if (antenna.healthy()) {
                 healthy++;
             }
         }
@@ -299,116 +248,16 @@ final class AntennaSwitchController {
                 : State.ACTIVE;
     }
 
-    private void probe(
-            ManagedAntenna antenna) {
-        antenna.state =
-                AntennaState.CHECKING;
-        antenna.failure = null;
-
-        try {
-            powerOn(antenna);
-            antenna.installation
-                    .antenna()
-                    .probe();
-            antenna.state =
-                    AntennaState.READY;
-        } catch (RuntimeException ex) {
-            fail(antenna, ex);
-        } catch (Error ex) {
-            fail(antenna, ex);
-        } finally {
-            powerOffAfterProbe(antenna);
-        }
-    }
-
-    /**
-     * Ensures the hardware is powered and initialized, but does not start
-     * inventory yet.
-     */
-    private boolean prepareForInventory(
-            ManagedAntenna antenna) {
-        if (antenna.state == AntennaState.ERROR
-                || antenna.state == AntennaState.CLOSED) {
-            return false;
-        }
-        if (antenna.state == AntennaState.INVENTORY) {
-            return true;
-        }
-
-        try {
-            powerOn(antenna);
-            antenna.installation
-                    .antenna()
-                    .initialize();
-            antenna.state =
-                    AntennaState.READY;
-            return true;
-        } catch (RuntimeException ex) {
-            fail(antenna, ex);
-            powerOffAfterFailure(antenna);
-            return false;
-        } catch (Error ex) {
-            fail(antenna, ex);
-            powerOffAfterFailure(antenna);
-            return false;
-        }
-    }
-
-    private boolean startInventory(
-            ManagedAntenna antenna) {
-        if (antenna.state == AntennaState.INVENTORY) {
-            return true;
-        }
-        if (antenna.state != AntennaState.READY) {
-            return false;
-        }
-
-        try {
-            antenna.installation
-                    .antenna()
-                    .startInventory();
-            antenna.state =
-                    AntennaState.INVENTORY;
-            return true;
-        } catch (RuntimeException ex) {
-            fail(antenna, ex);
-            powerOffAfterFailure(antenna);
-            return false;
-        } catch (Error ex) {
-            fail(antenna, ex);
-            powerOffAfterFailure(antenna);
-            return false;
-        }
-    }
-
-    private void stopInventory(
-            ManagedAntenna antenna) {
-        if (antenna.state != AntennaState.INVENTORY) {
-            return;
-        }
-
-        try {
-            antenna.installation
-                    .antenna()
-                    .stopInventory();
-            antenna.state =
-                    AntennaState.READY;
-        } catch (RuntimeException ex) {
-            fail(antenna, ex);
-        } catch (Error ex) {
-            fail(antenna, ex);
-        }
-    }
-
     private void startFirstAvailable(
             List<ManagedAntenna> candidates) {
         for (ManagedAntenna antenna : candidates) {
-            if (antenna.state == AntennaState.INVENTORY) {
+            if (antenna.inventoryRunning()) {
                 return;
             }
         }
+
         for (ManagedAntenna antenna : candidates) {
-            if (startInventory(antenna)) {
+            if (antenna.startInventory()) {
                 return;
             }
         }
@@ -418,98 +267,12 @@ final class AntennaSwitchController {
         for (int index = 0;
                 index < inventoryGroup.size();
                 index++) {
-            if (inventoryGroup.get(index).state
-                    == AntennaState.INVENTORY) {
+            if (inventoryGroup.get(index)
+                    .inventoryRunning()) {
                 return index;
             }
         }
         return -1;
-    }
-
-    private void powerOn(
-            ManagedAntenna antenna) {
-        AntennaPowerControl power =
-                antenna.installation.powerControl();
-
-        if (power == null
-                || antenna.externalPowerApplied) {
-            return;
-        }
-
-        power.powerOn();
-        antenna.externalPowerApplied = true;
-        waitForStabilization(
-                antenna.installation
-                        .powerStabilization());
-    }
-
-    private void powerOff(
-            ManagedAntenna antenna) {
-        AntennaPowerControl power =
-                antenna.installation.powerControl();
-
-        if (power == null
-                || !antenna.externalPowerApplied) {
-            return;
-        }
-
-        try {
-            power.powerOff();
-        } finally {
-            antenna.externalPowerApplied = false;
-        }
-    }
-
-    private void powerOffAfterProbe(
-            ManagedAntenna antenna) {
-        if (antenna.installation.powerControl()
-                == null) {
-            return;
-        }
-        try {
-            powerOff(antenna);
-        } catch (RuntimeException ex) {
-            fail(antenna, ex);
-        }
-    }
-
-    private void powerOffAfterFailure(
-            ManagedAntenna antenna) {
-        try {
-            powerOff(antenna);
-        } catch (RuntimeException ignored) {
-            // Keep the original provider failure as the diagnostic cause.
-        }
-    }
-
-    private static void waitForStabilization(
-            Duration delay) {
-        if (delay.isZero()) {
-            return;
-        }
-
-        try {
-            TimeUnit.NANOSECONDS.sleep(
-                    delay.toNanos());
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException(
-                    "Antenna power stabilization was interrupted",
-                    ex);
-        }
-    }
-
-    private void fail(
-            ManagedAntenna antenna,
-            Throwable cause) {
-        if (antenna.failure == null) {
-            antenna.failure = cause;
-        }
-        antenna.state =
-                AntennaState.ERROR;
-        if (failure == null) {
-            failure = cause;
-        }
     }
 
     private ManagedAntenna find(
@@ -520,8 +283,7 @@ final class AntennaSwitchController {
         }
 
         for (ManagedAntenna antenna : antennas) {
-            if (antenna.installation
-                    .antennaId()
+            if (antenna.antennaId()
                     .equals(antennaId)) {
                 return antenna;
             }
@@ -541,8 +303,7 @@ final class AntennaSwitchController {
         }
 
         for (ManagedAntenna antenna : existing) {
-            if (antenna.installation
-                    .antennaId()
+            if (antenna.antennaId()
                     .equals(
                             installation.antennaId())) {
                 throw new IllegalArgumentException(
@@ -570,29 +331,10 @@ final class AntennaSwitchController {
             List<ManagedAntenna> antennas) {
         int count = 0;
         for (ManagedAntenna antenna : antennas) {
-            if (antenna.state == AntennaState.READY
-                    || antenna.state == AntennaState.INVENTORY) {
+            if (antenna.healthy()) {
                 count++;
             }
         }
         return count;
-    }
-
-    private static AntennaStatus snapshot(
-            ManagedAntenna antenna) {
-        return new AntennaStatus(
-                antenna.installation.antennaId(),
-                antenna.state,
-                antenna.failure);
-    }
-
-    private static RuntimeException firstFailure(
-            RuntimeException current,
-            RuntimeException candidate) {
-        if (current == null) {
-            return candidate;
-        }
-        current.addSuppressed(candidate);
-        return current;
     }
 }
