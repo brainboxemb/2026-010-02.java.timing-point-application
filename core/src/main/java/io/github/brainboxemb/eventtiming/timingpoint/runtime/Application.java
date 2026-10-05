@@ -19,9 +19,7 @@ public final class Application implements AutoCloseable {
         this(
                 buildIdentity,
                 timingNode,
-                ApplicationConfiguration.singleTimingNode(
-                        timingNode.timingNodeId(),
-                        TagProcessingPolicy.defaults()),
+                defaultConfiguration(timingNode),
                 null);
     }
 
@@ -32,9 +30,7 @@ public final class Application implements AutoCloseable {
         this(
                 buildIdentity,
                 timingNode,
-                ApplicationConfiguration.singleTimingNode(
-                        timingNode.timingNodeId(),
-                        TagProcessingPolicy.defaults()),
+                defaultConfiguration(timingNode),
                 antennaRuntime);
     }
 
@@ -134,6 +130,16 @@ public final class Application implements AutoCloseable {
         if (firstFailure != null) {
             throw firstFailure;
         }
+    }
+
+    private static ApplicationConfiguration defaultConfiguration(
+            TimingNode timingNode) {
+        if (timingNode == null) {
+            throw new IllegalArgumentException("timingNode must not be null");
+        }
+        return ApplicationConfiguration.singleTimingNode(
+                timingNode.timingNodeId(),
+                TagProcessingPolicy.defaults());
     }
 
     public static String smokeOutput(BuildIdentity buildIdentity, Lifecycle.State state) {
