@@ -85,11 +85,27 @@ final class RegistrationDuplicateFilter {
     }
 
     void onPolicyChanged() {
-        if (policyConfiguration.currentValue().duplicateWindowNanos() == 0L) {
+        long duplicateWindowNanos =
+                policyConfiguration.currentValue().duplicateWindowNanos();
+        long now = monotonicClock.nowNanos();
+
+        if (duplicateWindowNanos == 0L) {
             acceptedRegistrations.clear();
             cleanupStarted = false;
             lastCleanupNanos = 0L;
+            return;
         }
+
+        Iterator<Map.Entry<RegistrationId, Long>> iterator =
+                acceptedRegistrations.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<RegistrationId, Long> entry = iterator.next();
+            if (now - entry.getValue() >= duplicateWindowNanos) {
+                iterator.remove();
+            }
+        }
+        cleanupStarted = true;
+        lastCleanupNanos = now;
     }
 
     boolean hasPendingState() {
