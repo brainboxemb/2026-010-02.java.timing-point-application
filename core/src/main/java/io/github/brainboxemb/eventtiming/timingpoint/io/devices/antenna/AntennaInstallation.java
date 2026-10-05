@@ -7,14 +7,12 @@ public final class AntennaInstallation {
     private final Antenna antenna;
     private final AntennaPowerControl powerControl;
     private final Duration powerStabilization;
-    private final String inventoryGroup;
     private final Duration inventoryInterval;
 
     public AntennaInstallation(
             Antenna antenna,
             AntennaPowerControl powerControl,
             Duration powerStabilization,
-            String inventoryGroup,
             Duration inventoryInterval) {
         if (antenna == null) {
             throw new IllegalArgumentException("antenna must not be null");
@@ -28,24 +26,16 @@ public final class AntennaInstallation {
             throw new IllegalArgumentException(
                     "powerStabilization requires external power control");
         }
-
-        String normalizedGroup = normalizeGroup(inventoryGroup);
-        if (normalizedGroup == null && inventoryInterval != null) {
-            throw new IllegalArgumentException(
-                    "inventoryInterval requires inventoryGroup");
-        }
-        if (normalizedGroup != null
-                && (inventoryInterval == null
-                    || inventoryInterval.isZero()
+        if (inventoryInterval != null
+                && (inventoryInterval.isZero()
                     || inventoryInterval.isNegative())) {
             throw new IllegalArgumentException(
-                    "inventoryInterval must be positive for an inventory group");
+                    "inventoryInterval must be positive");
         }
 
         this.antenna = antenna;
         this.powerControl = powerControl;
         this.powerStabilization = powerStabilization;
-        this.inventoryGroup = normalizedGroup;
         this.inventoryInterval = inventoryInterval;
     }
 
@@ -54,7 +44,6 @@ public final class AntennaInstallation {
                 antenna,
                 null,
                 Duration.ZERO,
-                null,
                 null);
     }
 
@@ -66,18 +55,19 @@ public final class AntennaInstallation {
                 antenna,
                 powerControl,
                 powerStabilization,
-                null,
                 null);
     }
 
+    /**
+     * Marks this antenna as a member of the manager's one optional
+     * mutual-exclusion inventory group.
+     */
     public AntennaInstallation inInventoryGroup(
-            String group,
             Duration interval) {
         return new AntennaInstallation(
                 antenna,
                 powerControl,
                 powerStabilization,
-                group,
                 interval);
     }
 
@@ -93,23 +83,11 @@ public final class AntennaInstallation {
         return powerStabilization;
     }
 
-    public String inventoryGroup() {
-        return inventoryGroup;
+    public boolean inInventoryGroup() {
+        return inventoryInterval != null;
     }
 
     public Duration inventoryInterval() {
         return inventoryInterval;
-    }
-
-    private static String normalizeGroup(String value) {
-        if (value == null) {
-            return null;
-        }
-        String normalized = value.trim();
-        if (normalized.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "inventoryGroup must not be blank");
-        }
-        return normalized;
     }
 }

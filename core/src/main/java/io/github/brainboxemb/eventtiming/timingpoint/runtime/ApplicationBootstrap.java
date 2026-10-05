@@ -30,7 +30,6 @@ import java.util.List;
  * own the corresponding behaviour.</p>
  */
 public final class ApplicationBootstrap {
-    private static final int ANTENNA_CONTROL_QUEUE_CAPACITY = 8;
     private static final Duration ANTENNA_CONTROL_TIMEOUT =
             Duration.ofSeconds(2);
 
@@ -146,9 +145,8 @@ public final class ApplicationBootstrap {
             if (!antennaInstallations.isEmpty()) {
                 antennaManager = new AntennaManager(
                         antennaInstallations,
-                        executors.sharedIoExecutor(),
+                        executors.createAntennaControlExecutor(),
                         executors.antennaScheduler(),
-                        ANTENNA_CONTROL_QUEUE_CAPACITY,
                         ANTENNA_CONTROL_TIMEOUT);
             }
 

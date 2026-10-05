@@ -65,6 +65,65 @@ public class RuntimeExecutorsTest {
     }
 
     @Test
+    public void antennaControlLanesUseRuntimeOwnedSharedIoWorkers()
+            throws Exception {
+        RuntimeExecutors runtime = new RuntimeExecutors();
+        SerialExecutor first =
+                runtime.createAntennaControlExecutor();
+        SerialExecutor second =
+                runtime.createAntennaControlExecutor();
+
+        AtomicReference<String> firstThread =
+                new AtomicReference<String>();
+        AtomicReference<String> secondThread =
+                new AtomicReference<String>();
+        CountDownLatch firstDone =
+                new CountDownLatch(1);
+        CountDownLatch secondDone =
+                new CountDownLatch(1);
+
+        first.start();
+        second.start();
+        try {
+            assertEquals(
+                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    first.offer(() -> {
+                        firstThread.set(
+                                Thread.currentThread().getName());
+                        firstDone.countDown();
+                    }));
+            assertTrue(
+                    firstDone.await(
+                            1,
+                            TimeUnit.SECONDS));
+            assertTrue(
+                    firstThread.get()
+                            .startsWith("tp-io-shared-"));
+
+            first.close();
+
+            assertEquals(
+                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    second.offer(() -> {
+                        secondThread.set(
+                                Thread.currentThread().getName());
+                        secondDone.countDown();
+                    }));
+            assertTrue(
+                    secondDone.await(
+                            1,
+                            TimeUnit.SECONDS));
+            assertTrue(
+                    secondThread.get()
+                            .startsWith("tp-io-shared-"));
+        } finally {
+            first.close();
+            second.close();
+            runtime.close();
+        }
+    }
+
+    @Test
     public void tagProcessorsShareOnePhysicalScheduledWorker()
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();

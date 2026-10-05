@@ -10,9 +10,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManager.AntennaState;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManager.ControlException;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManager.FailureReason;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManagerTypes.AntennaState;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManagerTypes.ControlException;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManagerTypes.FailureReason;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManagerTypes.State;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
@@ -35,7 +37,7 @@ public class AntennaManagerTest {
                 new RecordingAntenna("A", calls);
         RecordingAntenna second =
                 new RecordingAntenna("B", calls);
-        AntennaManager manager = new AntennaManager(
+        AntennaManager manager = manager(
                 Arrays.<Antenna>asList(first, second),
                 shared,
                 4,
@@ -44,7 +46,7 @@ public class AntennaManagerTest {
         try {
             manager.start();
             assertEquals(
-                    AntennaManager.State.RUNNING,
+                    State.RUNNING,
                     manager.state());
             assertFalse(first.inventoryRunning());
             assertFalse(second.inventoryRunning());
@@ -59,7 +61,7 @@ public class AntennaManagerTest {
 
             manager.close();
             assertEquals(
-                    AntennaManager.State.STOPPED,
+                    State.STOPPED,
                     manager.state());
 
             assertEquals(
@@ -90,7 +92,7 @@ public class AntennaManagerTest {
                 new RecordingAntenna("healthy", calls);
         RecordingAntenna failed =
                 new FailingProbeAntenna("failed", calls);
-        AntennaManager manager = new AntennaManager(
+        AntennaManager manager = manager(
                 Arrays.<Antenna>asList(healthy, failed),
                 shared,
                 4,
@@ -100,7 +102,7 @@ public class AntennaManagerTest {
             manager.start();
 
             assertEquals(
-                    AntennaManager.State.DEGRADED,
+                    State.DEGRADED,
                     manager.state());
             assertEquals(
                     AntennaState.READY,
@@ -114,7 +116,7 @@ public class AntennaManagerTest {
             assertTrue(healthy.inventoryRunning());
             assertFalse(failed.inventoryRunning());
             assertEquals(
-                    AntennaManager.State.DEGRADED,
+                    State.DEGRADED,
                     manager.state());
         } finally {
             manager.close();
@@ -126,7 +128,7 @@ public class AntennaManagerTest {
     public void reportsSharedExecutorRejectionAsOverload() {
         ExecutorService shared = sharedExecutor();
         shared.shutdownNow();
-        AntennaManager manager = new AntennaManager(
+        AntennaManager manager = manager(
                 Collections.<Antenna>singletonList(
                         new RecordingAntenna(
                                 "A",
@@ -144,7 +146,7 @@ public class AntennaManagerTest {
                     FailureReason.OVERLOADED,
                     expected.reason());
             assertEquals(
-                    AntennaManager.State.FAILED,
+                    State.FAILED,
                     manager.state());
         }
     }
@@ -153,7 +155,7 @@ public class AntennaManagerTest {
     public void timesOutAndCancelsBlockingProviderControl() {
         ExecutorService shared = sharedExecutor();
         Antenna blocking = new BlockingProbeAntenna();
-        AntennaManager manager = new AntennaManager(
+        AntennaManager manager = manager(
                 Collections.singletonList(blocking),
                 shared,
                 1,
@@ -168,7 +170,7 @@ public class AntennaManagerTest {
                         FailureReason.TIMEOUT,
                         expected.reason());
                 assertEquals(
-                        AntennaManager.State.FAILED,
+                        State.FAILED,
                         manager.state());
             }
         } finally {
@@ -179,6 +181,20 @@ public class AntennaManagerTest {
             }
             shared.shutdownNow();
         }
+    }
+
+    private static AntennaManager manager(
+            List<Antenna> antennas,
+            ExecutorService shared,
+            int capacity,
+            Duration timeout) {
+        return new AntennaManager(
+                antennas,
+                new SerialExecutor(
+                        capacity,
+                        "antenna-manager-test",
+                        shared),
+                timeout);
     }
 
     private static ExecutorService sharedExecutor() {
