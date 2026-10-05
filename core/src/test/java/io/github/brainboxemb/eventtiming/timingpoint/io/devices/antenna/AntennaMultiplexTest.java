@@ -129,6 +129,32 @@ public class AntennaMultiplexTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
+    public void rejectsDifferentIntervalsWithinInventoryGroup() {
+        ExecutorService shared = sharedExecutor();
+        ScheduledExecutorService scheduler =
+                Executors.newSingleThreadScheduledExecutor();
+        try {
+            manager(
+                    Arrays.asList(
+                            AntennaInstallation.direct(
+                                            new SimulatedAntenna())
+                                    .inInventoryGroup(
+                                            Duration.ofMillis(25)),
+                            AntennaInstallation.direct(
+                                            new SimulatedAntenna())
+                                    .inInventoryGroup(
+                                            Duration.ofMillis(30))),
+                    shared,
+                    scheduler,
+                    8,
+                    Duration.ofSeconds(1));
+        } finally {
+            scheduler.shutdownNow();
+            shared.shutdownNow();
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
     public void rejectsSingleMemberInventoryGroup() {
         ExecutorService shared = sharedExecutor();
         ScheduledExecutorService scheduler =
