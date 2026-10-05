@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -15,23 +16,20 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Central construction and fallback lifecycle owner for runtime execution resources.
+ * Central construction and lifecycle owner for runtime execution resources.
  *
- * <p>The runtime decides which execution lanes exist, how they are bounded and how
- * their threads are named. Domain and I/O components receive those executors as
- * dependencies; they do not invent their own production threads.</p>
+ * <p>Logical serial lanes remain per TimingNode/TagProcessor, but physical
+ * workers are shared by functional role. This keeps per-node FIFO/admission
+ * state without multiplying Java threads as nodes are added on the Raspberry Pi
+ * Zero baseline.</p>
  *
- * <p>Dedicated component lanes are still started/stopped by the component whose
- * lifecycle they execute. This class tracks them so a partially built application
- * can always be cleaned up. Shared blocking-I/O and antenna scheduling pools remain
- * runtime-owned for their full lifetime.</p>
- *
- * <p>All project-owned threads intentionally use the JVM default priority. Runtime
- * correctness must not depend on Java thread priority; role-specific priority tuning
- * remains measurement-driven.</p>
+ * <p>Blocking I/O remains separate from the Domain processing workers. All
+ * project-owned threads deliberately use the JVM default priority; correctness
+ * and progress never depend on priority.</p>
  */
 final class RuntimeExecutors implements AutoCloseable {
     static final int TIMING_NODE_QUEUE_CAPACITY = 32;
+    static final int TAG_PROCESSOR_LANE_QUEUE_CAPACITY = 32;
 
     private static final int SHARED_IO_WORKERS = 2;
     private static final int SHARED_IO_QUEUE_CAPACITY = 16;
@@ -56,23 +54,63 @@ final class RuntimeExecutors implements AutoCloseable {
         }
     }
 
-    private final List<AutoCloseable> dedicatedExecutors =
+    private final List<AutoCloseable> serialLanes =
             new ArrayList<AutoCloseable>();
+
+    /*
+     * Each serial lane schedules at most one drain token at a time, so these
+     * backing queues are bounded structurally by the number of configured
+     * lanes rather than by registration volume. Registration/command overload
+     * remains bounded and visible in the lane-local queues.
+     */
+    private final ThreadPoolExecutor timingNodeWorker;
+    private final ScheduledThreadPoolExecutor tagProcessorWorker;
+
     private final ThreadPoolExecutor sharedIoExecutor;
     private final ScheduledThreadPoolExecutor antennaScheduler;
 
     RuntimeExecutors() {
+        timingNodeWorker = new ThreadPoolExecutor(
+                1,
+                1,
+                0L,
+                TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<Runnable>(),
+                runnable -> {
+                    Thread thread = new Thread(
+                            runnable,
+                            "tp-dml-node-worker");
+                    thread.setPriority(Thread.NORM_PRIORITY);
+                    return thread;
+                },
+                new ThreadPoolExecutor.AbortPolicy());
+        timingNodeWorker.prestartCoreThread();
+
+        tagProcessorWorker = new ScheduledThreadPoolExecutor(
+                1,
+                runnable -> {
+                    Thread thread = new Thread(
+                            runnable,
+                            "tp-dml-tagproc-worker");
+                    thread.setPriority(Thread.NORM_PRIORITY);
+                    return thread;
+                });
+        tagProcessorWorker.setRemoveOnCancelPolicy(true);
+        tagProcessorWorker.prestartCoreThread();
+
         AtomicInteger ioWorkerNumber = new AtomicInteger();
         sharedIoExecutor = new ThreadPoolExecutor(
                 SHARED_IO_WORKERS,
                 SHARED_IO_WORKERS,
                 0L,
                 TimeUnit.MILLISECONDS,
-                new ArrayBlockingQueue<Runnable>(SHARED_IO_QUEUE_CAPACITY),
+                new ArrayBlockingQueue<Runnable>(
+                        SHARED_IO_QUEUE_CAPACITY),
                 runnable -> {
                     Thread thread = new Thread(
                             runnable,
-                            "tp-io-shared-" + ioWorkerNumber.incrementAndGet());
+                            "tp-io-shared-"
+                                    + ioWorkerNumber.incrementAndGet());
                     thread.setPriority(Thread.NORM_PRIORITY);
                     return thread;
                 },
@@ -91,28 +129,35 @@ final class RuntimeExecutors implements AutoCloseable {
     }
 
     /**
-     * Creates the two dedicated serial lanes owned by one TimingNode aggregate.
+     * Creates node-local serial lanes on the two shared Domain role workers.
      *
-     * <p>The TimingNode lane serializes node state/commit work. The TagProcessor
-     * lane serializes decoded-observation processing and scheduled housekeeping.
-     * They are separate so bursty RFID processing cannot execute on the mutable
-     * TimingNode state lane.</p>
+     * <p>The NodeId is a logical lane identity for diagnostics only. It is no
+     * longer part of a physical worker-thread name because that worker services
+     * all configured nodes of the same role.</p>
      */
-    synchronized TimingNodeExecutors createTimingNodeExecutors(NodeId nodeId) {
+    synchronized TimingNodeExecutors createTimingNodeExecutors(
+            NodeId nodeId) {
         if (nodeId == null) {
-            throw new IllegalArgumentException("nodeId must not be null");
+            throw new IllegalArgumentException(
+                    "nodeId must not be null");
         }
 
         SerialExecutor timingNode = new SerialExecutor(
                 TIMING_NODE_QUEUE_CAPACITY,
-                "tp-dml-node-" + nodeId.value());
+                "TimingNode-" + nodeId.value(),
+                timingNodeWorker);
+
         SerialScheduledExecutor tagProcessor =
                 new SerialScheduledExecutor(
-                        "tp-dml-tag-" + nodeId.value());
+                        TAG_PROCESSOR_LANE_QUEUE_CAPACITY,
+                        "TagProcessor-" + nodeId.value(),
+                        tagProcessorWorker);
 
-        dedicatedExecutors.add(timingNode);
-        dedicatedExecutors.add(tagProcessor);
-        return new TimingNodeExecutors(timingNode, tagProcessor);
+        serialLanes.add(timingNode);
+        serialLanes.add(tagProcessor);
+        return new TimingNodeExecutors(
+                timingNode,
+                tagProcessor);
     }
 
     ExecutorService sharedIoExecutor() {
@@ -126,30 +171,40 @@ final class RuntimeExecutors implements AutoCloseable {
     @Override
     public void close() {
         /*
-         * Components normally close their dedicated lanes first. Closing them
-         * again here is deliberate and safe: this is the bootstrap/failure
-         * fallback for partially constructed or partially started graphs.
+         * Components normally close their lanes first. Closing again here is
+         * intentional and idempotent: this is the bootstrap/failure fallback
+         * for a partially built or partially started graph.
          */
-        for (int index = dedicatedExecutors.size() - 1; index >= 0; index--) {
+        for (int index = serialLanes.size() - 1;
+                index >= 0;
+                index--) {
             try {
-                dedicatedExecutors.get(index).close();
+                serialLanes.get(index).close();
             } catch (Exception ignored) {
                 // Preserve application/component shutdown failures instead.
             }
         }
 
+        tagProcessorWorker.shutdownNow();
+        timingNodeWorker.shutdownNow();
         antennaScheduler.shutdownNow();
         sharedIoExecutor.shutdownNow();
+
+        awaitTermination(tagProcessorWorker);
+        awaitTermination(timingNodeWorker);
         awaitTermination(antennaScheduler);
         awaitTermination(sharedIoExecutor);
     }
 
-    private static void awaitTermination(ExecutorService executor) {
+    private static void awaitTermination(
+            ExecutorService executor) {
         boolean interrupted = false;
         try {
             while (!executor.isTerminated()) {
                 try {
-                    executor.awaitTermination(100L, TimeUnit.MILLISECONDS);
+                    executor.awaitTermination(
+                            100L,
+                            TimeUnit.MILLISECONDS);
                 } catch (InterruptedException ex) {
                     interrupted = true;
                 }
