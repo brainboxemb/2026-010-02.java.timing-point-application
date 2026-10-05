@@ -33,7 +33,7 @@ public class TagObservationFilterTest {
         TagObservationFilter filter = new TagObservationFilter(
                 policy(),
                 clock,
-                new TagProcessingCounters(),
+                new TagProcessingMetrics(),
                 (registrationId, observedAt) -> valid.add(
                         new SelectedObservation(registrationId, observedAt)));
 
@@ -60,7 +60,7 @@ public class TagObservationFilterTest {
         TagObservationFilter filter = new TagObservationFilter(
                 policy(),
                 clock,
-                new TagProcessingCounters(),
+                new TagProcessingMetrics(),
                 (registrationId, observedAt) -> {
                     throw new AssertionError("discarded passage must not close");
                 });
@@ -85,7 +85,7 @@ public class TagObservationFilterTest {
                         Duration.ofNanos(10L),
                         8),
                 clock,
-                new TagProcessingCounters(),
+                new TagProcessingMetrics(),
                 (registrationId, observedAt) -> valid.add(
                         new SelectedObservation(registrationId, observedAt)));
 
