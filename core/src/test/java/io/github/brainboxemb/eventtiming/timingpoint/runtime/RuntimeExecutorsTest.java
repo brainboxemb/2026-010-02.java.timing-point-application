@@ -11,9 +11,22 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class RuntimeExecutorsTest {
+
+    @Test
+    public void constructionDoesNotStartRuntimeWorkers() {
+        RuntimeExecutors runtime = new RuntimeExecutors();
+        try {
+            assertFalse(runtime.started());
+            runtime.start();
+            assertTrue(runtime.started());
+        } finally {
+            runtime.close();
+        }
+    }
 
     @Test
     public void timingNodesShareOnePhysicalNodeWorker()
@@ -25,6 +38,7 @@ public class RuntimeExecutorsTest {
         RuntimeExecutors.TimingNodeExecutors second =
                 runtime.createTimingNodeExecutors(
                         new NodeId("TN-02"));
+        runtime.start();
 
         AtomicReference<String> firstThread =
                 new AtomicReference<String>();
@@ -72,6 +86,7 @@ public class RuntimeExecutorsTest {
                 runtime.createAntennaControlExecutor();
         SerialExecutor second =
                 runtime.createAntennaControlExecutor();
+        runtime.start();
 
         AtomicReference<String> firstThread =
                 new AtomicReference<String>();
@@ -133,6 +148,7 @@ public class RuntimeExecutorsTest {
         RuntimeExecutors.TimingNodeExecutors second =
                 runtime.createTimingNodeExecutors(
                         new NodeId("TN-02"));
+        runtime.start();
 
         AtomicReference<String> firstThread =
                 new AtomicReference<String>();
