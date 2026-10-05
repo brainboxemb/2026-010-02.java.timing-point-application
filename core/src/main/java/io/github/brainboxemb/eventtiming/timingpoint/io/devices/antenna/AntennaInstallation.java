@@ -2,20 +2,33 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
 
 import java.time.Duration;
 
-/** Immutable installation policy bound to one configured antenna. */
+/**
+ * Immutable installation policy for one configured antenna.
+ *
+ * <p>The configured {@link AntennaId} is the application-facing identity.
+ * The concrete {@link Antenna} object remains an implementation detail owned by
+ * AntennaManager after composition.</p>
+ */
 public final class AntennaInstallation {
+    private final AntennaId antennaId;
     private final Antenna antenna;
     private final AntennaPowerControl powerControl;
     private final Duration powerStabilization;
     private final Duration inventoryInterval;
 
     public AntennaInstallation(
+            AntennaId antennaId,
             Antenna antenna,
             AntennaPowerControl powerControl,
             Duration powerStabilization,
             Duration inventoryInterval) {
+        if (antennaId == null) {
+            throw new IllegalArgumentException(
+                    "antennaId must not be null");
+        }
         if (antenna == null) {
-            throw new IllegalArgumentException("antenna must not be null");
+            throw new IllegalArgumentException(
+                    "antenna must not be null");
         }
         if (powerStabilization == null
                 || powerStabilization.isNegative()) {
@@ -33,14 +46,18 @@ public final class AntennaInstallation {
                     "inventoryInterval must be positive");
         }
 
+        this.antennaId = antennaId;
         this.antenna = antenna;
         this.powerControl = powerControl;
         this.powerStabilization = powerStabilization;
         this.inventoryInterval = inventoryInterval;
     }
 
-    public static AntennaInstallation direct(Antenna antenna) {
+    public static AntennaInstallation direct(
+            AntennaId antennaId,
+            Antenna antenna) {
         return new AntennaInstallation(
+                antennaId,
                 antenna,
                 null,
                 Duration.ZERO,
@@ -48,10 +65,12 @@ public final class AntennaInstallation {
     }
 
     public static AntennaInstallation powered(
+            AntennaId antennaId,
             Antenna antenna,
             AntennaPowerControl powerControl,
             Duration powerStabilization) {
         return new AntennaInstallation(
+                antennaId,
                 antenna,
                 powerControl,
                 powerStabilization,
@@ -65,21 +84,26 @@ public final class AntennaInstallation {
     public AntennaInstallation inInventoryGroup(
             Duration interval) {
         return new AntennaInstallation(
+                antennaId,
                 antenna,
                 powerControl,
                 powerStabilization,
                 interval);
     }
 
-    public Antenna antenna() {
+    public AntennaId antennaId() {
+        return antennaId;
+    }
+
+    Antenna antenna() {
         return antenna;
     }
 
-    public AntennaPowerControl powerControl() {
+    AntennaPowerControl powerControl() {
         return powerControl;
     }
 
-    public Duration powerStabilization() {
+    Duration powerStabilization() {
         return powerStabilization;
     }
 
