@@ -20,9 +20,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaM
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -34,8 +34,8 @@ import java.util.Map;
  *
  * <p>This is both the visible composition root and the lifecycle owner of the
  * resulting object graph. {@link #create(BuildIdentity, Config)} constructs and
- * wires the graph without starting physical application workers. {@link #start()}
- * starts the already composed graph. {@link #close()} stops it.</p>
+ * wires the graph without starting physical application workers. {@link #activate()}
+ * activates the already composed graph. {@link #deactivate()} deactivates it.</p>
  *
  * <p>The production path is deliberately readable in one place:</p>
  *
@@ -47,7 +47,7 @@ import java.util.Map;
  *   -> TimingApplication
  * </pre>
  */
-public final class TimingApplication implements AutoCloseable {
+public final class TimingApplication {
 
     private static final Duration ANTENNA_CONTROL_TIMEOUT =
             Duration.ofSeconds(2);
@@ -60,6 +60,7 @@ public final class TimingApplication implements AutoCloseable {
     private final Conductor conductor;
     private final AntennaManager antennaManager;
     private final RuntimeExecutors runtimeExecutors;
+    private final ActivationManager activationManager;
 
     private TimingApplication(
             BuildIdentity buildIdentity,
@@ -77,6 +78,16 @@ public final class TimingApplication implements AutoCloseable {
         this.conductor = conductor;
         this.antennaManager = antennaManager;
         this.runtimeExecutors = runtimeExecutors;
+
+        activationManager = new ActivationManager();
+        activationManager.register(
+                timingNode::activate,
+                timingNode::deactivate);
+        if (antennaManager != null) {
+            activationManager.register(
+                    antennaManager::activate,
+                    antennaManager::deactivate);
+        }
     }
 
     /**
@@ -115,8 +126,12 @@ public final class TimingApplication implements AutoCloseable {
                         antennaInstallations);
 
         /*
-         * 1. Resolve runtime configuration.
+         * 1. Resolve runtime configuration and the process-wide platform
+         *    environment. No component is active yet.
          */
+        PlatformEnvironment platform =
+                PlatformEnvironment.system();
+
         ApplicationConfiguration applicationConfiguration =
                 ApplicationConfiguration.singleTimingNode(
                         config.timingNodeId(),
@@ -150,14 +165,15 @@ public final class TimingApplication implements AutoCloseable {
                             persistence,
                             new DefaultTimingDataFactory(),
                             () -> new TimingTimestamp(
-                                    Instant.now()),
+                                    platform.clock().instant()),
                             applicationConfiguration
                                     .timingNode(
                                             config.timingNodeId())
                                     .tagProcessing(),
                             tagRegistrationMapper,
                             nodeExecutors.timingNode(),
-                            nodeExecutors.tagProcessor());
+                            nodeExecutors.tagProcessor(),
+                            platform.monotonicClock());
 
             /*
              * 4. Construct optional I/O.
@@ -213,7 +229,7 @@ public final class TimingApplication implements AutoCloseable {
             }
 
             /*
-             * 7. Return the composed graph. start() is a separate phase.
+             * 7. Return the composed graph. activation is a separate phase.
              */
             return new TimingApplication(
                     buildIdentity,
@@ -230,22 +246,17 @@ public final class TimingApplication implements AutoCloseable {
     }
 
     /**
-     * Starts the already constructed and wired application.
+     * Activates the already constructed and wired application.
+     *
+     * <p>Runtime execution infrastructure starts first. Application components
+     * then activate in their registration order through ActivationManager.</p>
      */
-    public void start() {
-        boolean timingNodeStarted = false;
-        boolean antennaManagerStarted = false;
-
+    public void activate() {
         try {
             runtimeExecutors.start();
-
-            timingNode.start();
-            timingNodeStarted = true;
+            activationManager.activateAll();
 
             if (antennaManager != null) {
-                antennaManager.start();
-                antennaManagerStarted = true;
-
                 conductor.onTimingNodeStatusChanged(
                         timingNode.query(
                                 TimingNodeQueries.status()));
@@ -253,23 +264,13 @@ public final class TimingApplication implements AutoCloseable {
 
             lifecycle.start();
         } catch (RuntimeException ex) {
-            if (antennaManagerStarted) {
-                try {
-                    antennaManager.close();
-                } catch (RuntimeException ignored) {
-                    // Preserve the original startup failure.
-                }
+            try {
+                activationManager.deactivateAll();
+            } catch (RuntimeException deactivateFailure) {
+                ex.addSuppressed(deactivateFailure);
             }
-
-            if (timingNodeStarted) {
-                try {
-                    timingNode.stop();
-                } catch (RuntimeException ignored) {
-                    // Preserve the original startup failure.
-                }
-            }
-
             runtimeExecutors.close();
+            lifecycle.close();
             throw ex;
         }
     }
@@ -305,27 +306,29 @@ public final class TimingApplication implements AutoCloseable {
                 lifecycle.state());
     }
 
-    @Override
-    public void close() {
+    /**
+     * Deactivates application components in reverse order and then closes the
+     * Runtime-owned execution infrastructure.
+     */
+    public void deactivate() {
         RuntimeException firstFailure = null;
 
-        if (antennaManager != null) {
-            try {
-                antennaManager.close();
-            } catch (RuntimeException ex) {
-                firstFailure = ex;
-            }
+        try {
+            activationManager.deactivateAll();
+        } catch (RuntimeException ex) {
+            firstFailure = ex;
         }
 
         try {
-            timingNode.stop();
+            runtimeExecutors.close();
         } catch (RuntimeException ex) {
             if (firstFailure == null) {
                 firstFailure = ex;
+            } else {
+                firstFailure.addSuppressed(ex);
             }
         }
 
-        runtimeExecutors.close();
         lifecycle.close();
 
         if (firstFailure != null) {
