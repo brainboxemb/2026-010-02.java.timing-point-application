@@ -42,8 +42,8 @@ public class LocalConsoleTest {
         }
 
         String text = output.toString();
-        assertTrue(text.contains("help     Show available commands"));
-        assertTrue(text.contains("version  Show application version"));
+        assertTrue(text.contains("help                         Show available commands"));
+        assertTrue(text.contains("version                      Show application version"));
         assertTrue(text.contains("status                       Show TimingNode status"));
         assertTrue(text.contains("open <locationId>            Open TimingNode at location"));
         assertTrue(text.contains("close                        Close TimingNode"));
