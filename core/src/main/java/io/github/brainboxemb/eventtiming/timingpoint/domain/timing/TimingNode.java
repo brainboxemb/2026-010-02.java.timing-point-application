@@ -241,7 +241,7 @@ public final class TimingNode {
      *
      * <p>Recovery does not restore the operational LocationId or OPEN state.</p>
      */
-    public void start() {
+    public void activate() {
         if (serialExecutor.state() != SerialExecutor.State.NEW) {
             throw new IllegalStateException(
                     "TimingNode can only start once; executor state=" + serialExecutor.state());
@@ -257,15 +257,15 @@ public final class TimingNode {
         }
 
         /*
-         * The node serial lane starts before TagProcessor so every accepted tag
+         * The node serial lane starts before TagProcessor activation so every accepted tag
          * result has a running downstream handoff target. TagProcessor owns
-         * its own scheduled serial lane but its lifecycle belongs to this
+         * its own scheduled serial lane but its activation lifecycle belongs to this
          * TimingNode aggregate.
          */
         serialExecutor.start();
         if (tagProcessor != null) {
             try {
-                tagProcessor.start();
+                tagProcessor.activate();
             } catch (RuntimeException ex) {
                 serialExecutor.close();
                 throw ex;
@@ -273,7 +273,7 @@ public final class TimingNode {
         }
     }
 
-    public void stop() {
+    public void deactivate() {
         RuntimeException firstFailure = null;
 
         /*
@@ -283,7 +283,7 @@ public final class TimingNode {
          */
         if (tagProcessor != null) {
             try {
-                tagProcessor.stop();
+                tagProcessor.deactivate();
             } catch (RuntimeException ex) {
                 firstFailure = ex;
             }
