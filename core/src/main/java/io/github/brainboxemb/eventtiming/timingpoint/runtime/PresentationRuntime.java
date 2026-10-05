@@ -50,13 +50,9 @@ final class PresentationRuntime {
             throw new IllegalArgumentException(
                     "shutdownRequest must not be null");
         }
-        if (consoleInput == null) {
+        if ((consoleInput == null) != (consoleOutput == null)) {
             throw new IllegalArgumentException(
-                    "consoleInput must not be null");
-        }
-        if (consoleOutput == null) {
-            throw new IllegalArgumentException(
-                    "consoleOutput must not be null");
+                    "consoleInput and consoleOutput must either both be supplied or both be null");
         }
 
         Api api =
@@ -98,11 +94,13 @@ final class PresentationRuntime {
                                 shutdownRequest);
 
         localConsole =
-                new LocalConsole(
-                        gateway,
-                        shutdownRequest,
-                        consoleInput,
-                        consoleOutput);
+                consoleInput == null
+                        ? null
+                        : new LocalConsole(
+                                gateway,
+                                shutdownRequest,
+                                consoleInput,
+                                consoleOutput);
     }
 
     /**
@@ -128,12 +126,14 @@ final class PresentationRuntime {
                 remoteShell.start();
             }
 
-            consoleThread =
-                    new Thread(
-                            localConsole,
-                            "tp-prl-console");
-            consoleThread.setDaemon(true);
-            consoleThread.start();
+            if (localConsole != null) {
+                consoleThread =
+                        new Thread(
+                                localConsole,
+                                "tp-prl-console");
+                consoleThread.setDaemon(true);
+                consoleThread.start();
+            }
 
             active = true;
         } catch (IOException ex) {
