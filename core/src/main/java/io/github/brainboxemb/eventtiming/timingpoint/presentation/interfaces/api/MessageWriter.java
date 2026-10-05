@@ -2,6 +2,10 @@ package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.ap
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
+import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
+import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl.TagProcessingConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl.TagProcessingValue;
+import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl.TimingNodeConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Problem;
@@ -156,6 +160,98 @@ public final class MessageWriter {
                 + "\"eventType\":\"TIMING_DATA_COMMITTED\","
                 + "\"occurredAt\":" + quote(occurredAt.toString()) + ","
                 + "\"payload\":" + timingDataJson(data, codec)
+                + "}";
+    }
+
+    public static String configuration(
+            ConfigurationControl.Snapshot snapshot) {
+        StringBuilder json = new StringBuilder();
+        json.append("{\"timingNodes\":[");
+        boolean first = true;
+        for (TimingNodeConfiguration node : snapshot.timingNodes()) {
+            if (!first) {
+                json.append(',');
+            }
+            first = false;
+            json.append('{')
+                    .append("\"id\":")
+                    .append(quote(node.nodeId().value()))
+                    .append(',')
+                    .append("\"tagProcessing\":")
+                    .append(tagProcessing(node.tagProcessing()))
+                    .append('}');
+        }
+        json.append("]}");
+        return json.toString();
+    }
+
+    public static String configurationUpdate(
+            ConfigurationControl.Update update) {
+        return "{"
+                + "\"result\":" + quote(update.result().name()) + ","
+                + "\"tagProcessing\":"
+                + tagProcessing(update.tagProcessing())
+                + "}";
+    }
+
+    public static String configurationChangedEvent(
+            java.time.Instant occurredAt,
+            ConfigurationControl.Change change) {
+        if (occurredAt == null) {
+            throw new IllegalArgumentException(
+                    "occurredAt must not be null");
+        }
+        if (change == null) {
+            throw new IllegalArgumentException(
+                    "change must not be null");
+        }
+        return "{"
+                + "\"eventType\":\"CONFIGURATION_CHANGED\","
+                + "\"occurredAt\":" + quote(occurredAt.toString()) + ","
+                + "\"payload\":{"
+                + "\"nodeId\":" + quote(change.nodeId().value()) + ","
+                + "\"section\":\"tagProcessing\","
+                + "\"configuration\":"
+                + tagProcessing(change.tagProcessing())
+                + "}}";
+    }
+
+    private static String tagProcessing(
+            TagProcessingConfiguration configuration) {
+        return "{"
+                + "\"startup\":"
+                + tagProcessingValue(configuration.startup())
+                + ",\"current\":"
+                + tagProcessingValue(configuration.current())
+                + ",\"overridden\":"
+                + configuration.overridden()
+                + ",\"runtimeMutable\":{"
+                + "\"quietTimeoutMillis\":"
+                + configuration.quietTimeoutRuntimeMutable()
+                + ",\"maxBurstDurationMillis\":"
+                + configuration.maxBurstDurationRuntimeMutable()
+                + ",\"duplicateWindowMillis\":"
+                + configuration.duplicateWindowRuntimeMutable()
+                + ",\"sweepCadenceMillis\":"
+                + configuration.sweepCadenceRuntimeMutable()
+                + ",\"observationQueueCapacity\":"
+                + configuration.observationQueueCapacityRuntimeMutable()
+                + "}}";
+    }
+
+    private static String tagProcessingValue(
+            TagProcessingValue value) {
+        return "{"
+                + "\"quietTimeoutMillis\":"
+                + value.quietTimeoutMillis()
+                + ",\"maxBurstDurationMillis\":"
+                + value.maxBurstDurationMillis()
+                + ",\"duplicateWindowMillis\":"
+                + value.duplicateWindowMillis()
+                + ",\"sweepCadenceMillis\":"
+                + value.sweepCadenceMillis()
+                + ",\"observationQueueCapacity\":"
+                + value.observationQueueCapacity()
                 + "}";
     }
 
