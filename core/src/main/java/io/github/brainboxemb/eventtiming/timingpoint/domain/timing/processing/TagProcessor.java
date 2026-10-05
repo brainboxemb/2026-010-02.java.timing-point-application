@@ -23,7 +23,9 @@ import org.slf4j.LoggerFactory;
  * admission run on one serial execution lane owned by this processor. Duplicate
  * suppression happens after tag-to-registration mapping and before passage
  * aggregation so recently accepted registrations do not create unnecessary
- * burst/RSSI/housekeeping state.</p>
+ * burst/RSSI/housekeeping state. Completed passages are handed off with
+ * {@link TimingNode#offer(io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommand)};
+ * TagProcessor never waits for lower-priority TimingNode processing.</p>
  */
 public final class TagProcessor {
     private static final Logger LOG = LoggerFactory.getLogger(TagProcessor.class);
@@ -263,7 +265,7 @@ public final class TagProcessor {
     private void processValidObservation(
             RegistrationId registrationId,
             TimingTimestamp observedAt) {
-        CommandAdmission admission = timingNode.submit(
+        CommandAdmission admission = timingNode.offer(
                 TimingNodeCommands.addAutomaticRegistration(
                         registrationId,
                         observedAt));
