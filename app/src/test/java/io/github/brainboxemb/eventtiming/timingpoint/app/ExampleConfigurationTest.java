@@ -4,7 +4,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.YamlLoader;
 
 import java.io.ByteArrayOutputStream;
-import java.io.FileAlreadyExistsException;
+import java.nio.file.FileAlreadyExistsException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
