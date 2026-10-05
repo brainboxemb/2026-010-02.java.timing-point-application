@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingpoint.application.Conductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagRegistrationMapper;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTimingDataPersistence;
@@ -150,10 +151,16 @@ public final class ApplicationBootstrap {
                         ANTENNA_CONTROL_TIMEOUT);
             }
 
+            Conductor conductor =
+                    new Conductor(
+                            timingNode,
+                            antennaManager);
+
             return new Application(
                     buildIdentity,
                     timingNode,
                     applicationConfiguration,
+                    conductor,
                     antennaManager,
                     executors);
         } catch (RuntimeException ex) {
