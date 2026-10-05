@@ -50,6 +50,40 @@ public class HttpRequestReaderTest {
     }
 
     @Test
+    public void parsesTagProcessingSetAndClearRequests() {
+        HttpRequestReader.TagProcessingUpdateRequest set =
+                reader.parseTagProcessingUpdateBody(bytes(
+                        "{"
+                                + "\"action\":\"SET\","
+                                + "\"value\":{"
+                                + "\"quietTimeoutMillis\":300,"
+                                + "\"sweepCadenceMillis\":75"
+                                + "}"
+                                + "}"));
+
+        assertEquals(
+                HttpRequestReader.TagProcessingUpdateRequest.Action.SET,
+                set.action);
+        assertEquals(
+                Long.valueOf(300L),
+                set.values.quietTimeoutMillis);
+        assertNull(set.values.maxBurstDurationMillis);
+        assertNull(set.values.duplicateWindowMillis);
+        assertEquals(
+                Long.valueOf(75L),
+                set.values.sweepCadenceMillis);
+        assertNull(set.values.observationQueueCapacity);
+
+        HttpRequestReader.TagProcessingUpdateRequest clear =
+                reader.parseTagProcessingUpdateBody(bytes(
+                        "{\"action\":\"CLEAR\"}"));
+        assertEquals(
+                HttpRequestReader.TagProcessingUpdateRequest.Action.CLEAR,
+                clear.action);
+        assertNull(clear.values);
+    }
+
+    @Test
     public void rejectsInvalidRequestShapesWithStableCodes() {
         assertFailure(
                 "INVALID_VALUE",
@@ -68,6 +102,35 @@ public class HttpRequestReaderTest {
                 "MALFORMED_REQUEST",
                 "Malformed JSON request",
                 () -> reader.parseAutoRegistrationBody(bytes("{not-json}")));
+        assertFailure(
+                "INVALID_VALUE",
+                "SET requires value",
+                () -> reader.parseTagProcessingUpdateBody(bytes(
+                        "{\"action\":\"SET\"}")));
+        assertFailure(
+                "INVALID_VALUE",
+                "CLEAR does not accept value",
+                () -> reader.parseTagProcessingUpdateBody(bytes(
+                        "{"
+                                + "\"action\":\"CLEAR\","
+                                + "\"value\":{}"
+                                + "}")));
+        assertFailure(
+                "INVALID_VALUE",
+                "Unsupported tag-processing field",
+                () -> reader.parseTagProcessingUpdateBody(bytes(
+                        "{"
+                                + "\"action\":\"SET\","
+                                + "\"value\":{\"batchSize\":8}"
+                                + "}")));
+        assertFailure(
+                "INVALID_VALUE",
+                "must be a JSON integer",
+                () -> reader.parseTagProcessingUpdateBody(bytes(
+                        "{"
+                                + "\"action\":\"SET\","
+                                + "\"value\":{\"quietTimeoutMillis\":\"300\"}"
+                                + "}")));
     }
 
     private static byte[] bytes(String value) {
