@@ -69,7 +69,7 @@ public class TimingApplicationTest {
 
         application.activate();
         try {
-            assertEquals(Lifecycle.State.RUNNING, application.state());
+            assertEquals(TimingApplication.State.ACTIVE, application.state());
             assertEquals(
                     TimingNodeTypes.Lifecycle.ERROR,
                     application.presentationGateway().timingNode().status().lifecycle());
@@ -187,10 +187,10 @@ public class TimingApplicationTest {
     @Test
     public void formatsStableSmokeOutput() {
         assertEquals(
-                "event-timing-app lifecycle OK version=test-version state=STOPPED",
+                "event-timing-app lifecycle OK version=test-version state=INACTIVE",
                 TimingApplication.smokeOutput(
                         identity(),
-                        Lifecycle.State.STOPPED));
+                        TimingApplication.State.INACTIVE));
     }
 
     @Test(expected = IllegalArgumentException.class)
