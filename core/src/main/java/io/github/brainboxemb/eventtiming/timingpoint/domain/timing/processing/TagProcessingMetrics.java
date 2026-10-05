@@ -69,6 +69,12 @@ public final class TagProcessingMetrics {
         }
     }
 
+    /**
+     * Returns an immutable pull-based view of the current processing metrics.
+     *
+     * <p>The snapshot is diagnostic and may allocate. Recording itself remains
+     * allocation-free apart from the AtomicLong instances owned by this component.</p>
+     */
     public Snapshot snapshot() {
         return new Snapshot(
                 observationCount.get(),
