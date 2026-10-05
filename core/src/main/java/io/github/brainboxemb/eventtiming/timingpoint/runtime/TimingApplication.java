@@ -21,6 +21,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
 
+import java.io.Reader;
+import java.io.Writer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -65,6 +67,7 @@ public final class TimingApplication {
     private final AntennaManager antennaManager;
     private final RuntimeExecutors runtimeExecutors;
     private final ActivationManager activationManager;
+    private final ShutdownSignal shutdownSignal;
 
     private State state = State.NEW;
 
@@ -76,7 +79,8 @@ public final class TimingApplication {
             Conductor conductor,
             AntennaManager antennaManager,
             RuntimeExecutors runtimeExecutors,
-            ActivationManager activationManager) {
+            ActivationManager activationManager,
+            ShutdownSignal shutdownSignal) {
         this.buildIdentity = buildIdentity;
         this.timingNode = timingNode;
         this.configuration = configuration;
@@ -85,6 +89,7 @@ public final class TimingApplication {
         this.antennaManager = antennaManager;
         this.runtimeExecutors = runtimeExecutors;
         this.activationManager = activationManager;
+        this.shutdownSignal = shutdownSignal;
     }
 
     /**
@@ -99,7 +104,29 @@ public final class TimingApplication {
                 buildIdentity,
                 config,
                 Collections.<AntennaInstallation>emptyList(),
-                tagId -> null);
+                tagId -> null,
+                null,
+                null);
+    }
+
+    /**
+     * Constructs the normal executable composition with process console I/O.
+     *
+     * <p>Main supplies process streams only; concrete Presentation adapters stay
+     * owned by Runtime composition.</p>
+     */
+    public static TimingApplication create(
+            BuildIdentity buildIdentity,
+            Config config,
+            Reader consoleInput,
+            Writer consoleOutput) {
+        return create(
+                buildIdentity,
+                config,
+                Collections.<AntennaInstallation>emptyList(),
+                tagId -> null,
+                consoleInput,
+                consoleOutput);
     }
 
     /**
@@ -112,6 +139,22 @@ public final class TimingApplication {
             Config config,
             List<AntennaInstallation> antennaInstallations,
             TagRegistrationMapper tagRegistrationMapper) {
+        return create(
+                buildIdentity,
+                config,
+                antennaInstallations,
+                tagRegistrationMapper,
+                null,
+                null);
+    }
+
+    private static TimingApplication create(
+            BuildIdentity buildIdentity,
+            Config config,
+            List<AntennaInstallation> antennaInstallations,
+            TagRegistrationMapper tagRegistrationMapper,
+            Reader consoleInput,
+            Writer consoleOutput) {
         requireCompositionInput(
                 buildIdentity,
                 config,
@@ -208,6 +251,17 @@ public final class TimingApplication {
                             timingNode,
                             configurationControl);
 
+            ShutdownSignal shutdownSignal =
+                    new ShutdownSignal();
+
+            PresentationRuntime presentation =
+                    new PresentationRuntime(
+                            config.presentation(),
+                            presentationGateway,
+                            shutdownSignal::request,
+                            consoleInput,
+                            consoleOutput);
+
             /*
              * 6. Wire the object graph explicitly.
              */
@@ -251,6 +305,9 @@ public final class TimingApplication {
                         conductor::activate,
                         conductor::deactivate);
             }
+            activation.register(
+                    presentation::activate,
+                    presentation::deactivate);
 
             /*
              * 8. Return the fully constructed and wired graph.
@@ -264,7 +321,8 @@ public final class TimingApplication {
                     conductor,
                     antennaManager,
                     executors,
-                    activation);
+                    activation,
+                    shutdownSignal);
         } catch (RuntimeException ex) {
             executors.close();
             throw ex;
@@ -328,6 +386,14 @@ public final class TimingApplication {
         }
     }
 
+    /**
+     * Waits until Presentation or the process requests normal application shutdown.
+     */
+    public void awaitShutdownRequest()
+            throws InterruptedException {
+        shutdownSignal.awaitRequest();
+    }
+
     public String smokeOutput() {
         return smokeOutput(
                 buildIdentity,
@@ -339,6 +405,8 @@ public final class TimingApplication {
      * Runtime-owned execution infrastructure.
      */
     public synchronized void deactivate() {
+        shutdownSignal.request();
+
         if (state == State.INACTIVE) {
             return;
         }
