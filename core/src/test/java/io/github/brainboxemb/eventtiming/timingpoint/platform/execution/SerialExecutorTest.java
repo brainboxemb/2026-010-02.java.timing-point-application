@@ -343,6 +343,78 @@ public class SerialExecutorTest {
         }
     }
 
+
+    @Test
+    public void fatalFailureInSharedLaneDoesNotStopSiblingLane()
+            throws Exception {
+        ThreadPoolExecutor shared = new ThreadPoolExecutor(
+                1,
+                1,
+                0L,
+                TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<Runnable>(),
+                runnable -> new Thread(
+                        runnable,
+                        "shared-node-worker"));
+
+        SerialExecutor failing =
+                new SerialExecutor(
+                        2,
+                        "node-A",
+                        shared);
+        SerialExecutor healthy =
+                new SerialExecutor(
+                        2,
+                        "node-B",
+                        shared);
+        CountDownLatch healthyDone =
+                new CountDownLatch(1);
+
+        failing.start();
+        healthy.start();
+        try {
+            assertEquals(
+                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    failing.offer(() -> {
+                        throw new AssertionError(
+                                "expected lane failure");
+                    }));
+            assertEquals(
+                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    healthy.offer(
+                            healthyDone::countDown));
+
+            assertTrue(
+                    healthyDone.await(
+                            1,
+                            TimeUnit.SECONDS));
+
+            long deadline =
+                    System.nanoTime()
+                            + TimeUnit.SECONDS.toNanos(1);
+            while (failing.state()
+                    != SerialExecutor.State.FAILED
+                    && System.nanoTime() < deadline) {
+                Thread.yield();
+            }
+
+            assertEquals(
+                    SerialExecutor.State.FAILED,
+                    failing.state());
+            assertTrue(
+                    failing.failure()
+                            instanceof AssertionError);
+            assertEquals(
+                    SerialExecutor.State.RUNNING,
+                    healthy.state());
+            assertFalse(shared.isShutdown());
+        } finally {
+            failing.close();
+            healthy.close();
+            shared.shutdownNow();
+        }
+    }
+
     @Test
     public void fatalErrorFaultsWorkerAndCancelsQueuedWork() throws Exception {
         SerialExecutor executor = new SerialExecutor(2, "serial-executor-test");
