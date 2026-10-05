@@ -121,7 +121,7 @@ public final class TimingNode {
                 SystemMonotonicClock.INSTANCE);
     }
 
-    private TimingNode(
+    public TimingNode(
             NodeId timingNodeId,
             TimingDataPersistence timingDataPersistence,
             TimingDataFactory timingDataFactory,
@@ -244,7 +244,7 @@ public final class TimingNode {
     public void activate() {
         if (serialExecutor.state() != SerialExecutor.State.NEW) {
             throw new IllegalStateException(
-                    "TimingNode can only start once; executor state=" + serialExecutor.state());
+                    "TimingNode can only activate once; executor state=" + serialExecutor.state());
         }
         try {
             logic.recoverTimingData();
