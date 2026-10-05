@@ -10,8 +10,16 @@ public final class Application implements AutoCloseable {
     private final TimingNode timingNode;
     private final PresentationGateway presentationGateway;
     private final Lifecycle lifecycle;
+    private final AntennaRuntime antennaRuntime;
 
     Application(BuildIdentity buildIdentity, TimingNode timingNode) {
+        this(buildIdentity, timingNode, null);
+    }
+
+    Application(
+            BuildIdentity buildIdentity,
+            TimingNode timingNode,
+            AntennaRuntime antennaRuntime) {
         if (buildIdentity == null) {
             throw new IllegalArgumentException("buildIdentity must not be null");
         }
@@ -22,13 +30,24 @@ public final class Application implements AutoCloseable {
         this.timingNode = timingNode;
         this.presentationGateway = new PresentationGateway(buildIdentity, timingNode);
         this.lifecycle = new Lifecycle(buildIdentity);
+        this.antennaRuntime = antennaRuntime;
     }
 
     public void start() {
         timingNode.start();
         try {
+            if (antennaRuntime != null) {
+                antennaRuntime.start();
+            }
             lifecycle.start();
         } catch (RuntimeException ex) {
+            if (antennaRuntime != null) {
+                try {
+                    antennaRuntime.close();
+                } catch (RuntimeException ignored) {
+                    // Preserve the startup failure.
+                }
+            }
             timingNode.stop();
             throw ex;
         }
@@ -60,8 +79,29 @@ public final class Application implements AutoCloseable {
 
     @Override
     public void close() {
-        timingNode.stop();
+        RuntimeException firstFailure = null;
+
+        if (antennaRuntime != null) {
+            try {
+                antennaRuntime.close();
+            } catch (RuntimeException ex) {
+                firstFailure = ex;
+            }
+        }
+
+        try {
+            timingNode.stop();
+        } catch (RuntimeException ex) {
+            if (firstFailure == null) {
+                firstFailure = ex;
+            }
+        }
+
         lifecycle.close();
+
+        if (firstFailure != null) {
+            throw firstFailure;
+        }
     }
 
     public static String smokeOutput(BuildIdentity buildIdentity, Lifecycle.State state) {
