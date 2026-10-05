@@ -112,12 +112,12 @@ public class AntennaMultiplexTest {
 
             await(
                     () -> manager.status(failed).state()
-                            == AntennaManager.AntennaState.ERROR,
+                            == AntennaState.ERROR,
                     1000L);
             await(healthy::inventoryRunning, 1000L);
 
             assertEquals(
-                    AntennaManager.State.DEGRADED,
+                    State.DEGRADED,
                     manager.state());
             assertTrue(healthy.inventoryRunning());
             assertFalse(failed.inventoryRunning());
