@@ -189,6 +189,7 @@ public final class Composition {
             AntennaRuntime antennaRuntime = new AntennaRuntime(
                     antennaManager,
                     tagProcessor,
+                    timingNode,
                     sharedIoExecutor);
             return new Application(
                     buildIdentity,
