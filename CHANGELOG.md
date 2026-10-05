@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Make runtime startup explicit: construct without starting workers, wire cross-component behaviour through application `Conductor`, then start Runtime/Domain/I/O lifecycle in visible order.
+- Collapse runtime construction into one `TimingApplication.create(...)` composition root: construct without starting workers, wire cross-component behaviour explicitly, then start the already composed Runtime/Domain/I/O graph through `TimingApplication.start()`.
 
 - Simplify AntennaManager into a SerialExecutor-backed lifecycle boundary plus package-private device logic and separate manager types; constrain multiplexing to one optional 2..N-member inventory group instead of multiple named group maps.
 
