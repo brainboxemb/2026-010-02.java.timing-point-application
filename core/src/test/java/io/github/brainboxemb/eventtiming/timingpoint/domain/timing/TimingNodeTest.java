@@ -193,17 +193,17 @@ public class TimingNodeTest {
 
             openCaller.start();
             long queueDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
-            while (executor.queueDepth() < 1 && System.nanoTime() < queueDeadline) {
+            while (executor.metrics().snapshot().queueDepth() < 1 && System.nanoTime() < queueDeadline) {
                 Thread.yield();
             }
-            assertEquals(1, executor.queueDepth());
+            assertEquals(1, executor.metrics().snapshot().queueDepth());
 
             closeCaller.start();
             queueDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
-            while (executor.queueDepth() < 2 && System.nanoTime() < queueDeadline) {
+            while (executor.metrics().snapshot().queueDepth() < 2 && System.nanoTime() < queueDeadline) {
                 Thread.yield();
             }
-            assertEquals(2, executor.queueDepth());
+            assertEquals(2, executor.metrics().snapshot().queueDepth());
 
             releaseBlocker.countDown();
 

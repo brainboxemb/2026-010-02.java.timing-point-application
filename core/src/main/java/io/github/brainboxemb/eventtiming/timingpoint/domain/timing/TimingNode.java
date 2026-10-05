@@ -318,17 +318,20 @@ public final class TimingNode {
      * counters and monotonic timestamps.</p>
      */
     public RuntimeMetrics runtimeMetrics() {
+        SerialExecutor.Metrics.Snapshot executorMetrics =
+                serialExecutor.metrics().snapshot();
+
         return new RuntimeMetrics(
-                serialExecutor.queueDepth(),
-                serialExecutor.highWaterMark(),
-                serialExecutor.acceptedCount(),
-                serialExecutor.fullCount(),
-                serialExecutor.notRunningCount(),
-                serialExecutor.completedCount(),
-                serialExecutor.totalQueueWaitNanos(),
-                serialExecutor.maxQueueWaitNanos(),
-                serialExecutor.totalExecutionNanos(),
-                serialExecutor.maxExecutionNanos(),
+                executorMetrics.queueDepth(),
+                executorMetrics.queueHighWaterMark(),
+                executorMetrics.acceptedCount(),
+                executorMetrics.fullCount(),
+                executorMetrics.notRunningCount(),
+                executorMetrics.completedCount(),
+                executorMetrics.totalQueueWaitNanos(),
+                executorMetrics.maxQueueWaitNanos(),
+                executorMetrics.totalExecutionNanos(),
+                executorMetrics.maxExecutionNanos(),
                 logic.timingDataAppendAttempts(),
                 logic.timingDataAppendFailures(),
                 logic.timingDataCommitCount(),
@@ -338,7 +341,7 @@ public final class TimingNode {
                 timingDataEventListenerFailures,
                 totalTimingDataEventNanos,
                 maxTimingDataEventNanos,
-                serialExecutor.threadCpuTimeNanos());
+                executorMetrics.workerThreadCpuTimeNanos());
     }
 
     private void recordTimingDataEventDelivery(

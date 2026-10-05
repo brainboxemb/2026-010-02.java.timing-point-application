@@ -87,7 +87,7 @@ public class SerialExecutorTest {
             assertEquals(
                     SerialExecutor.AdmissionResult.FULL,
                     executor.offer(() -> { }));
-            assertTrue(executor.highWaterMark() >= 1);
+            assertTrue(executor.metrics().snapshot().queueHighWaterMark() >= 1);
         } finally {
             releaseFirst.countDown();
             executor.close();
@@ -187,16 +187,19 @@ public class SerialExecutorTest {
             executor.close();
         }
 
-        assertEquals(2L, executor.acceptedCount());
-        assertEquals(1L, executor.fullCount());
-        assertEquals(1L, executor.notRunningCount());
-        assertEquals(2L, executor.completedCount());
-        assertTrue(executor.highWaterMark() >= 1);
-        assertTrue(executor.maxQueueWaitNanos() > 0L);
-        assertTrue(executor.totalQueueWaitNanos() >= executor.maxQueueWaitNanos());
-        assertTrue(executor.maxExecutionNanos() > 0L);
-        assertTrue(executor.totalExecutionNanos() >= executor.maxExecutionNanos());
-        assertTrue(executor.threadCpuTimeNanos() >= -1L);
+        SerialExecutor.Metrics.Snapshot metrics =
+                executor.metrics().snapshot();
+
+        assertEquals(2L, metrics.acceptedCount());
+        assertEquals(1L, metrics.fullCount());
+        assertEquals(1L, metrics.notRunningCount());
+        assertEquals(2L, metrics.completedCount());
+        assertTrue(metrics.queueHighWaterMark() >= 1);
+        assertTrue(metrics.maxQueueWaitNanos() > 0L);
+        assertTrue(metrics.totalQueueWaitNanos() >= metrics.maxQueueWaitNanos());
+        assertTrue(metrics.maxExecutionNanos() > 0L);
+        assertTrue(metrics.totalExecutionNanos() >= metrics.maxExecutionNanos());
+        assertTrue(metrics.workerThreadCpuTimeNanos() >= -1L);
     }
 
     @Test

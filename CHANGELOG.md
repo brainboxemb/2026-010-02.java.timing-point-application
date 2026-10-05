@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Align runtime metric ownership: rename `TagProcessingCounters` to `TagProcessingMetrics`, group `SerialExecutor` and `SerialScheduledExecutor` measurements under component-owned `Metrics` objects, and expose immutable pull-based snapshots instead of loose executor metric getters.
+
 - Move accepted-registration duplicate suppression ahead of passage aggregation after tag-to-registration mapping, rename the TimingNode producer handoff to `offer(...)`, and keep that handoff bounded/fire-and-forget so TagProcessor never waits for lower-priority TimingNode processing.
 
 - Replace the hand-written TimingNode `SerialWorker` with JDK-backed `SerialExecutor`, add `SerialScheduledExecutor`, and move TagProcessor to a bounded observation input queue with coalesced serial draining and same-lane housekeeping.

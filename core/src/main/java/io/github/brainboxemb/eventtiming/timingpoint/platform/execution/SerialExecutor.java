@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>The JDK owns thread coordination and queue waiting. This class owns the
  * project semantics around bounded admission, lifecycle, processed Future
- * results and engineering counters.</p>
+ * results and component-local engineering metrics.</p>
  */
 public final class SerialExecutor implements AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(SerialExecutor.class);
@@ -63,26 +63,215 @@ public final class SerialExecutor implements AutoCloseable {
         }
     }
 
+    /**
+     * Component-owned engineering metrics for one SerialExecutor instance.
+     *
+     * <p>Admission counters are updated while the owning executor lock is held.
+     * Completion/duration counters are updated by the single worker thread and
+     * remain primitive volatile fields. Snapshot creation is explicit and may
+     * allocate or query JVM thread-management state; the execution hot path does
+     * neither.</p>
+     */
+    public static final class Metrics {
+        private final SerialExecutor owner;
+
+        private int highWaterMark;
+        private long acceptedCount;
+        private long fullCount;
+        private long notRunningCount;
+        private volatile long completedCount;
+        private volatile long totalQueueWaitNanos;
+        private volatile long maxQueueWaitNanos;
+        private volatile long totalExecutionNanos;
+        private volatile long maxExecutionNanos;
+        private volatile Thread workerThread;
+
+        private Metrics(SerialExecutor owner) {
+            this.owner = owner;
+        }
+
+        private void recordWorkerThread(Thread thread) {
+            workerThread = thread;
+        }
+
+        private void recordAccepted(int queueDepth) {
+            acceptedCount++;
+            if (queueDepth > highWaterMark) {
+                highWaterMark = queueDepth;
+            }
+        }
+
+        private void recordFull() {
+            fullCount++;
+        }
+
+        private void recordNotRunning() {
+            notRunningCount++;
+        }
+
+        private void recordCompleted(
+                long queueWaitNanos,
+                long executionNanos) {
+            completedCount++;
+            totalQueueWaitNanos += queueWaitNanos;
+            if (queueWaitNanos > maxQueueWaitNanos) {
+                maxQueueWaitNanos = queueWaitNanos;
+            }
+            totalExecutionNanos += executionNanos;
+            if (executionNanos > maxExecutionNanos) {
+                maxExecutionNanos = executionNanos;
+            }
+        }
+
+        /**
+         * Returns a pull-based immutable view of the current executor metrics.
+         *
+         * <p>The snapshot is diagnostic rather than transactional. Worker-owned
+         * duration counters can advance while this method reads the component,
+         * but every individual field is safely published.</p>
+         */
+        public Snapshot snapshot() {
+            ThreadPoolExecutor active;
+            int queueDepth;
+            int queueHighWaterMark;
+            long queueAcceptedCount;
+            long queueFullCount;
+            long queueNotRunningCount;
+
+            synchronized (owner) {
+                active = owner.executor;
+                queueDepth = active == null ? 0 : active.getQueue().size();
+                queueHighWaterMark = highWaterMark;
+                queueAcceptedCount = acceptedCount;
+                queueFullCount = fullCount;
+                queueNotRunningCount = notRunningCount;
+            }
+
+            return new Snapshot(
+                    queueDepth,
+                    queueHighWaterMark,
+                    queueAcceptedCount,
+                    queueFullCount,
+                    queueNotRunningCount,
+                    completedCount,
+                    totalQueueWaitNanos,
+                    maxQueueWaitNanos,
+                    totalExecutionNanos,
+                    maxExecutionNanos,
+                    workerThreadCpuTimeNanos());
+        }
+
+        private long workerThreadCpuTimeNanos() {
+            Thread worker = workerThread;
+            if (worker == null) {
+                return -1L;
+            }
+
+            ThreadMXBean bean = ManagementFactory.getThreadMXBean();
+            if (!bean.isThreadCpuTimeSupported()
+                    || !bean.isThreadCpuTimeEnabled()) {
+                return -1L;
+            }
+            long cpuTime = bean.getThreadCpuTime(worker.getId());
+            return cpuTime < 0L ? -1L : cpuTime;
+        }
+
+        /** Immutable point-in-time engineering view of SerialExecutor metrics. */
+        public static final class Snapshot {
+            private final int queueDepth;
+            private final int queueHighWaterMark;
+            private final long acceptedCount;
+            private final long fullCount;
+            private final long notRunningCount;
+            private final long completedCount;
+            private final long totalQueueWaitNanos;
+            private final long maxQueueWaitNanos;
+            private final long totalExecutionNanos;
+            private final long maxExecutionNanos;
+            private final long workerThreadCpuTimeNanos;
+
+            private Snapshot(
+                    int queueDepth,
+                    int queueHighWaterMark,
+                    long acceptedCount,
+                    long fullCount,
+                    long notRunningCount,
+                    long completedCount,
+                    long totalQueueWaitNanos,
+                    long maxQueueWaitNanos,
+                    long totalExecutionNanos,
+                    long maxExecutionNanos,
+                    long workerThreadCpuTimeNanos) {
+                this.queueDepth = queueDepth;
+                this.queueHighWaterMark = queueHighWaterMark;
+                this.acceptedCount = acceptedCount;
+                this.fullCount = fullCount;
+                this.notRunningCount = notRunningCount;
+                this.completedCount = completedCount;
+                this.totalQueueWaitNanos = totalQueueWaitNanos;
+                this.maxQueueWaitNanos = maxQueueWaitNanos;
+                this.totalExecutionNanos = totalExecutionNanos;
+                this.maxExecutionNanos = maxExecutionNanos;
+                this.workerThreadCpuTimeNanos = workerThreadCpuTimeNanos;
+            }
+
+            public int queueDepth() {
+                return queueDepth;
+            }
+
+            public int queueHighWaterMark() {
+                return queueHighWaterMark;
+            }
+
+            public long acceptedCount() {
+                return acceptedCount;
+            }
+
+            public long fullCount() {
+                return fullCount;
+            }
+
+            public long notRunningCount() {
+                return notRunningCount;
+            }
+
+            public long completedCount() {
+                return completedCount;
+            }
+
+            public long totalQueueWaitNanos() {
+                return totalQueueWaitNanos;
+            }
+
+            public long maxQueueWaitNanos() {
+                return maxQueueWaitNanos;
+            }
+
+            public long totalExecutionNanos() {
+                return totalExecutionNanos;
+            }
+
+            public long maxExecutionNanos() {
+                return maxExecutionNanos;
+            }
+
+            public long workerThreadCpuTimeNanos() {
+                return workerThreadCpuTimeNanos;
+            }
+        }
+    }
+
     private interface TrackedTask extends Runnable {
         void markAccepted(long acceptedAtNanos);
     }
 
     private final int capacity;
     private final String threadName;
+    private final Metrics metrics = new Metrics(this);
 
     private State state = State.NEW;
     private ThreadPoolExecutor executor;
-    private volatile Thread workerThread;
     private Throwable failure;
-    private int highWaterMark;
-    private long acceptedCount;
-    private long fullCount;
-    private long notRunningCount;
-    private volatile long completedCount;
-    private volatile long totalQueueWaitNanos;
-    private volatile long maxQueueWaitNanos;
-    private volatile long totalExecutionNanos;
-    private volatile long maxExecutionNanos;
 
     public SerialExecutor(int capacity, String threadName) {
         if (capacity < 1) {
@@ -103,7 +292,7 @@ public final class SerialExecutor implements AutoCloseable {
 
         ThreadFactory threadFactory = runnable -> {
             Thread thread = new Thread(runnable, threadName);
-            workerThread = thread;
+            metrics.recordWorkerThread(thread);
             return thread;
         };
 
@@ -142,7 +331,7 @@ public final class SerialExecutor implements AutoCloseable {
         ThreadPoolExecutor active;
         synchronized (this) {
             if (state != State.RUNNING) {
-                notRunningCount++;
+                metrics.recordNotRunning();
                 return AdmissionResult.NOT_RUNNING;
             }
             active = executor;
@@ -154,20 +343,16 @@ public final class SerialExecutor implements AutoCloseable {
         } catch (RejectedExecutionException ex) {
             synchronized (this) {
                 if (state != State.RUNNING || active.isShutdown()) {
-                    notRunningCount++;
+                    metrics.recordNotRunning();
                     return AdmissionResult.NOT_RUNNING;
                 }
-                fullCount++;
+                metrics.recordFull();
                 return AdmissionResult.FULL;
             }
         }
 
         synchronized (this) {
-            acceptedCount++;
-            int depth = active.getQueue().size();
-            if (depth > highWaterMark) {
-                highWaterMark = depth;
-            }
+            metrics.recordAccepted(active.getQueue().size());
         }
         return AdmissionResult.ACCEPTED;
     }
@@ -176,66 +361,13 @@ public final class SerialExecutor implements AutoCloseable {
         return state;
     }
 
-    public int queueDepth() {
-        ThreadPoolExecutor active;
-        synchronized (this) {
-            active = executor;
-        }
-        return active == null ? 0 : active.getQueue().size();
-    }
-
-    public synchronized long acceptedCount() {
-        return acceptedCount;
-    }
-
-    public synchronized long fullCount() {
-        return fullCount;
-    }
-
-    public synchronized long notRunningCount() {
-        return notRunningCount;
-    }
-
-    public long completedCount() {
-        return completedCount;
-    }
-
-    public long totalQueueWaitNanos() {
-        return totalQueueWaitNanos;
-    }
-
-    public long maxQueueWaitNanos() {
-        return maxQueueWaitNanos;
-    }
-
-    public long totalExecutionNanos() {
-        return totalExecutionNanos;
-    }
-
-    public long maxExecutionNanos() {
-        return maxExecutionNanos;
-    }
-
-    public synchronized int highWaterMark() {
-        return highWaterMark;
-    }
-
     public synchronized Throwable failure() {
         return failure;
     }
 
-    public long threadCpuTimeNanos() {
-        Thread worker = workerThread;
-        if (worker == null) {
-            return -1L;
-        }
-
-        ThreadMXBean bean = ManagementFactory.getThreadMXBean();
-        if (!bean.isThreadCpuTimeSupported() || !bean.isThreadCpuTimeEnabled()) {
-            return -1L;
-        }
-        long cpuTime = bean.getThreadCpuTime(worker.getId());
-        return cpuTime < 0L ? -1L : cpuTime;
+    /** Returns the stable component-owned metrics handle for this executor. */
+    public Metrics metrics() {
+        return metrics;
     }
 
     @Override
@@ -276,18 +408,6 @@ public final class SerialExecutor implements AutoCloseable {
         }
         if (interrupted) {
             Thread.currentThread().interrupt();
-        }
-    }
-
-    private void recordCompleted(long queueWaitNanos, long executionNanos) {
-        completedCount++;
-        totalQueueWaitNanos += queueWaitNanos;
-        if (queueWaitNanos > maxQueueWaitNanos) {
-            maxQueueWaitNanos = queueWaitNanos;
-        }
-        totalExecutionNanos += executionNanos;
-        if (executionNanos > maxExecutionNanos) {
-            maxExecutionNanos = executionNanos;
         }
     }
 
@@ -342,7 +462,7 @@ public final class SerialExecutor implements AutoCloseable {
                 markFailed(ex);
                 throw ex;
             } finally {
-                recordCompleted(
+                metrics.recordCompleted(
                         elapsedNanos(acceptedAtNanos, startedNanos),
                         elapsedNanos(startedNanos, System.nanoTime()));
             }
@@ -375,7 +495,7 @@ public final class SerialExecutor implements AutoCloseable {
             try {
                 super.run();
             } finally {
-                recordCompleted(
+                metrics.recordCompleted(
                         elapsedNanos(acceptedAtNanos, startedNanos),
                         elapsedNanos(startedNanos, System.nanoTime()));
                 Error fatal = trackedCallable.fatalError();

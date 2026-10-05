@@ -24,7 +24,7 @@ final class TagObservationFilter {
 
     private final TagProcessingPolicy policy;
     private final MonotonicClock monotonicClock;
-    private final TagProcessingCounters counters;
+    private final TagProcessingMetrics metrics;
     private final BiConsumer<RegistrationId, TimingTimestamp>
             validObservationCallback;
 
@@ -33,7 +33,7 @@ final class TagObservationFilter {
     TagObservationFilter(
             TagProcessingPolicy policy,
             MonotonicClock monotonicClock,
-            TagProcessingCounters counters,
+            TagProcessingMetrics metrics,
             BiConsumer<RegistrationId, TimingTimestamp>
                     validObservationCallback) {
         if (policy == null) {
@@ -42,8 +42,8 @@ final class TagObservationFilter {
         if (monotonicClock == null) {
             throw new IllegalArgumentException("monotonicClock must not be null");
         }
-        if (counters == null) {
-            throw new IllegalArgumentException("counters must not be null");
+        if (metrics == null) {
+            throw new IllegalArgumentException("metrics must not be null");
         }
         if (validObservationCallback == null) {
             throw new IllegalArgumentException(
@@ -51,7 +51,7 @@ final class TagObservationFilter {
         }
         this.policy = policy;
         this.monotonicClock = monotonicClock;
-        this.counters = counters;
+        this.metrics = metrics;
         this.validObservationCallback = validObservationCallback;
     }
 
@@ -75,7 +75,7 @@ final class TagObservationFilter {
             closedBurst = new ClosedBurst(
                     registrationId,
                     state.maxRssiObservedAt());
-            counters.recordClosedBurst();
+            metrics.recordClosedBurst();
             state = null;
         }
 
@@ -104,7 +104,7 @@ final class TagObservationFilter {
                 closedBursts.add(new ClosedBurst(
                         entry.getKey(),
                         state.maxRssiObservedAt()));
-                counters.recordClosedBurst();
+                metrics.recordClosedBurst();
             }
         }
 

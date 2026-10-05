@@ -6,25 +6,25 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-public class TagProcessingCountersTest {
+public class TagProcessingMetricsTest {
 
     @Test
     public void snapshotContainsCumulativeProcessingCounters() {
-        TagProcessingCounters counters = new TagProcessingCounters();
+        TagProcessingMetrics metrics = new TagProcessingMetrics();
 
-        counters.recordObservation();
-        counters.recordObservation();
-        counters.recordObservationQueueFull();
-        counters.recordProcessorNotRunning();
-        counters.recordClosedBurst();
-        counters.recordMapped();
-        counters.recordUnmapped();
-        counters.recordDuplicate();
-        counters.recordAdmission(CommandAdmission.ACCEPTED);
-        counters.recordAdmission(CommandAdmission.FULL);
-        counters.recordAdmission(CommandAdmission.NOT_RUNNING);
+        metrics.recordObservation();
+        metrics.recordObservation();
+        metrics.recordObservationQueueFull();
+        metrics.recordProcessorNotRunning();
+        metrics.recordClosedBurst();
+        metrics.recordMapped();
+        metrics.recordUnmapped();
+        metrics.recordDuplicate();
+        metrics.recordAdmission(CommandAdmission.ACCEPTED);
+        metrics.recordAdmission(CommandAdmission.FULL);
+        metrics.recordAdmission(CommandAdmission.NOT_RUNNING);
 
-        TagProcessingCounters.Snapshot snapshot = counters.snapshot();
+        TagProcessingMetrics.Snapshot snapshot = metrics.snapshot();
 
         assertEquals(2L, snapshot.observations());
         assertEquals(1L, snapshot.observationQueueFull());

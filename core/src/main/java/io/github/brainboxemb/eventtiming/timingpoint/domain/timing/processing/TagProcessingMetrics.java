@@ -4,8 +4,15 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTyp
 
 import java.util.concurrent.atomic.AtomicLong;
 
-/** Low-allocation cumulative counters for the tag-processing path. */
-public final class TagProcessingCounters {
+/**
+ * Component-owned runtime metrics for the tag-processing path.
+ *
+ * <p>Hot-path record methods update only primitive atomic counters. Snapshot
+ * creation is explicit and may allocate; callers use it for pull-based
+ * engineering/diagnostic reads rather than continuously mirroring these values
+ * into another status model.</p>
+ */
+public final class TagProcessingMetrics {
     private final AtomicLong observationCount = new AtomicLong();
     private final AtomicLong observationQueueFullCount = new AtomicLong();
     private final AtomicLong processorNotRunningCount = new AtomicLong();
@@ -62,6 +69,12 @@ public final class TagProcessingCounters {
         }
     }
 
+    /**
+     * Returns an immutable pull-based view of the current processing metrics.
+     *
+     * <p>The snapshot is diagnostic and may allocate. Recording itself remains
+     * allocation-free apart from the AtomicLong instances owned by this component.</p>
+     */
     public Snapshot snapshot() {
         return new Snapshot(
                 observationCount.get(),
