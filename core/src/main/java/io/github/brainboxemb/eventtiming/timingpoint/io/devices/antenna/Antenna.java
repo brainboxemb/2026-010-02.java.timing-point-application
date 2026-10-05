@@ -26,8 +26,8 @@ public interface Antenna extends AutoCloseable {
     /** Returns whether normal inventory delivery is active. */
     boolean inventoryRunning();
 
-    /** Returns the subscription-only decoded observation event. */
-    EventSource<TagObservation> observations();
+    /** Returns the subscription-only event emitted when this antenna observes a tag. */
+    EventSource<TagObservation> tagObservedEvent();
 
     /** Stops delivery and releases antenna resources. */
     @Override
