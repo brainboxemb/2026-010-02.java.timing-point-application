@@ -145,7 +145,7 @@ public final class Main {
 
     /**
      * Starts cross-cutting logging before the reusable runtime and tears those
-     * resources down after Composition returns.
+     * resources down after the TimingApplication process returns.
      */
     private static void runConfiguredApplication(
             BuildIdentity buildIdentity,
