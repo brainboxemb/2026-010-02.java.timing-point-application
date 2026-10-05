@@ -63,7 +63,14 @@ public final class Composition {
     }
 
     static Application create(BuildIdentity buildIdentity, Config config) {
-        return ApplicationComposition.create(buildIdentity, config);
+        /*
+         * Composition owns process-level endpoint startup. Object-graph creation
+         * is kept in ApplicationBootstrap so executor/resource ownership stays
+         * readable and the simulator can reuse the same component graph.
+         */
+        return ApplicationBootstrap
+                .builder(buildIdentity, config)
+                .build();
     }
 
     private static HttpEndpoint startHttp(Config config, Application application)
