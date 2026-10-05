@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingpoint.application.configuration.ApplicationConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
@@ -162,8 +163,21 @@ public final class Composition {
                 timingDataFactory,
                 () -> new TimingTimestamp(Instant.now()));
 
+        TagProcessingPolicy startupTagProcessingPolicy =
+                antennaProcessing == null
+                        ? TagProcessingPolicy.defaults()
+                        : antennaProcessing.policy;
+        ApplicationConfiguration applicationConfiguration =
+                ApplicationConfiguration.singleTimingNode(
+                        config.timingNodeId(),
+                        startupTagProcessingPolicy);
+
         if (antennaProcessing == null) {
-            return new Application(buildIdentity, timingNode);
+            return new Application(
+                    buildIdentity,
+                    timingNode,
+                    applicationConfiguration,
+                    null);
         }
 
         ThreadPoolExecutor sharedIoExecutor = createSharedIoExecutor();
@@ -171,7 +185,9 @@ public final class Composition {
             TagProcessor tagProcessor = new TagProcessor(
                     timingNode,
                     antennaProcessing.mapper,
-                    antennaProcessing.policy,
+                    applicationConfiguration
+                            .timingNode(config.timingNodeId())
+                            .tagProcessing(),
                     SystemMonotonicClock.INSTANCE,
                     new TagProcessingMetrics(),
                     new SerialScheduledExecutor(
@@ -188,6 +204,7 @@ public final class Composition {
             return new Application(
                     buildIdentity,
                     timingNode,
+                    applicationConfiguration,
                     antennaRuntime);
         } catch (RuntimeException ex) {
             sharedIoExecutor.shutdownNow();
