@@ -45,7 +45,7 @@ public final class Application implements AutoCloseable {
                 buildIdentity,
                 timingNode,
                 defaultConfiguration(timingNode),
-                new Conductor(timingNode, null),
+                new Conductor(null),
                 null,
                 null);
     }
@@ -95,14 +95,13 @@ public final class Application implements AutoCloseable {
     }
 
     /**
-     * Starts the already constructed application in an explicit order.
+     * Starts the already constructed and wired application in an explicit order.
      *
-     * <p>The order is intentionally visible here: start Runtime workers, install
-     * application wiring, start Domain/I/O components, synchronize their current
-     * state, then publish the application lifecycle as RUNNING.</p>
+     * <p>Runtime composition has already installed event subscriptions. Startup
+     * therefore only starts owned execution resources and components, then
+     * reconciles their initial application-wide state.</p>
      */
     public void start() {
-        boolean conductorConnected = false;
         boolean timingNodeStarted = false;
         boolean antennaManagerStarted = false;
 
@@ -111,16 +110,16 @@ public final class Application implements AutoCloseable {
                 runtimeExecutors.start();
             }
 
-            conductor.connect();
-            conductorConnected = true;
-
             timingNode.start();
             timingNodeStarted = true;
 
             if (antennaManager != null) {
                 antennaManager.start();
                 antennaManagerStarted = true;
-                conductor.synchronize();
+
+                conductor.onTimingNodeStatusChanged(
+                        timingNode.query(
+                                TimingNodeQueries.status()));
             }
 
             lifecycle.start();
@@ -139,10 +138,6 @@ public final class Application implements AutoCloseable {
                 } catch (RuntimeException ignored) {
                     // Preserve the original startup failure.
                 }
-            }
-
-            if (conductorConnected) {
-                conductor.close();
             }
 
             if (runtimeExecutors != null) {
@@ -184,12 +179,6 @@ public final class Application implements AutoCloseable {
     @Override
     public void close() {
         RuntimeException firstFailure = null;
-
-        /*
-         * Disconnect application-level relationships first so shutdown does not
-         * create new cross-component work while owned components are stopping.
-         */
-        conductor.close();
 
         if (antennaManager != null) {
             try {
