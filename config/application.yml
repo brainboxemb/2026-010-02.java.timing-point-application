@@ -1,5 +1,18 @@
 # Complete example configuration for one TimingNode and its external interfaces.
-timingNodeId: TN-01
+timingSystems:
+  timing-system-01:
+    timingNodes:
+      timing-node-01:
+        timingNodeId: TN-01
+
+        # Optional TimingNode-local TagProcessor startup policy.
+        # These values match the compiled defaults and may be omitted individually.
+        tagProcessing:
+          quietTimeoutMillis: 250
+          maxBurstDurationMillis: 1000
+          duplicateWindowMillis: 15000
+          sweepCadenceMillis: 50
+          observationQueueCapacity: 256
 
 io:
   storage:
