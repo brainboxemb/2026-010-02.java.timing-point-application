@@ -15,8 +15,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTi
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.DynamicConfiguration;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInstallation;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManager;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
@@ -185,7 +185,6 @@ public final class TimingApplication {
                                 installations,
                                 executors
                                         .createAntennaControlExecutor(),
-                                executors.antennaScheduler(),
                                 ANTENNA_CONTROL_TIMEOUT);
             }
 
