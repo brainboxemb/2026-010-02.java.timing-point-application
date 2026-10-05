@@ -185,7 +185,12 @@ public class HttpEndpointTest {
                 new NodeId("TN-01"),
                 new FailingRecoveryStore(),
                 () -> RECORDED_AT);
-        PresentationGateway handler = new PresentationGateway(identity(), node);
+        PresentationGateway handler =
+                new PresentationGateway(
+                        identity(),
+                        node,
+                        PresentationGatewayFixture.configurationControl(
+                                new NodeId("TN-01")));
         node.start();
         HttpEndpoint server = new HttpEndpoint("127.0.0.1", 0, handler);
         server.start();
@@ -327,7 +332,12 @@ public class HttpEndpointTest {
                     new NodeId("TN-01"),
                     new MemoryStore(),
                     () -> RECORDED_AT);
-            handler = new PresentationGateway(identity(), node);
+            handler =
+                    new PresentationGateway(
+                            identity(),
+                            node,
+                            PresentationGatewayFixture.configurationControl(
+                                    new NodeId("TN-01")));
         }
 
         private void start() {
