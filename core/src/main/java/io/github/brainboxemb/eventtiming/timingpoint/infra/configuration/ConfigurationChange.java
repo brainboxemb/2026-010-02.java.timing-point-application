@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.application.configuration;
+package io.github.brainboxemb.eventtiming.timingpoint.infra.configuration;
 
 /** Immutable typed post-fact configuration change. */
 public final class ConfigurationChange<T> {

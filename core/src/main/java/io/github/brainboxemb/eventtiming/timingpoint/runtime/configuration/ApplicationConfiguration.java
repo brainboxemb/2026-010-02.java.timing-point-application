@@ -1,7 +1,8 @@
-package io.github.brainboxemb.eventtiming.timingpoint.application.configuration;
+package io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.DynamicConfiguration;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -9,11 +10,11 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Authoritative typed configuration root for one running application.
+ * Concrete configuration tree for one running application.
  *
- * <p>Runtime/deployment configuration is resolved before this object is created.
- * Components receive the narrow read-only configuration view they need, while
- * application-control code retains this central typed root for runtime changes.</p>
+ * <p>Runtime/deployment configuration is resolved before this tree is created.
+ * The tree describes the composed executable; generic value/update mechanics
+ * remain Infrastructure concerns.</p>
  */
 public final class ApplicationConfiguration {
     private final Map<NodeId, TimingNodeConfiguration> timingNodes;
@@ -39,13 +40,13 @@ public final class ApplicationConfiguration {
                 throw new IllegalArgumentException(
                         "TagProcessingPolicy must not be null for " + nodeId.value());
             }
-            nodes.put(
-                    nodeId,
-                    new TimingNodeConfiguration(
-                            new DefaultDynamicConfiguration<>(
-                                    policy,
-                                    value -> value != null,
-                                    ApplicationConfiguration::runtimeCompatible)));
+
+            DynamicConfiguration<TagProcessingPolicy> tagProcessing =
+                    DynamicConfiguration.create(
+                            policy,
+                            value -> value != null,
+                            ApplicationConfiguration::runtimeCompatible);
+            nodes.put(nodeId, new TimingNodeConfiguration(tagProcessing));
         }
         timingNodes = Collections.unmodifiableMap(nodes);
     }
@@ -82,23 +83,5 @@ public final class ApplicationConfiguration {
             TagProcessingPolicy candidate) {
         return startup.observationQueueCapacity()
                 == candidate.observationQueueCapacity();
-    }
-
-    /** Typed configuration owned by one TimingNode. */
-    public static final class TimingNodeConfiguration {
-        private final DynamicConfiguration<TagProcessingPolicy> tagProcessing;
-
-        private TimingNodeConfiguration(
-                DynamicConfiguration<TagProcessingPolicy> tagProcessing) {
-            this.tagProcessing = tagProcessing;
-        }
-
-        /**
-         * Returns the application-control view. Components should depend on this
-         * value only through the ReadOnlyConfiguration super-interface.
-         */
-        public DynamicConfiguration<TagProcessingPolicy> tagProcessing() {
-            return tagProcessing;
-        }
     }
 }

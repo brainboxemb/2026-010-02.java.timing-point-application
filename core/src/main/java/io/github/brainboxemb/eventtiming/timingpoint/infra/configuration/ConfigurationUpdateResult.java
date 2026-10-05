@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.application.configuration;
+package io.github.brainboxemb.eventtiming.timingpoint.infra.configuration;
 
 /** Outcome of one attempted runtime configuration mutation. */
 public enum ConfigurationUpdateResult {

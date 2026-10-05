@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
-import io.github.brainboxemb.eventtiming.timingpoint.application.configuration.ApplicationConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
@@ -81,7 +81,7 @@ public final class Application implements AutoCloseable {
     }
 
     /** Authoritative typed configuration root for this running application. */
-    public ApplicationConfiguration configuration() {
+    ApplicationConfiguration configuration() {
         return configuration;
     }
 
