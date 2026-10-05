@@ -1,7 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.ThreadMXBean;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -66,196 +64,6 @@ public final class SerialExecutor implements AutoCloseable {
         }
     }
 
-    /** Lane-local engineering metrics. */
-    public static final class Metrics {
-        private final SerialExecutor owner;
-
-        private int highWaterMark;
-        private long acceptedCount;
-        private long fullCount;
-        private long notRunningCount;
-        private volatile long completedCount;
-        private volatile long totalQueueWaitNanos;
-        private volatile long maxQueueWaitNanos;
-        private volatile long totalExecutionNanos;
-        private volatile long maxExecutionNanos;
-        private volatile Thread standaloneWorkerThread;
-
-        private Metrics(SerialExecutor owner) {
-            this.owner = owner;
-        }
-
-        private void recordStandaloneWorkerThread(Thread thread) {
-            standaloneWorkerThread = thread;
-        }
-
-        private void recordAccepted(int queueDepth) {
-            acceptedCount++;
-            if (queueDepth > highWaterMark) {
-                highWaterMark = queueDepth;
-            }
-        }
-
-        private void recordFull() {
-            fullCount++;
-        }
-
-        private void recordNotRunning() {
-            notRunningCount++;
-        }
-
-        private void recordCompleted(
-                long queueWaitNanos,
-                long executionNanos) {
-            completedCount++;
-            totalQueueWaitNanos += queueWaitNanos;
-            if (queueWaitNanos > maxQueueWaitNanos) {
-                maxQueueWaitNanos = queueWaitNanos;
-            }
-            totalExecutionNanos += executionNanos;
-            if (executionNanos > maxExecutionNanos) {
-                maxExecutionNanos = executionNanos;
-            }
-        }
-
-        public Snapshot snapshot() {
-            int queueDepth;
-            int queueHighWaterMark;
-            long queueAcceptedCount;
-            long queueFullCount;
-            long queueNotRunningCount;
-
-            synchronized (owner) {
-                queueDepth = owner.queue.size();
-                queueHighWaterMark = highWaterMark;
-                queueAcceptedCount = acceptedCount;
-                queueFullCount = fullCount;
-                queueNotRunningCount = notRunningCount;
-            }
-
-            return new Snapshot(
-                    queueDepth,
-                    queueHighWaterMark,
-                    queueAcceptedCount,
-                    queueFullCount,
-                    queueNotRunningCount,
-                    completedCount,
-                    totalQueueWaitNanos,
-                    maxQueueWaitNanos,
-                    totalExecutionNanos,
-                    maxExecutionNanos,
-                    workerThreadCpuTimeNanos());
-        }
-
-        /**
-         * CPU time is attributable only when this lane owns its worker.
-         *
-         * <p>For a lane on a shared role executor the worker CPU time belongs to
-         * the shared executor rather than one lane, so this field is unavailable
-         * and returns -1.</p>
-         */
-        private long workerThreadCpuTimeNanos() {
-            if (!owner.ownsBackingExecutor) {
-                return -1L;
-            }
-            Thread worker = standaloneWorkerThread;
-            if (worker == null) {
-                return -1L;
-            }
-
-            ThreadMXBean bean = ManagementFactory.getThreadMXBean();
-            if (!bean.isThreadCpuTimeSupported()
-                    || !bean.isThreadCpuTimeEnabled()) {
-                return -1L;
-            }
-            long cpuTime = bean.getThreadCpuTime(worker.getId());
-            return cpuTime < 0L ? -1L : cpuTime;
-        }
-
-        public static final class Snapshot {
-            private final int queueDepth;
-            private final int queueHighWaterMark;
-            private final long acceptedCount;
-            private final long fullCount;
-            private final long notRunningCount;
-            private final long completedCount;
-            private final long totalQueueWaitNanos;
-            private final long maxQueueWaitNanos;
-            private final long totalExecutionNanos;
-            private final long maxExecutionNanos;
-            private final long workerThreadCpuTimeNanos;
-
-            private Snapshot(
-                    int queueDepth,
-                    int queueHighWaterMark,
-                    long acceptedCount,
-                    long fullCount,
-                    long notRunningCount,
-                    long completedCount,
-                    long totalQueueWaitNanos,
-                    long maxQueueWaitNanos,
-                    long totalExecutionNanos,
-                    long maxExecutionNanos,
-                    long workerThreadCpuTimeNanos) {
-                this.queueDepth = queueDepth;
-                this.queueHighWaterMark = queueHighWaterMark;
-                this.acceptedCount = acceptedCount;
-                this.fullCount = fullCount;
-                this.notRunningCount = notRunningCount;
-                this.completedCount = completedCount;
-                this.totalQueueWaitNanos = totalQueueWaitNanos;
-                this.maxQueueWaitNanos = maxQueueWaitNanos;
-                this.totalExecutionNanos = totalExecutionNanos;
-                this.maxExecutionNanos = maxExecutionNanos;
-                this.workerThreadCpuTimeNanos = workerThreadCpuTimeNanos;
-            }
-
-            public int queueDepth() {
-                return queueDepth;
-            }
-
-            public int queueHighWaterMark() {
-                return queueHighWaterMark;
-            }
-
-            public long acceptedCount() {
-                return acceptedCount;
-            }
-
-            public long fullCount() {
-                return fullCount;
-            }
-
-            public long notRunningCount() {
-                return notRunningCount;
-            }
-
-            public long completedCount() {
-                return completedCount;
-            }
-
-            public long totalQueueWaitNanos() {
-                return totalQueueWaitNanos;
-            }
-
-            public long maxQueueWaitNanos() {
-                return maxQueueWaitNanos;
-            }
-
-            public long totalExecutionNanos() {
-                return totalExecutionNanos;
-            }
-
-            public long maxExecutionNanos() {
-                return maxExecutionNanos;
-            }
-
-            public long workerThreadCpuTimeNanos() {
-                return workerThreadCpuTimeNanos;
-            }
-        }
-    }
-
     private interface TrackedTask extends Runnable {
         void markAccepted(long acceptedAtNanos);
 
@@ -267,7 +75,7 @@ public final class SerialExecutor implements AutoCloseable {
     private final ExecutorService suppliedBackingExecutor;
     private final boolean ownsBackingExecutor;
     private final ArrayBlockingQueue<TrackedTask> queue;
-    private final Metrics metrics = new Metrics(this);
+    private final SerialExecutorMetrics metrics;
 
     private State state = State.NEW;
     private ExecutorService backingExecutor;
@@ -318,6 +126,9 @@ public final class SerialExecutor implements AutoCloseable {
         this.suppliedBackingExecutor = suppliedBackingExecutor;
         this.ownsBackingExecutor = ownsBackingExecutor;
         this.queue = new ArrayBlockingQueue<TrackedTask>(capacity);
+        this.metrics = new SerialExecutorMetrics(
+                queue::size,
+                ownsBackingExecutor);
     }
 
     public synchronized void start() {
@@ -482,7 +293,7 @@ public final class SerialExecutor implements AutoCloseable {
         return failure;
     }
 
-    public Metrics metrics() {
+    public SerialExecutorMetrics metrics() {
         return metrics;
     }
 
