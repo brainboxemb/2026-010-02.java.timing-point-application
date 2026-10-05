@@ -35,7 +35,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Result-bearing callers use {@link #invoke(TimingNodeCommand)} and typed
  * reads use {@link #query(TimingNodeQuery)}. Producer/callback paths that must
- * not wait for the processed result use {@link #submit(TimingNodeCommand)} and
+ * not wait for the processed result use {@link #offer(TimingNodeCommand)} and
  * receive only immediate bounded-queue admission. The standard
  * {@link TimingNodeCommands} and {@link TimingNodeQueries} keep this boundary
  * compact without duplicating every operation implemented by TimingNodeLogic.</p>
@@ -178,14 +178,15 @@ public final class TimingNode {
     }
 
     /**
-     * Attempts to admit one command without waiting for its processed result.
+     * Offers one command to this node without waiting for its processed result.
      *
-     * <p>This is the producer/callback path used when the caller must return
-     * promptly, for example after TagProcessor has produced accepted semantic
-     * work. ACCEPTED means only that the command entered the bounded serial
-     * lane; it does not mean that the later domain operation commits.</p>
+     * <p>This is the fire-and-forget producer boundary used when a higher-priority
+     * producer must return promptly. The method performs only immediate bounded
+     * queue admission to the TimingNode serial lane. ACCEPTED means that ownership
+     * of the command was handed off to that lower-priority lane; it does not mean
+     * that the later domain operation ran or committed.</p>
      */
-    public CommandAdmission submit(TimingNodeCommand<?> command) {
+    public CommandAdmission offer(TimingNodeCommand<?> command) {
         if (command == null) {
             throw new IllegalArgumentException("command must not be null");
         }
