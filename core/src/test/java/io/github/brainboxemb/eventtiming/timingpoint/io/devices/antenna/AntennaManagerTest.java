@@ -1,5 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -112,8 +114,8 @@ public class AntennaManagerTest {
                     new TagObservation(
                             new DecryptedTagId("TAG-1"),
                             -40,
-                            io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp
-                                    .parse("2026-10-05T12:00:00.000000000Z"));
+                            TimingTimestamp.parse(
+                                    "2026-10-05T12:00:00.000000000Z"));
             antenna.emit(observation);
 
             assertEquals(
