@@ -39,17 +39,25 @@ public final class PresentationGateway {
 
     private final BuildIdentity buildIdentity;
     private final TimingNodeProxy timingNode;
+    private final ConfigurationControl configuration;
 
-    /** Creates the presentation-facing application gateway for one composed TimingNode. */
-    public PresentationGateway(BuildIdentity buildIdentity, TimingNode timingNode) {
+    /** Creates the presentation-facing application gateway for the composed application. */
+    public PresentationGateway(
+            BuildIdentity buildIdentity,
+            TimingNode timingNode,
+            ConfigurationControl configuration) {
         if (buildIdentity == null) {
             throw new IllegalArgumentException("buildIdentity must not be null");
         }
         if (timingNode == null) {
             throw new IllegalArgumentException("timingNode must not be null");
         }
+        if (configuration == null) {
+            throw new IllegalArgumentException("configuration must not be null");
+        }
         this.buildIdentity = buildIdentity;
         this.timingNode = new TimingNodeProxy(timingNode);
+        this.configuration = configuration;
     }
 
     /** Returns the authoritative application build/version identity. */
@@ -65,5 +73,10 @@ public final class PresentationGateway {
     /** Returns the presentation-facing proxy for the currently composed TimingNode. */
     public TimingNodeProxy timingNode() {
         return timingNode;
+    }
+
+    /** Application configuration query/update boundary exposed to Presentation. */
+    public ConfigurationControl configuration() {
+        return configuration;
     }
 }
