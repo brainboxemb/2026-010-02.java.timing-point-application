@@ -65,6 +65,10 @@ public class SerialScheduledExecutorTest {
                 }, TimeUnit.MILLISECONDS.toNanos(5));
         try {
             assertTrue(secondCall.await(1, TimeUnit.SECONDS));
+            SerialScheduledExecutor.Metrics.Snapshot metrics =
+                    executor.metrics().snapshot();
+            assertEquals(1L, metrics.runtimeFailureCount());
+            assertTrue(metrics.periodicExecutionCount() >= 2L);
         } finally {
             periodic.close();
             executor.close();
