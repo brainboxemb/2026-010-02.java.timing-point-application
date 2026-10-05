@@ -11,6 +11,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
+import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGatewayFixture;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 
 import java.net.URI;
@@ -136,7 +137,12 @@ public class WebSocketEndpointTest {
                 new NodeId("TN-01"),
                 new FailingRecoveryStore(),
                 () -> RECORDED_AT);
-        PresentationGateway handler = new PresentationGateway(identity(), node);
+        PresentationGateway handler =
+                new PresentationGateway(
+                        identity(),
+                        node,
+                        PresentationGatewayFixture.configurationControl(
+                                new NodeId("TN-01")));
         node.start();
         WebSocketEndpoint server = new WebSocketEndpoint(
                 "127.0.0.1",
@@ -208,7 +214,12 @@ public class WebSocketEndpointTest {
                     new NodeId("TN-01"),
                     new MemoryStore(),
                     () -> RECORDED_AT);
-            handler = new PresentationGateway(identity(), node);
+            handler =
+                    new PresentationGateway(
+                            identity(),
+                            node,
+                            PresentationGatewayFixture.configurationControl(
+                                    new NodeId("TN-01")));
         }
 
         private void start() {
