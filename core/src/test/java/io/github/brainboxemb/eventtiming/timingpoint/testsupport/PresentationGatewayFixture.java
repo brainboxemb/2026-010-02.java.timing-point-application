@@ -55,7 +55,7 @@ public final class PresentationGatewayFixture implements AutoCloseable {
         node.stop();
     }
 
-    private static ConfigurationControl configurationControl(
+    public static ConfigurationControl configurationControl(
             NodeId nodeId) {
         DynamicConfiguration<TagProcessingPolicy> value =
                 DynamicConfiguration.create(
