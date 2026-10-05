@@ -66,21 +66,16 @@ public final class Composition {
     static final class AntennaProcessing {
         private final List<Antenna> antennas;
         private final TagRegistrationMapper mapper;
-        private final TagProcessingPolicy policy;
 
         AntennaProcessing(
                 List<Antenna> antennas,
-                TagRegistrationMapper mapper,
-                TagProcessingPolicy policy) {
+                TagRegistrationMapper mapper) {
             if (antennas == null || antennas.isEmpty()) {
                 throw new IllegalArgumentException(
                         "antennas must contain at least one antenna");
             }
             if (mapper == null) {
                 throw new IllegalArgumentException("mapper must not be null");
-            }
-            if (policy == null) {
-                throw new IllegalArgumentException("policy must not be null");
             }
             List<Antenna> copy = new ArrayList<>(antennas.size());
             for (Antenna antenna : antennas) {
@@ -92,7 +87,6 @@ public final class Composition {
             }
             this.antennas = Collections.unmodifiableList(copy);
             this.mapper = mapper;
-            this.policy = policy;
         }
     }
 
@@ -163,14 +157,10 @@ public final class Composition {
                 timingDataFactory,
                 () -> new TimingTimestamp(Instant.now()));
 
-        TagProcessingPolicy startupTagProcessingPolicy =
-                antennaProcessing == null
-                        ? TagProcessingPolicy.defaults()
-                        : antennaProcessing.policy;
         ApplicationConfiguration applicationConfiguration =
                 ApplicationConfiguration.singleTimingNode(
                         config.timingNodeId(),
-                        startupTagProcessingPolicy);
+                        config.tagProcessingPolicy());
 
         if (antennaProcessing == null) {
             return new Application(
