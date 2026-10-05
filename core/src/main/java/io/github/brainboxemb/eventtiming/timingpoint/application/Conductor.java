@@ -2,7 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.application;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Lifecycle;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Status;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManager;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 
 /**
  * Coordinates application-wide behaviour between already constructed components.
