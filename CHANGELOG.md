@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Split SerialExecutor and SerialScheduledExecutor measurement state into dedicated metrics classes and clarify logical-lane versus physical-worker lifecycle ownership in code documentation.
+- Split SerialExecutor and SerialScheduledExecutor measurement state into dedicated metrics classes; make both classes pure logical lanes on externally owned workers, removing standalone/private-worker modes and keeping physical worker construction/shutdown in composition/test owners.
 
 - Share TimingNode and TagProcessor physical workers by runtime role while keeping per-node bounded serial lanes; worker thread names now describe the shared role rather than a specific TimingNode.
 
