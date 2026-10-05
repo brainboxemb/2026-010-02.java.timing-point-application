@@ -1,7 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
-import java.lang.management.ManagementFactory;
-import java.lang.management.ThreadMXBean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntSupplier;
 
@@ -13,8 +11,6 @@ import java.util.function.IntSupplier;
  */
 public final class SerialScheduledExecutorMetrics {
     private final IntSupplier queueDepthSupplier;
-    private final boolean workerCpuTimeAttributable;
-
     private final AtomicLong immediateAcceptedCount = new AtomicLong();
     private final AtomicLong immediateRejectedCount = new AtomicLong();
     private final AtomicLong scheduledRegistrationCount = new AtomicLong();
@@ -22,22 +18,14 @@ public final class SerialScheduledExecutorMetrics {
     private final AtomicLong immediateExecutionCount = new AtomicLong();
     private final AtomicLong periodicExecutionCount = new AtomicLong();
     private final AtomicLong runtimeFailureCount = new AtomicLong();
-    private volatile Thread standaloneWorkerThread;
 
     SerialScheduledExecutorMetrics(
-            IntSupplier queueDepthSupplier,
-            boolean workerCpuTimeAttributable) {
+            IntSupplier queueDepthSupplier) {
         if (queueDepthSupplier == null) {
             throw new IllegalArgumentException(
                     "queueDepthSupplier must not be null");
         }
         this.queueDepthSupplier = queueDepthSupplier;
-        this.workerCpuTimeAttributable =
-                workerCpuTimeAttributable;
-    }
-
-    void recordStandaloneWorkerThread(Thread thread) {
-        standaloneWorkerThread = thread;
     }
 
     void recordImmediateAccepted() {
@@ -81,27 +69,7 @@ public final class SerialScheduledExecutorMetrics {
                 immediateExecutionCount.get(),
                 periodicExecutionCount.get(),
                 runtimeFailureCount.get(),
-                workerThreadCpuTimeNanos());
-    }
-
-    private long workerThreadCpuTimeNanos() {
-        if (!workerCpuTimeAttributable) {
-            return -1L;
-        }
-        Thread worker = standaloneWorkerThread;
-        if (worker == null) {
-            return -1L;
-        }
-
-        ThreadMXBean bean =
-                ManagementFactory.getThreadMXBean();
-        if (!bean.isThreadCpuTimeSupported()
-                || !bean.isThreadCpuTimeEnabled()) {
-            return -1L;
-        }
-        long cpuTime =
-                bean.getThreadCpuTime(worker.getId());
-        return cpuTime < 0L ? -1L : cpuTime;
+                -1L);
     }
 
     /** Immutable snapshot returned to diagnostic/engineering readers. */
