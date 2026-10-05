@@ -29,6 +29,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
     private static final Logger LOG =
             LoggerFactory.getLogger(SerialScheduledExecutor.class);
 
+    /** Lifecycle of this logical scheduled lane. */
     public enum State {
         NEW,
         RUNNING,
@@ -37,6 +38,12 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         FAILED
     }
 
+    /**
+     * Handle owned by the caller for one fixed-delay registration.
+     *
+     * <p>Closing the handle cancels future triggers but does not close this lane
+     * or the shared runtime worker.</p>
+     */
     public interface ScheduledTask extends AutoCloseable {
         @Override
         void close();
@@ -175,6 +182,11 @@ public final class SerialScheduledExecutor implements AutoCloseable {
      *
      * @return false when this lane no longer accepts work
      */
+    /**
+     * Attempts to admit immediate work to this serial lane.
+     *
+     * @return {@code false} when the lane is not running or cannot accept the work
+     */
     public boolean execute(Runnable task) {
         if (task == null) {
             throw new IllegalArgumentException(
@@ -296,6 +308,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         return failure;
     }
 
+    /** Returns the separate pull-based metrics owner for this lane. */
     public SerialScheduledExecutorMetrics metrics() {
         return metrics;
     }
@@ -314,6 +327,13 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                 : standaloneExecutor.getQueue().size();
     }
 
+    /**
+     * Cancels this lane's periodic registrations and stops its local execution.
+     *
+     * <p>Standalone mode also stops its private scheduled worker. Shared mode
+     * closes only the lane-local serial adapter; Runtime remains responsible for
+     * the physical shared worker.</p>
+     */
     @Override
     public void close() {
         final SerialExecutor lane;
