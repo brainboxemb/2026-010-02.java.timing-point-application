@@ -7,6 +7,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingpoint.application.configuration.ApplicationConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.application.configuration.ConfigurationUpdateResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommands;
@@ -217,6 +219,116 @@ public class TagProcessorTest {
             assertEquals(0L, snapshot.duplicates());
             assertEquals(2L, snapshot.closedBursts());
             assertEquals(2L, snapshot.nodeNotRunning());
+        } finally {
+            processor.stop();
+        }
+    }
+
+    @Test
+    public void runtimePolicyOverrideReevaluatesExistingPassage()
+            throws Exception {
+        RecordingStore store = new RecordingStore();
+        TimingNode node = node(store);
+        FakeMonotonicClock clock = new FakeMonotonicClock();
+        SerialScheduledExecutor executor =
+                new SerialScheduledExecutor("tp-tag-test");
+        TagProcessingPolicy startup = policy(8);
+        ApplicationConfiguration configuration =
+                ApplicationConfiguration.singleTimingNode(
+                        new NodeId("TN-01"),
+                        startup);
+        TagProcessor processor = new TagProcessor(
+                node,
+                tagId -> new RegistrationId("N-001"),
+                configuration.timingNode(new NodeId("TN-01")).tagProcessing(),
+                clock,
+                new TagProcessingMetrics(),
+                executor);
+        CountDownLatch committed = new CountDownLatch(1);
+        node.timingDataCommittedEvent().subscribe(data -> committed.countDown());
+
+        node.start();
+        node.invoke(TimingNodeCommands.open(new LocationId(24)));
+        processor.start();
+        try {
+            processor.onObservation(
+                    observation("TAG-A", -50, OBSERVED_AT));
+            awaitLane(executor);
+
+            clock.advanceNanos(50L);
+
+            TagProcessingPolicy shorterQuietWindow =
+                    new TagProcessingPolicy(
+                            Duration.ofNanos(40L),
+                            Duration.ofNanos(500L),
+                            Duration.ofNanos(1000L),
+                            Duration.ofMillis(5L),
+                            8);
+
+            assertEquals(
+                    ConfigurationUpdateResult.APPLIED,
+                    configuration
+                            .timingNode(new NodeId("TN-01"))
+                            .tagProcessing()
+                            .override(shorterQuietWindow));
+
+            assertTrue(committed.await(1, TimeUnit.SECONDS));
+            assertEquals(1, store.appended.size());
+        } finally {
+            processor.stop();
+            node.stop();
+        }
+    }
+
+    @Test
+    public void runtimeCadenceOverrideReplacesHousekeepingRegistration()
+            throws Exception {
+        TimingNode node = node(new RecordingStore());
+        FakeMonotonicClock clock = new FakeMonotonicClock();
+        SerialScheduledExecutor executor =
+                new SerialScheduledExecutor("tp-tag-test");
+        TagProcessingPolicy startup = policy(8);
+        ApplicationConfiguration configuration =
+                ApplicationConfiguration.singleTimingNode(
+                        new NodeId("TN-01"),
+                        startup);
+        TagProcessor processor = new TagProcessor(
+                node,
+                TagProcessorTest::mapReferenceTag,
+                configuration.timingNode(new NodeId("TN-01")).tagProcessing(),
+                clock,
+                new TagProcessingMetrics(),
+                executor);
+
+        processor.start();
+        try {
+            processor.onObservation(
+                    observation("TAG-001", -42, OBSERVED_AT));
+            awaitLane(executor);
+
+            SerialScheduledExecutor.Metrics.Snapshot before =
+                    executor.metrics().snapshot();
+            assertEquals(1L, before.scheduledRegistrationCount());
+
+            TagProcessingPolicy fasterSweep =
+                    new TagProcessingPolicy(
+                            Duration.ofNanos(100L),
+                            Duration.ofNanos(500L),
+                            Duration.ofNanos(1000L),
+                            Duration.ofMillis(2L),
+                            8);
+            assertEquals(
+                    ConfigurationUpdateResult.APPLIED,
+                    configuration
+                            .timingNode(new NodeId("TN-01"))
+                            .tagProcessing()
+                            .override(fasterSweep));
+            awaitLane(executor);
+
+            SerialScheduledExecutor.Metrics.Snapshot after =
+                    executor.metrics().snapshot();
+            assertTrue(after.scheduledRegistrationCount() >= 2L);
+            assertTrue(after.scheduledCancellationCount() >= 1L);
         } finally {
             processor.stop();
         }

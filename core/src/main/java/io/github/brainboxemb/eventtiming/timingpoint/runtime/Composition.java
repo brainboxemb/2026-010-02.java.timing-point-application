@@ -3,9 +3,9 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingpoint.application.configuration.ApplicationConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingMetrics;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagRegistrationMapper;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
@@ -65,21 +65,16 @@ public final class Composition {
     static final class AntennaProcessing {
         private final List<Antenna> antennas;
         private final TagRegistrationMapper mapper;
-        private final TagProcessingPolicy policy;
 
         AntennaProcessing(
                 List<Antenna> antennas,
-                TagRegistrationMapper mapper,
-                TagProcessingPolicy policy) {
+                TagRegistrationMapper mapper) {
             if (antennas == null || antennas.isEmpty()) {
                 throw new IllegalArgumentException(
                         "antennas must contain at least one antenna");
             }
             if (mapper == null) {
                 throw new IllegalArgumentException("mapper must not be null");
-            }
-            if (policy == null) {
-                throw new IllegalArgumentException("policy must not be null");
             }
             List<Antenna> copy = new ArrayList<>(antennas.size());
             for (Antenna antenna : antennas) {
@@ -91,7 +86,6 @@ public final class Composition {
             }
             this.antennas = Collections.unmodifiableList(copy);
             this.mapper = mapper;
-            this.policy = policy;
         }
     }
 
@@ -162,8 +156,17 @@ public final class Composition {
                 timingDataFactory,
                 () -> new TimingTimestamp(Instant.now()));
 
+        ApplicationConfiguration applicationConfiguration =
+                ApplicationConfiguration.singleTimingNode(
+                        config.timingNodeId(),
+                        config.tagProcessingPolicy());
+
         if (antennaProcessing == null) {
-            return new Application(buildIdentity, timingNode);
+            return new Application(
+                    buildIdentity,
+                    timingNode,
+                    applicationConfiguration,
+                    null);
         }
 
         ThreadPoolExecutor sharedIoExecutor = createSharedIoExecutor();
@@ -171,7 +174,9 @@ public final class Composition {
             TagProcessor tagProcessor = new TagProcessor(
                     timingNode,
                     antennaProcessing.mapper,
-                    antennaProcessing.policy,
+                    applicationConfiguration
+                            .timingNode(config.timingNodeId())
+                            .tagProcessing(),
                     SystemMonotonicClock.INSTANCE,
                     new TagProcessingMetrics(),
                     new SerialScheduledExecutor(
@@ -188,6 +193,7 @@ public final class Composition {
             return new Application(
                     buildIdentity,
                     timingNode,
+                    applicationConfiguration,
                     antennaRuntime);
         } catch (RuntimeException ex) {
             sharedIoExecutor.shutdownNow();

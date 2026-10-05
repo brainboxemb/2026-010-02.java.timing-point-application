@@ -89,21 +89,29 @@ public class CompositionTest {
             throws Exception {
         Path file = temporaryFolder.getRoot().toPath().resolve("antenna-timing-data.jsonl");
         SimulatedAntenna antenna = new SimulatedAntenna();
+        TagProcessingPolicy tagProcessingPolicy =
+                new TagProcessingPolicy(
+                        Duration.ofMillis(20),
+                        Duration.ofMillis(250),
+                        Duration.ofMillis(100),
+                        Duration.ofMillis(5),
+                        8);
         Composition.AntennaProcessing antennaProcessing =
                 new Composition.AntennaProcessing(
                         Collections.singletonList(antenna),
-                        tagId -> new RegistrationId("R-1001"),
-                        new TagProcessingPolicy(
-                                Duration.ofMillis(20),
-                                Duration.ofMillis(250),
-                                Duration.ofMillis(100),
-                                Duration.ofMillis(5),
-                                8));
+                        tagId -> new RegistrationId("R-1001"));
 
         Application application = Composition.create(
                 identity(),
-                config(file),
+                config(file, tagProcessingPolicy),
                 antennaProcessing);
+
+        assertEquals(
+                tagProcessingPolicy,
+                application.configuration()
+                        .timingNode(new NodeId("configured-node"))
+                        .tagProcessing()
+                        .startupValue());
 
         application.start();
         try {
@@ -161,12 +169,19 @@ public class CompositionTest {
     }
 
     private static Config config(Path timingDataPath) {
+        return config(timingDataPath, TagProcessingPolicy.defaults());
+    }
+
+    private static Config config(
+            Path timingDataPath,
+            TagProcessingPolicy tagProcessingPolicy) {
         return new Config(
                 new NodeId("configured-node"),
                 new Presentation(null, null),
                 null,
                 null,
-                timingDataPath);
+                timingDataPath,
+                tagProcessingPolicy);
     }
 
     private static BuildIdentity identity() {

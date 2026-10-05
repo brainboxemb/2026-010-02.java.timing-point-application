@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime.config;
 
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 
 import java.io.File;
@@ -32,6 +33,9 @@ public class YamlLoaderTest {
         assertEquals(
                 Paths.get("data", "timing-data.jsonl"),
                 config.timingDataPath());
+        assertEquals(
+                TagProcessingPolicy.defaults(),
+                config.tagProcessingPolicy());
     }
 
     @Test

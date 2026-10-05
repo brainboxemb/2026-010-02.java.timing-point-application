@@ -1,24 +1,43 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.application.configuration.ApplicationConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 
 /** Top-level runtime object for one SI-01 application composition. */
 public final class Application implements AutoCloseable {
     private final BuildIdentity buildIdentity;
     private final TimingNode timingNode;
+    private final ApplicationConfiguration configuration;
     private final PresentationGateway presentationGateway;
     private final Lifecycle lifecycle;
     private final AntennaRuntime antennaRuntime;
 
     Application(BuildIdentity buildIdentity, TimingNode timingNode) {
-        this(buildIdentity, timingNode, null);
+        this(
+                buildIdentity,
+                timingNode,
+                defaultConfiguration(timingNode),
+                null);
     }
 
     Application(
             BuildIdentity buildIdentity,
             TimingNode timingNode,
+            AntennaRuntime antennaRuntime) {
+        this(
+                buildIdentity,
+                timingNode,
+                defaultConfiguration(timingNode),
+                antennaRuntime);
+    }
+
+    Application(
+            BuildIdentity buildIdentity,
+            TimingNode timingNode,
+            ApplicationConfiguration configuration,
             AntennaRuntime antennaRuntime) {
         if (buildIdentity == null) {
             throw new IllegalArgumentException("buildIdentity must not be null");
@@ -26,8 +45,12 @@ public final class Application implements AutoCloseable {
         if (timingNode == null) {
             throw new IllegalArgumentException("timingNode must not be null");
         }
+        if (configuration == null) {
+            throw new IllegalArgumentException("configuration must not be null");
+        }
         this.buildIdentity = buildIdentity;
         this.timingNode = timingNode;
+        this.configuration = configuration;
         this.presentationGateway = new PresentationGateway(buildIdentity, timingNode);
         this.lifecycle = new Lifecycle(buildIdentity);
         this.antennaRuntime = antennaRuntime;
@@ -55,6 +78,11 @@ public final class Application implements AutoCloseable {
 
     public PresentationGateway presentationGateway() {
         return presentationGateway;
+    }
+
+    /** Authoritative typed configuration root for this running application. */
+    public ApplicationConfiguration configuration() {
+        return configuration;
     }
 
     TimingNode timingNode() {
@@ -102,6 +130,16 @@ public final class Application implements AutoCloseable {
         if (firstFailure != null) {
             throw firstFailure;
         }
+    }
+
+    private static ApplicationConfiguration defaultConfiguration(
+            TimingNode timingNode) {
+        if (timingNode == null) {
+            throw new IllegalArgumentException("timingNode must not be null");
+        }
+        return ApplicationConfiguration.singleTimingNode(
+                timingNode.timingNodeId(),
+                TagProcessingPolicy.defaults());
     }
 
     public static String smokeOutput(BuildIdentity buildIdentity, Lifecycle.State state) {
