@@ -13,12 +13,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * One serial execution lane with delayed/fixed-delay scheduling.
+ * One serial execution lane that supports immediate and fixed-delay work.
  *
- * <p>The standalone constructor owns one JDK scheduled worker. Production
- * runtime composition may instead provide a shared scheduled role executor.
- * In shared mode immediate and periodic work still enters one lane-local serial
- * queue, while the physical worker is shared by all TagProcessor lanes.</p>
+ * <p>Like {@link SerialExecutor}, this is primarily a logical lane rather than
+ * necessarily a Java thread. In production, multiple TagProcessor lanes share
+ * one runtime-owned scheduled role worker. Each lane still serializes its own
+ * immediate work and periodic housekeeping.</p>
+ *
+ * <p>The one-argument constructor is a standalone convenience and creates one
+ * private scheduled worker in {@link #start()}. The three-argument constructor
+ * receives a runtime-owned shared worker. This lane may schedule work on that
+ * worker but never owns or shuts down its lifecycle.</p>
  */
 public final class SerialScheduledExecutor implements AutoCloseable {
     private static final Logger LOG =
@@ -37,17 +42,38 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         void close();
     }
 
+    /** Diagnostic identity of this logical scheduled lane. */
     private final String laneName;
+
+    /** Capacity of the lane-local immediate/control queue in shared-worker mode. */
     private final int sharedLaneCapacity;
-    private final ScheduledExecutorService suppliedSharedExecutor;
-    private final boolean sharedMode;
+
+    /**
+     * Runtime-owned scheduled role worker.
+     *
+     * <p>{@code null} means standalone mode. A non-null value means the worker
+     * is owned by RuntimeExecutors and must never be shut down here.</p>
+     */
+    private final ScheduledExecutorService sharedWorkerExecutor;
+
     private final SerialScheduledExecutorMetrics metrics;
+
+    /** Active fixed-delay registrations owned by this lane in shared-worker mode. */
     private final List<SharedPeriodicTask> sharedPeriodicTasks =
             new ArrayList<SharedPeriodicTask>();
 
     private State state = State.NEW;
+
+    /** Private physical worker used only by the standalone constructor. */
     private ScheduledThreadPoolExecutor standaloneExecutor;
+
+    /**
+     * Lane-local serialization adapter used only with a shared role worker.
+     * Immediate and periodic work both enter this same lane.
+     */
     private SerialExecutor sharedLane;
+
+    /** First fatal lane/scheduling failure, if any. */
     private Throwable failure;
 
     /** Standalone serial scheduled lane with a private worker. */
@@ -58,8 +84,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         }
         laneName = threadName.trim();
         sharedLaneCapacity = 0;
-        suppliedSharedExecutor = null;
-        sharedMode = false;
+        sharedWorkerExecutor = null;
         metrics = new SerialScheduledExecutorMetrics(
                 this::metricQueueDepth,
                 true);
@@ -87,13 +112,27 @@ public final class SerialScheduledExecutor implements AutoCloseable {
 
         this.laneName = laneName.trim();
         this.sharedLaneCapacity = laneCapacity;
-        this.suppliedSharedExecutor = sharedExecutor;
-        sharedMode = true;
+        this.sharedWorkerExecutor = sharedExecutor;
         metrics = new SerialScheduledExecutorMetrics(
                 this::metricQueueDepth,
                 false);
     }
 
+    /**
+     * Shared mode is represented by the presence of the runtime-owned worker
+     * dependency; no second lifecycle/ownership flag is kept.
+     */
+    private boolean usesSharedWorker() {
+        return sharedWorkerExecutor != null;
+    }
+
+    /**
+     * Activates this lane.
+     *
+     * <p>Shared mode creates only the lane-local serialization adapter. It does
+     * not create another physical worker. Standalone mode creates one private
+     * scheduled worker.</p>
+     */
     public synchronized void start() {
         if (state != State.NEW) {
             throw new IllegalStateException(
@@ -101,11 +140,11 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                             + state);
         }
 
-        if (sharedMode) {
+        if (usesSharedWorker()) {
             sharedLane = new SerialExecutor(
                     sharedLaneCapacity,
                     laneName,
-                    suppliedSharedExecutor);
+                    sharedWorkerExecutor);
             sharedLane.start();
         } else {
             ThreadFactory threadFactory = runnable -> {
@@ -142,7 +181,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                     "task must not be null");
         }
 
-        if (sharedMode) {
+        if (usesSharedWorker()) {
             SerialExecutor lane;
             synchronized (this) {
                 if (state != State.RUNNING) {
@@ -182,6 +221,14 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         }
     }
 
+    /**
+     * Registers fixed-delay work on this serial lane.
+     *
+     * <p>In shared mode the timer trigger is scheduled on the runtime worker,
+     * but the actual callback is first admitted to {@link #sharedLane}; periodic
+     * state therefore never runs concurrently with immediate work from the same
+     * lane. The next trigger is scheduled only after that callback finishes.</p>
+     */
     public ScheduledTask scheduleWithFixedDelay(
             Runnable task,
             long delayNanos) {
@@ -194,7 +241,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                     "delayNanos must be positive");
         }
 
-        if (sharedMode) {
+        if (usesSharedWorker()) {
             final SharedPeriodicTask periodic;
             synchronized (this) {
                 if (state != State.RUNNING) {
@@ -253,8 +300,11 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         return metrics;
     }
 
+    /**
+     * Supplies lane-local queue depth to the separate metrics object.
+     */
     private synchronized int metricQueueDepth() {
-        if (sharedMode) {
+        if (usesSharedWorker()) {
             return sharedLane == null
                     ? 0
                     : sharedLane.metrics().snapshot().queueDepth();
@@ -293,7 +343,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
             periodic.close();
         }
 
-        if (sharedMode) {
+        if (usesSharedWorker()) {
             if (lane != null) {
                 lane.close();
             }
@@ -378,7 +428,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
             periodicTasks =
                     new ArrayList<SharedPeriodicTask>(
                             sharedPeriodicTasks);
-            if (!sharedMode) {
+            if (!usesSharedWorker()) {
                 standalone = standaloneExecutor;
             }
         }
@@ -396,6 +446,12 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         }
     }
 
+    /**
+     * One logical fixed-delay registration in shared-worker mode.
+     *
+     * <p>{@code trigger} is only the next timer wake-up on the shared scheduler.
+     * The actual user callback is serialized through {@link #sharedLane}.</p>
+     */
     private final class SharedPeriodicTask
             implements ScheduledTask {
         private final Runnable task;
@@ -425,7 +481,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
 
             try {
                 ScheduledFuture<?> next =
-                        suppliedSharedExecutor.schedule(
+                        sharedWorkerExecutor.schedule(
                                 this::enqueueExecution,
                                 delayNanos,
                                 TimeUnit.NANOSECONDS);
