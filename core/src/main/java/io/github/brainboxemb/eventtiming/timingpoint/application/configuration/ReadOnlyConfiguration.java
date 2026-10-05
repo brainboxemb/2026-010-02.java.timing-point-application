@@ -8,6 +8,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
  * @param <T> immutable configuration value type
  */
 public interface ReadOnlyConfiguration<T> {
+    /** Returns an immutable read-only configuration that never changes. */
+    static <T> ReadOnlyConfiguration<T> fixed(T value) {
+        return new FixedConfiguration<>(value);
+    }
+
     /** Effective value resolved when the application was composed. */
     T startupValue();
 
