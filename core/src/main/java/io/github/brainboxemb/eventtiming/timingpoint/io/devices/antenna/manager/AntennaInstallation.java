@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager;
 
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Antenna;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.Antenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.power.PowerDevice;
 
