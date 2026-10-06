@@ -12,6 +12,8 @@ public final class AntennaTasks {
 
     /** Direct one-antenna operations required by the task state machines. */
     public interface AntennaTarget {
+        void beginSelfTest();
+
         void powerOn();
 
         void powerOff();
