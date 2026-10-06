@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.TaskStep
 import java.time.Duration;
 import java.util.List;
 
-/** Cooperative startup self-test over the configured antenna set. */
+/** Reusable cooperative startup self-test over the configured antenna set. */
 final class SelfTestTask implements CooperativeTask {
 
     private enum Phase {
@@ -16,16 +16,19 @@ final class SelfTestTask implements CooperativeTask {
     }
 
     private final List<? extends AntennaTasks.AntennaTarget> antennas;
+
     private int antennaIndex;
-    private Phase phase = Phase.POWER_ON;
+    private Phase phase;
 
     SelfTestTask(
             List<? extends AntennaTasks.AntennaTarget> antennas) {
-        if (antennas == null || antennas.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "antennas must contain at least one antenna");
-        }
         this.antennas = antennas;
+        reset();
+    }
+
+    void reset() {
+        antennaIndex = 0;
+        phase = Phase.POWER_ON;
     }
 
     @Override
@@ -64,7 +67,7 @@ final class SelfTestTask implements CooperativeTask {
                 try {
                     antenna.powerOffAfterSelfTest();
                 } catch (RuntimeException ex) {
-                    // Failure is stored on the managed antenna; continue with next.
+                    // Failure is stored on the managed antenna; continue next.
                 }
                 antennaIndex++;
                 phase = Phase.POWER_ON;
