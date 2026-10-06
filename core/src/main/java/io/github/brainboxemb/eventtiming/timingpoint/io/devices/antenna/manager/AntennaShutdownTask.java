@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager;
 
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTask;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.TaskStep;
 
 import java.util.List;
@@ -26,7 +27,16 @@ final class AntennaShutdownTask implements CooperativeTask {
         reset();
     }
 
-    void reset() {
+    /**
+     * Runs shutdown as one cooperative task and waits for the ordered cleanup
+     * sequence to finish.
+     */
+    void runAndWait(ScheduledTaskRunner taskRunner) {
+        reset();
+        taskRunner.await(taskRunner.runTask(this));
+    }
+
+    private void reset() {
         antennaIndex = antennas.size() - 1;
         phase = Phase.STOP_INVENTORY;
         failure = null;
