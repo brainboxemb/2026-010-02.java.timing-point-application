@@ -10,7 +10,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -61,7 +60,10 @@ final class AntennaControlLane {
     }
 
     /**
-     * Executes one control action asynchronously on this serial lane.
+     * Executes one result-bearing control action asynchronously on this serial lane.
+     *
+     * <p>The zero-delay scheduled result keeps the actual lane Future available,
+     * so a caller that later times out can interrupt a running provider call.</p>
      */
     CompletableFuture<Void> runAsync(
             Runnable action) {
@@ -70,34 +72,33 @@ final class AntennaControlLane {
                     "action must not be null");
         }
 
-        CompletableFuture<Void> result =
-                new CompletableFuture<Void>();
-
-        boolean accepted =
-                lane.execute(() ->
-                        completeResult(
-                                result,
-                                action));
-
-        if (!accepted) {
-            result.completeExceptionally(
+        try {
+            SerialScheduledExecutor.ScheduledResult<Void> scheduled =
+                    lane.submitAfter(
+                            () -> {
+                                action.run();
+                                return null;
+                            },
+                            0L);
+            return bridge(
+                    scheduled);
+        } catch (RuntimeException ex) {
+            return failedFuture(
                     failure(
                             FailureReason.OVERLOADED,
                             "AntennaManager control lane rejected asynchronous work",
-                            lane.failure()));
+                            ex));
         }
-        return result;
     }
 
     /**
      * Executes a begin/complete control sequence without occupying the physical
      * worker while the configured delay elapses.
      *
-     * <p>The begin step runs on this serial lane and returns the required delay.
-     * A {@code null} delay means the operation should stop without running the
-     * completion step. A zero delay runs completion immediately on the same
-     * worker item. A positive delay schedules one continuation on this same
-     * serial lane.</p>
+     * <p>Both begin and completion are result-bearing lane tasks. The elapsed
+     * delay exists only as a timer registration between those tasks, so the
+     * physical worker remains available and a control timeout can still cancel
+     * whichever provider step is currently running.</p>
      */
     CompletableFuture<Void> runDelayed(
             Callable<Duration> begin,
@@ -113,85 +114,99 @@ final class AntennaControlLane {
 
         CompletableFuture<Void> result =
                 new CompletableFuture<Void>();
-        AtomicReference<SerialScheduledExecutor.ScheduledTask> delayedTask =
-                new AtomicReference<SerialScheduledExecutor.ScheduledTask>();
+        final SerialScheduledExecutor.ScheduledResult<?>[] active =
+                new SerialScheduledExecutor.ScheduledResult<?>[1];
 
         result.whenComplete((ignored, failure) -> {
             if (!result.isCancelled()) {
                 return;
             }
-            SerialScheduledExecutor.ScheduledTask task =
-                    delayedTask.get();
-            if (task != null) {
-                task.close();
+
+            SerialScheduledExecutor.ScheduledResult<?> scheduled =
+                    active[0];
+            if (scheduled != null) {
+                scheduled.futureResult()
+                        .cancel(true);
             }
         });
 
-        boolean accepted =
-                lane.execute(() -> {
-                    try {
-                        Duration delay =
-                                begin.call();
-
-                        if (delay == null) {
-                            result.complete(null);
-                            return;
-                        }
-                        if (delay.isNegative()) {
-                            throw new IllegalStateException(
-                                    "delayed control step returned a negative delay");
-                        }
-                        if (delay.isZero()) {
-                            complete.run();
-                            result.complete(null);
-                            return;
-                        }
-
-                        SerialScheduledExecutor.ScheduledTask task =
-                                lane.schedule(
-                                        () -> completeResult(
-                                                result,
-                                                complete),
-                                        delay.toNanos());
-                        delayedTask.set(task);
-                        if (result.isCancelled()) {
-                            task.close();
-                        }
-                    } catch (RuntimeException ex) {
-                        result.completeExceptionally(ex);
-                        throw ex;
-                    } catch (Error ex) {
-                        result.completeExceptionally(ex);
-                        throw ex;
-                    } catch (Exception ex) {
-                        RuntimeException wrapped =
-                                failure(
-                                        FailureReason.PROVIDER_FAILURE,
-                                        "AntennaManager delayed control begin step failed",
-                                        ex);
-                        result.completeExceptionally(wrapped);
-                        throw wrapped;
-                    }
-                });
-
-        if (!accepted) {
+        final SerialScheduledExecutor.ScheduledResult<Duration> beginTask;
+        try {
+            beginTask =
+                    lane.submitAfter(
+                            begin,
+                            0L);
+            active[0] = beginTask;
+        } catch (RuntimeException ex) {
             result.completeExceptionally(
                     failure(
                             FailureReason.OVERLOADED,
-                            "AntennaManager control lane rejected delayed work",
-                            lane.failure()));
+                            "AntennaManager control lane rejected delayed begin work",
+                            ex));
+            return result;
         }
 
-        return result;
-    }
+        beginTask.completion()
+                .whenComplete(
+                        (delay, beginFailure) -> {
+                            if (result.isDone()) {
+                                return;
+                            }
+                            if (beginFailure != null) {
+                                result.completeExceptionally(
+                                        beginFailure);
+                                return;
+                            }
+                            if (delay == null) {
+                                result.complete(null);
+                                return;
+                            }
+                            if (delay.isNegative()) {
+                                result.completeExceptionally(
+                                        new IllegalStateException(
+                                                "delayed control step returned a negative delay"));
+                                return;
+                            }
 
-    /**
-     * Waits for an asynchronous control sequence using the same bounded control
-     * timeout as normal result-bearing work.
-     */
-    void await(
-            CompletableFuture<Void> future) {
-        awaitFuture(future);
+                            try {
+                                SerialScheduledExecutor.ScheduledResult<Void> completeTask =
+                                        lane.submitAfter(
+                                                () -> {
+                                                    complete.run();
+                                                    return null;
+                                                },
+                                                delay.toNanos());
+                                active[0] = completeTask;
+
+                                if (result.isCancelled()) {
+                                    completeTask.futureResult()
+                                            .cancel(true);
+                                    return;
+                                }
+
+                                completeTask.completion()
+                                        .whenComplete(
+                                                (ignored, completeFailure) -> {
+                                                    if (result.isDone()) {
+                                                        return;
+                                                    }
+                                                    if (completeFailure == null) {
+                                                        result.complete(null);
+                                                    } else {
+                                                        result.completeExceptionally(
+                                                                completeFailure);
+                                                    }
+                                                });
+                            } catch (RuntimeException ex) {
+                                result.completeExceptionally(
+                                        failure(
+                                                FailureReason.OVERLOADED,
+                                                "AntennaManager control lane rejected delayed completion work",
+                                                ex));
+                            }
+                        });
+
+        return result;
     }
 
     void run(
@@ -290,23 +305,43 @@ final class AntennaControlLane {
         }
     }
 
-    private static void completeResult(
-            CompletableFuture<Void> result,
-            Runnable complete) {
-        if (result.isCancelled()) {
-            return;
-        }
+    private static <R> CompletableFuture<R> bridge(
+            SerialScheduledExecutor.ScheduledResult<R> scheduled) {
+        CompletableFuture<R> result =
+                new CompletableFuture<R>();
 
-        try {
-            complete.run();
-            result.complete(null);
-        } catch (RuntimeException ex) {
-            result.completeExceptionally(ex);
-            throw ex;
-        } catch (Error ex) {
-            result.completeExceptionally(ex);
-            throw ex;
-        }
+        result.whenComplete(
+                (ignored, failure) -> {
+                    if (result.isCancelled()) {
+                        scheduled.futureResult()
+                                .cancel(true);
+                    }
+                });
+
+        scheduled.completion()
+                .whenComplete(
+                        (value, failure) -> {
+                            if (result.isDone()) {
+                                return;
+                            }
+                            if (failure == null) {
+                                result.complete(value);
+                            } else {
+                                result.completeExceptionally(
+                                        failure);
+                            }
+                        });
+
+        return result;
+    }
+
+    private static <R> CompletableFuture<R> failedFuture(
+            Throwable failure) {
+        CompletableFuture<R> result =
+                new CompletableFuture<R>();
+        result.completeExceptionally(
+                failure);
+        return result;
     }
 
     static ControlException failure(
