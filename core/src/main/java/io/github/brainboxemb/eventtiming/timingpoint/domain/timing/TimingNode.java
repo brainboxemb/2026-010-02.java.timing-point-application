@@ -399,6 +399,16 @@ public final class TimingNode {
             return;
         }
 
+        LOG.info(
+                "TimingNode {} status changed: lifecycle {} -> {}, location {} -> {}, problems {} -> {}",
+                timingNodeId().value(),
+                before.lifecycle(),
+                after.lifecycle(),
+                before.hasLocation() ? before.locationId() : "-",
+                after.hasLocation() ? after.locationId() : "-",
+                before.problems().size(),
+                after.problems().size());
+
         Event.DeliveryReport delivery = statusChangedEvent.emit(after);
         if (!delivery.successful()) {
             LOG.warn(
