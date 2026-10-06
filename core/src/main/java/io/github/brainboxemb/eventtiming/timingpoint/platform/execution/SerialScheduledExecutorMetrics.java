@@ -16,6 +16,7 @@ public final class SerialScheduledExecutorMetrics {
     private final AtomicLong scheduledRegistrationCount = new AtomicLong();
     private final AtomicLong scheduledCancellationCount = new AtomicLong();
     private final AtomicLong immediateExecutionCount = new AtomicLong();
+    private final AtomicLong delayedExecutionCount = new AtomicLong();
     private final AtomicLong periodicExecutionCount = new AtomicLong();
     private final AtomicLong runtimeFailureCount = new AtomicLong();
 
@@ -48,6 +49,10 @@ public final class SerialScheduledExecutorMetrics {
         immediateExecutionCount.incrementAndGet();
     }
 
+    void recordDelayedExecution() {
+        delayedExecutionCount.incrementAndGet();
+    }
+
     void recordPeriodicExecution() {
         periodicExecutionCount.incrementAndGet();
     }
@@ -67,6 +72,7 @@ public final class SerialScheduledExecutorMetrics {
                 scheduledRegistrationCount.get(),
                 scheduledCancellationCount.get(),
                 immediateExecutionCount.get(),
+                delayedExecutionCount.get(),
                 periodicExecutionCount.get(),
                 runtimeFailureCount.get(),
                 -1L);
@@ -80,6 +86,7 @@ public final class SerialScheduledExecutorMetrics {
         private final long scheduledRegistrationCount;
         private final long scheduledCancellationCount;
         private final long immediateExecutionCount;
+        private final long delayedExecutionCount;
         private final long periodicExecutionCount;
         private final long runtimeFailureCount;
         private final long workerThreadCpuTimeNanos;
@@ -91,6 +98,7 @@ public final class SerialScheduledExecutorMetrics {
                 long scheduledRegistrationCount,
                 long scheduledCancellationCount,
                 long immediateExecutionCount,
+                long delayedExecutionCount,
                 long periodicExecutionCount,
                 long runtimeFailureCount,
                 long workerThreadCpuTimeNanos) {
@@ -105,6 +113,8 @@ public final class SerialScheduledExecutorMetrics {
                     scheduledCancellationCount;
             this.immediateExecutionCount =
                     immediateExecutionCount;
+            this.delayedExecutionCount =
+                    delayedExecutionCount;
             this.periodicExecutionCount =
                     periodicExecutionCount;
             this.runtimeFailureCount =
@@ -135,6 +145,10 @@ public final class SerialScheduledExecutorMetrics {
 
         public long immediateExecutionCount() {
             return immediateExecutionCount;
+        }
+
+        public long delayedExecutionCount() {
+            return delayedExecutionCount;
         }
 
         public long periodicExecutionCount() {
