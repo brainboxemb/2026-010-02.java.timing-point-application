@@ -11,6 +11,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -114,8 +115,8 @@ final class AntennaControlLane {
 
         CompletableFuture<Void> result =
                 new CompletableFuture<Void>();
-        final SerialScheduledExecutor.ScheduledResult<?>[] active =
-                new SerialScheduledExecutor.ScheduledResult<?>[1];
+        AtomicReference<SerialScheduledExecutor.ScheduledResult<?>> active =
+                new AtomicReference<SerialScheduledExecutor.ScheduledResult<?>>();
 
         result.whenComplete((ignored, failure) -> {
             if (!result.isCancelled()) {
@@ -123,7 +124,7 @@ final class AntennaControlLane {
             }
 
             SerialScheduledExecutor.ScheduledResult<?> scheduled =
-                    active[0];
+                    active.get();
             if (scheduled != null) {
                 scheduled.futureResult()
                         .cancel(true);
@@ -136,7 +137,7 @@ final class AntennaControlLane {
                     lane.submitAfter(
                             begin,
                             0L);
-            active[0] = beginTask;
+            active.set(beginTask);
         } catch (RuntimeException ex) {
             result.completeExceptionally(
                     failure(
@@ -176,7 +177,7 @@ final class AntennaControlLane {
                                                     return null;
                                                 },
                                                 delay.toNanos());
-                                active[0] = completeTask;
+                                active.set(completeTask);
 
                                 if (result.isCancelled()) {
                                     completeTask.futureResult()
