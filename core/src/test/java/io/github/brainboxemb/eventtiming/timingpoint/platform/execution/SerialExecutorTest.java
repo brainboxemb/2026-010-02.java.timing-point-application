@@ -65,6 +65,25 @@ public class SerialExecutorTest {
     }
 
     @Test
+    public void restartsAfterCleanStop() throws Exception {
+        SerialExecutor executor = newLane(2, "serial-executor-restart-test");
+        CountDownLatch first = new CountDownLatch(1);
+        CountDownLatch second = new CountDownLatch(1);
+
+        executor.start();
+        assertEquals(SerialExecutor.AdmissionResult.ACCEPTED, executor.offer(first::countDown));
+        assertTrue(first.await(1, TimeUnit.SECONDS));
+        executor.close();
+
+        executor.start();
+        assertEquals(SerialExecutor.AdmissionResult.ACCEPTED, executor.offer(second::countDown));
+        assertTrue(second.await(1, TimeUnit.SECONDS));
+        executor.close();
+
+        assertEquals(SerialExecutor.State.STOPPED, executor.state());
+    }
+
+    @Test
     public void processesAcceptedWorkInFifoOrder() throws Exception {
         SerialExecutor executor = newLane(4, "serial-executor-test");
         CountDownLatch firstStarted = new CountDownLatch(1);
