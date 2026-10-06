@@ -10,13 +10,14 @@ import java.util.List;
 final class SelfTestTask implements CooperativeTask {
 
     private enum Phase {
-        BEGIN,
-        COMPLETE
+        POWER_ON,
+        SELF_TEST,
+        POWER_OFF
     }
 
     private final List<? extends AntennaTasks.AntennaTarget> antennas;
     private int antennaIndex;
-    private Phase phase = Phase.BEGIN;
+    private Phase phase = Phase.POWER_ON;
 
     SelfTestTask(
             List<? extends AntennaTasks.AntennaTarget> antennas) {
@@ -37,39 +38,43 @@ final class SelfTestTask implements CooperativeTask {
                 antennas.get(antennaIndex);
 
         switch (phase) {
-            case BEGIN:
-                Duration delay =
-                        antenna.beginSelfTest();
-
-                if (delay == null) {
-                    moveToNextAntenna();
-                    return nextStep();
+            case POWER_ON:
+                try {
+                    Duration delay =
+                            antenna.powerOnForSelfTest();
+                    phase = Phase.SELF_TEST;
+                    return delay.isZero()
+                            ? TaskStep.again()
+                            : TaskStep.after(delay);
+                } catch (RuntimeException ex) {
+                    phase = Phase.POWER_OFF;
+                    return TaskStep.again();
                 }
 
-                phase = Phase.COMPLETE;
-                return delay.isZero()
-                        ? TaskStep.again()
-                        : TaskStep.after(delay);
+            case SELF_TEST:
+                try {
+                    antenna.selfTest();
+                } catch (RuntimeException ex) {
+                    // Failure is stored on the managed antenna; continue cleanup.
+                }
+                phase = Phase.POWER_OFF;
+                return TaskStep.again();
 
-            case COMPLETE:
-                antenna.completeSelfTest();
-                moveToNextAntenna();
-                return nextStep();
+            case POWER_OFF:
+                try {
+                    antenna.powerOffAfterSelfTest();
+                } catch (RuntimeException ex) {
+                    // Failure is stored on the managed antenna; continue with next.
+                }
+                antennaIndex++;
+                phase = Phase.POWER_ON;
+                return antennaIndex >= antennas.size()
+                        ? TaskStep.done()
+                        : TaskStep.again();
 
             default:
                 throw new IllegalStateException(
                         "Unsupported self-test phase " + phase);
         }
-    }
-
-    private void moveToNextAntenna() {
-        antennaIndex++;
-        phase = Phase.BEGIN;
-    }
-
-    private TaskStep nextStep() {
-        return antennaIndex >= antennas.size()
-                ? TaskStep.done()
-                : TaskStep.again();
     }
 }
