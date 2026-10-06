@@ -12,29 +12,35 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 
-
 /**
  * Reusable inventory state machine for enable, disable and multiplex switching.
  *
- * <p>The task reads the current requested value on every turn. A changed request
- * therefore changes the next state without requiring a second controller or a
- * second inventory operation object.</p>
+ * <p>The task always works toward the latest value in {@code inventoryEnabledSetting}:</p>
+ *
+ * <pre>
+ * requested ON
+ *   prepare each antenna -> start direct antennas -> start one group antenna
+ *   -> wait -> stop current group antenna -> start next -> wait ...
+ *
+ * requested OFF
+ *   stop antennas in reverse order -> power off -> applied=false
+ * </pre>
+ *
+ * <p>A changed request does not create another task. The running task reads the
+ * latest requested value on every turn and changes direction when needed.</p>
  */
 final class InventoryTask implements CooperativeTask {
 
     private enum Phase {
         DECIDE,
-        ENABLE_POWER_ON,
-        ENABLE_INITIALIZE,
-        ENABLE_START_DIRECT,
-        ENABLE_START_GROUP,
-        ENABLE_APPLY,
-        SWITCH_WAIT,
+        POWER_ON,
+        INITIALIZE,
+        START_DIRECT,
+        START_GROUP,
         SWITCH_STOP,
         SWITCH_START,
         DISABLE_STOP,
-        DISABLE_POWER_OFF,
-        DISABLE_APPLY
+        DISABLE_POWER_OFF
     }
 
     private final List<? extends AntennaTasks.AntennaTarget> antennas;
@@ -43,7 +49,7 @@ final class InventoryTask implements CooperativeTask {
     private final Setting<Boolean> inventoryEnabledSetting;
     private final Event<AntennaTasks.TaskResult> completedEvent = new Event<AntennaTasks.TaskResult>();
 
-    private CompletableFuture<Void> operation;
+    private volatile CompletableFuture<Void> operation;
     private Phase phase;
     private int antennaIndex;
     private int groupIndex;
@@ -63,6 +69,12 @@ final class InventoryTask implements CooperativeTask {
         reset();
     }
 
+    /**
+     * Starts this reusable task unless an earlier run is still active.
+     *
+     * <p>If a request changes while the task is running, the Setting already
+     * contains that new value and the current run will observe it.</p>
+     */
     synchronized void start(ScheduledTaskRunner taskRunner) {
         if (isRunning()) {
             return;
@@ -74,13 +86,15 @@ final class InventoryTask implements CooperativeTask {
     }
 
     void cancel() {
-        if (isRunning()) {
-            operation.cancel(true);
+        CompletableFuture<Void> running = operation;
+        if (running != null && !running.isDone()) {
+            running.cancel(true);
         }
     }
 
     boolean isRunning() {
-        return operation != null && !operation.isDone();
+        CompletableFuture<Void> running = operation;
+        return running != null && !running.isDone();
     }
 
     EventSource<AntennaTasks.TaskResult> completedEvent() {
@@ -98,7 +112,7 @@ final class InventoryTask implements CooperativeTask {
                         : AntennaTasks.TaskResult.failed(taskFailure));
     }
 
-    void reset() {
+    private void reset() {
         phase = Phase.DECIDE;
         antennaIndex = 0;
         groupIndex = 0;
@@ -109,8 +123,12 @@ final class InventoryTask implements CooperativeTask {
 
     @Override
     public TaskStep runStep() {
-        if (!inventoryRequestedEnabled()
-                && isEnableOrSwitchPhase()) {
+        /*
+         * Disable has priority over the remainder of an enable/switch cycle.
+         * This is what makes a later OFF request take effect without starting a
+         * second task.
+         */
+        if (!inventoryRequestedEnabled() && isEnableOrSwitchPhase()) {
             beginDisable();
             return TaskStep.again();
         }
@@ -118,60 +136,24 @@ final class InventoryTask implements CooperativeTask {
         switch (phase) {
             case DECIDE:
                 return decide();
-
-            case ENABLE_POWER_ON:
-                return enablePowerOn();
-
-            case ENABLE_INITIALIZE:
-                return enableInitialize();
-
-            case ENABLE_START_DIRECT:
-                return enableStartDirect();
-
-            case ENABLE_START_GROUP:
-                return enableStartGroup();
-
-            case ENABLE_APPLY:
-                inventoryEnabledSetting.markApplied(
-                        Boolean.TRUE);
-                if (inventoryRequestedEnabled()
-                        && availableGroupCount() > 1) {
-                    phase = Phase.SWITCH_WAIT;
-                    return TaskStep.after(
-                            inventoryInterval);
-                }
-                return finishOrContinue();
-
-            case SWITCH_WAIT:
-                if (availableGroupCount() < 2) {
-                    return TaskStep.done();
-                }
-                phase = Phase.SWITCH_STOP;
-                return TaskStep.again();
-
+            case POWER_ON:
+                return powerOn();
+            case INITIALIZE:
+                return initialize();
+            case START_DIRECT:
+                return startDirect();
+            case START_GROUP:
+                return startGroup();
             case SWITCH_STOP:
-                return switchStop();
-
+                return stopCurrentGroupAntenna();
             case SWITCH_START:
-                return switchStart();
-
+                return startNextGroupAntenna();
             case DISABLE_STOP:
                 return disableStop();
-
             case DISABLE_POWER_OFF:
                 return disablePowerOff();
-
-            case DISABLE_APPLY:
-                if (disableFailure != null) {
-                    throw disableFailure;
-                }
-                inventoryEnabledSetting.markApplied(
-                        Boolean.FALSE);
-                return finishOrContinue();
-
             default:
-                throw new IllegalStateException(
-                        "Unsupported inventory task phase " + phase);
+                throw new IllegalStateException("Unsupported inventory task phase " + phase);
         }
     }
 
@@ -182,112 +164,115 @@ final class InventoryTask implements CooperativeTask {
 
         if (inventoryRequestedEnabled()) {
             antennaIndex = 0;
-            phase = Phase.ENABLE_POWER_ON;
+            phase = Phase.POWER_ON;
         } else {
             beginDisable();
         }
         return TaskStep.again();
     }
 
-    private TaskStep enablePowerOn() {
+    /**
+     * Powers one antenna per turn. The physical stabilization wait is the only
+     * reason this phase may resume after a delay.
+     */
+    private TaskStep powerOn() {
         if (antennaIndex >= antennas.size()) {
-            if (inventoryGroup.isEmpty()) {
-                phase = Phase.ENABLE_APPLY;
-            } else {
-                groupIndex = 0;
-                groupAttempts = 0;
-                groupFailure = null;
-                phase = Phase.ENABLE_START_GROUP;
-            }
-            return TaskStep.again();
+            return startGroupOrFinishEnable();
         }
 
-        AntennaTasks.AntennaTarget antenna =
-                antennas.get(antennaIndex);
+        AntennaTasks.AntennaTarget antenna = antennas.get(antennaIndex);
         antenna.beginInventoryPreparation();
         antenna.powerOn();
 
-        Duration delay =
-                antenna.powerStabilization();
-        phase = Phase.ENABLE_INITIALIZE;
-        return delay.isZero()
-                ? TaskStep.again()
-                : TaskStep.after(
-                        delay);
+        phase = Phase.INITIALIZE;
+        Duration delay = antenna.powerStabilization();
+        return delay.isZero() ? TaskStep.again() : TaskStep.after(delay);
     }
 
-    private TaskStep enableInitialize() {
-        AntennaTasks.AntennaTarget antenna =
-                antennas.get(antennaIndex);
+    private TaskStep initialize() {
+        AntennaTasks.AntennaTarget antenna = antennas.get(antennaIndex);
         antenna.initialize();
 
-        if (inventoryGroup.contains(
-                antenna)) {
-            moveToNextAntenna();
+        if (inventoryGroup.contains(antenna)) {
+            nextAntenna();
         } else {
-            phase = Phase.ENABLE_START_DIRECT;
+            phase = Phase.START_DIRECT;
         }
         return TaskStep.again();
     }
 
-    private TaskStep enableStartDirect() {
-        antennas.get(antennaIndex)
-                .startInventory();
-        moveToNextAntenna();
+    private TaskStep startDirect() {
+        antennas.get(antennaIndex).startInventory();
+        nextAntenna();
         return TaskStep.again();
     }
 
-    private TaskStep enableStartGroup() {
+    private TaskStep startGroupOrFinishEnable() {
+        if (inventoryGroup.isEmpty()) {
+            return inventoryEnabled();
+        }
+
+        prepareGroupStart(0, Phase.START_GROUP);
+        return TaskStep.again();
+    }
+
+    /**
+     * Starts the first available multiplex-group member. A failed member is
+     * skipped so another healthy member can still provide inventory.
+     */
+    private TaskStep startGroup() {
         if (groupAttempts >= inventoryGroup.size()) {
             if (groupFailure != null) {
                 throw groupFailure;
             }
-            throw new IllegalStateException(
-                    "no prepared antenna could start inventory");
+            throw new IllegalStateException("no prepared antenna could start inventory");
         }
 
-        AntennaTasks.AntennaTarget candidate =
-                inventoryGroup.get(groupIndex);
-        groupIndex =
-                (groupIndex + 1)
-                        % inventoryGroup.size();
-        groupAttempts++;
-
+        AntennaTasks.AntennaTarget candidate = nextGroupCandidate();
         if (!candidate.availableForInventory()) {
             return TaskStep.again();
         }
 
         try {
             candidate.startInventory();
-            phase = Phase.ENABLE_APPLY;
+            return inventoryEnabled();
         } catch (RuntimeException ex) {
             groupFailure = ex;
+            return TaskStep.again();
         }
-        return TaskStep.again();
     }
 
-    private TaskStep switchStop() {
-        int currentIndex =
-                currentGroupInventoryIndex();
+    private TaskStep inventoryEnabled() {
+        inventoryEnabledSetting.markApplied(Boolean.TRUE);
 
+        if (inventoryRequestedEnabled() && availableGroupCount() > 1) {
+            phase = Phase.SWITCH_STOP;
+            return TaskStep.after(inventoryInterval);
+        }
+        return finishOrContinue();
+    }
+
+    /**
+     * Multiplexing always stops the current reader before another reader starts.
+     * If fewer than two healthy members remain, rotation simply ends.
+     */
+    private TaskStep stopCurrentGroupAntenna() {
+        if (availableGroupCount() < 2) {
+            return TaskStep.done();
+        }
+
+        int currentIndex = currentGroupInventoryIndex();
         if (currentIndex < 0) {
-            prepareSwitchStart(
-                    groupIndex);
+            prepareGroupStart(groupIndex, Phase.SWITCH_START);
             return TaskStep.again();
         }
 
-        AntennaTasks.AntennaTarget current =
-                inventoryGroup.get(
-                        currentIndex);
-        current.stopInventory();
-
-        prepareSwitchStart(
-                (currentIndex + 1)
-                        % inventoryGroup.size());
+        inventoryGroup.get(currentIndex).stopInventory();
+        prepareGroupStart((currentIndex + 1) % inventoryGroup.size(), Phase.SWITCH_START);
         return TaskStep.again();
     }
 
-    private TaskStep switchStart() {
+    private TaskStep startNextGroupAntenna() {
         if (groupAttempts >= inventoryGroup.size()) {
             if (groupFailure != null) {
                 throw groupFailure;
@@ -295,77 +280,65 @@ final class InventoryTask implements CooperativeTask {
             return TaskStep.done();
         }
 
-        AntennaTasks.AntennaTarget candidate =
-                inventoryGroup.get(groupIndex);
-        groupIndex =
-                (groupIndex + 1)
-                        % inventoryGroup.size();
-        groupAttempts++;
-
+        AntennaTasks.AntennaTarget candidate = nextGroupCandidate();
         if (!candidate.availableForInventory()) {
             return TaskStep.again();
         }
 
         try {
             candidate.startInventory();
-            phase = Phase.SWITCH_WAIT;
-            return TaskStep.after(
-                    inventoryInterval);
+            phase = Phase.SWITCH_STOP;
+            return TaskStep.after(inventoryInterval);
         } catch (RuntimeException ex) {
             groupFailure = ex;
             return TaskStep.again();
         }
     }
 
+    private void beginDisable() {
+        antennaIndex = antennas.size() - 1;
+        disableFailure = null;
+        phase = Phase.DISABLE_STOP;
+    }
+
+    /**
+     * Disable continues through every antenna even when one stop/power-off
+     * operation fails. The first failure is reported after cleanup has finished.
+     */
     private TaskStep disableStop() {
         if (antennaIndex < 0) {
-            phase = Phase.DISABLE_APPLY;
-            return TaskStep.again();
+            return finishDisable();
         }
 
         try {
-            antennas.get(antennaIndex)
-                    .stopInventory();
+            antennas.get(antennaIndex).stopInventory();
         } catch (RuntimeException ex) {
-            rememberDisableFailure(
-                    ex);
+            rememberDisableFailure(ex);
         }
+
         phase = Phase.DISABLE_POWER_OFF;
         return TaskStep.again();
     }
 
     private TaskStep disablePowerOff() {
         try {
-            antennas.get(antennaIndex)
-                    .powerOff();
+            antennas.get(antennaIndex).powerOff();
         } catch (RuntimeException ex) {
-            rememberDisableFailure(
-                    ex);
+            rememberDisableFailure(ex);
         }
 
         antennaIndex--;
         phase = Phase.DISABLE_STOP;
-        return TaskStep.again();
+        return antennaIndex < 0 ? finishDisable() : TaskStep.again();
     }
 
-    private void beginDisable() {
-        antennaIndex =
-                antennas.size() - 1;
-        disableFailure = null;
-        phase = Phase.DISABLE_STOP;
-    }
+    private TaskStep finishDisable() {
+        if (disableFailure != null) {
+            throw disableFailure;
+        }
 
-    private void moveToNextAntenna() {
-        antennaIndex++;
-        phase = Phase.ENABLE_POWER_ON;
-    }
-
-    private void prepareSwitchStart(
-            int startIndex) {
-        groupIndex = startIndex;
-        groupAttempts = 0;
-        groupFailure = null;
-        phase = Phase.SWITCH_START;
+        inventoryEnabledSetting.markApplied(Boolean.FALSE);
+        return finishOrContinue();
     }
 
     private TaskStep finishOrContinue() {
@@ -376,19 +349,35 @@ final class InventoryTask implements CooperativeTask {
         return TaskStep.done();
     }
 
+    private void nextAntenna() {
+        antennaIndex++;
+        phase = Phase.POWER_ON;
+    }
+
+    private void prepareGroupStart(int startIndex, Phase nextPhase) {
+        groupIndex = startIndex;
+        groupAttempts = 0;
+        groupFailure = null;
+        phase = nextPhase;
+    }
+
+    private AntennaTasks.AntennaTarget nextGroupCandidate() {
+        AntennaTasks.AntennaTarget candidate = inventoryGroup.get(groupIndex);
+        groupIndex = (groupIndex + 1) % inventoryGroup.size();
+        groupAttempts++;
+        return candidate;
+    }
+
     private boolean inventoryRequestedEnabled() {
-        return Boolean.TRUE.equals(
-                inventoryEnabledSetting.requestedValue());
+        return Boolean.TRUE.equals(inventoryEnabledSetting.requestedValue());
     }
 
     private boolean isEnableOrSwitchPhase() {
         switch (phase) {
-            case ENABLE_POWER_ON:
-            case ENABLE_INITIALIZE:
-            case ENABLE_START_DIRECT:
-            case ENABLE_START_GROUP:
-            case ENABLE_APPLY:
-            case SWITCH_WAIT:
+            case POWER_ON:
+            case INITIALIZE:
+            case START_DIRECT:
+            case START_GROUP:
             case SWITCH_STOP:
             case SWITCH_START:
                 return true;
@@ -398,11 +387,8 @@ final class InventoryTask implements CooperativeTask {
     }
 
     private int currentGroupInventoryIndex() {
-        for (int index = 0;
-                index < inventoryGroup.size();
-                index++) {
-            if (inventoryGroup.get(index)
-                    .inventoryRunning()) {
+        for (int index = 0; index < inventoryGroup.size(); index++) {
+            if (inventoryGroup.get(index).inventoryRunning()) {
                 return index;
             }
         }
@@ -419,13 +405,11 @@ final class InventoryTask implements CooperativeTask {
         return count;
     }
 
-    private void rememberDisableFailure(
-            RuntimeException current) {
+    private void rememberDisableFailure(RuntimeException current) {
         if (disableFailure == null) {
             disableFailure = current;
         } else if (disableFailure != current) {
-            disableFailure.addSuppressed(
-                    current);
+            disableFailure.addSuppressed(current);
         }
     }
 }
