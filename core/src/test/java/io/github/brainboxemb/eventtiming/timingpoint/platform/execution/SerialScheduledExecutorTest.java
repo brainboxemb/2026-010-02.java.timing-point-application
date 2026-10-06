@@ -74,6 +74,59 @@ public class SerialScheduledExecutorTest {
     }
 
     @Test
+    public void delayedWorkRunsOnceOnTheSameSerialThread()
+            throws Exception {
+        SerialScheduledExecutor executor =
+                newLane("serial-scheduled-delay-test");
+        AtomicReference<String> delayedThread =
+                new AtomicReference<String>();
+        AtomicInteger calls =
+                new AtomicInteger();
+        CountDownLatch done =
+                new CountDownLatch(1);
+
+        executor.start();
+        try {
+            executor.schedule(() -> {
+                delayedThread.set(
+                        Thread.currentThread().getName());
+                calls.incrementAndGet();
+                done.countDown();
+            }, TimeUnit.MILLISECONDS.toNanos(5));
+
+            assertTrue(
+                    done.await(
+                            1,
+                            TimeUnit.SECONDS));
+
+            CountDownLatch barrier =
+                    new CountDownLatch(1);
+            assertTrue(
+                    executor.execute(
+                            barrier::countDown));
+            assertTrue(
+                    barrier.await(
+                            1,
+                            TimeUnit.SECONDS));
+
+            assertEquals(
+                    "serial-scheduled-delay-test",
+                    delayedThread.get());
+            assertEquals(
+                    1,
+                    calls.get());
+
+            SerialScheduledExecutorMetrics.Snapshot metrics =
+                    executor.metrics().snapshot();
+            assertEquals(
+                    1L,
+                    metrics.delayedExecutionCount());
+        } finally {
+            executor.close();
+        }
+    }
+
+    @Test
     public void immediateAndPeriodicWorkUseTheSameSerialThread()
             throws Exception {
         SerialScheduledExecutor executor =
@@ -180,6 +233,7 @@ public class SerialScheduledExecutorTest {
             assertEquals(1L, metrics.scheduledRegistrationCount());
             assertEquals(1L, metrics.scheduledCancellationCount());
             assertEquals(1L, metrics.immediateExecutionCount());
+            assertEquals(0L, metrics.delayedExecutionCount());
             assertTrue(metrics.periodicExecutionCount() >= 1L);
             assertEquals(0L, metrics.runtimeFailureCount());
             assertTrue(metrics.queueDepth() >= 0);
