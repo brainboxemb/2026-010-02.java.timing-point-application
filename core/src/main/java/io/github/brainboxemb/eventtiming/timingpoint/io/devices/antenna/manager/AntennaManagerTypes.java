@@ -32,31 +32,6 @@ public final class AntennaManagerTypes {
         SHUTDOWN
     }
 
-    /** Failure category for a result-bearing manager control operation. */
-    public enum FailureReason {
-        OVERLOADED,
-        TIMEOUT,
-        INTERRUPTED,
-        PROVIDER_FAILURE
-    }
-
-    /** Visible failure of one result-bearing manager control operation. */
-    public static final class ControlException extends RuntimeException {
-        private final FailureReason reason;
-
-        ControlException(
-                FailureReason reason,
-                String message,
-                Throwable cause) {
-            super(message, cause);
-            this.reason = reason;
-        }
-
-        public FailureReason reason() {
-            return reason;
-        }
-    }
-
     /** Immutable point-in-time view of one configured antenna. */
     public static final class AntennaStatus {
         private final AntennaId antennaId;
