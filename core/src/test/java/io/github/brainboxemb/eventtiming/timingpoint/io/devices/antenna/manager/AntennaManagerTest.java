@@ -93,6 +93,34 @@ public class AntennaManagerTest {
     }
 
     @Test
+    public void activatesAgainAfterDeactivation() throws Exception {
+        ScheduledExecutorService shared = sharedExecutor();
+        SimulatedAntenna antenna = new SimulatedAntenna();
+        AntennaManager manager = manager(
+                Collections.<Antenna>singletonList(antenna),
+                shared,
+                4,
+                Duration.ofSeconds(1));
+
+        try {
+            manager.activate();
+            awaitCondition(manager::isReady, 1000L);
+            manager.deactivate();
+
+            assertEquals(State.INACTIVE, manager.state());
+
+            manager.activate();
+            awaitCondition(manager::isReady, 1000L);
+
+            assertEquals(State.ACTIVE, manager.state());
+            assertTrue(manager.status(new AntennaId("1")).selfTestPassed());
+        } finally {
+            manager.deactivate();
+            shared.shutdownNow();
+        }
+    }
+
+    @Test
     public void laterDisableCancelsPendingEnableBeforeSelfTestCompletes()
             throws Exception {
         ScheduledExecutorService shared =
