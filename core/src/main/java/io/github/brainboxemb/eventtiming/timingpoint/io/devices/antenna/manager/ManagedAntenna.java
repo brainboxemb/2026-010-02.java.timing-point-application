@@ -13,10 +13,10 @@ import java.time.Duration;
 /**
  * Runtime owner of one configured physical antenna.
  *
- * <p>This class contains the complete single-antenna hardware sequence:
- * external power, stabilization, probe, initialize, inventory start/stop and
- * close. It has no knowledge of executors, application lifecycle or multiplex
- * scheduling.</p>
+ * <p>This class owns the single-antenna hardware state and provider steps:
+ * external power, probe, initialize, inventory start/stop and close. Power
+ * stabilization is exposed as an elapsed-time requirement between begin and
+ * complete steps; this object never sleeps or owns scheduling.</p>
  *
  * <p>All methods are called by {@link AntennaSwitchController} on the manager's
  * one serial control lane, so this class needs no internal locking.</p>
