@@ -9,7 +9,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
 public final class SimulatedAntenna implements Antenna {
     public enum FailurePoint {
         NONE,
-        PROBE,
+        SELF_TEST,
         INITIALIZE,
         START_INVENTORY,
         STOP_INVENTORY
@@ -29,10 +29,10 @@ public final class SimulatedAntenna implements Antenna {
     private int inventoryStartCount;
 
     @Override
-    public synchronized AntennaInfo probe() {
+    public synchronized AntennaInfo selfTest() {
         requireOpen();
         requirePowered();
-        failIf(FailurePoint.PROBE);
+        failIf(FailurePoint.SELF_TEST);
         return INFO;
     }
 
