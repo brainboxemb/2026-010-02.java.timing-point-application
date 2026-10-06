@@ -47,7 +47,7 @@ final class InventoryTask implements CooperativeTask {
     private final List<ManagedAntenna> inventoryGroup;
     private final Duration inventoryInterval;
     private final Setting<Boolean> inventoryEnabledSetting;
-    private final Event<AntennaTasks.TaskResult> completedEvent = new Event<AntennaTasks.TaskResult>();
+    private final Event<AntennaTaskResult> completedEvent = new Event<AntennaTaskResult>();
 
     private volatile CompletableFuture<Void> operation;
     private Phase phase;
@@ -97,7 +97,7 @@ final class InventoryTask implements CooperativeTask {
         return running != null && !running.isDone();
     }
 
-    EventSource<AntennaTasks.TaskResult> completedEvent() {
+    EventSource<AntennaTaskResult> completedEvent() {
         return completedEvent;
     }
 
@@ -108,8 +108,8 @@ final class InventoryTask implements CooperativeTask {
 
         completedEvent.emit(
                 taskFailure == null
-                        ? AntennaTasks.TaskResult.success()
-                        : AntennaTasks.TaskResult.failed(taskFailure));
+                        ? AntennaTaskResult.success()
+                        : AntennaTaskResult.failed(taskFailure));
     }
 
     private void reset() {
