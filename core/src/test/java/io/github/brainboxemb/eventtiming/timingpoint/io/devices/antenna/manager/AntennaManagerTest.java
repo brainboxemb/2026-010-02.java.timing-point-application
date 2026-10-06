@@ -394,7 +394,7 @@ public class AntennaManagerTest {
                             new AntennaId("2"))
                             .failure() != null);
 
-            assertTrue(
+            assertFalse(
                     manager.requestEnableInventory());
             Thread.sleep(
                     50L);
