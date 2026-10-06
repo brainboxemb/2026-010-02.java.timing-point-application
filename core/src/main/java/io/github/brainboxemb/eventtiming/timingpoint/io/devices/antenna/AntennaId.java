@@ -1,20 +1,25 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
 
 /**
- * Configured software identity of one antenna installation.
+ * Configured software identity of one antenna.
  *
- * <p>AntennaId is the stable identity used by composition, routing and status.
- * It is distinct from provider/hardware identity returned by an antenna probe.</p>
+ * <p>An AntennaId is exactly one digit: {@code 1} through {@code 9}. It is the
+ * stable identity used by composition, routing and status and is distinct from
+ * provider/hardware identity returned by the antenna.</p>
  */
 public final class AntennaId {
     private final String value;
 
     public AntennaId(String value) {
-        if (value == null || value.trim().isEmpty()) {
+        String normalized = value == null ? null : value.trim();
+        if (normalized == null
+                || normalized.length() != 1
+                || normalized.charAt(0) < '1'
+                || normalized.charAt(0) > '9') {
             throw new IllegalArgumentException(
-                    "AntennaId must not be blank");
+                    "AntennaId must be one digit 1-9");
         }
-        this.value = value.trim();
+        this.value = normalized;
     }
 
     public String value() {

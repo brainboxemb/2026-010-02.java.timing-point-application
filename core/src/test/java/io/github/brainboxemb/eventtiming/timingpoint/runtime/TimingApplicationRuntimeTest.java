@@ -58,7 +58,7 @@ public class TimingApplicationRuntimeTest {
         application.activate();
         try {
             assertEquals(
-                    "configured-node",
+                    "A",
                     application.presentationGateway().timingNode().status().timingNodeId().value());
         } finally {
             application.deactivate();
@@ -101,13 +101,13 @@ public class TimingApplicationRuntimeTest {
             assertTrue(
                     application.antennaManager()
                             .status(
-                                    new AntennaId("ANT1"))
+                                    new AntennaId("1"))
                             .selfTestPassed());
             assertEquals(
                     AntennaOperation.INACTIVE,
                     application.antennaManager()
                             .status(
-                                    new AntennaId("ANT1"))
+                                    new AntennaId("1"))
                             .operation());
 
             application.timingNode().invoke(
@@ -118,7 +118,7 @@ public class TimingApplicationRuntimeTest {
                     () -> application
                             .antennaManager()
                             .status(
-                                    new AntennaId("ANT1"))
+                                    new AntennaId("1"))
                             .operation()
                             == AntennaOperation.INVENTORY,
                     1000L);
@@ -130,7 +130,7 @@ public class TimingApplicationRuntimeTest {
                     () -> application
                             .antennaManager()
                             .status(
-                                    new AntennaId("ANT1"))
+                                    new AntennaId("1"))
                             .operation()
                             == AntennaOperation.INACTIVE,
                     1000L);
@@ -269,7 +269,7 @@ public class TimingApplicationRuntimeTest {
                         Duration.ofMillis(5),
                         8);
         AntennaSet antennaSet = new AntennaSet()
-                .add(new AntennaId("ANT1"), antenna);
+                .add(new AntennaId("1"), antenna);
 
         TimingApplicationRuntime application = SimulationRuntime.create(
                 identity(),
@@ -282,7 +282,7 @@ public class TimingApplicationRuntimeTest {
         assertEquals(
                 tagProcessingPolicy,
                 application.configuration()
-                        .timingNode(new NodeId("configured-node"))
+                        .timingNode(new NodeId("A"))
                         .tagProcessing()
                         .startupValue());
 
@@ -436,7 +436,7 @@ public class TimingApplicationRuntimeTest {
     @Test(expected = IllegalArgumentException.class)
     public void createRejectsMissingTimingDataPath() {
         Config config = new Config(
-                new NodeId("configured-node"),
+                new NodeId("A"),
                 new Presentation(null, null));
 
         TimingApplicationRuntime.create(identity(), config);
@@ -450,7 +450,7 @@ public class TimingApplicationRuntimeTest {
             Path timingDataPath,
             TagProcessingPolicy tagProcessingPolicy) {
         return new Config(
-                new NodeId("configured-node"),
+                new NodeId("A"),
                 new Presentation(null, null),
                 null,
                 null,
@@ -464,7 +464,7 @@ public class TimingApplicationRuntimeTest {
             String eventDataProviderId,
             String timingDataProviderId) {
         return new Config(
-                new NodeId("configured-node"),
+                new NodeId("A"),
                 new Presentation(null, null),
                 null,
                 null,

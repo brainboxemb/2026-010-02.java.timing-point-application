@@ -19,7 +19,7 @@ import static org.junit.Assert.assertTrue;
  * intentionally kept close to the formal VTS procedure.</p>
  */
 public class VcSt1_001Test {
-    private static final String NODE_ID = "timing-node-blackbox";
+    private static final String NODE_ID = "A";
 
     @Test
     public void verifiesVersionStatusReconnectAndControlledShutdown() throws Exception {

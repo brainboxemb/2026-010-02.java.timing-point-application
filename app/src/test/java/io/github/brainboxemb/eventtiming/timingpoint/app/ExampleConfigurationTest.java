@@ -40,7 +40,7 @@ public class ExampleConfigurationTest {
 
         Config config = YamlLoader.load(output);
         assertEquals(
-                "TN-01",
+                "A",
                 config.timingNodeId().value());
         assertNotNull(config.timingDataPath());
         assertNotNull(config.presentation().remoteShell());

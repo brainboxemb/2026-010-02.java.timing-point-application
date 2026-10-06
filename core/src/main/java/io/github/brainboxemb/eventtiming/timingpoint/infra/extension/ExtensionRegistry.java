@@ -210,7 +210,7 @@ public final class ExtensionRegistry {
                     provider.getClass());
         }
 
-        LOG.info(
+        LOG.debug(
                 "Registered EventDataProvider id={} implementation={}",
                 id,
                 provider.getClass().getName());
@@ -245,7 +245,7 @@ public final class ExtensionRegistry {
                     provider.getClass());
         }
 
-        LOG.info(
+        LOG.debug(
                 "Registered TimingDataProvider id={} implementation={}",
                 id,
                 provider.getClass().getName());

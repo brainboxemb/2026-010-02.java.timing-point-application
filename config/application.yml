@@ -7,7 +7,7 @@ timingSystems:
 
     timingNodes:
       timing-node-01:
-        timingNodeId: TN-01
+        timingNodeId: A
 
         # Optional TimingNode-local TagProcessor startup policy.
         # These values match the compiled defaults and may be omitted individually.

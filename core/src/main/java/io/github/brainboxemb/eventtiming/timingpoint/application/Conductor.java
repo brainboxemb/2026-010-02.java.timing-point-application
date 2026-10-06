@@ -100,14 +100,11 @@ public final class Conductor extends AbstractConductor {
                     initialState);
         } else if (antennaManager != null) {
             LOG.info(
-                    "TimingNode {} initial state {} -> antenna inventory remains disabled",
+                    "TimingNode {} initial state {} -> inventory disabled",
                     timingNode.timingNodeId().value(),
                     initialState);
         }
 
-        LOG.info(
-                "SI-01 application coordination initialized for TimingNode {}",
-                timingNode.timingNodeId().value());
     }
 
     /**
@@ -134,7 +131,7 @@ public final class Conductor extends AbstractConductor {
         switch (state) {
             case OPEN:
                 LOG.info(
-                        "TimingNode {} state OPEN -> enable antenna inventory",
+                        "TimingNode {} OPEN -> enable inventory",
                         timingNode.timingNodeId().value());
 
                 if (!antennaManager.requestEnableInventory()) {
@@ -148,7 +145,7 @@ public final class Conductor extends AbstractConductor {
             case CLOSED:
             case ERROR:
                 LOG.info(
-                        "TimingNode {} state {} -> disable antenna inventory",
+                        "TimingNode {} {} -> disable inventory",
                         timingNode.timingNodeId().value(),
                         state);
 

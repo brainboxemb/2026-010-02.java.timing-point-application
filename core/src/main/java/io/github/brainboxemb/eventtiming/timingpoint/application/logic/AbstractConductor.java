@@ -75,7 +75,7 @@ public abstract class AbstractConductor {
      */
     public final void activate() {
         LOG.info(
-                "Starting application coordination");
+                "Starting application");
 
         try {
             componentLifecycle.activateAll();
@@ -83,7 +83,7 @@ public abstract class AbstractConductor {
             onActivated();
 
             LOG.info(
-                    "Application coordination started");
+                    "Application started");
         } catch (RuntimeException ex) {
             cleanupAfterActivationFailure(ex);
             throw ex;
@@ -102,7 +102,7 @@ public abstract class AbstractConductor {
      */
     public final void deactivate() {
         LOG.info(
-                "Stopping application coordination");
+                "Stopping application");
 
         Throwable firstFailure = null;
 
@@ -131,7 +131,7 @@ public abstract class AbstractConductor {
         rethrow(firstFailure);
 
         LOG.info(
-                "Application coordination stopped");
+                "Application stopped");
     }
 
     /**

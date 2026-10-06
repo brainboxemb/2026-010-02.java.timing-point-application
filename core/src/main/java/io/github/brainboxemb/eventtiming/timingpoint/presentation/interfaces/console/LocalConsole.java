@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.console;
 
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevelControl;
 import io.github.brainboxemb.eventtiming.timingpoint.presentation.common.terminal.TerminalSession;
 
 import java.io.IOException;
@@ -20,13 +21,30 @@ public final class LocalConsole implements Runnable {
             Runnable shutdown,
             Reader input,
             Writer output) {
+        this(
+                presentationGateway,
+                null,
+                shutdown,
+                input,
+                output);
+    }
+
+    public LocalConsole(
+            PresentationGateway presentationGateway,
+            LoggingLevelControl loggingLevelControl,
+            Runnable shutdown,
+            Reader input,
+            Writer output) {
         if (input == null) {
             throw new IllegalArgumentException("input must not be null");
         }
         if (output == null) {
             throw new IllegalArgumentException("output must not be null");
         }
-        this.session = new TerminalSession(presentationGateway, shutdown);
+        this.session = new TerminalSession(
+                presentationGateway,
+                loggingLevelControl,
+                shutdown);
         this.input = input;
         this.output = output;
     }

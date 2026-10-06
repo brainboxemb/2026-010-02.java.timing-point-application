@@ -50,7 +50,7 @@ public class TimingNodeTest {
 
     @Test
     public void startsClosedWithoutLocation() {
-        NodeId id = new NodeId("TN-01");
+        NodeId id = new NodeId("A");
         TimingNode node = node(id);
 
         node.activate();
@@ -67,7 +67,7 @@ public class TimingNodeTest {
 
     @Test
     public void openAppliesRequestedLocationAtomically() {
-        TimingNode node = node(new NodeId("TN-01"));
+        TimingNode node = node(new NodeId("A"));
         LocationId openLocation = new LocationId(24);
 
         node.activate();
@@ -104,7 +104,7 @@ public class TimingNodeTest {
 
     @Test
     public void repeatedStateCommandsReturnProcessedResults() {
-        TimingNode node = node(new NodeId("TN-01"));
+        TimingNode node = node(new NodeId("A"));
 
         node.activate();
         try {
@@ -131,7 +131,7 @@ public class TimingNodeTest {
     public void timeoutDoesNotCancelAcceptedOperation() throws Exception {
         SerialExecutor executor = newSerialExecutor(2, "timing-node-test");
         TimingNode node = node(
-                new NodeId("TN-01"),
+                new NodeId("A"),
                 executor,
                 25L);
         CountDownLatch blockerStarted = new CountDownLatch(1);
@@ -174,7 +174,7 @@ public class TimingNodeTest {
     public void stateDependentOperationsAreDecidedInQueueOrder() throws Exception {
         SerialExecutor executor = newSerialExecutor(4, "timing-node-test");
         TimingNode node = node(
-                new NodeId("TN-01"),
+                new NodeId("A"),
                 executor,
                 1000L);
         CountDownLatch blockerStarted = new CountDownLatch(1);
@@ -236,7 +236,7 @@ public class TimingNodeTest {
             throws Exception {
         SerialExecutor executor = newSerialExecutor(2, "timing-node-offer-test");
         TimingNode node = node(
-                new NodeId("TN-01"),
+                new NodeId("A"),
                 executor,
                 1000L);
         CountDownLatch blockerStarted = new CountDownLatch(1);
@@ -291,7 +291,7 @@ public class TimingNodeTest {
 
     @Test
     public void operationBeforeStartIsUnavailable() {
-        TimingNode node = node(new NodeId("TN-01"));
+        TimingNode node = node(new NodeId("A"));
 
         try {
             node.query(TimingNodeQueries.status());

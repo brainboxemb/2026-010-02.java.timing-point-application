@@ -14,6 +14,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatu
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Problem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevel;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevelControl;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -29,10 +31,12 @@ public final class TerminalSession {
     private static final String PROMPT = "event-timing> ";
 
     private final PresentationGateway presentationGateway;
+    private final LoggingLevelControl loggingLevelControl;
     private final Runnable shutdown;
 
     public TerminalSession(
             PresentationGateway presentationGateway,
+            LoggingLevelControl loggingLevelControl,
             Runnable shutdown) {
         if (presentationGateway == null) {
             throw new IllegalArgumentException(
@@ -43,6 +47,7 @@ public final class TerminalSession {
                     "shutdown must not be null");
         }
         this.presentationGateway = presentationGateway;
+        this.loggingLevelControl = loggingLevelControl;
         this.shutdown = shutdown;
     }
 
@@ -117,6 +122,9 @@ public final class TerminalSession {
                     return false;
                 case "config":
                     configuration(arguments, output);
+                    return false;
+                case "log":
+                    logging(arguments, output);
                     return false;
                 case "quit":
                 case "exit":
@@ -218,6 +226,50 @@ public final class TerminalSession {
                     "Automatic registration: "
                             + result.outcome().name());
         }
+    }
+
+    private void logging(
+            String[] arguments,
+            PrintWriter output) {
+        if (loggingLevelControl == null) {
+            output.println("Logging control unavailable.");
+            return;
+        }
+
+        if (arguments.length == 1) {
+            output.println("Log level: " + loggingLevelControl.level().name());
+            return;
+        }
+
+        if (arguments.length != 2) {
+            output.println("Usage: log [T|D|I|W|E]");
+            return;
+        }
+
+        LoggingLevel level;
+        switch (arguments[1].toUpperCase(Locale.ROOT)) {
+            case "T":
+                level = LoggingLevel.TRACE;
+                break;
+            case "D":
+                level = LoggingLevel.DEBUG;
+                break;
+            case "I":
+                level = LoggingLevel.INFO;
+                break;
+            case "W":
+                level = LoggingLevel.WARN;
+                break;
+            case "E":
+                level = LoggingLevel.ERROR;
+                break;
+            default:
+                output.println("Usage: log [T|D|I|W|E]");
+                return;
+        }
+
+        loggingLevelControl.setLevel(level);
+        output.println("Log level: " + level.name());
     }
 
     private void configuration(
@@ -466,6 +518,9 @@ public final class TerminalSession {
         output.println(
                 "  config                       "
                         + "Show current configuration");
+        output.println(
+                "  log [T|D|I|W|E]             "
+                        + "Show/set log level (TRACE/DEBUG/INFO/WARN/ERROR)");
         output.println(
                 "  config tag-processing set "
                         + "<field=value>...");

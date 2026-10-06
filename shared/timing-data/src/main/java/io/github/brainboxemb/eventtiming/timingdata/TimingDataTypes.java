@@ -13,18 +13,28 @@ public final class TimingDataTypes {
     /**
      * Stable configured software/source identity of one TimingNode.
      *
-     * <p>Within the TimingData API the shorter source name is sufficient; the
-     * IF-05 semantic meaning remains TimingNode identity and the JSON member
-     * remains {@code nodeId}.</p>
+     * <p>A TimingNodeId is exactly one character: {@code A} through {@code Z}
+     * or {@code 1} through {@code 9}. Within the TimingData API the shorter
+     * source name is sufficient; the IF-05 semantic meaning remains TimingNode
+     * identity and the JSON member remains {@code nodeId}.</p>
      */
     public static final class NodeId {
         private final String value;
 
         public NodeId(String value) {
-            if (value == null || value.trim().isEmpty()) {
-                throw new IllegalArgumentException("NodeId must not be blank");
+            String normalized = value == null ? null : value.trim();
+            if (normalized == null
+                    || normalized.length() != 1
+                    || !isTimingNodeIdCharacter(normalized.charAt(0))) {
+                throw new IllegalArgumentException(
+                        "TimingNodeId must be one character A-Z or 1-9");
             }
-            this.value = value.trim();
+            this.value = normalized;
+        }
+
+        private static boolean isTimingNodeIdCharacter(char value) {
+            return value >= 'A' && value <= 'Z'
+                    || value >= '1' && value <= '9';
         }
 
         public String value() {

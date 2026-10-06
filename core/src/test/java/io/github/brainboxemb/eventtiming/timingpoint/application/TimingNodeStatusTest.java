@@ -11,10 +11,10 @@ public class TimingNodeStatusTest {
     @Test
     public void exposesCurrentTimingNodeStatus() {
         TimingNodeStatus status = new TimingNodeStatus(
-                new NodeId("TN-01"),
+                new NodeId("A"),
                 TimingNodeTypes.State.CLOSED);
 
-        assertEquals("TN-01", status.timingNodeId().value());
+        assertEquals("A", status.timingNodeId().value());
         assertEquals(TimingNodeTypes.State.CLOSED, status.state());
     }
 

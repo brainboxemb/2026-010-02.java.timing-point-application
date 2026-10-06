@@ -22,12 +22,12 @@ public class LogBookTest {
 
     @Test
     public void nextSequenceFollowsCommittedStateWithoutConsumingIt() {
-        LogBook logBook = new LogBook(new NodeId("timing-node-01"));
+        LogBook logBook = new LogBook(new NodeId("A"));
 
         assertEquals(1L, logBook.nextSequence());
         assertEquals(1L, logBook.nextSequence());
 
-        logBook.add(data("timing-node-01", 1L, "1001"));
+        logBook.add(data("A", 1L, "1001"));
 
         assertEquals(2L, logBook.nextSequence());
         assertEquals(1, logBook.size());
@@ -35,10 +35,10 @@ public class LogBookTest {
 
     @Test
     public void rejectsSequenceGap() {
-        LogBook logBook = new LogBook(new NodeId("timing-node-01"));
+        LogBook logBook = new LogBook(new NodeId("A"));
 
         try {
-            logBook.add(data("timing-node-01", 2L, "1002"));
+            logBook.add(data("A", 2L, "1002"));
             fail("expected sequence validation");
         } catch (IllegalArgumentException expected) {
             assertEquals(0, logBook.size());
@@ -48,10 +48,10 @@ public class LogBookTest {
 
     @Test
     public void rejectsDataFromDifferentTimingNode() {
-        LogBook logBook = new LogBook(new NodeId("timing-node-01"));
+        LogBook logBook = new LogBook(new NodeId("A"));
 
         try {
-            logBook.add(data("timing-node-02", 1L, "1001"));
+            logBook.add(data("B", 1L, "1001"));
             fail("expected TimingNode validation");
         } catch (IllegalArgumentException expected) {
             assertEquals(0, logBook.size());
@@ -60,10 +60,10 @@ public class LogBookTest {
 
     @Test
     public void visitsBoundedRangesWithoutCreatingAReadList() {
-        LogBook logBook = new LogBook(new NodeId("timing-node-01"));
-        TimingData first = data("timing-node-01", 1L, "1001");
-        TimingData second = data("timing-node-01", 2L, "1002");
-        TimingData third = data("timing-node-01", 3L, "1003");
+        LogBook logBook = new LogBook(new NodeId("A"));
+        TimingData first = data("A", 1L, "1001");
+        TimingData second = data("A", 2L, "1002");
+        TimingData third = data("A", 3L, "1003");
         logBook.add(first);
         logBook.add(second);
         logBook.add(third);

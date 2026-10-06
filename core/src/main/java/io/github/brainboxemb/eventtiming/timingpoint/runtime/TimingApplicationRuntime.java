@@ -17,6 +17,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTi
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.DynamicConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevelControl;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.extension.ExtensionRegistry;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
@@ -111,6 +112,7 @@ public final class TimingApplicationRuntime {
                 Thread.currentThread()
                         .getContextClassLoader(),
                 null,
+                null,
                 null);
     }
 
@@ -131,6 +133,7 @@ public final class TimingApplicationRuntime {
                 PlatformEnvironment.system(),
                 extensionClassLoader,
                 null,
+                null,
                 null);
     }
 
@@ -147,6 +150,7 @@ public final class TimingApplicationRuntime {
                 platform,
                 Thread.currentThread()
                         .getContextClassLoader(),
+                null,
                 null,
                 null);
     }
@@ -165,15 +169,39 @@ public final class TimingApplicationRuntime {
                 PlatformEnvironment.system(),
                 Thread.currentThread()
                         .getContextClassLoader(),
+                null,
                 consoleInput,
                 consoleOutput);
     }
+
+    /**
+     * Constructs the normal executable composition with process console I/O and
+     * runtime log-level control for local/remote terminal commands.
+     */
+    public static TimingApplicationRuntime create(
+            BuildIdentity buildIdentity,
+            Config config,
+            LoggingLevelControl loggingLevelControl,
+            Reader consoleInput,
+            Writer consoleOutput) {
+        return createNormal(
+                buildIdentity,
+                config,
+                PlatformEnvironment.system(),
+                Thread.currentThread()
+                        .getContextClassLoader(),
+                loggingLevelControl,
+                consoleInput,
+                consoleOutput);
+    }
+
 
     private static TimingApplicationRuntime createNormal(
             BuildIdentity buildIdentity,
             Config config,
             PlatformEnvironment platform,
             ClassLoader extensionClassLoader,
+            LoggingLevelControl loggingLevelControl,
             Reader consoleInput,
             Writer consoleOutput) {
         if (platform == null) {
@@ -196,6 +224,7 @@ public final class TimingApplicationRuntime {
                         platform),
                 extensions,
                 platform,
+                loggingLevelControl,
                 consoleInput,
                 consoleOutput);
     }
@@ -221,6 +250,7 @@ public final class TimingApplicationRuntime {
                 timingDataProvider.createCodec(),
                 PlatformEnvironment.system(),
                 null,
+                null,
                 null);
     }
 
@@ -233,6 +263,7 @@ public final class TimingApplicationRuntime {
             AntennaSet antennaSet,
             ExtensionRegistry extensions,
             PlatformEnvironment platform,
+            LoggingLevelControl loggingLevelControl,
             Reader consoleInput,
             Writer consoleOutput) {
         if (config == null) {
@@ -268,6 +299,7 @@ public final class TimingApplicationRuntime {
                 timingDataProvider.createFactory(),
                 timingDataProvider.createCodec(),
                 platform,
+                loggingLevelControl,
                 consoleInput,
                 consoleOutput);
     }
@@ -283,6 +315,7 @@ public final class TimingApplicationRuntime {
             TimingDataFactory timingDataFactory,
             TimingDataCodec timingDataCodec,
             PlatformEnvironment platform,
+            LoggingLevelControl loggingLevelControl,
             Reader consoleInput,
             Writer consoleOutput) {
         requireCompositionInput(
@@ -363,6 +396,7 @@ public final class TimingApplicationRuntime {
                     new PresentationRuntime(
                             config.presentation(),
                             presentationGateway,
+                            loggingLevelControl,
                             shutdownSignal::request,
                             consoleInput,
                             consoleOutput);
@@ -552,11 +586,11 @@ public final class TimingApplicationRuntime {
         }
 
         LOG.warn(
-                "Windows development platform default selected simulated antenna ANT1; no physical RFID reader is in use");
+                "Windows development platform default selected simulated antenna 1; no physical RFID reader is in use");
 
         SimulatedAntenna antenna = new SimulatedAntenna();
         antennas.addPowered(
-                new AntennaId("ANT1"),
+                new AntennaId("1"),
                 antenna,
                 new SimulatedPowerDevice(antenna),
                 SIMULATED_ANTENNA_POWER_STABILIZATION);

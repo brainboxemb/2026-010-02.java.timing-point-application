@@ -110,7 +110,6 @@ public final class AntennaManager implements CooperativeTask {
         phase = Phase.START_SELF_TEST;
         failure = null;
         requestStateMachineRun();
-        LOG.info("AntennaManager activated with {} configured antenna(s)", antennaSet.size());
     }
 
     public boolean isBusy() {
@@ -202,7 +201,6 @@ public final class AntennaManager implements CooperativeTask {
                 inventoryEnabledSetting.markApplied(Boolean.FALSE);
                 phase = Phase.STOPPED;
                 state = State.INACTIVE;
-                LOG.info("AntennaManager deactivated");
             } else {
                 failure = shutdownFailure;
                 phase = Phase.STOPPED;
@@ -301,13 +299,13 @@ public final class AntennaManager implements CooperativeTask {
         phase = Phase.IDLE;
 
         if (result.successful() && antennaSet.allSelfTestsPassed()) {
-            LOG.info("AntennaManager self-test PASS");
+            LOG.info("Antenna startup self-test complete");
         } else {
             /*
              * Startup self-test is diagnostic. A failed result remains visible
              * per antenna but does not block a later inventory attempt.
              */
-            LOG.warn("AntennaManager self-test completed with one or more FAIL results");
+            LOG.warn("Antenna startup self-test complete with one or more FAIL results");
         }
 
         return TaskStep.again();

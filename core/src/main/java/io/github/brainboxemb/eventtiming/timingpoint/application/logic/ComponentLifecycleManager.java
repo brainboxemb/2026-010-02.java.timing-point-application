@@ -96,12 +96,12 @@ final class ComponentLifecycleManager {
         try {
             for (Component component : components) {
                 LOG.info(
-                        "Activating application component {}",
+                        "Activating {}",
                         component.name);
                 component.activate.run();
                 activatedCount++;
                 LOG.info(
-                        "Activated application component {}",
+                        "Activated  {}",
                         component.name);
             }
             state = State.ACTIVE;
@@ -140,11 +140,11 @@ final class ComponentLifecycleManager {
                     components.get(index);
             try {
                 LOG.info(
-                        "Deactivating application component {}",
+                        "Deactivating {}",
                         component.name);
                 component.deactivate.run();
                 LOG.info(
-                        "Deactivated application component {}",
+                        "Deactivated  {}",
                         component.name);
             } catch (RuntimeException ex) {
                 firstFailure =
@@ -167,7 +167,7 @@ final class ComponentLifecycleManager {
             int activatedCount,
             Throwable originalFailure) {
         LOG.warn(
-                "Application component activation failed after {} component(s); rolling back",
+                "Component activation failed after {} component(s); rolling back",
                 activatedCount,
                 originalFailure);
 
@@ -178,7 +178,7 @@ final class ComponentLifecycleManager {
                     components.get(index);
             try {
                 LOG.info(
-                        "Rolling back application component {}",
+                        "Rolling back {}",
                         component.name);
                 component.deactivate.run();
             } catch (RuntimeException ex) {
