@@ -25,6 +25,7 @@ final class SelfTestTask extends AbstractTask {
     private final List<ManagedAntenna> antennas;
     private final Event<AntennaTaskResult> completedEvent = new Event<AntennaTaskResult>();
 
+    private volatile AntennaTaskResult lastResult;
     private int antennaIndex;
     private Phase phase;
     private RuntimeException failure;
@@ -38,8 +39,17 @@ final class SelfTestTask extends AbstractTask {
         return completedEvent;
     }
 
+    /**
+     * Result of the most recently completed run, or null while no run has
+     * completed since the latest start.
+     */
+    AntennaTaskResult lastResult() {
+        return lastResult;
+    }
+
     @Override
     protected void resetForRun() {
+        lastResult = null;
         antennaIndex = 0;
         phase = Phase.POWER_ON;
         failure = null;
@@ -102,10 +112,11 @@ final class SelfTestTask extends AbstractTask {
     @Override
     protected void onRunCompleted(Throwable taskFailure) {
         Throwable effectiveFailure = taskFailure != null ? taskFailure : failure;
-        completedEvent.emit(
-                effectiveFailure == null
-                        ? AntennaTaskResult.success()
-                        : AntennaTaskResult.failed(effectiveFailure));
+        lastResult = effectiveFailure == null
+                ? AntennaTaskResult.success()
+                : AntennaTaskResult.failed(effectiveFailure);
+
+        completedEvent.emit(lastResult);
     }
 
     private TaskStep finish() {
