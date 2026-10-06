@@ -14,6 +14,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTyp
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaHealth;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaOperation;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.ManagerHealth;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
@@ -22,7 +26,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Presentation
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -54,6 +61,119 @@ public class TimingApplicationRuntimeTest {
             assertEquals(
                     "configured-node",
                     application.presentationGateway().timingNode().status().timingNodeId().value());
+        } finally {
+            application.deactivate();
+        }
+    }
+
+    @Test
+    public void windowsNormalStartupComposesSimulatedAntennaManager()
+            throws Exception {
+        Path file =
+                temporaryFolder
+                        .getRoot()
+                        .toPath()
+                        .resolve(
+                                "windows-default-antenna.jsonl");
+        PlatformEnvironment windows =
+                new PlatformEnvironment(
+                        Clock.fixed(
+                                Instant.parse(
+                                        "2026-10-06T10:00:00Z"),
+                                ZoneOffset.UTC),
+                        System::nanoTime,
+                        PlatformEnvironment.OperatingSystem.WINDOWS);
+
+        TimingApplicationRuntime application =
+                TimingApplicationRuntime.create(
+                        identity(),
+                        config(file),
+                        windows);
+
+        assertTrue(
+                "Windows normal composition should include AntennaManager",
+                application.antennaManager() != null);
+
+        application.activate();
+        try {
+            assertEquals(
+                    ManagerHealth.HEALTHY,
+                    application.antennaManager()
+                            .health());
+            assertEquals(
+                    AntennaHealth.HEALTHY,
+                    application.antennaManager()
+                            .status(
+                                    new AntennaId("ANT1"))
+                            .health());
+            assertEquals(
+                    AntennaOperation.INACTIVE,
+                    application.antennaManager()
+                            .status(
+                                    new AntennaId("ANT1"))
+                            .operation());
+
+            application.timingNode().invoke(
+                    TimingNodeCommands.open(
+                            new LocationId(24)));
+
+            await(
+                    () -> application
+                            .antennaManager()
+                            .status(
+                                    new AntennaId("ANT1"))
+                            .operation()
+                            == AntennaOperation.INVENTORY,
+                    1000L);
+
+            application.timingNode().invoke(
+                    TimingNodeCommands.close());
+
+            await(
+                    () -> application
+                            .antennaManager()
+                            .status(
+                                    new AntennaId("ANT1"))
+                            .operation()
+                            == AntennaOperation.INACTIVE,
+                    1000L);
+        } finally {
+            application.deactivate();
+        }
+    }
+
+    @Test
+    public void nonWindowsNormalStartupDoesNotInventAntennaManager() {
+        Path file =
+                temporaryFolder
+                        .getRoot()
+                        .toPath()
+                        .resolve(
+                                "linux-no-antenna.jsonl");
+        PlatformEnvironment linux =
+                new PlatformEnvironment(
+                        Clock.fixed(
+                                Instant.parse(
+                                        "2026-10-06T10:00:00Z"),
+                                ZoneOffset.UTC),
+                        System::nanoTime,
+                        PlatformEnvironment.OperatingSystem.LINUX);
+
+        TimingApplicationRuntime application =
+                TimingApplicationRuntime.create(
+                        identity(),
+                        config(file),
+                        linux);
+
+        assertTrue(
+                "non-Windows no-config composition should omit AntennaManager",
+                application.antennaManager() == null);
+
+        application.activate();
+        try {
+            assertEquals(
+                    TimingApplicationRuntime.State.ACTIVE,
+                    application.state());
         } finally {
             application.deactivate();
         }
