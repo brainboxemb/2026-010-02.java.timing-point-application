@@ -37,7 +37,6 @@ public final class AntennaTasks {
 
         void shutdownProvider();
 
-        boolean inInventoryGroup();
 
         boolean availableForInventory();
 
