@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevelControl;
 import io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api.HttpEndpoint;
 import io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api.WebSocketEndpoint;
 import io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.console.LocalConsole;
@@ -35,6 +36,7 @@ final class PresentationRuntime {
     PresentationRuntime(
             Presentation configuration,
             PresentationGateway gateway,
+            LoggingLevelControl loggingLevelControl,
             Runnable shutdownRequest,
             Reader consoleInput,
             Writer consoleOutput) {
@@ -110,6 +112,7 @@ final class PresentationRuntime {
                                 shellConfig.bindAddress(),
                                 shellConfig.port(),
                                 gateway,
+                                loggingLevelControl,
                                 shutdownRequest);
 
         localConsole =
@@ -117,6 +120,7 @@ final class PresentationRuntime {
                         ? null
                         : new LocalConsole(
                                 gateway,
+                                loggingLevelControl,
                                 shutdownRequest,
                                 consoleInput,
                                 consoleOutput);
