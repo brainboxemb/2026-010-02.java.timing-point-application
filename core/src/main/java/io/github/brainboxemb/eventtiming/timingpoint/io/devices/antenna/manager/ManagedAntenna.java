@@ -76,13 +76,15 @@ final class ManagedAntenna implements AntennaTasks.AntennaTarget {
         return selfTestPassed;
     }
 
-    boolean availableForInventory() {
+    @Override
+    public boolean availableForInventory() {
         return selfTestPassed
                 && failure == null
                 && operation != AntennaOperation.SHUTDOWN;
     }
 
-    boolean inventoryRunning() {
+    @Override
+    public boolean inventoryRunning() {
         return operation == AntennaOperation.INVENTORY;
     }
 
