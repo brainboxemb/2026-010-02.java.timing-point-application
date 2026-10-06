@@ -41,6 +41,19 @@ public final class RemoteShellServer implements AutoCloseable {
             String bindAddress,
             int port,
             PresentationGateway presentationGateway,
+            Runnable shutdown) {
+        this(
+                bindAddress,
+                port,
+                presentationGateway,
+                null,
+                shutdown);
+    }
+
+    public RemoteShellServer(
+            String bindAddress,
+            int port,
+            PresentationGateway presentationGateway,
             LoggingLevelControl loggingLevelControl,
             Runnable shutdown) {
         if (bindAddress == null || bindAddress.trim().isEmpty()) {
