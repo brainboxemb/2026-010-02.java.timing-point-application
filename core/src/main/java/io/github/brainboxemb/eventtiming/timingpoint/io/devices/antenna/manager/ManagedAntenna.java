@@ -6,6 +6,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObser
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaOperation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.task.AntennaTasks;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.Antenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.power.PowerDevice;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
@@ -14,48 +15,58 @@ import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Runtime state and direct device operations for one configured antenna. */
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+
+/**
+ * Runtime state for one antenna owned by {@link AntennaManager}.
+ *
+ * <p>This class does not schedule work. Tasks call its direct device operations;
+ * it records the resulting self-test, operation and failure state used by the
+ * manager status API.</p>
+ */
 final class ManagedAntenna implements AntennaTasks.AntennaTarget {
     private static final Logger LOG = LoggerFactory.getLogger(ManagedAntenna.class);
 
-    private final AntennaInstallation installation;
+    private final AntennaId antennaId;
+    private final Antenna antenna;
+    private final PowerDevice powerDevice;
+    private final Duration powerStabilization;
 
     private boolean selfTestPassed;
     private AntennaOperation operation = AntennaOperation.INACTIVE;
     private Throwable failure;
     private boolean externalPowerApplied;
 
-    ManagedAntenna(AntennaInstallation installation) {
-        if (installation == null) {
-            throw new IllegalArgumentException("installation must not be null");
-        }
-        this.installation = installation;
+    ManagedAntenna(
+            AntennaId antennaId,
+            Antenna antenna,
+            PowerDevice powerDevice,
+            Duration powerStabilization) {
+        this.antennaId = antennaId;
+        this.antenna = antenna;
+        this.powerDevice = powerDevice;
+        this.powerStabilization = powerStabilization;
     }
 
     AntennaId antennaId() {
-        return installation.antennaId();
-    }
-
-    boolean inInventoryGroup() {
-        return installation.inInventoryGroup();
-    }
-
-    Duration inventoryInterval() {
-        return installation.inventoryInterval();
+        return antennaId;
     }
 
     EventSource<TagObservation> tagObservedEvent() {
-        return installation.antenna().tagObservedEvent();
+        return antenna.tagObservedEvent();
     }
 
     AntennaStatus status() {
-        return new AntennaStatus(antennaId(), selfTestPassed, operation, failure);
+        return new AntennaStatus(antennaId, selfTestPassed, operation, failure);
     }
 
     boolean selfTestPassed() {
         return selfTestPassed;
     }
 
+    /**
+     * Starts a new self-test result window before the task touches hardware.
+     */
     @Override
     public void beginSelfTest() {
         selfTestPassed = false;
@@ -75,15 +86,14 @@ final class ManagedAntenna implements AntennaTasks.AntennaTarget {
 
     @Override
     public void powerOn() {
-        PowerDevice power = installation.powerDevice();
-        if (power == null || externalPowerApplied) {
+        if (powerDevice == null || externalPowerApplied) {
             return;
         }
 
         try {
-            power.powerOn();
+            powerDevice.powerOn();
             externalPowerApplied = true;
-            LOG.debug("Antenna {} external power enabled", antennaId());
+            LOG.debug("Antenna {} external power enabled", antennaId);
         } catch (RuntimeException ex) {
             recordFailure(ex);
             throw ex;
@@ -92,12 +102,10 @@ final class ManagedAntenna implements AntennaTasks.AntennaTarget {
 
     @Override
     public void powerOff() {
-        PowerDevice power = installation.powerDevice();
-
         try {
-            if (power != null && externalPowerApplied) {
-                power.powerOff();
-                LOG.debug("Antenna {} external power disabled", antennaId());
+            if (powerDevice != null && externalPowerApplied) {
+                powerDevice.powerOff();
+                LOG.debug("Antenna {} external power disabled", antennaId);
             }
         } catch (RuntimeException ex) {
             recordFailure(ex);
@@ -112,45 +120,46 @@ final class ManagedAntenna implements AntennaTasks.AntennaTarget {
 
     @Override
     public Duration powerStabilization() {
-        return installation.powerStabilization();
+        return powerStabilization;
     }
 
     @Override
     public AntennaInfo selfTest() {
         try {
-            AntennaInfo info = installation.antenna().selfTest();
+            AntennaInfo info = antenna.selfTest();
             selfTestPassed = true;
-            LOG.info("Antenna {} self-test PASS", antennaId());
+            LOG.info("Antenna {} self-test PASS", antennaId);
             return info;
         } catch (RuntimeException ex) {
             selfTestPassed = false;
             recordFailure(ex);
-            LOG.warn("Antenna {} self-test FAIL", antennaId(), ex);
+            LOG.warn("Antenna {} self-test FAIL", antennaId, ex);
             throw ex;
         }
     }
 
+    /**
+     * Marks the start of the prepare sequence owned by {@code InventoryTask}.
+     */
     @Override
     public void beginInventoryPreparation() {
-        if (!availableForInventory()
-                || operation == AntennaOperation.INVENTORY
-                || operation == AntennaOperation.READY
-                || operation == AntennaOperation.PREPARING) {
-            throw new IllegalStateException("Antenna " + antennaId() + " cannot prepare inventory from " + operation);
-        }
+        checkState(availableForInventory(), "Antenna %s is not available for inventory", antennaId);
+        checkState(operation != AntennaOperation.INVENTORY, "Antenna %s is already inventorying", antennaId);
+        checkState(operation != AntennaOperation.READY, "Antenna %s is already prepared", antennaId);
+        checkState(operation != AntennaOperation.PREPARING, "Antenna %s is already preparing", antennaId);
         operation = AntennaOperation.PREPARING;
     }
 
     @Override
     public void initialize() {
-        if (!availableForInventory() || operation != AntennaOperation.PREPARING) {
-            throw new IllegalStateException("Antenna " + antennaId() + " cannot initialize from " + operation);
-        }
+        checkState(availableForInventory(), "Antenna %s is not available for initialization", antennaId);
+        checkState(operation == AntennaOperation.PREPARING,
+                "Antenna %s cannot initialize from %s", antennaId, operation);
 
         try {
-            installation.antenna().initialize();
+            antenna.initialize();
             operation = AntennaOperation.READY;
-            LOG.debug("Antenna {} prepared for inventory", antennaId());
+            LOG.debug("Antenna {} prepared for inventory", antennaId);
         } catch (RuntimeException ex) {
             operation = AntennaOperation.INACTIVE;
             recordFailure(ex);
@@ -163,14 +172,15 @@ final class ManagedAntenna implements AntennaTasks.AntennaTarget {
         if (operation == AntennaOperation.INVENTORY) {
             return;
         }
-        if (!availableForInventory() || operation != AntennaOperation.READY) {
-            throw new IllegalStateException("Antenna " + antennaId() + " cannot start inventory from " + operation);
-        }
+
+        checkState(availableForInventory(), "Antenna %s is not available for inventory", antennaId);
+        checkState(operation == AntennaOperation.READY,
+                "Antenna %s cannot start inventory from %s", antennaId, operation);
 
         try {
-            installation.antenna().startInventory();
+            antenna.startInventory();
             operation = AntennaOperation.INVENTORY;
-            LOG.info("Antenna {} inventory started", antennaId());
+            LOG.info("Antenna {} inventory started", antennaId);
         } catch (RuntimeException ex) {
             recordFailure(ex);
             throw ex;
@@ -184,9 +194,9 @@ final class ManagedAntenna implements AntennaTasks.AntennaTarget {
         }
 
         try {
-            installation.antenna().stopInventory();
+            antenna.stopInventory();
             operation = AntennaOperation.READY;
-            LOG.info("Antenna {} inventory stopped", antennaId());
+            LOG.info("Antenna {} inventory stopped", antennaId);
         } catch (RuntimeException ex) {
             recordFailure(ex);
             throw ex;
@@ -196,7 +206,7 @@ final class ManagedAntenna implements AntennaTasks.AntennaTarget {
     @Override
     public void shutdownProvider() {
         try {
-            installation.antenna().shutdown();
+            antenna.shutdown();
         } catch (RuntimeException ex) {
             recordFailure(ex);
             throw ex;
