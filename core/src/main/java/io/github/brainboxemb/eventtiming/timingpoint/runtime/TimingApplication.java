@@ -63,8 +63,6 @@ public final class TimingApplication {
     private final TimingNode timingNode;
     private final ApplicationConfiguration configuration;
     private final PresentationGateway presentationGateway;
-    private final Conductor conductor;
-    private final AntennaManager antennaManager;
     private final RuntimeExecutors runtimeExecutors;
     private final ActivationManager activationManager;
     private final ShutdownSignal shutdownSignal;
@@ -76,8 +74,6 @@ public final class TimingApplication {
             TimingNode timingNode,
             ApplicationConfiguration configuration,
             PresentationGateway presentationGateway,
-            Conductor conductor,
-            AntennaManager antennaManager,
             RuntimeExecutors runtimeExecutors,
             ActivationManager activationManager,
             ShutdownSignal shutdownSignal) {
@@ -85,8 +81,6 @@ public final class TimingApplication {
         this.timingNode = timingNode;
         this.configuration = configuration;
         this.presentationGateway = presentationGateway;
-        this.conductor = conductor;
-        this.antennaManager = antennaManager;
         this.runtimeExecutors = runtimeExecutors;
         this.activationManager = activationManager;
         this.shutdownSignal = shutdownSignal;
@@ -318,14 +312,12 @@ public final class TimingApplication {
                     timingNode,
                     applicationConfiguration,
                     presentationGateway,
-                    conductor,
-                    antennaManager,
                     executors,
                     activation,
                     shutdownSignal);
-        } catch (RuntimeException ex) {
+        } catch (RuntimeException | Error failure) {
             executors.close();
-            throw ex;
+            throw failure;
         }
     }
 
@@ -346,16 +338,20 @@ public final class TimingApplication {
             runtimeExecutors.start();
             activationManager.activateAll();
             state = State.ACTIVE;
-        } catch (RuntimeException ex) {
+        } catch (RuntimeException | Error failure) {
             try {
                 activationManager.deactivateAll();
-            } catch (RuntimeException deactivateFailure) {
-                ex.addSuppressed(deactivateFailure);
+            } catch (RuntimeException | Error deactivateFailure) {
+                failure.addSuppressed(deactivateFailure);
             }
-            runtimeExecutors.close();
+            try {
+                runtimeExecutors.close();
+            } catch (RuntimeException | Error closeFailure) {
+                failure.addSuppressed(closeFailure);
+            }
             state = State.INACTIVE;
             notifyAll();
-            throw ex;
+            throw failure;
         }
     }
 
