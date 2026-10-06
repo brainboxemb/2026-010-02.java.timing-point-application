@@ -317,6 +317,64 @@ public class TimingApplicationRuntimeTest {
                         TimingApplicationRuntime.State.INACTIVE));
     }
 
+    @Test
+    public void createRejectsUnknownEventDataProvider() {
+        Path file =
+                temporaryFolder
+                        .getRoot()
+                        .toPath()
+                        .resolve(
+                                "unknown-event-provider.jsonl");
+        Config config =
+                config(
+                        file,
+                        TagProcessingPolicy.defaults(),
+                        "missing-event",
+                        "reference");
+
+        try {
+            TimingApplicationRuntime.create(
+                    identity(),
+                    config,
+                    getClass().getClassLoader());
+            fail("expected unknown EventDataProvider rejection");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(
+                    expected.getMessage()
+                            .contains(
+                                    "Unknown EventDataProvider id missing-event"));
+        }
+    }
+
+    @Test
+    public void createRejectsUnknownTimingDataProvider() {
+        Path file =
+                temporaryFolder
+                        .getRoot()
+                        .toPath()
+                        .resolve(
+                                "unknown-timing-provider.jsonl");
+        Config config =
+                config(
+                        file,
+                        TagProcessingPolicy.defaults(),
+                        "reference",
+                        "missing-timing");
+
+        try {
+            TimingApplicationRuntime.create(
+                    identity(),
+                    config,
+                    getClass().getClassLoader());
+            fail("expected unknown TimingDataProvider rejection");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(
+                    expected.getMessage()
+                            .contains(
+                                    "Unknown TimingDataProvider id missing-timing"));
+        }
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void createRejectsMissingBuildIdentity() {
         TimingApplicationRuntime.create(
@@ -351,6 +409,22 @@ public class TimingApplicationRuntimeTest {
                 null,
                 timingDataPath,
                 tagProcessingPolicy);
+    }
+
+    private static Config config(
+            Path timingDataPath,
+            TagProcessingPolicy tagProcessingPolicy,
+            String eventDataProviderId,
+            String timingDataProviderId) {
+        return new Config(
+                new NodeId("configured-node"),
+                new Presentation(null, null),
+                null,
+                null,
+                timingDataPath,
+                tagProcessingPolicy,
+                eventDataProviderId,
+                timingDataProviderId);
     }
 
     private static EventData eventData(

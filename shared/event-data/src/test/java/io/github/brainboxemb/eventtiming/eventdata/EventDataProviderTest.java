@@ -10,10 +10,13 @@ import static org.junit.Assert.assertTrue;
 public class EventDataProviderTest {
 
     @Test
-    public void defaultProviderHasStableIdAndCreatesEmptyProfile() {
+    public void referenceProviderHasStableIdAndCreatesEmptyProfile() {
         EventDataProvider provider =
                 new DefaultEventDataProvider();
 
+        assertEquals(
+                "reference",
+                provider.id());
         assertEquals(
                 DefaultEventDataProvider.ID,
                 provider.id());

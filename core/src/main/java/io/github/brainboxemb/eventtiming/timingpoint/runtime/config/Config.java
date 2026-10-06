@@ -9,12 +9,17 @@ import java.nio.file.Path;
 
 /** Effective configuration consumed by the runtime composition. */
 public final class Config {
+    /** Built-in IF-11 provider selection used when deployment does not override it. */
+    public static final String REFERENCE_PROVIDER_ID = "reference";
+
     private final NodeId timingNodeId;
     private final Presentation presentation;
     private final LoggingConfig logging;
     private final LoggingServerConfig loggingServer;
     private final Path timingDataPath;
     private final TagProcessingPolicy tagProcessingPolicy;
+    private final String eventDataProviderId;
+    private final String timingDataProviderId;
 
     public Config(NodeId timingNodeId, Presentation presentation) {
         this(
@@ -23,7 +28,9 @@ public final class Config {
                 null,
                 null,
                 null,
-                TagProcessingPolicy.defaults());
+                TagProcessingPolicy.defaults(),
+                REFERENCE_PROVIDER_ID,
+                REFERENCE_PROVIDER_ID);
     }
 
     public Config(
@@ -36,7 +43,9 @@ public final class Config {
                 logging,
                 null,
                 null,
-                TagProcessingPolicy.defaults());
+                TagProcessingPolicy.defaults(),
+                REFERENCE_PROVIDER_ID,
+                REFERENCE_PROVIDER_ID);
     }
 
     public Config(
@@ -50,7 +59,9 @@ public final class Config {
                 logging,
                 loggingServer,
                 null,
-                TagProcessingPolicy.defaults());
+                TagProcessingPolicy.defaults(),
+                REFERENCE_PROVIDER_ID,
+                REFERENCE_PROVIDER_ID);
     }
 
     public Config(
@@ -65,7 +76,9 @@ public final class Config {
                 logging,
                 loggingServer,
                 timingDataPath,
-                TagProcessingPolicy.defaults());
+                TagProcessingPolicy.defaults(),
+                REFERENCE_PROVIDER_ID,
+                REFERENCE_PROVIDER_ID);
     }
 
     public Config(
@@ -75,25 +88,58 @@ public final class Config {
             LoggingServerConfig loggingServer,
             Path timingDataPath,
             TagProcessingPolicy tagProcessingPolicy) {
+        this(
+                timingNodeId,
+                presentation,
+                logging,
+                loggingServer,
+                timingDataPath,
+                tagProcessingPolicy,
+                REFERENCE_PROVIDER_ID,
+                REFERENCE_PROVIDER_ID);
+    }
+
+    public Config(
+            NodeId timingNodeId,
+            Presentation presentation,
+            LoggingConfig logging,
+            LoggingServerConfig loggingServer,
+            Path timingDataPath,
+            TagProcessingPolicy tagProcessingPolicy,
+            String eventDataProviderId,
+            String timingDataProviderId) {
         if (timingNodeId == null) {
-            throw new IllegalArgumentException("timingNodeId must not be null");
+            throw new IllegalArgumentException(
+                    "timingNodeId must not be null");
         }
         if (presentation == null) {
-            throw new IllegalArgumentException("presentation must not be null");
+            throw new IllegalArgumentException(
+                    "presentation must not be null");
         }
-        if (timingDataPath != null && timingDataPath.toString().trim().isEmpty()) {
-            throw new IllegalArgumentException("timingDataPath must not be empty");
+        if (timingDataPath != null
+                && timingDataPath.toString().trim().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "timingDataPath must not be empty");
         }
         if (tagProcessingPolicy == null) {
             throw new IllegalArgumentException(
                     "tagProcessingPolicy must not be null");
         }
+
         this.timingNodeId = timingNodeId;
         this.presentation = presentation;
         this.logging = logging;
         this.loggingServer = loggingServer;
         this.timingDataPath = timingDataPath;
         this.tagProcessingPolicy = tagProcessingPolicy;
+        this.eventDataProviderId =
+                requireProviderId(
+                        eventDataProviderId,
+                        "eventDataProviderId");
+        this.timingDataProviderId =
+                requireProviderId(
+                        timingDataProviderId,
+                        "timingDataProviderId");
     }
 
     public NodeId timingNodeId() {
@@ -118,5 +164,24 @@ public final class Config {
 
     public TagProcessingPolicy tagProcessingPolicy() {
         return tagProcessingPolicy;
+    }
+
+    public String eventDataProviderId() {
+        return eventDataProviderId;
+    }
+
+    public String timingDataProviderId() {
+        return timingDataProviderId;
+    }
+
+    private static String requireProviderId(
+            String value,
+            String field) {
+        if (value == null
+                || value.trim().isEmpty()) {
+            throw new IllegalArgumentException(
+                    field + " must not be blank");
+        }
+        return value.trim();
     }
 }

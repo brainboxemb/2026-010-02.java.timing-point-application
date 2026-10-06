@@ -1,29 +1,32 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
+import io.github.brainboxemb.eventtiming.eventdata.EventData;
+import io.github.brainboxemb.eventtiming.eventdata.EventDataProvider;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.Conductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
-import io.github.brainboxemb.eventtiming.eventdata.EventData;
-import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventDataProvider;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.DynamicConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.extension.ExtensionRegistry;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
-import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
-import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment.OperatingSystem;
+import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
+import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
 
 import java.io.Reader;
 import java.io.Writer;
@@ -41,20 +44,9 @@ import org.slf4j.LoggerFactory;
  * One completely composed SI-01 timing application.
  *
  * <p>This is the visible composition root and owner of process-level Runtime
- * resources. {@link #create(BuildIdentity, Config)} constructs and wires the
- * graph without starting physical application workers. Conductor owns lifecycle
- * coordination of the application components; Runtime owns shared workers and
- * the outer Presentation lifecycle.</p>
- *
- * <p>The production path is deliberately readable in one place:</p>
- *
- * <pre>
- * configuration
- *   -> runtime resources
- *   -> Domain / I/O / Application objects
- *   -> explicit event wiring
- *   -> TimingApplicationRuntime
- * </pre>
+ * resources. Provider discovery is resolved before normal object composition;
+ * Conductor then owns lifecycle coordination of the composed application
+ * components. Runtime owns shared workers and the outer Presentation lifecycle.</p>
  */
 public final class TimingApplicationRuntime {
     private static final Logger LOG =
@@ -103,9 +95,8 @@ public final class TimingApplicationRuntime {
     }
 
     /**
-     * Constructs and wires the normal configured application.
-     *
-     * <p>No physical application worker is started by this method.</p>
+     * Constructs the normal application using the current platform and context
+     * ClassLoader for typed extension discovery.
      */
     public static TimingApplicationRuntime create(
             BuildIdentity buildIdentity,
@@ -114,6 +105,28 @@ public final class TimingApplicationRuntime {
                 buildIdentity,
                 config,
                 PlatformEnvironment.system(),
+                Thread.currentThread()
+                        .getContextClassLoader(),
+                null,
+                null);
+    }
+
+    /**
+     * Constructs the application using one explicit extension ClassLoader.
+     *
+     * <p>The caller owns the ClassLoader lifecycle. This seam allows a dedicated
+     * URLClassLoader over external provider JARs without making Runtime own a
+     * filesystem extension directory.</p>
+     */
+    public static TimingApplicationRuntime create(
+            BuildIdentity buildIdentity,
+            Config config,
+            ClassLoader extensionClassLoader) {
+        return createNormal(
+                buildIdentity,
+                config,
+                PlatformEnvironment.system(),
+                extensionClassLoader,
                 null,
                 null);
     }
@@ -129,15 +142,14 @@ public final class TimingApplicationRuntime {
                 buildIdentity,
                 config,
                 platform,
+                Thread.currentThread()
+                        .getContextClassLoader(),
                 null,
                 null);
     }
 
     /**
      * Constructs the normal executable composition with process console I/O.
-     *
-     * <p>Main supplies process streams only; concrete Presentation adapters stay
-     * owned by Runtime composition.</p>
      */
     public static TimingApplicationRuntime create(
             BuildIdentity buildIdentity,
@@ -148,6 +160,8 @@ public final class TimingApplicationRuntime {
                 buildIdentity,
                 config,
                 PlatformEnvironment.system(),
+                Thread.currentThread()
+                        .getContextClassLoader(),
                 consoleInput,
                 consoleOutput);
     }
@@ -156,48 +170,115 @@ public final class TimingApplicationRuntime {
             BuildIdentity buildIdentity,
             Config config,
             PlatformEnvironment platform,
+            ClassLoader extensionClassLoader,
             Reader consoleInput,
             Writer consoleOutput) {
         if (platform == null) {
             throw new IllegalArgumentException(
                     "platform must not be null");
         }
+        if (extensionClassLoader == null) {
+            throw new IllegalArgumentException(
+                    "extensionClassLoader must not be null");
+        }
 
-        return create(
+        ExtensionRegistry extensions =
+                ExtensionRegistry.discover(
+                        extensionClassLoader);
+
+        return createConfigured(
                 buildIdentity,
                 config,
                 platformDefaultAntennaInstallations(
                         platform),
-                defaultEventData(),
+                extensions,
                 platform,
                 consoleInput,
                 consoleOutput);
     }
 
     /**
-     * Package-local simulation seam that keeps EventData injection out of the
-     * public TimingApplicationRuntime API while reusing this exact composition path.
+     * Package-local simulation seam that keeps explicit EventData injection out
+     * of the public Runtime API while reusing the same resolved composition.
      */
     static TimingApplicationRuntime createSimulation(
             BuildIdentity buildIdentity,
             Config config,
             List<AntennaInstallation> antennaInstallations,
             EventData eventData) {
-        return create(
+        TimingDataProvider timingDataProvider =
+                new DefaultTimingDataProvider();
+
+        return createResolved(
                 buildIdentity,
                 config,
                 antennaInstallations,
                 eventData,
+                timingDataProvider.createFactory(),
+                timingDataProvider.createCodec(),
                 PlatformEnvironment.system(),
                 null,
                 null);
     }
 
-    private static TimingApplicationRuntime create(
+    /**
+     * Resolves configured provider IDs before normal application composition.
+     */
+    private static TimingApplicationRuntime createConfigured(
+            BuildIdentity buildIdentity,
+            Config config,
+            List<AntennaInstallation> antennaInstallations,
+            ExtensionRegistry extensions,
+            PlatformEnvironment platform,
+            Reader consoleInput,
+            Writer consoleOutput) {
+        if (config == null) {
+            throw new IllegalArgumentException(
+                    "config must not be null");
+        }
+        if (extensions == null) {
+            throw new IllegalArgumentException(
+                    "extensions must not be null");
+        }
+
+        EventDataProvider eventDataProvider =
+                extensions.eventDataProvider(
+                        config.eventDataProviderId());
+        TimingDataProvider timingDataProvider =
+                extensions.timingDataProvider(
+                        config.timingDataProviderId());
+
+        LOG.info(
+                "Selected EventDataProvider id={} implementation={}",
+                eventDataProvider.id(),
+                eventDataProvider.getClass().getName());
+        LOG.info(
+                "Selected TimingDataProvider id={} implementation={}",
+                timingDataProvider.id(),
+                timingDataProvider.getClass().getName());
+
+        return createResolved(
+                buildIdentity,
+                config,
+                antennaInstallations,
+                eventDataProvider.createEventData(),
+                timingDataProvider.createFactory(),
+                timingDataProvider.createCodec(),
+                platform,
+                consoleInput,
+                consoleOutput);
+    }
+
+    /**
+     * Composes the application after all implementation selections are resolved.
+     */
+    private static TimingApplicationRuntime createResolved(
             BuildIdentity buildIdentity,
             Config config,
             List<AntennaInstallation> antennaInstallations,
             EventData eventData,
+            TimingDataFactory timingDataFactory,
+            TimingDataCodec timingDataCodec,
             PlatformEnvironment platform,
             Reader consoleInput,
             Writer consoleOutput) {
@@ -206,25 +287,19 @@ public final class TimingApplicationRuntime {
                 config,
                 antennaInstallations,
                 eventData,
+                timingDataFactory,
+                timingDataCodec,
                 platform);
 
         List<AntennaInstallation> installations =
                 copyInstallations(
                         antennaInstallations);
 
-        /*
-         * 1. Resolve runtime configuration against the supplied process/platform
-         *    environment. No component is active yet.
-         */
         ApplicationConfiguration applicationConfiguration =
                 ApplicationConfiguration.singleTimingNode(
                         config.timingNodeId(),
                         config.tagProcessingPolicy());
 
-        /*
-         * 2. Construct shared execution resources.
-         *    Construction does not start their physical workers.
-         */
         RuntimeExecutors executors =
                 new RuntimeExecutors();
 
@@ -232,21 +307,18 @@ public final class TimingApplicationRuntime {
             RuntimeExecutors.TimingNodeExecutors nodeExecutors =
                     executors.createTimingNodeExecutors();
 
-            /*
-             * 3. Construct Infrastructure and Domain objects.
-             */
             TimingDataPersistence persistence =
                     new DefaultTimingDataPersistence(
                             new FileAppendOnlyRecordStore(
                                     config.timingDataPath()),
                             config.timingNodeId(),
-                            new DefaultTimingDataCodec());
+                            timingDataCodec);
 
             TimingNode timingNode =
                     new TimingNode(
                             config.timingNodeId(),
                             persistence,
-                            new DefaultTimingDataFactory(),
+                            timingDataFactory,
                             () -> new TimingTimestamp(
                                     platform.clock().instant()),
                             applicationConfiguration
@@ -258,9 +330,6 @@ public final class TimingApplicationRuntime {
                             nodeExecutors.tagProcessor(),
                             platform.monotonicClock());
 
-            /*
-             * 4. Construct optional I/O.
-             */
             AntennaManager antennaManager = null;
             if (!installations.isEmpty()) {
                 antennaManager =
@@ -271,9 +340,6 @@ public final class TimingApplicationRuntime {
                                 ANTENNA_CONTROL_TIMEOUT);
             }
 
-            /*
-             * 5. Construct Application-facing coordination/presentation objects.
-             */
             Conductor conductor =
                     new Conductor(
                             timingNode,
@@ -303,7 +369,7 @@ public final class TimingApplicationRuntime {
                             consoleOutput);
 
             /*
-             * 6. Wire the object graph explicitly.
+             * Cross-component relationships stay visible at composition.
              */
             timingNode.statusChangedEvent()
                     .subscribe(
@@ -316,8 +382,7 @@ public final class TimingApplicationRuntime {
                         : installations) {
                     antennaManager
                             .tagObservedEvent(
-                                    installation
-                                            .antennaId())
+                                    installation.antennaId())
                             .subscribe(
                                     timingNode
                                             .tagProcessor()
@@ -325,13 +390,6 @@ public final class TimingApplicationRuntime {
                 }
             }
 
-            /*
-             * 7. Return the fully constructed and wired graph.
-             *
-             * Conductor owns TimingNode/AntennaManager lifecycle coordination.
-             * Runtime keeps Presentation outside that application-core lifecycle
-             * so external adapters start only after the coordinated core is ready.
-             */
             return new TimingApplicationRuntime(
                     buildIdentity,
                     timingNode,
@@ -350,10 +408,6 @@ public final class TimingApplicationRuntime {
 
     /**
      * Activates the already constructed and wired application.
-     *
-     * <p>Runtime starts the shared physical workers first. Conductor then
-     * activates and coordinates the application components. Presentation starts
-     * last, after the application core has established its current state.</p>
      */
     public synchronized void activate() {
         if (state != State.NEW) {
@@ -412,9 +466,6 @@ public final class TimingApplicationRuntime {
         return state;
     }
 
-    /**
-     * Waits until Presentation or the process requests normal application shutdown.
-     */
     public void awaitShutdownRequest()
             throws InterruptedException {
         shutdownSignal.awaitRequest();
@@ -427,8 +478,8 @@ public final class TimingApplicationRuntime {
     }
 
     /**
-     * Stops outer Presentation first, then lets Conductor deactivate the
-     * application components before Runtime closes the shared workers.
+     * Stops outer Presentation first, then Conductor/application components,
+     * then Runtime-owned physical workers.
      */
     public synchronized void deactivate() {
         shutdownSignal.request();
@@ -494,14 +545,9 @@ public final class TimingApplicationRuntime {
                 + state;
     }
 
-    private static EventData defaultEventData() {
-        return new DefaultEventDataProvider()
-                .createEventData();
-    }
-
     /**
-     * Temporary development fallback until IF-11 antenna configuration is
-     * composed by the normal runtime mapper.
+     * Temporary Windows development fallback until explicit IF-11 antenna
+     * configuration is composed by the normal runtime mapper.
      */
     private static List<AntennaInstallation> platformDefaultAntennaInstallations(
             PlatformEnvironment platform) {
@@ -563,6 +609,8 @@ public final class TimingApplicationRuntime {
             Config config,
             List<AntennaInstallation> antennaInstallations,
             EventData eventData,
+            TimingDataFactory timingDataFactory,
+            TimingDataCodec timingDataCodec,
             PlatformEnvironment platform) {
         if (buildIdentity == null) {
             throw new IllegalArgumentException(
@@ -583,6 +631,14 @@ public final class TimingApplicationRuntime {
         if (eventData == null) {
             throw new IllegalArgumentException(
                     "eventData must not be null");
+        }
+        if (timingDataFactory == null) {
+            throw new IllegalArgumentException(
+                    "timingDataFactory must not be null");
+        }
+        if (timingDataCodec == null) {
+            throw new IllegalArgumentException(
+                    "timingDataCodec must not be null");
         }
         if (platform == null) {
             throw new IllegalArgumentException(
