@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ConfigurationChange;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
@@ -21,7 +22,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Active tag-processing boundary between antenna observations and TimingNode.
  *
- * <p>The antenna callback only performs bounded queue ingress. Mapping,
+ * <p>The antenna callback only performs bounded queue ingress. EventData resolution,
  * accepted-registration duplicate suppression, passage state and TimingNode
  * admission run on one serial execution lane owned by this processor. Duplicate
  * suppression happens after tag-to-registration mapping and before passage
@@ -40,7 +41,7 @@ public final class TagProcessor {
     }
 
     private final TimingNode timingNode;
-    private final TagRegistrationMapper mapper;
+    private final EventData eventData;
     private final ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration;
     private final Consumer<ConfigurationChange<TagProcessingPolicy>>
             policyChangeListener;
@@ -57,7 +58,7 @@ public final class TagProcessor {
 
     public TagProcessor(
             TimingNode timingNode,
-            TagRegistrationMapper mapper,
+            EventData eventData,
             TagProcessingPolicy policy,
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
@@ -73,7 +74,7 @@ public final class TagProcessor {
 
     public TagProcessor(
             TimingNode timingNode,
-            TagRegistrationMapper mapper,
+            EventData eventData,
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
@@ -81,8 +82,8 @@ public final class TagProcessor {
         if (timingNode == null) {
             throw new IllegalArgumentException("timingNode must not be null");
         }
-        if (mapper == null) {
-            throw new IllegalArgumentException("mapper must not be null");
+        if (eventData == null) {
+            throw new IllegalArgumentException("eventData must not be null");
         }
         if (policyConfiguration == null) {
             throw new IllegalArgumentException(
@@ -105,7 +106,7 @@ public final class TagProcessor {
         }
 
         this.timingNode = timingNode;
-        this.mapper = mapper;
+        this.eventData = eventData;
         this.policyConfiguration = policyConfiguration;
         this.policyChangeListener = this::onPolicyChange;
         this.metrics = metrics;
@@ -236,7 +237,7 @@ public final class TagProcessor {
     }
 
     private void processObservation(TagObservation observation) {
-        RegistrationId registrationId = mapper.map(observation.tagId());
+        RegistrationId registrationId = eventData.registrationIdFor(observation.tagId());
         if (registrationId == null) {
             metrics.recordUnmapped();
             return;
