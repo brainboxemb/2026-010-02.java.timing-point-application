@@ -2,7 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager
 
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Antenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaPowerControl;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.power.PowerDevice;
 
 import java.time.Duration;
 
@@ -10,20 +10,20 @@ import java.time.Duration;
  * Immutable configuration of one antenna installation.
  *
  * <p>The configured {@link AntennaId} is visible outside the manager package.
- * The concrete {@link Antenna} and optional power switch stay package-private:
+ * The concrete {@link Antenna} and optional power device stays package-private:
  * AntennaManager owns those device objects after composition.</p>
  */
 public final class AntennaInstallation {
     private final AntennaId antennaId;
     private final Antenna antenna;
-    private final AntennaPowerControl powerControl;
+    private final PowerDevice powerDevice;
     private final Duration powerStabilization;
     private final Duration inventoryInterval;
 
     public AntennaInstallation(
             AntennaId antennaId,
             Antenna antenna,
-            AntennaPowerControl powerControl,
+            PowerDevice powerDevice,
             Duration powerStabilization,
             Duration inventoryInterval) {
         if (antennaId == null) {
@@ -39,10 +39,10 @@ public final class AntennaInstallation {
             throw new IllegalArgumentException(
                     "powerStabilization must not be negative");
         }
-        if (powerControl == null
+        if (powerDevice == null
                 && !powerStabilization.isZero()) {
             throw new IllegalArgumentException(
-                    "powerStabilization requires external power control");
+                    "powerStabilization requires a power device");
         }
         if (inventoryInterval != null
                 && (inventoryInterval.isZero()
@@ -53,7 +53,7 @@ public final class AntennaInstallation {
 
         this.antennaId = antennaId;
         this.antenna = antenna;
-        this.powerControl = powerControl;
+        this.powerDevice = powerDevice;
         this.powerStabilization = powerStabilization;
         this.inventoryInterval = inventoryInterval;
     }
@@ -72,12 +72,12 @@ public final class AntennaInstallation {
     public static AntennaInstallation powered(
             AntennaId antennaId,
             Antenna antenna,
-            AntennaPowerControl powerControl,
+            PowerDevice powerDevice,
             Duration powerStabilization) {
         return new AntennaInstallation(
                 antennaId,
                 antenna,
-                powerControl,
+                powerDevice,
                 powerStabilization,
                 null);
     }
@@ -90,7 +90,7 @@ public final class AntennaInstallation {
         return new AntennaInstallation(
                 antennaId,
                 antenna,
-                powerControl,
+                powerDevice,
                 powerStabilization,
                 interval);
     }
@@ -103,8 +103,8 @@ public final class AntennaInstallation {
         return antenna;
     }
 
-    AntennaPowerControl powerControl() {
-        return powerControl;
+    PowerDevice powerDevice() {
+        return powerDevice;
     }
 
     Duration powerStabilization() {
