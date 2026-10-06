@@ -61,7 +61,7 @@ public final class EventData {
                     tagId);
         }
 
-        registrationByTag =
+        this.registrationByTag =
                 Collections.unmodifiableMap(
                         byTag);
 
