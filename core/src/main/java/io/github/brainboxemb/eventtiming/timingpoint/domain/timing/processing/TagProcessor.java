@@ -54,7 +54,7 @@ public final class TagProcessor {
     private final Object lifecycleLock = new Object();
 
     private volatile State state = State.NEW;
-    private volatile SerialScheduledExecutor.ScheduledTask housekeepingTask;
+    private volatile SerialScheduledExecutor.ScheduledRegistration housekeepingTask;
     private volatile List<TagPassageSnapshot> passageSnapshots =
             Collections.emptyList();
 
@@ -352,7 +352,7 @@ public final class TagProcessor {
     }
 
     private void closeHousekeepingLocked() {
-        SerialScheduledExecutor.ScheduledTask task = housekeepingTask;
+        SerialScheduledExecutor.ScheduledRegistration task = housekeepingTask;
         housekeepingTask = null;
         if (task != null) {
             task.close();
