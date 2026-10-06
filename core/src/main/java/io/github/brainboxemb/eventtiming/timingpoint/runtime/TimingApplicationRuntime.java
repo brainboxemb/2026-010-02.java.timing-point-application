@@ -151,6 +151,7 @@ public final class TimingApplicationRuntime {
                 Thread.currentThread()
                         .getContextClassLoader(),
                 null,
+                null,
                 null);
     }
 
