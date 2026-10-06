@@ -2,12 +2,12 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager
 
 import io.github.brainboxemb.eventtiming.timingpoint.infra.setting.Setting;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaSelfTestResult;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.task.AntennaTasks;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
@@ -15,7 +15,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,27 +22,27 @@ import org.slf4j.LoggerFactory;
 /**
  * Public lifecycle, inventory-intent and status boundary for one antenna set.
  *
- * <p>The manager owns one requested/applied inventory setting and one reusable
- * task set. Multi-step device sequencing lives in the task state machines.</p>
+ * <p>The manager starts antenna self-tests and one reusable inventory task.
+ * Device sequencing remains inside antenna/task objects; completion returns as
+ * events or task completion on the manager serial lane.</p>
  */
 public final class AntennaManager {
     private static final Logger LOG =
             LoggerFactory.getLogger(AntennaManager.class);
 
-    private final ManagedAntennaSet antennaSet;
     private final ScheduledTaskRunner taskRunner;
-    private final AntennaTasks antennaTasks;
+    private final ManagedAntennaSet antennaSet;
     private final Setting<Boolean> inventoryEnabledSetting =
             new Setting<Boolean>(
                     Boolean.FALSE);
+    private final AntennaTasks antennaTasks;
 
     private volatile State state = State.NEW;
     private volatile Throwable failure;
-    private volatile boolean busy;
     private volatile boolean selfTestPassed;
+    private volatile int pendingSelfTests;
 
-    private CompletableFuture<Void> activeOperation;
-    private CompletableFuture<Void> switchingOperation;
+    private CompletableFuture<Void> inventoryOperation;
 
     public AntennaManager(
             List<AntennaInstallation> installations,
@@ -54,13 +53,14 @@ public final class AntennaManager {
                     "controlLane must not be null");
         }
 
-        antennaSet =
-                new ManagedAntennaSet(
-                        installations);
         taskRunner =
                 new ScheduledTaskRunner(
                         controlLane,
                         controlTimeout);
+        antennaSet =
+                new ManagedAntennaSet(
+                        installations,
+                        taskRunner);
         antennaTasks =
                 new AntennaTasks(
                         antennaSet.antennas(),
@@ -68,10 +68,18 @@ public final class AntennaManager {
                         antennaSet.hasInventoryGroup()
                                 ? antennaSet.inventoryInterval()
                                 : null,
-                        this::inventoryRequestedEnabled);
+                        inventoryEnabledSetting);
+
+        for (ManagedAntenna antenna : antennaSet.antennas()) {
+            antenna.selfTestCompletedEvent()
+                    .subscribe(
+                            result ->
+                                    taskRunner.execute(
+                                            () -> selfTestCompleted(
+                                                    result)));
+        }
     }
 
-    /** Activates control and starts the asynchronous startup self-test. */
     public void activate() {
         synchronized (this) {
             if (state != State.NEW) {
@@ -83,19 +91,30 @@ public final class AntennaManager {
 
         taskRunner.start();
         state = State.ACTIVE;
+        selfTestPassed = false;
+        pendingSelfTests = antennaSet.size();
 
         LOG.info(
                 "AntennaManager activated with {} configured antenna(s)",
                 antennaSet.size());
 
-        startOperation(
-                "self-test",
-                antennaTasks.selfTest(),
-                this::selfTestCompleted);
+        for (ManagedAntenna antenna : antennaSet.antennas()) {
+            if (!antenna.startSelfTest()) {
+                recordFailure(
+                        new IllegalStateException(
+                                "Antenna "
+                                        + antenna.antennaId()
+                                        + " rejected self-test start"));
+                pendingSelfTests--;
+            }
+        }
+
+        finishSelfTestRoundIfComplete();
     }
 
     public boolean isBusy() {
-        return busy;
+        return pendingSelfTests > 0
+                || inventoryEnabledSetting.changePending();
     }
 
     public boolean isReady() {
@@ -165,9 +184,8 @@ public final class AntennaManager {
 
         inventoryEnabledSetting.request(
                 Boolean.FALSE);
-        stopSwitching();
         cancel(
-                activeOperation);
+                inventoryOperation);
 
         RuntimeException shutdownFailure = null;
         try {
@@ -195,8 +213,8 @@ public final class AntennaManager {
             }
         }
 
-        busy = false;
-        activeOperation = null;
+        pendingSelfTests = 0;
+        inventoryOperation = null;
 
         if (shutdownFailure == null) {
             state = State.INACTIVE;
@@ -219,228 +237,106 @@ public final class AntennaManager {
                 Boolean.valueOf(
                         enabled));
 
-        boolean accepted = true;
-        if (inventoryEnabledSetting.changePending()) {
-            accepted =
-                    taskRunner.execute(
-                            this::reconcileInventory);
-
-            if (!accepted) {
-                recordFailure(
-                        new IllegalStateException(
-                                "AntennaManager control lane rejected inventory setting"));
-            }
+        boolean accepted =
+                taskRunner.execute(
+                        this::startInventoryTaskIfNeeded);
+        if (!accepted) {
+            recordFailure(
+                    new IllegalStateException(
+                            "AntennaManager control lane rejected inventory request"));
         }
-
         return accepted;
     }
 
     /**
-     * Reconciles the requested inventory setting with the applied device state.
+     * Starts the single inventory state machine when inventory intent is pending.
      *
-     * <p>This method runs on the manager serial lane and starts at most one
-     * inventory transition task. If startup self-test is not complete or a
-     * transition is already running, the Setting remains pending and a later
-     * completion/request invokes reconciliation again.</p>
+     * <p>If it is already running, the task reads the updated Setting on its
+     * next turn and changes direction itself.</p>
      */
-    private void reconcileInventory() {
+    private void startInventoryTaskIfNeeded() {
         if (state != State.ACTIVE
-                || busy
                 || !selfTestPassed
-                || !inventoryEnabledSetting.changePending()) {
+                || !inventoryEnabledSetting.changePending()
+                || inventoryTaskRunning()) {
             return;
         }
 
-        if (inventoryRequestedEnabled()) {
-            startOperation(
-                    "inventory enable",
-                    antennaTasks.enableInventory(),
-                    this::inventoryEnableCompleted);
-        } else {
-            stopSwitching();
-            startOperation(
-                    "inventory disable",
-                    antennaTasks.disableInventory(),
-                    this::inventoryDisableCompleted);
+        inventoryOperation =
+                taskRunner.runTask(
+                        antennaTasks.inventory());
+        CompletableFuture<Void> running =
+                inventoryOperation;
+
+        running.whenComplete(
+                (ignored, taskFailure) ->
+                        taskRunner.execute(
+                                () -> inventoryTaskCompleted(
+                                        running,
+                                        taskFailure)));
+    }
+
+    private void inventoryTaskCompleted(
+            CompletableFuture<Void> running,
+            Throwable taskFailure) {
+        if (inventoryOperation == running) {
+            inventoryOperation = null;
+        }
+
+        if (taskFailure != null
+                && !(taskFailure instanceof CancellationException)) {
+            recordFailure(
+                    taskFailure);
+            LOG.warn(
+                    "Antenna inventory task failed",
+                    taskFailure);
+        }
+
+        if (state == State.ACTIVE
+                && inventoryEnabledSetting.changePending()) {
+            startInventoryTaskIfNeeded();
         }
     }
 
     private void selfTestCompleted(
-            Throwable taskFailure) {
+            AntennaSelfTestResult result) {
         if (state != State.ACTIVE) {
             return;
         }
 
-        if (taskFailure == null) {
-            selfTestPassed =
-                    antennaSet.allSelfTestsPassed();
-
-            LOG.info(
-                    "AntennaManager self-test {}",
-                    selfTestPassed
-                            ? "PASS"
-                            : "FAIL");
-
-            if (selfTestPassed) {
-                reconcileInventory();
-            }
-        } else {
-            selfTestPassed = false;
+        if (!result.passed()) {
             recordFailure(
-                    taskFailure);
-            LOG.warn(
-                    "AntennaManager self-test FAIL",
-                    taskFailure);
+                    result.failure());
         }
+
+        if (pendingSelfTests > 0) {
+            pendingSelfTests--;
+        }
+        finishSelfTestRoundIfComplete();
     }
 
-    private void inventoryEnableCompleted(
-            Throwable taskFailure) {
-        if (state != State.ACTIVE) {
+    private void finishSelfTestRoundIfComplete() {
+        if (pendingSelfTests != 0) {
             return;
         }
 
-        if (taskFailure != null) {
-            recordFailure(
-                    taskFailure);
-            LOG.warn(
-                    "Antenna inventory enable failed",
-                    taskFailure);
+        selfTestPassed =
+                antennaSet.allSelfTestsPassed();
 
-            if (!inventoryRequestedEnabled()) {
-                startInventoryDisable();
-            }
-        } else if (!inventoryRequestedEnabled()) {
-            startInventoryDisable();
-        } else {
-            inventoryEnabledSetting.markApplied(
-                    Boolean.TRUE);
-            startSwitching();
-            LOG.info(
-                    "Antenna inventory enabled");
+        LOG.info(
+                "AntennaManager self-test {}",
+                selfTestPassed
+                        ? "PASS"
+                        : "FAIL");
 
-            if (inventoryEnabledSetting.changePending()) {
-                reconcileInventory();
-            }
+        if (selfTestPassed) {
+            startInventoryTaskIfNeeded();
         }
     }
 
-    private void inventoryDisableCompleted(
-            Throwable taskFailure) {
-        if (state != State.ACTIVE) {
-            return;
-        }
-
-        if (taskFailure != null) {
-            recordFailure(
-                    taskFailure);
-            LOG.warn(
-                    "Antenna inventory disable failed",
-                    taskFailure);
-        } else {
-            inventoryEnabledSetting.markApplied(
-                    Boolean.FALSE);
-            LOG.info(
-                    "Antenna inventory disabled");
-
-            if (inventoryEnabledSetting.changePending()) {
-                reconcileInventory();
-            }
-        }
-    }
-
-    private void startInventoryDisable() {
-        if (busy
-                || state != State.ACTIVE) {
-            return;
-        }
-
-        stopSwitching();
-        startOperation(
-                "inventory disable",
-                antennaTasks.disableInventory(),
-                this::inventoryDisableCompleted);
-    }
-
-    private void startSwitching() {
-        if (!antennaSet.hasInventoryGroup()) {
-            return;
-        }
-
-        stopSwitching();
-        switchingOperation =
-                taskRunner.runTask(
-                        antennaTasks.switchInventory());
-
-        switchingOperation.whenComplete(
-                (ignored, taskFailure) -> {
-                    if (taskFailure != null
-                            && !(taskFailure instanceof CancellationException)) {
-                        taskRunner.execute(
-                                () -> recordFailure(
-                                        taskFailure));
-                    }
-                });
-    }
-
-    private void stopSwitching() {
-        cancel(
-                switchingOperation);
-        switchingOperation = null;
-    }
-
-    private void startOperation(
-            String operation,
-            CooperativeTask task,
-            Consumer<Throwable> completed) {
-        busy = true;
-
-        final CompletableFuture<Void> running;
-        try {
-            running =
-                    taskRunner.runTask(
-                            task);
-            activeOperation =
-                    running;
-        } catch (RuntimeException ex) {
-            busy = false;
-            recordFailure(
-                    ex);
-            LOG.warn(
-                    "AntennaManager could not start {}",
-                    operation,
-                    ex);
-            return;
-        }
-
-        running.whenComplete(
-                (ignored, taskFailure) -> {
-                    boolean accepted =
-                            taskRunner.execute(
-                                    () -> {
-                                        if (activeOperation == running) {
-                                            activeOperation = null;
-                                        }
-                                        busy = false;
-                                        completed.accept(
-                                                taskFailure);
-                                    });
-
-                    if (!accepted) {
-                        busy = false;
-                        recordFailure(
-                                new IllegalStateException(
-                                        "AntennaManager control lane rejected "
-                                                + operation
-                                                + " completion",
-                                        taskFailure));
-                    }
-                });
-    }
-
-    private boolean inventoryRequestedEnabled() {
-        return Boolean.TRUE.equals(
-                inventoryEnabledSetting.requestedValue());
+    private boolean inventoryTaskRunning() {
+        return inventoryOperation != null
+                && !inventoryOperation.isDone();
     }
 
     private void recordFailure(
