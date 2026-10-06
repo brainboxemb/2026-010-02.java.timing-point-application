@@ -86,6 +86,25 @@ public class SimulatedAntennaTest {
     }
 
     @Test
+    public void shutdownAllowsAntennaToBeUsedAgain() {
+        SimulatedAntenna antenna = new SimulatedAntenna();
+
+        antenna.selfTest();
+        antenna.initialize();
+        antenna.startInventory();
+        antenna.shutdown();
+
+        assertFalse(antenna.inventoryRunning());
+
+        antenna.selfTest();
+        antenna.initialize();
+        antenna.startInventory();
+
+        assertTrue(antenna.inventoryRunning());
+        antenna.shutdown();
+    }
+
+    @Test
     public void configurableFailurePointSupportsHardwareIndependentFaultTests() {
         SimulatedAntenna antenna = new SimulatedAntenna();
         antenna.setFailurePoint(
