@@ -48,7 +48,7 @@ public class ConductorTest {
     }
 
     @Test
-    public void lifecyclePropertyCoalescesSignalsWhileRefreshIsPending()
+    public void statePropertyCoalescesSignalsWhileRefreshIsPending()
             throws Exception {
         TimingNode node = newTimingNode();
         SimulatedAntenna antenna = new SimulatedAntenna();
@@ -99,9 +99,8 @@ public class ConductorTest {
             for (int index = 0;
                     index < 20;
                     index++) {
-                conductor.timingNodeLifecycleProperty()
-                        .changeSignal()
-                        .accept(current);
+                conductor.timingNodeStateProperty()
+                        .signalChanged();
             }
 
             assertEquals(
@@ -121,7 +120,7 @@ public class ConductorTest {
     }
 
     @Test
-    public void lifecyclePropertyReadsCurrentStateInsteadOfEventSnapshot()
+    public void statePropertyReadsAuthoritativeCurrentState()
             throws Exception {
         TimingNode node = newTimingNode();
         SimulatedAntenna antenna = new SimulatedAntenna();
@@ -152,11 +151,10 @@ public class ConductorTest {
             /*
              * The property receives an intentionally stale CLOSED snapshot.
              * The payload is only a change signal; the property rereads the
-             * authoritative current OPEN lifecycle and enables inventory.
+             * authoritative current OPEN state and enables inventory.
              */
-            conductor.timingNodeLifecycleProperty()
-                    .changeSignal()
-                    .accept(staleClosedSnapshot);
+            conductor.timingNodeStateProperty()
+                    .signalChanged();
 
             await(
                     antenna::inventoryRunning,
