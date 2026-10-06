@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add typed EventData/TimingData provider bootstrap: stable `reference` built-ins, `infra.extension.ExtensionRegistry`, Java `ServiceLoader` discovery from a supplied ClassLoader, IF-11 provider selection in Config/YAML, Runtime provider resolution before composition, duplicate/unknown-id validation, and a synthetic external-JAR discovery test.
+
 - Make normal Windows development startup compose `ANT1` with the built-in `SimulatedAntenna` when no explicit antenna composition exists yet; expose OS identity through `PlatformEnvironment`, log clearly that no physical RFID reader is in use, and exercise the normal AntennaManager/Conductor lifecycle.
 
 - Extract generic Conductor lifecycle/cleanup mechanics into `application.logic.AbstractConductor`; keep concrete `Conductor` focused on SI-01 properties, startup actions and cross-component rules, and move `ComponentLifecycleManager` beside the lifecycle base.
