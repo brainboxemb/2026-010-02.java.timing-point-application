@@ -19,6 +19,9 @@ import java.util.concurrent.CompletableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+
 /**
  * Public lifecycle, inventory-intent and status boundary for one antenna set.
  *
@@ -48,10 +51,9 @@ public final class AntennaManager {
             List<AntennaInstallation> installations,
             SerialScheduledExecutor controlLane,
             Duration controlTimeout) {
-        if (controlLane == null) {
-            throw new IllegalArgumentException(
-                    "controlLane must not be null");
-        }
+        checkArgument(
+                controlLane != null,
+                "controlLane must not be null");
 
         taskRunner =
                 new ScheduledTaskRunner(
@@ -82,11 +84,10 @@ public final class AntennaManager {
 
     public void activate() {
         synchronized (this) {
-            if (state != State.NEW) {
-                throw new IllegalStateException(
-                        "AntennaManager can only activate from NEW; current state="
-                                + state);
-            }
+            checkState(
+                    state == State.NEW,
+                    "AntennaManager must be NEW, was %s",
+                    state);
         }
 
         taskRunner.start();
@@ -175,10 +176,10 @@ public final class AntennaManager {
             if (state == State.INACTIVE) {
                 return;
             }
-            if (state == State.DEACTIVATING) {
-                throw new IllegalStateException(
-                        "AntennaManager is already deactivating");
-            }
+
+            checkState(
+                    state != State.DEACTIVATING,
+                    "AntennaManager is already deactivating");
             state = State.DEACTIVATING;
         }
 
