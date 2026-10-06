@@ -16,7 +16,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public abstract class AbstractTask implements CooperativeTask {
 
-    private CompletableFuture<Void> currentRun;
+    private CompletableFuture<Void> currentRunFuture;
 
     /**
      * Starts a new run.
@@ -34,21 +34,21 @@ public abstract class AbstractTask implements CooperativeTask {
         resetForRun();
 
         CompletableFuture<Void> run = taskRunner.runTask(this);
-        currentRun = run;
+        currentRunFuture = run;
         run.whenComplete((ignored, failure) -> runCompleted(run, failure));
         return true;
     }
 
     /** Cancels the current run when one is active. */
     public final synchronized void cancel() {
-        if (currentRun != null && !currentRun.isDone()) {
-            currentRun.cancel(true);
+        if (currentRunFuture != null && !currentRunFuture.isDone()) {
+            currentRunFuture.cancel(true);
         }
     }
 
     /** Returns whether this task currently has an unfinished run. */
     public final synchronized boolean isRunning() {
-        return currentRun != null && !currentRun.isDone();
+        return currentRunFuture != null && !currentRunFuture.isDone();
     }
 
     /**
@@ -72,8 +72,8 @@ public abstract class AbstractTask implements CooperativeTask {
              * reusable task cannot restart until the previous Future is done,
              * but keeping the identity check here makes that ownership explicit.
              */
-            if (currentRun == run) {
-                currentRun = null;
+            if (currentRunFuture == run) {
+                currentRunFuture = null;
             }
         }
 
