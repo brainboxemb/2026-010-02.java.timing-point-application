@@ -47,7 +47,7 @@ public class PresentationGatewayTest {
         node.activate();
         try {
             TimingNodeStatus status = gateway.timingNode().status();
-            assertEquals(new NodeId("TN-01"), status.timingNodeId());
+            assertEquals(new NodeId("A"), status.timingNodeId());
             assertEquals(
                     TimingNodeTypes.State.CLOSED,
                     status.state());
@@ -156,7 +156,7 @@ public class PresentationGatewayTest {
                 null,
                 node(new RecordingStore()),
                 PresentationGatewayFixture.configurationControl(
-                        new NodeId("TN-01")));
+                        new NodeId("A")));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -165,7 +165,7 @@ public class PresentationGatewayTest {
                 identity(),
                 null,
                 PresentationGatewayFixture.configurationControl(
-                        new NodeId("TN-01")));
+                        new NodeId("A")));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -178,12 +178,12 @@ public class PresentationGatewayTest {
 
     private static ConfigurationControl configuration() {
         return PresentationGatewayFixture.configurationControl(
-                new NodeId("TN-01"));
+                new NodeId("A"));
     }
 
     private static TimingNode node(RecordingStore store) {
         return TimingNodeFixture.create(
-                new NodeId("TN-01"),
+                new NodeId("A"),
                 store,
                 () -> RECORDED_AT);
     }
