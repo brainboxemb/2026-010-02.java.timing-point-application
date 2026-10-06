@@ -182,8 +182,7 @@ public final class TimingApplicationRuntime {
             BuildIdentity buildIdentity,
             Config config,
             List<AntennaInstallation> antennaInstallations,
-            EventData eventData,
-            PlatformEnvironment platform) {
+            EventData eventData) {
         return create(
                 buildIdentity,
                 config,
@@ -563,7 +562,8 @@ public final class TimingApplicationRuntime {
             BuildIdentity buildIdentity,
             Config config,
             List<AntennaInstallation> antennaInstallations,
-            EventData eventData) {
+            EventData eventData,
+            PlatformEnvironment platform) {
         if (buildIdentity == null) {
             throw new IllegalArgumentException(
                     "buildIdentity must not be null");
