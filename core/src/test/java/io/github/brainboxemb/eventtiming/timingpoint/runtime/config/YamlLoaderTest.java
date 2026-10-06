@@ -23,10 +23,10 @@ public class YamlLoaderTest {
     public void loadsSingleTimingNodeIdAndStorageWithoutPresentation()
             throws Exception {
         Config config = load(
-                timingNode("TN-01")
+                timingNode("A")
                         + timingDataStorage());
 
-        assertEquals("TN-01", config.timingNodeId().value());
+        assertEquals("A", config.timingNodeId().value());
         assertNull(config.presentation().remoteShell());
         assertNull(config.presentation().api());
         assertNull(config.logging());
@@ -55,7 +55,7 @@ public class YamlLoaderTest {
                         + "    timingDataProvider: custom-timing\n"
                         + "    timingNodes:\n"
                         + "      timing-node-01:\n"
-                        + "        timingNodeId: TN-01\n"
+                        + "        timingNodeId: A\n"
                         + timingDataStorage());
 
         assertEquals(
@@ -75,7 +75,7 @@ public class YamlLoaderTest {
                         + "    eventDataProvider: '   '\n"
                         + "    timingNodes:\n"
                         + "      timing-node-01:\n"
-                        + "        timingNodeId: TN-01\n"
+                        + "        timingNodeId: A\n"
                         + timingDataStorage());
     }
 
@@ -88,7 +88,7 @@ public class YamlLoaderTest {
                         + "    timingDataProvider: '   '\n"
                         + "    timingNodes:\n"
                         + "      timing-node-01:\n"
-                        + "        timingNodeId: TN-01\n"
+                        + "        timingNodeId: A\n"
                         + timingDataStorage());
     }
 
@@ -97,7 +97,7 @@ public class YamlLoaderTest {
             throws Exception {
         Config config = load(
                 timingNode(
-                        "TN-01",
+                        "A",
                         "          quietTimeoutMillis: 300\n"
                                 + "          duplicateWindowMillis: 0\n"
                                 + "          observationQueueCapacity: 64\n")
@@ -130,7 +130,7 @@ public class YamlLoaderTest {
             throws Exception {
         Config config = load(
                 timingNode(
-                        "TN-01",
+                        "A",
                         "          quietTimeoutMillis: 200\n"
                                 + "          maxBurstDurationMillis: 900\n"
                                 + "          duplicateWindowMillis: 12000\n"
@@ -160,7 +160,7 @@ public class YamlLoaderTest {
     @Test
     public void loadsImplementedPresentationConfig() throws Exception {
         Config config = load(
-                timingNode("TN-01")
+                timingNode("A")
                         + timingDataStorage()
                         + "presentation:\n"
                         + "  remoteShell:\n"
@@ -197,7 +197,7 @@ public class YamlLoaderTest {
     @Test
     public void loadsRuntimeLoggingConfig() throws Exception {
         Config config = load(
-                timingNode("TN-01")
+                timingNode("A")
                         + timingDataStorage()
                         + "logging:\n"
                         + "  level: DEBUG\n"
@@ -230,7 +230,7 @@ public class YamlLoaderTest {
     @Test(expected = IllegalArgumentException.class)
     public void rejectsUnsupportedLoggingLevel() throws Exception {
         load(
-                timingNode("TN-01")
+                timingNode("A")
                         + timingDataStorage()
                         + "logging:\n"
                         + "  level: VERBOSE\n"
@@ -242,13 +242,13 @@ public class YamlLoaderTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsMissingTimingDataStorage() throws Exception {
-        load(timingNode("TN-01"));
+        load(timingNode("A"));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsBlankTimingDataPath() throws Exception {
         load(
-                timingNode("TN-01")
+                timingNode("A")
                         + "io:\n"
                         + "  storage:\n"
                         + "    timingData:\n"
@@ -268,11 +268,11 @@ public class YamlLoaderTest {
                         + "  timing-system-01:\n"
                         + "    timingNodes:\n"
                         + "      timing-node-01:\n"
-                        + "        timingNodeId: TN-01\n"
+                        + "        timingNodeId: A\n"
                         + "  timing-system-02:\n"
                         + "    timingNodes:\n"
                         + "      timing-node-02:\n"
-                        + "        timingNodeId: TN-02\n"
+                        + "        timingNodeId: B\n"
                         + timingDataStorage());
     }
 
@@ -284,9 +284,9 @@ public class YamlLoaderTest {
                         + "  timing-system-01:\n"
                         + "    timingNodes:\n"
                         + "      timing-node-01:\n"
-                        + "        timingNodeId: TN-01\n"
+                        + "        timingNodeId: A\n"
                         + "      timing-node-02:\n"
-                        + "        timingNodeId: TN-02\n"
+                        + "        timingNodeId: B\n"
                         + timingDataStorage());
     }
 
@@ -314,7 +314,7 @@ public class YamlLoaderTest {
     @Test(expected = IllegalArgumentException.class)
     public void rejectsRootTagProcessingShortcut() throws Exception {
         load(
-                timingNode("TN-01")
+                timingNode("A")
                         + "tagProcessing:\n"
                         + "  quietTimeoutMillis: 200\n"
                         + timingDataStorage());
@@ -323,7 +323,7 @@ public class YamlLoaderTest {
     @Test(expected = IllegalArgumentException.class)
     public void rejectsEmptyTagProcessingSection() throws Exception {
         load(
-                timingNode("TN-01")
+                timingNode("A")
                         + "        tagProcessing:\n"
                         + timingDataStorage());
     }
@@ -332,7 +332,7 @@ public class YamlLoaderTest {
     public void rejectsUnknownTagProcessingField() throws Exception {
         load(
                 timingNode(
-                        "TN-01",
+                        "A",
                         "          batchSize: 8\n")
                         + timingDataStorage());
     }
@@ -341,7 +341,7 @@ public class YamlLoaderTest {
     public void rejectsZeroQuietTimeout() throws Exception {
         load(
                 timingNode(
-                        "TN-01",
+                        "A",
                         "          quietTimeoutMillis: 0\n")
                         + timingDataStorage());
     }
@@ -350,7 +350,7 @@ public class YamlLoaderTest {
     public void rejectsNegativeDuplicateWindow() throws Exception {
         load(
                 timingNode(
-                        "TN-01",
+                        "A",
                         "          duplicateWindowMillis: -1\n")
                         + timingDataStorage());
     }
@@ -359,7 +359,7 @@ public class YamlLoaderTest {
     public void rejectsZeroObservationQueueCapacity() throws Exception {
         load(
                 timingNode(
-                        "TN-01",
+                        "A",
                         "          observationQueueCapacity: 0\n")
                         + timingDataStorage());
     }
@@ -367,7 +367,7 @@ public class YamlLoaderTest {
     @Test(expected = IllegalArgumentException.class)
     public void rejectsUnknownRootField() throws Exception {
         load(
-                timingNode("TN-01")
+                timingNode("A")
                         + timingDataStorage()
                         + "unknown: true\n");
     }
@@ -375,7 +375,7 @@ public class YamlLoaderTest {
     @Test(expected = IllegalArgumentException.class)
     public void rejectsUnknownHttpField() throws Exception {
         load(
-                timingNode("TN-01")
+                timingNode("A")
                         + timingDataStorage()
                         + "presentation:\n"
                         + "  api:\n"
@@ -388,7 +388,7 @@ public class YamlLoaderTest {
     @Test(expected = IllegalArgumentException.class)
     public void rejectsMissingHttpBindAddress() throws Exception {
         load(
-                timingNode("TN-01")
+                timingNode("A")
                         + timingDataStorage()
                         + "presentation:\n"
                         + "  api:\n"
@@ -399,7 +399,7 @@ public class YamlLoaderTest {
     @Test(expected = IllegalArgumentException.class)
     public void rejectsInvalidHttpPort() throws Exception {
         load(
-                timingNode("TN-01")
+                timingNode("A")
                         + timingDataStorage()
                         + "presentation:\n"
                         + "  api:\n"
@@ -411,7 +411,7 @@ public class YamlLoaderTest {
     @Test(expected = IllegalArgumentException.class)
     public void rejectsEmptyApi() throws Exception {
         load(
-                timingNode("TN-01")
+                timingNode("A")
                         + timingDataStorage()
                         + "presentation:\n"
                         + "  api: {}\n");
