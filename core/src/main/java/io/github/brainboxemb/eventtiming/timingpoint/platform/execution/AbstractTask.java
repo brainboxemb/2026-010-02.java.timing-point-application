@@ -4,24 +4,28 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Base class for reusable cooperative tasks.
+ * Base class for a reusable cooperative task.
  *
- * <p>This class owns the execution lifecycle that is identical for every
- * reusable task: one current run, start, cancellation and completion. Concrete
- * tasks own only their state-machine data and implement {@link #runStep()}.</p>
+ * <p>The concrete task owns its state machine. This base class owns only the
+ * execution lifecycle that would otherwise be repeated in every task:
+ * starting one run, remembering its Future, cancellation and completion.</p>
  *
- * <p>The current {@link CompletableFuture} is deliberately private. It is an
- * execution handle returned by {@link ScheduledTaskRunner}; it is not domain
- * state and should not leak into concrete task implementations.</p>
+ * <p>{@code currentRunFuture} is execution infrastructure, not task/domain
+ * state. It is therefore private here instead of being repeated in every
+ * concrete task.</p>
  */
 public abstract class AbstractTask implements CooperativeTask {
 
+    /** Future returned by ScheduledTaskRunner for the currently active run. */
     private CompletableFuture<Void> currentRunFuture;
 
     /**
-     * Starts a new run.
+     * Starts this task when no earlier run is still active.
      *
-     * @return false when this task already has a run in progress
+     * <p>{@link #resetForRun()} resets only the concrete task state. The
+     * ScheduledTaskRunner owns how individual runStep() calls are scheduled.</p>
+     *
+     * @return false when this task already has a current run
      */
     public final synchronized boolean start(ScheduledTaskRunner taskRunner) {
         if (taskRunner == null) {
@@ -33,48 +37,55 @@ public abstract class AbstractTask implements CooperativeTask {
 
         resetForRun();
 
-        CompletableFuture<Void> run = taskRunner.runTask(this);
-        currentRunFuture = run;
-        run.whenComplete((ignored, failure) -> runCompleted(run, failure));
+        currentRunFuture = taskRunner.runTask(this);
+
+        /*
+         * whenComplete is only the bridge from execution infrastructure back to
+         * this task lifecycle. The named method keeps completion behaviour out
+         * of an inline lambda.
+         */
+        currentRunFuture.whenComplete(this::runCompleted);
         return true;
     }
 
-    /** Cancels the current run when one is active. */
+    /** Cancels the current run when one exists. */
     public final synchronized void cancel() {
-        if (currentRunFuture != null && !currentRunFuture.isDone()) {
+        if (currentRunFuture != null) {
             currentRunFuture.cancel(true);
         }
     }
 
-    /** Returns whether this task currently has an unfinished run. */
+    /**
+     * Returns whether this task still owns a current run.
+     *
+     * <p>The Future is cleared by runCompleted(). A new run therefore cannot be
+     * admitted while completion of the previous run is still being processed.</p>
+     */
     public final synchronized boolean isRunning() {
-        return currentRunFuture != null && !currentRunFuture.isDone();
+        return currentRunFuture != null;
     }
 
-    /**
-     * Resets concrete state immediately before a new run is admitted.
-     */
+    /** Resets concrete state immediately before a new run starts. */
     protected abstract void resetForRun();
 
     /**
-     * Called after one run has completed normally or exceptionally.
+     * Optional concrete-task completion hook.
      *
-     * <p>Cancellation is filtered by this base class and is not reported here.</p>
+     * <p>Cancellation is handled by this base class and is not reported here.</p>
      */
     protected void onRunCompleted(Throwable failure) {
-        // Most tasks need no completion action.
+        // Most reusable tasks need no completion action.
     }
 
-    private void runCompleted(CompletableFuture<Void> run, Throwable failure) {
+    /**
+     * Completes the execution lifecycle of one run.
+     *
+     * <p>The Future is cleared before the concrete completion hook runs. A
+     * concrete task may therefore start a follow-up run from onRunCompleted().</p>
+     */
+    private void runCompleted(Void ignored, Throwable failure) {
         synchronized (this) {
-            /*
-             * A stale completion must never clear a newer run. In normal use a
-             * reusable task cannot restart until the previous Future is done,
-             * but keeping the identity check here makes that ownership explicit.
-             */
-            if (currentRunFuture == run) {
-                currentRunFuture = null;
-            }
+            currentRunFuture = null;
         }
 
         if (failure instanceof CancellationException) {
