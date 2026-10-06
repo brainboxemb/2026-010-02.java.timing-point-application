@@ -17,7 +17,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class ConfigurationControlTest {
-    private static final NodeId NODE_ID = new NodeId("TN-01");
+    private static final NodeId NODE_ID = new NodeId("A");
 
     @Test
     public void snapshotDistinguishesStartupCurrentAndMutability() {
