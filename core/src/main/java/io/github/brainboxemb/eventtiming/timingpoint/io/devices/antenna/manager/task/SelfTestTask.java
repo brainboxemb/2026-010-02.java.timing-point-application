@@ -2,16 +2,11 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager
 
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTask;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.TaskStep;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletableFuture;
-
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
 
 /**
  * Reusable startup self-test for the complete configured antenna set.
@@ -19,7 +14,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * <p>The task owns its execution handle. Completion is published only after the
  * runner has finished the task, so callers never need to observe its Future.</p>
  */
-final class SelfTestTask implements CooperativeTask {
+final class SelfTestTask extends AbstractTask {
 
     private enum Phase {
         POWER_ON,
@@ -30,38 +25,21 @@ final class SelfTestTask implements CooperativeTask {
     private final List<ManagedAntenna> antennas;
     private final Event<AntennaTaskResult> completedEvent = new Event<AntennaTaskResult>();
 
-    private CompletableFuture<Void> operation;
     private int antennaIndex;
     private Phase phase;
     private RuntimeException failure;
 
     SelfTestTask(List<ManagedAntenna> antennas) {
         this.antennas = antennas;
-        reset();
-    }
-
-    void start(ScheduledTaskRunner taskRunner) {
-        checkState(!isRunning(), "SelfTestTask is already running");
-        reset();
-        operation = taskRunner.runTask(this);
-        operation.whenComplete(this::onCompleted);
-    }
-
-    void cancel() {
-        if (isRunning()) {
-            operation.cancel(true);
-        }
-    }
-
-    boolean isRunning() {
-        return operation != null && !operation.isDone();
+        resetForRun();
     }
 
     EventSource<AntennaTaskResult> completedEvent() {
         return completedEvent;
     }
 
-    private void reset() {
+    @Override
+    protected void resetForRun() {
         antennaIndex = 0;
         phase = Phase.POWER_ON;
         failure = null;
@@ -121,11 +99,8 @@ final class SelfTestTask implements CooperativeTask {
         }
     }
 
-    private void onCompleted(Void ignored, Throwable taskFailure) {
-        if (taskFailure instanceof CancellationException) {
-            return;
-        }
-
+    @Override
+    protected void onRunCompleted(Throwable taskFailure) {
         Throwable effectiveFailure = taskFailure != null ? taskFailure : failure;
         completedEvent.emit(
                 effectiveFailure == null
