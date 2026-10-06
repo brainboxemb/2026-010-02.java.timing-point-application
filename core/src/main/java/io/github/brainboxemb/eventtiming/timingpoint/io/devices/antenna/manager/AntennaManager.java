@@ -68,10 +68,8 @@ public final class AntennaManager {
         }
     }
 
-    public void activate() {
-        synchronized (this) {
-            checkState(state == State.NEW || state == State.INACTIVE, "AntennaManager cannot activate from %s", state);
-        }
+    public synchronized void activate() {
+        checkState(state == State.NEW || state == State.INACTIVE, "AntennaManager cannot activate from %s", state);
 
         taskRunner.start();
         state = State.ACTIVE;
