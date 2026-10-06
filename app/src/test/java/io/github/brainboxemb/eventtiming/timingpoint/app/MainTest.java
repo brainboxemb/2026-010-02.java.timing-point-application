@@ -44,6 +44,34 @@ public class MainTest {
     }
 
     @Test
+    public void normalStartWritesBuildIdentityBeforeConfigurationFailure()
+            throws Exception {
+        Path missingConfig =
+                temporaryFolder
+                        .getRoot()
+                        .toPath()
+                        .resolve(
+                                "missing-application.yml");
+
+        Output output =
+                run(
+                        missingConfig.toString());
+
+        assertEquals(
+                1,
+                output.exitCode);
+        assertTrue(
+                output.stdout.contains(
+                        "timing-application test-version revision=abc123def456"));
+        assertTrue(
+                output.stdout.contains(
+                        "sourceRef=feature/test"));
+        assertTrue(
+                output.stderr.contains(
+                        "Unable to start application from configuration"));
+    }
+
+    @Test
     public void invalidOptionReturnsUsageError()
             throws Exception {
         Output output = run("--invalid");
