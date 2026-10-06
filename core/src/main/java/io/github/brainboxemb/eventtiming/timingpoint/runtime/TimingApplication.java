@@ -367,19 +367,8 @@ public final class TimingApplication {
         return timingNode;
     }
 
-    BuildIdentity buildIdentity() {
-        return buildIdentity;
-    }
-
     public synchronized State state() {
         return state;
-    }
-
-    public synchronized void awaitInactive()
-            throws InterruptedException {
-        while (state != State.INACTIVE) {
-            wait();
-        }
     }
 
     /**
