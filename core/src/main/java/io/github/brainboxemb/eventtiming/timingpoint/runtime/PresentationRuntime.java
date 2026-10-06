@@ -157,17 +157,63 @@ final class PresentationRuntime {
             thread.interrupt();
         }
 
-        if (remoteShell != null) {
-            remoteShell.close();
-        }
-        if (webSocket != null) {
-            webSocket.close();
-        }
-        if (http != null) {
-            http.close();
-        }
+        Throwable firstFailure = null;
+
+        firstFailure =
+                close(
+                        remoteShell,
+                        firstFailure);
+        firstFailure =
+                close(
+                        webSocket,
+                        firstFailure);
+        firstFailure =
+                close(
+                        http,
+                        firstFailure);
 
         active = false;
+        rethrow(firstFailure);
+    }
+
+    private static Throwable close(
+            AutoCloseable component,
+            Throwable firstFailure) {
+        if (component == null) {
+            return firstFailure;
+        }
+
+        try {
+            component.close();
+            return firstFailure;
+        } catch (RuntimeException | Error failure) {
+            if (firstFailure == null) {
+                return failure;
+            }
+            firstFailure.addSuppressed(failure);
+            return firstFailure;
+        } catch (Exception failure) {
+            RuntimeException wrapped =
+                    new IllegalStateException(
+                            "Presentation component close failed",
+                            failure);
+            if (firstFailure == null) {
+                return wrapped;
+            }
+            firstFailure.addSuppressed(wrapped);
+            return firstFailure;
+        }
+    }
+
+    private static void rethrow(
+            Throwable failure) {
+        if (failure == null) {
+            return;
+        }
+        if (failure instanceof RuntimeException) {
+            throw (RuntimeException) failure;
+        }
+        throw (Error) failure;
     }
 
     private void cleanupPartialActivation() {
