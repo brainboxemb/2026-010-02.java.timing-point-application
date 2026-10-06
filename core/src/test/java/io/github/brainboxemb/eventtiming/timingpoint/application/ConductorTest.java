@@ -13,7 +13,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDat
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
@@ -180,10 +180,7 @@ public class ConductorTest {
     private AntennaManager newAntennaManager(
             SimulatedAntenna antenna) {
         return new AntennaManager(
-                Collections.singletonList(
-                        AntennaInstallation.direct(
-                                new AntennaId("ANT1"),
-                                antenna)),
+                new AntennaSet().add(new AntennaId("ANT1"), antenna),
                 new SerialScheduledExecutor(
                         8,
                         "conductor-antenna-test",
