@@ -7,9 +7,9 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.Conductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagRegistrationMapper;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
@@ -98,7 +98,7 @@ public final class TimingApplicationRuntime {
                 buildIdentity,
                 config,
                 Collections.<AntennaInstallation>emptyList(),
-                tagId -> null,
+                EventData.empty(),
                 null,
                 null);
     }
@@ -118,26 +118,26 @@ public final class TimingApplicationRuntime {
                 buildIdentity,
                 config,
                 Collections.<AntennaInstallation>emptyList(),
-                tagId -> null,
+                EventData.empty(),
                 consoleInput,
                 consoleOutput);
     }
 
     /**
      * Constructs and wires the same application graph with explicitly supplied
-     * antenna installations and tag mapping. Simulation uses this overload rather
+     * antenna installations and event data. Simulation uses this overload rather
      * than a parallel runtime path.
      */
     public static TimingApplicationRuntime create(
             BuildIdentity buildIdentity,
             Config config,
             List<AntennaInstallation> antennaInstallations,
-            TagRegistrationMapper tagRegistrationMapper) {
+            EventData eventData) {
         return create(
                 buildIdentity,
                 config,
                 antennaInstallations,
-                tagRegistrationMapper,
+                eventData,
                 null,
                 null);
     }
@@ -146,14 +146,14 @@ public final class TimingApplicationRuntime {
             BuildIdentity buildIdentity,
             Config config,
             List<AntennaInstallation> antennaInstallations,
-            TagRegistrationMapper tagRegistrationMapper,
+            EventData eventData,
             Reader consoleInput,
             Writer consoleOutput) {
         requireCompositionInput(
                 buildIdentity,
                 config,
                 antennaInstallations,
-                tagRegistrationMapper);
+                eventData);
 
         List<AntennaInstallation> installations =
                 copyInstallations(
@@ -203,7 +203,7 @@ public final class TimingApplicationRuntime {
                                     .timingNode(
                                             config.timingNodeId())
                                     .tagProcessing(),
-                            tagRegistrationMapper,
+                            eventData,
                             nodeExecutors.timingNode(),
                             nodeExecutors.tagProcessor(),
                             platform.monotonicClock());
@@ -483,7 +483,7 @@ public final class TimingApplicationRuntime {
             BuildIdentity buildIdentity,
             Config config,
             List<AntennaInstallation> antennaInstallations,
-            TagRegistrationMapper tagRegistrationMapper) {
+            EventData eventData) {
         if (buildIdentity == null) {
             throw new IllegalArgumentException(
                     "buildIdentity must not be null");
@@ -500,9 +500,9 @@ public final class TimingApplicationRuntime {
             throw new IllegalArgumentException(
                     "antennaInstallations must not be null");
         }
-        if (tagRegistrationMapper == null) {
+        if (eventData == null) {
             throw new IllegalArgumentException(
-                    "tagRegistrationMapper must not be null");
+                    "eventData must not be null");
         }
     }
 }
