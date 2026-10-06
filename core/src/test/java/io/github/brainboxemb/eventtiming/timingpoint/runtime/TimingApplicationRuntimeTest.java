@@ -14,12 +14,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTyp
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaHealth;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaOperation;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.ManagerHealth;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntennaPowerControl;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Presentation;
 
@@ -96,16 +95,14 @@ public class TimingApplicationRuntimeTest {
 
         application.activate();
         try {
-            assertEquals(
-                    ManagerHealth.HEALTHY,
-                    application.antennaManager()
-                            .health());
-            assertEquals(
-                    AntennaHealth.HEALTHY,
+            await(
+                    application.antennaManager()::isReady,
+                    1000L);
+            assertTrue(
                     application.antennaManager()
                             .status(
                                     new AntennaId("ANT1"))
-                            .health());
+                            .selfTestPassed());
             assertEquals(
                     AntennaOperation.INACTIVE,
                     application.antennaManager()
@@ -137,6 +134,54 @@ public class TimingApplicationRuntimeTest {
                             .operation()
                             == AntennaOperation.INACTIVE,
                     1000L);
+        } finally {
+            application.deactivate();
+        }
+    }
+
+    @Test
+    public void presentationStartupDoesNotWaitForAntennaSelfTest()
+            throws Exception {
+        Path file =
+                temporaryFolder
+                        .getRoot()
+                        .toPath()
+                        .resolve(
+                                "self-test-does-not-block-presentation.jsonl");
+        SimulatedAntenna antenna =
+                new SimulatedAntenna();
+        SimulatedAntennaPowerControl power =
+                new SimulatedAntennaPowerControl(
+                        antenna);
+
+        TimingApplicationRuntime application =
+                SimulationRuntime.create(
+                        identity(),
+                        config(file),
+                        Collections.singletonList(
+                                AntennaInstallation.powered(
+                                        new AntennaId("1"),
+                                        antenna,
+                                        power,
+                                        Duration.ofMillis(1000))),
+                        EventData.empty());
+
+        application.activate();
+        try {
+            assertEquals(
+                    TimingApplicationRuntime.State.ACTIVE,
+                    application.state());
+            assertTrue(
+                    "Runtime must be ACTIVE while antenna self-test continues",
+                    application.antennaManager()
+                            .isBusy());
+            assertFalse(
+                    application.antennaManager()
+                            .isReady());
+
+            await(
+                    application.antennaManager()::isReady,
+                    1750L);
         } finally {
             application.deactivate();
         }
