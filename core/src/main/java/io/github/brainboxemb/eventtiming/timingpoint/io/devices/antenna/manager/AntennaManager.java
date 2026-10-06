@@ -30,14 +30,11 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * events or task completion on the manager serial lane.</p>
  */
 public final class AntennaManager {
-    private static final Logger LOG =
-            LoggerFactory.getLogger(AntennaManager.class);
+    private static final Logger LOG = LoggerFactory.getLogger(AntennaManager.class);
 
     private final ScheduledTaskRunner taskRunner;
     private final ManagedAntennaSet antennaSet;
-    private final Setting<Boolean> inventoryEnabledSetting =
-            new Setting<Boolean>(
-                    Boolean.FALSE);
+    private final Setting<Boolean> inventoryEnabledSetting = new Setting<Boolean>(Boolean.FALSE);
     private final AntennaTasks antennaTasks;
 
     private volatile State state = State.NEW;
@@ -51,18 +48,10 @@ public final class AntennaManager {
             List<AntennaInstallation> installations,
             SerialScheduledExecutor controlLane,
             Duration controlTimeout) {
-        checkArgument(
-                controlLane != null,
-                "controlLane must not be null");
+        checkArgument(controlLane != null, "controlLane must not be null");
 
-        taskRunner =
-                new ScheduledTaskRunner(
-                        controlLane,
-                        controlTimeout);
-        antennaSet =
-                new ManagedAntennaSet(
-                        installations,
-                        taskRunner);
+        taskRunner = new ScheduledTaskRunner(controlLane, controlTimeout);
+        antennaSet = new ManagedAntennaSet(installations, taskRunner);
         antennaTasks =
                 new AntennaTasks(
                         antennaSet.antennas(),
@@ -81,10 +70,7 @@ public final class AntennaManager {
 
     public void activate() {
         synchronized (this) {
-            checkState(
-                    state == State.NEW,
-                    "AntennaManager must be NEW, was %s",
-                    state);
+            checkState(state == State.NEW, "AntennaManager must be NEW, was %s", state);
         }
 
         taskRunner.start();
@@ -92,9 +78,7 @@ public final class AntennaManager {
         selfTestPassed = false;
         pendingSelfTests = antennaSet.size();
 
-        LOG.info(
-                "AntennaManager activated with {} configured antenna(s)",
-                antennaSet.size());
+        LOG.info("AntennaManager activated with {} configured antenna(s)", antennaSet.size());
 
         for (ManagedAntenna antenna : antennaSet.antennas()) {
             if (!antenna.startSelfTest()) {
@@ -121,13 +105,11 @@ public final class AntennaManager {
     }
 
     public boolean requestEnableInventory() {
-        return requestInventory(
-                true);
+        return requestInventory(true);
     }
 
     public boolean requestDisableInventory() {
-        return requestInventory(
-                false);
+        return requestInventory(false);
     }
 
     public void enableInventory() {
@@ -144,10 +126,8 @@ public final class AntennaManager {
         }
     }
 
-    public EventSource<TagObservation> tagObservedEvent(
-            AntennaId antennaId) {
-        return antennaSet.tagObservedEvent(
-                antennaId);
+    public EventSource<TagObservation> tagObservedEvent(AntennaId antennaId) {
+        return antennaSet.tagObservedEvent(antennaId);
     }
 
     public State state() {
@@ -162,10 +142,8 @@ public final class AntennaManager {
         return antennaSet.statuses();
     }
 
-    public AntennaStatus status(
-            AntennaId antennaId) {
-        return antennaSet.status(
-                antennaId);
+    public AntennaStatus status(AntennaId antennaId) {
+        return antennaSet.status(antennaId);
     }
 
     public void deactivate() {
@@ -174,16 +152,12 @@ public final class AntennaManager {
                 return;
             }
 
-            checkState(
-                    state != State.DEACTIVATING,
-                    "AntennaManager is already deactivating");
+            checkState(state != State.DEACTIVATING, "AntennaManager is already deactivating");
             state = State.DEACTIVATING;
         }
 
-        inventoryEnabledSetting.request(
-                Boolean.FALSE);
-        cancel(
-                inventoryOperation);
+        inventoryEnabledSetting.request(Boolean.FALSE);
+        cancel(inventoryOperation);
 
         RuntimeException shutdownFailure = null;
         try {
@@ -191,11 +165,8 @@ public final class AntennaManager {
                 taskRunner.start();
             }
 
-            CompletableFuture<Void> shutdown =
-                    taskRunner.runTask(
-                            antennaTasks.shutdown());
-            taskRunner.await(
-                    shutdown);
+            CompletableFuture<Void> shutdown = taskRunner.runTask(antennaTasks.shutdown());
+            taskRunner.await(shutdown);
         } catch (RuntimeException ex) {
             shutdownFailure = ex;
         }
@@ -216,8 +187,7 @@ public final class AntennaManager {
 
         if (shutdownFailure == null) {
             state = State.INACTIVE;
-            LOG.info(
-                    "AntennaManager deactivated");
+            LOG.info("AntennaManager deactivated");
         } else {
             failure = shutdownFailure;
             state = State.FAILED;
@@ -225,19 +195,14 @@ public final class AntennaManager {
         }
     }
 
-    private boolean requestInventory(
-            boolean enabled) {
+    private boolean requestInventory(boolean enabled) {
         if (state != State.ACTIVE) {
             return false;
         }
 
-        inventoryEnabledSetting.request(
-                Boolean.valueOf(
-                        enabled));
+        inventoryEnabledSetting.request(Boolean.valueOf(enabled));
 
-        boolean accepted =
-                taskRunner.execute(
-                        this::startInventoryTaskIfNeeded);
+        boolean accepted = taskRunner.execute(this::startInventoryTaskIfNeeded);
         if (!accepted) {
             recordFailure(
                     new IllegalStateException(
@@ -260,35 +225,24 @@ public final class AntennaManager {
             return;
         }
 
-        inventoryOperation =
-                taskRunner.runTask(
-                        antennaTasks.inventory());
-        inventoryOperation.whenComplete(
-                this::onInventoryTaskCompleted);
+        inventoryOperation = taskRunner.runTask(antennaTasks.inventory());
+        inventoryOperation.whenComplete(this::onInventoryTaskCompleted);
     }
 
     /**
      * Re-admits inventory-task completion onto the manager serial lane.
      */
-    private void onInventoryTaskCompleted(
-            Void ignored,
-            Throwable taskFailure) {
-        taskRunner.execute(
-                () -> inventoryTaskCompleted(
-                        taskFailure));
+    private void onInventoryTaskCompleted(Void ignored, Throwable taskFailure) {
+        taskRunner.execute(() -> inventoryTaskCompleted(taskFailure));
     }
 
-    private void inventoryTaskCompleted(
-            Throwable taskFailure) {
+    private void inventoryTaskCompleted(Throwable taskFailure) {
         inventoryOperation = null;
 
         if (taskFailure != null
                 && !(taskFailure instanceof CancellationException)) {
-            recordFailure(
-                    taskFailure);
-            LOG.warn(
-                    "Antenna inventory task failed",
-                    taskFailure);
+            recordFailure(taskFailure);
+            LOG.warn("Antenna inventory task failed", taskFailure);
         }
 
         if (state == State.ACTIVE
@@ -300,22 +254,17 @@ public final class AntennaManager {
     /**
      * Re-admits device completion onto the manager serial lane.
      */
-    private void onSelfTestCompleted(
-            AntennaSelfTestResult result) {
-        taskRunner.execute(
-                () -> selfTestCompleted(
-                        result));
+    private void onSelfTestCompleted(AntennaSelfTestResult result) {
+        taskRunner.execute(() -> selfTestCompleted(result));
     }
 
-    private void selfTestCompleted(
-            AntennaSelfTestResult result) {
+    private void selfTestCompleted(AntennaSelfTestResult result) {
         if (state != State.ACTIVE) {
             return;
         }
 
         if (!result.passed()) {
-            recordFailure(
-                    result.failure());
+            recordFailure(result.failure());
         }
 
         if (pendingSelfTests > 0) {
@@ -329,14 +278,9 @@ public final class AntennaManager {
             return;
         }
 
-        selfTestPassed =
-                antennaSet.allSelfTestsPassed();
+        selfTestPassed = antennaSet.allSelfTestsPassed();
 
-        LOG.info(
-                "AntennaManager self-test {}",
-                selfTestPassed
-                        ? "PASS"
-                        : "FAIL");
+        LOG.info("AntennaManager self-test {}", selfTestPassed ? "PASS" : "FAIL");
 
         if (selfTestPassed) {
             startInventoryTaskIfNeeded();
@@ -348,8 +292,7 @@ public final class AntennaManager {
                 && !inventoryOperation.isDone();
     }
 
-    private void recordFailure(
-            Throwable cause) {
+    private void recordFailure(Throwable cause) {
         if (cause == null
                 || cause instanceof CancellationException) {
             return;
@@ -362,12 +305,10 @@ public final class AntennaManager {
         }
     }
 
-    private static void cancel(
-            CompletableFuture<Void> operation) {
+    private static void cancel(CompletableFuture<Void> operation) {
         if (operation != null
                 && !operation.isDone()) {
-            operation.cancel(
-                    true);
+            operation.cancel(true);
         }
     }
 }
