@@ -46,12 +46,11 @@ public class AntennaManagerTest {
                         antenna);
         AntennaManager manager =
                 new AntennaManager(
-                        Collections.singletonList(
-                                AntennaInstallation.powered(
-                                        new AntennaId("1"),
-                                        antenna,
-                                        power,
-                                        Duration.ofMillis(200))),
+                        new AntennaSet().addPowered(
+                                new AntennaId("1"),
+                                antenna,
+                                power,
+                                Duration.ofMillis(200)),
                         new SerialScheduledExecutor(
                                 8,
                                 "antenna-manager-test",
@@ -184,12 +183,11 @@ public class AntennaManagerTest {
 
         AntennaManager manager =
                 new AntennaManager(
-                        Collections.singletonList(
-                                AntennaInstallation.powered(
-                                        new AntennaId("1"),
-                                        antenna,
-                                        power,
-                                        stabilization)),
+                        new AntennaSet().addPowered(
+                                new AntennaId("1"),
+                                antenna,
+                                power,
+                                stabilization),
                         new SerialScheduledExecutor(
                                 8,
                                 "antenna-manager-test",
@@ -330,34 +328,17 @@ public class AntennaManagerTest {
         ScheduledExecutorService shared =
                 sharedExecutor();
         try {
-            List<AntennaInstallation> installations =
-                    Arrays.asList(
-                            AntennaInstallation.direct(
-                                    new AntennaId("1"),
-                                    new RecordingAntenna(
-                                            "A",
-                                            new ArrayList<String>())),
-                            AntennaInstallation.direct(
-                                    new AntennaId("1"),
-                                    new RecordingAntenna(
-                                            "B",
-                                            new ArrayList<String>())));
-
             try {
-                new AntennaManager(
-                        installations,
-                        new SerialScheduledExecutor(
-                                4,
-                                "antenna-manager-test",
-                                shared),
-                        Duration.ofSeconds(1));
-                fail(
-                        "expected duplicate AntennaId rejection");
+                new AntennaSet()
+                        .add(
+                                new AntennaId("1"),
+                                new RecordingAntenna("A", new ArrayList<String>()))
+                        .add(
+                                new AntennaId("1"),
+                                new RecordingAntenna("B", new ArrayList<String>()));
+                fail("expected duplicate AntennaId rejection");
             } catch (IllegalArgumentException expected) {
-                assertTrue(
-                        expected.getMessage()
-                                .contains(
-                                        "duplicate AntennaId"));
+                assertTrue(expected.getMessage().contains("duplicate AntennaId"));
             }
         } finally {
             shared.shutdownNow();
@@ -500,23 +481,13 @@ public class AntennaManagerTest {
             ScheduledExecutorService shared,
             int capacity,
             Duration timeout) {
-        List<AntennaInstallation> installations =
-                new ArrayList<AntennaInstallation>(
-                        antennas.size());
-        for (int index = 0;
-                index < antennas.size();
-                index++) {
-            installations.add(
-                    AntennaInstallation.direct(
-                            new AntennaId(
-                                    Integer.toString(
-                                            index + 1)),
-                            antennas.get(
-                                    index)));
+        AntennaSet antennaSet = new AntennaSet();
+        for (int index = 0; index < antennas.size(); index++) {
+            antennaSet.add(new AntennaId(Integer.toString(index + 1)), antennas.get(index));
         }
 
         return new AntennaManager(
-                installations,
+                antennaSet,
                 new SerialScheduledExecutor(
                         capacity,
                         "antenna-manager-test",
