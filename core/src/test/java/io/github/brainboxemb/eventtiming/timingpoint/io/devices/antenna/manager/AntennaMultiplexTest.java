@@ -46,22 +46,14 @@ public class AntennaMultiplexTest {
                         "B",
                         calls);
 
-        AntennaManager manager =
-                manager(
-                        Arrays.asList(
-                                AntennaInstallation.direct(
-                                                new AntennaId("ANT1"),
-                                                first)
-                                        .inInventoryGroup(
-                                                Duration.ofSeconds(1)),
-                                AntennaInstallation.direct(
-                                                new AntennaId("ANT2"),
-                                                second)
-                                        .inInventoryGroup(
-                                                Duration.ofSeconds(1))),
-                        shared,
-                        8,
-                        Duration.ofSeconds(1));
+        AntennaId firstId = new AntennaId("ANT1");
+        AntennaId secondId = new AntennaId("ANT2");
+        AntennaSet antennaSet = new AntennaSet()
+                .add(firstId, first)
+                .add(secondId, second)
+                .inventoryGroup(Duration.ofSeconds(1), firstId, secondId);
+
+        AntennaManager manager = manager(antennaSet, shared, 8, Duration.ofSeconds(1));
 
         try {
             manager.activate();
@@ -110,25 +102,14 @@ public class AntennaMultiplexTest {
         SimulatedPowerDevice secondPower =
                 new SimulatedPowerDevice(second);
 
-        AntennaManager manager = manager(
-                Arrays.asList(
-                        AntennaInstallation.powered(
-                                        new AntennaId("ANT1"),
-                                        first,
-                                        firstPower,
-                                        Duration.ZERO)
-                                .inInventoryGroup(
-                                        Duration.ofMillis(30)),
-                        AntennaInstallation.powered(
-                                        new AntennaId("ANT2"),
-                                        second,
-                                        secondPower,
-                                        Duration.ZERO)
-                                .inInventoryGroup(
-                                        Duration.ofMillis(30))),
-                shared,
-                8,
-                Duration.ofSeconds(1));
+        AntennaId firstId = new AntennaId("ANT1");
+        AntennaId secondId = new AntennaId("ANT2");
+        AntennaSet antennaSet = new AntennaSet()
+                .addPowered(firstId, first, firstPower, Duration.ZERO)
+                .addPowered(secondId, second, secondPower, Duration.ZERO)
+                .inventoryGroup(Duration.ofMillis(30), firstId, secondId);
+
+        AntennaManager manager = manager(antennaSet, shared, 8, Duration.ofSeconds(1));
 
         try {
             manager.activate();
@@ -173,21 +154,14 @@ public class AntennaMultiplexTest {
         SimulatedAntenna available = new SimulatedAntenna();
         SimulatedAntenna failed = new SimulatedAntenna();
 
-        AntennaManager manager = manager(
-                Arrays.asList(
-                        AntennaInstallation.direct(
-                                        new AntennaId("ANT1"),
-                                        available)
-                                .inInventoryGroup(
-                                        Duration.ofMillis(25)),
-                        AntennaInstallation.direct(
-                                        new AntennaId("ANT2"),
-                                        failed)
-                                .inInventoryGroup(
-                                        Duration.ofMillis(25))),
-                shared,
-                8,
-                Duration.ofSeconds(1));
+        AntennaId availableId = new AntennaId("ANT1");
+        AntennaId failedId = new AntennaId("ANT2");
+        AntennaSet antennaSet = new AntennaSet()
+                .add(availableId, available)
+                .add(failedId, failed)
+                .inventoryGroup(Duration.ofMillis(25), availableId, failedId);
+
+        AntennaManager manager = manager(antennaSet, shared, 8, Duration.ofSeconds(1));
 
         try {
             manager.activate();
@@ -229,21 +203,14 @@ public class AntennaMultiplexTest {
         SimulatedAntenna first = new SimulatedAntenna();
         SimulatedAntenna second = new SimulatedAntenna();
 
-        AntennaManager manager = manager(
-                Arrays.asList(
-                        AntennaInstallation.direct(
-                                        new AntennaId("ANT1"),
-                                        first)
-                                .inInventoryGroup(
-                                        Duration.ofMillis(200)),
-                        AntennaInstallation.direct(
-                                        new AntennaId("ANT2"),
-                                        second)
-                                .inInventoryGroup(
-                                        Duration.ofMillis(200))),
-                shared,
-                8,
-                Duration.ofSeconds(1));
+        AntennaId firstId = new AntennaId("ANT1");
+        AntennaId secondId = new AntennaId("ANT2");
+        AntennaSet antennaSet = new AntennaSet()
+                .add(firstId, first)
+                .add(secondId, second)
+                .inventoryGroup(Duration.ofMillis(200), firstId, secondId);
+
+        AntennaManager manager = manager(antennaSet, shared, 8, Duration.ofSeconds(1));
 
         try {
             manager.activate();
@@ -285,46 +252,23 @@ public class AntennaMultiplexTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void rejectsDifferentIntervalsWithinInventoryGroup() {
-        ScheduledExecutorService shared = sharedExecutor();
-        try {
-            manager(
-                    Arrays.asList(
-                            AntennaInstallation.direct(
-                                            new AntennaId("ANT1"),
-                                            new SimulatedAntenna())
-                                    .inInventoryGroup(
-                                            Duration.ofMillis(25)),
-                            AntennaInstallation.direct(
-                                            new AntennaId("ANT2"),
-                                            new SimulatedAntenna())
-                                    .inInventoryGroup(
-                                            Duration.ofMillis(30))),
-                    shared,
-                    8,
-                    Duration.ofSeconds(1));
-        } finally {
-            shared.shutdownNow();
-        }
+    public void rejectsUnknownInventoryGroupMember() {
+        AntennaSet antennaSet = new AntennaSet()
+                .add(new AntennaId("ANT1"), new SimulatedAntenna())
+                .add(new AntennaId("ANT2"), new SimulatedAntenna());
+
+        antennaSet.inventoryGroup(
+                Duration.ofMillis(25),
+                new AntennaId("ANT1"),
+                new AntennaId("ANT3"));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsSingleMemberInventoryGroup() {
-        ScheduledExecutorService shared = sharedExecutor();
-        try {
-            manager(
-                    Arrays.asList(
-                            AntennaInstallation.direct(
-                                            new AntennaId("ANT3"),
-                                            new SimulatedAntenna())
-                                    .inInventoryGroup(
-                                            Duration.ofMillis(25))),
-                    shared,
-                    8,
-                    Duration.ofSeconds(1));
-        } finally {
-            shared.shutdownNow();
-        }
+        AntennaId antennaId = new AntennaId("ANT3");
+        new AntennaSet()
+                .add(antennaId, new SimulatedAntenna())
+                .inventoryGroup(Duration.ofMillis(25), antennaId);
     }
 
     private static final class OrderRecordingAntenna
@@ -413,12 +357,12 @@ public class AntennaMultiplexTest {
     }
 
     private static AntennaManager manager(
-            java.util.List<AntennaInstallation> installations,
+            AntennaSet antennaSet,
             ScheduledExecutorService shared,
             int capacity,
             Duration timeout) {
         return new AntennaManager(
-                installations,
+                antennaSet,
                 new SerialScheduledExecutor(
                         capacity,
                         "antenna-multiplex-test",
