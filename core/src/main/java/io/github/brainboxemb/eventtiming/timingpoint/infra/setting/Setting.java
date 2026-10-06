@@ -3,12 +3,11 @@ package io.github.brainboxemb.eventtiming.timingpoint.infra.setting;
 import java.util.Objects;
 
 /**
- * Tracks one requested setting against the value that has actually been
- * applied.
+ * Holds one requested setting next to the value that has actually been applied.
  *
- * <p>The setting deliberately owns no executor, retry policy or device action.
- * Its owner decides when processing may start and reports the result back after
- * that processing completes.</p>
+ * <p>The setting owns no executor, callback, retry policy or physical action.
+ * Its owner processes {@link #requestedValue()} and calls
+ * {@link #markApplied(Object)} only after that processing succeeds.</p>
  *
  * @param <T> setting value type
  */
@@ -16,9 +15,6 @@ public final class Setting<T> {
     private T requestedValue;
     private T appliedValue;
     private boolean changePending;
-
-    private boolean changeInProgress;
-    private T processingValue;
 
     public Setting(
             T initialValue) {
@@ -38,14 +34,7 @@ public final class Setting<T> {
         return changePending;
     }
 
-    /**
-     * Records the latest requested value.
-     *
-     * <p>Only the latest request matters. When a different request arrives
-     * while an older change is still being processed, the setting remains
-     * pending until the owner reports the processing result and applies the
-     * latest value.</p>
-     */
+    /** Records the latest value the owner should eventually apply. */
     public synchronized void request(
             T value) {
         requestedValue = value;
@@ -53,53 +42,15 @@ public final class Setting<T> {
     }
 
     /**
-     * Starts processing the current requested value.
+     * Records one value that was successfully applied by the owner.
      *
-     * @return {@code true} when a pending change was claimed for processing
+     * <p>The applied value can differ from the latest requested value when a
+     * newer request arrived while an older change was being processed. In that
+     * case {@link #changePending()} remains {@code true}.</p>
      */
-    public synchronized boolean beginChange() {
-        if (changeInProgress
-                || !changePending) {
-            return false;
-        }
-
-        processingValue = requestedValue;
-        changeInProgress = true;
-        updatePending();
-        return true;
-    }
-
-    /**
-     * Returns the value currently being processed.
-     */
-    public synchronized T processingValue() {
-        if (!changeInProgress) {
-            throw new IllegalStateException(
-                    "no Setting change is being processed");
-        }
-        return processingValue;
-    }
-
-    /**
-     * Reports the result of the current processing attempt.
-     *
-     * <p>A successful result advances {@link #appliedValue()}. A failed result
-     * leaves the applied value unchanged. In both cases pending state is
-     * recalculated against the latest request.</p>
-     */
-    public synchronized void completeChange(
-            boolean success) {
-        if (!changeInProgress) {
-            throw new IllegalStateException(
-                    "no Setting change is being processed");
-        }
-
-        if (success) {
-            appliedValue = processingValue;
-        }
-
-        changeInProgress = false;
-        processingValue = null;
+    public synchronized void markApplied(
+            T value) {
+        appliedValue = value;
         updatePending();
     }
 
@@ -107,10 +58,6 @@ public final class Setting<T> {
         changePending =
                 !Objects.equals(
                         requestedValue,
-                        appliedValue)
-                || (changeInProgress
-                    && !Objects.equals(
-                            requestedValue,
-                            processingValue));
+                        appliedValue);
     }
 }
