@@ -15,12 +15,15 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTi
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.DynamicConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment.OperatingSystem;
 
 import java.io.Reader;
 import java.io.Writer;
@@ -30,6 +33,9 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * One completely composed SI-01 timing application.
@@ -51,6 +57,8 @@ import java.util.Map;
  * </pre>
  */
 public final class TimingApplicationRuntime {
+    private static final Logger LOG =
+            LoggerFactory.getLogger(TimingApplicationRuntime.class);
 
     public enum State {
         NEW,
@@ -66,6 +74,7 @@ public final class TimingApplicationRuntime {
     private final ApplicationConfiguration configuration;
     private final PresentationGateway presentationGateway;
     private final RuntimeExecutors runtimeExecutors;
+    private final AntennaManager antennaManager;
     private final Conductor conductor;
     private final PresentationRuntime presentationRuntime;
     private final ShutdownSignal shutdownSignal;
@@ -78,6 +87,7 @@ public final class TimingApplicationRuntime {
             ApplicationConfiguration configuration,
             PresentationGateway presentationGateway,
             RuntimeExecutors runtimeExecutors,
+            AntennaManager antennaManager,
             Conductor conductor,
             PresentationRuntime presentationRuntime,
             ShutdownSignal shutdownSignal) {
@@ -86,6 +96,7 @@ public final class TimingApplicationRuntime {
         this.configuration = configuration;
         this.presentationGateway = presentationGateway;
         this.runtimeExecutors = runtimeExecutors;
+        this.antennaManager = antennaManager;
         this.conductor = conductor;
         this.presentationRuntime = presentationRuntime;
         this.shutdownSignal = shutdownSignal;
@@ -99,11 +110,25 @@ public final class TimingApplicationRuntime {
     public static TimingApplicationRuntime create(
             BuildIdentity buildIdentity,
             Config config) {
-        return create(
+        return createNormal(
                 buildIdentity,
                 config,
-                Collections.<AntennaInstallation>emptyList(),
-                defaultEventData(),
+                PlatformEnvironment.system(),
+                null,
+                null);
+    }
+
+    /**
+     * Package-local seam for deterministic platform-dependent composition tests.
+     */
+    static TimingApplicationRuntime create(
+            BuildIdentity buildIdentity,
+            Config config,
+            PlatformEnvironment platform) {
+        return createNormal(
+                buildIdentity,
+                config,
+                platform,
                 null,
                 null);
     }
@@ -119,11 +144,32 @@ public final class TimingApplicationRuntime {
             Config config,
             Reader consoleInput,
             Writer consoleOutput) {
+        return createNormal(
+                buildIdentity,
+                config,
+                PlatformEnvironment.system(),
+                consoleInput,
+                consoleOutput);
+    }
+
+    private static TimingApplicationRuntime createNormal(
+            BuildIdentity buildIdentity,
+            Config config,
+            PlatformEnvironment platform,
+            Reader consoleInput,
+            Writer consoleOutput) {
+        if (platform == null) {
+            throw new IllegalArgumentException(
+                    "platform must not be null");
+        }
+
         return create(
                 buildIdentity,
                 config,
-                Collections.<AntennaInstallation>emptyList(),
+                platformDefaultAntennaInstallations(
+                        platform),
                 defaultEventData(),
+                platform,
                 consoleInput,
                 consoleOutput);
     }
@@ -136,12 +182,14 @@ public final class TimingApplicationRuntime {
             BuildIdentity buildIdentity,
             Config config,
             List<AntennaInstallation> antennaInstallations,
-            EventData eventData) {
+            EventData eventData,
+            PlatformEnvironment platform) {
         return create(
                 buildIdentity,
                 config,
                 antennaInstallations,
                 eventData,
+                PlatformEnvironment.system(),
                 null,
                 null);
     }
@@ -151,25 +199,24 @@ public final class TimingApplicationRuntime {
             Config config,
             List<AntennaInstallation> antennaInstallations,
             EventData eventData,
+            PlatformEnvironment platform,
             Reader consoleInput,
             Writer consoleOutput) {
         requireCompositionInput(
                 buildIdentity,
                 config,
                 antennaInstallations,
-                eventData);
+                eventData,
+                platform);
 
         List<AntennaInstallation> installations =
                 copyInstallations(
                         antennaInstallations);
 
         /*
-         * 1. Resolve runtime configuration and the process-wide platform
+         * 1. Resolve runtime configuration against the supplied process/platform
          *    environment. No component is active yet.
          */
-        PlatformEnvironment platform =
-                PlatformEnvironment.system();
-
         ApplicationConfiguration applicationConfiguration =
                 ApplicationConfiguration.singleTimingNode(
                         config.timingNodeId(),
@@ -292,6 +339,7 @@ public final class TimingApplicationRuntime {
                     applicationConfiguration,
                     presentationGateway,
                     executors,
+                    antennaManager,
                     conductor,
                     presentation,
                     shutdownSignal);
@@ -355,6 +403,10 @@ public final class TimingApplicationRuntime {
 
     TimingNode timingNode() {
         return timingNode;
+    }
+
+    AntennaManager antennaManager() {
+        return antennaManager;
     }
 
     public synchronized State state() {
@@ -448,6 +500,26 @@ public final class TimingApplicationRuntime {
                 .createEventData();
     }
 
+    /**
+     * Temporary development fallback until IF-11 antenna configuration is
+     * composed by the normal runtime mapper.
+     */
+    private static List<AntennaInstallation> platformDefaultAntennaInstallations(
+            PlatformEnvironment platform) {
+        if (platform.operatingSystem()
+                != OperatingSystem.WINDOWS) {
+            return Collections.emptyList();
+        }
+
+        LOG.warn(
+                "Windows development platform default selected simulated antenna ANT1; no physical RFID reader is in use");
+
+        return Collections.singletonList(
+                AntennaInstallation.direct(
+                        new AntennaId("ANT1"),
+                        new SimulatedAntenna()));
+    }
+
     private static ConfigurationControl createConfigurationControl(
             ApplicationConfiguration configuration) {
         Map<NodeId,
@@ -511,6 +583,10 @@ public final class TimingApplicationRuntime {
         if (eventData == null) {
             throw new IllegalArgumentException(
                     "eventData must not be null");
+        }
+        if (platform == null) {
+            throw new IllegalArgumentException(
+                    "platform must not be null");
         }
     }
 }
