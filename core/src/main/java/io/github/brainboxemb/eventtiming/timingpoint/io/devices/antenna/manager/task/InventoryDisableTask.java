@@ -5,11 +5,17 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.TaskStep
 
 import java.util.List;
 
-/** Stops inventory and removes optional external power one antenna per turn. */
+/** Stops inventory and removes optional external power one device step per turn. */
 final class InventoryDisableTask implements CooperativeTask {
+
+    private enum Phase {
+        STOP_INVENTORY,
+        POWER_OFF
+    }
 
     private final List<? extends AntennaTasks.AntennaTarget> antennas;
     private int antennaIndex;
+    private Phase phase = Phase.STOP_INVENTORY;
     private RuntimeException failure;
 
     InventoryDisableTask(
@@ -29,26 +35,43 @@ final class InventoryDisableTask implements CooperativeTask {
         }
 
         AntennaTasks.AntennaTarget antenna =
-                antennas.get(antennaIndex--);
+                antennas.get(antennaIndex);
 
-        if (!antenna.disableInventory()) {
-            RuntimeException current =
-                    antenna.failure() instanceof RuntimeException
-                            ? (RuntimeException) antenna.failure()
-                            : new IllegalStateException(
-                                    "antenna inventory disable failed",
-                                    antenna.failure());
+        switch (phase) {
+            case STOP_INVENTORY:
+                try {
+                    antenna.stopInventory();
+                } catch (RuntimeException ex) {
+                    remember(ex);
+                }
+                phase = Phase.POWER_OFF;
+                return TaskStep.again();
 
-            if (failure == null) {
-                failure = current;
-            } else if (failure != current) {
-                failure.addSuppressed(current);
-            }
+            case POWER_OFF:
+                try {
+                    antenna.powerOffAfterInventory();
+                } catch (RuntimeException ex) {
+                    remember(ex);
+                }
+                antennaIndex--;
+                phase = Phase.STOP_INVENTORY;
+                return antennaIndex < 0
+                        ? finish()
+                        : TaskStep.again();
+
+            default:
+                throw new IllegalStateException(
+                        "Unsupported inventory-disable phase " + phase);
         }
+    }
 
-        return antennaIndex < 0
-                ? finish()
-                : TaskStep.again();
+    private void remember(
+            RuntimeException current) {
+        if (failure == null) {
+            failure = current;
+        } else if (failure != current) {
+            failure.addSuppressed(current);
+        }
     }
 
     private TaskStep finish() {
