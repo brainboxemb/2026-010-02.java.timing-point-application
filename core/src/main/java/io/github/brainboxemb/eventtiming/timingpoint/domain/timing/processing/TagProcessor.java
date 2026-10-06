@@ -17,7 +17,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,8 +45,6 @@ public final class TagProcessor {
     private final TimingNode timingNode;
     private final EventData eventData;
     private final ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration;
-    private final Consumer<ConfigurationChange<TagProcessingPolicy>>
-            policyChangeListener;
     private final RegistrationDuplicateFilter duplicateFilter;
     private final TagProcessingMetrics metrics;
     private final TagObservationFilter observationFilter;
@@ -113,7 +110,6 @@ public final class TagProcessor {
         this.timingNode = timingNode;
         this.eventData = eventData;
         this.policyConfiguration = policyConfiguration;
-        this.policyChangeListener = this::onPolicyChange;
         this.metrics = metrics;
         this.executor = executor;
         this.inputQueue =
@@ -139,7 +135,6 @@ public final class TagProcessor {
             }
             executor.start();
             state = State.ACTIVE;
-            policyConfiguration.changes().subscribe(policyChangeListener);
         }
     }
 
@@ -157,7 +152,6 @@ public final class TagProcessor {
             }
 
             state = State.INACTIVE;
-            policyConfiguration.changes().unsubscribe(policyChangeListener);
             closeHousekeepingLocked();
             drainRemaining = !inputQueue.isEmpty();
             if (drainRemaining && !executor.execute(this::drainAll)) {
@@ -285,7 +279,14 @@ public final class TagProcessor {
         }
     }
 
-    private void onPolicyChange(
+    /**
+     * Composition-wired callback for runtime tag-processing policy changes.
+     *
+     * <p>TimingNode wires this callback once while constructing its TagProcessor
+     * child. The event graph is not changed during component activation or
+     * deactivation.</p>
+     */
+    public void onPolicyConfigurationChanged(
             ConfigurationChange<TagProcessingPolicy> change) {
         synchronized (lifecycleLock) {
             if (state != State.ACTIVE) {
