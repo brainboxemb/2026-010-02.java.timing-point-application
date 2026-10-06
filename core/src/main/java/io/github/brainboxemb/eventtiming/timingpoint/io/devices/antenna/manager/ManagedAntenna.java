@@ -160,22 +160,25 @@ final class ManagedAntenna implements AntennaTasks.AntennaTarget {
     public void powerOff() {
         PowerDevice power =
                 installation.powerDevice();
-        if (power == null
-                || !externalPowerApplied) {
-            return;
-        }
 
         try {
-            power.powerOff();
-            LOG.debug(
-                    "Antenna {} external power disabled",
-                    antennaId());
+            if (power != null
+                    && externalPowerApplied) {
+                power.powerOff();
+                LOG.debug(
+                        "Antenna {} external power disabled",
+                        antennaId());
+            }
         } catch (RuntimeException ex) {
             recordFailure(
                     ex);
             throw ex;
         } finally {
             externalPowerApplied = false;
+            if (operation != AntennaOperation.INVENTORY
+                    && operation != AntennaOperation.SHUTDOWN) {
+                operation = AntennaOperation.INACTIVE;
+            }
         }
     }
 
