@@ -186,7 +186,7 @@ public final class AntennaManager {
                                         FailureReason.OVERLOADED,
                                         "AntennaManager control lane rejected self-test completion",
                                         control.failure());
-                        busy = false;
+                       busy = false;
                         selfTestPassed = false;
                         recordFailure(
                                 rejection);
@@ -470,7 +470,7 @@ public final class AntennaManager {
                                         FailureReason.OVERLOADED,
                                         "AntennaManager control lane rejected inventory-enable completion",
                                         control.failure());
-                         busy = false;
+                        busy = false;
                         recordFailure(
                                 rejection);
                         LOG.warn(
@@ -605,8 +605,13 @@ public final class AntennaManager {
 
         if (!inventoryRequestedEnabled()) {
             cancelRotation();
-            disableAllInventory();
-             busy = false;
+            boolean disabled =
+                    disableAllInventory();
+            if (disabled) {
+                inventoryEnabledSetting.markApplied(
+                        Boolean.FALSE);
+            }
+            busy = false;
             return;
         }
 
