@@ -12,7 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * One serial execution lane that supports immediate and fixed-delay work.
+ * One serial execution lane that supports immediate, one-shot delayed and
+ * fixed-delay work.
  *
  * <p>Like {@link SerialExecutor}, this is primarily a logical lane rather than
  * necessarily a Java thread. In production, multiple TagProcessor lanes share
@@ -37,7 +38,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
     }
 
     /**
-     * Handle owned by the caller for one fixed-delay registration.
+     * Handle owned by the caller for one delayed or fixed-delay registration.
      *
      * <p>Closing the handle cancels future triggers but does not close this lane
      * or the shared runtime worker.</p>
