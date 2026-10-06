@@ -20,9 +20,31 @@ import org.slf4j.LoggerFactory;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
 
-/** Public lifecycle, inventory intent and status boundary for one antenna set. */
+/**
+ * Lifecycle and control state machine for one antenna set.
+ *
+ * <p>External calls and task-completion events only provide new input. The
+ * manager makes all follow-up decisions in {@link #advanceStateMachine()}, so
+ * task handlers do not each implement their own transition rules.</p>
+ */
 public final class AntennaManager {
     private static final Logger LOG = LoggerFactory.getLogger(AntennaManager.class);
+
+    /**
+     * Internal control phase while the public lifecycle remains ACTIVE.
+     *
+     * <p>IDLE means that startup self-test passed and no manager task is
+     * currently running. Physical inventory may still be active after an
+     * enable task completed.</p>
+     */
+    private enum Phase {
+        STOPPED,
+        SELF_TEST,
+        IDLE,
+        INVENTORY_TASK,
+        SELF_TEST_FAILED,
+        INVENTORY_FAILED
+    }
 
     private final ScheduledTaskRunner taskRunner;
     private final AntennaSet antennaSet;
@@ -30,8 +52,11 @@ public final class AntennaManager {
     private final AntennaTasks antennaTasks;
 
     private volatile State state = State.NEW;
+    private volatile Phase phase = Phase.STOPPED;
     private volatile Throwable failure;
 
+    private AntennaTasks.TaskResult selfTestResult;
+    private AntennaTasks.TaskResult inventoryResult;
 
     public AntennaManager(
             AntennaSet antennaSet,
@@ -49,6 +74,10 @@ public final class AntennaManager {
                 antennaSet.hasInventoryGroup() ? antennaSet.inventoryInterval() : null,
                 inventoryEnabledSetting);
 
+        /*
+         * Task events are wired once during composition. The callbacks only
+         * store the completed result and advance this manager state machine.
+         */
         antennaTasks.selfTestCompletedEvent().subscribe(this::onSelfTestCompleted);
         antennaTasks.inventoryCompletedEvent().subscribe(this::onInventoryCompleted);
     }
@@ -58,37 +87,33 @@ public final class AntennaManager {
 
         taskRunner.start();
         state = State.ACTIVE;
+        phase = Phase.SELF_TEST;
         failure = null;
+        selfTestResult = null;
+        inventoryResult = null;
 
         antennaTasks.startSelfTest(taskRunner);
-
         LOG.info("AntennaManager activated with {} configured antenna(s)", antennaSet.size());
     }
 
     public boolean isBusy() {
-        return antennaTasks.selfTestRunning() || inventoryEnabledSetting.changePending();
+        Phase current = phase;
+        return current == Phase.SELF_TEST || current == Phase.INVENTORY_TASK;
     }
 
     public boolean isReady() {
         return state == State.ACTIVE
-                && !antennaTasks.selfTestRunning()
+                && phase != Phase.SELF_TEST
+                && phase != Phase.SELF_TEST_FAILED
                 && antennaSet.allSelfTestsPassed();
     }
 
-    /**
-     * Requests inventory to become enabled.
-     *
-     * @return false when the manager cannot accept the request
-     */
+    /** Requests inventory to become enabled. */
     public boolean requestEnableInventory() {
         return requestInventory(true);
     }
 
-    /**
-     * Requests inventory to become disabled.
-     *
-     * @return false when the manager cannot accept the request
-     */
+    /** Requests inventory to become disabled. */
     public boolean requestDisableInventory() {
         return requestInventory(false);
     }
@@ -132,7 +157,6 @@ public final class AntennaManager {
             if (taskRunner.isNew()) {
                 taskRunner.start();
             }
-
             antennaTasks.shutdownAndWait(taskRunner);
         } catch (RuntimeException ex) {
             shutdownFailure = ex;
@@ -148,81 +172,144 @@ public final class AntennaManager {
             }
         }
 
-        if (shutdownFailure == null) {
-            inventoryEnabledSetting.markApplied(Boolean.FALSE);
-            state = State.INACTIVE;
-            LOG.info("AntennaManager deactivated");
-        } else {
-            failure = shutdownFailure;
-            state = State.FAILED;
+        synchronized (this) {
+            selfTestResult = null;
+            inventoryResult = null;
+
+            if (shutdownFailure == null) {
+                inventoryEnabledSetting.markApplied(Boolean.FALSE);
+                phase = Phase.STOPPED;
+                state = State.INACTIVE;
+                LOG.info("AntennaManager deactivated");
+            } else {
+                failure = shutdownFailure;
+                phase = Phase.STOPPED;
+                state = State.FAILED;
+            }
+        }
+
+        if (shutdownFailure != null) {
             throw shutdownFailure;
         }
     }
 
-    private boolean requestInventory(boolean enabled) {
+    private synchronized boolean requestInventory(boolean enabled) {
         if (state != State.ACTIVE) {
             return false;
         }
 
         inventoryEnabledSetting.request(Boolean.valueOf(enabled));
-        startInventoryTaskIfNeeded();
+
+        /*
+         * A fresh request is the explicit retry trigger after an inventory task
+         * failure. Self-test failure is not retried by an inventory request.
+         */
+        if (phase == Phase.INVENTORY_FAILED) {
+            phase = Phase.IDLE;
+        }
+
+        advanceStateMachine();
         return true;
     }
 
+    private synchronized void onSelfTestCompleted(AntennaTasks.TaskResult result) {
+        selfTestResult = result;
+        advanceStateMachine();
+    }
+
+    private synchronized void onInventoryCompleted(AntennaTasks.TaskResult result) {
+        inventoryResult = result;
+        advanceStateMachine();
+    }
+
     /**
-     * Starts the reusable inventory task when requested state still differs from applied state.
+     * Owns all manager transitions while the component is active.
      *
-     * <p>This is called both after a new request and after self-test/task completion,
-     * because a request may have arrived while the task could not yet run.</p>
+     * <p>A phase either starts one child task and waits for its completion event,
+     * or advances immediately to the next stable phase. Task handlers never
+     * decide independently which task should run next.</p>
      */
-    private void startInventoryTaskIfNeeded() {
-        if (state != State.ACTIVE
-                || !antennaSet.allSelfTestsPassed()
-                || !inventoryEnabledSetting.changePending()) {
-            return;
-        }
-
-        antennaTasks.startInventory(taskRunner);
-    }
-
-    private void onInventoryCompleted(AntennaTasks.TaskResult result) {
-        if (!result.successful()) {
-            recordFailure(result.failure());
-            LOG.warn("Antenna inventory task failed", result.failure());
-        }
-
-        if (state == State.ACTIVE && inventoryEnabledSetting.changePending()) {
-            startInventoryTaskIfNeeded();
-        }
-    }
-
-    private void onSelfTestCompleted(AntennaTasks.TaskResult result) {
+    private void advanceStateMachine() {
         if (state != State.ACTIVE) {
             return;
         }
 
+        while (true) {
+            switch (phase) {
+                case SELF_TEST:
+                    if (selfTestResult == null) {
+                        return;
+                    }
+                    completeSelfTest();
+                    break;
+
+                case IDLE:
+                    if (!inventoryEnabledSetting.changePending()) {
+                        return;
+                    }
+                    phase = Phase.INVENTORY_TASK;
+                    inventoryResult = null;
+                    antennaTasks.startInventory(taskRunner);
+                    return;
+
+                case INVENTORY_TASK:
+                    if (inventoryResult == null) {
+                        return;
+                    }
+                    completeInventoryTask();
+                    break;
+
+                case SELF_TEST_FAILED:
+                case INVENTORY_FAILED:
+                case STOPPED:
+                    return;
+
+                default:
+                    throw new IllegalStateException("Unsupported AntennaManager phase " + phase);
+            }
+        }
+    }
+
+    private void completeSelfTest() {
+        AntennaTasks.TaskResult result = selfTestResult;
+        selfTestResult = null;
+
+        if (!result.successful() || !antennaSet.allSelfTestsPassed()) {
+            recordFailure(result.failure());
+            phase = Phase.SELF_TEST_FAILED;
+            LOG.warn("AntennaManager self-test FAIL");
+            return;
+        }
+
+        phase = Phase.IDLE;
+        LOG.info("AntennaManager self-test PASS");
+    }
+
+    private void completeInventoryTask() {
+        AntennaTasks.TaskResult result = inventoryResult;
+        inventoryResult = null;
+
         if (!result.successful()) {
             recordFailure(result.failure());
+            phase = Phase.INVENTORY_FAILED;
+            LOG.warn("Antenna inventory task failed", result.failure());
+            return;
         }
 
-        boolean passed = antennaSet.allSelfTestsPassed();
-        LOG.info("AntennaManager self-test {}", passed ? "PASS" : "FAIL");
-
-        if (passed) {
-            startInventoryTaskIfNeeded();
-        }
+        phase = Phase.IDLE;
     }
 
     private void recordFailure(Throwable cause) {
         if (cause == null || cause instanceof CancellationException) {
             return;
         }
+
         if (failure == null) {
             failure = cause;
         }
+
         if (taskRunner.failure() != null) {
             state = State.FAILED;
         }
     }
-
 }
