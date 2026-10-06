@@ -3,31 +3,54 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 
 /**
- * Public status and failure values exposed by AntennaManager.
+ * Public lifecycle, health and failure values exposed by AntennaManager.
  */
 public final class AntennaManagerTypes {
     private AntennaManagerTypes() {
     }
 
-    /** Lifecycle of the manager component itself. */
+    /**
+     * Lifecycle of the AntennaManager software component itself.
+     *
+     * <p>Antenna health does not change this lifecycle state. A manager can stay
+     * ACTIVE while one configured antenna is unavailable.</p>
+     */
     public enum State {
         NEW,
-        ACTIVATING,
         ACTIVE,
-        DEGRADED,
         DEACTIVATING,
         INACTIVE,
         FAILED
     }
 
-    /** Physical/driver state of one configured antenna. */
-    public enum AntennaState {
-        UNCHECKED,
+    /** Aggregate health of the configured antenna set. */
+    public enum ManagerHealth {
+        UNKNOWN,
+        HEALTHY,
+        DEGRADED,
+        FAILED
+    }
+
+    /** Health/availability of one configured antenna. */
+    public enum AntennaHealth {
+        UNKNOWN,
         CHECKING,
+        HEALTHY,
+        FAILED
+    }
+
+    /**
+     * Current operational preparation of one configured antenna.
+     *
+     * <p>This is deliberately separate from health. A successfully probed
+     * antenna can be HEALTHY while operationally INACTIVE and powered down.</p>
+     */
+    public enum AntennaOperation {
+        INACTIVE,
+        PREPARING,
         READY,
         INVENTORY,
-        ERROR,
-        CLOSED
+        SHUTDOWN
     }
 
     /** Failure category for a result-bearing manager control operation. */
@@ -58,15 +81,18 @@ public final class AntennaManagerTypes {
     /** Immutable point-in-time view of one configured antenna. */
     public static final class AntennaStatus {
         private final AntennaId antennaId;
-        private final AntennaState state;
+        private final AntennaHealth health;
+        private final AntennaOperation operation;
         private final Throwable failure;
 
         AntennaStatus(
                 AntennaId antennaId,
-                AntennaState state,
+                AntennaHealth health,
+                AntennaOperation operation,
                 Throwable failure) {
             this.antennaId = antennaId;
-            this.state = state;
+            this.health = health;
+            this.operation = operation;
             this.failure = failure;
         }
 
@@ -74,8 +100,12 @@ public final class AntennaManagerTypes {
             return antennaId;
         }
 
-        public AntennaState state() {
-            return state;
+        public AntennaHealth health() {
+            return health;
+        }
+
+        public AntennaOperation operation() {
+            return operation;
         }
 
         public Throwable failure() {
@@ -83,8 +113,7 @@ public final class AntennaManagerTypes {
         }
 
         public boolean healthy() {
-            return state == AntennaState.READY
-                    || state == AntennaState.INVENTORY;
+            return health == AntennaHealth.HEALTHY;
         }
     }
 }
