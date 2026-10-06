@@ -21,7 +21,7 @@ public final class SimulatedAntenna implements Antenna {
 
     private boolean initialized;
     private boolean inventoryRunning;
-    private boolean closed;
+    private boolean shutdown;
     private boolean externalPowerControlled;
     private boolean powered = true;
     private FailurePoint failurePoint = FailurePoint.NONE;
@@ -124,13 +124,13 @@ public final class SimulatedAntenna implements Antenna {
     }
 
     @Override
-    public synchronized void close() {
+    public synchronized void shutdown() {
         inventoryRunning = false;
         initialized = false;
         if (externalPowerControlled) {
             powered = false;
         }
-        closed = true;
+        shutdown = true;
     }
 
     synchronized void attachExternalPowerControl() {
@@ -172,8 +172,8 @@ public final class SimulatedAntenna implements Antenna {
     }
 
     private void requireOpen() {
-        if (closed) {
-            throw new IllegalStateException("SimulatedAntenna is closed");
+        if (shutdown) {
+            throw new IllegalStateException("SimulatedAntenna is shut down");
         }
     }
 }
