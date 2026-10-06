@@ -38,7 +38,7 @@ public final class MessageWriter {
                 + "\"nodes\":[{"
                 + "\"id\":" + quote(status.timingNodeId().value()) + ","
                 + "\"locationId\":" + location + ","
-                + "\"state\":" + quote(status.lifecycle().name())
+                + "\"state\":" + quote(status.state().name())
                 + "}],"
                 + "\"problems\":" + problems(status)
                 + "}";
