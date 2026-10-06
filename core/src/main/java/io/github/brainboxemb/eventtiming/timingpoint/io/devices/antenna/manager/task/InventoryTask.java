@@ -233,7 +233,7 @@ final class InventoryTask extends AbstractTask {
     private TaskStep inventoryEnabled() {
         inventoryEnabledSetting.markApplied(Boolean.TRUE);
 
-        if (inventoryRequestedEnabled() && preparedGroupCount() > 1) {
+        if (inventoryRequestedEnabled() && preparedOrRunningGroupCount() > 1) {
             phase = Phase.SWITCH_STOP;
             return TaskStep.after(inventoryInterval);
         }
@@ -245,7 +245,7 @@ final class InventoryTask extends AbstractTask {
      * If fewer than two prepared/running members remain, rotation simply ends.
      */
     private TaskStep stopCurrentGroupAntenna() {
-        if (preparedGroupCount() < 2) {
+        if (preparedOrRunningGroupCount() < 2) {
             return TaskStep.done();
         }
 
@@ -383,10 +383,10 @@ final class InventoryTask extends AbstractTask {
         return -1;
     }
 
-    private int preparedGroupCount() {
+    private int preparedOrRunningGroupCount() {
         int count = 0;
         for (ManagedAntenna antenna : inventoryGroup) {
-            if (antenna.preparedForInventory()) {
+            if (antenna.preparedForInventory() || antenna.inventoryRunning()) {
                 count++;
             }
         }
