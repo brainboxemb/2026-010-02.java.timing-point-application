@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -96,23 +97,11 @@ final class RuntimeExecutors implements AutoCloseable {
                 0L,
                 TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>(),
-                runnable -> {
-                    Thread thread = new Thread(
-                            runnable,
-                            "tp-dml-node-worker");
-                    thread.setPriority(Thread.NORM_PRIORITY);
-                    return thread;
-                },
+                threadFactory("tp-dml-node-worker"),
                 new ThreadPoolExecutor.AbortPolicy());
         tagProcessorWorker = new ScheduledThreadPoolExecutor(
                 1,
-                runnable -> {
-                    Thread thread = new Thread(
-                            runnable,
-                            "tp-dml-tagproc-worker");
-                    thread.setPriority(Thread.NORM_PRIORITY);
-                    return thread;
-                });
+                threadFactory("tp-dml-tagproc-worker"));
         tagProcessorWorker.setRemoveOnCancelPolicy(true);
 
         applicationWorker = new ThreadPoolExecutor(
@@ -121,24 +110,12 @@ final class RuntimeExecutors implements AutoCloseable {
                 0L,
                 TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>(),
-                runnable -> {
-                    Thread thread = new Thread(
-                            runnable,
-                            "tp-apl-worker");
-                    thread.setPriority(Thread.NORM_PRIORITY);
-                    return thread;
-                },
+                threadFactory("tp-apl-worker"),
                 new ThreadPoolExecutor.AbortPolicy());
 
         sharedIoWorker = new ScheduledThreadPoolExecutor(
                 SHARED_IO_WORKERS,
-                runnable -> {
-                    Thread thread = new Thread(
-                            runnable,
-                            "tp-io-shared-worker");
-                    thread.setPriority(Thread.NORM_PRIORITY);
-                    return thread;
-                });
+                threadFactory("tp-io-shared-worker"));
         sharedIoWorker.setRemoveOnCancelPolicy(true);
     }
 
@@ -264,6 +241,25 @@ final class RuntimeExecutors implements AutoCloseable {
         awaitTermination(timingNodeWorker);
         awaitTermination(applicationWorker);
         awaitTermination(sharedIoWorker);
+    }
+
+    /**
+     * Creates one named normal-priority Runtime worker.
+     *
+     * <p>Keeping thread construction here makes the constructor describe the
+     * execution topology instead of repeating JVM thread boilerplate.</p>
+     */
+    private static ThreadFactory threadFactory(
+            String threadName) {
+        return runnable -> {
+            Thread thread =
+                    new Thread(
+                            runnable,
+                            threadName);
+            thread.setPriority(
+                    Thread.NORM_PRIORITY);
+            return thread;
+        };
     }
 
     private static void awaitTermination(
