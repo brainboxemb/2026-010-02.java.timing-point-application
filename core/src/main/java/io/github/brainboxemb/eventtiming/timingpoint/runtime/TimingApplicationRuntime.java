@@ -374,7 +374,7 @@ public final class TimingApplicationRuntime {
             timingNode.statusChangedEvent()
                     .subscribe(
                             conductor
-                                    .timingNodeLifecycleProperty()
+                                    .timingNodeStateProperty()
                                     .changeSignal());
 
             if (antennaManager != null) {
