@@ -145,7 +145,7 @@ public final class TimingNodeProxy {
     private static TimingNodeStatus timingNodeStatus(Status status) {
         return new TimingNodeStatus(
                 status.timingNodeId(),
-                status.lifecycle(),
+                status.state(),
                 status.locationId(),
                 status.problems());
     }
