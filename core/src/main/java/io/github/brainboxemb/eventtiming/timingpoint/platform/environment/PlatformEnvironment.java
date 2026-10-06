@@ -111,7 +111,7 @@ public final class PlatformEnvironment {
                                 .toLowerCase(
                                         Locale.ROOT);
 
-        if (normalized.contains("win")) {
+        if (normalized.contains("windows")) {
             return OperatingSystem.WINDOWS;
         }
         if (normalized.contains("linux")) {
