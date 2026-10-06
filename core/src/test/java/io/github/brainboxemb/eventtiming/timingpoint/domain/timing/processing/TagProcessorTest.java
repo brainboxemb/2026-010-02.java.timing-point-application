@@ -297,7 +297,7 @@ public class TagProcessorTest {
         TagProcessingPolicy startup = policy(8);
         ApplicationConfiguration configuration =
                 ApplicationConfiguration.singleTimingNode(
-                        new NodeId("TN-01"),
+                        new NodeId("A"),
                         startup);
         TagProcessor processor = new TagProcessor(
                 node,
@@ -305,11 +305,11 @@ public class TagProcessorTest {
                         "TAG-A", "N-001",
                         "TAG-B", "N-001",
                         "TAG-C", "N-001"),
-                configuration.timingNode(new NodeId("TN-01")).tagProcessing(),
+                configuration.timingNode(new NodeId("A")).tagProcessing(),
                 clock,
                 new TagProcessingMetrics(),
                 executor);
-        configuration.timingNode(new NodeId("TN-01"))
+        configuration.timingNode(new NodeId("A"))
                 .tagProcessing()
                 .changes()
                 .subscribe(processor::onPolicyConfigurationChanged);
@@ -337,7 +337,7 @@ public class TagProcessorTest {
             assertEquals(
                     ConfigurationUpdateResult.APPLIED,
                     configuration
-                            .timingNode(new NodeId("TN-01"))
+                            .timingNode(new NodeId("A"))
                             .tagProcessing()
                             .override(shorterQuietWindow));
 
@@ -359,16 +359,16 @@ public class TagProcessorTest {
         TagProcessingPolicy startup = policy(8);
         ApplicationConfiguration configuration =
                 ApplicationConfiguration.singleTimingNode(
-                        new NodeId("TN-01"),
+                        new NodeId("A"),
                         startup);
         TagProcessor processor = new TagProcessor(
                 node,
                 referenceEventData(),
-                configuration.timingNode(new NodeId("TN-01")).tagProcessing(),
+                configuration.timingNode(new NodeId("A")).tagProcessing(),
                 clock,
                 new TagProcessingMetrics(),
                 executor);
-        configuration.timingNode(new NodeId("TN-01"))
+        configuration.timingNode(new NodeId("A"))
                 .tagProcessing()
                 .changes()
                 .subscribe(processor::onPolicyConfigurationChanged);
@@ -393,7 +393,7 @@ public class TagProcessorTest {
             assertEquals(
                     ConfigurationUpdateResult.APPLIED,
                     configuration
-                            .timingNode(new NodeId("TN-01"))
+                            .timingNode(new NodeId("A"))
                             .tagProcessing()
                             .override(fasterSweep));
             awaitLane(executor);
@@ -551,7 +551,7 @@ public class TagProcessorTest {
     private TimingNode node(RecordingStore store) {
         TimeSource timeSource = () -> RECORDED_AT;
         return new TimingNode(
-                new NodeId("TN-01"),
+                new NodeId("A"),
                 store,
                 new DefaultTimingDataFactory(),
                 timeSource,
