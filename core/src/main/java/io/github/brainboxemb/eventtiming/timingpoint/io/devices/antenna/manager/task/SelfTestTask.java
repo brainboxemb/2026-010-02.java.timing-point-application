@@ -1,17 +1,22 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.task;
 
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTask;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.TaskStep;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
 
 /**
  * Reusable startup self-test for the complete configured antenna set.
  *
- * <p>The task owns the complete round: power, physical stabilization, provider
- * self-test and power-off. A failure on one antenna is remembered while the
- * remaining antennas are still tested.</p>
+ * <p>The task owns its own execution handle. Completion is published as an event
+ * from the final task step, so callers do not need to observe a Future.</p>
  */
 final class SelfTestTask implements CooperativeTask {
 
@@ -22,7 +27,9 @@ final class SelfTestTask implements CooperativeTask {
     }
 
     private final List<? extends AntennaTasks.AntennaTarget> antennas;
+    private final Event<AntennaTasks.TaskResult> completedEvent = new Event<AntennaTasks.TaskResult>();
 
+    private CompletableFuture<Void> operation;
     private int antennaIndex;
     private Phase phase;
     private RuntimeException failure;
@@ -32,7 +39,27 @@ final class SelfTestTask implements CooperativeTask {
         reset();
     }
 
-    void reset() {
+    void start(ScheduledTaskRunner taskRunner) {
+        checkState(!isRunning(), "SelfTestTask is already running");
+        reset();
+        operation = taskRunner.runTask(this);
+    }
+
+    void cancel() {
+        if (isRunning()) {
+            operation.cancel(true);
+        }
+    }
+
+    boolean isRunning() {
+        return operation != null && !operation.isDone();
+    }
+
+    EventSource<AntennaTasks.TaskResult> completedEvent() {
+        return completedEvent;
+    }
+
+    private void reset() {
         antennaIndex = 0;
         phase = Phase.POWER_ON;
         failure = null;
@@ -93,9 +120,7 @@ final class SelfTestTask implements CooperativeTask {
     }
 
     private TaskStep finish() {
-        if (failure != null) {
-            throw failure;
-        }
+        completedEvent.emit(failure == null ? AntennaTasks.TaskResult.success() : AntennaTasks.TaskResult.failed(failure));
         return TaskStep.done();
     }
 }
