@@ -345,63 +345,75 @@ public class AntennaManagerTest {
     }
 
     @Test
-    public void failedSelfTestLeavesManagerActiveButNotReady()
+    public void failedSelfTestDoesNotBlockLaterInventoryAttempt()
             throws Exception {
-        ScheduledExecutorService shared =
-                sharedExecutor();
-        List<String> calls =
-                Collections.synchronizedList(
-                        new ArrayList<String>());
-        RecordingAntenna first =
-                new RecordingAntenna(
-                        "first",
-                        calls);
-        RecordingAntenna failed =
-                new FailingSelfTestAntenna(
-                        "failed",
-                        calls);
-        AntennaManager manager =
-                manager(
-                        Arrays.<Antenna>asList(
-                                first,
-                                failed),
-                        shared,
-                        4,
-                        Duration.ofSeconds(1));
+        ScheduledExecutorService shared = sharedExecutor();
+        List<String> calls = Collections.synchronizedList(new ArrayList<String>());
+        RecordingAntenna first = new RecordingAntenna("first", calls);
+        RecordingAntenna failedSelfTest = new FailingSelfTestAntenna("failed", calls);
+        AntennaManager manager = manager(
+                Arrays.<Antenna>asList(first, failedSelfTest),
+                shared,
+                4,
+                Duration.ofSeconds(1));
 
         try {
             manager.activate();
+            awaitCondition(manager::isReady, 1000L);
+
+            assertEquals(State.ACTIVE, manager.state());
+            assertTrue(manager.status(new AntennaId("1")).selfTestPassed());
+            assertFalse(manager.status(new AntennaId("2")).selfTestPassed());
+
+            /*
+             * Self-test FAIL is diagnostic only. A later inventory demand must
+             * still make a fresh preparation/start attempt.
+             */
+            assertTrue(manager.requestEnableInventory());
+            awaitCondition(first::inventoryRunning, 1000L);
+            awaitCondition(failedSelfTest::inventoryRunning, 1000L);
+
+            assertTrue(first.inventoryRunning());
+            assertTrue(failedSelfTest.inventoryRunning());
+        } finally {
+            manager.deactivate();
+            shared.shutdownNow();
+        }
+    }
+
+    @Test
+    public void repeatedEnableRetriesAfterFailedInventoryAttempt()
+            throws Exception {
+        ScheduledExecutorService shared = sharedExecutor();
+        SimulatedAntenna antenna = new SimulatedAntenna();
+        AntennaManager manager = manager(
+                Collections.<Antenna>singletonList(antenna),
+                shared,
+                4,
+                Duration.ofSeconds(1));
+
+        try {
+            manager.activate();
+            awaitCondition(manager::isReady, 1000L);
+
+            antenna.setFailurePoint(SimulatedAntenna.FailurePoint.START_INVENTORY);
+            assertTrue(manager.requestEnableInventory());
 
             awaitCondition(
-                    () -> !manager.isBusy(),
+                    () -> manager.status(new AntennaId("1")).failure() != null,
                     1000L);
+            assertFalse(antenna.inventoryRunning());
 
-            assertEquals(
-                    State.ACTIVE,
-                    manager.state());
-            assertFalse(
-                    manager.isReady());
-            assertTrue(
-                    manager.status(
-                            new AntennaId("1"))
-                            .selfTestPassed());
-            assertFalse(
-                    manager.status(
-                            new AntennaId("2"))
-                            .selfTestPassed());
-            assertTrue(
-                    manager.status(
-                            new AntennaId("2"))
-                            .failure() != null);
+            antenna.clearFailure();
 
-            assertFalse(
-                    manager.requestEnableInventory());
-            Thread.sleep(
-                    50L);
-            assertFalse(
-                    first.inventoryRunning());
-            assertFalse(
-                    failed.inventoryRunning());
+            /*
+             * The desired value is still TRUE. This second TRUE is nevertheless
+             * a new explicit request and must trigger a new attempt.
+             */
+            assertTrue(manager.requestEnableInventory());
+            awaitCondition(antenna::inventoryRunning, 1000L);
+
+            assertTrue(antenna.inventoryRunning());
         } finally {
             manager.deactivate();
             shared.shutdownNow();
