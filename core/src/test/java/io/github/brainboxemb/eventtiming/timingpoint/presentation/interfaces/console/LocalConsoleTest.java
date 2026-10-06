@@ -89,7 +89,8 @@ public class LocalConsoleTest {
                     logging,
                     () -> stopped.set(true),
                     new StringReader(
-                            "log\n"
+                            "help\n"
+                                    + "log\n"
                                     + "log D\n"
                                     + "log\n"
                                     + "log I\n"
