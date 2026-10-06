@@ -47,6 +47,7 @@ final class InventoryTask extends AbstractTask {
     private final Event<AntennaTaskResult> completedEvent = new Event<AntennaTaskResult>();
 
     private volatile AntennaTaskResult lastResult;
+    private long requestRevisionAtStart;
     private Phase phase;
     private int antennaIndex;
     private int groupIndex;
@@ -78,6 +79,15 @@ final class InventoryTask extends AbstractTask {
         return lastResult;
     }
 
+    /**
+     * Returns whether a new explicit inventory request arrived after this task
+     * run started. The Setting owns request identity, including repeated requests
+     * for the same value.
+     */
+    boolean hasNewRequestSinceLastRun() {
+        return inventoryEnabledSetting.requestRevision() > requestRevisionAtStart;
+    }
+
     @Override
     protected void onRunCompleted(Throwable taskFailure) {
         lastResult = taskFailure == null
@@ -90,6 +100,7 @@ final class InventoryTask extends AbstractTask {
     @Override
     protected void resetForRun() {
         lastResult = null;
+        requestRevisionAtStart = inventoryEnabledSetting.requestRevision();
         phase = Phase.DECIDE;
         antennaIndex = 0;
         groupIndex = 0;
@@ -194,8 +205,8 @@ final class InventoryTask extends AbstractTask {
     }
 
     /**
-     * Starts the first available multiplex-group member. A failed member is
-     * skipped so another healthy member can still provide inventory.
+     * Starts the first prepared multiplex-group member. A failed attempt is
+     * skipped so another member can still provide inventory.
      */
     private TaskStep startGroup() {
         if (groupAttempts >= inventoryGroup.size()) {
@@ -206,7 +217,7 @@ final class InventoryTask extends AbstractTask {
         }
 
         ManagedAntenna candidate = nextGroupCandidate();
-        if (!candidate.availableForInventory()) {
+        if (!candidate.preparedForInventory()) {
             return TaskStep.again();
         }
 
@@ -222,7 +233,7 @@ final class InventoryTask extends AbstractTask {
     private TaskStep inventoryEnabled() {
         inventoryEnabledSetting.markApplied(Boolean.TRUE);
 
-        if (inventoryRequestedEnabled() && availableGroupCount() > 1) {
+        if (inventoryRequestedEnabled() && preparedGroupCount() > 1) {
             phase = Phase.SWITCH_STOP;
             return TaskStep.after(inventoryInterval);
         }
@@ -231,10 +242,10 @@ final class InventoryTask extends AbstractTask {
 
     /**
      * Multiplexing always stops the current reader before another reader starts.
-     * If fewer than two healthy members remain, rotation simply ends.
+     * If fewer than two prepared/running members remain, rotation simply ends.
      */
     private TaskStep stopCurrentGroupAntenna() {
-        if (availableGroupCount() < 2) {
+        if (preparedGroupCount() < 2) {
             return TaskStep.done();
         }
 
@@ -258,7 +269,7 @@ final class InventoryTask extends AbstractTask {
         }
 
         ManagedAntenna candidate = nextGroupCandidate();
-        if (!candidate.availableForInventory()) {
+        if (!candidate.preparedForInventory()) {
             return TaskStep.again();
         }
 
@@ -372,10 +383,10 @@ final class InventoryTask extends AbstractTask {
         return -1;
     }
 
-    private int availableGroupCount() {
+    private int preparedGroupCount() {
         int count = 0;
         for (ManagedAntenna antenna : inventoryGroup) {
-            if (antenna.availableForInventory()) {
+            if (antenna.preparedForInventory()) {
                 count++;
             }
         }
