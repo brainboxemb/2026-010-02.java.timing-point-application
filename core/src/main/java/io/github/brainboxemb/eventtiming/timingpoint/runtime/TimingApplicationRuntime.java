@@ -20,6 +20,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.Dynamic
 import io.github.brainboxemb.eventtiming.timingpoint.infra.extension.ExtensionRegistry;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntennaPowerControl;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
@@ -60,6 +61,8 @@ public final class TimingApplicationRuntime {
 
     private static final Duration ANTENNA_CONTROL_TIMEOUT =
             Duration.ofSeconds(2);
+    private static final Duration SIMULATED_ANTENNA_POWER_STABILIZATION =
+            Duration.ofMillis(200);
 
     private final BuildIdentity buildIdentity;
     private final TimingNode timingNode;
@@ -560,10 +563,16 @@ public final class TimingApplicationRuntime {
         LOG.warn(
                 "Windows development platform default selected simulated antenna ANT1; no physical RFID reader is in use");
 
+        SimulatedAntenna antenna =
+                new SimulatedAntenna();
+
         return Collections.singletonList(
-                AntennaInstallation.direct(
+                AntennaInstallation.powered(
                         new AntennaId("ANT1"),
-                        new SimulatedAntenna()));
+                        antenna,
+                        new SimulatedAntennaPowerControl(
+                                antenna),
+                        SIMULATED_ANTENNA_POWER_STABILIZATION));
     }
 
     private static ConfigurationControl createConfigurationControl(
