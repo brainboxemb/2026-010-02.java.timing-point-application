@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager;
 
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaPowerControl;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.power.PowerDevice;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaOperation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
@@ -302,7 +302,7 @@ final class ManagedAntenna {
         try {
             powerOff();
             if (stopped
-                    || installation.powerControl() != null) {
+                    || installation.powerDevice() != null) {
                 operation = AntennaOperation.INACTIVE;
             }
         } catch (RuntimeException ex) {
@@ -358,8 +358,8 @@ final class ManagedAntenna {
 
     /** Applies external power and returns the required stabilization delay. */
     private Duration powerOn() {
-        AntennaPowerControl power =
-                installation.powerControl();
+        PowerDevice power =
+                installation.powerDevice();
 
         if (power == null
                 || externalPowerApplied) {
@@ -375,8 +375,8 @@ final class ManagedAntenna {
     }
 
     private void powerOff() {
-        AntennaPowerControl power =
-                installation.powerControl();
+        PowerDevice power =
+                installation.powerDevice();
 
         if (power == null
                 || !externalPowerApplied) {
@@ -394,7 +394,7 @@ final class ManagedAntenna {
     }
 
     private void powerOffAfterSelfTest() {
-        if (installation.powerControl() == null) {
+        if (installation.powerDevice() == null) {
             return;
         }
 
