@@ -178,8 +178,7 @@ public final class AntennaManager {
     private void startInventoryTaskIfNeeded() {
         if (state != State.ACTIVE
                 || !antennaSet.allSelfTestsPassed()
-                || !inventoryEnabledSetting.changePending()
-                || antennaTasks.inventoryRunning()) {
+                || !inventoryEnabledSetting.changePending()) {
             return;
         }
 
