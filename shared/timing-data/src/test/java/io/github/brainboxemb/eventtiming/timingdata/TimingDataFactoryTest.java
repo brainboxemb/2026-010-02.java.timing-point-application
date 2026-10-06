@@ -17,7 +17,7 @@ public class TimingDataFactoryTest {
     public void contextCarriesCommonTimingDataConstructionValues() {
         TimingDataFactory.Context context = context();
 
-        assertEquals(new TimingDataTypes.NodeId("TN-01"), context.timingNodeId());
+        assertEquals(new TimingDataTypes.NodeId("A"), context.timingNodeId());
         assertEquals(7L, context.sequenceNumber());
         assertEquals(new TimingDataTypes.LocationId(12), context.locationId());
         assertSame(EFFECTIVE, context.effectiveTime());
@@ -26,18 +26,18 @@ public class TimingDataFactoryTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void contextRejectsZeroSequence() {
-        new TimingDataFactory.Context(new TimingDataTypes.NodeId("TN-01"), 0L, new TimingDataTypes.LocationId(12), EFFECTIVE, RECORDED);
+        new TimingDataFactory.Context(new TimingDataTypes.NodeId("A"), 0L, new TimingDataTypes.LocationId(12), EFFECTIVE, RECORDED);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void contextRejectsMissingLocationId() {
-        new TimingDataFactory.Context(new TimingDataTypes.NodeId("TN-01"), 1L, null, EFFECTIVE, RECORDED);
+        new TimingDataFactory.Context(new TimingDataTypes.NodeId("A"), 1L, null, EFFECTIVE, RECORDED);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void contextRejectsSequenceAboveJsonSafeRange() {
         new TimingDataFactory.Context(
-                new TimingDataTypes.NodeId("TN-01"),
+                new TimingDataTypes.NodeId("A"),
                 TimingData.MAX_SEQUENCE_NUMBER + 1L,
                 new TimingDataTypes.LocationId(12),
                 EFFECTIVE,
@@ -101,7 +101,7 @@ public class TimingDataFactoryTest {
 
     private static TimingDataFactory.Context context() {
         return new TimingDataFactory.Context(
-                new TimingDataTypes.NodeId("TN-01"),
+                new TimingDataTypes.NodeId("A"),
                 7L,
                 new TimingDataTypes.LocationId(12),
                 EFFECTIVE,
@@ -109,7 +109,7 @@ public class TimingDataFactoryTest {
     }
 
     private static void assertCommonFields(TimingData data) {
-        assertEquals(new TimingDataTypes.NodeId("TN-01"), data.timingNodeId());
+        assertEquals(new TimingDataTypes.NodeId("A"), data.timingNodeId());
         assertEquals(7L, data.sequenceNumber());
         assertEquals(new TimingDataTypes.LocationId(12), data.locationId());
         assertSame(EFFECTIVE, data.effectiveTime());
