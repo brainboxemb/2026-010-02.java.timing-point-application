@@ -5,6 +5,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaI
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.task.AntennaTasks;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner;
@@ -125,7 +126,7 @@ public final class AntennaManager {
 
         startOperation(
                 "self-test",
-                new SelfTestTask(
+                AntennaTasks.selfTest(
                         antennas),
                 this::selfTestCompleted);
     }
@@ -227,7 +228,7 @@ public final class AntennaManager {
             }
             CompletableFuture<Void> shutdown =
                     tasks.runTask(
-                            new AntennaShutdownTask(
+                            AntennaTasks.shutdown(
                                     antennas));
             tasks.await(
                     shutdown);
@@ -299,7 +300,7 @@ public final class AntennaManager {
         if (inventoryRequestedEnabled()) {
             startOperation(
                     "inventory enable",
-                    new InventoryEnableTask(
+                    AntennaTasks.enableInventory(
                             antennas,
                             switching,
                             this::inventoryRequestedEnabled),
@@ -312,8 +313,8 @@ public final class AntennaManager {
         switchingOperation = null;
         startOperation(
                 "inventory disable",
-                new InventoryDisableTask(
-                        antennas),
+                AntennaTasks.disableInventory(
+                            antennas),
                 this::inventoryDisableCompleted);
     }
 
@@ -424,8 +425,8 @@ public final class AntennaManager {
         switchingOperation = null;
         startOperation(
                 "inventory disable",
-                new InventoryDisableTask(
-                        antennas),
+                AntennaTasks.disableInventory(
+                            antennas),
                 this::inventoryDisableCompleted);
     }
 
@@ -438,7 +439,7 @@ public final class AntennaManager {
                 switchingOperation);
         switchingOperation =
                 tasks.runTask(
-                        new AntennaSwitchTask(
+                        AntennaTasks.switchInventory(
                                 switching,
                                 this::inventoryRequestedEnabled));
 
