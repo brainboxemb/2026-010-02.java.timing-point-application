@@ -86,17 +86,24 @@ public final class Conductor extends AbstractConductor {
      */
     @Override
     protected void onActivated() {
-        if (antennaManager != null) {
-            antennaManager.checkHealth();
-            LOG.info(
-                    "Antenna startup health check completed: health={}",
-                    antennaManager.health());
-        }
-
         State initialState =
                 timingNodeStateProperty.initialize();
-        onTimingNodeStateChanged(
-                initialState);
+
+        /*
+         * AntennaManager starts with inventory disabled. Do not turn an initial
+         * CLOSED/ERROR state into a redundant disable request. Initial OPEN is
+         * different: it is a real requested setting and may remain pending
+         * while the asynchronous antenna self-test is still running.
+         */
+        if (initialState == State.OPEN) {
+            onTimingNodeStateChanged(
+                    initialState);
+        } else if (antennaManager != null) {
+            LOG.info(
+                    "TimingNode {} initial state {} -> antenna inventory remains disabled",
+                    timingNode.timingNodeId().value(),
+                    initialState);
+        }
 
         LOG.info(
                 "SI-01 application coordination initialized for TimingNode {}",
