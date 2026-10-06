@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.application;
+package io.github.brainboxemb.eventtiming.timingpoint.application.logic;
 
 import java.util.ArrayList;
 import java.util.Arrays;

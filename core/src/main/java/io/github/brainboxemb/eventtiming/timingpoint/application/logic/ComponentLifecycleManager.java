@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.application;
+package io.github.brainboxemb.eventtiming.timingpoint.application.logic;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -8,9 +8,9 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Executes the mechanical lifecycle of application components registered by
- * {@link Conductor}.
+ * {@link AbstractConductor}.
  *
- * <p>This helper owns no application startup policy. Conductor decides which
+ * <p>This helper owns no application startup policy. The concrete Conductor decides which
  * components participate and when lifecycle execution is requested. This class
  * only preserves activation order, rolls back components that already activated
  * when a later activation fails, and deactivates active components in reverse
