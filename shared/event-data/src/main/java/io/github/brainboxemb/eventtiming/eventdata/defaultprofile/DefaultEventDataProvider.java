@@ -14,7 +14,7 @@ import io.github.brainboxemb.eventtiming.eventdata.EventDataProvider;
 public final class DefaultEventDataProvider
         implements EventDataProvider {
 
-    public static final String ID = "default";
+    public static final String ID = "reference";
 
     @Override
     public String id() {
