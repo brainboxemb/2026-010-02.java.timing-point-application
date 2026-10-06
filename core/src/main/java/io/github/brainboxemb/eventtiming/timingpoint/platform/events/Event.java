@@ -14,11 +14,11 @@ import java.util.function.Consumer;
  * retry or network delivery must hand the immutable value to its own bounded
  * execution/delivery mechanism and return quickly.</p>
  *
- * <p>The subscription registry is thread-safe. Subscribe, unsubscribe and emit
- * may be called from different threads. Each emit reads one stable listener
- * snapshot: a listener added during that emit participates only in a later emit;
- * a listener removed during that emit may still receive the value already being
- * delivered.</p>
+ * <p>Listeners are wired during application composition, before components are
+ * activated. Runtime rewiring is deliberately unsupported: {@link #subscribe(Consumer)}
+ * is not a concurrent runtime operation. Once activation begins, the listener
+ * representation is read-only and {@code emit(...)} may safely use it without
+ * subscription locks.</p>
  *
  * <p>The internal registry is optimized for the common 0/1-subscriber case:
  * no container is allocated for zero listeners, one listener is stored directly,
@@ -42,29 +42,28 @@ import java.util.function.Consumer;
 public final class Event<T> implements EventSource<T> {
 
     /*
-     * One volatile immutable snapshot:
+     * Compact composition-built listener representation:
      *
      * null          -> no listeners
      * Consumer<T>   -> exactly one listener
      * Consumer<?>[] -> two or more listeners in subscription order
      *
-     * subscribe/unsubscribe replace this reference while synchronized on this.
-     * emit reads it once and never holds the Event monitor while invoking user
-     * code.
+     * subscribe replaces this reference only during single-threaded composition.
+     * Runtime emit reads the finished representation and never invokes user code
+     * under a subscription lock.
      */
-    private volatile Object listeners;
+    private Object listeners;
 
     /**
      * Subscribes one listener.
      *
-     * <p>The same listener is stored at most once according to equals(). A
-     * listener added while an emission is in progress participates from the next
-     * emission onward.</p>
+     * <p>The same listener is stored at most once according to equals().
+     * Subscription belongs to composition and must finish before activation.</p>
      *
      * @return {@code true} when the listener was newly added
      */
     @Override
-    public synchronized boolean subscribe(
+    public boolean subscribe(
             Consumer<T> listener) {
         requireListener(
                 listener);
@@ -116,88 +115,6 @@ public final class Event<T> implements EventSource<T> {
         expanded[existing.length] =
                 listener;
         listeners = expanded;
-        return true;
-    }
-
-    /**
-     * Removes one listener when present.
-     *
-     * @return {@code true} when a subscription was removed
-     */
-    @Override
-    public synchronized boolean unsubscribe(
-            Consumer<T> listener) {
-        requireListener(
-                listener);
-
-        Object current =
-                listeners;
-
-        if (current == null) {
-            return false;
-        }
-
-        if (current instanceof Consumer) {
-            Consumer<T> existing =
-                    singleListener(
-                            current);
-            if (!existing.equals(
-                    listener)) {
-                return false;
-            }
-
-            listeners = null;
-            return true;
-        }
-
-        Consumer<?>[] existing =
-                listenerArray(
-                        current);
-        int removeIndex = -1;
-
-        for (int index = 0;
-                index < existing.length;
-                index++) {
-            if (existing[index].equals(
-                    listener)) {
-                removeIndex = index;
-                break;
-            }
-        }
-
-        if (removeIndex < 0) {
-            return false;
-        }
-
-        if (existing.length == 2) {
-            listeners =
-                    existing[
-                            removeIndex == 0
-                                    ? 1
-                                    : 0];
-            return true;
-        }
-
-        Consumer<?>[] reduced =
-                new Consumer<?>[
-                        existing.length - 1];
-
-        System.arraycopy(
-                existing,
-                0,
-                reduced,
-                0,
-                removeIndex);
-        System.arraycopy(
-                existing,
-                removeIndex + 1,
-                reduced,
-                removeIndex,
-                existing.length
-                        - removeIndex
-                        - 1);
-
-        listeners = reduced;
         return true;
     }
 
