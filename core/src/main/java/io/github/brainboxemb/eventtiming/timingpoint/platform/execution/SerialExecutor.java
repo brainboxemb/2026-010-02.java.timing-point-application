@@ -144,12 +144,10 @@ public final class SerialExecutor implements AutoCloseable {
         return laneName.trim();
     }
 
-    /** Starts this logical lane; the supplied worker is already externally owned. */
+    /** Starts or restarts this logical lane on the externally owned worker. */
     public synchronized void start() {
-        if (state != State.NEW) {
-            throw new IllegalStateException(
-                    "SerialExecutor can only start from NEW; current state="
-                            + state);
+        if (state != State.NEW && state != State.STOPPED) {
+            throw new IllegalStateException("SerialExecutor cannot start from " + state);
         }
         state = State.RUNNING;
     }
