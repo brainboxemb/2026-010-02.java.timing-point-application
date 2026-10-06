@@ -7,18 +7,14 @@ import java.util.List;
 import java.util.function.BooleanSupplier;
 
 /**
- * Factory and narrow execution ports for AntennaManager cooperative tasks.
+ * Reusable cooperative task set owned by one AntennaManager.
  *
- * <p>The concrete task classes remain package-private. The manager exposes its
- * package-private runtime objects only through these small operation ports, so
- * moving tasks into this subpackage does not make ManagedAntenna or the switch
- * controller public API.</p>
+ * <p>The task objects are constructed once and reset before each new run.
+ * Concrete task classes remain package-private.</p>
  */
 public final class AntennaTasks {
 
-    /**
-     * Device operations required by manager tasks.
-     */
+    /** Direct one-antenna operations required by the task state machines. */
     public interface AntennaTarget {
         Duration powerOnForSelfTest();
 
@@ -40,62 +36,88 @@ public final class AntennaTasks {
 
         boolean inInventoryGroup();
 
+        boolean availableForInventory();
+
+        boolean inventoryRunning();
+
         Throwable failure();
     }
 
-    /**
-     * Inventory-group operations required by enable/switch tasks.
-     */
-    public interface SwitchTarget {
-        boolean hasInventoryGroup();
+    private final SelfTestTask selfTestTask;
+    private final InventoryEnableTask inventoryEnableTask;
+    private final InventoryDisableTask inventoryDisableTask;
+    private final AntennaSwitchTask antennaSwitchTask;
+    private final AntennaShutdownTask antennaShutdownTask;
 
-        boolean rotationNeeded();
-
-        Duration inventoryInterval();
-
-        boolean startFirstAvailable();
-
-        boolean stopCurrent();
-
-        boolean startNextAvailable();
-    }
-
-    private AntennaTasks() {
-    }
-
-    public static CooperativeTask selfTest(
-            List<? extends AntennaTarget> antennas) {
-        return new SelfTestTask(
-                antennas);
-    }
-
-    public static CooperativeTask enableInventory(
+    public AntennaTasks(
             List<? extends AntennaTarget> antennas,
-            SwitchTarget switching,
-            BooleanSupplier stillRequested) {
-        return new InventoryEnableTask(
-                antennas,
-                switching,
-                stillRequested);
-    }
-
-    public static CooperativeTask disableInventory(
-            List<? extends AntennaTarget> antennas) {
-        return new InventoryDisableTask(
-                antennas);
-    }
-
-    public static CooperativeTask switchInventory(
-            SwitchTarget switching,
+            List<? extends AntennaTarget> inventoryGroup,
+            Duration inventoryInterval,
             BooleanSupplier inventoryRequested) {
-        return new AntennaSwitchTask(
-                switching,
-                inventoryRequested);
+        if (antennas == null
+                || antennas.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "antennas must contain at least one antenna");
+        }
+        if (inventoryGroup == null) {
+            throw new IllegalArgumentException(
+                    "inventoryGroup must not be null");
+        }
+        if (inventoryRequested == null) {
+            throw new IllegalArgumentException(
+                    "inventoryRequested must not be null");
+        }
+        if (!inventoryGroup.isEmpty()
+                && (inventoryInterval == null
+                    || inventoryInterval.isZero()
+                    || inventoryInterval.isNegative())) {
+            throw new IllegalArgumentException(
+                    "inventoryInterval must be positive for an inventory group");
+        }
+
+        selfTestTask =
+                new SelfTestTask(
+                        antennas);
+        inventoryEnableTask =
+                new InventoryEnableTask(
+                        antennas,
+                        inventoryGroup,
+                        inventoryRequested);
+        inventoryDisableTask =
+                new InventoryDisableTask(
+                        antennas);
+        antennaSwitchTask =
+                new AntennaSwitchTask(
+                        inventoryGroup,
+                        inventoryInterval,
+                        inventoryRequested);
+        antennaShutdownTask =
+                new AntennaShutdownTask(
+                        antennas);
     }
 
-    public static CooperativeTask shutdown(
-            List<? extends AntennaTarget> antennas) {
-        return new AntennaShutdownTask(
-                antennas);
+    public CooperativeTask selfTest() {
+        selfTestTask.reset();
+        return selfTestTask;
+    }
+
+    public CooperativeTask enableInventory() {
+        inventoryEnableTask.reset();
+        return inventoryEnableTask;
+    }
+
+    public CooperativeTask disableInventory() {
+        inventoryDisableTask.reset();
+        return inventoryDisableTask;
+    }
+
+    public CooperativeTask switchInventory() {
+        antennaSwitchTask.reset();
+        return antennaSwitchTask;
+    }
+
+    public CooperativeTask shutdown() {
+        antennaShutdownTask.reset();
+        return antennaShutdownTask;
     }
 }
