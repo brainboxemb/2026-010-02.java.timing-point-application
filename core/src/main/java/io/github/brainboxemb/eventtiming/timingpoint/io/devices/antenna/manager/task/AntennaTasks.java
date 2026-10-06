@@ -113,9 +113,20 @@ public final class AntennaTasks {
         return selfTestTask.completedEvent();
     }
 
-    public CooperativeTask inventory() {
-        inventoryTask.reset();
-        return inventoryTask;
+    public void startInventory(ScheduledTaskRunner taskRunner) {
+        inventoryTask.start(taskRunner);
+    }
+
+    public void cancelInventory() {
+        inventoryTask.cancel();
+    }
+
+    public boolean inventoryRunning() {
+        return inventoryTask.isRunning();
+    }
+
+    public EventSource<TaskResult> inventoryCompletedEvent() {
+        return inventoryTask.completedEvent();
     }
 
     public CooperativeTask shutdown() {
