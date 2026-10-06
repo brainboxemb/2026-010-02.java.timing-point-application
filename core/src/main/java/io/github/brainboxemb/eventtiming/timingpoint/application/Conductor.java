@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.application;
 
+import io.github.brainboxemb.eventtiming.timingpoint.application.logic.AbstractConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.property.TimingNodeLifecycleProperty;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Lifecycle;
@@ -10,68 +11,64 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Coordinates application-wide behaviour between already constructed components.
+ * SI-01 application coordinator.
  *
- * <p>Runtime composition owns object construction, event wiring and physical
- * execution resources. Conductor owns application-level lifecycle and the rules
- * that connect tracked application properties to component intent.</p>
+ * <p>This class contains application meaning only. Generic activation,
+ * rollback, Application-lane lifecycle and cleanup mechanics are inherited from
+ * {@link AbstractConductor}.</p>
  *
- * <p>{@link ComponentLifecycleManager} performs only ordered activation,
- * rollback and reverse deactivation. Concrete tracked values live under
- * {@code application.property}; generic tracking mechanics live under
- * {@code infra.property}.</p>
+ * <p>The current application rule is:</p>
+ *
+ * <pre>
+ * TimingNode lifecycle OPEN   -> antenna inventory required
+ * TimingNode lifecycle other  -> antenna inventory not required
+ * </pre>
  */
-public final class Conductor {
+public final class Conductor extends AbstractConductor {
     private static final Logger LOG =
             LoggerFactory.getLogger(Conductor.class);
 
     private final TimingNode timingNode;
     private final AntennaManager antennaManager;
-    private final SerialExecutor serialExecutor;
-    private final ComponentLifecycleManager componentLifecycle =
-            new ComponentLifecycleManager();
     private final TimingNodeLifecycleProperty timingNodeLifecycleProperty;
 
     /**
-     * Creates one application coordinator.
+     * Creates the SI-01 coordinator and declares the components/properties it
+     * coordinates.
      *
      * @param timingNode required TimingNode component
      * @param antennaManager optional antenna component; {@code null} when the
      *        composition contains no antennas
-     * @param serialExecutor Conductor/Application logical serial lane on the
-     *        Runtime-owned application worker
+     * @param applicationLane logical Application lane supplied by Runtime
      */
     public Conductor(
             TimingNode timingNode,
             AntennaManager antennaManager,
-            SerialExecutor serialExecutor) {
+            SerialExecutor applicationLane) {
+        super(applicationLane);
+
         if (timingNode == null) {
             throw new IllegalArgumentException(
                     "timingNode must not be null");
         }
-        if (serialExecutor == null) {
-            throw new IllegalArgumentException(
-                    "serialExecutor must not be null");
-        }
 
         this.timingNode = timingNode;
         this.antennaManager = antennaManager;
-        this.serialExecutor = serialExecutor;
 
         timingNodeLifecycleProperty =
                 new TimingNodeLifecycleProperty(
                         timingNode,
-                        serialExecutor);
+                        applicationLane());
         timingNodeLifecycleProperty.onChange(
                 this::applyTimingNodeLifecycle);
 
-        componentLifecycle.register(
+        registerComponent(
                 "TimingNode " + timingNode.timingNodeId().value(),
                 timingNode::activate,
                 timingNode::deactivate);
 
         if (antennaManager != null) {
-            componentLifecycle.register(
+            registerComponent(
                     "AntennaManager",
                     antennaManager::activate,
                     antennaManager::deactivate);
@@ -79,80 +76,27 @@ public final class Conductor {
     }
 
     /**
-     * Activates application components and initializes tracked application state.
-     *
-     * <p>Source events raised while components activate only mark their property
-     * as changed. After component activation and required startup health work,
-     * the Application lane starts and each property performs one authoritative
-     * initial read before activation is reported complete.</p>
+     * Runs SI-01 startup work after registered components are active and the
+     * Application lane is running.
      */
-    public void activate() {
-        try {
-            componentLifecycle.activateAll();
-
-            if (antennaManager != null) {
-                antennaManager.checkHealth();
-                LOG.info(
-                        "Antenna startup health check completed: health={}",
-                        antennaManager.health());
-            }
-
-            serialExecutor.start();
-            timingNodeLifecycleProperty.initialize();
-
+    @Override
+    protected void onActivated() {
+        if (antennaManager != null) {
+            antennaManager.checkHealth();
             LOG.info(
-                    "Conductor activated application components for TimingNode {}",
-                    timingNode.timingNodeId().value());
-        } catch (RuntimeException ex) {
-            cleanupAfterActivationFailure(ex);
-            throw ex;
-        } catch (Error error) {
-            cleanupAfterActivationFailure(error);
-            throw error;
+                    "Antenna startup health check completed: health={}",
+                    antennaManager.health());
         }
-    }
 
-    /**
-     * Stops Application-lane coordination, then deactivates application
-     * components in reverse activation order.
-     *
-     * <p>The serial lane is drained before component shutdown so accepted
-     * property changes cannot run against disappearing components.</p>
-     */
-    public void deactivate() {
+        timingNodeLifecycleProperty.initialize();
+
         LOG.info(
-                "Conductor deactivating application components for TimingNode {}",
+                "SI-01 application coordination initialized for TimingNode {}",
                 timingNode.timingNodeId().value());
-
-        Throwable firstFailure = null;
-
-        try {
-            serialExecutor.close();
-        } catch (RuntimeException ex) {
-            firstFailure = ex;
-        } catch (Error error) {
-            firstFailure = error;
-        }
-
-        try {
-            componentLifecycle.deactivateAll();
-        } catch (RuntimeException ex) {
-            firstFailure =
-                    appendFailure(
-                            firstFailure,
-                            ex);
-        } catch (Error error) {
-            firstFailure =
-                    appendFailure(
-                            firstFailure,
-                            error);
-        }
-
-        rethrow(firstFailure);
     }
 
     /**
-     * Exposes the concrete application property for explicit Runtime event
+     * Exposes the concrete lifecycle property for explicit Runtime event
      * wiring and current-state diagnostics.
      */
     public TimingNodeLifecycleProperty timingNodeLifecycleProperty() {
@@ -163,8 +107,7 @@ public final class Conductor {
      * Application rule: TimingNode OPEN requires antenna inventory.
      *
      * <p>The property already performed authoritative read/change detection.
-     * This method therefore contains only application meaning, not queue or
-     * synchronization mechanics.</p>
+     * This method therefore contains only the application decision.</p>
      */
     private void applyTimingNodeLifecycle(
             Lifecycle lifecycle) {
@@ -193,45 +136,5 @@ public final class Conductor {
                     lifecycle,
                     antennaManager.state());
         }
-    }
-
-    private void cleanupAfterActivationFailure(
-            Throwable originalFailure) {
-        try {
-            serialExecutor.close();
-        } catch (RuntimeException ex) {
-            originalFailure.addSuppressed(ex);
-        } catch (Error error) {
-            originalFailure.addSuppressed(error);
-        }
-
-        try {
-            componentLifecycle.deactivateAll();
-        } catch (RuntimeException ex) {
-            originalFailure.addSuppressed(ex);
-        } catch (Error error) {
-            originalFailure.addSuppressed(error);
-        }
-    }
-
-    private static Throwable appendFailure(
-            Throwable firstFailure,
-            Throwable laterFailure) {
-        if (firstFailure == null) {
-            return laterFailure;
-        }
-        firstFailure.addSuppressed(laterFailure);
-        return firstFailure;
-    }
-
-    private static void rethrow(
-            Throwable failure) {
-        if (failure == null) {
-            return;
-        }
-        if (failure instanceof RuntimeException) {
-            throw (RuntimeException) failure;
-        }
-        throw (Error) failure;
     }
 }
