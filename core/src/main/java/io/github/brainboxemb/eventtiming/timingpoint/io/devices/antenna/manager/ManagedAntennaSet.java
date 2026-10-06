@@ -13,13 +13,15 @@ import java.util.List;
 /**
  * Configured runtime antenna set owned by one AntennaManager.
  *
- * <p>This object owns set construction, identity lookup and status aggregation.
- * It owns no execution lane and performs no multi-step device operation.</p>
+ * <p>This object owns collection construction, identity lookup, status
+ * aggregation and immutable inventory-group configuration. It owns no control
+ * logic, scheduler or switching state.</p>
  */
 final class ManagedAntennaSet {
 
     private final List<ManagedAntenna> antennas;
-    private final AntennaSwitchController switching;
+    private final List<ManagedAntenna> inventoryGroup;
+    private final Duration inventoryInterval;
 
     ManagedAntennaSet(
             List<AntennaInstallation> installations) {
@@ -32,9 +34,9 @@ final class ManagedAntennaSet {
         List<ManagedAntenna> configured =
                 new ArrayList<ManagedAntenna>(
                         installations.size());
-        List<ManagedAntenna> inventoryGroup =
+        List<ManagedAntenna> configuredGroup =
                 new ArrayList<ManagedAntenna>();
-        Duration groupInterval = null;
+        Duration configuredInterval = null;
 
         for (AntennaInstallation installation : installations) {
             validateInstallation(
@@ -48,30 +50,49 @@ final class ManagedAntennaSet {
                     antenna);
 
             if (antenna.inInventoryGroup()) {
-                groupInterval =
+                configuredInterval =
                         sharedGroupInterval(
-                                groupInterval,
+                                configuredInterval,
                                 antenna.inventoryInterval());
-                inventoryGroup.add(
+                configuredGroup.add(
                         antenna);
             }
+        }
+
+        if (!configuredGroup.isEmpty()
+                && configuredGroup.size() < 2) {
+            throw new IllegalArgumentException(
+                    "inventory group requires at least two antennas");
         }
 
         antennas =
                 Collections.unmodifiableList(
                         configured);
-        switching =
-                new AntennaSwitchController(
-                        inventoryGroup,
-                        groupInterval);
+        inventoryGroup =
+                Collections.unmodifiableList(
+                        configuredGroup);
+        inventoryInterval =
+                configuredInterval;
     }
 
     List<ManagedAntenna> antennas() {
         return antennas;
     }
 
-    AntennaSwitchController switching() {
-        return switching;
+    List<ManagedAntenna> inventoryGroup() {
+        return inventoryGroup;
+    }
+
+    boolean hasInventoryGroup() {
+        return !inventoryGroup.isEmpty();
+    }
+
+    Duration inventoryInterval() {
+        if (inventoryInterval == null) {
+            throw new IllegalStateException(
+                    "no inventory group is configured");
+        }
+        return inventoryInterval;
     }
 
     int size() {
