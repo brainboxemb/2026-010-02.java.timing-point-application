@@ -373,9 +373,10 @@ public final class TimingApplicationRuntime {
              */
             timingNode.statusChangedEvent()
                     .subscribe(
-                            conductor
-                                    .timingNodeStateProperty()
-                                    .changeSignal());
+                            ignored ->
+                                    conductor
+                                            .timingNodeStateProperty()
+                                            .signalChanged());
 
             if (antennaManager != null) {
                 for (AntennaInstallation installation
