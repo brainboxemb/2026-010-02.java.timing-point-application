@@ -159,9 +159,13 @@ final class InventoryTask implements CooperativeTask {
             return TaskStep.again();
         }
 
+        AntennaTasks.AntennaTarget antenna =
+                antennas.get(antennaIndex);
+        antenna.beginInventoryPreparation();
+        antenna.powerOn();
+
         Duration delay =
-                antennas.get(antennaIndex)
-                        .powerOnForInventory();
+                antenna.powerStabilization();
         phase = Phase.ENABLE_INITIALIZE;
         return delay.isZero()
                 ? TaskStep.again()
@@ -289,7 +293,7 @@ final class InventoryTask implements CooperativeTask {
     private TaskStep disablePowerOff() {
         try {
             antennas.get(antennaIndex)
-                    .powerOffAfterInventory();
+                    .powerOff();
         } catch (RuntimeException ex) {
             rememberDisableFailure(
                     ex);
