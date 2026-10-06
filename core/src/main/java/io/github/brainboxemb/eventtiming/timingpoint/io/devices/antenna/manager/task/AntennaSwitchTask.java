@@ -8,9 +8,16 @@ import java.util.function.BooleanSupplier;
 /** Periodically transfers inventory between already prepared group members. */
 final class AntennaSwitchTask implements CooperativeTask {
 
+    private enum Phase {
+        WAIT,
+        STOP_CURRENT,
+        START_NEXT
+    }
+
     private final AntennaTasks.SwitchTarget switching;
     private final BooleanSupplier inventoryRequested;
-    private boolean waitingForFirstInterval;
+
+    private Phase phase = Phase.WAIT;
 
     AntennaSwitchTask(
             AntennaTasks.SwitchTarget switching,
@@ -34,20 +41,29 @@ final class AntennaSwitchTask implements CooperativeTask {
             return TaskStep.done();
         }
 
-        if (!waitingForFirstInterval) {
-            waitingForFirstInterval = true;
-            return TaskStep.after(
-                    switching.inventoryInterval());
+        switch (phase) {
+            case WAIT:
+                phase = Phase.STOP_CURRENT;
+                return TaskStep.after(
+                        switching.inventoryInterval());
+
+            case STOP_CURRENT:
+                if (!switching.stopCurrent()) {
+                    return TaskStep.done();
+                }
+                phase = Phase.START_NEXT;
+                return TaskStep.again();
+
+            case START_NEXT:
+                if (!switching.startNextAvailable()) {
+                    return TaskStep.done();
+                }
+                phase = Phase.WAIT;
+                return TaskStep.again();
+
+            default:
+                throw new IllegalStateException(
+                        "Unsupported antenna-switch phase " + phase);
         }
-
-        switching.rotateInventoryGroup();
-
-        if (!inventoryRequested.getAsBoolean()
-                || !switching.rotationNeeded()) {
-            return TaskStep.done();
-        }
-
-        return TaskStep.after(
-                switching.inventoryInterval());
     }
 }
