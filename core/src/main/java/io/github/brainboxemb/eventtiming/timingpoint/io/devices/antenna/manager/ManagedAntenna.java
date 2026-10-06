@@ -5,6 +5,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.power.PowerDevic
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaOperation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.task.AntennaTasks;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import java.time.Duration;
@@ -21,7 +22,7 @@ import org.slf4j.LoggerFactory;
  * <p>AntennaManager calls this object only from its one serial control lane.
  * The object therefore needs no internal locking and owns no scheduler.</p>
  */
-final class ManagedAntenna {
+final class ManagedAntenna implements AntennaTasks.AntennaTarget {
     private static final Logger LOG =
             LoggerFactory.getLogger(ManagedAntenna.class);
 
@@ -46,7 +47,8 @@ final class ManagedAntenna {
         return installation.antennaId();
     }
 
-    boolean inInventoryGroup() {
+    @Override
+    public boolean inInventoryGroup() {
         return installation.inInventoryGroup();
     }
 
@@ -68,7 +70,8 @@ final class ManagedAntenna {
                 failure);
     }
 
-    Throwable failure() {
+    @Override
+    public Throwable failure() {
         return failure;
     }
 
@@ -92,7 +95,8 @@ final class ManagedAntenna {
      * @return stabilization delay before self-test completion, or {@code null}
      *         when power preparation failed
      */
-    Duration beginSelfTest() {
+    @Override
+    public Duration beginSelfTest() {
         if (operation == AntennaOperation.SHUTDOWN) {
             return null;
         }
@@ -118,7 +122,8 @@ final class ManagedAntenna {
     }
 
     /** Completes the startup self-test after any required stabilization delay. */
-    void completeSelfTest() {
+    @Override
+    public void completeSelfTest() {
         if (operation == AntennaOperation.SHUTDOWN) {
             return;
         }
@@ -163,7 +168,8 @@ final class ManagedAntenna {
      * @return stabilization delay before initialize, or {@code null} when this
      *         antenna cannot currently be prepared
      */
-    Duration beginPrepareForInventory() {
+    @Override
+    public Duration beginPrepareForInventory() {
         if (!availableForInventory()
                 || operation == AntennaOperation.INVENTORY
                 || operation == AntennaOperation.READY
@@ -193,7 +199,8 @@ final class ManagedAntenna {
     }
 
     /** Initializes this antenna after stabilization. */
-    boolean completePrepareForInventory() {
+    @Override
+    public boolean completePrepareForInventory() {
         if (!availableForInventory()
                 || operation != AntennaOperation.PREPARING) {
             return false;
@@ -224,7 +231,8 @@ final class ManagedAntenna {
     }
 
     /** Starts provider inventory when this antenna is prepared. */
-    boolean startInventory() {
+    @Override
+    public boolean startInventory() {
         if (operation == AntennaOperation.INVENTORY) {
             return true;
         }
@@ -294,7 +302,8 @@ final class ManagedAntenna {
      *
      * @return {@code true} when the requested disabled state was applied
      */
-    boolean disableInventory() {
+    @Override
+    public boolean disableInventory() {
         boolean stopped =
                 stopInventory();
         boolean poweredOff = true;
@@ -316,7 +325,8 @@ final class ManagedAntenna {
     }
 
     /** Releases all provider/device resources owned by this configured antenna. */
-    void shutdown() {
+    @Override
+    public void shutdown() {
         RuntimeException firstFailure = null;
 
         if (!stopInventory()) {
