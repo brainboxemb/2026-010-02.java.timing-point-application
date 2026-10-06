@@ -39,7 +39,7 @@ public final class PresentationGatewayFixture implements AutoCloseable {
                 identity,
                 node,
                 configuration);
-        node.start();
+        node.activate();
     }
 
     public PresentationGateway handler() {
@@ -52,7 +52,7 @@ public final class PresentationGatewayFixture implements AutoCloseable {
 
     @Override
     public void close() {
-        node.stop();
+        node.deactivate();
     }
 
     public static ConfigurationControl configurationControl(

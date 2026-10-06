@@ -101,7 +101,7 @@ jobs:
       artifact-name: timing-point-canonical
       artifact-path: app/target/${{ needs.release-metadata.outputs.app_jar }}
       runnable-jar-name: ${{ needs.release-metadata.outputs.app_jar }}
-      smoke-expected-output: 'timing-application lifecycle OK version=${{ needs.release-metadata.outputs.version }} state=STOPPED'
+      smoke-expected-output: 'timing-application lifecycle OK version=${{ needs.release-metadata.outputs.version }} state=INACTIVE'
       test-report-path: '**/target/surefire-reports/**'
       publication-artifact-paths: |
         shared/timing-data/target/${{ needs.release-metadata.outputs.timing_data_jar }}
@@ -402,7 +402,7 @@ jobs:
       maven-wrapper-version: '3.3.4'
       artifact-name: timing-point-canonical
       runnable-jar-name: ${{ needs.release-metadata.outputs.app_jar }}
-      smoke-expected-output: 'timing-application lifecycle OK version=${{ needs.release-metadata.outputs.version }} state=STOPPED'
+      smoke-expected-output: 'timing-application lifecycle OK version=${{ needs.release-metadata.outputs.version }} state=INACTIVE'
       test-report-path: '**/target/surefire-reports/**'
       windows-mode: smoke
 

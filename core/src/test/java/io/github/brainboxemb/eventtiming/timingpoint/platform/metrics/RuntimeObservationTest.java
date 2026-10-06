@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.platform.environment;
+package io.github.brainboxemb.eventtiming.timingpoint.platform.metrics;
 
 import org.junit.Test;
 

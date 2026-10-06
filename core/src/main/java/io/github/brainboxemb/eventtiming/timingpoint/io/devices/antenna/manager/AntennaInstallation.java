@@ -1,28 +1,46 @@
-package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
+package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager;
+
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Antenna;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaPowerControl;
 
 import java.time.Duration;
 
-/** Immutable installation policy bound to one configured antenna. */
+/**
+ * Immutable configuration of one antenna installation.
+ *
+ * <p>The configured {@link AntennaId} is visible outside the manager package.
+ * The concrete {@link Antenna} and optional power switch stay package-private:
+ * AntennaManager owns those device objects after composition.</p>
+ */
 public final class AntennaInstallation {
+    private final AntennaId antennaId;
     private final Antenna antenna;
     private final AntennaPowerControl powerControl;
     private final Duration powerStabilization;
     private final Duration inventoryInterval;
 
     public AntennaInstallation(
+            AntennaId antennaId,
             Antenna antenna,
             AntennaPowerControl powerControl,
             Duration powerStabilization,
             Duration inventoryInterval) {
+        if (antennaId == null) {
+            throw new IllegalArgumentException(
+                    "antennaId must not be null");
+        }
         if (antenna == null) {
-            throw new IllegalArgumentException("antenna must not be null");
+            throw new IllegalArgumentException(
+                    "antenna must not be null");
         }
         if (powerStabilization == null
                 || powerStabilization.isNegative()) {
             throw new IllegalArgumentException(
                     "powerStabilization must not be negative");
         }
-        if (powerControl == null && !powerStabilization.isZero()) {
+        if (powerControl == null
+                && !powerStabilization.isZero()) {
             throw new IllegalArgumentException(
                     "powerStabilization requires external power control");
         }
@@ -33,14 +51,18 @@ public final class AntennaInstallation {
                     "inventoryInterval must be positive");
         }
 
+        this.antennaId = antennaId;
         this.antenna = antenna;
         this.powerControl = powerControl;
         this.powerStabilization = powerStabilization;
         this.inventoryInterval = inventoryInterval;
     }
 
-    public static AntennaInstallation direct(Antenna antenna) {
+    public static AntennaInstallation direct(
+            AntennaId antennaId,
+            Antenna antenna) {
         return new AntennaInstallation(
+                antennaId,
                 antenna,
                 null,
                 Duration.ZERO,
@@ -48,10 +70,12 @@ public final class AntennaInstallation {
     }
 
     public static AntennaInstallation powered(
+            AntennaId antennaId,
             Antenna antenna,
             AntennaPowerControl powerControl,
             Duration powerStabilization) {
         return new AntennaInstallation(
+                antennaId,
                 antenna,
                 powerControl,
                 powerStabilization,
@@ -59,35 +83,39 @@ public final class AntennaInstallation {
     }
 
     /**
-     * Marks this antenna as a member of the manager's one optional
-     * mutual-exclusion inventory group.
+     * Adds this installation to the manager's optional mutual-exclusion group.
      */
     public AntennaInstallation inInventoryGroup(
             Duration interval) {
         return new AntennaInstallation(
+                antennaId,
                 antenna,
                 powerControl,
                 powerStabilization,
                 interval);
     }
 
-    public Antenna antenna() {
+    public AntennaId antennaId() {
+        return antennaId;
+    }
+
+    Antenna antenna() {
         return antenna;
     }
 
-    public AntennaPowerControl powerControl() {
+    AntennaPowerControl powerControl() {
         return powerControl;
     }
 
-    public Duration powerStabilization() {
+    Duration powerStabilization() {
         return powerStabilization;
     }
 
-    public boolean inInventoryGroup() {
+    boolean inInventoryGroup() {
         return inventoryInterval != null;
     }
 
-    public Duration inventoryInterval() {
+    Duration inventoryInterval() {
         return inventoryInterval;
     }
 }

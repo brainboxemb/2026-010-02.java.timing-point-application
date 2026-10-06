@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -115,6 +116,42 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                 workerExecutor);
         lane.start();
         state = State.RUNNING;
+    }
+
+    /**
+     * Submits result-bearing work to this same serial lane.
+     *
+     * <p>Immediate, result-bearing and scheduled callbacks therefore share one
+     * ordering boundary. Callers do not need a second executor merely because
+     * one control operation has a return/failure path.</p>
+     */
+    public <R> SerialExecutor.SubmitResult<R> submit(
+            Callable<R> work) {
+        if (work == null) {
+            throw new IllegalArgumentException(
+                    "work must not be null");
+        }
+
+        final SerialExecutor activeLane;
+        synchronized (this) {
+            if (state != State.RUNNING) {
+                metrics.recordImmediateRejected();
+                return new SerialExecutor.SubmitResult<R>(
+                        SerialExecutor.AdmissionResult.NOT_RUNNING,
+                        null);
+            }
+            activeLane = lane;
+        }
+
+        SerialExecutor.SubmitResult<R> result =
+                activeLane.submit(work);
+        if (result.admission()
+                == SerialExecutor.AdmissionResult.ACCEPTED) {
+            metrics.recordImmediateAccepted();
+        } else {
+            metrics.recordImmediateRejected();
+        }
+        return result;
     }
 
     /**

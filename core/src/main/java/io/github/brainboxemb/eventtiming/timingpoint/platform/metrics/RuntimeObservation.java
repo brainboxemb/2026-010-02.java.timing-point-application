@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.platform.environment;
+package io.github.brainboxemb.eventtiming.timingpoint.platform.metrics;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;

@@ -36,7 +36,7 @@ public class TimingNodeRuntimeMetricsTest {
             // One ordinary listener keeps event delivery in the measured path.
         });
 
-        node.start();
+        node.activate();
         try {
             node.invoke(TimingNodeCommands.open(new LocationId(24)));
             TimingNodeTypes.RegistrationResult result =
@@ -72,7 +72,7 @@ public class TimingNodeRuntimeMetricsTest {
 
             assertTrue(metrics.workerThreadCpuTimeNanos() >= -1L);
         } finally {
-            node.stop();
+            node.deactivate();
         }
     }
 

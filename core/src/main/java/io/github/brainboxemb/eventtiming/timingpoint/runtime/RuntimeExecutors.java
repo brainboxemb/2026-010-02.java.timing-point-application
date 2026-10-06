@@ -6,14 +6,12 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialSc
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Central construction and lifecycle owner for runtime execution resources.
@@ -31,9 +29,15 @@ final class RuntimeExecutors implements AutoCloseable {
     static final int TIMING_NODE_QUEUE_CAPACITY = 32;
     static final int TAG_PROCESSOR_LANE_QUEUE_CAPACITY = 32;
     static final int ANTENNA_CONTROL_QUEUE_CAPACITY = 8;
+    static final int CONDUCTOR_QUEUE_CAPACITY = 8;
 
-    private static final int SHARED_IO_WORKERS = 2;
-    private static final int SHARED_IO_QUEUE_CAPACITY = 16;
+    /*
+     * Step-5 baseline: one physical blocking-I/O worker.
+     *
+     * Additional physical I/O parallelism is a measurement-driven decision.
+     * V01 must demonstrate a real bottleneck before this count is increased.
+     */
+    private static final int SHARED_IO_WORKERS = 1;
 
     static final class TimingNodeExecutors {
         private final SerialExecutor timingNode;
@@ -67,8 +71,24 @@ final class RuntimeExecutors implements AutoCloseable {
     private final ThreadPoolExecutor timingNodeWorker;
     private final ScheduledThreadPoolExecutor tagProcessorWorker;
 
-    private final ThreadPoolExecutor sharedIoExecutor;
-    private final ScheduledThreadPoolExecutor antennaScheduler;
+    /**
+     * Shared worker for application-level coordination lanes.
+     *
+     * <p>Application coordination must not run synchronously on the emitting
+     * Domain or I/O component thread. Logical application lanes therefore use
+     * this separate worker.</p>
+     */
+    private final ThreadPoolExecutor applicationWorker;
+
+    /**
+     * Shared physical I/O worker. It is scheduled-capable because AntennaManager
+     * needs delayed multiplex rotation, while normal provider calls use the same
+     * worker as immediate tasks.
+     */
+    private final ScheduledThreadPoolExecutor sharedIoWorker;
+
+    private boolean started;
+    private boolean closed;
 
     RuntimeExecutors() {
         timingNodeWorker = new ThreadPoolExecutor(
@@ -77,56 +97,53 @@ final class RuntimeExecutors implements AutoCloseable {
                 0L,
                 TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>(),
-                runnable -> {
-                    Thread thread = new Thread(
-                            runnable,
-                            "tp-dml-node-worker");
-                    thread.setPriority(Thread.NORM_PRIORITY);
-                    return thread;
-                },
+                threadFactory("tp-dml-node-worker"),
                 new ThreadPoolExecutor.AbortPolicy());
-        timingNodeWorker.prestartCoreThread();
-
         tagProcessorWorker = new ScheduledThreadPoolExecutor(
                 1,
-                runnable -> {
-                    Thread thread = new Thread(
-                            runnable,
-                            "tp-dml-tagproc-worker");
-                    thread.setPriority(Thread.NORM_PRIORITY);
-                    return thread;
-                });
+                threadFactory("tp-dml-tagproc-worker"));
         tagProcessorWorker.setRemoveOnCancelPolicy(true);
-        tagProcessorWorker.prestartCoreThread();
 
-        AtomicInteger ioWorkerNumber = new AtomicInteger();
-        sharedIoExecutor = new ThreadPoolExecutor(
-                SHARED_IO_WORKERS,
-                SHARED_IO_WORKERS,
+        applicationWorker = new ThreadPoolExecutor(
+                1,
+                1,
                 0L,
                 TimeUnit.MILLISECONDS,
-                new ArrayBlockingQueue<Runnable>(
-                        SHARED_IO_QUEUE_CAPACITY),
-                runnable -> {
-                    Thread thread = new Thread(
-                            runnable,
-                            "tp-io-shared-"
-                                    + ioWorkerNumber.incrementAndGet());
-                    thread.setPriority(Thread.NORM_PRIORITY);
-                    return thread;
-                },
+                new LinkedBlockingQueue<Runnable>(),
+                threadFactory("tp-apl-worker"),
                 new ThreadPoolExecutor.AbortPolicy());
 
-        antennaScheduler = new ScheduledThreadPoolExecutor(
-                1,
-                runnable -> {
-                    Thread thread = new Thread(
-                            runnable,
-                            "tp-io-antenna-scheduler");
-                    thread.setPriority(Thread.NORM_PRIORITY);
-                    return thread;
-                });
-        antennaScheduler.setRemoveOnCancelPolicy(true);
+        sharedIoWorker = new ScheduledThreadPoolExecutor(
+                SHARED_IO_WORKERS,
+                threadFactory("tp-io-shared-worker"));
+        sharedIoWorker.setRemoveOnCancelPolicy(true);
+    }
+
+    /**
+     * Starts the physical workers owned by this Runtime.
+     *
+     * <p>Construction deliberately does not start threads. Runtime composition
+     * calls this method only after the complete object graph has been constructed
+     * and application relationships have been wired.</p>
+     */
+    synchronized void start() {
+        if (closed) {
+            throw new IllegalStateException(
+                    "RuntimeExecutors is already closed");
+        }
+        if (started) {
+            return;
+        }
+
+        timingNodeWorker.prestartAllCoreThreads();
+        tagProcessorWorker.prestartAllCoreThreads();
+        applicationWorker.prestartAllCoreThreads();
+        sharedIoWorker.prestartAllCoreThreads();
+        started = true;
+    }
+
+    synchronized boolean started() {
+        return started;
     }
 
     /**
@@ -162,28 +179,44 @@ final class RuntimeExecutors implements AutoCloseable {
     }
 
     /**
-     * Creates the AntennaManager logical control lane on the shared blocking-I/O pool.
+     * Creates the Conductor's serial application-coordination lane.
+     *
+     * <p>The lane is logically owned by Conductor. Runtime owns the physical
+     * application worker underneath it.</p>
      */
-    synchronized SerialExecutor createAntennaControlExecutor() {
-        SerialExecutor antennaControl =
+    synchronized SerialExecutor createConductorExecutor() {
+        SerialExecutor conductor =
                 new SerialExecutor(
+                        CONDUCTOR_QUEUE_CAPACITY,
+                        "Conductor",
+                        applicationWorker);
+        serialLanes.add(conductor);
+        return conductor;
+    }
+
+    /**
+     * Creates one AntennaManager control lane on the shared scheduled I/O worker.
+     *
+     * <p>The manager sees only the project SerialScheduledExecutor abstraction.
+     * The JDK ScheduledExecutorService remains a Runtime implementation detail.</p>
+     */
+    synchronized SerialScheduledExecutor createAntennaControlExecutor() {
+        SerialScheduledExecutor antennaControl =
+                new SerialScheduledExecutor(
                         ANTENNA_CONTROL_QUEUE_CAPACITY,
                         "AntennaManager",
-                        sharedIoExecutor);
+                        sharedIoWorker);
         serialLanes.add(antennaControl);
         return antennaControl;
     }
 
-    ExecutorService sharedIoExecutor() {
-        return sharedIoExecutor;
-    }
-
-    ScheduledExecutorService antennaScheduler() {
-        return antennaScheduler;
-    }
-
     @Override
-    public void close() {
+    public synchronized void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+
         /*
          * Components normally close their lanes first. Closing again here is
          * intentional and idempotent: this is the bootstrap/failure fallback
@@ -201,13 +234,32 @@ final class RuntimeExecutors implements AutoCloseable {
 
         tagProcessorWorker.shutdownNow();
         timingNodeWorker.shutdownNow();
-        antennaScheduler.shutdownNow();
-        sharedIoExecutor.shutdownNow();
+        applicationWorker.shutdownNow();
+        sharedIoWorker.shutdownNow();
 
         awaitTermination(tagProcessorWorker);
         awaitTermination(timingNodeWorker);
-        awaitTermination(antennaScheduler);
-        awaitTermination(sharedIoExecutor);
+        awaitTermination(applicationWorker);
+        awaitTermination(sharedIoWorker);
+    }
+
+    /**
+     * Creates one named normal-priority Runtime worker.
+     *
+     * <p>Keeping thread construction here makes the constructor describe the
+     * execution topology instead of repeating JVM thread boilerplate.</p>
+     */
+    private static ThreadFactory threadFactory(
+            String threadName) {
+        return runnable -> {
+            Thread thread =
+                    new Thread(
+                            runnable,
+                            threadName);
+            thread.setPriority(
+                    Thread.NORM_PRIORITY);
+            return thread;
+        };
     }
 
     private static void awaitTermination(

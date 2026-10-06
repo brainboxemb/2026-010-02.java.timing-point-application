@@ -4,13 +4,13 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.EmbeddedBuildIdentityLoader;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.Logging;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.loggingserver.LoggingServer;
-import io.github.brainboxemb.eventtiming.timingpoint.runtime.Application;
-import io.github.brainboxemb.eventtiming.timingpoint.runtime.Composition;
-import io.github.brainboxemb.eventtiming.timingpoint.runtime.Lifecycle;
+import io.github.brainboxemb.eventtiming.timingpoint.runtime.TimingApplication;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.YamlLoader;
 
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.nio.file.Path;
 
@@ -125,7 +125,7 @@ public final class Main {
             Config config = YamlLoader.load(configPath);
             runConfiguredApplication(buildIdentity, config);
             return 0;
-        } catch (IOException | IllegalArgumentException ex) {
+        } catch (IOException | RuntimeException ex) {
             err.println(
                     "Unable to start application from configuration: "
                             + configPath
@@ -138,7 +138,7 @@ public final class Main {
 
     /**
      * Starts cross-cutting logging before the reusable runtime and tears those
-     * resources down after Composition returns.
+     * resources down after the TimingApplication process returns.
      */
     private static void runConfiguredApplication(
             BuildIdentity buildIdentity,
@@ -161,7 +161,9 @@ public final class Main {
                 loggingServer.start();
             }
 
-            Composition.run(buildIdentity, config);
+            runTimingApplication(
+                    buildIdentity,
+                    config);
         } finally {
             if (loggingServer != null) {
                 loggingServer.close();
@@ -172,18 +174,68 @@ public final class Main {
         }
     }
 
+    /**
+     * Runs one already configured application process.
+     *
+     * <p>Main owns only process concerns. TimingApplication composition owns all
+     * concrete Presentation adapters and their activation/deactivation order.</p>
+     */
+    private static void runTimingApplication(
+            BuildIdentity buildIdentity,
+            Config config) {
+        TimingApplication application =
+                TimingApplication.create(
+                        buildIdentity,
+                        config,
+                        new InputStreamReader(
+                                System.in),
+                        new OutputStreamWriter(
+                                System.out));
+
+        Runtime runtime = Runtime.getRuntime();
+        Thread shutdownHook =
+                new Thread(
+                        application::deactivate,
+                        "tp-run-shutdown");
+        runtime.addShutdownHook(
+                shutdownHook);
+
+        try {
+            application.activate();
+
+            try {
+                application.awaitShutdownRequest();
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+            }
+        } finally {
+            application.deactivate();
+            removeShutdownHook(
+                    runtime,
+                    shutdownHook);
+        }
+
+        System.out.println(
+                application.smokeOutput());
+    }
+
+    private static void removeShutdownHook(
+            Runtime runtime,
+            Thread shutdownHook) {
+        try {
+            runtime.removeShutdownHook(
+                    shutdownHook);
+        } catch (IllegalStateException ignored) {
+            // JVM shutdown is already in progress.
+        }
+    }
+
     private static void runArtifactSmoke(
             BuildIdentity buildIdentity,
             PrintStream out) {
-        Lifecycle lifecycle = new Lifecycle(buildIdentity);
-        try {
-            lifecycle.start();
-        } finally {
-            lifecycle.close();
-        }
         out.println(
-                Application.smokeOutput(
+                TimingApplication.smokeOutput(
                         buildIdentity,
-                        lifecycle.state()));
+                        TimingApplication.State.INACTIVE));
     }
 }

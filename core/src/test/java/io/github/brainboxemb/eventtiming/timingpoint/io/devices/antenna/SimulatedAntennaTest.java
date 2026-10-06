@@ -22,7 +22,7 @@ public class SimulatedAntennaTest {
         SimulatedAntenna antenna = new SimulatedAntenna();
         AtomicReference<TagObservation> received =
                 new AtomicReference<TagObservation>();
-        antenna.observations().subscribe(received::set);
+        antenna.tagObservedEvent().subscribe(received::set);
 
         AntennaInfo info = antenna.probe();
         assertEquals("simulated-antenna", info.identity());

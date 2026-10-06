@@ -44,7 +44,7 @@ public class PresentationGatewayTest {
         TimingNode node = node(new RecordingStore());
         PresentationGateway gateway = new PresentationGateway(identity(), node, configuration());
 
-        node.start();
+        node.activate();
         try {
             TimingNodeStatus status = gateway.timingNode().status();
             assertEquals(new NodeId("TN-01"), status.timingNodeId());
@@ -52,7 +52,7 @@ public class PresentationGatewayTest {
                     TimingNodeTypes.Lifecycle.CLOSED,
                     status.lifecycle());
         } finally {
-            node.stop();
+            node.deactivate();
         }
     }
 
@@ -63,7 +63,7 @@ public class PresentationGatewayTest {
         TimingNode node = node(store);
         PresentationGateway gateway = new PresentationGateway(identity(), node, configuration());
 
-        node.start();
+        node.activate();
         try {
             TimingNodeStatus status = gateway.timingNode().status();
             assertEquals(
@@ -76,7 +76,7 @@ public class PresentationGatewayTest {
             assertTrue(status.problems().get(0).message().contains(
                     "expected recovery failure"));
         } finally {
-            node.stop();
+            node.deactivate();
         }
     }
 
@@ -89,7 +89,7 @@ public class PresentationGatewayTest {
         List<TimingNodeStatus> statusChanges = new ArrayList<>();
         List<TimingData> committed = new ArrayList<>();
 
-        node.start();
+        node.activate();
         try {
             proxy.statusChangedEvent().subscribe(statusChanges::add);
             proxy.timingDataCommittedEvent().subscribe(committed::add);
@@ -146,7 +146,7 @@ public class PresentationGatewayTest {
                     TimingNodeTypes.Lifecycle.CLOSED,
                     statusChanges.get(1).lifecycle());
         } finally {
-            node.stop();
+            node.deactivate();
         }
     }
 

@@ -35,8 +35,8 @@ public final class TagProcessor {
 
     private enum State {
         NEW,
-        RUNNING,
-        STOPPED
+        ACTIVE,
+        INACTIVE
     }
 
     private final TimingNode timingNode;
@@ -125,32 +125,32 @@ public final class TagProcessor {
                         this::processValidObservation);
     }
 
-    public void start() {
+    public void activate() {
         synchronized (lifecycleLock) {
             if (state != State.NEW) {
                 throw new IllegalStateException(
-                        "TagProcessor can only start from NEW; current state=" + state);
+                        "TagProcessor can only activate from NEW; current state=" + state);
             }
             executor.start();
-            state = State.RUNNING;
+            state = State.ACTIVE;
             policyConfiguration.changes().subscribe(policyChangeListener);
         }
     }
 
-    public void stop() {
+    public void deactivate() {
         boolean drainRemaining;
         synchronized (lifecycleLock) {
-            if (state == State.STOPPED) {
+            if (state == State.INACTIVE) {
                 return;
             }
             if (state == State.NEW) {
-                state = State.STOPPED;
+                state = State.INACTIVE;
                 executor.close();
                 inputQueue.clear();
                 return;
             }
 
-            state = State.STOPPED;
+            state = State.INACTIVE;
             policyConfiguration.changes().unsubscribe(policyChangeListener);
             closeHousekeepingLocked();
             drainRemaining = !inputQueue.isEmpty();
@@ -164,10 +164,10 @@ public final class TagProcessor {
     }
 
     /**
-     * Antenna EventSource callback. It does no mapping/filtering on the provider
+     * Antenna tag-observed EventSource callback. It does no mapping/filtering on the provider
      * thread.
      */
-    public void onObservation(TagObservation observation) {
+    public void onTagObserved(TagObservation observation) {
         if (observation == null) {
             throw new IllegalArgumentException("observation must not be null");
         }
@@ -175,7 +175,7 @@ public final class TagProcessor {
         metrics.recordObservation();
 
         synchronized (lifecycleLock) {
-            if (state != State.RUNNING) {
+            if (state != State.ACTIVE) {
                 metrics.recordProcessorNotRunning();
                 return;
             }
@@ -210,7 +210,7 @@ public final class TagProcessor {
         } finally {
             drainScheduled.set(false);
             synchronized (lifecycleLock) {
-                if (state == State.RUNNING && !inputQueue.isEmpty()) {
+                if (state == State.ACTIVE && !inputQueue.isEmpty()) {
                     scheduleDrainLocked();
                 }
             }
@@ -258,7 +258,7 @@ public final class TagProcessor {
         }
 
         synchronized (lifecycleLock) {
-            if (state != State.RUNNING || housekeepingTask != null) {
+            if (state != State.ACTIVE || housekeepingTask != null) {
                 return;
             }
             housekeepingTask = executor.scheduleWithFixedDelay(
@@ -270,7 +270,7 @@ public final class TagProcessor {
     private void onPolicyChange(
             ConfigurationChange<TagProcessingPolicy> change) {
         synchronized (lifecycleLock) {
-            if (state != State.RUNNING) {
+            if (state != State.ACTIVE) {
                 return;
             }
             if (!executor.execute(() -> applyPolicyChange(change))) {
@@ -308,7 +308,7 @@ public final class TagProcessor {
         } finally {
             synchronized (lifecycleLock) {
                 if (housekeepingTask != null
-                        && (state != State.RUNNING || !hasTimedState())) {
+                        && (state != State.ACTIVE || !hasTimedState())) {
                     closeHousekeepingLocked();
                 }
             }

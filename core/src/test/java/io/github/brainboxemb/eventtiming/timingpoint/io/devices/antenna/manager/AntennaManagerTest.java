@@ -1,20 +1,28 @@
-package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
+package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager;
+
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Antenna;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInfo;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.DecryptedTagId;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
+
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManagerTypes.AntennaState;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManagerTypes.ControlException;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManagerTypes.FailureReason;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManagerTypes.State;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaState;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.ControlException;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.FailureReason;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
@@ -29,7 +37,7 @@ public class AntennaManagerTest {
 
     @Test
     public void startupChecksHealthBeforeTimingNodeDrivenInventory() {
-        ExecutorService shared = sharedExecutor();
+        ScheduledExecutorService shared = sharedExecutor();
         List<String> calls =
                 Collections.synchronizedList(
                         new ArrayList<String>());
@@ -44,24 +52,24 @@ public class AntennaManagerTest {
                 Duration.ofSeconds(1));
 
         try {
-            manager.start();
+            manager.activate();
             assertEquals(
-                    State.RUNNING,
+                    State.ACTIVE,
                     manager.state());
             assertFalse(first.inventoryRunning());
             assertFalse(second.inventoryRunning());
 
-            manager.setOperational(true);
+            manager.setInventoryEnabled(true);
             assertTrue(first.inventoryRunning());
             assertTrue(second.inventoryRunning());
 
-            manager.setOperational(false);
+            manager.setInventoryEnabled(false);
             assertFalse(first.inventoryRunning());
             assertFalse(second.inventoryRunning());
 
-            manager.close();
+            manager.deactivate();
             assertEquals(
-                    State.STOPPED,
+                    State.INACTIVE,
                     manager.state());
 
             assertEquals(
@@ -83,8 +91,86 @@ public class AntennaManagerTest {
     }
 
     @Test
+    public void exposesTagObservedEventByConfiguredAntennaId() {
+        ScheduledExecutorService shared = sharedExecutor();
+        List<String> calls =
+                Collections.synchronizedList(
+                        new ArrayList<String>());
+        RecordingAntenna antenna =
+                new RecordingAntenna("A", calls);
+        AntennaManager manager = manager(
+                Collections.<Antenna>singletonList(
+                        antenna),
+                shared,
+                4,
+                Duration.ofSeconds(1));
+
+        AtomicReference<TagObservation> received =
+                new AtomicReference<TagObservation>();
+        manager.tagObservedEvent(
+                        new AntennaId("ANT1"))
+                .subscribe(received::set);
+
+        try {
+            manager.activate();
+            manager.setInventoryEnabled(true);
+
+            TagObservation observation =
+                    new TagObservation(
+                            new DecryptedTagId("TAG-1"),
+                            -40,
+                            TimingTimestamp.parse(
+                                    "2026-10-05T12:00:00.000000000Z"));
+            antenna.emit(observation);
+
+            assertEquals(
+                    observation,
+                    received.get());
+        } finally {
+            manager.deactivate();
+            shared.shutdownNow();
+        }
+    }
+
+    @Test
+    public void rejectsDuplicateConfiguredAntennaIds() {
+        ScheduledExecutorService shared = sharedExecutor();
+        try {
+            List<AntennaInstallation> installations =
+                    Arrays.asList(
+                            AntennaInstallation.direct(
+                                    new AntennaId("ANT1"),
+                                    new RecordingAntenna(
+                                            "A",
+                                            new ArrayList<String>())),
+                            AntennaInstallation.direct(
+                                    new AntennaId("ANT1"),
+                                    new RecordingAntenna(
+                                            "B",
+                                            new ArrayList<String>())));
+
+            try {
+                new AntennaManager(
+                        installations,
+                        new SerialScheduledExecutor(
+                                4,
+                                "antenna-manager-test",
+                                shared),
+                        Duration.ofSeconds(1));
+                fail("expected duplicate AntennaId rejection");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(
+                        expected.getMessage()
+                                .contains("duplicate AntennaId"));
+            }
+        } finally {
+            shared.shutdownNow();
+        }
+    }
+
+    @Test
     public void oneProbeFailureLeavesHealthyAntennaOperational() {
-        ExecutorService shared = sharedExecutor();
+        ScheduledExecutorService shared = sharedExecutor();
         List<String> calls =
                 Collections.synchronizedList(
                         new ArrayList<String>());
@@ -99,19 +185,19 @@ public class AntennaManagerTest {
                 Duration.ofSeconds(1));
 
         try {
-            manager.start();
+            manager.activate();
 
             assertEquals(
                     State.DEGRADED,
                     manager.state());
             assertEquals(
                     AntennaState.READY,
-                    manager.status(healthy).state());
+                    manager.status(new AntennaId("ANT1")).state());
             assertEquals(
                     AntennaState.ERROR,
-                    manager.status(failed).state());
+                    manager.status(new AntennaId("ANT2")).state());
 
-            manager.setOperational(true);
+            manager.setInventoryEnabled(true);
 
             assertTrue(healthy.inventoryRunning());
             assertFalse(failed.inventoryRunning());
@@ -119,14 +205,14 @@ public class AntennaManagerTest {
                     State.DEGRADED,
                     manager.state());
         } finally {
-            manager.close();
+            manager.deactivate();
             shared.shutdownNow();
         }
     }
 
     @Test
     public void reportsSharedExecutorRejectionAsOverload() {
-        ExecutorService shared = sharedExecutor();
+        ScheduledExecutorService shared = sharedExecutor();
         shared.shutdownNow();
         AntennaManager manager = manager(
                 Collections.<Antenna>singletonList(
@@ -139,7 +225,7 @@ public class AntennaManagerTest {
                 Duration.ofSeconds(1));
 
         try {
-            manager.start();
+            manager.activate();
             fail("expected shared-I/O overload");
         } catch (ControlException expected) {
             assertEquals(
@@ -153,7 +239,7 @@ public class AntennaManagerTest {
 
     @Test
     public void timesOutAndCancelsBlockingProviderControl() {
-        ExecutorService shared = sharedExecutor();
+        ScheduledExecutorService shared = sharedExecutor();
         Antenna blocking = new BlockingProbeAntenna();
         AntennaManager manager = manager(
                 Collections.singletonList(blocking),
@@ -163,7 +249,7 @@ public class AntennaManagerTest {
 
         try {
             try {
-                manager.start();
+                manager.activate();
                 fail("expected control timeout");
             } catch (ControlException expected) {
                 assertEquals(
@@ -175,7 +261,7 @@ public class AntennaManagerTest {
             }
         } finally {
             try {
-                manager.close();
+                manager.deactivate();
             } catch (RuntimeException ignored) {
                 // Timeout path already verifies cancellation/failure reporting.
             }
@@ -185,36 +271,44 @@ public class AntennaManagerTest {
 
     private static AntennaManager manager(
             List<Antenna> antennas,
-            ExecutorService shared,
+            ScheduledExecutorService shared,
             int capacity,
             Duration timeout) {
+        List<AntennaInstallation> installations =
+                new ArrayList<AntennaInstallation>(
+                        antennas.size());
+        for (int index = 0;
+                index < antennas.size();
+                index++) {
+            installations.add(
+                    AntennaInstallation.direct(
+                            new AntennaId(
+                                    "ANT" + (index + 1)),
+                            antennas.get(index)));
+        }
+
         return new AntennaManager(
-                antennas,
-                new SerialExecutor(
+                installations,
+                new SerialScheduledExecutor(
                         capacity,
                         "antenna-manager-test",
                         shared),
                 timeout);
     }
 
-    private static ExecutorService sharedExecutor() {
-        return new ThreadPoolExecutor(
+    private static ScheduledExecutorService sharedExecutor() {
+        return Executors.newScheduledThreadPool(
                 2,
-                2,
-                0L,
-                TimeUnit.MILLISECONDS,
-                new ArrayBlockingQueue<Runnable>(4),
                 runnable ->
                         new Thread(
                                 runnable,
-                                "antenna-manager-test-io"),
-                new ThreadPoolExecutor.AbortPolicy());
+                                "antenna-manager-test-io"));
     }
 
     private static class RecordingAntenna implements Antenna {
         private final String name;
         private final List<String> calls;
-        private final Event<TagObservation> observations =
+        private final Event<TagObservation> tagObservedEvent =
                 new Event<TagObservation>();
         private boolean running;
 
@@ -254,8 +348,13 @@ public class AntennaManagerTest {
         }
 
         @Override
-        public EventSource<TagObservation> observations() {
-            return observations;
+        public EventSource<TagObservation> tagObservedEvent() {
+            return tagObservedEvent;
+        }
+
+        private void emit(
+                TagObservation observation) {
+            tagObservedEvent.emit(observation);
         }
 
         @Override

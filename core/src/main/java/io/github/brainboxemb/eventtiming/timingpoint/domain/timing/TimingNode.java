@@ -121,7 +121,7 @@ public final class TimingNode {
                 SystemMonotonicClock.INSTANCE);
     }
 
-    private TimingNode(
+    public TimingNode(
             NodeId timingNodeId,
             TimingDataPersistence timingDataPersistence,
             TimingDataFactory timingDataFactory,
@@ -237,14 +237,17 @@ public final class TimingNode {
     }
 
     /**
-     * Recovers committed TimingData before accepting serial operations.
+     * Recovers the TimingData state currently defined by the active recovery
+     * design before accepting serial operations.
      *
-     * <p>Recovery does not restore the operational LocationId or OPEN state.</p>
+     * <p>OPEN/CLOSE lifecycle recovery is defined by the dedicated TimingData
+     * design/implementation track; this component must not hard-code a separate
+     * startup lifecycle policy.</p>
      */
-    public void start() {
+    public void activate() {
         if (serialExecutor.state() != SerialExecutor.State.NEW) {
             throw new IllegalStateException(
-                    "TimingNode can only start once; executor state=" + serialExecutor.state());
+                    "TimingNode can only activate once; executor state=" + serialExecutor.state());
         }
         try {
             logic.recoverTimingData();
@@ -257,15 +260,15 @@ public final class TimingNode {
         }
 
         /*
-         * The node serial lane starts before TagProcessor so every accepted tag
+         * The node serial lane starts before TagProcessor activation so every accepted tag
          * result has a running downstream handoff target. TagProcessor owns
-         * its own scheduled serial lane but its lifecycle belongs to this
+         * its own scheduled serial lane but its activation lifecycle belongs to this
          * TimingNode aggregate.
          */
         serialExecutor.start();
         if (tagProcessor != null) {
             try {
-                tagProcessor.start();
+                tagProcessor.activate();
             } catch (RuntimeException ex) {
                 serialExecutor.close();
                 throw ex;
@@ -273,7 +276,7 @@ public final class TimingNode {
         }
     }
 
-    public void stop() {
+    public void deactivate() {
         RuntimeException firstFailure = null;
 
         /*
@@ -283,7 +286,7 @@ public final class TimingNode {
          */
         if (tagProcessor != null) {
             try {
-                tagProcessor.stop();
+                tagProcessor.deactivate();
             } catch (RuntimeException ex) {
                 firstFailure = ex;
             }

@@ -53,7 +53,7 @@ public class TimingNodeTest {
         NodeId id = new NodeId("TN-01");
         TimingNode node = node(id);
 
-        node.start();
+        node.activate();
         try {
             TimingNodeTypes.Status status = node.query(TimingNodeQueries.status());
 
@@ -61,7 +61,7 @@ public class TimingNodeTest {
             assertEquals(TimingNodeTypes.Lifecycle.CLOSED, status.lifecycle());
             assertFalse(status.hasLocation());
         } finally {
-            node.stop();
+            node.deactivate();
         }
     }
 
@@ -70,7 +70,7 @@ public class TimingNodeTest {
         TimingNode node = node(new NodeId("TN-01"));
         LocationId openLocation = new LocationId(24);
 
-        node.start();
+        node.activate();
         try {
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
@@ -88,7 +88,7 @@ public class TimingNodeTest {
             assertEquals(TimingNodeTypes.Lifecycle.CLOSED, closedStatus.lifecycle());
             assertEquals(openLocation, closedStatus.locationId());
         } finally {
-            node.stop();
+            node.deactivate();
         }
     }
 
@@ -106,7 +106,7 @@ public class TimingNodeTest {
     public void repeatedLifecycleCommandsReturnProcessedResults() {
         TimingNode node = node(new NodeId("TN-01"));
 
-        node.start();
+        node.activate();
         try {
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
@@ -123,7 +123,7 @@ public class TimingNodeTest {
             assertEquals(TimingNodeTypes.CloseResult.CLOSED, node.invoke(TimingNodeCommands.close()));
             assertEquals(TimingNodeTypes.CloseResult.ALREADY_CLOSED, node.invoke(TimingNodeCommands.close()));
         } finally {
-            node.stop();
+            node.deactivate();
         }
     }
 
@@ -137,7 +137,7 @@ public class TimingNodeTest {
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
-        node.start();
+        node.activate();
         try {
             executor.submit(() -> {
                 blockerStarted.countDown();
@@ -166,7 +166,7 @@ public class TimingNodeTest {
             assertEquals(new LocationId(24), status.locationId());
         } finally {
             releaseBlocker.countDown();
-            node.stop();
+            node.deactivate();
         }
     }
 
@@ -180,7 +180,7 @@ public class TimingNodeTest {
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
-        node.start();
+        node.activate();
         try {
             executor.submit(() -> {
                 blockerStarted.countDown();
@@ -227,7 +227,7 @@ public class TimingNodeTest {
             assertEquals(new LocationId(24), status.locationId());
         } finally {
             releaseBlocker.countDown();
-            node.stop();
+            node.deactivate();
         }
     }
 
@@ -245,7 +245,7 @@ public class TimingNodeTest {
         final TimingNodeTypes.CommandAdmission[] admission =
                 new TimingNodeTypes.CommandAdmission[1];
 
-        node.start();
+        node.activate();
         try {
             executor.submit(() -> {
                 blockerStarted.countDown();
@@ -285,7 +285,7 @@ public class TimingNodeTest {
                     node.query(TimingNodeQueries.status()).locationId());
         } finally {
             releaseBlocker.countDown();
-            node.stop();
+            node.deactivate();
         }
     }
 

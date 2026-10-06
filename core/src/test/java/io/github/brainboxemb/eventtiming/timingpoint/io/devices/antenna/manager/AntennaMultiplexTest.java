@@ -1,18 +1,19 @@
-package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
+package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager;
+
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntennaPowerControl;
 
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManagerTypes.AntennaState;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaManagerTypes.State;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaState;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
 import org.junit.Test;
 
@@ -25,9 +26,7 @@ public class AntennaMultiplexTest {
     @Test
     public void alternatesHealthyGroupMembersAndPowersDownWhenInactive()
             throws Exception {
-        ExecutorService shared = sharedExecutor();
-        ScheduledExecutorService scheduler =
-                Executors.newSingleThreadScheduledExecutor();
+        ScheduledExecutorService shared = sharedExecutor();
         SimulatedAntenna first = new SimulatedAntenna();
         SimulatedAntenna second = new SimulatedAntenna();
         SimulatedAntennaPowerControl firstPower =
@@ -38,28 +37,29 @@ public class AntennaMultiplexTest {
         AntennaManager manager = manager(
                 Arrays.asList(
                         AntennaInstallation.powered(
+                                        new AntennaId("ANT1"),
                                         first,
                                         firstPower,
                                         Duration.ZERO)
                                 .inInventoryGroup(
                                         Duration.ofMillis(30)),
                         AntennaInstallation.powered(
+                                        new AntennaId("ANT2"),
                                         second,
                                         secondPower,
                                         Duration.ZERO)
                                 .inInventoryGroup(
                                         Duration.ofMillis(30))),
                 shared,
-                scheduler,
                 8,
                 Duration.ofSeconds(1));
 
         try {
-            manager.start();
+            manager.activate();
             assertFalse(firstPower.powered());
             assertFalse(secondPower.powered());
 
-            manager.setOperational(true);
+            manager.setInventoryEnabled(true);
             assertTrue(firstPower.powered());
             assertTrue(secondPower.powered());
             assertAtMostOneInventories(first, second);
@@ -70,14 +70,13 @@ public class AntennaMultiplexTest {
                     1000L);
             assertAtMostOneInventories(first, second);
 
-            manager.setOperational(false);
+            manager.setInventoryEnabled(false);
             assertFalse(first.inventoryRunning());
             assertFalse(second.inventoryRunning());
             assertFalse(firstPower.powered());
             assertFalse(secondPower.powered());
         } finally {
-            manager.close();
-            scheduler.shutdownNow();
+            manager.deactivate();
             shared.shutdownNow();
         }
     }
@@ -85,33 +84,35 @@ public class AntennaMultiplexTest {
     @Test
     public void failedGroupMemberIsSkippedWhileHealthyMemberContinues()
             throws Exception {
-        ExecutorService shared = sharedExecutor();
-        ScheduledExecutorService scheduler =
-                Executors.newSingleThreadScheduledExecutor();
+        ScheduledExecutorService shared = sharedExecutor();
         SimulatedAntenna healthy = new SimulatedAntenna();
         SimulatedAntenna failed = new SimulatedAntenna();
 
         AntennaManager manager = manager(
                 Arrays.asList(
-                        AntennaInstallation.direct(healthy)
+                        AntennaInstallation.direct(
+                                        new AntennaId("ANT1"),
+                                        healthy)
                                 .inInventoryGroup(
                                         Duration.ofMillis(25)),
-                        AntennaInstallation.direct(failed)
+                        AntennaInstallation.direct(
+                                        new AntennaId("ANT2"),
+                                        failed)
                                 .inInventoryGroup(
                                         Duration.ofMillis(25))),
                 shared,
-                scheduler,
                 8,
                 Duration.ofSeconds(1));
 
         try {
-            manager.start();
+            manager.activate();
             failed.setFailurePoint(
                     SimulatedAntenna.FailurePoint.START_INVENTORY);
-            manager.setOperational(true);
+            manager.setInventoryEnabled(true);
 
             await(
-                    () -> manager.status(failed).state()
+                    () -> manager.status(
+                            new AntennaId("ANT2")).state()
                             == AntennaState.ERROR,
                     1000L);
             await(healthy::inventoryRunning, 1000L);
@@ -122,56 +123,50 @@ public class AntennaMultiplexTest {
             assertTrue(healthy.inventoryRunning());
             assertFalse(failed.inventoryRunning());
         } finally {
-            manager.close();
-            scheduler.shutdownNow();
+            manager.deactivate();
             shared.shutdownNow();
         }
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsDifferentIntervalsWithinInventoryGroup() {
-        ExecutorService shared = sharedExecutor();
-        ScheduledExecutorService scheduler =
-                Executors.newSingleThreadScheduledExecutor();
+        ScheduledExecutorService shared = sharedExecutor();
         try {
             manager(
                     Arrays.asList(
                             AntennaInstallation.direct(
+                                            new AntennaId("ANT1"),
                                             new SimulatedAntenna())
                                     .inInventoryGroup(
                                             Duration.ofMillis(25)),
                             AntennaInstallation.direct(
+                                            new AntennaId("ANT2"),
                                             new SimulatedAntenna())
                                     .inInventoryGroup(
                                             Duration.ofMillis(30))),
                     shared,
-                    scheduler,
                     8,
                     Duration.ofSeconds(1));
         } finally {
-            scheduler.shutdownNow();
             shared.shutdownNow();
         }
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsSingleMemberInventoryGroup() {
-        ExecutorService shared = sharedExecutor();
-        ScheduledExecutorService scheduler =
-                Executors.newSingleThreadScheduledExecutor();
+        ScheduledExecutorService shared = sharedExecutor();
         try {
             manager(
                     Arrays.asList(
                             AntennaInstallation.direct(
+                                            new AntennaId("ANT3"),
                                             new SimulatedAntenna())
                                     .inInventoryGroup(
                                             Duration.ofMillis(25))),
                     shared,
-                    scheduler,
                     8,
                     Duration.ofSeconds(1));
         } finally {
-            scheduler.shutdownNow();
             shared.shutdownNow();
         }
     }
@@ -203,31 +198,24 @@ public class AntennaMultiplexTest {
 
     private static AntennaManager manager(
             java.util.List<AntennaInstallation> installations,
-            ExecutorService shared,
-            ScheduledExecutorService scheduler,
+            ScheduledExecutorService shared,
             int capacity,
             Duration timeout) {
         return new AntennaManager(
                 installations,
-                new SerialExecutor(
+                new SerialScheduledExecutor(
                         capacity,
                         "antenna-multiplex-test",
                         shared),
-                scheduler,
                 timeout);
     }
 
-    private static ExecutorService sharedExecutor() {
-        return new ThreadPoolExecutor(
+    private static ScheduledExecutorService sharedExecutor() {
+        return Executors.newScheduledThreadPool(
                 2,
-                2,
-                0L,
-                TimeUnit.MILLISECONDS,
-                new ArrayBlockingQueue<Runnable>(8),
                 runnable ->
                         new Thread(
                                 runnable,
-                                "antenna-multiplex-test-io"),
-                new ThreadPoolExecutor.AbortPolicy());
+                                "antenna-multiplex-test-io"));
     }
 }

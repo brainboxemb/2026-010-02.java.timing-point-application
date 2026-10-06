@@ -99,16 +99,16 @@ public class TagProcessorTest {
                 new TagProcessingMetrics(),
                 executor);
 
-        processor.start();
+        processor.activate();
         try {
             String callbackThread = Thread.currentThread().getName();
-            processor.onObservation(observation("TAG-001", -42, OBSERVED_AT));
+            processor.onTagObserved(observation("TAG-001", -42, OBSERVED_AT));
             awaitLane(executor);
 
             assertEquals("tp-tag-test", mapperThread.get());
             assertFalse(callbackThread.equals(mapperThread.get()));
         } finally {
-            processor.stop();
+            processor.deactivate();
         }
     }
 
@@ -131,13 +131,13 @@ public class TagProcessorTest {
         CountDownLatch committed = new CountDownLatch(1);
         node.timingDataCommittedEvent().subscribe(data -> committed.countDown());
 
-        node.start();
+        node.activate();
         node.invoke(TimingNodeCommands.open(new LocationId(24)));
-        processor.start();
+        processor.activate();
         try {
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-A", -60, OBSERVED_AT));
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-B", -30, STRONGER_OBSERVED_AT));
             awaitLane(executor);
 
@@ -161,8 +161,8 @@ public class TagProcessorTest {
             assertEquals(1L, snapshot.closedBursts());
             assertEquals(1L, snapshot.admitted());
         } finally {
-            processor.stop();
-            node.stop();
+            processor.deactivate();
+            node.deactivate();
         }
     }
 
@@ -185,11 +185,11 @@ public class TagProcessorTest {
         CountDownLatch committed = new CountDownLatch(1);
         node.timingDataCommittedEvent().subscribe(data -> committed.countDown());
 
-        node.start();
+        node.activate();
         node.invoke(TimingNodeCommands.open(new LocationId(24)));
-        processor.start();
+        processor.activate();
         try {
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-A", -60, OBSERVED_AT));
             awaitLane(executor);
 
@@ -200,12 +200,12 @@ public class TagProcessorTest {
              * suppression and discard that just-created next burst.
              */
             clock.advanceNanos(100L);
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-B", -50, STRONGER_OBSERVED_AT));
             awaitLane(executor);
             assertTrue(committed.await(1, TimeUnit.SECONDS));
 
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-C", -40, STRONGER_OBSERVED_AT));
             awaitLane(executor);
 
@@ -217,8 +217,8 @@ public class TagProcessorTest {
             assertEquals(1L, snapshot.duplicates());
             assertEquals(1, store.appended.size());
         } finally {
-            processor.stop();
-            node.stop();
+            processor.deactivate();
+            node.deactivate();
         }
     }
 
@@ -239,19 +239,19 @@ public class TagProcessorTest {
                 executor);
 
         // TimingNode deliberately remains NEW so every offer is NOT_RUNNING.
-        processor.start();
+        processor.activate();
         try {
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-A", -60, OBSERVED_AT));
             awaitLane(executor);
 
             clock.advanceNanos(100L);
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-B", -50, STRONGER_OBSERVED_AT));
             awaitLane(executor);
 
             clock.advanceNanos(100L);
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-C", -40, STRONGER_OBSERVED_AT));
             awaitLane(executor);
 
@@ -261,7 +261,7 @@ public class TagProcessorTest {
             assertEquals(2L, snapshot.closedBursts());
             assertEquals(2L, snapshot.nodeNotRunning());
         } finally {
-            processor.stop();
+            processor.deactivate();
         }
     }
 
@@ -288,11 +288,11 @@ public class TagProcessorTest {
         CountDownLatch committed = new CountDownLatch(1);
         node.timingDataCommittedEvent().subscribe(data -> committed.countDown());
 
-        node.start();
+        node.activate();
         node.invoke(TimingNodeCommands.open(new LocationId(24)));
-        processor.start();
+        processor.activate();
         try {
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-A", -50, OBSERVED_AT));
             awaitLane(executor);
 
@@ -316,8 +316,8 @@ public class TagProcessorTest {
             assertTrue(committed.await(1, TimeUnit.SECONDS));
             assertEquals(1, store.appended.size());
         } finally {
-            processor.stop();
-            node.stop();
+            processor.deactivate();
+            node.deactivate();
         }
     }
 
@@ -341,9 +341,9 @@ public class TagProcessorTest {
                 new TagProcessingMetrics(),
                 executor);
 
-        processor.start();
+        processor.activate();
         try {
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-001", -42, OBSERVED_AT));
             awaitLane(executor);
 
@@ -371,7 +371,7 @@ public class TagProcessorTest {
             assertTrue(after.scheduledRegistrationCount() >= 2L);
             assertTrue(after.scheduledCancellationCount() >= 1L);
         } finally {
-            processor.stop();
+            processor.deactivate();
         }
     }
 
@@ -392,7 +392,7 @@ public class TagProcessorTest {
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
-        processor.start();
+        processor.activate();
         try {
             assertTrue(executor.execute(() -> {
                 blockerStarted.countDown();
@@ -400,9 +400,9 @@ public class TagProcessorTest {
             }));
             assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-001", -42, OBSERVED_AT));
-            processor.onObservation(
+            processor.onTagObserved(
                     observation("TAG-002", -41, OBSERVED_AT));
 
             assertEquals(
@@ -410,7 +410,7 @@ public class TagProcessorTest {
                     metrics.snapshot().observationQueueFull());
         } finally {
             releaseBlocker.countDown();
-            processor.stop();
+            processor.deactivate();
         }
     }
 
@@ -433,17 +433,17 @@ public class TagProcessorTest {
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
-        processor.start();
+        processor.activate();
         assertTrue(executor.execute(() -> {
             blockerStarted.countDown();
             await(releaseBlocker);
         }));
         assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
-        processor.onObservation(
+        processor.onTagObserved(
                 observation("TAG-001", -42, OBSERVED_AT));
 
-        Thread stopper = new Thread(processor::stop);
+        Thread stopper = new Thread(processor::deactivate);
         stopper.start();
         releaseBlocker.countDown();
         stopper.join(1000);

@@ -11,9 +11,22 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class RuntimeExecutorsTest {
+
+    @Test
+    public void constructionDoesNotStartRuntimeWorkers() {
+        RuntimeExecutors runtime = new RuntimeExecutors();
+        try {
+            assertFalse(runtime.started());
+            runtime.start();
+            assertTrue(runtime.started());
+        } finally {
+            runtime.close();
+        }
+    }
 
     @Test
     public void timingNodesShareOnePhysicalNodeWorker()
@@ -25,6 +38,7 @@ public class RuntimeExecutorsTest {
         RuntimeExecutors.TimingNodeExecutors second =
                 runtime.createTimingNodeExecutors(
                         new NodeId("TN-02"));
+        runtime.start();
 
         AtomicReference<String> firstThread =
                 new AtomicReference<String>();
@@ -65,13 +79,50 @@ public class RuntimeExecutorsTest {
     }
 
     @Test
+    public void conductorUsesSeparateApplicationWorker()
+            throws Exception {
+        RuntimeExecutors runtime = new RuntimeExecutors();
+        SerialExecutor conductor =
+                runtime.createConductorExecutor();
+        runtime.start();
+
+        AtomicReference<String> threadName =
+                new AtomicReference<String>();
+        CountDownLatch done =
+                new CountDownLatch(1);
+
+        conductor.start();
+        try {
+            assertEquals(
+                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    conductor.offer(() -> {
+                        threadName.set(
+                                Thread.currentThread().getName());
+                        done.countDown();
+                    }));
+
+            assertTrue(
+                    done.await(
+                            1,
+                            TimeUnit.SECONDS));
+            assertEquals(
+                    "tp-apl-worker",
+                    threadName.get());
+        } finally {
+            conductor.close();
+            runtime.close();
+        }
+    }
+
+    @Test
     public void antennaControlLanesUseRuntimeOwnedSharedIoWorkers()
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
-        SerialExecutor first =
+        SerialScheduledExecutor first =
                 runtime.createAntennaControlExecutor();
-        SerialExecutor second =
+        SerialScheduledExecutor second =
                 runtime.createAntennaControlExecutor();
+        runtime.start();
 
         AtomicReference<String> firstThread =
                 new AtomicReference<String>();
@@ -85,9 +136,8 @@ public class RuntimeExecutorsTest {
         first.start();
         second.start();
         try {
-            assertEquals(
-                    SerialExecutor.AdmissionResult.ACCEPTED,
-                    first.offer(() -> {
+            assertTrue(
+                    first.execute(() -> {
                         firstThread.set(
                                 Thread.currentThread().getName());
                         firstDone.countDown();
@@ -98,13 +148,12 @@ public class RuntimeExecutorsTest {
                             TimeUnit.SECONDS));
             assertTrue(
                     firstThread.get()
-                            .startsWith("tp-io-shared-"));
+                            .equals("tp-io-shared-worker"));
 
             first.close();
 
-            assertEquals(
-                    SerialExecutor.AdmissionResult.ACCEPTED,
-                    second.offer(() -> {
+            assertTrue(
+                    second.execute(() -> {
                         secondThread.set(
                                 Thread.currentThread().getName());
                         secondDone.countDown();
@@ -133,6 +182,7 @@ public class RuntimeExecutorsTest {
         RuntimeExecutors.TimingNodeExecutors second =
                 runtime.createTimingNodeExecutors(
                         new NodeId("TN-02"));
+        runtime.start();
 
         AtomicReference<String> firstThread =
                 new AtomicReference<String>();

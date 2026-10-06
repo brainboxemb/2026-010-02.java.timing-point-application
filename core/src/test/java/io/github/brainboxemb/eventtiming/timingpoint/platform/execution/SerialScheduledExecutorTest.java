@@ -43,6 +43,37 @@ public class SerialScheduledExecutorTest {
 
 
     @Test
+    public void resultBearingWorkUsesTheSameSerialLane()
+            throws Exception {
+        SerialScheduledExecutor executor =
+                newLane("serial-scheduled-submit-test");
+
+        assertEquals(
+                SerialExecutor.AdmissionResult.NOT_RUNNING,
+                executor.submit(() -> "not-run")
+                        .admission());
+
+        executor.start();
+        try {
+            SerialExecutor.SubmitResult<String> result =
+                    executor.submit(
+                            () -> Thread.currentThread()
+                                    .getName());
+
+            assertEquals(
+                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    result.admission());
+            assertEquals(
+                    "serial-scheduled-submit-test",
+                    result.futureResult().get(
+                            1,
+                            TimeUnit.SECONDS));
+        } finally {
+            executor.close();
+        }
+    }
+
+    @Test
     public void immediateAndPeriodicWorkUseTheSameSerialThread()
             throws Exception {
         SerialScheduledExecutor executor =

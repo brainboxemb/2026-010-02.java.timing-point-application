@@ -10,6 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDat
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -87,6 +88,7 @@ public final class TimingNodeFixture {
                 new SerialScheduledExecutor(
                         32,
                         "test-tag-" + suffix,
-                        TAG_WORKER));
+                        TAG_WORKER),
+                SystemMonotonicClock.INSTANCE);
     }
 }

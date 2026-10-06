@@ -11,7 +11,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCom
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInstallation;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.DecryptedTagId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.simulator.SimulationRuntime;
@@ -36,7 +37,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class CompositionTest {
+public class TimingApplicationTest {
     @Rule
     public final TemporaryFolder temporaryFolder = new TemporaryFolder();
 
@@ -45,14 +46,14 @@ public class CompositionTest {
         Config config = config(
                 temporaryFolder.getRoot().toPath().resolve("timing-data.jsonl"));
 
-        Application application = Composition.create(identity(), config);
-        application.start();
+        TimingApplication application = TimingApplication.create(identity(), config);
+        application.activate();
         try {
             assertEquals(
                     "configured-node",
                     application.presentationGateway().timingNode().status().timingNodeId().value());
         } finally {
-            application.close();
+            application.deactivate();
         }
     }
 
@@ -64,11 +65,11 @@ public class CompositionTest {
                 file,
                 "{not-json}\n".getBytes(StandardCharsets.UTF_8));
 
-        Application application = Composition.create(identity(), config(file));
+        TimingApplication application = TimingApplication.create(identity(), config(file));
 
-        application.start();
+        application.activate();
         try {
-            assertEquals(Lifecycle.State.RUNNING, application.state());
+            assertEquals(TimingApplication.State.ACTIVE, application.state());
             assertEquals(
                     TimingNodeTypes.Lifecycle.ERROR,
                     application.presentationGateway().timingNode().status().lifecycle());
@@ -82,7 +83,7 @@ public class CompositionTest {
                     application.presentationGateway().timingNode().status().problems().get(0).message()
                             .contains("TimingData recovery failed"));
         } finally {
-            application.close();
+            application.deactivate();
         }
     }
 
@@ -98,11 +99,13 @@ public class CompositionTest {
                         Duration.ofMillis(100),
                         Duration.ofMillis(5),
                         8);
-        Application application = SimulationRuntime.create(
+        TimingApplication application = SimulationRuntime.create(
                 identity(),
                 config(file, tagProcessingPolicy),
                 Collections.singletonList(
-                        AntennaInstallation.direct(antenna)),
+                        AntennaInstallation.direct(
+                                new AntennaId("ANT1"),
+                                antenna)),
                 tagId -> new RegistrationId("R-1001"));
 
         assertEquals(
@@ -112,7 +115,7 @@ public class CompositionTest {
                         .tagProcessing()
                         .startupValue());
 
-        application.start();
+        application.activate();
         try {
             assertFalse(antenna.inventoryRunning());
 
@@ -149,7 +152,7 @@ public class CompositionTest {
                     TimingNodeCommands.close());
             await(() -> !antenna.inventoryRunning(), 1000L);
         } finally {
-            application.close();
+            application.deactivate();
         }
 
         assertFalse(antenna.inventoryRunning());
@@ -181,13 +184,33 @@ public class CompositionTest {
         }
     }
 
+    @Test
+    public void formatsStableSmokeOutput() {
+        assertEquals(
+                "event-timing-app lifecycle OK version=test-version state=INACTIVE",
+                TimingApplication.smokeOutput(
+                        identity(),
+                        TimingApplication.State.INACTIVE));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void createRejectsMissingBuildIdentity() {
+        TimingApplication.create(
+                null,
+                config(
+                        temporaryFolder
+                                .getRoot()
+                                .toPath()
+                                .resolve("timing-data.jsonl")));
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void createRejectsMissingTimingDataPath() {
         Config config = new Config(
                 new NodeId("configured-node"),
                 new Presentation(null, null));
 
-        Composition.create(identity(), config);
+        TimingApplication.create(identity(), config);
     }
 
     private static Config config(Path timingDataPath) {
