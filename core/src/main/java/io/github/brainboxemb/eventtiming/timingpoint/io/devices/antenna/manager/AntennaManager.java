@@ -170,15 +170,9 @@ public final class AntennaManager {
                 "AntennaManager self-test started");
 
         CompletableFuture<Void> transition =
-                CompletableFuture.completedFuture(
-                        null);
-
-        for (ManagedAntenna antenna : antennas) {
-            transition =
-                    transition.thenCompose(
-                            ignored -> selfTestAntenna(
-                                    antenna));
-        }
+                control.runTask(
+                        new SelfTestTask(
+                                antennas));
 
         transition.whenComplete(
                 (ignored, transitionFailure) -> {
@@ -201,37 +195,6 @@ public final class AntennaManager {
                                 rejection);
                     }
                 });
-    }
-
-    private CompletableFuture<Void> selfTestAntenna(
-            ManagedAntenna antenna) {
-        LOG.info(
-                "Antenna {} self-test started",
-                antenna.antennaId());
-
-        CompletableFuture<Void> selfTest =
-                control.runDelayed(
-                        antenna::beginSelfTest,
-                        antenna::completeSelfTest);
-
-        return selfTest
-                .handle(
-                        (ignored, selfTestFailure) -> {
-                            if (selfTestFailure == null) {
-                                return CompletableFuture.<Void>completedFuture(
-                                        null);
-                            }
-
-                            ControlException mapped =
-                                    mapControlFailure(
-                                            unwrapCompletionFailure(
-                                                    selfTestFailure));
-                            return control.runAsync(
-                                    () -> antenna.selfTestControlFailed(
-                                            mapped));
-                        })
-                .thenCompose(
-                        followUp -> followUp);
     }
 
     private void finishSelfTest(
