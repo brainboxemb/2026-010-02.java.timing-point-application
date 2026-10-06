@@ -34,10 +34,11 @@ import java.util.Map;
 /**
  * One completely composed SI-01 timing application.
  *
- * <p>This is both the visible composition root and the lifecycle owner of the
- * resulting object graph. {@link #create(BuildIdentity, Config)} constructs and
- * wires the graph without starting physical application workers. {@link #activate()}
- * activates the already composed graph. {@link #deactivate()} deactivates it.</p>
+ * <p>This is the visible composition root and owner of process-level Runtime
+ * resources. {@link #create(BuildIdentity, Config)} constructs and wires the
+ * graph without starting physical application workers. Conductor owns lifecycle
+ * coordination of the application components; Runtime owns shared workers and
+ * the outer Presentation lifecycle.</p>
  *
  * <p>The production path is deliberately readable in one place:</p>
  *
@@ -65,7 +66,8 @@ public final class TimingApplicationRuntime {
     private final ApplicationConfiguration configuration;
     private final PresentationGateway presentationGateway;
     private final RuntimeExecutors runtimeExecutors;
-    private final ActivationManager activationManager;
+    private final Conductor conductor;
+    private final PresentationRuntime presentationRuntime;
     private final ShutdownSignal shutdownSignal;
 
     private State state = State.NEW;
@@ -76,14 +78,16 @@ public final class TimingApplicationRuntime {
             ApplicationConfiguration configuration,
             PresentationGateway presentationGateway,
             RuntimeExecutors runtimeExecutors,
-            ActivationManager activationManager,
+            Conductor conductor,
+            PresentationRuntime presentationRuntime,
             ShutdownSignal shutdownSignal) {
         this.buildIdentity = buildIdentity;
         this.timingNode = timingNode;
         this.configuration = configuration;
         this.presentationGateway = presentationGateway;
         this.runtimeExecutors = runtimeExecutors;
-        this.activationManager = activationManager;
+        this.conductor = conductor;
+        this.presentationRuntime = presentationRuntime;
         this.shutdownSignal = shutdownSignal;
     }
 
@@ -224,15 +228,12 @@ public final class TimingApplicationRuntime {
             /*
              * 5. Construct Application-facing coordination/presentation objects.
              */
-            Conductor conductor = null;
-            if (antennaManager != null) {
-                conductor =
-                        new Conductor(
-                                timingNode,
-                                antennaManager,
-                                executors
-                                        .createConductorExecutor());
-            }
+            Conductor conductor =
+                    new Conductor(
+                            timingNode,
+                            antennaManager,
+                            executors
+                                    .createConductorExecutor());
 
             ConfigurationControl configurationControl =
                     createConfigurationControl(
@@ -258,7 +259,7 @@ public final class TimingApplicationRuntime {
             /*
              * 6. Wire the object graph explicitly.
              */
-            if (conductor != null) {
+            if (antennaManager != null) {
                 timingNode.statusChangedEvent()
                         .subscribe(
                                 conductor
@@ -278,33 +279,11 @@ public final class TimingApplicationRuntime {
             }
 
             /*
-             * 7. Define component activation order explicitly.
+             * 7. Return the fully constructed and wired graph.
              *
-             * Registration order is activation order; ActivationManager
-             * deactivates successful components in reverse order.
-             */
-            ActivationManager activation =
-                    new ActivationManager();
-            activation.register(
-                    timingNode::activate,
-                    timingNode::deactivate);
-            if (antennaManager != null) {
-                activation.register(
-                        antennaManager::activate,
-                        antennaManager::deactivate);
-            }
-            if (conductor != null) {
-                activation.register(
-                        conductor::activate,
-                        conductor::deactivate);
-            }
-            activation.register(
-                    presentation::activate,
-                    presentation::deactivate);
-
-            /*
-             * 8. Return the fully constructed and wired graph.
-             *    Activation remains a separate phase.
+             * Conductor owns TimingNode/AntennaManager lifecycle coordination.
+             * Runtime keeps Presentation outside that application-core lifecycle
+             * so external adapters start only after the coordinated core is ready.
              */
             return new TimingApplicationRuntime(
                     buildIdentity,
@@ -312,7 +291,8 @@ public final class TimingApplicationRuntime {
                     applicationConfiguration,
                     presentationGateway,
                     executors,
-                    activation,
+                    conductor,
+                    presentation,
                     shutdownSignal);
         } catch (RuntimeException | Error failure) {
             executors.close();
@@ -323,8 +303,9 @@ public final class TimingApplicationRuntime {
     /**
      * Activates the already constructed and wired application.
      *
-     * <p>Runtime execution infrastructure starts first. Application components
-     * then activate in their registration order through ActivationManager.</p>
+     * <p>Runtime starts the shared physical workers first. Conductor then
+     * activates and coordinates the application components. Presentation starts
+     * last, after the application core has established its current state.</p>
      */
     public synchronized void activate() {
         if (state != State.NEW) {
@@ -335,18 +316,27 @@ public final class TimingApplicationRuntime {
 
         try {
             runtimeExecutors.start();
-            activationManager.activateAll();
+            conductor.activate();
+            presentationRuntime.activate();
             state = State.ACTIVE;
         } catch (RuntimeException | Error failure) {
             try {
-                activationManager.deactivateAll();
+                presentationRuntime.deactivate();
             } catch (RuntimeException | Error deactivateFailure) {
-                failure.addSuppressed(deactivateFailure);
+                failure.addSuppressed(
+                        deactivateFailure);
+            }
+            try {
+                conductor.deactivate();
+            } catch (RuntimeException | Error deactivateFailure) {
+                failure.addSuppressed(
+                        deactivateFailure);
             }
             try {
                 runtimeExecutors.close();
             } catch (RuntimeException | Error closeFailure) {
-                failure.addSuppressed(closeFailure);
+                failure.addSuppressed(
+                        closeFailure);
             }
             state = State.INACTIVE;
             notifyAll();
@@ -385,8 +375,8 @@ public final class TimingApplicationRuntime {
     }
 
     /**
-     * Deactivates application components in reverse order and then closes the
-     * Runtime-owned execution infrastructure.
+     * Stops outer Presentation first, then lets Conductor deactivate the
+     * application components before Runtime closes the shared workers.
      */
     public synchronized void deactivate() {
         shutdownSignal.request();
@@ -398,9 +388,20 @@ public final class TimingApplicationRuntime {
         Throwable firstFailure = null;
 
         try {
-            activationManager.deactivateAll();
+            presentationRuntime.deactivate();
         } catch (RuntimeException | Error failure) {
             firstFailure = failure;
+        }
+
+        try {
+            conductor.deactivate();
+        } catch (RuntimeException | Error failure) {
+            if (firstFailure == null) {
+                firstFailure = failure;
+            } else {
+                firstFailure.addSuppressed(
+                        failure);
+            }
         }
 
         try {
@@ -409,7 +410,8 @@ public final class TimingApplicationRuntime {
             if (firstFailure == null) {
                 firstFailure = failure;
             } else {
-                firstFailure.addSuppressed(failure);
+                firstFailure.addSuppressed(
+                        failure);
             }
         }
 
