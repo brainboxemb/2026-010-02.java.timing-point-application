@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.TagId;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -35,7 +36,7 @@ public class SimulatedAntennaTest {
 
         TagObservation observation =
                 new TagObservation(
-                        new DecryptedTagId("TAG-001"),
+                        new TagId("TAG-001"),
                         -42,
                         OBSERVED_AT);
         antenna.emit(observation);

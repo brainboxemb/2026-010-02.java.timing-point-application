@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
@@ -9,6 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.Monoto
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -150,6 +152,21 @@ final class TagObservationFilter {
         return !bursts.isEmpty();
     }
 
+    List<TagPassageSnapshot> snapshots() {
+        List<TagPassageSnapshot> result =
+                new ArrayList<TagPassageSnapshot>(
+                        bursts.size());
+        for (Map.Entry<RegistrationId, BurstState> entry
+                : bursts.entrySet()) {
+            result.add(
+                    entry.getValue()
+                            .snapshot(
+                                    entry.getKey()));
+        }
+        return result;
+    }
+
+
     private void sendValidObservation(ClosedBurst closedBurst) {
         if (closedBurst == null) {
             return;
@@ -180,23 +197,49 @@ final class TagObservationFilter {
 
     private static final class BurstState {
         private final long firstSeenNanos;
+        private final Map<TagId, MutableTagStats> tagStats =
+                new LinkedHashMap<TagId, MutableTagStats>();
+
         private long lastSeenNanos;
         private int maxRssi;
+        private TagId maxRssiTagId;
         private TimingTimestamp maxRssiObservedAt;
 
         private BurstState(TagObservation observation, long now) {
             firstSeenNanos = now;
             lastSeenNanos = now;
             maxRssi = observation.rssi();
+            maxRssiTagId = observation.tagId();
             maxRssiObservedAt = observation.observedAt();
+            recordTag(
+                    observation);
         }
 
         private void add(TagObservation observation, long now) {
             lastSeenNanos = now;
+            recordTag(
+                    observation);
             if (observation.rssi() > maxRssi) {
                 maxRssi = observation.rssi();
+                maxRssiTagId = observation.tagId();
                 maxRssiObservedAt = observation.observedAt();
             }
+        }
+
+        private void recordTag(
+                TagObservation observation) {
+            MutableTagStats stats =
+                    tagStats.get(
+                            observation.tagId());
+            if (stats == null) {
+                tagStats.put(
+                        observation.tagId(),
+                        new MutableTagStats(
+                                observation));
+                return;
+            }
+            stats.add(
+                    observation);
         }
 
         private boolean expired(long now, TagProcessingPolicy policy) {
@@ -206,6 +249,60 @@ final class TagObservationFilter {
 
         private TimingTimestamp maxRssiObservedAt() {
             return maxRssiObservedAt;
+        }
+
+        private TagPassageSnapshot snapshot(
+                RegistrationId registrationId) {
+            List<TagPassageSnapshot.TagStats> tags =
+                    new ArrayList<TagPassageSnapshot.TagStats>(
+                            tagStats.size());
+            for (MutableTagStats stats
+                    : tagStats.values()) {
+                tags.add(
+                        stats.snapshot());
+            }
+
+            return new TagPassageSnapshot(
+                    registrationId,
+                    tags,
+                    maxRssiTagId,
+                    maxRssi,
+                    maxRssiObservedAt);
+        }
+    }
+
+    private static final class MutableTagStats {
+        private final TagId tagId;
+        private long observationCount;
+        private int strongestRssi;
+        private final TimingTimestamp firstObservedAt;
+        private TimingTimestamp lastObservedAt;
+
+        private MutableTagStats(
+                TagObservation observation) {
+            tagId = observation.tagId();
+            observationCount = 1L;
+            strongestRssi = observation.rssi();
+            firstObservedAt = observation.observedAt();
+            lastObservedAt = observation.observedAt();
+        }
+
+        private void add(
+                TagObservation observation) {
+            observationCount++;
+            lastObservedAt = observation.observedAt();
+            if (observation.rssi() > strongestRssi) {
+                strongestRssi = observation.rssi();
+            }
+        }
+
+        private TagPassageSnapshot.TagStats snapshot() {
+            return new TagPassageSnapshot.TagStats(
+                    tagId,
+                    observationCount,
+                    strongestRssi,
+                    firstObservedAt,
+                    lastObservedAt);
         }
     }
 }

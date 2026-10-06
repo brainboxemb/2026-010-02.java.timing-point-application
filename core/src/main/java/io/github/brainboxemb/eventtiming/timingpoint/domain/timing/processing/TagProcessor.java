@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ConfigurationChange;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
@@ -11,6 +12,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObser
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -21,7 +25,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Active tag-processing boundary between antenna observations and TimingNode.
  *
- * <p>The antenna callback only performs bounded queue ingress. Mapping,
+ * <p>The antenna callback only performs bounded queue ingress. EventData resolution,
  * accepted-registration duplicate suppression, passage state and TimingNode
  * admission run on one serial execution lane owned by this processor. Duplicate
  * suppression happens after tag-to-registration mapping and before passage
@@ -40,7 +44,7 @@ public final class TagProcessor {
     }
 
     private final TimingNode timingNode;
-    private final TagRegistrationMapper mapper;
+    private final EventData eventData;
     private final ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration;
     private final Consumer<ConfigurationChange<TagProcessingPolicy>>
             policyChangeListener;
@@ -54,17 +58,19 @@ public final class TagProcessor {
 
     private volatile State state = State.NEW;
     private volatile SerialScheduledExecutor.ScheduledTask housekeepingTask;
+    private volatile List<TagPassageSnapshot> passageSnapshots =
+            Collections.emptyList();
 
     public TagProcessor(
             TimingNode timingNode,
-            TagRegistrationMapper mapper,
+            EventData eventData,
             TagProcessingPolicy policy,
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
             SerialScheduledExecutor executor) {
         this(
                 timingNode,
-                mapper,
+                eventData,
                 ReadOnlyConfiguration.fixed(policy),
                 monotonicClock,
                 metrics,
@@ -73,7 +79,7 @@ public final class TagProcessor {
 
     public TagProcessor(
             TimingNode timingNode,
-            TagRegistrationMapper mapper,
+            EventData eventData,
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
@@ -81,8 +87,8 @@ public final class TagProcessor {
         if (timingNode == null) {
             throw new IllegalArgumentException("timingNode must not be null");
         }
-        if (mapper == null) {
-            throw new IllegalArgumentException("mapper must not be null");
+        if (eventData == null) {
+            throw new IllegalArgumentException("eventData must not be null");
         }
         if (policyConfiguration == null) {
             throw new IllegalArgumentException(
@@ -105,7 +111,7 @@ public final class TagProcessor {
         }
 
         this.timingNode = timingNode;
-        this.mapper = mapper;
+        this.eventData = eventData;
         this.policyConfiguration = policyConfiguration;
         this.policyChangeListener = this::onPolicyChange;
         this.metrics = metrics;
@@ -187,6 +193,17 @@ public final class TagProcessor {
         }
     }
 
+    /**
+     * Returns the latest immutable engineering view of active registration passages.
+     *
+     * <p>The returned list is published by the TagProcessor serial lane. Callers
+     * never read the mutable filter state directly and no worker round-trip is
+     * required merely to inspect diagnostics.</p>
+     */
+    public List<TagPassageSnapshot> passageSnapshots() {
+        return passageSnapshots;
+    }
+
     private void scheduleDrainLocked() {
         if (!drainScheduled.compareAndSet(false, true)) {
             return;
@@ -236,7 +253,7 @@ public final class TagProcessor {
     }
 
     private void processObservation(TagObservation observation) {
-        RegistrationId registrationId = mapper.map(observation.tagId());
+        RegistrationId registrationId = eventData.registrationIdFor(observation.tagId());
         if (registrationId == null) {
             metrics.recordUnmapped();
             return;
@@ -249,6 +266,7 @@ public final class TagProcessor {
         }
 
         observationFilter.add(registrationId, observation);
+        publishPassageSnapshots();
         ensureHousekeeping();
     }
 
@@ -303,6 +321,7 @@ public final class TagProcessor {
         try {
             observationFilter.periodic();
             duplicateFilter.periodic();
+            publishPassageSnapshots();
         } catch (RuntimeException ex) {
             LOG.warn("Tag-processing housekeeping failed", ex);
         } finally {
@@ -313,6 +332,17 @@ public final class TagProcessor {
                 }
             }
         }
+    }
+
+    private void publishPassageSnapshots() {
+        List<TagPassageSnapshot> current =
+                observationFilter.snapshots();
+        passageSnapshots =
+                current.isEmpty()
+                        ? Collections.<TagPassageSnapshot>emptyList()
+                        : Collections.unmodifiableList(
+                                new ArrayList<TagPassageSnapshot>(
+                                        current));
     }
 
     private boolean hasTimedState() {
@@ -347,6 +377,7 @@ public final class TagProcessor {
              * unnecessary timed state.
              */
             observationFilter.discard(registrationId);
+            publishPassageSnapshots();
         }
 
         metrics.recordAdmission(admission);

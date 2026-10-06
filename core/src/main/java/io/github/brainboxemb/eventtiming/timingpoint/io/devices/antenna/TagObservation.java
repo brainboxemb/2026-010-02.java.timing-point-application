@@ -1,15 +1,16 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.TagId;
 
-/** One immutable provider-decoded/decrypted tag observation. */
+/** One immutable decoded tag observation. */
 public final class TagObservation {
-    private final DecryptedTagId tagId;
+    private final TagId tagId;
     private final int rssi;
     private final TimingTimestamp observedAt;
 
     public TagObservation(
-            DecryptedTagId tagId,
+            TagId tagId,
             int rssi,
             TimingTimestamp observedAt) {
         if (tagId == null) {
@@ -23,7 +24,7 @@ public final class TagObservation {
         this.observedAt = observedAt;
     }
 
-    public DecryptedTagId tagId() {
+    public TagId tagId() {
         return tagId;
     }
 

@@ -3,10 +3,10 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Antenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInfo;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.DecryptedTagId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntennaPowerControl;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.TagId;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 
@@ -217,7 +217,7 @@ public class AntennaManagerTest {
 
             TagObservation observation =
                     new TagObservation(
-                            new DecryptedTagId("TAG-1"),
+                            new TagId("TAG-1"),
                             -40,
                             TimingTimestamp.parse(
                                     "2026-10-05T12:00:00.000000000Z"));

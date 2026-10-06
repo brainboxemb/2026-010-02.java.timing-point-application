@@ -1,19 +1,18 @@
-package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata;
 
 /**
- * Provider-decoded/decrypted RFID tag identity.
+ * Semantic RFID tag identity after provider-specific decoding/decryption.
  *
- * <p>Provider bytes, framing, encryption and decryption stay behind the
- * antenna/provider boundary. This value is the identity exposed to generic tag
- * processing.</p>
+ * <p>Physical framing, bytes and encryption stay behind the antenna/provider
+ * boundary. Generic event processing uses this value.</p>
  */
-public final class DecryptedTagId {
+public final class TagId {
     private final String value;
 
-    public DecryptedTagId(String value) {
+    public TagId(String value) {
         if (value == null || value.trim().isEmpty()) {
             throw new IllegalArgumentException(
-                    "DecryptedTagId must not be blank");
+                    "TagId must not be blank");
         }
         this.value = value.trim();
     }
@@ -27,10 +26,10 @@ public final class DecryptedTagId {
         if (this == other) {
             return true;
         }
-        if (!(other instanceof DecryptedTagId)) {
+        if (!(other instanceof TagId)) {
             return false;
         }
-        DecryptedTagId that = (DecryptedTagId) other;
+        TagId that = (TagId) other;
         return value.equals(that.value);
     }
 

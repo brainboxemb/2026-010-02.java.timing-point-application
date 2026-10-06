@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add immutable `EventData` and semantic `TagId`; resolve RFID observations through EventData before RegistrationId-keyed duplicate/passsage filtering; retain compact per-tag passage diagnostics; remove `TagRegistrationMapper`/`DecryptedTagId` and the loose mapper runtime-composition path.
+
 - Move generic bounded result waiting, cancellation propagation and delayed scheduled task handling out of `AntennaControlLane` into platform `ScheduledTaskRunner`; AntennaManager keeps only antenna-specific failure semantics. TimingNode, TagProcessor and Conductor continue to use their execution primitives directly.
 
 - Rename the concrete top-level composition/lifecycle type from `TimingApplication` to `TimingApplicationRuntime` so it is symmetric with its owned `PresentationRuntime`; the external SI-01 Timing Application concept is unchanged.

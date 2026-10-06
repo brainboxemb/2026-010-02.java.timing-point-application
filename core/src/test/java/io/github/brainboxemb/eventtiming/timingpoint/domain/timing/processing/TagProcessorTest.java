@@ -11,10 +11,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.Appli
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ConfigurationUpdateResult;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimeSource;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.EventData;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.DecryptedTagId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
@@ -24,12 +25,13 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialSc
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.After;
 import org.junit.Test;
@@ -81,32 +83,31 @@ public class TagProcessorTest {
             TimingTimestamp.parse("2026-10-01T12:00:01.000000000Z");
 
     @Test
-    public void eventCallbackOnlyQueuesAndMappingRunsOnExecutionLane()
+    public void eventCallbackQueuesUnmappedObservationForLaneProcessing()
             throws Exception {
         TimingNode node = node(new RecordingStore());
         FakeMonotonicClock clock = new FakeMonotonicClock();
         SerialScheduledExecutor executor =
                 newScheduledExecutor("tp-tag-test");
-        AtomicReference<String> mapperThread = new AtomicReference<>();
+        TagProcessingMetrics metrics =
+                new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                 node,
-                tagId -> {
-                    mapperThread.set(Thread.currentThread().getName());
-                    return null;
-                },
+                EventData.empty(),
                 policy(8),
                 clock,
-                new TagProcessingMetrics(),
+                metrics,
                 executor);
 
         processor.activate();
         try {
-            String callbackThread = Thread.currentThread().getName();
-            processor.onTagObserved(observation("TAG-001", -42, OBSERVED_AT));
+            processor.onTagObserved(
+                    observation("TAG-001", -42, OBSERVED_AT));
             awaitLane(executor);
 
-            assertEquals("tp-tag-test", mapperThread.get());
-            assertFalse(callbackThread.equals(mapperThread.get()));
+            assertEquals(
+                    1L,
+                    metrics.snapshot().unmapped());
         } finally {
             processor.deactivate();
         }
@@ -123,7 +124,10 @@ public class TagProcessorTest {
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                 node,
-                tagId -> new RegistrationId("N-001"),
+                eventDataFor(
+                        "TAG-A", "N-001",
+                        "TAG-B", "N-001",
+                        "TAG-C", "N-001"),
                 policy(8),
                 clock,
                 metrics,
@@ -140,6 +144,17 @@ public class TagProcessorTest {
             processor.onTagObserved(
                     observation("TAG-B", -30, STRONGER_OBSERVED_AT));
             awaitLane(executor);
+
+            List<TagPassageSnapshot> passages =
+                    processor.passageSnapshots();
+            assertEquals(1, passages.size());
+            assertEquals(
+                    new RegistrationId("N-001"),
+                    passages.get(0).registrationId());
+            assertEquals(
+                    new TagId("TAG-B"),
+                    passages.get(0).selectedTagId());
+            assertEquals(2, passages.get(0).tags().size());
 
             clock.advanceNanos(100L);
 
@@ -177,7 +192,10 @@ public class TagProcessorTest {
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                 node,
-                tagId -> new RegistrationId("N-001"),
+                eventDataFor(
+                        "TAG-A", "N-001",
+                        "TAG-B", "N-001",
+                        "TAG-C", "N-001"),
                 policy(8),
                 clock,
                 metrics,
@@ -232,7 +250,10 @@ public class TagProcessorTest {
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                 node,
-                tagId -> new RegistrationId("N-001"),
+                eventDataFor(
+                        "TAG-A", "N-001",
+                        "TAG-B", "N-001",
+                        "TAG-C", "N-001"),
                 policy(8),
                 clock,
                 metrics,
@@ -280,7 +301,10 @@ public class TagProcessorTest {
                         startup);
         TagProcessor processor = new TagProcessor(
                 node,
-                tagId -> new RegistrationId("N-001"),
+                eventDataFor(
+                        "TAG-A", "N-001",
+                        "TAG-B", "N-001",
+                        "TAG-C", "N-001"),
                 configuration.timingNode(new NodeId("TN-01")).tagProcessing(),
                 clock,
                 new TagProcessingMetrics(),
@@ -335,7 +359,7 @@ public class TagProcessorTest {
                         startup);
         TagProcessor processor = new TagProcessor(
                 node,
-                TagProcessorTest::mapReferenceTag,
+                referenceEventData(),
                 configuration.timingNode(new NodeId("TN-01")).tagProcessing(),
                 clock,
                 new TagProcessingMetrics(),
@@ -384,7 +408,7 @@ public class TagProcessorTest {
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                 node,
-                TagProcessorTest::mapReferenceTag,
+                referenceEventData(),
                 policy(1),
                 clock,
                 metrics,
@@ -425,7 +449,7 @@ public class TagProcessorTest {
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                 node,
-                TagProcessorTest::mapReferenceTag,
+                referenceEventData(),
                 policy(4),
                 clock,
                 metrics,
@@ -467,17 +491,37 @@ public class TagProcessorTest {
             int rssi,
             TimingTimestamp observedAt) {
         return new TagObservation(
-                new DecryptedTagId(tagId),
+                new TagId(tagId),
                 rssi,
                 observedAt);
     }
 
-    private static RegistrationId mapReferenceTag(DecryptedTagId tagId) {
-        String value = tagId.value();
-        if (!value.startsWith("TAG-") || value.length() == 4) {
-            return null;
+    private static EventData referenceEventData() {
+        return eventDataFor(
+                "TAG-001", "N-001",
+                "TAG-002", "N-002");
+    }
+
+    private static EventData eventDataFor(
+            String... tagAndRegistrationIds) {
+        if (tagAndRegistrationIds.length % 2 != 0) {
+            throw new IllegalArgumentException(
+                    "tagAndRegistrationIds must contain pairs");
         }
-        return new RegistrationId("N-" + value.substring(4));
+
+        Map<TagId, RegistrationId> registrations =
+                new LinkedHashMap<TagId, RegistrationId>();
+        for (int index = 0;
+                index < tagAndRegistrationIds.length;
+                index += 2) {
+            registrations.put(
+                    new TagId(
+                            tagAndRegistrationIds[index]),
+                    new RegistrationId(
+                            tagAndRegistrationIds[index + 1]));
+        }
+        return new EventData(
+                registrations);
     }
 
     private static void awaitLane(SerialScheduledExecutor executor)
@@ -505,7 +549,7 @@ public class TagProcessorTest {
                 timeSource,
                 ReadOnlyConfiguration.fixed(
                         TagProcessingPolicy.defaults()),
-                tagId -> null,
+                EventData.empty(),
                 newSerialExecutor(32, "tag-processor-test-node"),
                 newScheduledExecutor(
                         "tag-processor-test-owned-tag"));
