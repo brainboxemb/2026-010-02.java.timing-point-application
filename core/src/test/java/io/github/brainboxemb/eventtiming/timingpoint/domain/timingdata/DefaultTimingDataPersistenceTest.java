@@ -24,7 +24,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class DefaultTimingDataPersistenceTest {
-    private static final NodeId NODE_ID = new NodeId("TN-01");
+    private static final NodeId NODE_ID = new NodeId("A");
     private static final TimingTimestamp EFFECTIVE =
             TimingTimestamp.parse("2026-10-01T12:00:00.000000000Z");
     private static final TimingTimestamp RECORDED =
@@ -112,7 +112,7 @@ public class DefaultTimingDataPersistenceTest {
         Files.write(
                 file,
                 concat(
-                        codec.encode(data(new NodeId("timing-node-02"), 1L)),
+                        codec.encode(data(new NodeId("B"), 1L)),
                         new byte[] {'\n'}));
 
         assertLoadFails(file, "but persistence owns " + NODE_ID);
@@ -123,7 +123,7 @@ public class DefaultTimingDataPersistenceTest {
         TimingDataPersistence persistence = persistence(file());
 
         try {
-            persistence.append(data(new NodeId("timing-node-02"), 1L));
+            persistence.append(data(new NodeId("B"), 1L));
             fail("expected wrong TimingNode rejection");
         } catch (TimingDataPersistence.PersistenceException expected) {
             assertTrue(expected.getMessage().contains("but persistence owns " + NODE_ID));
