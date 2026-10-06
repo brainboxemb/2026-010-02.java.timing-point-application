@@ -24,11 +24,11 @@ public class ApplicationConfigurationTest {
         TagProcessingPolicy startup = TagProcessingPolicy.defaults();
         ApplicationConfiguration configuration =
                 ApplicationConfiguration.singleTimingNode(
-                        new NodeId("TN-01"),
+                        new NodeId("A"),
                         startup);
 
         DynamicConfiguration<TagProcessingPolicy> tagProcessing =
-                configuration.timingNode(new NodeId("TN-01")).tagProcessing();
+                configuration.timingNode(new NodeId("A")).tagProcessing();
 
         assertSame(startup, tagProcessing.startupValue());
         assertSame(startup, tagProcessing.currentValue());
@@ -47,10 +47,10 @@ public class ApplicationConfigurationTest {
 
         ApplicationConfiguration configuration =
                 ApplicationConfiguration.singleTimingNode(
-                        new NodeId("TN-01"),
+                        new NodeId("A"),
                         startup);
         DynamicConfiguration<TagProcessingPolicy> tagProcessing =
-                configuration.timingNode(new NodeId("TN-01")).tagProcessing();
+                configuration.timingNode(new NodeId("A")).tagProcessing();
 
         AtomicInteger changes = new AtomicInteger();
         AtomicReference<ConfigurationChange<TagProcessingPolicy>> last =
@@ -97,10 +97,10 @@ public class ApplicationConfigurationTest {
 
         ApplicationConfiguration configuration =
                 ApplicationConfiguration.singleTimingNode(
-                        new NodeId("TN-01"),
+                        new NodeId("A"),
                         startup);
         DynamicConfiguration<TagProcessingPolicy> tagProcessing =
-                configuration.timingNode(new NodeId("TN-01")).tagProcessing();
+                configuration.timingNode(new NodeId("A")).tagProcessing();
 
         AtomicInteger changes = new AtomicInteger();
         tagProcessing.changes().subscribe(change -> changes.incrementAndGet());
@@ -118,10 +118,10 @@ public class ApplicationConfigurationTest {
         TagProcessingPolicy startup = TagProcessingPolicy.defaults();
         ApplicationConfiguration configuration =
                 ApplicationConfiguration.singleTimingNode(
-                        new NodeId("TN-01"),
+                        new NodeId("A"),
                         startup);
         DynamicConfiguration<TagProcessingPolicy> tagProcessing =
-                configuration.timingNode(new NodeId("TN-01")).tagProcessing();
+                configuration.timingNode(new NodeId("A")).tagProcessing();
 
         AtomicInteger changes = new AtomicInteger();
         tagProcessing.changes().subscribe(change -> changes.incrementAndGet());
@@ -139,10 +139,10 @@ public class ApplicationConfigurationTest {
         TagProcessingPolicy startup = TagProcessingPolicy.defaults();
         ApplicationConfiguration configuration =
                 ApplicationConfiguration.singleTimingNode(
-                        new NodeId("TN-01"),
+                        new NodeId("A"),
                         startup);
         DynamicConfiguration<TagProcessingPolicy> tagProcessing =
-                configuration.timingNode(new NodeId("TN-01")).tagProcessing();
+                configuration.timingNode(new NodeId("A")).tagProcessing();
 
         AtomicInteger changes = new AtomicInteger();
         tagProcessing.changes().subscribe(change -> changes.incrementAndGet());
