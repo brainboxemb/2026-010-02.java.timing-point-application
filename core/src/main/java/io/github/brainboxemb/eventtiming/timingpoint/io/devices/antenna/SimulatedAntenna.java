@@ -23,7 +23,7 @@ public final class SimulatedAntenna implements Antenna {
     private boolean initialized;
     private boolean inventoryRunning;
     private boolean shutdown;
-    private boolean externalPowerControlled;
+    private boolean externalPowerDevice;
     private boolean powered = true;
     private FailurePoint failurePoint = FailurePoint.NONE;
     private int inventoryStartCount;
@@ -129,29 +129,29 @@ public final class SimulatedAntenna implements Antenna {
     public synchronized void shutdown() {
         inventoryRunning = false;
         initialized = false;
-        if (externalPowerControlled) {
+        if (externalPowerDevice) {
             powered = false;
         }
         shutdown = true;
     }
 
-    synchronized void attachExternalPowerControl() {
+    public synchronized void attachExternalPowerDevice() {
         requireOpen();
-        if (externalPowerControlled) {
+        if (externalPowerDevice) {
             throw new IllegalStateException(
-                    "SimulatedAntenna already has external power control");
+                    "SimulatedAntenna already has an external power device");
         }
-        externalPowerControlled = true;
+        externalPowerDevice = true;
         powered = false;
         initialized = false;
         inventoryRunning = false;
     }
 
-    synchronized void setExternallyPowered(boolean powered) {
+    public synchronized void setExternallyPowered(boolean powered) {
         requireOpen();
-        if (!externalPowerControlled) {
+        if (!externalPowerDevice) {
             throw new IllegalStateException(
-                    "SimulatedAntenna has no external power control");
+                    "SimulatedAntenna has no external power device");
         }
         this.powered = powered;
         if (!powered) {
