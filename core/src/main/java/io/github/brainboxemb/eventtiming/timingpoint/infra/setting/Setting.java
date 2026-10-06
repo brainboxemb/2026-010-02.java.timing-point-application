@@ -15,6 +15,7 @@ public final class Setting<T> {
     private T requestedValue;
     private T appliedValue;
     private boolean changePending;
+    private long requestRevision;
 
     public Setting(
             T initialValue) {
@@ -34,10 +35,22 @@ public final class Setting<T> {
         return changePending;
     }
 
+    /**
+     * Monotonically increasing identity of the latest request.
+     *
+     * <p>The revision changes even when the requested value is unchanged. This
+     * lets an owner distinguish a new explicit retry request from an earlier
+     * failed attempt without storing a second "request received" flag.</p>
+     */
+    public synchronized long requestRevision() {
+        return requestRevision;
+    }
+
     /** Records the latest value the owner should eventually apply. */
     public synchronized void request(
             T value) {
         requestedValue = value;
+        requestRevision++;
         updatePending();
     }
 
