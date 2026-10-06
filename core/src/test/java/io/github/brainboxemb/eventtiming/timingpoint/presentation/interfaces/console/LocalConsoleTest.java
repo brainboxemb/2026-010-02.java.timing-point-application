@@ -1,6 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.console;
 
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevel;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevelControl;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGatewayFixture;
 
 import java.io.StringReader;
@@ -9,6 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -75,6 +78,36 @@ public class LocalConsoleTest {
     }
 
     @Test
+    public void logCommandShowsAndChangesRuntimeLevel() {
+        AtomicBoolean stopped = new AtomicBoolean(false);
+        StringWriter output = new StringWriter();
+        TestLoggingLevelControl logging = new TestLoggingLevelControl();
+
+        try (PresentationGatewayFixture fixture = new PresentationGatewayFixture(identity())) {
+            LocalConsole console = new LocalConsole(
+                    fixture.handler(),
+                    logging,
+                    () -> stopped.set(true),
+                    new StringReader(
+                            "log\n"
+                                    + "log D\n"
+                                    + "log\n"
+                                    + "log I\n"
+                                    + "quit\n"),
+                    output);
+
+            console.run();
+        }
+
+        String text = output.toString();
+        assertTrue(text.contains("log [T|D|I|W|E]"));
+        assertTrue(text.contains("Log level: INFO"));
+        assertTrue(text.contains("Log level: DEBUG"));
+        assertEquals(LoggingLevel.INFO, logging.level());
+        assertTrue(stopped.get());
+    }
+
+    @Test
     public void exitAlsoStopsApplication() {
         AtomicBoolean stopped = new AtomicBoolean(false);
         try (PresentationGatewayFixture fixture = new PresentationGatewayFixture(identity())) {
@@ -106,6 +139,20 @@ public class LocalConsoleTest {
 
         assertFalse(stopped.get());
         assertTrue(output.toString().contains("Unknown command: wat"));
+    }
+
+    private static final class TestLoggingLevelControl implements LoggingLevelControl {
+        private LoggingLevel level = LoggingLevel.INFO;
+
+        @Override
+        public LoggingLevel level() {
+            return level;
+        }
+
+        @Override
+        public void setLevel(LoggingLevel level) {
+            this.level = level;
+        }
     }
 
     private static BuildIdentity identity() {
