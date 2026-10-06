@@ -3,14 +3,11 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager
 import io.github.brainboxemb.eventtiming.timingpoint.infra.setting.Setting;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTask;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.TaskStep;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Reusable inventory state machine for enable, disable and multiplex switching.
@@ -29,7 +26,7 @@ import java.util.concurrent.CompletableFuture;
  * <p>A changed request does not create another task. The running task reads the
  * latest requested value on every turn and changes direction when needed.</p>
  */
-final class InventoryTask implements CooperativeTask {
+final class InventoryTask extends AbstractTask {
 
     private enum Phase {
         DECIDE,
@@ -49,7 +46,6 @@ final class InventoryTask implements CooperativeTask {
     private final Setting<Boolean> inventoryEnabledSetting;
     private final Event<AntennaTaskResult> completedEvent = new Event<AntennaTaskResult>();
 
-    private volatile CompletableFuture<Void> operation;
     private Phase phase;
     private int antennaIndex;
     private int groupIndex;
@@ -66,53 +62,23 @@ final class InventoryTask implements CooperativeTask {
         this.inventoryGroup = inventoryGroup;
         this.inventoryInterval = inventoryInterval;
         this.inventoryEnabledSetting = inventoryEnabledSetting;
-        reset();
-    }
-
-    /**
-     * Starts this reusable task unless an earlier run is still active.
-     *
-     * <p>If a request changes while the task is running, the Setting already
-     * contains that new value and the current run will observe it.</p>
-     */
-    synchronized void start(ScheduledTaskRunner taskRunner) {
-        if (isRunning()) {
-            return;
-        }
-
-        reset();
-        operation = taskRunner.runTask(this);
-        operation.whenComplete(this::onCompleted);
-    }
-
-    void cancel() {
-        CompletableFuture<Void> running = operation;
-        if (running != null && !running.isDone()) {
-            running.cancel(true);
-        }
-    }
-
-    boolean isRunning() {
-        CompletableFuture<Void> running = operation;
-        return running != null && !running.isDone();
+        resetForRun();
     }
 
     EventSource<AntennaTaskResult> completedEvent() {
         return completedEvent;
     }
 
-    private void onCompleted(Void ignored, Throwable taskFailure) {
-        if (taskFailure instanceof CancellationException) {
-            return;
-        }
-
+    @Override
+    protected void onRunCompleted(Throwable taskFailure) {
         completedEvent.emit(
                 taskFailure == null
                         ? AntennaTaskResult.success()
                         : AntennaTaskResult.failed(taskFailure));
     }
 
-    private void reset() {
+    @Override
+    protected void resetForRun() {
         phase = Phase.DECIDE;
         antennaIndex = 0;
         groupIndex = 0;
