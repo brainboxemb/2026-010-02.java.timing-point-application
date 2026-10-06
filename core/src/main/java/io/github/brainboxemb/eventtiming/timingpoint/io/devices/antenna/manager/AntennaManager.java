@@ -12,6 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialSc
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 
 import org.slf4j.Logger;
