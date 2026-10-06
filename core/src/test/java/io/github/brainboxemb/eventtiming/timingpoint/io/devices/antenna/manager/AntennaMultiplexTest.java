@@ -3,8 +3,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntennaPowerControl;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaHealth;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.ManagerHealth;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
@@ -24,7 +22,7 @@ import static org.junit.Assert.assertTrue;
 public class AntennaMultiplexTest {
 
     @Test
-    public void alternatesHealthyGroupMembersAndPowersDownWhenInactive()
+    public void alternatesAvailableGroupMembersAndPowersDownWhenInactive()
             throws Exception {
         ScheduledExecutorService shared = sharedExecutor();
         SimulatedAntenna first = new SimulatedAntenna();
@@ -56,17 +54,18 @@ public class AntennaMultiplexTest {
 
         try {
             manager.activate();
-            manager.checkHealth();
+            await(
+                    manager::isReady,
+                    1000L);
 
             assertFalse(firstPower.powered());
             assertFalse(secondPower.powered());
-            assertEquals(
-                    ManagerHealth.HEALTHY,
-                    manager.health());
-
-            manager.enableInventory();
-            assertTrue(firstPower.powered());
-            assertTrue(secondPower.powered());
+            assertTrue(
+                    manager.requestEnableInventory());
+            await(
+                    () -> firstPower.powered()
+                            && secondPower.powered(),
+                    1000L);
             assertAtMostOneInventories(first, second);
 
             await(
@@ -75,11 +74,14 @@ public class AntennaMultiplexTest {
                     1000L);
             assertAtMostOneInventories(first, second);
 
-            manager.disableInventory();
-            assertFalse(first.inventoryRunning());
-            assertFalse(second.inventoryRunning());
-            assertFalse(firstPower.powered());
-            assertFalse(secondPower.powered());
+            assertTrue(
+                    manager.requestDisableInventory());
+            await(
+                    () -> !first.inventoryRunning()
+                            && !second.inventoryRunning()
+                            && !firstPower.powered()
+                            && !secondPower.powered(),
+                    1000L);
         } finally {
             manager.deactivate();
             shared.shutdownNow();
@@ -90,14 +92,14 @@ public class AntennaMultiplexTest {
     public void failedGroupMemberIsSkippedWhileHealthyMemberContinues()
             throws Exception {
         ScheduledExecutorService shared = sharedExecutor();
-        SimulatedAntenna healthy = new SimulatedAntenna();
+        SimulatedAntenna available = new SimulatedAntenna();
         SimulatedAntenna failed = new SimulatedAntenna();
 
         AntennaManager manager = manager(
                 Arrays.asList(
                         AntennaInstallation.direct(
                                         new AntennaId("ANT1"),
-                                        healthy)
+                                        available)
                                 .inInventoryGroup(
                                         Duration.ofMillis(25)),
                         AntennaInstallation.direct(
@@ -111,27 +113,31 @@ public class AntennaMultiplexTest {
 
         try {
             manager.activate();
-            manager.checkHealth();
+            await(
+                    manager::isReady,
+                    1000L);
 
             failed.setFailurePoint(
                     SimulatedAntenna.FailurePoint.START_INVENTORY);
-            manager.enableInventory();
+            assertTrue(
+                    manager.requestEnableInventory());
 
             await(
                     () -> manager.status(
-                            new AntennaId("ANT2")).health()
-                            == AntennaHealth.FAILED,
+                            new AntennaId("ANT2")).failure()
+                            != null,
                     1000L);
-            await(healthy::inventoryRunning, 1000L);
+            await(
+                    available::inventoryRunning,
+                    1000L);
 
             assertEquals(
                     State.ACTIVE,
                     manager.state());
-            assertEquals(
-                    ManagerHealth.DEGRADED,
-                    manager.health());
-            assertTrue(healthy.inventoryRunning());
-            assertFalse(failed.inventoryRunning());
+            assertTrue(
+                    available.inventoryRunning());
+            assertFalse(
+                    failed.inventoryRunning());
         } finally {
             manager.deactivate();
             shared.shutdownNow();
@@ -163,8 +169,11 @@ public class AntennaMultiplexTest {
 
         try {
             manager.activate();
-            manager.checkHealth();
-            manager.enableInventory();
+            await(
+                    manager::isReady,
+                    1000L);
+            assertTrue(
+                    manager.requestEnableInventory());
 
             await(
                     first::inventoryRunning,
@@ -175,8 +184,8 @@ public class AntennaMultiplexTest {
 
             await(
                     () -> manager.status(
-                            new AntennaId("ANT1")).health()
-                            == AntennaHealth.FAILED,
+                            new AntennaId("ANT1")).failure()
+                            != null,
                     1000L);
 
             assertTrue(
