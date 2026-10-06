@@ -117,15 +117,14 @@ final class InventoryController {
                             antennaSet.switching(),
                             this::inventoryRequestedEnabled),
                     this::enableCompleted);
-            return;
+        } else {
+            stopSwitching();
+            startOperation(
+                    "inventory disable",
+                    AntennaTasks.disableInventory(
+                            antennaSet.antennas()),
+                    this::disableCompleted);
         }
-
-        stopSwitching();
-        startOperation(
-                "inventory disable",
-                AntennaTasks.disableInventory(
-                        antennaSet.antennas()),
-                this::disableCompleted);
     }
 
     private void enableCompleted(
