@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
@@ -97,7 +98,7 @@ public final class SimulatedAntenna implements Antenna {
 
     /** Convenience overload for deterministic tests and simulation controls. */
     public void emit(
-            DecryptedTagId tagId,
+            TagId tagId,
             int rssi,
             TimingTimestamp observedAt) {
         emit(new TagObservation(tagId, rssi, observedAt));
