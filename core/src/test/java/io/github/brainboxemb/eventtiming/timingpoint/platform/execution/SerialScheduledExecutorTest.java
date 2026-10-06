@@ -74,6 +74,25 @@ public class SerialScheduledExecutorTest {
     }
 
     @Test
+    public void restartsAfterCleanStop() throws Exception {
+        SerialScheduledExecutor executor = newLane("serial-scheduled-restart-test");
+        CountDownLatch first = new CountDownLatch(1);
+        CountDownLatch second = new CountDownLatch(1);
+
+        executor.start();
+        assertTrue(executor.execute(first::countDown));
+        assertTrue(first.await(1, TimeUnit.SECONDS));
+        executor.close();
+
+        executor.start();
+        assertTrue(executor.execute(second::countDown));
+        assertTrue(second.await(1, TimeUnit.SECONDS));
+        executor.close();
+
+        assertEquals(SerialScheduledExecutor.State.STOPPED, executor.state());
+    }
+
+    @Test
     public void delayedWorkRunsOnceOnTheSameSerialThread()
             throws Exception {
         SerialScheduledExecutor executor =
