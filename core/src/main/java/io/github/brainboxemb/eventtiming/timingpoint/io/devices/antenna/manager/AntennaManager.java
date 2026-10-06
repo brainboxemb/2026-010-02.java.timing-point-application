@@ -165,12 +165,8 @@ public final class AntennaManager {
         }
 
         inventoryEnabledSetting.request(Boolean.valueOf(enabled));
-
-        boolean accepted = taskRunner.execute(this::startInventoryTaskIfNeeded);
-        if (!accepted) {
-            recordFailure(new IllegalStateException("AntennaManager control lane rejected inventory request"));
-        }
-        return accepted;
+        startInventoryTaskIfNeeded();
+        return true;
     }
 
     /**
