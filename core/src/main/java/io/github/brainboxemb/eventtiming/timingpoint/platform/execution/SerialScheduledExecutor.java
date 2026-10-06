@@ -3,6 +3,11 @@ package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -48,6 +53,21 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         void close();
     }
 
+    /**
+     * One delayed result-bearing registration.
+     *
+     * <p>The Future controls the actual lane work, including interruption when
+     * cancellation races with a running provider call. The completion stage is
+     * notification-only and lets callers compose follow-up work without
+     * blocking a worker.</p>
+     */
+    public interface ScheduledResult<R>
+            extends ScheduledTask {
+        Future<R> futureResult();
+
+        CompletionStage<R> completion();
+    }
+
     /** Diagnostic identity of this logical scheduled lane. */
     private final String laneName;
 
@@ -62,8 +82,8 @@ public final class SerialScheduledExecutor implements AutoCloseable {
     private final SerialScheduledExecutorMetrics metrics;
 
     /** Active one-shot delayed registrations owned by this lane. */
-    private final List<DelayedTask> delayedTasks =
-            new ArrayList<DelayedTask>();
+    private final List<DelayedFutureTask<?>> delayedTasks =
+            new ArrayList<DelayedFutureTask<?>>();
 
     /** Active fixed-delay registrations owned by this lane. */
     private final List<PeriodicTask> periodicTasks =
@@ -191,13 +211,6 @@ public final class SerialScheduledExecutor implements AutoCloseable {
 
     /**
      * Schedules one delayed callback on this same logical serial lane.
-     *
-     * <p>The supplied scheduled worker owns only the timer wake-up. When the
-     * delay expires, the callback is admitted to the normal serial lane and
-     * therefore preserves ordering with immediate and periodic work.</p>
-     *
-     * <p>This is the preferred representation for elapsed-time waits: the
-     * physical worker remains free while the delay passes.</p>
      */
     public ScheduledTask schedule(
             Runnable task,
@@ -206,20 +219,44 @@ public final class SerialScheduledExecutor implements AutoCloseable {
             throw new IllegalArgumentException(
                     "task must not be null");
         }
-        if (delayNanos < 1L) {
+
+        return submitAfter(
+                () -> {
+                    task.run();
+                    return null;
+                },
+                delayNanos);
+    }
+
+    /**
+     * Schedules one delayed result-bearing operation on this serial lane.
+     *
+     * <p>The timer registration itself never occupies the physical worker.
+     * When due, the FutureTask is admitted to the ordinary serial lane. Calling
+     * {@link Future#cancel(boolean)} with {@code true} can therefore interrupt
+     * a provider call that is already running on the shared worker.</p>
+     */
+    public <R> ScheduledResult<R> submitAfter(
+            Callable<R> work,
+            long delayNanos) {
+        if (work == null) {
             throw new IllegalArgumentException(
-                    "delayNanos must be positive");
+                    "work must not be null");
+        }
+        if (delayNanos < 0L) {
+            throw new IllegalArgumentException(
+                    "delayNanos must not be negative");
         }
 
-        final DelayedTask delayed;
+        final DelayedFutureTask<R> delayed;
         synchronized (this) {
             if (state != State.RUNNING) {
                 throw new IllegalStateException(
                         "SerialScheduledExecutor is not running");
             }
             delayed =
-                    new DelayedTask(
-                            task,
+                    new DelayedFutureTask<R>(
+                            work,
                             delayNanos);
             delayedTasks.add(delayed);
             metrics.recordScheduledRegistration();
@@ -289,7 +326,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
     @Override
     public void close() {
         final SerialExecutor activeLane;
-        final List<DelayedTask> delayed;
+        final List<DelayedFutureTask<?>> delayed;
         final List<PeriodicTask> tasks;
 
         synchronized (this) {
@@ -305,11 +342,11 @@ public final class SerialScheduledExecutor implements AutoCloseable {
             }
 
             activeLane = lane;
-            delayed = new ArrayList<DelayedTask>(delayedTasks);
+            delayed = new ArrayList<DelayedFutureTask<?>>(delayedTasks);
             tasks = new ArrayList<PeriodicTask>(periodicTasks);
         }
 
-        for (DelayedTask task : delayed) {
+        for (DelayedFutureTask<?> task : delayed) {
             task.close();
         }
         for (PeriodicTask periodic : tasks) {
@@ -347,26 +384,6 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         };
     }
 
-    private Runnable wrapDelayed(Runnable task) {
-        return () -> {
-            try {
-                task.run();
-            } catch (RuntimeException ex) {
-                metrics.recordRuntimeFailure();
-                LOG.warn(
-                        "Serial scheduled lane {} delayed task failed",
-                        laneName,
-                        ex);
-            } catch (Error ex) {
-                metrics.recordRuntimeFailure();
-                markFailed(ex);
-                throw ex;
-            } finally {
-                metrics.recordDelayedExecution();
-            }
-        };
-    }
-
     private Runnable wrapPeriodic(Runnable task) {
         return () -> {
             try {
@@ -388,7 +405,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
     }
 
     private void markFailed(Error cause) {
-        List<DelayedTask> delayed;
+        List<DelayedFutureTask<?>> delayed;
         List<PeriodicTask> tasks;
         synchronized (this) {
             if (state == State.FAILED) {
@@ -396,11 +413,11 @@ public final class SerialScheduledExecutor implements AutoCloseable {
             }
             failure = cause;
             state = State.FAILED;
-            delayed = new ArrayList<DelayedTask>(delayedTasks);
+            delayed = new ArrayList<DelayedFutureTask<?>>(delayedTasks);
             tasks = new ArrayList<PeriodicTask>(periodicTasks);
         }
 
-        for (DelayedTask task : delayed) {
+        for (DelayedFutureTask<?> task : delayed) {
             task.close();
         }
         for (PeriodicTask periodic : tasks) {
@@ -409,31 +426,31 @@ public final class SerialScheduledExecutor implements AutoCloseable {
     }
 
     /**
-     * One logical one-shot delayed registration.
+     * One result-bearing task that is first delayed and then enters the serial lane.
      */
-    private final class DelayedTask
-            implements ScheduledTask {
-        private final Runnable task;
+    private final class DelayedFutureTask<R>
+            extends FutureTask<R>
+            implements ScheduledResult<R> {
         private final long delayNanos;
+        private final CompletableFuture<R> completion =
+                new CompletableFuture<R>();
 
-        private boolean closed;
         private ScheduledFuture<?> trigger;
 
-        private DelayedTask(
-                Runnable task,
+        private DelayedFutureTask(
+                Callable<R> work,
                 long delayNanos) {
-            this.task = task;
+            super(work);
             this.delayNanos = delayNanos;
         }
 
         private void schedule() {
-            synchronized (this) {
-                if (closed) {
-                    return;
-                }
+            if (isDone()) {
+                return;
             }
             synchronized (SerialScheduledExecutor.this) {
                 if (state != State.RUNNING) {
+                    cancel(false);
                     return;
                 }
             }
@@ -445,7 +462,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                                 delayNanos,
                                 TimeUnit.NANOSECONDS);
                 synchronized (this) {
-                    if (closed) {
+                    if (isDone()) {
                         next.cancel(false);
                     } else {
                         trigger = next;
@@ -458,74 +475,104 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                         state = State.FAILED;
                     }
                 }
+                completion.completeExceptionally(ex);
+                cancel(false);
             }
         }
 
         private void enqueueExecution() {
             synchronized (this) {
                 trigger = null;
-                if (closed) {
-                    return;
-                }
+            }
+            if (isDone()) {
+                return;
             }
 
             final SerialExecutor activeLane;
             synchronized (SerialScheduledExecutor.this) {
                 if (state != State.RUNNING) {
+                    cancel(false);
                     return;
                 }
                 activeLane = lane;
             }
 
             SerialExecutor.AdmissionResult admission =
-                    activeLane.offer(() -> {
-                        try {
-                            wrapDelayed(task).run();
-                        } finally {
-                            complete();
-                        }
-                    });
+                    activeLane.offer(this);
 
             if (admission
                     != SerialExecutor.AdmissionResult.ACCEPTED) {
-                /*
-                 * This callback represents required control continuation work.
-                 * Keep it bounded and retry after the same delay instead of
-                 * creating another unbounded queue.
-                 */
                 schedule();
             }
         }
 
-        private void complete() {
-            synchronized (this) {
-                closed = true;
-            }
+        @Override
+        protected void done() {
             synchronized (SerialScheduledExecutor.this) {
                 delayedTasks.remove(this);
+            }
+            metrics.recordDelayedExecution();
+
+            if (isCancelled()) {
+                completion.cancel(false);
+                return;
+            }
+
+            try {
+                completion.complete(get());
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                completion.completeExceptionally(ex);
+            } catch (ExecutionException ex) {
+                Throwable cause =
+                        ex.getCause() == null
+                                ? ex
+                                : ex.getCause();
+                metrics.recordRuntimeFailure();
+                completion.completeExceptionally(cause);
+
+                if (cause instanceof Error) {
+                    markFailed(
+                            (Error) cause);
+                } else {
+                    LOG.warn(
+                            "Serial scheduled lane {} delayed task failed",
+                            laneName,
+                            cause);
+                }
             }
         }
 
         @Override
-        public void close() {
+        public boolean cancel(
+                boolean mayInterruptIfRunning) {
             ScheduledFuture<?> pending;
             synchronized (this) {
-                if (closed) {
-                    return;
-                }
-                closed = true;
                 pending = trigger;
                 trigger = null;
             }
-
             if (pending != null) {
                 pending.cancel(false);
             }
+            return super.cancel(
+                    mayInterruptIfRunning);
+        }
 
-            synchronized (SerialScheduledExecutor.this) {
-                delayedTasks.remove(this);
+        @Override
+        public Future<R> futureResult() {
+            return this;
+        }
+
+        @Override
+        public CompletionStage<R> completion() {
+            return completion;
+        }
+
+        @Override
+        public void close() {
+            if (cancel(false)) {
+                metrics.recordScheduledCancellation();
             }
-            metrics.recordScheduledCancellation();
         }
     }
 
