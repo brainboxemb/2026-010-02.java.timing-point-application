@@ -267,7 +267,7 @@ public final class TrackedProperty<T> {
             initialized = true;
         }
 
-        LOG.info(
+        LOG.debug(
                 "TrackedProperty {} initialized to {}",
                 name,
                 value);
