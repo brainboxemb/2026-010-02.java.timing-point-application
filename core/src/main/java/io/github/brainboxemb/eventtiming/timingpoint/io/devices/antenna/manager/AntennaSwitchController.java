@@ -75,16 +75,17 @@ final class AntennaSwitchController {
     /**
      * Starts one available group member when none is inventorying.
      */
-    void startFirstAvailable() {
+    boolean startFirstAvailable() {
         if (currentInventoryIndex() >= 0) {
-            return;
+            return true;
         }
 
         for (ManagedAntenna antenna : inventoryGroup) {
             if (antenna.startInventory()) {
-                return;
+                return true;
             }
         }
+        return false;
     }
 
     /**
