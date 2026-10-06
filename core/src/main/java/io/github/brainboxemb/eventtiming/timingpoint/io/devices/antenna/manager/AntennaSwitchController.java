@@ -8,19 +8,17 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Performs only mutual-exclusion inventory switching for one configured group.
+ * Selects the current/next member of one mutual-exclusion inventory group.
  *
- * <p>AntennaManager owns antenna creation, startup self-test, power/initialize
- * sequencing, status and recovery decisions. This helper only knows the group
- * members that may not inventory at the same time and the round-robin interval.</p>
- *
- * <p>All methods run on the AntennaManager serial control lane. The helper owns
- * no worker, scheduler or synchronization.</p>
+ * <p>This object owns no scheduler and performs no multi-step sequence. The
+ * cooperative AntennaSwitchTask calls stop and start as separate turns.</p>
  */
 final class AntennaSwitchController implements AntennaTasks.SwitchTarget {
 
     private final List<ManagedAntenna> inventoryGroup;
     private final Duration inventoryInterval;
+
+    private int nextIndex;
 
     AntennaSwitchController(
             List<ManagedAntenna> inventoryGroup,
@@ -69,77 +67,80 @@ final class AntennaSwitchController implements AntennaTasks.SwitchTarget {
         return inventoryInterval;
     }
 
-    /**
-     * Returns whether periodic round-robin switching is useful.
-     */
     @Override
     public boolean rotationNeeded() {
         return availableCount() > 1;
     }
 
-    /**
-     * Starts one available group member when none is inventorying.
-     */
     @Override
     public boolean startFirstAvailable() {
         if (currentInventoryIndex() >= 0) {
             return true;
         }
 
-        for (ManagedAntenna antenna : inventoryGroup) {
-            if (antenna.startInventory()) {
-                return true;
-            }
-        }
-        return false;
+        nextIndex = 0;
+        return startNextAvailable();
     }
 
-    /**
-     * Rotates from the current member to the next available member.
-     *
-     * <p>If stopping the current member fails, no next member is started. This
-     * preserves the at-most-one-inventory invariant even when the failed reader
-     * may still be inventorying.</p>
-     */
     @Override
-    public void rotateInventoryGroup() {
-        if (inventoryGroup.isEmpty()) {
-            return;
-        }
-
+    public boolean stopCurrent() {
         int currentIndex =
                 currentInventoryIndex();
 
         if (currentIndex < 0) {
-            startFirstAvailable();
-            return;
-        }
-
-        if (!rotationNeeded()) {
-            return;
+            return true;
         }
 
         ManagedAntenna current =
                 inventoryGroup.get(
                         currentIndex);
-        if (!current.stopInventory()) {
-            return;
-        }
+        nextIndex =
+                (currentIndex + 1)
+                        % inventoryGroup.size();
 
-        int firstCandidate =
-                currentIndex + 1;
+        try {
+            current.stopInventory();
+            return true;
+        } catch (RuntimeException ex) {
+            return false;
+        }
+    }
+
+    @Override
+    public boolean startNextAvailable() {
+        if (inventoryGroup.isEmpty()) {
+            return false;
+        }
+        if (currentInventoryIndex() >= 0) {
+            return true;
+        }
 
         for (int offset = 0;
                 offset < inventoryGroup.size();
                 offset++) {
+            int candidateIndex =
+                    (nextIndex + offset)
+                            % inventoryGroup.size();
             ManagedAntenna candidate =
                     inventoryGroup.get(
-                            (firstCandidate + offset)
-                                    % inventoryGroup.size());
-            if (candidate.startInventory()) {
-                return;
+                            candidateIndex);
+
+            if (!candidate.availableForInventory()) {
+                continue;
+            }
+
+            try {
+                candidate.startInventory();
+                nextIndex =
+                        (candidateIndex + 1)
+                                % inventoryGroup.size();
+                return true;
+            } catch (RuntimeException ex) {
+                // Failure is stored on the candidate; try the next available.
             }
         }
+
+        return false;
     }
 
     private int currentInventoryIndex() {
