@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.power;
 
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 
 /**
  * Deterministic power device used with {@link SimulatedAntenna}.
