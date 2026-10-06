@@ -64,7 +64,7 @@ public class AntennaMultiplexTest {
                     ManagerHealth.HEALTHY,
                     manager.health());
 
-            manager.setInventoryEnabled(true);
+            manager.enableInventory();
             assertTrue(firstPower.powered());
             assertTrue(secondPower.powered());
             assertAtMostOneInventories(first, second);
@@ -75,7 +75,7 @@ public class AntennaMultiplexTest {
                     1000L);
             assertAtMostOneInventories(first, second);
 
-            manager.setInventoryEnabled(false);
+            manager.disableInventory();
             assertFalse(first.inventoryRunning());
             assertFalse(second.inventoryRunning());
             assertFalse(firstPower.powered());
@@ -115,7 +115,7 @@ public class AntennaMultiplexTest {
 
             failed.setFailurePoint(
                     SimulatedAntenna.FailurePoint.START_INVENTORY);
-            manager.setInventoryEnabled(true);
+            manager.enableInventory();
 
             await(
                     () -> manager.status(
@@ -164,7 +164,7 @@ public class AntennaMultiplexTest {
         try {
             manager.activate();
             manager.checkHealth();
-            manager.setInventoryEnabled(true);
+            manager.enableInventory();
 
             await(
                     first::inventoryRunning,
