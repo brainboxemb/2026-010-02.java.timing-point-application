@@ -66,8 +66,7 @@ final class ManagedAntenna implements AntennaTasks.AntennaTarget {
         return installation.antennaId();
     }
 
-    @Override
-    public boolean inInventoryGroup() {
+    boolean inInventoryGroup() {
         return installation.inInventoryGroup();
     }
 
