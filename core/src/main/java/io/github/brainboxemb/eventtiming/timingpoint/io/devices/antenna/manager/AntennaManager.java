@@ -45,7 +45,6 @@ public final class AntennaManager implements CooperativeTask {
         IDLE,
         START_INVENTORY,
         WAIT_INVENTORY,
-        SELF_TEST_FAILED,
         INVENTORY_FAILED
     }
 
@@ -97,7 +96,7 @@ public final class AntennaManager implements CooperativeTask {
 
         /*
          * Task events are wired once during composition. The callbacks only
-         * store the completed result and advance this manager state machine.
+         * wake this manager state machine; each task keeps its own result.
          */
         selfTestTask.completedEvent().subscribe(this::onSelfTestCompleted);
         inventoryTask.completedEvent().subscribe(this::onInventoryCompleted);
@@ -125,9 +124,7 @@ public final class AntennaManager implements CooperativeTask {
         Phase current = phase;
         return state == State.ACTIVE
                 && current != Phase.START_SELF_TEST
-                && current != Phase.WAIT_SELF_TEST
-                && current != Phase.SELF_TEST_FAILED
-                && antennaSet.allSelfTestsPassed();
+                && current != Phase.WAIT_SELF_TEST;
     }
 
     /** Requests inventory to become enabled. */
@@ -217,9 +214,7 @@ public final class AntennaManager implements CooperativeTask {
     }
 
     private synchronized boolean requestInventory(boolean enabled) {
-        if (state != State.ACTIVE
-                || phase == Phase.SELF_TEST_FAILED
-                || phase == Phase.INVENTORY_FAILED) {
+        if (state != State.ACTIVE) {
             return false;
         }
 
@@ -280,8 +275,13 @@ public final class AntennaManager implements CooperativeTask {
             case WAIT_INVENTORY:
                 return handleInventoryCompletion();
 
-            case SELF_TEST_FAILED:
             case INVENTORY_FAILED:
+                if (!inventoryTask.hasNewRequestSinceLastRun()) {
+                    return TaskStep.done();
+                }
+                phase = Phase.START_INVENTORY;
+                return TaskStep.again();
+
             case STOPPED:
                 return TaskStep.done();
 
@@ -296,15 +296,18 @@ public final class AntennaManager implements CooperativeTask {
             return TaskStep.done();
         }
 
-        if (!result.successful() || !antennaSet.allSelfTestsPassed()) {
-            recordFailure(result.failure());
-            phase = Phase.SELF_TEST_FAILED;
-            LOG.warn("AntennaManager self-test FAIL");
-            return TaskStep.done();
+        phase = Phase.IDLE;
+
+        if (result.successful() && antennaSet.allSelfTestsPassed()) {
+            LOG.info("AntennaManager self-test PASS");
+        } else {
+            /*
+             * Startup self-test is diagnostic. A failed result remains visible
+             * per antenna but does not block a later inventory attempt.
+             */
+            LOG.warn("AntennaManager self-test completed with one or more FAIL results");
         }
 
-        phase = Phase.IDLE;
-        LOG.info("AntennaManager self-test PASS");
         return TaskStep.again();
     }
 
