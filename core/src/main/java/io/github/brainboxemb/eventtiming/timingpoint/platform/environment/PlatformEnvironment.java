@@ -1,11 +1,16 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.environment;
 
 import java.time.Clock;
+import java.util.Locale;
 
 /**
- * Small process/platform time boundary shared by runtime-composed components.
+ * Small process/platform boundary shared by runtime-composed components.
  *
- * <p>The two clocks deliberately have different semantics:</p>
+ * <p>The environment deliberately exposes only process/platform facts that are
+ * needed by composition or runtime behaviour. It is not a general service
+ * locator.</p>
+ *
+ * <p>The two clocks have different semantics:</p>
  *
  * <ul>
  *   <li>{@link #clock()} is absolute wall-clock time. I/O adapters use it when
@@ -14,18 +19,45 @@ import java.time.Clock;
  *       durations, filtering windows, metrics and timeout measurement only.</li>
  * </ul>
  *
- * <p>This class is intentionally not a general service locator. Filesystem,
- * networking and other operating-system facilities keep their own explicit
- * adapters/dependencies.</p>
+ * <p>{@link #operatingSystem()} exposes one normalized operating-system family
+ * so Runtime composition does not scatter direct JVM system-property checks.</p>
  */
 public final class PlatformEnvironment {
 
+    public enum OperatingSystem {
+        WINDOWS,
+        LINUX,
+        MACOS,
+        OTHER
+    }
+
     private final Clock clock;
     private final MonotonicClock monotonicClock;
+    private final OperatingSystem operatingSystem;
 
+    /**
+     * Creates an environment using the current JVM operating-system identity.
+     *
+     * <p>The overload remains useful for tests/components that only need
+     * deterministic clocks. Tests of platform-dependent composition should use
+     * the three-argument constructor.</p>
+     */
     public PlatformEnvironment(
             Clock clock,
             MonotonicClock monotonicClock) {
+        this(
+                clock,
+                monotonicClock,
+                detectOperatingSystem(
+                        System.getProperty(
+                                "os.name",
+                                "")));
+    }
+
+    public PlatformEnvironment(
+            Clock clock,
+            MonotonicClock monotonicClock,
+            OperatingSystem operatingSystem) {
         if (clock == null) {
             throw new IllegalArgumentException(
                     "clock must not be null");
@@ -34,15 +66,25 @@ public final class PlatformEnvironment {
             throw new IllegalArgumentException(
                     "monotonicClock must not be null");
         }
+        if (operatingSystem == null) {
+            throw new IllegalArgumentException(
+                    "operatingSystem must not be null");
+        }
+
         this.clock = clock;
         this.monotonicClock = monotonicClock;
+        this.operatingSystem = operatingSystem;
     }
 
-    /** Normal runtime environment backed by the operating-system/JVM clocks. */
+    /** Normal runtime environment backed by operating-system/JVM facilities. */
     public static PlatformEnvironment system() {
         return new PlatformEnvironment(
                 Clock.systemUTC(),
-                SystemMonotonicClock.INSTANCE);
+                SystemMonotonicClock.INSTANCE,
+                detectOperatingSystem(
+                        System.getProperty(
+                                "os.name",
+                                "")));
     }
 
     /** Absolute wall clock for externally meaningful timestamps. */
@@ -53,5 +95,32 @@ public final class PlatformEnvironment {
     /** Monotonic elapsed-time source; values are never persisted as event time. */
     public MonotonicClock monotonicClock() {
         return monotonicClock;
+    }
+
+    /** Normalized operating-system family used by Runtime composition. */
+    public OperatingSystem operatingSystem() {
+        return operatingSystem;
+    }
+
+    static OperatingSystem detectOperatingSystem(
+            String osName) {
+        String normalized =
+                osName == null
+                        ? ""
+                        : osName.trim()
+                                .toLowerCase(
+                                        Locale.ROOT);
+
+        if (normalized.contains("win")) {
+            return OperatingSystem.WINDOWS;
+        }
+        if (normalized.contains("linux")) {
+            return OperatingSystem.LINUX;
+        }
+        if (normalized.contains("mac")
+                || normalized.contains("darwin")) {
+            return OperatingSystem.MACOS;
+        }
+        return OperatingSystem.OTHER;
     }
 }
