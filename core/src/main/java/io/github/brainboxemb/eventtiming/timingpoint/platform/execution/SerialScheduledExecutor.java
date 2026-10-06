@@ -127,18 +127,13 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                 this::metricQueueDepth);
     }
 
-    /** Activates this logical lane on the supplied worker. */
+    /** Starts or restarts this logical lane on the supplied worker. */
     public synchronized void start() {
-        if (state != State.NEW) {
-            throw new IllegalStateException(
-                    "SerialScheduledExecutor can only start from NEW; current state="
-                            + state);
+        if (state != State.NEW && state != State.STOPPED) {
+            throw new IllegalStateException("SerialScheduledExecutor cannot start from " + state);
         }
 
-        lane = new SerialExecutor(
-                laneCapacity,
-                laneName,
-                workerExecutor);
+        lane = new SerialExecutor(laneCapacity, laneName, workerExecutor);
         lane.start();
         state = State.RUNNING;
     }
