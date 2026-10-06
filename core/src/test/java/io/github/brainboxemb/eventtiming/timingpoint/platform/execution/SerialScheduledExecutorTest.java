@@ -137,7 +137,7 @@ public class SerialScheduledExecutorTest {
         CountDownLatch periodicDone = new CountDownLatch(1);
 
         executor.start();
-        SerialScheduledExecutor.ScheduledTask periodic = null;
+        SerialScheduledExecutor.ScheduledRegistration periodic = null;
         try {
             assertTrue(executor.execute(() -> {
                 immediateThread.set(Thread.currentThread().getName());
@@ -169,7 +169,7 @@ public class SerialScheduledExecutorTest {
         CountDownLatch secondCall = new CountDownLatch(1);
 
         executor.start();
-        SerialScheduledExecutor.ScheduledTask periodic =
+        SerialScheduledExecutor.ScheduledRegistration periodic =
                 executor.scheduleWithFixedDelay(() -> {
                     if (calls.incrementAndGet() == 1) {
                         throw new IllegalStateException("expected");
@@ -209,7 +209,7 @@ public class SerialScheduledExecutorTest {
         assertFalse(executor.execute(() -> { }));
 
         executor.start();
-        SerialScheduledExecutor.ScheduledTask periodic =
+        SerialScheduledExecutor.ScheduledRegistration periodic =
                 executor.scheduleWithFixedDelay(
                         periodicDone::countDown,
                         TimeUnit.MILLISECONDS.toNanos(5));
@@ -343,7 +343,7 @@ public class SerialScheduledExecutorTest {
                 new CountDownLatch(1);
 
         lane.start();
-        SerialScheduledExecutor.ScheduledTask periodic =
+        SerialScheduledExecutor.ScheduledRegistration periodic =
                 lane.scheduleWithFixedDelay(() -> {
                     periodicThread.set(
                             Thread.currentThread().getName());
