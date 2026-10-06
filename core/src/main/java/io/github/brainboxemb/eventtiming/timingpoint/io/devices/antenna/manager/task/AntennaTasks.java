@@ -3,7 +3,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager
 import io.github.brainboxemb.eventtiming.timingpoint.infra.setting.Setting;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInfo;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner;
 
 import java.time.Duration;
@@ -129,8 +128,14 @@ public final class AntennaTasks {
         return inventoryTask.completedEvent();
     }
 
-    public CooperativeTask shutdown() {
+    /**
+     * Runs the ordered antenna shutdown sequence and waits for it to finish.
+     *
+     * <p>The manager calls this only during deactivation, after cancelling the
+     * normal self-test and inventory tasks.</p>
+     */
+    public void shutdownAndWait(ScheduledTaskRunner taskRunner) {
         antennaShutdownTask.reset();
-        return antennaShutdownTask;
+        taskRunner.await(taskRunner.runTask(antennaShutdownTask));
     }
 }
