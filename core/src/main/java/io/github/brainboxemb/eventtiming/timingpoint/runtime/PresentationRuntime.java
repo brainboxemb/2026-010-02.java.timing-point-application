@@ -82,6 +82,25 @@ final class PresentationRuntime {
                                 webSocketConfig.port(),
                                 gateway);
 
+        if (webSocket != null) {
+            /*
+             * Presentation event wiring is fixed during composition. Endpoint
+             * start/close changes transport lifecycle, not the application graph.
+             */
+            gateway.timingNode()
+                    .statusChangedEvent()
+                    .subscribe(
+                            webSocket::onTimingNodeStatusChanged);
+            gateway.timingNode()
+                    .timingDataCommittedEvent()
+                    .subscribe(
+                            webSocket::onTimingDataCommitted);
+            gateway.configuration()
+                    .changes()
+                    .subscribe(
+                            webSocket::onConfigurationChanged);
+        }
+
         Presentation.RemoteShell shellConfig =
                 configuration.remoteShell();
         remoteShell =
