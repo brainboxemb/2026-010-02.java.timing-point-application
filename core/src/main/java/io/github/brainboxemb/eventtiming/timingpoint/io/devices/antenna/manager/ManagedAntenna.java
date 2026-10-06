@@ -3,7 +3,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaPowerControl;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaHealth;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaOperation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -16,9 +15,8 @@ import org.slf4j.LoggerFactory;
 /**
  * Owns the device state of one configured physical antenna.
  *
- * <p>Health and operation are deliberately separate. For example, after a
- * successful startup probe an externally powered antenna is HEALTHY but
- * operationally INACTIVE because probe power has already been removed.</p>
+ * <p>A startup self-test has one result: PASS or FAIL. Normal inventory
+ * preparation is tracked separately through {@link AntennaOperation}.</p>
  *
  * <p>AntennaManager calls this object only from its one serial control lane.
  * The object therefore needs no internal locking and owns no scheduler.</p>
@@ -29,8 +27,7 @@ final class ManagedAntenna {
 
     private final AntennaInstallation installation;
 
-    private volatile AntennaHealth health =
-            AntennaHealth.UNKNOWN;
+    private volatile boolean selfTestPassed;
     private volatile AntennaOperation operation =
             AntennaOperation.INACTIVE;
     private volatile Throwable failure;
@@ -66,7 +63,7 @@ final class ManagedAntenna {
     AntennaStatus status() {
         return new AntennaStatus(
                 antennaId(),
-                health,
+                selfTestPassed,
                 operation,
                 failure);
     }
@@ -75,8 +72,14 @@ final class ManagedAntenna {
         return failure;
     }
 
-    boolean healthy() {
-        return health == AntennaHealth.HEALTHY;
+    boolean selfTestPassed() {
+        return selfTestPassed;
+    }
+
+    boolean availableForInventory() {
+        return selfTestPassed
+                && failure == null
+                && operation != AntennaOperation.SHUTDOWN;
     }
 
     boolean inventoryRunning() {
@@ -84,76 +87,69 @@ final class ManagedAntenna {
     }
 
     /**
-     * Starts one health probe by applying external power when required.
+     * Starts the startup self-test by applying external power when required.
      *
-     * @return stabilization delay before probe completion, or {@code null} when
-     *         power preparation failed and the probe must be skipped
+     * @return stabilization delay before self-test completion, or {@code null}
+     *         when power preparation failed
      */
-    Duration beginProbe() {
+    Duration beginSelfTest() {
         if (operation == AntennaOperation.SHUTDOWN) {
             return null;
         }
 
-        health = AntennaHealth.CHECKING;
+        selfTestPassed = false;
         failure = null;
 
         try {
             return powerOn();
         } catch (RuntimeException ex) {
-            fail(
-                    "health-check power-on",
+            selfTestFailed(
+                    "self-test power-on",
                     ex);
             powerOffAfterFailure();
             return null;
         } catch (Error error) {
-            fail(
-                    "health-check power-on",
+            selfTestFailed(
+                    "self-test power-on",
                     error);
             powerOffAfterFailure();
             return null;
         }
     }
 
-    /**
-     * Completes a health probe after any required stabilization delay.
-     */
-    void completeProbe() {
+    /** Completes the startup self-test after any required stabilization delay. */
+    void completeSelfTest() {
         if (operation == AntennaOperation.SHUTDOWN) {
             return;
         }
 
         try {
-            installation.antenna().probe();
-            health = AntennaHealth.HEALTHY;
+            installation.antenna().selfTest();
+            selfTestPassed = true;
             LOG.info(
-                    "Antenna {} health check succeeded",
+                    "Antenna {} self-test PASS",
                     antennaId());
         } catch (RuntimeException ex) {
-            fail(
-                    "health check",
+            selfTestFailed(
+                    "self-test",
                     ex);
         } catch (Error error) {
-            fail(
-                    "health check",
+            selfTestFailed(
+                    "self-test",
                     error);
         } finally {
-            powerOffAfterProbe();
+            powerOffAfterSelfTest();
             if (operation != AntennaOperation.SHUTDOWN) {
                 operation = AntennaOperation.INACTIVE;
             }
         }
     }
 
-    /**
-     * Records a manager-level timeout/failure for this antenna health check.
-     *
-     * <p>This is used only after the manager has cancelled the result-bearing
-     * provider operation. The serial lane still orders later work.</p>
-     */
-    void healthCheckFailed(
+    /** Records a manager/control failure for this antenna self-test. */
+    void selfTestControlFailed(
             Throwable cause) {
-        fail(
-                "health check control",
+        selfTestFailed(
+                "self-test control",
                 cause);
         powerOffAfterFailure();
         if (operation != AntennaOperation.SHUTDOWN) {
@@ -168,8 +164,7 @@ final class ManagedAntenna {
      *         antenna cannot currently be prepared
      */
     Duration beginPrepareForInventory() {
-        if (!healthy()
-                || operation == AntennaOperation.SHUTDOWN
+        if (!availableForInventory()
                 || operation == AntennaOperation.INVENTORY
                 || operation == AntennaOperation.READY
                 || operation == AntennaOperation.PREPARING) {
@@ -181,14 +176,14 @@ final class ManagedAntenna {
         try {
             return powerOn();
         } catch (RuntimeException ex) {
-            fail(
+            operationFailed(
                     "inventory power-on",
                     ex);
             operation = AntennaOperation.INACTIVE;
             powerOffAfterFailure();
             return null;
         } catch (Error error) {
-            fail(
+            operationFailed(
                     "inventory power-on",
                     error);
             operation = AntennaOperation.INACTIVE;
@@ -197,11 +192,9 @@ final class ManagedAntenna {
         }
     }
 
-    /**
-     * Initializes this antenna after stabilization.
-     */
+    /** Initializes this antenna after stabilization. */
     boolean completePrepareForInventory() {
-        if (!healthy()
+        if (!availableForInventory()
                 || operation != AntennaOperation.PREPARING) {
             return false;
         }
@@ -214,14 +207,14 @@ final class ManagedAntenna {
                     antennaId());
             return true;
         } catch (RuntimeException ex) {
-            fail(
+            operationFailed(
                     "initialize",
                     ex);
             operation = AntennaOperation.INACTIVE;
             powerOffAfterFailure();
             return false;
         } catch (Error error) {
-            fail(
+            operationFailed(
                     "initialize",
                     error);
             operation = AntennaOperation.INACTIVE;
@@ -230,14 +223,12 @@ final class ManagedAntenna {
         }
     }
 
-    /**
-     * Starts provider inventory when this antenna is prepared and healthy.
-     */
+    /** Starts provider inventory when this antenna is prepared. */
     boolean startInventory() {
         if (operation == AntennaOperation.INVENTORY) {
             return true;
         }
-        if (!healthy()
+        if (!availableForInventory()
                 || operation != AntennaOperation.READY) {
             return false;
         }
@@ -250,14 +241,14 @@ final class ManagedAntenna {
                     antennaId());
             return true;
         } catch (RuntimeException ex) {
-            fail(
+            operationFailed(
                     "start inventory",
                     ex);
             operation = AntennaOperation.INACTIVE;
             powerOffAfterFailure();
             return false;
         } catch (Error error) {
-            fail(
+            operationFailed(
                     "start inventory",
                     error);
             operation = AntennaOperation.INACTIVE;
@@ -267,7 +258,7 @@ final class ManagedAntenna {
     }
 
     /**
-     * Stops provider inventory but keeps a healthy antenna prepared.
+     * Stops provider inventory but keeps an antenna prepared.
      *
      * <p>The boolean result matters for multiplex safety. A switch controller
      * must not start another group member when stopping the current member
@@ -286,12 +277,12 @@ final class ManagedAntenna {
                     antennaId());
             return true;
         } catch (RuntimeException ex) {
-            fail(
+            operationFailed(
                     "stop inventory",
                     ex);
             return false;
         } catch (Error error) {
-            fail(
+            operationFailed(
                     "stop inventory",
                     error);
             return false;
@@ -300,10 +291,13 @@ final class ManagedAntenna {
 
     /**
      * Stops normal inventory use and removes external power when configured.
+     *
+     * @return {@code true} when the requested disabled state was applied
      */
-    void disableInventory() {
+    boolean disableInventory() {
         boolean stopped =
                 stopInventory();
+        boolean poweredOff = true;
 
         try {
             powerOff();
@@ -312,15 +306,16 @@ final class ManagedAntenna {
                 operation = AntennaOperation.INACTIVE;
             }
         } catch (RuntimeException ex) {
-            fail(
+            poweredOff = false;
+            operationFailed(
                     "inventory power-off",
                     ex);
         }
+
+        return stopped && poweredOff;
     }
 
-    /**
-     * Releases all provider/device resources owned by this configured antenna.
-     */
+    /** Releases all provider/device resources owned by this configured antenna. */
     void shutdown() {
         RuntimeException firstFailure = null;
 
@@ -345,7 +340,7 @@ final class ManagedAntenna {
         try {
             installation.antenna().shutdown();
         } catch (RuntimeException ex) {
-            fail(
+            operationFailed(
                     "shutdown",
                     ex);
             firstFailure =
@@ -361,9 +356,7 @@ final class ManagedAntenna {
         }
     }
 
-    /**
-     * Applies external power and returns the required stabilization delay.
-     */
+    /** Applies external power and returns the required stabilization delay. */
     private Duration powerOn() {
         AntennaPowerControl power =
                 installation.powerControl();
@@ -400,7 +393,7 @@ final class ManagedAntenna {
         }
     }
 
-    private void powerOffAfterProbe() {
+    private void powerOffAfterSelfTest() {
         if (installation.powerControl() == null) {
             return;
         }
@@ -408,8 +401,8 @@ final class ManagedAntenna {
         try {
             powerOff();
         } catch (RuntimeException ex) {
-            fail(
-                    "health-check power-off",
+            selfTestFailed(
+                    "self-test power-off",
                     ex);
         }
     }
@@ -425,7 +418,34 @@ final class ManagedAntenna {
         }
     }
 
-    private void fail(
+    private void selfTestFailed(
+            String action,
+            Throwable cause) {
+        selfTestPassed = false;
+        recordFailure(
+                action,
+                cause);
+        LOG.warn(
+                "Antenna {} self-test FAIL during {}",
+                antennaId(),
+                action,
+                cause);
+    }
+
+    private void operationFailed(
+            String action,
+            Throwable cause) {
+        recordFailure(
+                action,
+                cause);
+        LOG.warn(
+                "Antenna {} failed during {}",
+                antennaId(),
+                action,
+                cause);
+    }
+
+    private void recordFailure(
             String action,
             Throwable cause) {
         if (failure == null) {
@@ -434,14 +454,6 @@ final class ManagedAntenna {
             failure.addSuppressed(
                     cause);
         }
-
-        health = AntennaHealth.FAILED;
-
-        LOG.warn(
-                "Antenna {} failed during {}",
-                antennaId(),
-                action,
-                cause);
     }
 
     private static RuntimeException appendFailure(
