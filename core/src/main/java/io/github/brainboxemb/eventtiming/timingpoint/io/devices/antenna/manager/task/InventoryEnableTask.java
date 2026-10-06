@@ -14,8 +14,8 @@ import java.util.function.BooleanSupplier;
 final class InventoryEnableTask implements CooperativeTask {
 
     private enum Phase {
-        BEGIN_PREPARE,
-        COMPLETE_PREPARE,
+        POWER_ON,
+        INITIALIZE,
         START_DIRECT,
         START_SWITCH_GROUP
     }
@@ -25,7 +25,7 @@ final class InventoryEnableTask implements CooperativeTask {
     private final BooleanSupplier stillRequested;
 
     private int antennaIndex;
-    private Phase phase = Phase.BEGIN_PREPARE;
+    private Phase phase = Phase.POWER_ON;
 
     InventoryEnableTask(
             List<? extends AntennaTasks.AntennaTarget> antennas,
@@ -75,26 +75,16 @@ final class InventoryEnableTask implements CooperativeTask {
                 antennas.get(antennaIndex);
 
         switch (phase) {
-            case BEGIN_PREPARE:
+            case POWER_ON:
                 Duration delay =
-                        antenna.beginPrepareForInventory();
-                if (delay == null) {
-                    throw currentFailure(
-                            antenna,
-                            "antenna could not begin inventory preparation");
-                }
-                phase = Phase.COMPLETE_PREPARE;
+                        antenna.powerOnForInventory();
+                phase = Phase.INITIALIZE;
                 return delay.isZero()
                         ? TaskStep.again()
                         : TaskStep.after(delay);
 
-            case COMPLETE_PREPARE:
-                if (!antenna.completePrepareForInventory()) {
-                    throw currentFailure(
-                            antenna,
-                            "antenna initialization did not complete");
-                }
-
+            case INITIALIZE:
+                antenna.initialize();
                 if (antenna.inInventoryGroup()) {
                     moveToNextAntenna();
                 } else {
@@ -103,11 +93,7 @@ final class InventoryEnableTask implements CooperativeTask {
                 return TaskStep.again();
 
             case START_DIRECT:
-                if (!antenna.startInventory()) {
-                    throw currentFailure(
-                            antenna,
-                            "antenna inventory did not start");
-                }
+                antenna.startInventory();
                 moveToNextAntenna();
                 return TaskStep.again();
 
@@ -119,19 +105,6 @@ final class InventoryEnableTask implements CooperativeTask {
 
     private void moveToNextAntenna() {
         antennaIndex++;
-        phase = Phase.BEGIN_PREPARE;
-    }
-
-    private static RuntimeException currentFailure(
-            AntennaTasks.AntennaTarget antenna,
-            String message) {
-        Throwable failure =
-                antenna.failure();
-        if (failure instanceof RuntimeException) {
-            return (RuntimeException) failure;
-        }
-        return failure == null
-                ? new IllegalStateException(message)
-                : new IllegalStateException(message, failure);
+        phase = Phase.POWER_ON;
     }
 }
