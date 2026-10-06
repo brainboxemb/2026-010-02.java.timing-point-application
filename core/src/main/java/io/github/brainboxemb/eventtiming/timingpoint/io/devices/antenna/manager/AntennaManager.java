@@ -10,6 +10,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialSc
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 /**
  * Public lifecycle and control boundary for one configured set of antennas.
@@ -33,6 +35,8 @@ public final class AntennaManager {
     private volatile State state = State.NEW;
     private volatile Throwable failure;
     private volatile boolean inventoryEnabledRequested;
+    private volatile long inventoryRequestVersion;
+    private volatile CompletableFuture<Void> inventoryTransition;
 
     private SerialScheduledExecutor.ScheduledTask rotationTask;
 
@@ -79,7 +83,9 @@ public final class AntennaManager {
 
         try {
             control.start();
-            control.run(switching::probeAll);
+            control.await(
+                    switching.probeAll(
+                            control));
             refreshState();
         } catch (RuntimeException ex) {
             failure = ex;
@@ -105,9 +111,14 @@ public final class AntennaManager {
             return false;
         }
 
-        inventoryEnabledRequested = enabled;
+        long requestVersion =
+                recordInventoryRequest(
+                        enabled);
+
         if (control.execute(
-                this::reconcileInventoryEnabled)) {
+                () -> reconcileInventoryRequest(
+                        requestVersion,
+                        enabled))) {
             return true;
         }
 
@@ -131,9 +142,46 @@ public final class AntennaManager {
                             + state);
         }
 
-        inventoryEnabledRequested = enabled;
+        long requestVersion =
+                recordInventoryRequest(
+                        enabled);
+
+        if (!enabled) {
+            control.run(
+                    () -> {
+                        if (!isCurrentInventoryRequest(
+                                requestVersion,
+                                false)) {
+                            return;
+                        }
+                        cancelRotation();
+                        switching.disableInventory();
+                        refreshState();
+                    });
+            return;
+        }
+
+        CompletableFuture<Void> transition =
+                switching.enableInventory(
+                        control,
+                        () -> isCurrentInventoryRequest(
+                                requestVersion,
+                                true));
+        trackInventoryTransition(
+                transition);
+
+        try {
+            control.await(
+                    transition);
+        } finally {
+            clearInventoryTransition(
+                    transition);
+        }
+
         control.run(
-                this::reconcileInventoryEnabled);
+                () -> finishInventoryEnable(
+                        requestVersion,
+                        null));
     }
 
     /**
@@ -186,7 +234,8 @@ public final class AntennaManager {
             state = State.DEACTIVATING;
         }
 
-        inventoryEnabledRequested = false;
+        recordInventoryRequest(
+                false);
         cancelRotation();
 
         RuntimeException firstFailure = null;
@@ -222,16 +271,75 @@ public final class AntennaManager {
     }
 
     /**
-     * Reconciles the latest requested inventory permission on the control lane.
+     * Reconciles one captured inventory request on the control lane.
+     *
+     * <p>An enable transition may span a scheduled stabilization delay. Every
+     * continuation checks the request version so a newer enable/disable request
+     * invalidates stale work before it can initialize or start inventory.</p>
      */
-    private void reconcileInventoryEnabled() {
-        if (inventoryEnabledRequested) {
-            switching.enableInventory();
-            ensureRotation();
-        } else {
+    private void reconcileInventoryRequest(
+            long requestVersion,
+            boolean enabled) {
+        if (!isCurrentInventoryRequest(
+                requestVersion,
+                enabled)) {
+            return;
+        }
+
+        if (!enabled) {
             cancelRotation();
             switching.disableInventory();
+            refreshState();
+            return;
         }
+
+        CompletableFuture<Void> transition =
+                switching.enableInventory(
+                        control,
+                        () -> isCurrentInventoryRequest(
+                                requestVersion,
+                                true));
+        trackInventoryTransition(
+                transition);
+
+        transition.whenComplete(
+                (ignored, transitionFailure) -> {
+                    clearInventoryTransition(
+                            transition);
+
+                    boolean accepted =
+                            control.execute(
+                                    () -> finishInventoryEnable(
+                                            requestVersion,
+                                            transitionFailure));
+                    if (!accepted) {
+                        recordFailure(
+                                AntennaControlLane.failure(
+                                        FailureReason.OVERLOADED,
+                                        "AntennaManager control lane rejected enable completion",
+                                        control.failure()));
+                    }
+                });
+    }
+
+    private void finishInventoryEnable(
+            long requestVersion,
+            Throwable transitionFailure) {
+        if (!isCurrentInventoryRequest(
+                requestVersion,
+                true)) {
+            return;
+        }
+
+        if (transitionFailure != null) {
+            recordFailure(
+                    unwrapCompletionFailure(
+                            transitionFailure));
+            refreshState();
+            return;
+        }
+
+        ensureRotation();
         refreshState();
     }
 
@@ -278,6 +386,59 @@ public final class AntennaManager {
         if (task != null) {
             task.close();
         }
+    }
+
+    private long recordInventoryRequest(
+            boolean enabled) {
+        final CompletableFuture<Void> previous;
+        final long requestVersion;
+
+        synchronized (this) {
+            previous = inventoryTransition;
+            inventoryTransition = null;
+
+            inventoryEnabledRequested = enabled;
+            inventoryRequestVersion++;
+            requestVersion = inventoryRequestVersion;
+        }
+
+        if (previous != null
+                && !previous.isDone()) {
+            previous.cancel(true);
+        }
+
+        return requestVersion;
+    }
+
+    private synchronized void trackInventoryTransition(
+            CompletableFuture<Void> transition) {
+        inventoryTransition = transition;
+    }
+
+    private synchronized void clearInventoryTransition(
+            CompletableFuture<Void> transition) {
+        if (inventoryTransition == transition) {
+            inventoryTransition = null;
+        }
+    }
+
+    private boolean isCurrentInventoryRequest(
+            long requestVersion,
+            boolean enabled) {
+        return inventoryRequestVersion == requestVersion
+                && inventoryEnabledRequested == enabled;
+    }
+
+    private static Throwable unwrapCompletionFailure(
+            Throwable failure) {
+        if (!(failure instanceof CompletionException)) {
+            return failure;
+        }
+
+        Throwable cause = failure.getCause();
+        return cause == null
+                ? failure
+                : cause;
     }
 
     private boolean acceptsInventoryControl() {

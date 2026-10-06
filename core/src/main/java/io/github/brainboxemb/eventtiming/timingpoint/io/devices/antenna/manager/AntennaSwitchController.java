@@ -10,6 +10,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 
 /**
  * Coordinates switching across the configured antennas.
@@ -18,8 +21,9 @@ import java.util.List;
  * This class only coordinates the set: validation, status lookup, enabling all
  * independent antennas and rotating the optional mutual-exclusion group.</p>
  *
- * <p>It has no executor or timer dependency. AntennaManager serializes every
- * call into this class on its one control lane.</p>
+ * <p>The controller does not own a worker or scheduler. For multi-step power
+ * stabilization sequences it receives the manager-owned control lane as an
+ * execution capability, while AntennaManager remains lifecycle owner.</p>
  */
 final class AntennaSwitchController {
 
@@ -126,33 +130,99 @@ final class AntennaSwitchController {
                 inventoryGroup) > 1;
     }
 
-    /** Probes every configured antenna once. */
-    void probeAll() {
+    /**
+     * Probes every configured antenna once without occupying the physical worker
+     * while external power stabilization time elapses.
+     */
+    CompletableFuture<Void> probeAll(
+            AntennaControlLane control) {
+        List<AsyncStep> steps =
+                new ArrayList<AsyncStep>(
+                        antennas.size());
+
         for (ManagedAntenna antenna : antennas) {
-            antenna.probe();
+            steps.add(
+                    () -> control.runDelayed(
+                            antenna::beginProbe,
+                            antenna::completeProbe));
         }
+
+        return runSequence(
+                steps);
     }
 
     /**
      * Enables all independent antennas and one member of the multiplex group.
+     *
+     * <p>The supplied guard lets AntennaManager invalidate an older enable
+     * transition when a newer inventory request arrives while stabilization is
+     * still pending.</p>
      */
-    void enableInventory() {
-        for (ManagedAntenna antenna : antennas) {
-            if (!antenna.inInventoryGroup()
-                    && antenna.prepareForInventory()) {
-                antenna.startInventory();
-            }
-        }
+    CompletableFuture<Void> enableInventory(
+            AntennaControlLane control,
+            BooleanSupplier stillCurrent) {
+        List<AsyncStep> steps =
+                new ArrayList<AsyncStep>();
 
-        if (inventoryGroup.isEmpty()) {
-            return;
+        for (ManagedAntenna antenna : antennas) {
+            if (antenna.inInventoryGroup()) {
+                continue;
+            }
+
+            steps.add(
+                    () -> {
+                        if (!stillCurrent.getAsBoolean()) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return control.runDelayed(
+                                () -> stillCurrent.getAsBoolean()
+                                        ? antenna.beginPrepareForInventory()
+                                        : null,
+                                () -> {
+                                    if (stillCurrent.getAsBoolean()
+                                            && antenna.completePrepareForInventory()) {
+                                        antenna.startInventory();
+                                    }
+                                });
+                    });
         }
 
         for (ManagedAntenna antenna : inventoryGroup) {
-            antenna.prepareForInventory();
+            steps.add(
+                    () -> {
+                        if (!stillCurrent.getAsBoolean()) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return control.runDelayed(
+                                () -> stillCurrent.getAsBoolean()
+                                        ? antenna.beginPrepareForInventory()
+                                        : null,
+                                () -> {
+                                    if (stillCurrent.getAsBoolean()) {
+                                        antenna.completePrepareForInventory();
+                                    }
+                                });
+                    });
         }
-        startFirstAvailable(
-                inventoryGroup);
+
+        if (!inventoryGroup.isEmpty()) {
+            steps.add(
+                    () -> {
+                        if (!stillCurrent.getAsBoolean()) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return control.runAsync(
+                                () -> {
+                                    if (stillCurrent.getAsBoolean()) {
+                                        startFirstAvailable(
+                                                inventoryGroup);
+                                    }
+                                });
+                    });
+        }
+
+        return runSequence(
+                steps);
     }
 
     /** Stops inventory and removes power from every configured antenna. */
@@ -246,6 +316,97 @@ final class AntennaSwitchController {
         return failed > 0
                 ? State.DEGRADED
                 : State.ACTIVE;
+    }
+
+    @FunctionalInterface
+    private interface AsyncStep {
+        CompletableFuture<Void> start();
+    }
+
+    /**
+     * Runs asynchronous lane steps in order and propagates cancellation to the
+     * step that is currently active.
+     */
+    private static CompletableFuture<Void> runSequence(
+            List<AsyncStep> steps) {
+        CompletableFuture<Void> result =
+                new CompletableFuture<Void>();
+        AtomicReference<CompletableFuture<Void>> active =
+                new AtomicReference<CompletableFuture<Void>>();
+
+        result.whenComplete(
+                (ignored, failure) -> {
+                    if (!result.isCancelled()) {
+                        return;
+                    }
+                    CompletableFuture<Void> current =
+                            active.get();
+                    if (current != null) {
+                        current.cancel(true);
+                    }
+                });
+
+        runSequenceStep(
+                steps,
+                0,
+                result,
+                active);
+        return result;
+    }
+
+    private static void runSequenceStep(
+            List<AsyncStep> steps,
+            int index,
+            CompletableFuture<Void> result,
+            AtomicReference<CompletableFuture<Void>> active) {
+        if (result.isDone()) {
+            return;
+        }
+        if (index >= steps.size()) {
+            result.complete(null);
+            return;
+        }
+
+        final CompletableFuture<Void> step;
+        try {
+            step =
+                    steps.get(index)
+                            .start();
+        } catch (RuntimeException ex) {
+            result.completeExceptionally(ex);
+            return;
+        } catch (Error ex) {
+            result.completeExceptionally(ex);
+            throw ex;
+        }
+
+        active.set(step);
+        if (result.isCancelled()) {
+            step.cancel(true);
+            return;
+        }
+
+        step.whenComplete(
+                (ignored, failure) -> {
+                    active.compareAndSet(
+                            step,
+                            null);
+
+                    if (result.isDone()) {
+                        return;
+                    }
+                    if (failure != null) {
+                        result.completeExceptionally(
+                                failure);
+                        return;
+                    }
+
+                    runSequenceStep(
+                            steps,
+                            index + 1,
+                            result,
+                            active);
+                });
     }
 
     private void startFirstAvailable(

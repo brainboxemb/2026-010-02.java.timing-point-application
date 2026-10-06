@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep Runtime execution role-based and worker items bounded: remove TimingNode identity from RuntimeExecutors lane creation, add one-shot delayed work to SerialScheduledExecutor, and replace antenna power-stabilization sleeps with delayed continuations on the existing AntennaManager serial scheduled lane. The one-worker I/O baseline remains unchanged.
+
 - Collapse runtime construction into one `TimingApplication.create(...)` composition root: create `PlatformEnvironment`, construct without starting physical workers, wire cross-component behaviour explicitly, then `start()` Runtime execution resources and `activate()` application components in visible order.
 - Give `Conductor` its own serial application-coordination lane so synchronous local events only hand off immutable state; cross-component behaviour no longer executes on the emitting TimingNode thread.
 - Move concrete HTTP/WebSocket/remote-shell/local-console construction and lifecycle out of `Main` into runtime-owned `PresentationRuntime`; `Main` now supplies only process console I/O and shutdown-hook handling.

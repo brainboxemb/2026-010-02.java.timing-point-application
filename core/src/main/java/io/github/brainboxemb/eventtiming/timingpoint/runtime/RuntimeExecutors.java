@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
@@ -147,28 +146,23 @@ final class RuntimeExecutors implements AutoCloseable {
     }
 
     /**
-     * Creates node-local serial lanes on the two shared Domain role workers.
+     * Creates one node-local pair of logical serial lanes on the two shared
+     * Domain role workers.
      *
-     * <p>The NodeId is a logical lane identity for diagnostics only. It is no
-     * longer part of a physical worker-thread name because that worker services
-     * all configured nodes of the same role.</p>
+     * <p>Runtime execution knows the functional roles, not Domain identities.
+     * Every invocation returns distinct lane objects, while all returned lanes
+     * use the same role workers.</p>
      */
-    synchronized TimingNodeExecutors createTimingNodeExecutors(
-            NodeId nodeId) {
-        if (nodeId == null) {
-            throw new IllegalArgumentException(
-                    "nodeId must not be null");
-        }
-
+    synchronized TimingNodeExecutors createTimingNodeExecutors() {
         SerialExecutor timingNode = new SerialExecutor(
                 TIMING_NODE_QUEUE_CAPACITY,
-                "TimingNode-" + nodeId.value(),
+                "TimingNode",
                 timingNodeWorker);
 
         SerialScheduledExecutor tagProcessor =
                 new SerialScheduledExecutor(
                         TAG_PROCESSOR_LANE_QUEUE_CAPACITY,
-                        "TagProcessor-" + nodeId.value(),
+                        "TagProcessor",
                         tagProcessorWorker);
 
         serialLanes.add(timingNode);

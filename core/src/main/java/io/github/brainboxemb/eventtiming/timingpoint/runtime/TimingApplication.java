@@ -180,8 +180,7 @@ public final class TimingApplication {
 
         try {
             RuntimeExecutors.TimingNodeExecutors nodeExecutors =
-                    executors.createTimingNodeExecutors(
-                            config.timingNodeId());
+                    executors.createTimingNodeExecutors();
 
             /*
              * 3. Construct Infrastructure and Domain objects.
