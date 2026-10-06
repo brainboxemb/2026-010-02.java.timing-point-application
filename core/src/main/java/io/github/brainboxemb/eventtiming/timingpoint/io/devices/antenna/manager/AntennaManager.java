@@ -8,8 +8,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.setting.Setting;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner.OperationException;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledRegistrationRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledRegistrationRunner.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
 import java.time.Duration;
@@ -41,7 +41,7 @@ public final class AntennaManager {
 
     private final List<ManagedAntenna> antennas;
     private final AntennaSwitchController switching;
-    private final ScheduledTaskRunner control;
+    private final ScheduledRegistrationRunner control;
 
     private final Setting<Boolean> inventoryEnabledSetting =
             new Setting<Boolean>(
@@ -52,7 +52,7 @@ public final class AntennaManager {
     private volatile boolean busy;
     private volatile boolean selfTestPassed;
 
-    private SerialScheduledExecutor.ScheduledTask rotationTask;
+    private SerialScheduledExecutor.ScheduledRegistration rotationTask;
 
     public AntennaManager(
             List<AntennaInstallation> installations,
@@ -111,7 +111,7 @@ public final class AntennaManager {
                         inventoryGroup,
                         groupInterval);
         control =
-                new ScheduledTaskRunner(
+                new ScheduledRegistrationRunner(
                         controlLane,
                         controlTimeout);
     }
@@ -659,7 +659,7 @@ public final class AntennaManager {
     }
 
     private synchronized void cancelRotation() {
-        SerialScheduledExecutor.ScheduledTask task =
+        SerialScheduledExecutor.ScheduledRegistration task =
                 rotationTask;
         rotationTask = null;
         if (task != null) {
