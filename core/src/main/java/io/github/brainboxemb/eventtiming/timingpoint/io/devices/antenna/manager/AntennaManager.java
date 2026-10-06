@@ -75,10 +75,7 @@ public final class AntennaManager {
         for (ManagedAntenna antenna : antennaSet.antennas()) {
             antenna.selfTestCompletedEvent()
                     .subscribe(
-                            result ->
-                                    taskRunner.execute(
-                                            () -> selfTestCompleted(
-                                                    result)));
+                            this::onSelfTestCompleted);
         }
     }
 
@@ -297,6 +294,16 @@ public final class AntennaManager {
                 && inventoryEnabledSetting.changePending()) {
             startInventoryTaskIfNeeded();
         }
+    }
+
+    /**
+     * Re-admits device completion onto the manager serial lane.
+     */
+    private void onSelfTestCompleted(
+            AntennaSelfTestResult result) {
+        taskRunner.execute(
+                () -> selfTestCompleted(
+                        result));
     }
 
     private void selfTestCompleted(
