@@ -88,6 +88,7 @@ public final class Main {
                 return runApplication(
                         buildIdentity,
                         commandLine.path(),
+                        out,
                         err);
             default:
                 throw new IllegalStateException(
@@ -120,7 +121,12 @@ public final class Main {
     private static int runApplication(
             BuildIdentity buildIdentity,
             Path configPath,
+            PrintStream out,
             PrintStream err) {
+        out.println(
+                startupIdentityLine(
+                        buildIdentity));
+
         try {
             Config config = YamlLoader.load(configPath);
             runConfiguredApplication(buildIdentity, config);
@@ -228,6 +234,25 @@ public final class Main {
         } catch (IllegalStateException ignored) {
             // JVM shutdown is already in progress.
         }
+    }
+
+    /**
+     * Formats the one-line identity printed at the start of normal execution.
+     *
+     * <p>The line is intentionally independent of configured logging so a
+     * configuration or logging startup failure still records which build was
+     * executed.</p>
+     */
+    static String startupIdentityLine(
+            BuildIdentity buildIdentity) {
+        if (buildIdentity == null) {
+            throw new IllegalArgumentException(
+                    "buildIdentity must not be null");
+        }
+
+        return buildIdentity.displayName()
+                + " "
+                + buildIdentity.provenance();
     }
 
     private static void runArtifactSmoke(
