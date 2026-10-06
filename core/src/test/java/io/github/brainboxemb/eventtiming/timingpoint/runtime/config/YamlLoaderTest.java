@@ -37,6 +37,59 @@ public class YamlLoaderTest {
         assertEquals(
                 TagProcessingPolicy.defaults(),
                 config.tagProcessingPolicy());
+        assertEquals(
+                "reference",
+                config.eventDataProviderId());
+        assertEquals(
+                "reference",
+                config.timingDataProviderId());
+    }
+
+    @Test
+    public void loadsExplicitTimingSystemProviderSelections()
+            throws Exception {
+        Config config = load(
+                "timingSystems:\n"
+                        + "  timing-system-01:\n"
+                        + "    eventDataProvider: custom-event\n"
+                        + "    timingDataProvider: custom-timing\n"
+                        + "    timingNodes:\n"
+                        + "      timing-node-01:\n"
+                        + "        timingNodeId: TN-01\n"
+                        + timingDataStorage());
+
+        assertEquals(
+                "custom-event",
+                config.eventDataProviderId());
+        assertEquals(
+                "custom-timing",
+                config.timingDataProviderId());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsBlankEventDataProviderSelection()
+            throws Exception {
+        load(
+                "timingSystems:\n"
+                        + "  timing-system-01:\n"
+                        + "    eventDataProvider: '   '\n"
+                        + "    timingNodes:\n"
+                        + "      timing-node-01:\n"
+                        + "        timingNodeId: TN-01\n"
+                        + timingDataStorage());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsBlankTimingDataProviderSelection()
+            throws Exception {
+        load(
+                "timingSystems:\n"
+                        + "  timing-system-01:\n"
+                        + "    timingDataProvider: '   '\n"
+                        + "    timingNodes:\n"
+                        + "      timing-node-01:\n"
+                        + "        timingNodeId: TN-01\n"
+                        + timingDataStorage());
     }
 
     @Test
