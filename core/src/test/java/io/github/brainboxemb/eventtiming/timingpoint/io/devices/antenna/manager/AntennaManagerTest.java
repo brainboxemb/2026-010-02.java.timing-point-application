@@ -204,6 +204,14 @@ public class AntennaManagerTest {
             enable.join(1500L);
             assertFalse(enable.isAlive());
             assertTrue(antenna.inventoryRunning());
+            assertTrue(power.powered());
+
+            manager.disableInventory();
+
+            assertFalse(antenna.inventoryRunning());
+            assertFalse(
+                    "disableInventory must remove configured external antenna power",
+                    power.powered());
         } finally {
             try {
                 manager.deactivate();
