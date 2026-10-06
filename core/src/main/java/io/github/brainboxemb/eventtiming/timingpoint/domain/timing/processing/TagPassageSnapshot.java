@@ -2,7 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.TagId;
+import io.github.brainboxemb.eventtiming.eventdata.TagId;
 
 import java.util.ArrayList;
 import java.util.Collections;
