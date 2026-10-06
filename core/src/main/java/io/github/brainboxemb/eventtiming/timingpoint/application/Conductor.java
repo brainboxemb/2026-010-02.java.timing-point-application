@@ -7,6 +7,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTyp
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * Coordinates application-wide behaviour between already constructed components.
  *
@@ -18,6 +21,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialEx
  * Conductor owns only its ordering boundary and activation lifecycle.</p>
  */
 public final class Conductor {
+    private static final Logger LOG =
+            LoggerFactory.getLogger(Conductor.class);
 
     private final TimingNode timingNode;
     private final AntennaManager antennaManager;
@@ -123,7 +128,15 @@ public final class Conductor {
      */
     private void applyTimingNodeStatus(
             Status status) {
-        antennaManager.requestInventoryEnabled(
-                status.lifecycle() == Lifecycle.OPEN);
+        boolean accepted =
+                antennaManager.requestInventoryEnabled(
+                        status.lifecycle() == Lifecycle.OPEN);
+
+        if (!accepted) {
+            LOG.warn(
+                    "AntennaManager rejected inventory reconciliation for TimingNode {} lifecycle {}",
+                    status.timingNodeId().value(),
+                    status.lifecycle());
+        }
     }
 }
