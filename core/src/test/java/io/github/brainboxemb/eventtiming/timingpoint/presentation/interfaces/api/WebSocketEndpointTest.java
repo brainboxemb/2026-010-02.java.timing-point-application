@@ -96,6 +96,9 @@ public class WebSocketEndpointTest {
                 0,
                 fixture.handler,
                 EVENT_CLOCK);
+        wireApplicationEvents(
+                server,
+                fixture.handler);
         server.start();
         TestClient client = connect(server.boundPort());
 
@@ -144,6 +147,9 @@ public class WebSocketEndpointTest {
                 0,
                 fixture.handler,
                 EVENT_CLOCK);
+        wireApplicationEvents(
+                server,
+                fixture.handler);
         server.start();
         TestClient client = connect(server.boundPort());
 
