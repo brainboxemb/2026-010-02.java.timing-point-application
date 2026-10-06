@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata;
+package io.github.brainboxemb.eventtiming.eventdata;
 
 /**
  * Semantic RFID tag identity after provider-specific decoding/decryption.

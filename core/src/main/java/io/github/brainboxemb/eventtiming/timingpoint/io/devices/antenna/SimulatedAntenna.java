@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.TagId;
+import io.github.brainboxemb.eventtiming.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 

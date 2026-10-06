@@ -1,9 +1,8 @@
-package io.github.brainboxemb.eventtiming.timingpoint.runtime.simulator;
+package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.EventData;
+import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
-import io.github.brainboxemb.eventtiming.timingpoint.runtime.TimingApplicationRuntime;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 
 import java.util.List;
@@ -25,7 +24,7 @@ public final class SimulationRuntime {
             Config config,
             List<AntennaInstallation> antennaInstallations,
             EventData eventData) {
-        return TimingApplicationRuntime.create(
+        return TimingApplicationRuntime.createSimulation(
                 buildIdentity,
                 config,
                 antennaInstallations,

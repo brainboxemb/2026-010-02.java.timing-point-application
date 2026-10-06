@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata;
+package io.github.brainboxemb.eventtiming.eventdata;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 

@@ -2,7 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.EventData;
+import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ConfigurationChange;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;

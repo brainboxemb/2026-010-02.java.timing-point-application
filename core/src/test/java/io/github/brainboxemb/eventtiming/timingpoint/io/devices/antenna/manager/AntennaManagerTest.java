@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaI
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntennaPowerControl;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.TagId;
+import io.github.brainboxemb.eventtiming.eventdata.TagId;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 

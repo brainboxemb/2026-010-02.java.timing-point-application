@@ -6,8 +6,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.EventData;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.TagId;
+import io.github.brainboxemb.eventtiming.eventdata.EventData;
+import io.github.brainboxemb.eventtiming.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes;
@@ -16,7 +16,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
-import io.github.brainboxemb.eventtiming.timingpoint.runtime.simulator.SimulationRuntime;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Presentation;
 
