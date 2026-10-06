@@ -53,7 +53,7 @@ final class AntennaShutdownTask implements CooperativeTask {
 
             case POWER_OFF:
                 try {
-                    antenna.powerOffAfterInventory();
+                    antenna.powerOff();
                 } catch (RuntimeException ex) {
                     remember(ex);
                 }
