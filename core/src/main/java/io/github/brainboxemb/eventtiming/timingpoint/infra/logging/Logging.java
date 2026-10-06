@@ -12,7 +12,7 @@ import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
 /** Reusable runtime logging infrastructure; the executable selects the SLF4J provider. */
-public final class Logging implements AutoCloseable {
+public final class Logging implements AutoCloseable, LoggingLevelControl {
     private final Logger rootLogger;
     private final java.util.logging.Level previousRootLevel;
     private final Map<Handler, java.util.logging.Level> previousHandlerLevels;
@@ -89,10 +89,12 @@ public final class Logging implements AutoCloseable {
         }
     }
 
+    @Override
     public LoggingLevel level() {
         return control.level();
     }
 
+    @Override
     public void setLevel(LoggingLevel level) {
         control.setLevel(level);
     }
