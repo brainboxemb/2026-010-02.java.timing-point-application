@@ -2,13 +2,45 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager
 
 import io.github.brainboxemb.eventtiming.timingpoint.infra.setting.Setting;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInfo;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTask;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner;
 
 import java.time.Duration;
 import java.util.List;
 
 /** Reusable cooperative task set owned by one AntennaManager. */
 public final class AntennaTasks {
+
+    /** Immutable completion result published by a reusable antenna task. */
+    public static final class TaskResult {
+        private static final TaskResult SUCCESS = new TaskResult(null);
+
+        private final Throwable failure;
+
+        private TaskResult(Throwable failure) {
+            this.failure = failure;
+        }
+
+        public static TaskResult success() {
+            return SUCCESS;
+        }
+
+        public static TaskResult failed(Throwable failure) {
+            if (failure == null) {
+                throw new IllegalArgumentException("failure must not be null");
+            }
+            return new TaskResult(failure);
+        }
+
+        public boolean successful() {
+            return failure == null;
+        }
+
+        public Throwable failure() {
+            return failure;
+        }
+    }
 
     /** Direct one-antenna operations required by the task state machines. */
     public interface AntennaTarget {
@@ -65,9 +97,20 @@ public final class AntennaTasks {
         antennaShutdownTask = new AntennaShutdownTask(antennas);
     }
 
-    public CooperativeTask selfTest() {
-        selfTestTask.reset();
-        return selfTestTask;
+    public void startSelfTest(ScheduledTaskRunner taskRunner) {
+        selfTestTask.start(taskRunner);
+    }
+
+    public void cancelSelfTest() {
+        selfTestTask.cancel();
+    }
+
+    public boolean selfTestRunning() {
+        return selfTestTask.isRunning();
+    }
+
+    public EventSource<TaskResult> selfTestCompletedEvent() {
+        return selfTestTask.completedEvent();
     }
 
     public CooperativeTask inventory() {
