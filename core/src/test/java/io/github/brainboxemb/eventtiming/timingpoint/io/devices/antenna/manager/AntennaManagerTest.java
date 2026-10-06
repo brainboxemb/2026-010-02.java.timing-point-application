@@ -4,6 +4,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Antenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInfo;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.DecryptedTagId;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntennaPowerControl;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
@@ -13,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -87,6 +90,103 @@ public class AntennaManagerTest {
                     calls);
         } finally {
             shared.shutdownNow();
+        }
+    }
+
+    @Test
+    public void stabilizationDelayDoesNotOccupyTheSharedIoWorker()
+            throws Exception {
+        ScheduledExecutorService shared =
+                sharedExecutor();
+        SimulatedAntenna antenna =
+                new SimulatedAntenna();
+        SimulatedAntennaPowerControl power =
+                new SimulatedAntennaPowerControl(
+                        antenna);
+        Duration stabilization =
+                Duration.ofMillis(200);
+
+        AntennaManager manager =
+                new AntennaManager(
+                        Collections.singletonList(
+                                AntennaInstallation.powered(
+                                        new AntennaId("ANT1"),
+                                        antenna,
+                                        power,
+                                        stabilization)),
+                        new SerialScheduledExecutor(
+                                8,
+                                "antenna-manager-test",
+                                shared),
+                        Duration.ofSeconds(1));
+
+        SerialScheduledExecutor sibling =
+                new SerialScheduledExecutor(
+                        4,
+                        "sibling-io-test",
+                        shared);
+        sibling.start();
+
+        try {
+            Thread activation =
+                    new Thread(
+                            manager::activate,
+                            "antenna-activate-test");
+            activation.start();
+
+            awaitCondition(
+                    power::powered,
+                    500L);
+
+            CountDownLatch duringProbeDelay =
+                    new CountDownLatch(1);
+            assertTrue(
+                    sibling.execute(
+                            duringProbeDelay::countDown));
+            assertTrue(
+                    "probe stabilization must not occupy the shared worker",
+                    duringProbeDelay.await(
+                            75L,
+                            TimeUnit.MILLISECONDS));
+
+            activation.join(1500L);
+            assertFalse(activation.isAlive());
+            assertEquals(
+                    State.ACTIVE,
+                    manager.state());
+            assertFalse(power.powered());
+
+            Thread enable =
+                    new Thread(
+                            () -> manager.setInventoryEnabled(true),
+                            "antenna-enable-test");
+            enable.start();
+
+            awaitCondition(
+                    power::powered,
+                    500L);
+
+            CountDownLatch duringInitializeDelay =
+                    new CountDownLatch(1);
+            assertTrue(
+                    sibling.execute(
+                            duringInitializeDelay::countDown));
+            assertTrue(
+                    "initialize stabilization must not occupy the shared worker",
+                    duringInitializeDelay.await(
+                            75L,
+                            TimeUnit.MILLISECONDS));
+
+            enable.join(1500L);
+            assertFalse(enable.isAlive());
+            assertTrue(antenna.inventoryRunning());
+        } finally {
+            try {
+                manager.deactivate();
+            } finally {
+                sibling.close();
+                shared.shutdownNow();
+            }
         }
     }
 
@@ -266,6 +366,24 @@ public class AntennaManagerTest {
                 // Timeout path already verifies cancellation/failure reporting.
             }
             shared.shutdownNow();
+        }
+    }
+
+    private static void awaitCondition(
+            java.util.function.BooleanSupplier condition,
+            long timeoutMillis)
+            throws Exception {
+        long deadline =
+                System.nanoTime()
+                        + TimeUnit.MILLISECONDS.toNanos(
+                                timeoutMillis);
+
+        while (!condition.getAsBoolean()) {
+            if (System.nanoTime() >= deadline) {
+                throw new AssertionError(
+                        "condition did not become true before timeout");
+            }
+            Thread.sleep(2L);
         }
     }
 
