@@ -11,6 +11,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialSc
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 /**
  * Public lifecycle and control boundary for one configured set of antennas.
@@ -387,6 +388,10 @@ public final class AntennaManager {
 
     private static Throwable unwrapCompletionFailure(
             Throwable failure) {
+        if (!(failure instanceof CompletionException)) {
+            return failure;
+        }
+
         Throwable cause = failure.getCause();
         return cause == null
                 ? failure
