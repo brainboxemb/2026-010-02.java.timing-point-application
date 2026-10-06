@@ -4,7 +4,7 @@ timingSystems:
   timing-system-01:
     timingNodes:
       timing-node-01:
-        timingNodeId: TN-01
+        timingNodeId: A
 
 io:
   storage:
