@@ -23,8 +23,8 @@ import static org.junit.Assert.assertTrue;
  * application-level diagnostic interfaces.</p>
  */
 public class VcSt1_004Test {
-    private static final String NODE_ID = "TN-01";
-    private static final String OTHER_NODE_ID = "TN-99";
+    private static final String NODE_ID = "A";
+    private static final String OTHER_NODE_ID = "B";
 
     @Test
     public void containsRecoveryFailureAndKeepsDiagnosticsAvailable()
