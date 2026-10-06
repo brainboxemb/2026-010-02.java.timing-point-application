@@ -180,7 +180,7 @@ public class ConductorTest {
     private AntennaManager newAntennaManager(
             SimulatedAntenna antenna) {
         return new AntennaManager(
-                new AntennaSet().add(new AntennaId("ANT1"), antenna),
+                new AntennaSet().add(new AntennaId("1"), antenna),
                 new SerialScheduledExecutor(
                         8,
                         "conductor-antenna-test",
