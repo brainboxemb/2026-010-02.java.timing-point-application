@@ -7,23 +7,28 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTyp
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Coordinates application-wide behaviour between already constructed components.
  *
- * <p>Runtime composition owns object construction and event wiring. Conductor owns
- * the behaviour of those relationships and executes that behaviour on its own
- * logical serial application lane.</p>
+ * <p>Runtime composition owns object construction, event wiring and physical
+ * execution resources. Conductor owns the application-level lifecycle and
+ * coordination of the components it receives.</p>
  *
- * <p>TimingNode status events are treated as change signals, not commands. The
- * callback only requests a reconcile. The reconcile itself reads the current
- * authoritative TimingNode state on the Conductor lane and derives the desired
- * antenna inventory state from that value.</p>
+ * <p>{@link ComponentLifecycleManager} performs only ordered activation,
+ * rollback and reverse deactivation. Conductor decides when that lifecycle runs
+ * and performs application actions after the components are ready.</p>
  *
- * <p>The lane is not a dedicated Java thread. Runtime owns the physical worker;
- * Conductor owns only its ordering boundary and activation lifecycle.</p>
+ * <p>TimingNode status events are treated as change signals, not commands.
+ * During startup they are only marked as pending. After component activation,
+ * Conductor reads the current authoritative TimingNode state on its own serial
+ * lane and derives the desired antenna inventory state from that value.</p>
  */
 public final class Conductor {
     private static final Logger LOG =
@@ -32,13 +37,16 @@ public final class Conductor {
     private final TimingNode timingNode;
     private final AntennaManager antennaManager;
     private final SerialExecutor serialExecutor;
+    private final ComponentLifecycleManager componentLifecycle =
+            new ComponentLifecycleManager();
 
     /*
-     * Guarded by this. "reconcilePending" means one reconcile is queued or
-     * running. Changes received while it is pending set "reconcileDirty" so one
-     * later reconcile reads the newest authoritative state instead of queueing
-     * every historical status snapshot.
+     * Guarded by this. During startup no reconcile work is admitted: component
+     * activation first reaches a stable point, then one authoritative current
+     * state is reconciled. Afterwards reconcilePending/reconcileDirty coalesce
+     * bursts without losing a change that arrives while reconciliation runs.
      */
+    private boolean startupInProgress;
     private boolean reconcilePending;
     private boolean reconcileDirty;
 
@@ -48,6 +56,15 @@ public final class Conductor {
      */
     private Boolean lastInventoryRequired;
 
+    /**
+     * Creates one application coordinator.
+     *
+     * @param timingNode required TimingNode component
+     * @param antennaManager optional antenna component; {@code null} when the
+     *        composition contains no antennas
+     * @param serialExecutor Conductor logical serial lane on the Runtime-owned
+     *        application worker
+     */
     public Conductor(
             TimingNode timingNode,
             AntennaManager antennaManager,
@@ -55,10 +72,6 @@ public final class Conductor {
         if (timingNode == null) {
             throw new IllegalArgumentException(
                     "timingNode must not be null");
-        }
-        if (antennaManager == null) {
-            throw new IllegalArgumentException(
-                    "antennaManager must not be null");
         }
         if (serialExecutor == null) {
             throw new IllegalArgumentException(
@@ -68,46 +81,113 @@ public final class Conductor {
         this.timingNode = timingNode;
         this.antennaManager = antennaManager;
         this.serialExecutor = serialExecutor;
-    }
 
-    /**
-     * Activates application coordination and schedules the initial reconcile.
-     *
-     * <p>The initial reconcile reads current TimingNode state when it executes.
-     * Startup therefore uses the same behaviour path as later status changes.</p>
-     */
-    public void activate() {
-        serialExecutor.start();
+        componentLifecycle.register(
+                "TimingNode " + timingNode.timingNodeId().value(),
+                timingNode::activate,
+                timingNode::deactivate);
 
-        LOG.info(
-                "Conductor activated for TimingNode {}",
-                timingNode.timingNodeId().value());
-
-        if (!requestReconcile(
-                "activation")) {
-            serialExecutor.close();
-            throw new IllegalStateException(
-                    "Conductor could not schedule initial status reconciliation");
+        if (antennaManager != null) {
+            componentLifecycle.register(
+                    "AntennaManager",
+                    antennaManager::activate,
+                    antennaManager::deactivate);
         }
     }
 
     /**
-     * Stops accepting application coordination and drains accepted work.
+     * Activates the application components in order and establishes current
+     * application intent before returning.
+     *
+     * <p>Status notifications raised while components activate are not executed
+     * immediately. The initial reconcile reads authoritative current state after
+     * all component activations have completed. This prevents a startup event
+     * from controlling a component that is not ready yet.</p>
+     */
+    public void activate() {
+        synchronized (this) {
+            startupInProgress = true;
+            reconcileDirty = false;
+        }
+
+        try {
+            componentLifecycle.activateAll();
+            serialExecutor.start();
+
+            synchronized (this) {
+                /*
+                 * The initial authoritative reconcile consumes all status
+                 * changes seen during activation. Mark it pending before
+                 * releasing the startup gate so a concurrent new change cannot
+                 * queue ahead of it.
+                 */
+                startupInProgress = false;
+                reconcilePending = true;
+                reconcileDirty = false;
+            }
+
+            runInitialReconcile();
+
+            LOG.info(
+                    "Conductor activated application components for TimingNode {}",
+                    timingNode.timingNodeId().value());
+        } catch (RuntimeException ex) {
+            cleanupAfterActivationFailure(
+                    ex);
+            throw ex;
+        } catch (Error error) {
+            cleanupAfterActivationFailure(
+                    error);
+            throw error;
+        }
+    }
+
+    /**
+     * Stops Conductor coordination, then deactivates application components in
+     * reverse activation order.
+     *
+     * <p>The serial lane is drained before component shutdown so already
+     * accepted coordination cannot run against components that are disappearing.</p>
      */
     public void deactivate() {
         LOG.info(
-                "Conductor deactivating for TimingNode {}",
+                "Conductor deactivating application components for TimingNode {}",
                 timingNode.timingNodeId().value());
-        serialExecutor.close();
+
+        Throwable firstFailure = null;
+
+        try {
+            serialExecutor.close();
+        } catch (RuntimeException ex) {
+            firstFailure = ex;
+        } catch (Error error) {
+            firstFailure = error;
+        }
+
+        try {
+            componentLifecycle.deactivateAll();
+        } catch (RuntimeException ex) {
+            firstFailure =
+                    appendFailure(
+                            firstFailure,
+                            ex);
+        } catch (Error error) {
+            firstFailure =
+                    appendFailure(
+                            firstFailure,
+                            error);
+        }
+
+        rethrow(
+                firstFailure);
     }
 
     /**
      * Receives a synchronous TimingNode status-change notification.
      *
-     * <p>The immutable event value proves that a change occurred, but it is not
-     * queued as a command. The callback only requests one bounded reconcile and
-     * returns. A downstream Conductor admission problem is diagnosed locally and
-     * is never thrown back through the TimingNode event producer.</p>
+     * <p>The event value proves that a change occurred, but it is not queued as
+     * a command. During startup the change is only marked dirty. During normal
+     * operation the callback requests one bounded reconcile and returns.</p>
      */
     public void onTimingNodeStatusChanged(
             Status status) {
@@ -121,6 +201,16 @@ public final class Conductor {
                 status.timingNodeId().value(),
                 status.lifecycle());
 
+        synchronized (this) {
+            if (startupInProgress) {
+                reconcileDirty = true;
+                LOG.debug(
+                        "Deferred Conductor reconcile for TimingNode {} until component startup completes",
+                        timingNode.timingNodeId().value());
+                return;
+            }
+        }
+
         requestReconcile(
                 "TimingNode status change");
     }
@@ -129,19 +219,19 @@ public final class Conductor {
      * Requests one current-state reconcile.
      *
      * <p>If one is already queued/running, the request is coalesced by marking
-     * it dirty. The running task will schedule exactly one follow-up reconcile
-     * after it finishes. This avoids filling the bounded lane with transient
-     * status snapshots while still preserving a change that arrives during
-     * reconciliation.</p>
-     *
-     * @return {@code true} when the request is either accepted or safely
-     *         coalesced; {@code false} when the lane rejected the request
+     * it dirty. The running task schedules one follow-up reconcile after it
+     * finishes.</p>
      */
     private boolean requestReconcile(
             String source) {
         boolean coalesced = false;
 
         synchronized (this) {
+            if (startupInProgress) {
+                reconcileDirty = true;
+                return true;
+            }
+
             if (reconcilePending) {
                 reconcileDirty = true;
                 coalesced = true;
@@ -201,8 +291,50 @@ public final class Conductor {
     }
 
     /**
-     * Runs one reconcile and schedules one follow-up when a change arrived while
-     * this task was pending/running.
+     * Runs the first reconcile as result-bearing lane work so Conductor
+     * activation does not complete before the application intent is established.
+     */
+    private void runInitialReconcile() {
+        SerialExecutor.SubmitResult<Void> submission =
+                serialExecutor.submit(
+                        () -> {
+                            try {
+                                reconcileCurrentStatus();
+                            } finally {
+                                finishReconcile();
+                            }
+                            return null;
+                        });
+
+        switch (submission.admission()) {
+            case ACCEPTED:
+                awaitInitialReconcile(
+                        submission.futureResult());
+                return;
+            case FULL:
+                synchronized (this) {
+                    reconcilePending = false;
+                    reconcileDirty = true;
+                }
+                throw new IllegalStateException(
+                        "Conductor queue is full during initial reconciliation");
+            case NOT_RUNNING:
+                synchronized (this) {
+                    reconcilePending = false;
+                    reconcileDirty = true;
+                }
+                throw new IllegalStateException(
+                        "Conductor lane is not running during initial reconciliation",
+                        serialExecutor.failure());
+            default:
+                throw new IllegalStateException(
+                        "Unsupported Conductor admission result "
+                                + submission.admission());
+        }
+    }
+
+    /**
+     * Runs a normal fire-and-forget reconcile on the Conductor lane.
      */
     private void runReconcile() {
         synchronized (this) {
@@ -217,16 +349,24 @@ public final class Conductor {
                     timingNode.timingNodeId().value(),
                     ex);
         } finally {
-            boolean rerun;
-            synchronized (this) {
-                rerun = reconcileDirty;
-                reconcilePending = false;
-            }
+            finishReconcile();
+        }
+    }
 
-            if (rerun) {
-                requestReconcile(
-                        "coalesced status change");
-            }
+    /**
+     * Completes one reconcile and preserves a change received while it ran.
+     */
+    private void finishReconcile() {
+        boolean rerun;
+
+        synchronized (this) {
+            rerun = reconcileDirty;
+            reconcilePending = false;
+        }
+
+        if (rerun) {
+            requestReconcile(
+                    "coalesced status change");
         }
     }
 
@@ -234,6 +374,10 @@ public final class Conductor {
      * Reads authoritative current state and derives antenna inventory intent.
      */
     private void reconcileCurrentStatus() {
+        if (antennaManager == null) {
+            return;
+        }
+
         Status status =
                 timingNode.query(
                         TimingNodeQueries.status());
@@ -271,5 +415,86 @@ public final class Conductor {
                     inventoryRequired,
                     antennaManager.state());
         }
+    }
+
+    private void awaitInitialReconcile(
+            Future<Void> future) {
+        try {
+            future.get();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(
+                    "Interrupted while waiting for initial Conductor reconciliation",
+                    ex);
+        } catch (CancellationException ex) {
+            throw new IllegalStateException(
+                    "Initial Conductor reconciliation was cancelled",
+                    ex);
+        } catch (ExecutionException ex) {
+            Throwable cause =
+                    ex.getCause() == null
+                            ? ex
+                            : ex.getCause();
+
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            if (cause instanceof Error) {
+                throw (Error) cause;
+            }
+            throw new IllegalStateException(
+                    "Initial Conductor reconciliation failed",
+                    cause);
+        }
+    }
+
+    private void cleanupAfterActivationFailure(
+            Throwable originalFailure) {
+        synchronized (this) {
+            startupInProgress = false;
+            reconcilePending = false;
+        }
+
+        try {
+            serialExecutor.close();
+        } catch (RuntimeException ex) {
+            originalFailure.addSuppressed(
+                    ex);
+        } catch (Error error) {
+            originalFailure.addSuppressed(
+                    error);
+        }
+
+        try {
+            componentLifecycle.deactivateAll();
+        } catch (RuntimeException ex) {
+            originalFailure.addSuppressed(
+                    ex);
+        } catch (Error error) {
+            originalFailure.addSuppressed(
+                    error);
+        }
+    }
+
+    private static Throwable appendFailure(
+            Throwable firstFailure,
+            Throwable laterFailure) {
+        if (firstFailure == null) {
+            return laterFailure;
+        }
+        firstFailure.addSuppressed(
+                laterFailure);
+        return firstFailure;
+    }
+
+    private static void rethrow(
+            Throwable failure) {
+        if (failure == null) {
+            return;
+        }
+        if (failure instanceof RuntimeException) {
+            throw (RuntimeException) failure;
+        }
+        throw (Error) failure;
     }
 }
