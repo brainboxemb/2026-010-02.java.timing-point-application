@@ -298,7 +298,7 @@ public class AntennaManagerTest {
 
     private static ScheduledExecutorService sharedExecutor() {
         return Executors.newScheduledThreadPool(
-                2,
+                1,
                 runnable ->
                         new Thread(
                                 runnable,
