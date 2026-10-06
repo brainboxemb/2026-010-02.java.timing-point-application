@@ -35,14 +35,8 @@ public class SettingTest {
         assertTrue(
                 setting.changePending());
 
-        assertTrue(
-                setting.beginChange());
-        assertEquals(
-                Boolean.TRUE,
-                setting.processingValue());
-
-        setting.completeChange(
-                true);
+        setting.markApplied(
+                Boolean.TRUE);
 
         assertEquals(
                 Boolean.TRUE,
@@ -52,7 +46,41 @@ public class SettingTest {
     }
 
     @Test
-    public void newerRequestStaysPendingWhileOlderChangeCompletes() {
+    public void newerRequestRemainsPendingAfterOlderValueWasApplied() {
+        Setting<Boolean> setting =
+                new Setting<Boolean>(
+                        Boolean.FALSE);
+
+        setting.request(
+                Boolean.TRUE);
+
+        /*
+         * The owner starts applying TRUE. Before it completes, a newer FALSE
+         * request arrives.
+         */
+        setting.request(
+                Boolean.FALSE);
+        setting.markApplied(
+                Boolean.TRUE);
+
+        assertEquals(
+                Boolean.FALSE,
+                setting.requestedValue());
+        assertEquals(
+                Boolean.TRUE,
+                setting.appliedValue());
+        assertTrue(
+                setting.changePending());
+
+        setting.markApplied(
+                Boolean.FALSE);
+
+        assertFalse(
+                setting.changePending());
+    }
+
+    @Test
+    public void cancelledRequestNeedsNoChangeWhenAppliedValueAlreadyMatches() {
         Setting<Boolean> setting =
                 new Setting<Boolean>(
                         Boolean.FALSE);
@@ -60,7 +88,7 @@ public class SettingTest {
         setting.request(
                 Boolean.TRUE);
         assertTrue(
-                setting.beginChange());
+                setting.changePending());
 
         setting.request(
                 Boolean.FALSE);
@@ -71,56 +99,7 @@ public class SettingTest {
         assertEquals(
                 Boolean.FALSE,
                 setting.appliedValue());
-        assertTrue(
-                "an older ENABLE is still being processed",
-                setting.changePending());
-
-        setting.completeChange(
-                true);
-
-        assertEquals(
-                Boolean.TRUE,
-                setting.appliedValue());
-        assertTrue(
-                "the newer DISABLE must still be applied",
-                setting.changePending());
-
-        assertTrue(
-                setting.beginChange());
-        assertEquals(
-                Boolean.FALSE,
-                setting.processingValue());
-        setting.completeChange(
-                true);
-
-        assertEquals(
-                Boolean.FALSE,
-                setting.appliedValue());
         assertFalse(
-                setting.changePending());
-    }
-
-    @Test
-    public void failedProcessingDoesNotAdvanceAppliedValue() {
-        Setting<Boolean> setting =
-                new Setting<Boolean>(
-                        Boolean.FALSE);
-
-        setting.request(
-                Boolean.TRUE);
-        assertTrue(
-                setting.beginChange());
-
-        setting.completeChange(
-                false);
-
-        assertEquals(
-                Boolean.TRUE,
-                setting.requestedValue());
-        assertEquals(
-                Boolean.FALSE,
-                setting.appliedValue());
-        assertTrue(
                 setting.changePending());
     }
 }
