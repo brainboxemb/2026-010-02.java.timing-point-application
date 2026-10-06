@@ -16,7 +16,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaOperation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.power.SimulatedPowerDevice;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
@@ -154,16 +154,18 @@ public class TimingApplicationRuntimeTest {
                 new SimulatedPowerDevice(
                         antenna);
 
+        AntennaSet antennaSet = new AntennaSet()
+                .addPowered(
+                        new AntennaId("1"),
+                        antenna,
+                        power,
+                        Duration.ofMillis(1000));
+
         TimingApplicationRuntime application =
                 SimulationRuntime.create(
                         identity(),
                         config(file),
-                        Collections.singletonList(
-                                AntennaInstallation.powered(
-                                        new AntennaId("1"),
-                                        antenna,
-                                        power,
-                                        Duration.ofMillis(1000))),
+                        antennaSet,
                         EventData.empty());
 
         application.activate();
@@ -266,13 +268,13 @@ public class TimingApplicationRuntimeTest {
                         Duration.ofMillis(100),
                         Duration.ofMillis(5),
                         8);
+        AntennaSet antennaSet = new AntennaSet()
+                .add(new AntennaId("ANT1"), antenna);
+
         TimingApplicationRuntime application = SimulationRuntime.create(
                 identity(),
                 config(file, tagProcessingPolicy),
-                Collections.singletonList(
-                        AntennaInstallation.direct(
-                                new AntennaId("ANT1"),
-                                antenna)),
+                antennaSet,
                 eventData(
                         "TAG-1001", "R-1001",
                         "TAG-1001-B", "R-1001"));
