@@ -29,11 +29,11 @@ final class ManagedAntenna {
 
     private final AntennaInstallation installation;
 
-    private AntennaHealth health =
+    private volatile AntennaHealth health =
             AntennaHealth.UNKNOWN;
-    private AntennaOperation operation =
+    private volatile AntennaOperation operation =
             AntennaOperation.INACTIVE;
-    private Throwable failure;
+    private volatile Throwable failure;
     private boolean externalPowerApplied;
 
     ManagedAntenna(
