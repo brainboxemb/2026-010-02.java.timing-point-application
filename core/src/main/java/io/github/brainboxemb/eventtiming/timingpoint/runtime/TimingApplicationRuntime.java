@@ -7,7 +7,7 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.Conductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.EventData;
+import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTimingDataPersistence;
