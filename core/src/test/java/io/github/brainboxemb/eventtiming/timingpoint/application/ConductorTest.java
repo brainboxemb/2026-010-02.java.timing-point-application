@@ -57,25 +57,6 @@ public class ConductorTest {
         ExecutorService conductorWorker =
                 newWorker(
                         "conductor-blocked-test");
-        CountDownLatch blockerStarted =
-                new CountDownLatch(1);
-        CountDownLatch releaseBlocker =
-                new CountDownLatch(1);
-
-        conductorWorker.execute(
-                () -> {
-                    blockerStarted.countDown();
-                    try {
-                        releaseBlocker.await();
-                    } catch (InterruptedException ex) {
-                        Thread.currentThread().interrupt();
-                    }
-                });
-        assertTrue(
-                blockerStarted.await(
-                        1L,
-                        TimeUnit.SECONDS));
-
         SerialExecutor lane =
                 new SerialExecutor(
                         1,
@@ -87,11 +68,29 @@ public class ConductorTest {
                         manager,
                         lane);
 
-        node.activate();
-        manager.activate();
+        conductor.activate();
+
+        CountDownLatch blockerStarted =
+                new CountDownLatch(1);
+        CountDownLatch releaseBlocker =
+                new CountDownLatch(1);
 
         try {
-            conductor.activate();
+            assertEquals(
+                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    lane.offer(
+                            () -> {
+                                blockerStarted.countDown();
+                                try {
+                                    releaseBlocker.await();
+                                } catch (InterruptedException ex) {
+                                    Thread.currentThread().interrupt();
+                                }
+                            }));
+            assertTrue(
+                    blockerStarted.await(
+                            1L,
+                            TimeUnit.SECONDS));
 
             Status current =
                     node.query(
@@ -116,14 +115,7 @@ public class ConductorTest {
                             .fullCount());
         } finally {
             releaseBlocker.countDown();
-            await(
-                    () -> lane.metrics()
-                            .snapshot()
-                            .completedCount() >= 1L,
-                    1000L);
             conductor.deactivate();
-            manager.deactivate();
-            node.deactivate();
         }
     }
 
@@ -145,20 +137,12 @@ public class ConductorTest {
                         manager,
                         lane);
 
-        node.activate();
-        manager.activate();
+        conductor.activate();
 
         try {
             Status staleClosedSnapshot =
                     node.query(
                             TimingNodeQueries.status());
-
-            conductor.activate();
-            await(
-                    () -> lane.metrics()
-                            .snapshot()
-                            .completedCount() >= 1L,
-                    1000L);
 
             node.invoke(
                     TimingNodeCommands.open(
@@ -179,8 +163,6 @@ public class ConductorTest {
                     antenna.inventoryRunning());
         } finally {
             conductor.deactivate();
-            manager.deactivate();
-            node.deactivate();
         }
     }
 
