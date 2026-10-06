@@ -407,30 +407,39 @@ public final class TimingApplication {
             return;
         }
 
-        RuntimeException firstFailure = null;
+        Throwable firstFailure = null;
 
         try {
             activationManager.deactivateAll();
-        } catch (RuntimeException ex) {
-            firstFailure = ex;
+        } catch (RuntimeException | Error failure) {
+            firstFailure = failure;
         }
 
         try {
             runtimeExecutors.close();
-        } catch (RuntimeException ex) {
+        } catch (RuntimeException | Error failure) {
             if (firstFailure == null) {
-                firstFailure = ex;
+                firstFailure = failure;
             } else {
-                firstFailure.addSuppressed(ex);
+                firstFailure.addSuppressed(failure);
             }
         }
 
         state = State.INACTIVE;
         notifyAll();
 
-        if (firstFailure != null) {
-            throw firstFailure;
+        rethrow(firstFailure);
+    }
+
+    private static void rethrow(
+            Throwable failure) {
+        if (failure == null) {
+            return;
         }
+        if (failure instanceof RuntimeException) {
+            throw (RuntimeException) failure;
+        }
+        throw (Error) failure;
     }
 
     public static String smokeOutput(
