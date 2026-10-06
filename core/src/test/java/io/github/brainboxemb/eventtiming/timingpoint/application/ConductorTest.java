@@ -158,7 +158,7 @@ public class ConductorTest {
 
     private TimingNode newTimingNode() {
         return new TimingNode(
-                new NodeId("TN-01"),
+                new NodeId("A"),
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),
                 ConductorTest::now,
