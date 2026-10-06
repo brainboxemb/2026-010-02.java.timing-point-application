@@ -12,7 +12,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialSc
 
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 
 import org.slf4j.Logger;
@@ -34,7 +33,6 @@ public final class AntennaManager {
     private volatile Throwable failure;
     private volatile boolean selfTestPassed;
 
-    private CompletableFuture<Void> inventoryOperation;
 
     public AntennaManager(
             List<AntennaInstallation> installations,
@@ -51,6 +49,7 @@ public final class AntennaManager {
                 inventoryEnabledSetting);
 
         antennaTasks.selfTestCompletedEvent().subscribe(this::onSelfTestCompleted);
+        antennaTasks.inventoryCompletedEvent().subscribe(this::onInventoryCompleted);
     }
 
     public synchronized void activate() {
@@ -122,7 +121,7 @@ public final class AntennaManager {
 
         inventoryEnabledSetting.request(Boolean.FALSE);
         antennaTasks.cancelSelfTest();
-        cancel(inventoryOperation);
+        antennaTasks.cancelInventory();
 
         RuntimeException shutdownFailure = null;
         try {
@@ -146,7 +145,6 @@ public final class AntennaManager {
             }
         }
 
-        inventoryOperation = null;
         selfTestPassed = false;
 
         if (shutdownFailure == null) {
@@ -178,24 +176,17 @@ public final class AntennaManager {
         if (state != State.ACTIVE
                 || !selfTestPassed
                 || !inventoryEnabledSetting.changePending()
-                || inventoryTaskRunning()) {
+                || antennaTasks.inventoryRunning()) {
             return;
         }
 
-        inventoryOperation = taskRunner.runTask(antennaTasks.inventory());
-        inventoryOperation.whenComplete(this::onInventoryTaskCompleted);
+        antennaTasks.startInventory(taskRunner);
     }
 
-    private void onInventoryTaskCompleted(Void ignored, Throwable taskFailure) {
-        taskRunner.execute(() -> inventoryTaskCompleted(taskFailure));
-    }
-
-    private void inventoryTaskCompleted(Throwable taskFailure) {
-        inventoryOperation = null;
-
-        if (taskFailure != null && !(taskFailure instanceof CancellationException)) {
-            recordFailure(taskFailure);
-            LOG.warn("Antenna inventory task failed", taskFailure);
+    private void onInventoryCompleted(AntennaTasks.TaskResult result) {
+        if (!result.successful()) {
+            recordFailure(result.failure());
+            LOG.warn("Antenna inventory task failed", result.failure());
         }
 
         if (state == State.ACTIVE && inventoryEnabledSetting.changePending()) {
@@ -220,10 +211,6 @@ public final class AntennaManager {
         }
     }
 
-    private boolean inventoryTaskRunning() {
-        return inventoryOperation != null && !inventoryOperation.isDone();
-    }
-
     private void recordFailure(Throwable cause) {
         if (cause == null || cause instanceof CancellationException) {
             return;
@@ -236,9 +223,4 @@ public final class AntennaManager {
         }
     }
 
-    private static void cancel(CompletableFuture<Void> operation) {
-        if (operation != null && !operation.isDone()) {
-            operation.cancel(true);
-        }
-    }
 }
