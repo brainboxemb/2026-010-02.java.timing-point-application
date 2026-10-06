@@ -81,11 +81,11 @@ public class AntennaManagerTest {
             assertFalse(first.inventoryRunning());
             assertFalse(second.inventoryRunning());
 
-            manager.setInventoryEnabled(true);
+            manager.enableInventory();
             assertTrue(first.inventoryRunning());
             assertTrue(second.inventoryRunning());
 
-            manager.setInventoryEnabled(false);
+            manager.disableInventory();
             assertFalse(first.inventoryRunning());
             assertFalse(second.inventoryRunning());
 
@@ -182,7 +182,7 @@ public class AntennaManagerTest {
 
             Thread enable =
                     new Thread(
-                            () -> manager.setInventoryEnabled(true),
+                            () -> manager.enableInventory(),
                             "antenna-enable-test");
             enable.start();
 
@@ -238,7 +238,7 @@ public class AntennaManagerTest {
         try {
             manager.activate();
             manager.checkHealth();
-            manager.setInventoryEnabled(true);
+            manager.enableInventory();
 
             TagObservation observation =
                     new TagObservation(
@@ -332,7 +332,7 @@ public class AntennaManagerTest {
                     AntennaOperation.INACTIVE,
                     manager.status(new AntennaId("ANT2")).operation());
 
-            manager.setInventoryEnabled(true);
+            manager.enableInventory();
 
             assertTrue(healthy.inventoryRunning());
             assertFalse(failed.inventoryRunning());
