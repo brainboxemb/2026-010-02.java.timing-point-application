@@ -1,16 +1,24 @@
-package io.github.brainboxemb.eventtiming.timingpoint.runtime;
+package io.github.brainboxemb.eventtiming.timingpoint.application;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
- * Activates registered application components in order and deactivates them in
- * reverse order.
+ * Executes the mechanical lifecycle of application components registered by
+ * {@link Conductor}.
  *
- * <p>This class coordinates component activation only. It does not start or stop
- * Runtime execution infrastructure and it does not discover components.</p>
+ * <p>This helper owns no application startup policy. Conductor decides which
+ * components participate and when lifecycle execution is requested. This class
+ * only preserves activation order, rolls back components that already activated
+ * when a later activation fails, and deactivates active components in reverse
+ * order.</p>
  */
-final class ActivationManager {
+final class ComponentLifecycleManager {
+    private static final Logger LOG =
+            LoggerFactory.getLogger(ComponentLifecycleManager.class);
 
     private enum State {
         NEW,
@@ -19,12 +27,15 @@ final class ActivationManager {
     }
 
     private static final class Component {
+        private final String name;
         private final Runnable activate;
         private final Runnable deactivate;
 
         private Component(
+                String name,
                 Runnable activate,
                 Runnable deactivate) {
+            this.name = name;
             this.activate = activate;
             this.deactivate = deactivate;
         }
@@ -35,12 +46,23 @@ final class ActivationManager {
 
     private State state = State.NEW;
 
+    /**
+     * Registers one component in activation order.
+     *
+     * <p>Registration is intentionally available only before activation. The
+     * reverse of this order is used for rollback and normal deactivation.</p>
+     */
     synchronized void register(
+            String name,
             Runnable activate,
             Runnable deactivate) {
         if (state != State.NEW) {
             throw new IllegalStateException(
                     "Components can only be registered before activation");
+        }
+        if (name == null || name.trim().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "name must not be blank");
         }
         if (activate == null) {
             throw new IllegalArgumentException(
@@ -53,10 +75,18 @@ final class ActivationManager {
 
         components.add(
                 new Component(
+                        name.trim(),
                         activate,
                         deactivate));
     }
 
+    /**
+     * Activates registered components in order.
+     *
+     * <p>If activation fails, only components that completed activation are
+     * deactivated, in reverse order. The original failure remains primary and
+     * rollback failures are attached as suppressed failures.</p>
+     */
     synchronized void activateAll() {
         if (state != State.NEW) {
             throw new IllegalStateException(
@@ -67,8 +97,14 @@ final class ActivationManager {
         int activatedCount = 0;
         try {
             for (Component component : components) {
+                LOG.info(
+                        "Activating application component {}",
+                        component.name);
                 component.activate.run();
                 activatedCount++;
+                LOG.info(
+                        "Activated application component {}",
+                        component.name);
             }
             state = State.ACTIVE;
         } catch (RuntimeException ex) {
@@ -86,6 +122,9 @@ final class ActivationManager {
         }
     }
 
+    /**
+     * Deactivates active components in reverse activation order.
+     */
     synchronized void deactivateAll() {
         if (state == State.INACTIVE) {
             return;
@@ -99,10 +138,16 @@ final class ActivationManager {
         for (int index = components.size() - 1;
                 index >= 0;
                 index--) {
+            Component component =
+                    components.get(index);
             try {
-                components.get(index)
-                        .deactivate
-                        .run();
+                LOG.info(
+                        "Deactivating application component {}",
+                        component.name);
+                component.deactivate.run();
+                LOG.info(
+                        "Deactivated application component {}",
+                        component.name);
             } catch (RuntimeException ex) {
                 firstFailure =
                         appendFailure(
@@ -123,13 +168,21 @@ final class ActivationManager {
     private void rollback(
             int activatedCount,
             Throwable originalFailure) {
+        LOG.warn(
+                "Application component activation failed after {} component(s); rolling back",
+                activatedCount,
+                originalFailure);
+
         for (int index = activatedCount - 1;
                 index >= 0;
                 index--) {
+            Component component =
+                    components.get(index);
             try {
-                components.get(index)
-                        .deactivate
-                        .run();
+                LOG.info(
+                        "Rolling back application component {}",
+                        component.name);
+                component.deactivate.run();
             } catch (RuntimeException ex) {
                 originalFailure.addSuppressed(ex);
             } catch (Error error) {
