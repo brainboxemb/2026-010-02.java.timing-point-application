@@ -41,6 +41,21 @@ public class ComponentLifecycleManagerTest {
     }
 
     @Test
+    public void activatesAgainAfterDeactivation() {
+        List<String> calls = new ArrayList<String>();
+        ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
+
+        lifecycle.register("component", () -> calls.add("activate"), () -> calls.add("deactivate"));
+
+        lifecycle.activateAll();
+        lifecycle.deactivateAll();
+        lifecycle.activateAll();
+        lifecycle.deactivateAll();
+
+        assertEquals(Arrays.asList("activate", "deactivate", "activate", "deactivate"), calls);
+    }
+
+    @Test
     public void rollsBackOnlyComponentsThatCompletedActivation() {
         List<String> calls =
                 new ArrayList<String>();
