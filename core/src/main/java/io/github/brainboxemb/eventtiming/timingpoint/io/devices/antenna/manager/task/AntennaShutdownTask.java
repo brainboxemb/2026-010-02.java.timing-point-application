@@ -5,11 +5,18 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.TaskStep
 
 import java.util.List;
 
-/** Shuts down one configured antenna per cooperative turn. */
+/** Shuts down each antenna through stop, power-off and provider cleanup steps. */
 final class AntennaShutdownTask implements CooperativeTask {
+
+    private enum Phase {
+        STOP_INVENTORY,
+        POWER_OFF,
+        SHUTDOWN_PROVIDER
+    }
 
     private final List<? extends AntennaTasks.AntennaTarget> antennas;
     private int antennaIndex;
+    private Phase phase = Phase.STOP_INVENTORY;
     private RuntimeException failure;
 
     AntennaShutdownTask(
@@ -28,19 +35,53 @@ final class AntennaShutdownTask implements CooperativeTask {
             return finish();
         }
 
-        try {
-            antennas.get(antennaIndex--).shutdown();
-        } catch (RuntimeException ex) {
-            if (failure == null) {
-                failure = ex;
-            } else if (failure != ex) {
-                failure.addSuppressed(ex);
-            }
-        }
+        AntennaTasks.AntennaTarget antenna =
+                antennas.get(antennaIndex);
 
-        return antennaIndex < 0
-                ? finish()
-                : TaskStep.again();
+        switch (phase) {
+            case STOP_INVENTORY:
+                try {
+                    antenna.stopInventory();
+                } catch (RuntimeException ex) {
+                    remember(ex);
+                }
+                phase = Phase.POWER_OFF;
+                return TaskStep.again();
+
+            case POWER_OFF:
+                try {
+                    antenna.powerOffAfterInventory();
+                } catch (RuntimeException ex) {
+                    remember(ex);
+                }
+                phase = Phase.SHUTDOWN_PROVIDER;
+                return TaskStep.again();
+
+            case SHUTDOWN_PROVIDER:
+                try {
+                    antenna.shutdownProvider();
+                } catch (RuntimeException ex) {
+                    remember(ex);
+                }
+                antennaIndex--;
+                phase = Phase.STOP_INVENTORY;
+                return antennaIndex < 0
+                        ? finish()
+                        : TaskStep.again();
+
+            default:
+                throw new IllegalStateException(
+                        "Unsupported shutdown phase " + phase);
+        }
+    }
+
+    private void remember(
+            RuntimeException current) {
+        if (failure == null) {
+            failure = current;
+        } else if (failure != current) {
+            failure.addSuppressed(current);
+        }
     }
 
     private TaskStep finish() {
