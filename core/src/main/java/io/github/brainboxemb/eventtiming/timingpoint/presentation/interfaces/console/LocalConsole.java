@@ -18,6 +18,19 @@ public final class LocalConsole implements Runnable {
 
     public LocalConsole(
             PresentationGateway presentationGateway,
+            Runnable shutdown,
+            Reader input,
+            Writer output) {
+        this(
+                presentationGateway,
+                null,
+                shutdown,
+                input,
+                output);
+    }
+
+    public LocalConsole(
+            PresentationGateway presentationGateway,
             LoggingLevelControl loggingLevelControl,
             Runnable shutdown,
             Reader input,
