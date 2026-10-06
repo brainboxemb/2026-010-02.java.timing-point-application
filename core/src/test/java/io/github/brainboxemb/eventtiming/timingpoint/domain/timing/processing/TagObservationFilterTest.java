@@ -2,7 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.DecryptedTagId;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 
@@ -44,6 +44,29 @@ public class TagObservationFilterTest {
         clock.advanceNanos(10L);
         filter.add(REGISTRATION_ID, observation("TAG-A", -40, OBSERVED_3));
         assertTrue(filter.hasPendingState());
+
+        List<TagPassageSnapshot> snapshots =
+                filter.snapshots();
+        assertEquals(1, snapshots.size());
+        TagPassageSnapshot passage =
+                snapshots.get(0);
+        assertEquals(REGISTRATION_ID, passage.registrationId());
+        assertEquals(new TagId("TAG-B"), passage.selectedTagId());
+        assertEquals(-40, passage.selectedRssi());
+        assertEquals(OBSERVED_2, passage.selectedObservedAt());
+        assertEquals(2, passage.tags().size());
+
+        TagPassageSnapshot.TagStats tagA =
+                passage.tags().get(0);
+        assertEquals(new TagId("TAG-A"), tagA.tagId());
+        assertEquals(2L, tagA.observationCount());
+        assertEquals(-40, tagA.strongestRssi());
+
+        TagPassageSnapshot.TagStats tagB =
+                passage.tags().get(1);
+        assertEquals(new TagId("TAG-B"), tagB.tagId());
+        assertEquals(1L, tagB.observationCount());
+        assertEquals(-40, tagB.strongestRssi());
 
         clock.advanceNanos(100L);
         filter.periodic();
@@ -113,7 +136,7 @@ public class TagObservationFilterTest {
             int rssi,
             TimingTimestamp observedAt) {
         return new TagObservation(
-                new DecryptedTagId(tagId),
+                new TagId(tagId),
                 rssi,
                 observedAt);
     }
