@@ -49,6 +49,7 @@ final class SelfTestTask implements CooperativeTask {
         switch (phase) {
             case POWER_ON:
                 try {
+                    antenna.beginSelfTest();
                     antenna.powerOn();
                     phase = Phase.SELF_TEST;
                     Duration delay = antenna.powerStabilization();
