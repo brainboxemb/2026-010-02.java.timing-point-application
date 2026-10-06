@@ -7,46 +7,36 @@ import java.time.Duration;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 
-/**
- * Prepares every configured antenna and starts inventory according to whether
- * the antenna is independent or belongs to the mutual-exclusion switch group.
- */
+/** Reusable inventory-enable state machine. */
 final class InventoryEnableTask implements CooperativeTask {
 
     private enum Phase {
         POWER_ON,
         INITIALIZE,
         START_DIRECT,
-        START_SWITCH_GROUP
+        START_GROUP
     }
 
     private final List<? extends AntennaTasks.AntennaTarget> antennas;
-    private final AntennaTasks.SwitchTarget switching;
+    private final List<? extends AntennaTasks.AntennaTarget> inventoryGroup;
     private final BooleanSupplier stillRequested;
 
     private int antennaIndex;
-    private Phase phase = Phase.POWER_ON;
+    private Phase phase;
 
     InventoryEnableTask(
             List<? extends AntennaTasks.AntennaTarget> antennas,
-            AntennaTasks.SwitchTarget switching,
+            List<? extends AntennaTasks.AntennaTarget> inventoryGroup,
             BooleanSupplier stillRequested) {
-        if (antennas == null || antennas.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "antennas must contain at least one antenna");
-        }
-        if (switching == null) {
-            throw new IllegalArgumentException(
-                    "switching must not be null");
-        }
-        if (stillRequested == null) {
-            throw new IllegalArgumentException(
-                    "stillRequested must not be null");
-        }
-
         this.antennas = antennas;
-        this.switching = switching;
+        this.inventoryGroup = inventoryGroup;
         this.stillRequested = stillRequested;
+        reset();
+    }
+
+    void reset() {
+        antennaIndex = 0;
+        phase = Phase.POWER_ON;
     }
 
     @Override
@@ -55,20 +45,18 @@ final class InventoryEnableTask implements CooperativeTask {
             return TaskStep.done();
         }
 
-        if (phase == Phase.START_SWITCH_GROUP) {
-            if (!switching.startFirstAvailable()) {
-                throw new IllegalStateException(
-                        "no prepared antenna could start inventory");
-            }
+        if (phase == Phase.START_GROUP) {
+            startFirstAvailableGroupMember();
             return TaskStep.done();
         }
 
         if (antennaIndex >= antennas.size()) {
-            if (switching.hasInventoryGroup()) {
-                phase = Phase.START_SWITCH_GROUP;
-                return TaskStep.again();
+            if (inventoryGroup.isEmpty()) {
+                return TaskStep.done();
             }
-            return TaskStep.done();
+
+            phase = Phase.START_GROUP;
+            return TaskStep.again();
         }
 
         AntennaTasks.AntennaTarget antenna =
@@ -101,6 +89,30 @@ final class InventoryEnableTask implements CooperativeTask {
                 throw new IllegalStateException(
                         "Unsupported inventory-enable phase " + phase);
         }
+    }
+
+    private void startFirstAvailableGroupMember() {
+        RuntimeException lastFailure = null;
+
+        for (AntennaTasks.AntennaTarget antenna : inventoryGroup) {
+            if (!antenna.availableForInventory()) {
+                continue;
+            }
+
+            try {
+                antenna.startInventory();
+                return;
+            } catch (RuntimeException ex) {
+                lastFailure = ex;
+            }
+        }
+
+        if (lastFailure != null) {
+            throw lastFailure;
+        }
+
+        throw new IllegalStateException(
+                "no prepared antenna could start inventory");
     }
 
     private void moveToNextAntenna() {
