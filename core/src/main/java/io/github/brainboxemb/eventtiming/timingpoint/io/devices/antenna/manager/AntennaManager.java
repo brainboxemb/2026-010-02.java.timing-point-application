@@ -43,7 +43,7 @@ public final class AntennaManager {
     private final AntennaSwitchController switching;
     private final ScheduledTaskRunner control;
 
-    private final Setting<Boolean> inventoryEnabled =
+    private final Setting<Boolean> inventoryEnabledSetting =
             new Setting<Boolean>(
                     Boolean.FALSE);
 
@@ -324,19 +324,19 @@ public final class AntennaManager {
             return false;
         }
 
-        inventoryEnabled.request(
+        inventoryEnabledSetting.request(
                 Boolean.valueOf(
                         enabled));
 
-        if (!inventoryEnabled.changePending()) {
+        if (!inventoryEnabledSetting.changePending()) {
             return true;
         }
 
         LOG.info(
                 "AntennaManager inventory requested={} applied={} changePending={}",
-                inventoryEnabled.requestedValue(),
-                inventoryEnabled.appliedValue(),
-                inventoryEnabled.changePending());
+                inventoryEnabledSetting.requestedValue(),
+                inventoryEnabledSetting.appliedValue(),
+                inventoryEnabledSetting.changePending());
 
         if (control.execute(
                 this::processInventorySetting)) {
@@ -417,7 +417,7 @@ public final class AntennaManager {
             state = State.DEACTIVATING;
         }
 
-        inventoryEnabled.request(
+        inventoryEnabledSetting.request(
                 Boolean.FALSE);
         cancelRotation();
 
@@ -462,24 +462,26 @@ public final class AntennaManager {
         if (state != State.ACTIVE
                 || busy
                 || !selfTestPassed
-                || !inventoryEnabled.beginChange()) {
+                || !inventoryEnabledSetting.changePending()) {
             return;
         }
 
         boolean enable =
-                inventoryEnabled.processingValue()
-                        .booleanValue();
+                Boolean.TRUE.equals(
+                        inventoryEnabledSetting.requestedValue());
         busy = true;
 
         if (!enable) {
             boolean success =
                     applyInventoryDisable();
-            inventoryEnabled.completeChange(
-                    success);
+            if (success) {
+                inventoryEnabledSetting.markApplied(
+                        Boolean.FALSE);
+            }
             busy = false;
 
             if (success
-                    && inventoryEnabled.changePending()) {
+                    && inventoryEnabledSetting.changePending()) {
                 processInventorySetting();
             }
             return;
@@ -500,9 +502,7 @@ public final class AntennaManager {
                                         FailureReason.OVERLOADED,
                                         "AntennaManager control lane rejected inventory-enable completion",
                                         control.failure());
-                        inventoryEnabled.completeChange(
-                                false);
-                        busy = false;
+                         busy = false;
                         recordFailure(
                                 rejection);
                         LOG.warn(
@@ -623,9 +623,7 @@ public final class AntennaManager {
                                     transitionFailure));
             recordFailure(
                     mapped);
-            inventoryEnabled.completeChange(
-                    false);
-            busy = false;
+             busy = false;
             LOG.warn(
                     "Antenna inventory preparation failed",
                     mapped);
@@ -635,20 +633,18 @@ public final class AntennaManager {
         if (!inventoryRequestedEnabled()) {
             cancelRotation();
             disableAllInventory();
-            inventoryEnabled.completeChange(
-                    false);
-            busy = false;
+             busy = false;
             return;
         }
 
         ensureRotation();
-        inventoryEnabled.completeChange(
-                true);
+        inventoryEnabledSetting.markApplied(
+                Boolean.TRUE);
         busy = false;
         LOG.info(
                 "Antenna inventory enabled");
 
-        if (inventoryEnabled.changePending()) {
+        if (inventoryEnabledSetting.changePending()) {
             processInventorySetting();
         }
     }
@@ -732,7 +728,7 @@ public final class AntennaManager {
 
     private boolean inventoryRequestedEnabled() {
         return Boolean.TRUE.equals(
-                inventoryEnabled.requestedValue());
+                inventoryEnabledSetting.requestedValue());
     }
 
     private ManagedAntenna find(
