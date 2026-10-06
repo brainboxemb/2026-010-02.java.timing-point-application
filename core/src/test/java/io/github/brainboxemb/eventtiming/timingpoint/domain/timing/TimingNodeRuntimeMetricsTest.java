@@ -28,7 +28,7 @@ public class TimingNodeRuntimeMetricsTest {
         RecordingPersistence persistence = new RecordingPersistence();
         TimeSource timeSource = () -> RECORDED_AT;
         TimingNode node = new TimingNode(
-                new NodeId("TN-01"),
+                new NodeId("A"),
                 persistence,
                 new DefaultTimingDataFactory(),
                 timeSource);
