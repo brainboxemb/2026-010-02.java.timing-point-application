@@ -223,7 +223,7 @@ public final class AntennaManager {
         if (inventoryEnabledSetting.changePending()) {
             accepted =
                     taskRunner.execute(
-                            this::processInventorySetting);
+                            this::reconcileInventory);
 
             if (!accepted) {
                 recordFailure(
@@ -235,7 +235,15 @@ public final class AntennaManager {
         return accepted;
     }
 
-    private void processInventorySetting() {
+    /**
+     * Reconciles the requested inventory setting with the applied device state.
+     *
+     * <p>This method runs on the manager serial lane and starts at most one
+     * inventory transition task. If startup self-test is not complete or a
+     * transition is already running, the Setting remains pending and a later
+     * completion/request invokes reconciliation again.</p>
+     */
+    private void reconcileInventory() {
         if (state != State.ACTIVE
                 || busy
                 || !selfTestPassed
@@ -274,7 +282,7 @@ public final class AntennaManager {
                             : "FAIL");
 
             if (selfTestPassed) {
-                processInventorySetting();
+                reconcileInventory();
             }
         } else {
             selfTestPassed = false;
@@ -312,7 +320,7 @@ public final class AntennaManager {
                     "Antenna inventory enabled");
 
             if (inventoryEnabledSetting.changePending()) {
-                processInventorySetting();
+                reconcileInventory();
             }
         }
     }
@@ -336,7 +344,7 @@ public final class AntennaManager {
                     "Antenna inventory disabled");
 
             if (inventoryEnabledSetting.changePending()) {
-                processInventorySetting();
+                reconcileInventory();
             }
         }
     }
