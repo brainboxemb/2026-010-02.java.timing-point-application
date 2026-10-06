@@ -1,6 +1,10 @@
 # Complete example configuration for one TimingNode and its external interfaces.
 timingSystems:
   timing-system-01:
+    # Built-in public/reference provider selections.
+    eventDataProvider: reference
+    timingDataProvider: reference
+
     timingNodes:
       timing-node-01:
         timingNodeId: TN-01
