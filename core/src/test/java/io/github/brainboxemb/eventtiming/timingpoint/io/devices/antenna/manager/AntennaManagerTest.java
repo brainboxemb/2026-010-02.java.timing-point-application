@@ -402,6 +402,7 @@ public class AntennaManagerTest {
             awaitCondition(
                     () -> manager.status(new AntennaId("1")).failure() != null,
                     1000L);
+            awaitCondition(() -> !manager.isBusy(), 1000L);
             assertFalse(antenna.inventoryRunning());
 
             antenna.clearFailure();
