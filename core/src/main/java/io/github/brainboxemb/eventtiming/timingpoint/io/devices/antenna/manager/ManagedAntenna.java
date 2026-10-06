@@ -5,7 +5,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaI
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaOperation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.task.AntennaTasks;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.Antenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.power.PowerDevice;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -24,7 +23,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * it records the resulting self-test, operation and failure state used by the
  * manager status API.</p>
  */
-final class ManagedAntenna implements AntennaTasks.AntennaTarget {
+final class ManagedAntenna {
     private static final Logger LOG = LoggerFactory.getLogger(ManagedAntenna.class);
 
     private final AntennaId antennaId;
@@ -67,24 +66,20 @@ final class ManagedAntenna implements AntennaTasks.AntennaTarget {
     /**
      * Starts a new self-test result window before the task touches hardware.
      */
-    @Override
     public void beginSelfTest() {
         selfTestPassed = false;
         failure = null;
         operation = AntennaOperation.PREPARING;
     }
 
-    @Override
     public boolean availableForInventory() {
         return selfTestPassed && failure == null;
     }
 
-    @Override
     public boolean inventoryRunning() {
         return operation == AntennaOperation.INVENTORY;
     }
 
-    @Override
     public void powerOn() {
         if (powerDevice == null || externalPowerApplied) {
             return;
@@ -100,7 +95,6 @@ final class ManagedAntenna implements AntennaTasks.AntennaTarget {
         }
     }
 
-    @Override
     public void powerOff() {
         try {
             if (powerDevice != null && externalPowerApplied) {
@@ -118,12 +112,10 @@ final class ManagedAntenna implements AntennaTasks.AntennaTarget {
         }
     }
 
-    @Override
     public Duration powerStabilization() {
         return powerStabilization;
     }
 
-    @Override
     public AntennaInfo selfTest() {
         try {
             AntennaInfo info = antenna.selfTest();
@@ -141,7 +133,6 @@ final class ManagedAntenna implements AntennaTasks.AntennaTarget {
     /**
      * Marks the start of the prepare sequence owned by {@code InventoryTask}.
      */
-    @Override
     public void beginInventoryPreparation() {
         checkState(availableForInventory(), "Antenna %s is not available for inventory", antennaId);
         checkState(operation != AntennaOperation.INVENTORY, "Antenna %s is already inventorying", antennaId);
@@ -150,7 +141,6 @@ final class ManagedAntenna implements AntennaTasks.AntennaTarget {
         operation = AntennaOperation.PREPARING;
     }
 
-    @Override
     public void initialize() {
         checkState(availableForInventory(), "Antenna %s is not available for initialization", antennaId);
         checkState(operation == AntennaOperation.PREPARING,
@@ -167,7 +157,6 @@ final class ManagedAntenna implements AntennaTasks.AntennaTarget {
         }
     }
 
-    @Override
     public void startInventory() {
         if (operation == AntennaOperation.INVENTORY) {
             return;
@@ -187,7 +176,6 @@ final class ManagedAntenna implements AntennaTasks.AntennaTarget {
         }
     }
 
-    @Override
     public void stopInventory() {
         if (operation != AntennaOperation.INVENTORY) {
             return;
@@ -203,7 +191,6 @@ final class ManagedAntenna implements AntennaTasks.AntennaTarget {
         }
     }
 
-    @Override
     public void shutdownProvider() {
         try {
             antenna.shutdown();
