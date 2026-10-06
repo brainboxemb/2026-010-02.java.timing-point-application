@@ -15,8 +15,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Reusable startup self-test for the complete configured antenna set.
  *
- * <p>The task owns its own execution handle. Completion is published as an event
- * from the final task step, so callers do not need to observe a Future.</p>
+ * <p>The task owns its execution handle. Completion is published only after the
+ * runner has finished the task, so callers never need to observe its Future.</p>
  */
 final class SelfTestTask implements CooperativeTask {
 
@@ -43,6 +43,7 @@ final class SelfTestTask implements CooperativeTask {
         checkState(!isRunning(), "SelfTestTask is already running");
         reset();
         operation = taskRunner.runTask(this);
+        operation.whenComplete(this::onCompleted);
     }
 
     void cancel() {
@@ -119,8 +120,19 @@ final class SelfTestTask implements CooperativeTask {
         }
     }
 
+    private void onCompleted(Void ignored, Throwable taskFailure) {
+        if (operation != null && operation.isCancelled()) {
+            return;
+        }
+
+        Throwable effectiveFailure = taskFailure != null ? taskFailure : failure;
+        completedEvent.emit(
+                effectiveFailure == null
+                        ? AntennaTasks.TaskResult.success()
+                        : AntennaTasks.TaskResult.failed(effectiveFailure));
+    }
+
     private TaskStep finish() {
-        completedEvent.emit(failure == null ? AntennaTasks.TaskResult.success() : AntennaTasks.TaskResult.failed(failure));
         return TaskStep.done();
     }
 }
