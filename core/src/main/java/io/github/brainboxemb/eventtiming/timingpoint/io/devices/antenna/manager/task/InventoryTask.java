@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
 
 /**
  * Reusable inventory state machine for enable, disable and multiplex switching.
@@ -64,8 +63,11 @@ final class InventoryTask implements CooperativeTask {
         reset();
     }
 
-    void start(ScheduledTaskRunner taskRunner) {
-        checkState(!isRunning(), "InventoryTask is already running");
+    synchronized void start(ScheduledTaskRunner taskRunner) {
+        if (isRunning()) {
+            return;
+        }
+
         reset();
         operation = taskRunner.runTask(this);
         operation.whenComplete(this::onCompleted);
