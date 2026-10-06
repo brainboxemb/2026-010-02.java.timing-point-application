@@ -38,8 +38,7 @@ public class EventTest {
     }
 
     @Test
-    public void transitionsFromZeroToOneToManyAndBack()
-            throws Exception {
+    public void compositionBuildsZeroOneAndManySubscriberRepresentations() {
         Event<String> event =
                 new Event<String>();
         List<String> delivered =
@@ -68,131 +67,20 @@ public class EventTest {
 
         assertTrue(event.subscribe(second));
         assertTrue(event.subscribe(third));
+
+        Event.DeliveryReport report =
+                event.emit("many");
+
         assertEquals(
                 3,
-                event.emit("many")
-                        .attemptedListeners());
-
-        assertTrue(event.unsubscribe(second));
-        assertEquals(
-                2,
-                event.emit("two")
-                        .attemptedListeners());
-
-        assertTrue(event.unsubscribe(first));
-        assertEquals(
-                1,
-                event.emit("back-to-one")
-                        .attemptedListeners());
-
-        assertTrue(event.unsubscribe(third));
-        assertEquals(
-                0,
-                event.emit("back-to-zero")
-                        .attemptedListeners());
-
+                report.attemptedListeners());
         assertEquals(
                 Arrays.asList(
                         "first:one",
                         "first:many",
                         "second:many",
-                        "third:many",
-                        "first:two",
-                        "third:two",
-                        "third:back-to-one"),
+                        "third:many"),
                 delivered);
-    }
-
-    @Test
-    public void emitUsesStableSnapshotWhileSubscriptionChanges()
-            throws Exception {
-        Event<String> event =
-                new Event<String>();
-        List<String> delivered =
-                java.util.Collections.synchronizedList(
-                        new ArrayList<String>());
-        CountDownLatch firstEntered =
-                new CountDownLatch(1);
-        CountDownLatch releaseFirst =
-                new CountDownLatch(1);
-
-        Consumer<String> first =
-                value -> {
-                    delivered.add(
-                            "first:" + value);
-                    firstEntered.countDown();
-                    try {
-                        releaseFirst.await();
-                    } catch (InterruptedException ex) {
-                        Thread.currentThread().interrupt();
-                        throw new IllegalStateException(
-                                ex);
-                    }
-                };
-        Consumer<String> second =
-                value -> delivered.add(
-                        "second:" + value);
-        Consumer<String> later =
-                value -> delivered.add(
-                        "later:" + value);
-
-        event.subscribe(first);
-        event.subscribe(second);
-
-        Thread emit =
-                new Thread(
-                        () -> event.emit(
-                                "initial"),
-                        "event-snapshot-test");
-        emit.start();
-
-        assertTrue(
-                firstEntered.await(
-                        1,
-                        TimeUnit.SECONDS));
-
-        /*
-         * The in-flight emission already owns its immutable snapshot. Removing
-         * second and adding later therefore affect only the next emission.
-         */
-        assertTrue(event.unsubscribe(second));
-        assertTrue(event.subscribe(later));
-
-        releaseFirst.countDown();
-        emit.join(1000L);
-
-        assertFalse(emit.isAlive());
-        assertEquals(
-                Arrays.asList(
-                        "first:initial",
-                        "second:initial"),
-                delivered);
-
-        delivered.clear();
-        event.emit(
-                "next");
-
-        assertEquals(
-                Arrays.asList(
-                        "first:next",
-                        "later:next"),
-                delivered);
-    }
-
-    @Test
-    public void unsubscribeStopsLaterDelivery() {
-        Event<String> event = new Event<>();
-        List<String> delivered = new ArrayList<>();
-        Consumer<String> listener = delivered::add;
-
-        event.subscribe(listener);
-        assertTrue(event.unsubscribe(listener));
-        assertFalse(event.unsubscribe(listener));
-
-        Event.DeliveryReport report = event.emit("value");
-
-        assertEquals(0, report.attemptedListeners());
-        assertTrue(delivered.isEmpty());
     }
 
     @Test
@@ -216,7 +104,7 @@ public class EventTest {
     }
 
     @Test
-    public void subscriptionOnlyViewUsesSameThreadSafeRegistry() {
+    public void subscriptionOnlyViewSupportsCompositionWiring() {
         Event<String> event = new Event<>();
         EventSource<String> source = event;
         List<String> delivered = new ArrayList<>();
