@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
  * <p>A source signal never supplies the tracked value directly. It only says
  * that the authoritative source may have changed. This class coalesces repeated
  * signals, schedules a refresh on the supplied lane, reads the current value and
- * notifies handlers only when the effective value changed.</p>
+ * emits {@link #changedEvent()} only when the effective value changed.</p>
  *
  * <p>This is reusable infrastructure only. It has no knowledge of application
  * components or domain types and it owns no worker thread.</p>
@@ -85,8 +85,8 @@ public final class TrackedProperty<T> {
     }
 
     /**
-     * Performs the first authoritative read and waits until its handlers have
-     * completed on the supplied serial lane.
+     * Performs the first authoritative read on the supplied serial lane and
+     * returns that value without emitting a change event.
      */
     public T initialize() {
         synchronized (this) {
