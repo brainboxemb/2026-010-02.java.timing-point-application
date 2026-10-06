@@ -1,9 +1,9 @@
 package io.github.brainboxemb.eventtiming.timingpoint.application;
 
 import io.github.brainboxemb.eventtiming.timingpoint.application.logic.AbstractConductor;
-import io.github.brainboxemb.eventtiming.timingpoint.application.property.TimingNodeLifecycleProperty;
+import io.github.brainboxemb.eventtiming.timingpoint.application.property.TimingNodeStateProperty;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Lifecycle;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 
@@ -17,12 +17,16 @@ import org.slf4j.LoggerFactory;
  * rollback, Application-lane lifecycle and cleanup mechanics are inherited from
  * {@link AbstractConductor}.</p>
  *
- * <p>The current application rule is:</p>
+ * <p>The current TimingNode-to-antenna rule is deliberately explicit:</p>
  *
  * <pre>
- * TimingNode lifecycle OPEN   -> antenna inventory required
- * TimingNode lifecycle other  -> antenna inventory not required
+ * TimingNode OPEN          -> enable antenna inventory
+ * TimingNode CLOSED/ERROR  -> disable antenna inventory
  * </pre>
+ *
+ * <p>Disabling inventory stops reading and removes external antenna power where
+ * configured. It does not shut down the Antenna provider; application shutdown
+ * is a separate component-lifecycle action.</p>
  */
 public final class Conductor extends AbstractConductor {
     private static final Logger LOG =
@@ -30,7 +34,7 @@ public final class Conductor extends AbstractConductor {
 
     private final TimingNode timingNode;
     private final AntennaManager antennaManager;
-    private final TimingNodeLifecycleProperty timingNodeLifecycleProperty;
+    private final TimingNodeStateProperty timingNodeStateProperty;
 
     /**
      * Creates the SI-01 coordinator and declares the components/properties it
@@ -55,12 +59,13 @@ public final class Conductor extends AbstractConductor {
         this.timingNode = timingNode;
         this.antennaManager = antennaManager;
 
-        timingNodeLifecycleProperty =
-                new TimingNodeLifecycleProperty(
+        timingNodeStateProperty =
+                new TimingNodeStateProperty(
                         timingNode,
                         applicationLane());
-        timingNodeLifecycleProperty.onChange(
-                this::applyTimingNodeLifecycle);
+        timingNodeStateProperty.changedEvent()
+                .subscribe(
+                        this::onTimingNodeStateChanged);
 
         registerComponent(
                 "TimingNode " + timingNode.timingNodeId().value(),
@@ -88,7 +93,10 @@ public final class Conductor extends AbstractConductor {
                     antennaManager.health());
         }
 
-        timingNodeLifecycleProperty.initialize();
+        State initialState =
+                timingNodeStateProperty.initialize();
+        onTimingNodeStateChanged(
+                initialState);
 
         LOG.info(
                 "SI-01 application coordination initialized for TimingNode {}",
@@ -96,45 +104,60 @@ public final class Conductor extends AbstractConductor {
     }
 
     /**
-     * Exposes the concrete lifecycle property for explicit Runtime event
+     * Exposes the concrete TimingNode state property for explicit Runtime event
      * wiring and current-state diagnostics.
      */
-    public TimingNodeLifecycleProperty timingNodeLifecycleProperty() {
-        return timingNodeLifecycleProperty;
+    public TimingNodeStateProperty timingNodeStateProperty() {
+        return timingNodeStateProperty;
     }
 
     /**
-     * Application rule: TimingNode OPEN requires antenna inventory.
+     * Applies the application rule for one authoritative TimingNode state.
      *
-     * <p>The property already performed authoritative read/change detection.
-     * This method therefore contains only the application decision.</p>
+     * <p>OPEN enables antenna inventory. CLOSED and ERROR explicitly disable
+     * inventory, which stops reading and powers down antennas where external
+     * power control is configured.</p>
      */
-    private void applyTimingNodeLifecycle(
-            Lifecycle lifecycle) {
+    private void onTimingNodeStateChanged(
+            State state) {
         if (antennaManager == null) {
             return;
         }
 
-        boolean inventoryRequired =
-                lifecycle == Lifecycle.OPEN;
+        switch (state) {
+            case OPEN:
+                LOG.info(
+                        "TimingNode {} state OPEN -> enable antenna inventory",
+                        timingNode.timingNodeId().value());
 
-        LOG.info(
-                "TimingNode {} lifecycle {} sets antenna inventory required={}",
-                timingNode.timingNodeId().value(),
-                lifecycle,
-                inventoryRequired);
+                if (!antennaManager.requestEnableInventory()) {
+                    LOG.warn(
+                            "AntennaManager rejected enable-inventory request for TimingNode {} state OPEN managerState={}",
+                            timingNode.timingNodeId().value(),
+                            antennaManager.state());
+                }
+                return;
 
-        boolean accepted =
-                antennaManager.requestInventoryEnabled(
-                        inventoryRequired);
+            case CLOSED:
+            case ERROR:
+                LOG.info(
+                        "TimingNode {} state {} -> disable antenna inventory",
+                        timingNode.timingNodeId().value(),
+                        state);
 
-        if (!accepted) {
-            LOG.warn(
-                    "AntennaManager rejected inventory required={} for TimingNode {} lifecycle {} managerState={}",
-                    inventoryRequired,
-                    timingNode.timingNodeId().value(),
-                    lifecycle,
-                    antennaManager.state());
+                if (!antennaManager.requestDisableInventory()) {
+                    LOG.warn(
+                            "AntennaManager rejected disable-inventory request for TimingNode {} state {} managerState={}",
+                            timingNode.timingNodeId().value(),
+                            state,
+                            antennaManager.state());
+                }
+                return;
+
+            default:
+                throw new IllegalStateException(
+                        "Unsupported TimingNode state "
+                                + state);
         }
     }
 }

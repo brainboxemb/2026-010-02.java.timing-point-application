@@ -57,6 +57,9 @@ public class WebSocketEndpointTest {
                 0,
                 fixture.handler,
                 EVENT_CLOCK);
+        wireApplicationEvents(
+                server,
+                fixture.handler);
         server.start();
 
         try {
@@ -93,6 +96,9 @@ public class WebSocketEndpointTest {
                 0,
                 fixture.handler,
                 EVENT_CLOCK);
+        wireApplicationEvents(
+                server,
+                fixture.handler);
         server.start();
         TestClient client = connect(server.boundPort());
 
@@ -141,6 +147,9 @@ public class WebSocketEndpointTest {
                 0,
                 fixture.handler,
                 EVENT_CLOCK);
+        wireApplicationEvents(
+                server,
+                fixture.handler);
         server.start();
         TestClient client = connect(server.boundPort());
 
@@ -267,6 +276,9 @@ public class WebSocketEndpointTest {
                 0,
                 handler,
                 EVENT_CLOCK);
+        wireApplicationEvents(
+                server,
+                handler);
         server.start();
 
         try {
@@ -292,6 +304,23 @@ public class WebSocketEndpointTest {
         }
     }
 
+    private static void wireApplicationEvents(
+            WebSocketEndpoint endpoint,
+            PresentationGateway gateway) {
+        gateway.timingNode()
+                .statusChangedEvent()
+                .subscribe(
+                        endpoint::onTimingNodeStatusChanged);
+        gateway.timingNode()
+                .timingDataCommittedEvent()
+                .subscribe(
+                        endpoint::onTimingDataCommitted);
+        gateway.configuration()
+                .changes()
+                .subscribe(
+                        endpoint::onConfigurationChanged);
+    }
+
     private static TestClient connect(int port) throws Exception {
         TestClient client = new TestClient(
                 new URI("ws://127.0.0.1:" + port + WebSocketEndpoint.EVENTS_PATH));
@@ -302,14 +331,14 @@ public class WebSocketEndpointTest {
     private static void assertSnapshot(
             String json,
             String timingNodeId,
-            String lifecycle,
+            String state,
             String locationJson) {
         assertNotNull(json);
         assertTrue(json.contains("\"eventType\":\"STATUS_SNAPSHOT\""));
         assertTrue(json.contains("\"occurredAt\":\"2026-10-01T12:00:02Z\""));
         assertTrue(json.contains("\"id\":\"" + timingNodeId + "\""));
         assertTrue(json.contains("\"locationId\":" + locationJson));
-        assertTrue(json.contains("\"state\":\"" + lifecycle + "\""));
+        assertTrue(json.contains("\"state\":\"" + state + "\""));
         assertTrue(json.contains("\"problems\":[]"));
     }
 

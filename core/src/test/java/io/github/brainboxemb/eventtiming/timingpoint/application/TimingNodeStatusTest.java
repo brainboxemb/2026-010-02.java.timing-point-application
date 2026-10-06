@@ -12,14 +12,14 @@ public class TimingNodeStatusTest {
     public void exposesCurrentTimingNodeStatus() {
         TimingNodeStatus status = new TimingNodeStatus(
                 new NodeId("TN-01"),
-                TimingNodeTypes.Lifecycle.CLOSED);
+                TimingNodeTypes.State.CLOSED);
 
         assertEquals("TN-01", status.timingNodeId().value());
-        assertEquals(TimingNodeTypes.Lifecycle.CLOSED, status.lifecycle());
+        assertEquals(TimingNodeTypes.State.CLOSED, status.state());
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsMissingNodeId() {
-        new TimingNodeStatus(null, TimingNodeTypes.Lifecycle.CLOSED);
+        new TimingNodeStatus(null, TimingNodeTypes.State.CLOSED);
     }
 }

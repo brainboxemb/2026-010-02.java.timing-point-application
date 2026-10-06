@@ -7,7 +7,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationCo
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -18,7 +17,6 @@ import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 import org.java_websocket.WebSocket;
 import org.java_websocket.drafts.Draft;
@@ -52,22 +50,8 @@ public final class WebSocketEndpoint implements AutoCloseable {
     private final TimingNodeProxy timingNode;
     private final Clock clock;
     private final TimingDataCodec timingDataCodec;
-    private final Consumer<TimingNodeStatus> statusChangedListener =
-            this::broadcastStatusChanged;
-    private final Consumer<TimingData> timingDataListener =
-            this::broadcastTimingDataCommitted;
-    private final Consumer<ConfigurationControl.Change>
-            configurationChangedListener =
-                    this::broadcastConfigurationChanged;
-    private final EventSource<TimingNodeStatus> statusChanged;
-    private final EventSource<TimingData> timingDataCommitted;
-    private final EventSource<ConfigurationControl.Change>
-            configurationChanged;
 
     private Server server;
-    private boolean statusSubscribed;
-    private boolean timingDataSubscribed;
-    private boolean configurationSubscribed;
 
     public WebSocketEndpoint(
             String bindAddress,
@@ -104,18 +88,13 @@ public final class WebSocketEndpoint implements AutoCloseable {
         this.timingNode = presentationGateway.timingNode();
         this.clock = clock;
         this.timingDataCodec = new DefaultTimingDataCodec();
-        this.statusChanged = timingNode.statusChangedEvent();
-        this.timingDataCommitted = timingNode.timingDataCommittedEvent();
-        this.configurationChanged =
-                presentationGateway.configuration().changes();
     }
 
     /**
-     * Starts the listener and then subscribes it to application events.
+     * Starts the WebSocket listener.
      *
-     * <p>Subscription is part of endpoint startup. If either subscription fails,
-     * the transport is stopped again so callers never observe a half-live event
-     * endpoint.</p>
+     * <p>Application-event wiring is completed by PresentationRuntime during
+     * composition, before this endpoint is activated.</p>
      */
     public synchronized void start() throws IOException {
         if (server != null) {
@@ -145,18 +124,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
         }
 
         server = candidate;
-        try {
-            statusSubscribed = statusChanged.subscribe(statusChangedListener);
-            timingDataSubscribed = timingDataCommitted.subscribe(timingDataListener);
-            configurationSubscribed =
-                    configurationChanged.subscribe(
-                            configurationChangedListener);
-        } catch (RuntimeException ex) {
-            unsubscribeApplicationEvents();
-            server = null;
-            stopCandidate(candidate);
-            throw ex;
-        }
 
         LOG.info(
                 "WebSocket IF-03 listening on {}:{}{}",
@@ -179,10 +146,14 @@ public final class WebSocketEndpoint implements AutoCloseable {
      * published automatically from the PresentationGateway subscription.</p>
      */
     public void publishStatusChanged() {
-        broadcastStatusChanged(timingNode.status());
+        onTimingNodeStatusChanged(timingNode.status());
     }
 
-    private void broadcastStatusChanged(TimingNodeStatus status) {
+    /**
+     * Composition-wired application event callback.
+     */
+    public void onTimingNodeStatusChanged(
+            TimingNodeStatus status) {
         Server current = currentServer();
         if (current != null) {
             current.broadcast(
@@ -193,7 +164,11 @@ public final class WebSocketEndpoint implements AutoCloseable {
         }
     }
 
-    private void broadcastTimingDataCommitted(TimingData data) {
+    /**
+     * Composition-wired application event callback.
+     */
+    public void onTimingDataCommitted(
+            TimingData data) {
         Server current = currentServer();
         if (current == null) {
             return;
@@ -214,7 +189,10 @@ public final class WebSocketEndpoint implements AutoCloseable {
         }
     }
 
-    private void broadcastConfigurationChanged(
+    /**
+     * Composition-wired application event callback.
+     */
+    public void onConfigurationChanged(
             ConfigurationControl.Change change) {
         Server current = currentServer();
         if (current != null) {
@@ -238,8 +216,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
 
     @Override
     public synchronized void close() {
-        unsubscribeApplicationEvents();
-
         Server current = server;
         server = null;
         if (current == null) {
@@ -249,22 +225,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
             current.stop(1000);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-        }
-    }
-
-    private void unsubscribeApplicationEvents() {
-        if (statusSubscribed) {
-            statusChanged.unsubscribe(statusChangedListener);
-            statusSubscribed = false;
-        }
-        if (timingDataSubscribed) {
-            timingDataCommitted.unsubscribe(timingDataListener);
-            timingDataSubscribed = false;
-        }
-        if (configurationSubscribed) {
-            configurationChanged.unsubscribe(
-                    configurationChangedListener);
-            configurationSubscribed = false;
         }
     }
 

@@ -38,19 +38,49 @@ public class EventTest {
     }
 
     @Test
-    public void unsubscribeStopsLaterDelivery() {
-        Event<String> event = new Event<>();
-        List<String> delivered = new ArrayList<>();
-        Consumer<String> listener = delivered::add;
+    public void compositionBuildsZeroOneAndManySubscriberRepresentations() {
+        Event<String> event =
+                new Event<String>();
+        List<String> delivered =
+                new ArrayList<String>();
 
-        event.subscribe(listener);
-        assertTrue(event.unsubscribe(listener));
-        assertFalse(event.unsubscribe(listener));
+        Consumer<String> first =
+                value -> delivered.add(
+                        "first:" + value);
+        Consumer<String> second =
+                value -> delivered.add(
+                        "second:" + value);
+        Consumer<String> third =
+                value -> delivered.add(
+                        "third:" + value);
 
-        Event.DeliveryReport report = event.emit("value");
+        assertEquals(
+                0,
+                event.emit("zero")
+                        .attemptedListeners());
 
-        assertEquals(0, report.attemptedListeners());
-        assertTrue(delivered.isEmpty());
+        assertTrue(event.subscribe(first));
+        assertEquals(
+                1,
+                event.emit("one")
+                        .attemptedListeners());
+
+        assertTrue(event.subscribe(second));
+        assertTrue(event.subscribe(third));
+
+        Event.DeliveryReport report =
+                event.emit("many");
+
+        assertEquals(
+                3,
+                report.attemptedListeners());
+        assertEquals(
+                Arrays.asList(
+                        "first:one",
+                        "first:many",
+                        "second:many",
+                        "third:many"),
+                delivered);
     }
 
     @Test
@@ -74,7 +104,7 @@ public class EventTest {
     }
 
     @Test
-    public void subscriptionOnlyViewUsesSameThreadSafeRegistry() {
+    public void subscriptionOnlyViewSupportsCompositionWiring() {
         Event<String> event = new Event<>();
         EventSource<String> source = event;
         List<String> delivered = new ArrayList<>();

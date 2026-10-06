@@ -12,7 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.CloseResult;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Lifecycle;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Problem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.ProblemCode;
@@ -40,7 +40,7 @@ final class TimingNodeLogic {
     private final TimeSource timeSource;
     private final MonotonicClock monotonicClock;
 
-    private Lifecycle lifecycle = Lifecycle.CLOSED;
+    private State state = State.CLOSED;
     private LocationId locationId;
     private boolean timingDataTailRecovered;
     private Throwable timingDataCommitFailure;
@@ -92,20 +92,20 @@ final class TimingNodeLogic {
             throw new IllegalArgumentException("locationId must not be null");
         }
         ensureOperational();
-        if (lifecycle == Lifecycle.OPEN) {
+        if (state == State.OPEN) {
             return OpenResult.ALREADY_OPEN;
         }
         locationId = newLocationId;
-        lifecycle = Lifecycle.OPEN;
+        state = State.OPEN;
         return OpenResult.OPENED;
     }
 
     CloseResult close() {
         ensureOperational();
-        if (lifecycle == Lifecycle.CLOSED) {
+        if (state == State.CLOSED) {
             return CloseResult.ALREADY_CLOSED;
         }
-        lifecycle = Lifecycle.CLOSED;
+        state = State.CLOSED;
         return CloseResult.CLOSED;
     }
 
@@ -114,7 +114,7 @@ final class TimingNodeLogic {
             TimingTimestamp time)
             throws TimingDataPersistence.PersistenceException {
         ensureOperational();
-        if (lifecycle != Lifecycle.OPEN) {
+        if (state != State.OPEN) {
             return RegistrationResult.nodeNotOpen();
         }
         ensureTimingDataCommitAvailable();
@@ -131,7 +131,7 @@ final class TimingNodeLogic {
             ManualTimeSource registrationTimeSource)
             throws TimingDataPersistence.PersistenceException {
         ensureOperational();
-        if (lifecycle != Lifecycle.OPEN) {
+        if (state != State.OPEN) {
             return RegistrationResult.nodeNotOpen();
         }
         ensureTimingDataCommitAvailable();
@@ -168,7 +168,7 @@ final class TimingNodeLogic {
     Status status() {
         return new Status(
                 timingNodeId,
-                lifecycle,
+                state,
                 locationId,
                 timingDataTailRecovered,
                 problems);
@@ -186,7 +186,7 @@ final class TimingNodeLogic {
         if (failure == null) {
             throw new IllegalArgumentException("failure must not be null");
         }
-        lifecycle = Lifecycle.ERROR;
+        state = State.ERROR;
         locationId = null;
         timingDataTailRecovered = false;
 
@@ -212,7 +212,7 @@ final class TimingNodeLogic {
     }
 
     private void ensureOperational() {
-        if (lifecycle != Lifecycle.ERROR) {
+        if (state != State.ERROR) {
             return;
         }
         String detail = problems.isEmpty()

@@ -8,8 +8,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeQueries;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
@@ -48,7 +46,7 @@ public class ConductorTest {
     }
 
     @Test
-    public void lifecyclePropertyCoalescesSignalsWhileRefreshIsPending()
+    public void statePropertyCoalescesSignalsWhileRefreshIsPending()
             throws Exception {
         TimingNode node = newTimingNode();
         SimulatedAntenna antenna = new SimulatedAntenna();
@@ -92,16 +90,11 @@ public class ConductorTest {
                             1L,
                             TimeUnit.SECONDS));
 
-            Status current =
-                    node.query(
-                            TimingNodeQueries.status());
-
             for (int index = 0;
                     index < 20;
                     index++) {
-                conductor.timingNodeLifecycleProperty()
-                        .changeSignal()
-                        .accept(current);
+                conductor.timingNodeStateProperty()
+                        .signalChanged();
             }
 
             assertEquals(
@@ -121,7 +114,7 @@ public class ConductorTest {
     }
 
     @Test
-    public void lifecyclePropertyReadsCurrentStateInsteadOfEventSnapshot()
+    public void statePropertyReadsAuthoritativeCurrentState()
             throws Exception {
         TimingNode node = newTimingNode();
         SimulatedAntenna antenna = new SimulatedAntenna();
@@ -141,22 +134,17 @@ public class ConductorTest {
         conductor.activate();
 
         try {
-            Status staleClosedSnapshot =
-                    node.query(
-                            TimingNodeQueries.status());
-
             node.invoke(
                     TimingNodeCommands.open(
                             new LocationId(24)));
 
             /*
-             * The property receives an intentionally stale CLOSED snapshot.
-             * The payload is only a change signal; the property rereads the
-             * authoritative current OPEN lifecycle and enables inventory.
+             * A source event only invalidates the property. The property then
+             * rereads the authoritative current OPEN state and emits its own
+             * changedEvent, which makes Conductor enable inventory.
              */
-            conductor.timingNodeLifecycleProperty()
-                    .changeSignal()
-                    .accept(staleClosedSnapshot);
+            conductor.timingNodeStateProperty()
+                    .signalChanged();
 
             await(
                     antenna::inventoryRunning,

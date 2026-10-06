@@ -59,7 +59,7 @@ public class LocalConsoleTest {
         assertTrue(text.contains("Source state : clean"));
         assertTrue(text.contains("Timing node"));
         assertTrue(text.contains("Id        : TN-01"));
-        assertTrue(text.contains("Lifecycle : CLOSED"));
+        assertTrue(text.contains("State     : CLOSED"));
         assertTrue(text.contains("Open: OPENED"));
         assertTrue(text.contains("Location  : 24"));
         assertTrue(text.contains("Automatic registration: COMMITTED seq=1"));

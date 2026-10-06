@@ -193,8 +193,8 @@ public class TimingApplicationRuntimeTest {
         try {
             assertEquals(TimingApplicationRuntime.State.ACTIVE, application.state());
             assertEquals(
-                    TimingNodeTypes.Lifecycle.ERROR,
-                    application.presentationGateway().timingNode().status().lifecycle());
+                    TimingNodeTypes.State.ERROR,
+                    application.presentationGateway().timingNode().status().state());
             assertEquals(
                     1,
                     application.presentationGateway().timingNode().status().problems().size());

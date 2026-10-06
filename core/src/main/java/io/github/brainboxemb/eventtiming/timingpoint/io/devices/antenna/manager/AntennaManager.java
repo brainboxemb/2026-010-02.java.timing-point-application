@@ -43,9 +43,15 @@ public final class AntennaManager {
     private final AntennaSwitchController switching;
     private final ScheduledTaskRunner control;
 
+    private enum InventoryRequest {
+        ENABLE,
+        DISABLE
+    }
+
     private volatile State state = State.NEW;
     private volatile Throwable failure;
-    private volatile boolean inventoryEnabledRequested;
+    private volatile InventoryRequest latestInventoryRequest =
+            InventoryRequest.DISABLE;
     private volatile long inventoryRequestVersion;
 
     private SerialScheduledExecutor.ScheduledTask rotationTask;
@@ -188,69 +194,38 @@ public final class AntennaManager {
     }
 
     /**
-     * Requests inventory enable/disable without waiting for provider I/O.
+     * Requests inventory enable without waiting for provider I/O.
      *
-     * <p>{@code true} is desired application state. AntennaManager decides the
-     * required power/initialize/start sequence internally. A newer request
-     * invalidates older delayed continuations through the request version.</p>
+     * <p>The manager owns the required power, initialize and start sequence. A
+     * newer enable/disable request invalidates older delayed continuations.</p>
      */
-    public boolean requestInventoryEnabled(
-            boolean enabled) {
-        if (state != State.ACTIVE) {
-            return false;
-        }
-
-        long requestVersion =
-                recordInventoryRequest(
-                        enabled);
-
-        if (control.execute(
-                () -> reconcileInventoryRequest(
-                        requestVersion,
-                        enabled))) {
-            return true;
-        }
-
-        ControlException rejection =
-                controlFailure(
-                        FailureReason.OVERLOADED,
-                        "AntennaManager control lane rejected inventory work",
-                        control.failure());
-        recordFailure(
-                rejection);
-        LOG.warn(
-                "AntennaManager rejected inventory required={} because control work was not admitted",
-                enabled,
-                rejection);
-        return false;
+    public boolean requestEnableInventory() {
+        return requestInventory(
+                InventoryRequest.ENABLE);
     }
 
     /**
-     * Synchronous result-bearing inventory control used by focused tests and
-     * callers that explicitly need completion.
+     * Requests inventory disable without waiting for provider I/O.
+     *
+     * <p>Disable stops multiplex rotation, stops inventory on every configured
+     * antenna and removes external antenna power where configured. It does not
+     * shut down the provider; a later enable can prepare and start it again.</p>
      */
-    public void setInventoryEnabled(
-            boolean enabled) {
+    public boolean requestDisableInventory() {
+        return requestInventory(
+                InventoryRequest.DISABLE);
+    }
+
+    /**
+     * Synchronously enables inventory and waits for required preparation.
+     */
+    public void enableInventory() {
         requireActive(
-                "setInventoryEnabled");
+                "enableInventory");
 
         long requestVersion =
                 recordInventoryRequest(
-                        enabled);
-
-        if (!enabled) {
-            runControl(
-                    () -> {
-                        if (!isCurrentInventoryRequest(
-                                requestVersion,
-                                false)) {
-                            return;
-                        }
-                        cancelRotation();
-                        disableAllInventory();
-                    });
-            return;
-        }
+                        InventoryRequest.ENABLE);
 
         CompletableFuture<Void> transition =
                 prepareInventory(
@@ -263,6 +238,57 @@ public final class AntennaManager {
                 () -> finishInventoryEnable(
                         requestVersion,
                         null));
+    }
+
+    /**
+     * Synchronously disables inventory.
+     *
+     * <p>This is operational disable, not provider shutdown.</p>
+     */
+    public void disableInventory() {
+        requireActive(
+                "disableInventory");
+
+        long requestVersion =
+                recordInventoryRequest(
+                        InventoryRequest.DISABLE);
+
+        runControl(
+                () -> applyInventoryDisable(
+                        requestVersion));
+    }
+
+    private boolean requestInventory(
+            InventoryRequest request) {
+        if (state != State.ACTIVE) {
+            return false;
+        }
+
+        long requestVersion =
+                recordInventoryRequest(
+                        request);
+
+        if (control.execute(
+                () -> applyInventoryRequest(
+                        requestVersion,
+                        request))) {
+            return true;
+        }
+
+        ControlException rejection =
+                controlFailure(
+                        FailureReason.OVERLOADED,
+                        "AntennaManager control lane rejected inventory "
+                                + request.name().toLowerCase()
+                                + " request",
+                        control.failure());
+        recordFailure(
+                rejection);
+        LOG.warn(
+                "AntennaManager rejected inventory {} request because control work was not admitted",
+                request.name().toLowerCase(),
+                rejection);
+        return false;
     }
 
     /**
@@ -356,7 +382,7 @@ public final class AntennaManager {
         }
 
         recordInventoryRequest(
-                false);
+                InventoryRequest.DISABLE);
         cancelRotation();
 
         RuntimeException firstFailure = null;
@@ -393,47 +419,71 @@ public final class AntennaManager {
     }
 
     /**
-     * Reconciles one captured inventory request on the manager control lane.
+     * Applies one captured enable/disable request on the manager control lane.
      */
-    private void reconcileInventoryRequest(
+    private void applyInventoryRequest(
             long requestVersion,
-            boolean enabled) {
+            InventoryRequest request) {
         if (!isCurrentInventoryRequest(
                 requestVersion,
-                enabled)) {
+                request)) {
             return;
         }
 
-        if (!enabled) {
-            cancelRotation();
-            disableAllInventory();
-            return;
-        }
-
-        CompletableFuture<Void> transition =
-                prepareInventory(
+        switch (request) {
+            case DISABLE:
+                applyInventoryDisable(
                         requestVersion);
+                return;
 
-        transition.whenComplete(
-                (ignored, transitionFailure) -> {
-                    boolean accepted =
-                            control.execute(
-                                    () -> finishInventoryEnable(
-                                            requestVersion,
-                                            transitionFailure));
-                    if (!accepted) {
-                        ControlException rejection =
-                                controlFailure(
-                                        FailureReason.OVERLOADED,
-                                        "AntennaManager control lane rejected inventory-enable completion",
-                                        control.failure());
-                        recordFailure(
-                                rejection);
-                        LOG.warn(
-                                "AntennaManager could not complete inventory enable",
-                                rejection);
-                    }
-                });
+            case ENABLE:
+                CompletableFuture<Void> transition =
+                        prepareInventory(
+                                requestVersion);
+
+                transition.whenComplete(
+                        (ignored, transitionFailure) -> {
+                            boolean accepted =
+                                    control.execute(
+                                            () -> finishInventoryEnable(
+                                                    requestVersion,
+                                                    transitionFailure));
+                            if (!accepted) {
+                                ControlException rejection =
+                                        controlFailure(
+                                                FailureReason.OVERLOADED,
+                                                "AntennaManager control lane rejected inventory-enable completion",
+                                                control.failure());
+                                recordFailure(
+                                        rejection);
+                                LOG.warn(
+                                        "AntennaManager could not complete inventory enable",
+                                        rejection);
+                            }
+                        });
+                return;
+
+            default:
+                throw new IllegalStateException(
+                        "Unsupported inventory request "
+                                + request);
+        }
+    }
+
+    private void applyInventoryDisable(
+            long requestVersion) {
+        if (!isCurrentInventoryRequest(
+                requestVersion,
+                InventoryRequest.DISABLE)) {
+            return;
+        }
+
+        LOG.info(
+                "Disabling antenna inventory");
+        cancelRotation();
+        disableAllInventory();
+        LOG.info(
+                "Antenna inventory disabled; external power removed where configured");
     }
 
     /**
@@ -481,7 +531,7 @@ public final class AntennaManager {
                             ignored -> {
                                 if (!isCurrentInventoryRequest(
                                         requestVersion,
-                                        true)) {
+                                        InventoryRequest.ENABLE)) {
                                     return CompletableFuture.completedFuture(
                                             null);
                                 }
@@ -489,7 +539,7 @@ public final class AntennaManager {
                                         () -> {
                                             if (isCurrentInventoryRequest(
                                                     requestVersion,
-                                                    true)) {
+                                                    InventoryRequest.ENABLE)) {
                                                 switching.startFirstAvailable();
                                             }
                                         });
@@ -505,7 +555,7 @@ public final class AntennaManager {
             boolean startInventory) {
         if (!isCurrentInventoryRequest(
                 requestVersion,
-                true)) {
+                InventoryRequest.ENABLE)) {
             return CompletableFuture.completedFuture(
                     null);
         }
@@ -513,13 +563,13 @@ public final class AntennaManager {
         return control.runDelayed(
                 () -> isCurrentInventoryRequest(
                                 requestVersion,
-                                true)
+                                InventoryRequest.ENABLE)
                         ? antenna.beginPrepareForInventory()
                         : null,
                 () -> {
                     if (!isCurrentInventoryRequest(
                             requestVersion,
-                            true)) {
+                            InventoryRequest.ENABLE)) {
                         return;
                     }
 
@@ -529,7 +579,7 @@ public final class AntennaManager {
                             && startInventory
                             && isCurrentInventoryRequest(
                                     requestVersion,
-                                    true)) {
+                                    InventoryRequest.ENABLE)) {
                         antenna.startInventory();
                     }
                 });
@@ -540,7 +590,7 @@ public final class AntennaManager {
             Throwable transitionFailure) {
         if (!isCurrentInventoryRequest(
                 requestVersion,
-                true)) {
+                InventoryRequest.ENABLE)) {
             return;
         }
 
@@ -558,13 +608,15 @@ public final class AntennaManager {
         }
 
         ensureRotation();
+        LOG.info(
+                "Antenna inventory enabled");
     }
 
     /**
      * Starts one fixed-delay multiplex callback on the existing manager lane.
      */
     private synchronized void ensureRotation() {
-        if (!inventoryEnabledRequested
+        if (latestInventoryRequest != InventoryRequest.ENABLE
                 || !switching.hasInventoryGroup()
                 || !switching.rotationNeeded()) {
             cancelRotation();
@@ -581,7 +633,7 @@ public final class AntennaManager {
     }
 
     private void rotateInventoryGroup() {
-        if (!inventoryEnabledRequested) {
+        if (latestInventoryRequest != InventoryRequest.ENABLE) {
             return;
         }
 
@@ -632,14 +684,14 @@ public final class AntennaManager {
     }
 
     private long recordInventoryRequest(
-            boolean enabled) {
+            InventoryRequest request) {
         synchronized (this) {
-            inventoryEnabledRequested = enabled;
+            latestInventoryRequest = request;
             inventoryRequestVersion++;
 
-            LOG.debug(
-                    "AntennaManager inventory required={} requestVersion={}",
-                    enabled,
+            LOG.info(
+                    "AntennaManager inventory request={} requestVersion={}",
+                    request,
                     inventoryRequestVersion);
 
             return inventoryRequestVersion;
@@ -648,9 +700,9 @@ public final class AntennaManager {
 
     private boolean isCurrentInventoryRequest(
             long requestVersion,
-            boolean enabled) {
+            InventoryRequest request) {
         return inventoryRequestVersion == requestVersion
-                && inventoryEnabledRequested == enabled;
+                && latestInventoryRequest == request;
     }
 
     private ManagedAntenna find(

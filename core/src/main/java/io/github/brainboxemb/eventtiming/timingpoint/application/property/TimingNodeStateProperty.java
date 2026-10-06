@@ -2,25 +2,23 @@ package io.github.brainboxemb.eventtiming.timingpoint.application.property;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeQueries;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Lifecycle;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Status;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.property.TrackedProperty;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
-
-import java.util.function.Consumer;
 
 /**
  * Application property that tracks the current authoritative TimingNode
- * lifecycle.
+ * state.
  *
  * <p>TimingNode status events are only change signals. The event's Status value
  * is deliberately ignored; the underlying TrackedProperty rereads
  * TimingNodeQueries.status() on the Application lane.</p>
  */
-public final class TimingNodeLifecycleProperty {
-    private final TrackedProperty<Lifecycle> property;
+public final class TimingNodeStateProperty {
+    private final TrackedProperty<State> property;
 
-    public TimingNodeLifecycleProperty(
+    public TimingNodeStateProperty(
             TimingNode timingNode,
             SerialExecutor applicationLane) {
         if (timingNode == null) {
@@ -29,31 +27,39 @@ public final class TimingNodeLifecycleProperty {
         }
 
         property =
-                new TrackedProperty<Lifecycle>(
-                        "TimingNode.lifecycle",
+                new TrackedProperty<State>(
+                        "TimingNode.state",
                         applicationLane,
                         () -> timingNode
                                 .query(
                                         TimingNodeQueries.status())
-                                .lifecycle());
-    }
-
-    public void onChange(
-            Consumer<Lifecycle> handler) {
-        property.onChange(handler);
-    }
-
-    public void initialize() {
-        property.initialize();
+                                .state());
     }
 
     /**
-     * Listener used for direct Runtime wiring from TimingNode.statusChangedEvent().
+     * Event emitted after initialization when the authoritative TimingNode state
+     * really changes.
      */
-    public Consumer<Status> changeSignal() {
-        return ignored -> property.signalChanged();
+    public EventSource<State> changedEvent() {
+        return property.changedEvent();
     }
 
+    /**
+     * Reads and stores the initial authoritative TimingNode state.
+     *
+     * <p>The initial value is returned explicitly and is not emitted as a
+     * changedEvent.</p>
+     */
+    public State initialize() {
+        return property.initialize();
+    }
+
+    /**
+     * Signals that TimingNode status may have changed.
+     *
+     * <p>The Status event payload is intentionally not used as authority. The
+     * underlying tracked property rereads TimingNodeQueries.status().state().</p>
+     */
     public boolean signalChanged() {
         return property.signalChanged();
     }
@@ -62,7 +68,7 @@ public final class TimingNodeLifecycleProperty {
         return property.initialized();
     }
 
-    public Lifecycle currentValue() {
+    public State currentValue() {
         return property.currentValue();
     }
 }

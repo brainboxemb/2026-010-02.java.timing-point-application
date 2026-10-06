@@ -1,14 +1,13 @@
 package io.github.brainboxemb.eventtiming.timingpoint.infra.property;
 
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import org.slf4j.Logger;
@@ -20,7 +19,7 @@ import org.slf4j.LoggerFactory;
  * <p>A source signal never supplies the tracked value directly. It only says
  * that the authoritative source may have changed. This class coalesces repeated
  * signals, schedules a refresh on the supplied lane, reads the current value and
- * notifies handlers only when the effective value changed.</p>
+ * emits {@link #changedEvent()} only when the effective value changed.</p>
  *
  * <p>This is reusable infrastructure only. It has no knowledge of application
  * components or domain types and it owns no worker thread.</p>
@@ -34,8 +33,8 @@ public final class TrackedProperty<T> {
     private final String name;
     private final SerialExecutor serialExecutor;
     private final Supplier<T> reader;
-    private final List<Consumer<T>> changeHandlers =
-            new ArrayList<Consumer<T>>();
+    private final Event<T> changedEvent =
+            new Event<T>();
 
     /*
      * Guarded by this. Before initialize(), signals only mark the property
@@ -75,29 +74,21 @@ public final class TrackedProperty<T> {
     }
 
     /**
-     * Registers behaviour for a real tracked-value change.
+     * Subscription-only event emitted after initialization when the effective
+     * tracked value actually changes.
      *
-     * <p>Handlers are fixed before initialization so runtime behaviour does not
-     * change while the property is active.</p>
+     * <p>The first authoritative value returned by {@link #initialize()} is not
+     * a change event. Callers apply that initial value explicitly.</p>
      */
-    public synchronized void onChange(
-            Consumer<T> handler) {
-        if (handler == null) {
-            throw new IllegalArgumentException(
-                    "handler must not be null");
-        }
-        if (initializationStarted) {
-            throw new IllegalStateException(
-                    "change handlers must be registered before initialization");
-        }
-        changeHandlers.add(handler);
+    public EventSource<T> changedEvent() {
+        return changedEvent;
     }
 
     /**
-     * Performs the first authoritative read and waits until its handlers have
-     * completed on the supplied serial lane.
+     * Performs the first authoritative read on the supplied serial lane and
+     * returns that value without emitting a change event.
      */
-    public void initialize() {
+    public T initialize() {
         synchronized (this) {
             if (initializationStarted) {
                 throw new IllegalStateException(
@@ -136,6 +127,8 @@ public final class TrackedProperty<T> {
 
         awaitInitialization(
                 submission.futureResult());
+
+        return currentValue();
     }
 
     /**
@@ -205,7 +198,7 @@ public final class TrackedProperty<T> {
                     refreshDirty = false;
                 }
 
-                refreshValue();
+                initializeValue();
 
                 synchronized (this) {
                     if (!refreshDirty) {
@@ -262,24 +255,37 @@ public final class TrackedProperty<T> {
         }
     }
 
-    /** Reads one authoritative value and applies real changes. */
-    private void refreshValue() {
-        T nextValue = reader.get();
-        if (nextValue == null) {
-            throw new IllegalStateException(
-                    "TrackedProperty "
-                            + name
-                            + " reader returned null");
-        }
-
-        final T previousValue;
-        final List<Consumer<T>> handlers;
+    /**
+     * Reads the first authoritative value without emitting a change event.
+     */
+    private void initializeValue() {
+        T value =
+                readValue();
 
         synchronized (this) {
-            if (initialized
-                    && Objects.equals(
-                            currentValue,
-                            nextValue)) {
+            currentValue = value;
+            initialized = true;
+        }
+
+        LOG.info(
+                "TrackedProperty {} initialized to {}",
+                name,
+                value);
+    }
+
+    /**
+     * Reads one authoritative value and emits changedEvent only when the
+     * effective value differs from the previously tracked value.
+     */
+    private void refreshValue() {
+        T nextValue =
+                readValue();
+        final T previousValue;
+
+        synchronized (this) {
+            if (Objects.equals(
+                    currentValue,
+                    nextValue)) {
                 LOG.debug(
                         "TrackedProperty {} remains {}",
                         name,
@@ -289,28 +295,35 @@ public final class TrackedProperty<T> {
 
             previousValue = currentValue;
             currentValue = nextValue;
-            initialized = true;
-            handlers =
-                    new ArrayList<Consumer<T>>(
-                            changeHandlers);
         }
 
-        if (previousValue == null) {
-            LOG.info(
-                    "TrackedProperty {} initialized to {}",
-                    name,
-                    nextValue);
-        } else {
-            LOG.info(
-                    "TrackedProperty {} changed {} -> {}",
-                    name,
-                    previousValue,
-                    nextValue);
-        }
+        LOG.info(
+                "TrackedProperty {} changed {} -> {}",
+                name,
+                previousValue,
+                nextValue);
 
-        for (Consumer<T> handler : handlers) {
-            handler.accept(nextValue);
+        Event.DeliveryReport report =
+                changedEvent.emit(
+                        nextValue);
+        if (!report.successful()) {
+            LOG.warn(
+                    "TrackedProperty {} change event had {} listener failure(s)",
+                    name,
+                    report.failureCount());
         }
+    }
+
+    private T readValue() {
+        T value =
+                reader.get();
+        if (value == null) {
+            throw new IllegalStateException(
+                    "TrackedProperty "
+                            + name
+                            + " reader returned null");
+        }
+        return value;
     }
 
     private void awaitInitialization(

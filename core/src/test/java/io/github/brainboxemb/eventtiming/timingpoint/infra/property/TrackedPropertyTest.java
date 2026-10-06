@@ -37,18 +37,21 @@ public class TrackedPropertyTest {
                         "test.value",
                         lane,
                         source::get);
-        property.onChange(
-                ignored -> changes.incrementAndGet());
+        property.changedEvent()
+                .subscribe(
+                        ignored -> changes.incrementAndGet());
 
         try {
             lane.start();
-            property.initialize();
-
+            assertEquals(
+                    "A",
+                    property.initialize());
             assertEquals(
                     "A",
                     property.currentValue());
             assertEquals(
-                    1,
+                    "initialization is not a change event",
+                    0,
                     changes.get());
 
             assertTrue(
@@ -57,8 +60,8 @@ public class TrackedPropertyTest {
                     lane,
                     2L);
             assertEquals(
-                    "unchanged source must not publish another change",
-                    1,
+                    "unchanged source must not publish a change event",
+                    0,
                     changes.get());
 
             source.set("B");
@@ -70,7 +73,7 @@ public class TrackedPropertyTest {
                     1000L);
 
             assertEquals(
-                    2,
+                    1,
                     changes.get());
         } finally {
             lane.close();

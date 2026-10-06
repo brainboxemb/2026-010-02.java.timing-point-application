@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Rename TimingNode OPEN/CLOSED/ERROR from lifecycle to operational `State`; replace boolean antenna inventory control with explicit enable/disable actions; publish tracked-property changes through `EventSource`; and make local event wiring composition-time only with compact 0/1/N subscriber storage.
+
 - Restore normal startup build-identity output so application name, version and provenance are written before configuration/loading can fail.
 
 - Add typed EventData/TimingData provider bootstrap: stable `reference` built-ins, `infra.extension.ExtensionRegistry`, Java `ServiceLoader` discovery from a supplied ClassLoader, IF-11 provider selection in Config/YAML, Runtime provider resolution before composition, duplicate/unknown-id validation, and a synthetic external-JAR discovery test.

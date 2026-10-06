@@ -2,7 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.application;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Lifecycle;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Problem;
 
 import java.util.ArrayList;
@@ -12,41 +12,41 @@ import java.util.List;
 /** Transport-independent current TimingNode status used by presentation adapters. */
 public final class TimingNodeStatus {
     private final NodeId timingNodeId;
-    private final Lifecycle lifecycle;
+    private final State state;
     private final LocationId locationId;
     private final List<Problem> problems;
 
     public TimingNodeStatus(
             NodeId timingNodeId,
-            Lifecycle lifecycle) {
+            State state) {
         this(
                 timingNodeId,
-                lifecycle,
+                state,
                 null,
                 Collections.<Problem>emptyList());
     }
 
     public TimingNodeStatus(
             NodeId timingNodeId,
-            Lifecycle lifecycle,
+            State state,
             LocationId locationId) {
         this(
                 timingNodeId,
-                lifecycle,
+                state,
                 locationId,
                 Collections.<Problem>emptyList());
     }
 
     public TimingNodeStatus(
             NodeId timingNodeId,
-            Lifecycle lifecycle,
+            State state,
             LocationId locationId,
             List<Problem> problems) {
         if (timingNodeId == null) {
             throw new IllegalArgumentException("timingNodeId must not be null");
         }
-        if (lifecycle == null) {
-            throw new IllegalArgumentException("lifecycle must not be null");
+        if (state == null) {
+            throw new IllegalArgumentException("state must not be null");
         }
         if (problems == null) {
             throw new IllegalArgumentException("problems must not be null");
@@ -57,7 +57,7 @@ public final class TimingNodeStatus {
             }
         }
         this.timingNodeId = timingNodeId;
-        this.lifecycle = lifecycle;
+        this.state = state;
         this.locationId = locationId;
         this.problems = Collections.unmodifiableList(
                 new ArrayList<Problem>(problems));
@@ -67,8 +67,8 @@ public final class TimingNodeStatus {
         return timingNodeId;
     }
 
-    public Lifecycle lifecycle() {
-        return lifecycle;
+    public State state() {
+        return state;
     }
 
     public boolean hasLocation() {
