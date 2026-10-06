@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
@@ -33,11 +32,9 @@ public class RuntimeExecutorsTest {
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
         RuntimeExecutors.TimingNodeExecutors first =
-                runtime.createTimingNodeExecutors(
-                        new NodeId("TN-01"));
+                runtime.createTimingNodeExecutors();
         RuntimeExecutors.TimingNodeExecutors second =
-                runtime.createTimingNodeExecutors(
-                        new NodeId("TN-02"));
+                runtime.createTimingNodeExecutors();
         runtime.start();
 
         AtomicReference<String> firstThread =
@@ -177,11 +174,9 @@ public class RuntimeExecutorsTest {
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
         RuntimeExecutors.TimingNodeExecutors first =
-                runtime.createTimingNodeExecutors(
-                        new NodeId("TN-01"));
+                runtime.createTimingNodeExecutors();
         RuntimeExecutors.TimingNodeExecutors second =
-                runtime.createTimingNodeExecutors(
-                        new NodeId("TN-02"));
+                runtime.createTimingNodeExecutors();
         runtime.start();
 
         AtomicReference<String> firstThread =
