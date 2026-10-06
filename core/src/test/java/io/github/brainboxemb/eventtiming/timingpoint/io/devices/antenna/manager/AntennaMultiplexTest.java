@@ -1,13 +1,21 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager;
 
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.Antenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInfo;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.power.SimulatedPowerDevice;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -20,6 +28,76 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class AntennaMultiplexTest {
+
+    @Test
+    public void initializesEveryGroupAntennaBeforeStartingInventory()
+            throws Exception {
+        ScheduledExecutorService shared =
+                sharedExecutor();
+        List<String> calls =
+                Collections.synchronizedList(
+                        new ArrayList<String>());
+        OrderRecordingAntenna first =
+                new OrderRecordingAntenna(
+                        "A",
+                        calls);
+        OrderRecordingAntenna second =
+                new OrderRecordingAntenna(
+                        "B",
+                        calls);
+
+        AntennaManager manager =
+                manager(
+                        Arrays.asList(
+                                AntennaInstallation.direct(
+                                                new AntennaId("ANT1"),
+                                                first)
+                                        .inInventoryGroup(
+                                                Duration.ofSeconds(1)),
+                                AntennaInstallation.direct(
+                                                new AntennaId("ANT2"),
+                                                second)
+                                        .inInventoryGroup(
+                                                Duration.ofSeconds(1))),
+                        shared,
+                        8,
+                        Duration.ofSeconds(1));
+
+        try {
+            manager.activate();
+            await(
+                    manager::isReady,
+                    1000L);
+
+            calls.clear();
+            assertTrue(
+                    manager.requestEnableInventory());
+            await(
+                    first::inventoryRunning,
+                    1000L);
+
+            assertTrue(
+                    calls.indexOf("A.initialize")
+                            >= 0);
+            assertTrue(
+                    calls.indexOf("B.initialize")
+                            >= 0);
+            assertTrue(
+                    calls.indexOf("A.start")
+                            >= 0);
+            assertTrue(
+                    "first inventory must start only after both antennas are initialized",
+                    calls.indexOf("A.initialize")
+                            < calls.indexOf("A.start"));
+            assertTrue(
+                    "second antenna must be initialized before first inventory starts",
+                    calls.indexOf("B.initialize")
+                            < calls.indexOf("A.start"));
+        } finally {
+            manager.deactivate();
+            shared.shutdownNow();
+        }
+    }
 
     @Test
     public void alternatesAvailableGroupMembersAndPowersDownWhenInactive()
@@ -246,6 +324,66 @@ public class AntennaMultiplexTest {
                     Duration.ofSeconds(1));
         } finally {
             shared.shutdownNow();
+        }
+    }
+
+    private static final class OrderRecordingAntenna
+            implements Antenna {
+        private final String name;
+        private final List<String> calls;
+        private final Event<TagObservation> tagObserved =
+                new Event<TagObservation>();
+        private boolean running;
+
+        private OrderRecordingAntenna(
+                String name,
+                List<String> calls) {
+            this.name = name;
+            this.calls = calls;
+        }
+
+        @Override
+        public AntennaInfo selfTest() {
+            calls.add(
+                    name + ".selfTest");
+            return new AntennaInfo(
+                    name,
+                    "1");
+        }
+
+        @Override
+        public void initialize() {
+            calls.add(
+                    name + ".initialize");
+        }
+
+        @Override
+        public void startInventory() {
+            calls.add(
+                    name + ".start");
+            running = true;
+        }
+
+        @Override
+        public void stopInventory() {
+            calls.add(
+                    name + ".stop");
+            running = false;
+        }
+
+        @Override
+        public boolean inventoryRunning() {
+            return running;
+        }
+
+        @Override
+        public EventSource<TagObservation> tagObservedEvent() {
+            return tagObserved;
+        }
+
+        @Override
+        public void shutdown() {
+            running = false;
         }
     }
 
