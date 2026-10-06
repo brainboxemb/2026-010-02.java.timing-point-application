@@ -1,117 +1,56 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager;
 
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner;
-
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BooleanSupplier;
 
 /**
- * Coordinates switching across the configured antennas.
+ * Performs only mutual-exclusion inventory switching for one configured group.
  *
- * <p>Single-antenna power/provider behaviour lives in {@link ManagedAntenna}.
- * This class only coordinates the set: validation, status lookup, enabling all
- * independent antennas and rotating the optional mutual-exclusion group.</p>
+ * <p>AntennaManager owns antenna creation, health checks, power/initialize
+ * sequencing, status and recovery decisions. This helper only knows the group
+ * members that may not inventory at the same time and the round-robin interval.</p>
  *
- * <p>The controller does not own a worker or scheduler. For multi-step power
- * stabilization sequences it receives the manager-owned control lane as an
- * execution capability, while AntennaManager remains lifecycle owner.</p>
+ * <p>All methods run on the AntennaManager serial control lane. The helper owns
+ * no worker, scheduler or synchronization.</p>
  */
 final class AntennaSwitchController {
 
-    private final List<ManagedAntenna> antennas;
     private final List<ManagedAntenna> inventoryGroup;
     private final Duration inventoryInterval;
 
     AntennaSwitchController(
-            List<AntennaInstallation> installations) {
-        if (installations == null
-                || installations.isEmpty()) {
+            List<ManagedAntenna> inventoryGroup,
+            Duration inventoryInterval) {
+        if (inventoryGroup == null) {
             throw new IllegalArgumentException(
-                    "installations must contain at least one antenna");
+                    "inventoryGroup must not be null");
         }
-
-        List<ManagedAntenna> configured =
-                new ArrayList<ManagedAntenna>(
-                        installations.size());
-        List<ManagedAntenna> group =
-                new ArrayList<ManagedAntenna>();
-        Duration groupInterval = null;
-
-        for (AntennaInstallation installation
-                : installations) {
-            validateInstallation(
-                    installation,
-                    configured);
-
-            ManagedAntenna antenna =
-                    new ManagedAntenna(
-                            installation);
-            configured.add(antenna);
-
-            if (antenna.inInventoryGroup()) {
-                groupInterval =
-                        sharedGroupInterval(
-                                groupInterval,
-                                antenna.inventoryInterval());
-                group.add(antenna);
+        if (inventoryGroup.isEmpty()) {
+            if (inventoryInterval != null) {
+                throw new IllegalArgumentException(
+                        "inventoryInterval requires a configured inventory group");
+            }
+        } else {
+            if (inventoryGroup.size() < 2) {
+                throw new IllegalArgumentException(
+                        "inventory group requires at least two antennas");
+            }
+            if (inventoryInterval == null
+                    || inventoryInterval.isZero()
+                    || inventoryInterval.isNegative()) {
+                throw new IllegalArgumentException(
+                        "inventoryInterval must be positive");
             }
         }
 
-        if (group.size() == 1) {
-            throw new IllegalArgumentException(
-                    "inventory group requires at least two antennas");
-        }
-
-        antennas =
+        this.inventoryGroup =
                 Collections.unmodifiableList(
-                        configured);
-        inventoryGroup =
-                Collections.unmodifiableList(
-                        group);
-        inventoryInterval = groupInterval;
-    }
-
-    EventSource<TagObservation> tagObservedEvent(
-            AntennaId antennaId) {
-        return find(antennaId)
-                .tagObservedEvent();
-    }
-
-    List<AntennaStatus> statuses() {
-        List<AntennaStatus> result =
-                new ArrayList<AntennaStatus>(
-                        antennas.size());
-        for (ManagedAntenna antenna : antennas) {
-            result.add(
-                    antenna.status());
-        }
-        return Collections.unmodifiableList(
-                result);
-    }
-
-    AntennaStatus status(
-            AntennaId antennaId) {
-        return find(antennaId)
-                .status();
-    }
-
-    Throwable failure() {
-        for (ManagedAntenna antenna : antennas) {
-            if (antenna.failure() != null) {
-                return antenna.failure();
-            }
-        }
-        return null;
+                        new ArrayList<ManagedAntenna>(
+                                inventoryGroup));
+        this.inventoryInterval =
+                inventoryInterval;
     }
 
     boolean hasInventoryGroup() {
@@ -126,141 +65,61 @@ final class AntennaSwitchController {
         return inventoryInterval;
     }
 
+    /**
+     * Returns whether periodic round-robin switching is useful.
+     */
     boolean rotationNeeded() {
-        return healthyCount(
-                inventoryGroup) > 1;
+        return healthyCount() > 1;
     }
 
     /**
-     * Probes every configured antenna once without occupying the physical worker
-     * while external power stabilization time elapses.
+     * Starts one available group member when none is inventorying.
      */
-    CompletableFuture<Void> probeAll(
-            ScheduledTaskRunner control) {
-        List<AsyncStep> steps =
-                new ArrayList<AsyncStep>(
-                        antennas.size());
-
-        for (ManagedAntenna antenna : antennas) {
-            steps.add(
-                    () -> control.runDelayed(
-                            antenna::beginProbe,
-                            antenna::completeProbe));
-        }
-
-        return runSequence(
-                steps);
-    }
-
-    /**
-     * Enables all independent antennas and one member of the multiplex group.
-     *
-     * <p>The supplied guard lets AntennaManager invalidate an older enable
-     * transition when a newer inventory request arrives while stabilization is
-     * still pending.</p>
-     */
-    CompletableFuture<Void> enableInventory(
-            ScheduledTaskRunner control,
-            BooleanSupplier stillCurrent) {
-        List<AsyncStep> steps =
-                new ArrayList<AsyncStep>();
-
-        for (ManagedAntenna antenna : antennas) {
-            if (antenna.inInventoryGroup()) {
-                continue;
-            }
-
-            steps.add(
-                    () -> {
-                        if (!stillCurrent.getAsBoolean()) {
-                            return CompletableFuture.completedFuture(null);
-                        }
-                        return control.runDelayed(
-                                () -> stillCurrent.getAsBoolean()
-                                        ? antenna.beginPrepareForInventory()
-                                        : null,
-                                () -> {
-                                    if (stillCurrent.getAsBoolean()
-                                            && antenna.completePrepareForInventory()) {
-                                        antenna.startInventory();
-                                    }
-                                });
-                    });
+    void startFirstAvailable() {
+        if (currentInventoryIndex() >= 0) {
+            return;
         }
 
         for (ManagedAntenna antenna : inventoryGroup) {
-            steps.add(
-                    () -> {
-                        if (!stillCurrent.getAsBoolean()) {
-                            return CompletableFuture.completedFuture(null);
-                        }
-                        return control.runDelayed(
-                                () -> stillCurrent.getAsBoolean()
-                                        ? antenna.beginPrepareForInventory()
-                                        : null,
-                                () -> {
-                                    if (stillCurrent.getAsBoolean()) {
-                                        antenna.completePrepareForInventory();
-                                    }
-                                });
-                    });
-        }
-
-        if (!inventoryGroup.isEmpty()) {
-            steps.add(
-                    () -> {
-                        if (!stillCurrent.getAsBoolean()) {
-                            return CompletableFuture.completedFuture(null);
-                        }
-                        return control.runAsync(
-                                () -> {
-                                    if (stillCurrent.getAsBoolean()) {
-                                        startFirstAvailable(
-                                                inventoryGroup);
-                                    }
-                                });
-                    });
-        }
-
-        return runSequence(
-                steps);
-    }
-
-    /** Stops inventory and removes power from every configured antenna. */
-    void disableInventory() {
-        for (int index = antennas.size() - 1;
-                index >= 0;
-                index--) {
-            antennas.get(index)
-                    .disableInventory();
+            if (antenna.startInventory()) {
+                return;
+            }
         }
     }
 
     /**
-     * Rotates inventory to the next healthy member of the optional group.
+     * Rotates from the current member to the next healthy member.
+     *
+     * <p>If stopping the current member fails, no next member is started. This
+     * preserves the at-most-one-inventory invariant even when the failed reader
+     * may still be inventorying.</p>
      */
     void rotateInventoryGroup() {
         if (inventoryGroup.isEmpty()) {
             return;
         }
 
-        if (!rotationNeeded()) {
-            startFirstAvailable(
-                    inventoryGroup);
+        int currentIndex =
+                currentInventoryIndex();
+
+        if (currentIndex < 0) {
+            startFirstAvailable();
             return;
         }
 
-        int currentIndex =
-                currentInventoryIndex();
-        if (currentIndex >= 0) {
-            inventoryGroup.get(currentIndex)
-                    .stopInventory();
+        if (!rotationNeeded()) {
+            return;
+        }
+
+        ManagedAntenna current =
+                inventoryGroup.get(
+                        currentIndex);
+        if (!current.stopInventory()) {
+            return;
         }
 
         int firstCandidate =
-                currentIndex < 0
-                        ? 0
-                        : currentIndex + 1;
+                currentIndex + 1;
 
         for (int offset = 0;
                 offset < inventoryGroup.size();
@@ -270,156 +129,6 @@ final class AntennaSwitchController {
                             (firstCandidate + offset)
                                     % inventoryGroup.size());
             if (candidate.startInventory()) {
-                return;
-            }
-        }
-    }
-
-    /** Closes all physical antennas in reverse configuration order. */
-    void closeAll() {
-        RuntimeException firstFailure = null;
-
-        for (int index = antennas.size() - 1;
-                index >= 0;
-                index--) {
-            try {
-                antennas.get(index)
-                        .close();
-            } catch (RuntimeException ex) {
-                if (firstFailure == null) {
-                    firstFailure = ex;
-                } else {
-                    firstFailure.addSuppressed(ex);
-                }
-            }
-        }
-
-        if (firstFailure != null) {
-            throw firstFailure;
-        }
-    }
-
-    State aggregateState() {
-        int healthy = 0;
-        int failed = 0;
-
-        for (ManagedAntenna antenna : antennas) {
-            if (antenna.failure() != null) {
-                failed++;
-            } else if (antenna.healthy()) {
-                healthy++;
-            }
-        }
-
-        if (healthy == 0) {
-            return State.FAILED;
-        }
-        return failed > 0
-                ? State.DEGRADED
-                : State.ACTIVE;
-    }
-
-    @FunctionalInterface
-    private interface AsyncStep {
-        CompletableFuture<Void> start();
-    }
-
-    /**
-     * Runs asynchronous lane steps in order and propagates cancellation to the
-     * step that is currently active.
-     */
-    private static CompletableFuture<Void> runSequence(
-            List<AsyncStep> steps) {
-        CompletableFuture<Void> result =
-                new CompletableFuture<Void>();
-        AtomicReference<CompletableFuture<Void>> active =
-                new AtomicReference<CompletableFuture<Void>>();
-
-        result.whenComplete(
-                (ignored, failure) -> {
-                    if (!result.isCancelled()) {
-                        return;
-                    }
-                    CompletableFuture<Void> current =
-                            active.get();
-                    if (current != null) {
-                        current.cancel(true);
-                    }
-                });
-
-        runSequenceStep(
-                steps,
-                0,
-                result,
-                active);
-        return result;
-    }
-
-    private static void runSequenceStep(
-            List<AsyncStep> steps,
-            int index,
-            CompletableFuture<Void> result,
-            AtomicReference<CompletableFuture<Void>> active) {
-        if (result.isDone()) {
-            return;
-        }
-        if (index >= steps.size()) {
-            result.complete(null);
-            return;
-        }
-
-        final CompletableFuture<Void> step;
-        try {
-            step =
-                    steps.get(index)
-                            .start();
-        } catch (RuntimeException ex) {
-            result.completeExceptionally(ex);
-            return;
-        } catch (Error ex) {
-            result.completeExceptionally(ex);
-            throw ex;
-        }
-
-        active.set(step);
-        if (result.isCancelled()) {
-            step.cancel(true);
-            return;
-        }
-
-        step.whenComplete(
-                (ignored, failure) -> {
-                    active.compareAndSet(
-                            step,
-                            null);
-
-                    if (result.isDone()) {
-                        return;
-                    }
-                    if (failure != null) {
-                        result.completeExceptionally(
-                                failure);
-                        return;
-                    }
-
-                    runSequenceStep(
-                            steps,
-                            index + 1,
-                            result,
-                            active);
-                });
-    }
-
-    private void startFirstAvailable(
-            List<ManagedAntenna> candidates) {
-        for (ManagedAntenna antenna : candidates) {
-            if (antenna.inventoryRunning()) {
-                return;
-            }
-        }
-
-        for (ManagedAntenna antenna : candidates) {
-            if (antenna.startInventory()) {
                 return;
             }
         }
@@ -437,62 +146,9 @@ final class AntennaSwitchController {
         return -1;
     }
 
-    private ManagedAntenna find(
-            AntennaId antennaId) {
-        if (antennaId == null) {
-            throw new IllegalArgumentException(
-                    "antennaId must not be null");
-        }
-
-        for (ManagedAntenna antenna : antennas) {
-            if (antenna.antennaId()
-                    .equals(antennaId)) {
-                return antenna;
-            }
-        }
-
-        throw new IllegalArgumentException(
-                "unknown AntennaId "
-                        + antennaId);
-    }
-
-    private static void validateInstallation(
-            AntennaInstallation installation,
-            List<ManagedAntenna> existing) {
-        if (installation == null) {
-            throw new IllegalArgumentException(
-                    "installations must not contain null");
-        }
-
-        for (ManagedAntenna antenna : existing) {
-            if (antenna.antennaId()
-                    .equals(
-                            installation.antennaId())) {
-                throw new IllegalArgumentException(
-                        "duplicate AntennaId "
-                                + installation.antennaId());
-            }
-        }
-    }
-
-    private static Duration sharedGroupInterval(
-            Duration current,
-            Duration candidate) {
-        if (current == null) {
-            return candidate;
-        }
-        if (!current.equals(candidate)) {
-            throw new IllegalArgumentException(
-                    "all antennas in the inventory group "
-                            + "must use the same interval");
-        }
-        return current;
-    }
-
-    private static int healthyCount(
-            List<ManagedAntenna> antennas) {
+    private int healthyCount() {
         int count = 0;
-        for (ManagedAntenna antenna : antennas) {
+        for (ManagedAntenna antenna : inventoryGroup) {
             if (antenna.healthy()) {
                 count++;
             }
