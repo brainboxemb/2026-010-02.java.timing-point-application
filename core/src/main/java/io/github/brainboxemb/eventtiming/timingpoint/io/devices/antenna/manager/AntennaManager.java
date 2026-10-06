@@ -97,8 +97,7 @@ public final class AntennaManager {
     }
 
     public boolean isBusy() {
-        Phase current = phase;
-        return current == Phase.SELF_TEST || current == Phase.INVENTORY_TASK;
+        return phase == Phase.SELF_TEST || inventoryEnabledSetting.changePending();
     }
 
     public boolean isReady() {
