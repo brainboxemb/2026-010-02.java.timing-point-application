@@ -44,7 +44,7 @@ public class SimulatedAntennaTest {
 
         antenna.stopInventory();
         assertFalse(antenna.inventoryRunning());
-        antenna.close();
+        antenna.shutdown();
     }
 
     @Test
@@ -78,7 +78,7 @@ public class SimulatedAntennaTest {
         antenna.initialize();
         antenna.startInventory();
         assertTrue(antenna.inventoryRunning());
-        antenna.close();
+        antenna.shutdown();
     }
 
     @Test
@@ -109,7 +109,7 @@ public class SimulatedAntennaTest {
                     expected.getMessage()
                             .contains("START_INVENTORY"));
         } finally {
-            antenna.close();
+            antenna.shutdown();
         }
     }
 
@@ -123,7 +123,7 @@ public class SimulatedAntennaTest {
             assertTrue(
                     expected.getMessage().contains("initialized"));
         } finally {
-            antenna.close();
+            antenna.shutdown();
         }
     }
 }
