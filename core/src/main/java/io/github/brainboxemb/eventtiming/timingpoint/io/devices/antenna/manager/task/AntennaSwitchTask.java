@@ -3,9 +3,11 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.TaskStep;
 
+import java.time.Duration;
+import java.util.List;
 import java.util.function.BooleanSupplier;
 
-/** Periodically transfers inventory between already prepared group members. */
+/** Reusable round-robin inventory switch state machine. */
 final class AntennaSwitchTask implements CooperativeTask {
 
     private enum Phase {
@@ -14,30 +16,32 @@ final class AntennaSwitchTask implements CooperativeTask {
         START_NEXT
     }
 
-    private final AntennaTasks.SwitchTarget switching;
+    private final List<? extends AntennaTasks.AntennaTarget> inventoryGroup;
+    private final Duration inventoryInterval;
     private final BooleanSupplier inventoryRequested;
 
-    private Phase phase = Phase.WAIT;
+    private Phase phase;
+    private int nextIndex;
 
     AntennaSwitchTask(
-            AntennaTasks.SwitchTarget switching,
+            List<? extends AntennaTasks.AntennaTarget> inventoryGroup,
+            Duration inventoryInterval,
             BooleanSupplier inventoryRequested) {
-        if (switching == null) {
-            throw new IllegalArgumentException(
-                    "switching must not be null");
-        }
-        if (inventoryRequested == null) {
-            throw new IllegalArgumentException(
-                    "inventoryRequested must not be null");
-        }
-        this.switching = switching;
+        this.inventoryGroup = inventoryGroup;
+        this.inventoryInterval = inventoryInterval;
         this.inventoryRequested = inventoryRequested;
+        reset();
+    }
+
+    void reset() {
+        phase = Phase.WAIT;
+        nextIndex = 0;
     }
 
     @Override
     public TaskStep runStep() {
         if (!inventoryRequested.getAsBoolean()
-                || !switching.rotationNeeded()) {
+                || availableCount() < 2) {
             return TaskStep.done();
         }
 
@@ -45,17 +49,17 @@ final class AntennaSwitchTask implements CooperativeTask {
             case WAIT:
                 phase = Phase.STOP_CURRENT;
                 return TaskStep.after(
-                        switching.inventoryInterval());
+                        inventoryInterval);
 
             case STOP_CURRENT:
-                if (!switching.stopCurrent()) {
+                if (!stopCurrent()) {
                     return TaskStep.done();
                 }
                 phase = Phase.START_NEXT;
                 return TaskStep.again();
 
             case START_NEXT:
-                if (!switching.startNextAvailable()) {
+                if (!startNextAvailable()) {
                     return TaskStep.done();
                 }
                 phase = Phase.WAIT;
@@ -65,5 +69,78 @@ final class AntennaSwitchTask implements CooperativeTask {
                 throw new IllegalStateException(
                         "Unsupported antenna-switch phase " + phase);
         }
+    }
+
+    private boolean stopCurrent() {
+        int currentIndex =
+                currentInventoryIndex();
+
+        if (currentIndex < 0) {
+            return true;
+        }
+
+        nextIndex =
+                (currentIndex + 1)
+                        % inventoryGroup.size();
+
+        try {
+            inventoryGroup.get(currentIndex)
+                    .stopInventory();
+            return true;
+        } catch (RuntimeException ex) {
+            return false;
+        }
+    }
+
+    private boolean startNextAvailable() {
+        for (int offset = 0;
+                offset < inventoryGroup.size();
+                offset++) {
+            int candidateIndex =
+                    (nextIndex + offset)
+                            % inventoryGroup.size();
+
+            AntennaTasks.AntennaTarget candidate =
+                    inventoryGroup.get(
+                            candidateIndex);
+
+            if (!candidate.availableForInventory()) {
+                continue;
+            }
+
+            try {
+                candidate.startInventory();
+                nextIndex =
+                        (candidateIndex + 1)
+                                % inventoryGroup.size();
+                return true;
+            } catch (RuntimeException ex) {
+                // Failure is stored on the antenna; try another prepared member.
+            }
+        }
+
+        return false;
+    }
+
+    private int currentInventoryIndex() {
+        for (int index = 0;
+                index < inventoryGroup.size();
+                index++) {
+            if (inventoryGroup.get(index)
+                    .inventoryRunning()) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private int availableCount() {
+        int count = 0;
+        for (AntennaTasks.AntennaTarget antenna : inventoryGroup) {
+            if (antenna.availableForInventory()) {
+                count++;
+            }
+        }
+        return count;
     }
 }
