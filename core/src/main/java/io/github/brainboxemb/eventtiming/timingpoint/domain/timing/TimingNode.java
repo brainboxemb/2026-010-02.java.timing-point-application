@@ -172,6 +172,14 @@ public final class TimingNode {
                 monotonicClock,
                 new TagProcessingMetrics(),
                 tagProcessorExecutor);
+
+        /*
+         * Child wiring is part of TimingNode construction. TagProcessor
+         * activation/deactivation changes behaviour, not the event graph.
+         */
+        tagProcessingConfiguration.changes()
+                .subscribe(
+                        tagProcessor::onPolicyConfigurationChanged);
     }
 
     /**
