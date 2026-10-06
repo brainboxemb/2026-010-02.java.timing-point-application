@@ -5,6 +5,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObser
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -135,7 +136,7 @@ final class AntennaSwitchController {
      * while external power stabilization time elapses.
      */
     CompletableFuture<Void> probeAll(
-            AntennaControlLane control) {
+            ScheduledTaskRunner control) {
         List<AsyncStep> steps =
                 new ArrayList<AsyncStep>(
                         antennas.size());
@@ -159,7 +160,7 @@ final class AntennaSwitchController {
      * still pending.</p>
      */
     CompletableFuture<Void> enableInventory(
-            AntennaControlLane control,
+            ScheduledTaskRunner control,
             BooleanSupplier stillCurrent) {
         List<AsyncStep> steps =
                 new ArrayList<AsyncStep>();

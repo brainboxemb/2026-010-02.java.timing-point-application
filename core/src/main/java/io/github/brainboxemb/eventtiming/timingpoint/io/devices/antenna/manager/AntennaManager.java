@@ -7,6 +7,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner.OperationException;
 
 import java.time.Duration;
 import java.util.List;
@@ -30,7 +32,7 @@ import java.util.concurrent.CompletionException;
 public final class AntennaManager {
 
     private final AntennaSwitchController switching;
-    private final AntennaControlLane control;
+    private final ScheduledTaskRunner control;
 
     private volatile State state = State.NEW;
     private volatile Throwable failure;
@@ -59,7 +61,7 @@ public final class AntennaManager {
                 new AntennaSwitchController(
                         installations);
         control =
-                new AntennaControlLane(
+                new ScheduledTaskRunner(
                         controlLane,
                         controlTimeout);
     }
@@ -83,7 +85,7 @@ public final class AntennaManager {
 
         try {
             control.start();
-            control.await(
+            awaitControl(
                     switching.probeAll(
                             control));
             refreshState();
@@ -123,7 +125,7 @@ public final class AntennaManager {
         }
 
         recordFailure(
-                AntennaControlLane.failure(
+                controlFailure(
                         FailureReason.OVERLOADED,
                         "AntennaManager control lane rejected inventory-enable work",
                         control.failure()));
@@ -147,7 +149,7 @@ public final class AntennaManager {
                         enabled);
 
         if (!enabled) {
-            control.run(
+            runControl(
                     () -> {
                         if (!isCurrentInventoryRequest(
                                 requestVersion,
@@ -171,14 +173,14 @@ public final class AntennaManager {
                 transition);
 
         try {
-            control.await(
+            awaitControl(
                     transition);
         } finally {
             clearInventoryTransition(
                     transition);
         }
 
-        control.run(
+        runControl(
                 () -> finishInventoryEnable(
                         requestVersion,
                         null));
@@ -244,7 +246,7 @@ public final class AntennaManager {
             if (control.isNew()) {
                 control.start();
             }
-            control.run(
+            runControl(
                     switching::closeAll);
         } catch (RuntimeException ex) {
             firstFailure = ex;
@@ -314,7 +316,7 @@ public final class AntennaManager {
                                             transitionFailure));
                     if (!accepted) {
                         recordFailure(
-                                AntennaControlLane.failure(
+                                controlFailure(
                                         FailureReason.OVERLOADED,
                                         "AntennaManager control lane rejected enable completion",
                                         control.failure()));
@@ -333,8 +335,9 @@ public final class AntennaManager {
 
         if (transitionFailure != null) {
             recordFailure(
-                    unwrapCompletionFailure(
-                            transitionFailure));
+                    mapControlFailure(
+                            unwrapCompletionFailure(
+                                    transitionFailure)));
             refreshState();
             return;
         }
@@ -460,7 +463,7 @@ public final class AntennaManager {
             RuntimeException activationFailure) {
         try {
             if (control.isRunning()) {
-                control.run(
+                runControl(
                         switching::closeAll);
             }
         } catch (RuntimeException cleanupFailure) {
@@ -474,6 +477,82 @@ public final class AntennaManager {
             activationFailure.addSuppressed(
                     cleanupFailure);
         }
+    }
+
+    private void runControl(
+            Runnable action) {
+        try {
+            control.run(
+                    action);
+        } catch (OperationException ex) {
+            throw mapControlFailure(
+                    ex);
+        }
+    }
+
+    private void awaitControl(
+            CompletableFuture<Void> future) {
+        try {
+            control.await(
+                    future);
+        } catch (OperationException ex) {
+            throw mapControlFailure(
+                    ex);
+        }
+    }
+
+    private static AntennaManagerTypes.ControlException mapControlFailure(
+            Throwable failure) {
+        if (failure instanceof AntennaManagerTypes.ControlException) {
+            return (AntennaManagerTypes.ControlException) failure;
+        }
+        if (!(failure instanceof OperationException)) {
+            return controlFailure(
+                    FailureReason.PROVIDER_FAILURE,
+                    "AntennaManager provider operation failed",
+                    failure);
+        }
+
+        OperationException operation =
+                (OperationException) failure;
+        switch (operation.reason()) {
+            case OVERLOADED:
+                return controlFailure(
+                        FailureReason.OVERLOADED,
+                        "AntennaManager control operation was rejected",
+                        operation);
+            case TIMEOUT:
+                return controlFailure(
+                        FailureReason.TIMEOUT,
+                        "AntennaManager control operation timed out",
+                        operation);
+            case INTERRUPTED:
+                return controlFailure(
+                        FailureReason.INTERRUPTED,
+                        "AntennaManager control operation was interrupted",
+                        operation);
+            case EXECUTION_FAILURE:
+                return controlFailure(
+                        FailureReason.PROVIDER_FAILURE,
+                        "AntennaManager provider operation failed",
+                        operation.getCause() == null
+                                ? operation
+                                : operation.getCause());
+            default:
+                throw new IllegalStateException(
+                        "Unsupported serial operation failure "
+                                + operation.reason());
+        }
+    }
+
+    private static AntennaManagerTypes.ControlException controlFailure(
+            FailureReason reason,
+            String message,
+            Throwable cause) {
+        return new AntennaManagerTypes.ControlException(
+                reason,
+                message,
+                cause);
     }
 
     private void recordFailure(

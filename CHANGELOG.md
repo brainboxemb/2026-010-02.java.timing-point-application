@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Move generic bounded result waiting, cancellation propagation and delayed scheduled task handling out of `AntennaControlLane` into platform `ScheduledTaskRunner`; AntennaManager keeps only antenna-specific failure semantics. TimingNode, TagProcessor and Conductor continue to use their execution primitives directly.
+
 - Rename the concrete top-level composition/lifecycle type from `TimingApplication` to `TimingApplicationRuntime` so it is symmetric with its owned `PresentationRuntime`; the external SI-01 Timing Application concept is unchanged.
 
 - Keep Runtime execution role-based and worker items bounded: remove TimingNode identity from RuntimeExecutors lane creation, add one-shot delayed work to SerialScheduledExecutor, and replace antenna power-stabilization sleeps with delayed continuations on the existing AntennaManager serial scheduled lane. The one-worker I/O baseline remains unchanged.

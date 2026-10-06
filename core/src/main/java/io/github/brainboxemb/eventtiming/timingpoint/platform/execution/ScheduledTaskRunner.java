@@ -1,9 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager;
-
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.ControlException;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.FailureReason;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
+package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
 import java.time.Duration;
 import java.util.concurrent.CancellationException;
@@ -17,18 +12,48 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Small adapter around the manager's one serial scheduled execution lane.
+ * Runs bounded result-bearing and scheduled tasks on one
+ * {@link SerialScheduledExecutor}.
  *
- * <p>It centralizes admission and timeout handling so AntennaManager can express
- * antenna behaviour instead of Future/Executor mechanics. The physical worker
- * remains owned by Runtime; this class owns neither a thread nor a scheduler.</p>
+ * <p>This class centralizes task handling that would otherwise be repeated by
+ * components: bounded result waiting, cancellation propagation, asynchronous
+ * completion and delayed begin/complete continuations. It owns neither a
+ * physical worker nor a scheduler; those remain external to the wrapped
+ * logical lane.</p>
+ *
+ * <p>Domain/I/O components map {@link OperationException} to their own failure
+ * semantics instead of putting component-specific policy in this platform type.</p>
  */
-final class AntennaControlLane {
+public final class ScheduledTaskRunner {
+
+    public enum FailureReason {
+        OVERLOADED,
+        TIMEOUT,
+        INTERRUPTED,
+        EXECUTION_FAILURE
+    }
+
+    public static final class OperationException
+            extends RuntimeException {
+        private final FailureReason reason;
+
+        public OperationException(
+                FailureReason reason,
+                String message,
+                Throwable cause) {
+            super(message, cause);
+            this.reason = reason;
+        }
+
+        public FailureReason reason() {
+            return reason;
+        }
+    }
 
     private final SerialScheduledExecutor lane;
     private final long timeoutNanos;
 
-    AntennaControlLane(
+    public ScheduledTaskRunner(
             SerialScheduledExecutor lane,
             Duration timeout) {
         if (lane == null) {
@@ -52,22 +77,22 @@ final class AntennaControlLane {
         }
     }
 
-    void start() {
+    public void start() {
         lane.start();
     }
 
-    boolean execute(
+    public boolean execute(
             Runnable action) {
         return lane.execute(action);
     }
 
     /**
-     * Executes one result-bearing control action asynchronously on this serial lane.
+     * Executes one result-bearing task asynchronously on this serial lane.
      *
      * <p>The zero-delay scheduled result keeps the actual lane Future available,
      * so a caller that later times out can interrupt a running provider call.</p>
      */
-    CompletableFuture<Void> runAsync(
+    public CompletableFuture<Void> runAsync(
             Runnable action) {
         if (action == null) {
             throw new IllegalArgumentException(
@@ -88,7 +113,7 @@ final class AntennaControlLane {
             return failedFuture(
                     failure(
                             FailureReason.OVERLOADED,
-                            "AntennaManager control lane rejected asynchronous work",
+                            "Serial scheduled operation lane rejected asynchronous work",
                             ex));
         }
     }
@@ -102,7 +127,7 @@ final class AntennaControlLane {
      * physical worker remains available and a control timeout can still cancel
      * whichever provider step is currently running.</p>
      */
-    CompletableFuture<Void> runDelayed(
+    public CompletableFuture<Void> runDelayed(
             Callable<Duration> begin,
             Runnable complete) {
         if (begin == null) {
@@ -143,7 +168,7 @@ final class AntennaControlLane {
             result.completeExceptionally(
                     failure(
                             FailureReason.OVERLOADED,
-                            "AntennaManager control lane rejected delayed begin work",
+                            "Serial scheduled operation lane rejected delayed begin work",
                             ex));
             return result;
         }
@@ -203,7 +228,7 @@ final class AntennaControlLane {
                                 result.completeExceptionally(
                                         failure(
                                                 FailureReason.OVERLOADED,
-                                                "AntennaManager control lane rejected delayed completion work",
+                                                "Serial scheduled operation lane rejected delayed completion work",
                                                 ex));
                             }
                         });
@@ -215,7 +240,7 @@ final class AntennaControlLane {
      * Waits for one asynchronous control sequence using the configured
      * result-bearing control timeout.
      */
-    void await(
+    public void await(
             CompletableFuture<Void> future) {
         if (future == null) {
             throw new IllegalArgumentException(
@@ -225,7 +250,7 @@ final class AntennaControlLane {
                 future);
     }
 
-    void run(
+    public void run(
             Runnable action) {
         SerialExecutor.SubmitResult<Void> submission =
                 lane.submit(() -> {
@@ -237,12 +262,12 @@ final class AntennaControlLane {
             case FULL:
                 throw failure(
                         FailureReason.OVERLOADED,
-                        "AntennaManager control lane is full",
+                        "Serial scheduled operation lane is full",
                         null);
             case NOT_RUNNING:
                 throw failure(
                         FailureReason.OVERLOADED,
-                        "AntennaManager control lane is not running",
+                        "Serial scheduled operation lane is not running",
                         lane.failure());
             case ACCEPTED:
                 awaitFuture(
@@ -255,7 +280,7 @@ final class AntennaControlLane {
         }
     }
 
-    SerialScheduledExecutor.ScheduledTask scheduleWithFixedDelay(
+    public SerialScheduledExecutor.ScheduledTask scheduleWithFixedDelay(
             Runnable action,
             Duration delay) {
         if (delay == null
@@ -270,21 +295,21 @@ final class AntennaControlLane {
                 delay.toNanos());
     }
 
-    boolean isNew() {
+    public boolean isNew() {
         return lane.state()
                 == SerialScheduledExecutor.State.NEW;
     }
 
-    boolean isRunning() {
+    public boolean isRunning() {
         return lane.state()
                 == SerialScheduledExecutor.State.RUNNING;
     }
 
-    Throwable failure() {
+    public Throwable failure() {
         return lane.failure();
     }
 
-    void close() {
+    public void close() {
         lane.close();
     }
 
@@ -298,19 +323,19 @@ final class AntennaControlLane {
             future.cancel(true);
             throw failure(
                     FailureReason.TIMEOUT,
-                    "AntennaManager control operation timed out",
+                    "Serial scheduled operation timed out",
                     ex);
         } catch (InterruptedException ex) {
             future.cancel(true);
             Thread.currentThread().interrupt();
             throw failure(
                     FailureReason.INTERRUPTED,
-                    "AntennaManager control operation was interrupted",
+                    "Serial scheduled operation was interrupted",
                     ex);
         } catch (CancellationException ex) {
             throw failure(
                     FailureReason.OVERLOADED,
-                    "AntennaManager control operation was cancelled before completion",
+                    "Serial scheduled operation was cancelled before completion",
                     ex);
         } catch (ExecutionException ex) {
             Throwable cause =
@@ -318,19 +343,19 @@ final class AntennaControlLane {
                             ? ex
                             : ex.getCause();
 
-            if (cause instanceof ControlException) {
-                throw (ControlException) cause;
+            if (cause instanceof OperationException) {
+                throw (OperationException) cause;
             }
             if (cause instanceof RejectedExecutionException) {
                 throw failure(
                         FailureReason.OVERLOADED,
-                        "AntennaManager shared I/O worker rejected control work",
+                        "Backing worker rejected serial scheduled operation",
                         cause);
             }
 
             throw failure(
-                    FailureReason.PROVIDER_FAILURE,
-                    "AntennaManager provider operation failed",
+                    FailureReason.EXECUTION_FAILURE,
+                    "Serial scheduled operation failed",
                     cause);
         }
     }
@@ -374,11 +399,11 @@ final class AntennaControlLane {
         return result;
     }
 
-    static ControlException failure(
+    private static OperationException failure(
             FailureReason reason,
             String message,
             Throwable cause) {
-        return new ControlException(
+        return new OperationException(
                 reason,
                 message,
                 cause);
