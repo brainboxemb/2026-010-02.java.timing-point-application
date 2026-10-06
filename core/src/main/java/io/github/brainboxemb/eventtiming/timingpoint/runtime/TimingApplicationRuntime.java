@@ -552,11 +552,11 @@ public final class TimingApplicationRuntime {
         }
 
         LOG.warn(
-                "Windows development platform default selected simulated antenna ANT1; no physical RFID reader is in use");
+                "Windows development platform default selected simulated antenna 1; no physical RFID reader is in use");
 
         SimulatedAntenna antenna = new SimulatedAntenna();
         antennas.addPowered(
-                new AntennaId("ANT1"),
+                new AntennaId("1"),
                 antenna,
                 new SimulatedPowerDevice(antenna),
                 SIMULATED_ANTENNA_POWER_STABILIZATION);
