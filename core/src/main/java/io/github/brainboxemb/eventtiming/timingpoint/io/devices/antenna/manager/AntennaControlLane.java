@@ -210,6 +210,20 @@ final class AntennaControlLane {
         return result;
     }
 
+    /**
+     * Waits for one asynchronous control sequence using the configured
+     * result-bearing control timeout.
+     */
+    void await(
+            CompletableFuture<Void> future) {
+        if (future == null) {
+            throw new IllegalArgumentException(
+                    "future must not be null");
+        }
+        awaitFuture(
+                future);
+    }
+
     void run(
             Runnable action) {
         SerialExecutor.SubmitResult<Void> submission =
