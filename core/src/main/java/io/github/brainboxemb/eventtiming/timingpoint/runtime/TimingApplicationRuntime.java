@@ -45,10 +45,10 @@ import java.util.Map;
  *   -> runtime resources
  *   -> Domain / I/O / Application objects
  *   -> explicit event wiring
- *   -> TimingApplication
+ *   -> TimingApplicationRuntime
  * </pre>
  */
-public final class TimingApplication {
+public final class TimingApplicationRuntime {
 
     public enum State {
         NEW,
@@ -69,7 +69,7 @@ public final class TimingApplication {
 
     private State state = State.NEW;
 
-    private TimingApplication(
+    private TimingApplicationRuntime(
             BuildIdentity buildIdentity,
             TimingNode timingNode,
             ApplicationConfiguration configuration,
@@ -91,7 +91,7 @@ public final class TimingApplication {
      *
      * <p>No physical application worker is started by this method.</p>
      */
-    public static TimingApplication create(
+    public static TimingApplicationRuntime create(
             BuildIdentity buildIdentity,
             Config config) {
         return create(
@@ -109,7 +109,7 @@ public final class TimingApplication {
      * <p>Main supplies process streams only; concrete Presentation adapters stay
      * owned by Runtime composition.</p>
      */
-    public static TimingApplication create(
+    public static TimingApplicationRuntime create(
             BuildIdentity buildIdentity,
             Config config,
             Reader consoleInput,
@@ -128,7 +128,7 @@ public final class TimingApplication {
      * antenna installations and tag mapping. Simulation uses this overload rather
      * than a parallel runtime path.
      */
-    public static TimingApplication create(
+    public static TimingApplicationRuntime create(
             BuildIdentity buildIdentity,
             Config config,
             List<AntennaInstallation> antennaInstallations,
@@ -142,7 +142,7 @@ public final class TimingApplication {
                 null);
     }
 
-    private static TimingApplication create(
+    private static TimingApplicationRuntime create(
             BuildIdentity buildIdentity,
             Config config,
             List<AntennaInstallation> antennaInstallations,
@@ -306,7 +306,7 @@ public final class TimingApplication {
              * 8. Return the fully constructed and wired graph.
              *    Activation remains a separate phase.
              */
-            return new TimingApplication(
+            return new TimingApplicationRuntime(
                     buildIdentity,
                     timingNode,
                     applicationConfiguration,
@@ -329,7 +329,7 @@ public final class TimingApplication {
     public synchronized void activate() {
         if (state != State.NEW) {
             throw new IllegalStateException(
-                    "TimingApplication can only activate from NEW; current state="
+                    "TimingApplicationRuntime can only activate from NEW; current state="
                             + state);
         }
 

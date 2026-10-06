@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Rename the concrete top-level composition/lifecycle type from `TimingApplication` to `TimingApplicationRuntime` so it is symmetric with its owned `PresentationRuntime`; the external SI-01 Timing Application concept is unchanged.
+
 - Keep Runtime execution role-based and worker items bounded: remove TimingNode identity from RuntimeExecutors lane creation, add one-shot delayed work to SerialScheduledExecutor, and replace antenna power-stabilization sleeps with delayed continuations on the existing AntennaManager serial scheduled lane. The one-worker I/O baseline remains unchanged.
 
 - Collapse runtime construction into one `TimingApplication.create(...)` composition root: create `PlatformEnvironment`, construct without starting physical workers, wire cross-component behaviour explicitly, then `start()` Runtime execution resources and `activate()` application components in visible order.

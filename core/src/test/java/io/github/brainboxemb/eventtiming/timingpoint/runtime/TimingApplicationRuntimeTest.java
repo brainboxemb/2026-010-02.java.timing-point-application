@@ -37,7 +37,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class TimingApplicationTest {
+public class TimingApplicationRuntimeTest {
     @Rule
     public final TemporaryFolder temporaryFolder = new TemporaryFolder();
 
@@ -46,7 +46,7 @@ public class TimingApplicationTest {
         Config config = config(
                 temporaryFolder.getRoot().toPath().resolve("timing-data.jsonl"));
 
-        TimingApplication application = TimingApplication.create(identity(), config);
+        TimingApplicationRuntime application = TimingApplicationRuntime.create(identity(), config);
         application.activate();
         try {
             assertEquals(
@@ -65,11 +65,11 @@ public class TimingApplicationTest {
                 file,
                 "{not-json}\n".getBytes(StandardCharsets.UTF_8));
 
-        TimingApplication application = TimingApplication.create(identity(), config(file));
+        TimingApplicationRuntime application = TimingApplicationRuntime.create(identity(), config(file));
 
         application.activate();
         try {
-            assertEquals(TimingApplication.State.ACTIVE, application.state());
+            assertEquals(TimingApplicationRuntime.State.ACTIVE, application.state());
             assertEquals(
                     TimingNodeTypes.Lifecycle.ERROR,
                     application.presentationGateway().timingNode().status().lifecycle());
@@ -99,7 +99,7 @@ public class TimingApplicationTest {
                         Duration.ofMillis(100),
                         Duration.ofMillis(5),
                         8);
-        TimingApplication application = SimulationRuntime.create(
+        TimingApplicationRuntime application = SimulationRuntime.create(
                 identity(),
                 config(file, tagProcessingPolicy),
                 Collections.singletonList(
@@ -188,14 +188,14 @@ public class TimingApplicationTest {
     public void formatsStableSmokeOutput() {
         assertEquals(
                 "event-timing-app lifecycle OK version=test-version state=INACTIVE",
-                TimingApplication.smokeOutput(
+                TimingApplicationRuntime.smokeOutput(
                         identity(),
-                        TimingApplication.State.INACTIVE));
+                        TimingApplicationRuntime.State.INACTIVE));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void createRejectsMissingBuildIdentity() {
-        TimingApplication.create(
+        TimingApplicationRuntime.create(
                 null,
                 config(
                         temporaryFolder
@@ -210,7 +210,7 @@ public class TimingApplicationTest {
                 new NodeId("configured-node"),
                 new Presentation(null, null));
 
-        TimingApplication.create(identity(), config);
+        TimingApplicationRuntime.create(identity(), config);
     }
 
     private static Config config(Path timingDataPath) {

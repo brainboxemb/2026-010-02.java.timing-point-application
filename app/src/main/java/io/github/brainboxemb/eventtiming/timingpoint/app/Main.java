@@ -4,7 +4,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.EmbeddedBuildIdentityLoader;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.Logging;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.loggingserver.LoggingServer;
-import io.github.brainboxemb.eventtiming.timingpoint.runtime.TimingApplication;
+import io.github.brainboxemb.eventtiming.timingpoint.runtime.TimingApplicationRuntime;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.YamlLoader;
 
@@ -138,7 +138,7 @@ public final class Main {
 
     /**
      * Starts cross-cutting logging before the reusable runtime and tears those
-     * resources down after the TimingApplication process returns.
+     * resources down after the TimingApplicationRuntime process returns.
      */
     private static void runConfiguredApplication(
             BuildIdentity buildIdentity,
@@ -177,14 +177,14 @@ public final class Main {
     /**
      * Runs one already configured application process.
      *
-     * <p>Main owns only process concerns. TimingApplication composition owns all
+     * <p>Main owns only process concerns. TimingApplicationRuntime composition owns all
      * concrete Presentation adapters and their activation/deactivation order.</p>
      */
     private static void runTimingApplication(
             BuildIdentity buildIdentity,
             Config config) {
-        TimingApplication application =
-                TimingApplication.create(
+        TimingApplicationRuntime application =
+                TimingApplicationRuntime.create(
                         buildIdentity,
                         config,
                         new InputStreamReader(
@@ -234,8 +234,8 @@ public final class Main {
             BuildIdentity buildIdentity,
             PrintStream out) {
         out.println(
-                TimingApplication.smokeOutput(
+                TimingApplicationRuntime.smokeOutput(
                         buildIdentity,
-                        TimingApplication.State.INACTIVE));
+                        TimingApplicationRuntime.State.INACTIVE));
     }
 }
