@@ -80,6 +80,24 @@ public class SettingTest {
     }
 
     @Test
+    public void repeatedValueStillCreatesANewRequestRevision() {
+        Setting<Boolean> setting = new Setting<Boolean>(Boolean.FALSE);
+
+        assertEquals(0L, setting.requestRevision());
+
+        setting.request(Boolean.TRUE);
+        assertEquals(1L, setting.requestRevision());
+
+        /*
+         * The value did not change, but this is still a new explicit request.
+         * Owners can use the revision to retry an earlier failed operation.
+         */
+        setting.request(Boolean.TRUE);
+        assertEquals(2L, setting.requestRevision());
+        assertTrue(setting.changePending());
+    }
+
+    @Test
     public void cancelledRequestNeedsNoChangeWhenAppliedValueAlreadyMatches() {
         Setting<Boolean> setting =
                 new Setting<Boolean>(
