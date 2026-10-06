@@ -12,9 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.Schedule
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -35,8 +33,7 @@ public final class AntennaManager {
     private static final Logger LOG =
             LoggerFactory.getLogger(AntennaManager.class);
 
-    private final List<ManagedAntenna> antennas;
-    private final AntennaSwitchController switching;
+    private final ManagedAntennaSet antennaSet;
     private final ScheduledTaskRunner tasks;
 
     private final Setting<Boolean> inventoryEnabledSetting =
@@ -55,51 +52,14 @@ public final class AntennaManager {
             List<AntennaInstallation> installations,
             SerialScheduledExecutor controlLane,
             Duration controlTimeout) {
-        if (installations == null
-                || installations.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "installations must contain at least one antenna");
-        }
         if (controlLane == null) {
             throw new IllegalArgumentException(
                     "controlLane must not be null");
         }
 
-        List<ManagedAntenna> configured =
-                new ArrayList<ManagedAntenna>(
-                        installations.size());
-        List<ManagedAntenna> inventoryGroup =
-                new ArrayList<ManagedAntenna>();
-        Duration groupInterval = null;
-
-        for (AntennaInstallation installation : installations) {
-            validateInstallation(
-                    installation,
-                    configured);
-
-            ManagedAntenna antenna =
-                    new ManagedAntenna(
-                            installation);
-            configured.add(
-                    antenna);
-
-            if (antenna.inInventoryGroup()) {
-                groupInterval =
-                        sharedGroupInterval(
-                                groupInterval,
-                                antenna.inventoryInterval());
-                inventoryGroup.add(
-                        antenna);
-            }
-        }
-
-        antennas =
-                Collections.unmodifiableList(
-                        configured);
-        switching =
-                new AntennaSwitchController(
-                        inventoryGroup,
-                        groupInterval);
+        antennaSet =
+                new ManagedAntennaSet(
+                        installations);
         tasks =
                 new ScheduledTaskRunner(
                         controlLane,
@@ -122,12 +82,12 @@ public final class AntennaManager {
 
         LOG.info(
                 "AntennaManager activated with {} configured antenna(s)",
-                antennas.size());
+                antennaSet.size());
 
         startOperation(
                 "self-test",
                 AntennaTasks.selfTest(
-                        antennas),
+                        antennaSet.antennas()),
                 this::selfTestCompleted);
     }
 
@@ -166,9 +126,8 @@ public final class AntennaManager {
 
     public EventSource<TagObservation> tagObservedEvent(
             AntennaId antennaId) {
-        return find(
-                antennaId)
-                .tagObservedEvent();
+        return antennaSet.tagObservedEvent(
+                antennaId);
     }
 
     public State state() {
@@ -180,22 +139,13 @@ public final class AntennaManager {
     }
 
     public List<AntennaStatus> statuses() {
-        List<AntennaStatus> result =
-                new ArrayList<AntennaStatus>(
-                        antennas.size());
-        for (ManagedAntenna antenna : antennas) {
-            result.add(
-                    antenna.status());
-        }
-        return Collections.unmodifiableList(
-                result);
+        return antennaSet.statuses();
     }
 
     public AntennaStatus status(
             AntennaId antennaId) {
-        return find(
-                antennaId)
-                .status();
+        return antennaSet.status(
+                antennaId);
     }
 
     /**
@@ -229,7 +179,7 @@ public final class AntennaManager {
             CompletableFuture<Void> shutdown =
                     tasks.runTask(
                             AntennaTasks.shutdown(
-                                    antennas));
+                                    antennaSet.antennas()));
             tasks.await(
                     shutdown);
         } catch (RuntimeException ex) {
@@ -301,8 +251,8 @@ public final class AntennaManager {
             startOperation(
                     "inventory enable",
                     AntennaTasks.enableInventory(
-                            antennas,
-                            switching,
+                            antennaSet.antennas(),
+                            antennaSet.switching(),
                             this::inventoryRequestedEnabled),
                     this::inventoryEnableCompleted);
             return;
@@ -314,7 +264,7 @@ public final class AntennaManager {
         startOperation(
                 "inventory disable",
                 AntennaTasks.disableInventory(
-                            antennas),
+                            antennaSet.antennas()),
                 this::inventoryDisableCompleted);
     }
 
@@ -336,7 +286,7 @@ public final class AntennaManager {
             return;
         }
 
-        selfTestPassed = allSelfTestsPassed();
+        selfTestPassed = antennaSet.allSelfTestsPassed();
         busy = false;
 
         LOG.info(
@@ -426,12 +376,12 @@ public final class AntennaManager {
         startOperation(
                 "inventory disable",
                 AntennaTasks.disableInventory(
-                            antennas),
+                            antennaSet.antennas()),
                 this::inventoryDisableCompleted);
     }
 
     private void startSwitching() {
-        if (!switching.rotationNeeded()) {
+        if (!antennaSet.switching().rotationNeeded()) {
             return;
         }
 
@@ -440,7 +390,7 @@ public final class AntennaManager {
         switchingOperation =
                 tasks.runTask(
                         AntennaTasks.switchInventory(
-                                switching,
+                                antennaSet.switching(),
                                 this::inventoryRequestedEnabled));
 
         switchingOperation.whenComplete(
@@ -507,38 +457,9 @@ public final class AntennaManager {
                 });
     }
 
-    private boolean allSelfTestsPassed() {
-        for (ManagedAntenna antenna : antennas) {
-            if (!antenna.selfTestPassed()) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     private boolean inventoryRequestedEnabled() {
         return Boolean.TRUE.equals(
                 inventoryEnabledSetting.requestedValue());
-    }
-
-    private ManagedAntenna find(
-            AntennaId antennaId) {
-        if (antennaId == null) {
-            throw new IllegalArgumentException(
-                    "antennaId must not be null");
-        }
-
-        for (ManagedAntenna antenna : antennas) {
-            if (antenna.antennaId()
-                    .equals(
-                            antennaId)) {
-                return antenna;
-            }
-        }
-
-        throw new IllegalArgumentException(
-                "unknown AntennaId "
-                        + antennaId);
     }
 
     private void recordFailure(
@@ -564,36 +485,4 @@ public final class AntennaManager {
         }
     }
 
-    private static void validateInstallation(
-            AntennaInstallation installation,
-            List<ManagedAntenna> existing) {
-        if (installation == null) {
-            throw new IllegalArgumentException(
-                    "installations must not contain null");
-        }
-
-        for (ManagedAntenna antenna : existing) {
-            if (antenna.antennaId()
-                    .equals(
-                            installation.antennaId())) {
-                throw new IllegalArgumentException(
-                        "duplicate AntennaId "
-                                + installation.antennaId());
-            }
-        }
-    }
-
-    private static Duration sharedGroupInterval(
-            Duration current,
-            Duration candidate) {
-        if (current == null) {
-            return candidate;
-        }
-        if (!current.equals(
-                candidate)) {
-            throw new IllegalArgumentException(
-                    "all antennas in the inventory group must use the same interval");
-        }
-        return current;
-    }
 }
