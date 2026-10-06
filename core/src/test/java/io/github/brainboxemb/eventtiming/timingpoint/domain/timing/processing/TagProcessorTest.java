@@ -11,8 +11,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.Appli
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ConfigurationUpdateResult;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimeSource;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.EventData;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.TagId;
+import io.github.brainboxemb.eventtiming.eventdata.EventData;
+import io.github.brainboxemb.eventtiming.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
