@@ -58,7 +58,7 @@ public class VcSt1_004Test {
             String shellStatus =
                     RemoteShellClient.requestStatus(ports.shellPort());
             assertContains(shellStatus, "Id        : " + NODE_ID);
-            assertContains(shellStatus, "Lifecycle : ERROR");
+            assertContains(shellStatus, "State     : ERROR");
             assertContains(
                     shellStatus,
                     "Problem   : ERROR TIMING_DATA_RECOVERY_FAILED");
