@@ -55,7 +55,9 @@ public final class AntennaTasks {
 
         boolean startFirstAvailable();
 
-        void rotateInventoryGroup();
+        boolean stopCurrent();
+
+        boolean startNextAvailable();
     }
 
     private AntennaTasks() {
