@@ -4,11 +4,11 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimeSource;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagRegistrationMapper;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -106,7 +106,7 @@ public final class TimingNode {
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
             ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
-            TagRegistrationMapper tagRegistrationMapper,
+            EventData eventData,
             SerialExecutor serialExecutor,
             SerialScheduledExecutor tagProcessorExecutor) {
         this(
@@ -115,7 +115,7 @@ public final class TimingNode {
                 timingDataFactory,
                 timeSource,
                 tagProcessingConfiguration,
-                tagRegistrationMapper,
+                eventData,
                 serialExecutor,
                 tagProcessorExecutor,
                 SystemMonotonicClock.INSTANCE);
@@ -127,7 +127,7 @@ public final class TimingNode {
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
             ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
-            TagRegistrationMapper tagRegistrationMapper,
+            EventData eventData,
             SerialExecutor serialExecutor,
             SerialScheduledExecutor tagProcessorExecutor,
             MonotonicClock monotonicClock) {
@@ -138,9 +138,9 @@ public final class TimingNode {
             throw new IllegalArgumentException(
                     "tagProcessingConfiguration must not be null");
         }
-        if (tagRegistrationMapper == null) {
+        if (eventData == null) {
             throw new IllegalArgumentException(
-                    "tagRegistrationMapper must not be null");
+                    "eventData must not be null");
         }
         if (tagProcessorExecutor == null) {
             throw new IllegalArgumentException(
@@ -162,12 +162,12 @@ public final class TimingNode {
 
         /*
          * TagProcessor is a child of this TimingNode aggregate. Runtime chooses
-         * the executor and deployment mapping/policy; the node creates and owns
+         * the executor and event-data/policy; the node creates and owns
          * the processing component itself.
          */
         this.tagProcessor = new TagProcessor(
                 this,
-                tagRegistrationMapper,
+                eventData,
                 tagProcessingConfiguration,
                 monotonicClock,
                 new TagProcessingMetrics(),
