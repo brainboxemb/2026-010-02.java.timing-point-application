@@ -199,7 +199,7 @@ public final class TimingNodeTypes {
         }
 
         public State state() {
-            return lifecycle;
+            return state;
         }
 
         public boolean hasLocation() {
