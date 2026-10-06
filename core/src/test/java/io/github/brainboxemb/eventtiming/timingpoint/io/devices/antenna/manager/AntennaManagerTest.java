@@ -131,12 +131,11 @@ public class AntennaManagerTest {
                         antenna);
         AntennaManager manager =
                 new AntennaManager(
-                        Collections.singletonList(
-                                AntennaInstallation.powered(
-                                        new AntennaId("1"),
-                                        antenna,
-                                        power,
-                                        Duration.ofMillis(200))),
+                        new AntennaSet().addPowered(
+                                new AntennaId("1"),
+                                antenna,
+                                power,
+                                Duration.ofMillis(200)),
                         new SerialScheduledExecutor(
                                 8,
                                 "antenna-manager-test",
