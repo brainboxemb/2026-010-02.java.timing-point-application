@@ -61,6 +61,35 @@ final class AntennaControlLane {
     }
 
     /**
+     * Executes one control action asynchronously on this serial lane.
+     */
+    CompletableFuture<Void> runAsync(
+            Runnable action) {
+        if (action == null) {
+            throw new IllegalArgumentException(
+                    "action must not be null");
+        }
+
+        CompletableFuture<Void> result =
+                new CompletableFuture<Void>();
+
+        boolean accepted =
+                lane.execute(() ->
+                        completeResult(
+                                result,
+                                action));
+
+        if (!accepted) {
+            result.completeExceptionally(
+                    failure(
+                            FailureReason.OVERLOADED,
+                            "AntennaManager control lane rejected asynchronous work",
+                            lane.failure()));
+        }
+        return result;
+    }
+
+    /**
      * Executes a begin/complete control sequence without occupying the physical
      * worker while the configured delay elapses.
      *
