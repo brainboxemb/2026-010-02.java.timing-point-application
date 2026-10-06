@@ -50,8 +50,8 @@ public class SimulatedAntennaTest {
     @Test
     public void externalPowerControlModelsPowerLossAndReinitialization() {
         SimulatedAntenna antenna = new SimulatedAntenna();
-        SimulatedAntennaPowerControl power =
-                new SimulatedAntennaPowerControl(antenna);
+        SimulatedPowerDevice power =
+                new SimulatedPowerDevice(antenna);
 
         assertFalse(power.powered());
 
