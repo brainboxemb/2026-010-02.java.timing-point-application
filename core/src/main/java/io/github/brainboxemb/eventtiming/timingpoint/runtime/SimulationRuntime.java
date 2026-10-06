@@ -2,10 +2,9 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 
-import java.util.List;
 
 /**
  * Explicit simulator entry point that assembles simulated devices through the
@@ -22,12 +21,12 @@ public final class SimulationRuntime {
     public static TimingApplicationRuntime create(
             BuildIdentity buildIdentity,
             Config config,
-            List<AntennaInstallation> antennaInstallations,
+            AntennaSet antennaSet,
             EventData eventData) {
         return TimingApplicationRuntime.createSimulation(
                 buildIdentity,
                 config,
-                antennaInstallations,
+                antennaSet,
                 eventData);
     }
 }
