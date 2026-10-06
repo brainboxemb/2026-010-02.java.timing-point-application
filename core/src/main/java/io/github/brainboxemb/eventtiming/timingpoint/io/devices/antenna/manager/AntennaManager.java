@@ -34,7 +34,6 @@ public final class AntennaManager {
     private volatile Throwable failure;
     private volatile boolean selfTestPassed;
 
-    private CompletableFuture<Void> selfTestOperation;
     private CompletableFuture<Void> inventoryOperation;
 
     public AntennaManager(
@@ -50,6 +49,8 @@ public final class AntennaManager {
                 antennaSet.inventoryGroup(),
                 antennaSet.hasInventoryGroup() ? antennaSet.inventoryInterval() : null,
                 inventoryEnabledSetting);
+
+        antennaTasks.selfTestCompletedEvent().subscribe(this::onSelfTestCompleted);
     }
 
     public synchronized void activate() {
@@ -60,14 +61,13 @@ public final class AntennaManager {
         failure = null;
         selfTestPassed = false;
 
-        selfTestOperation = taskRunner.runTask(antennaTasks.selfTest());
-        selfTestOperation.whenComplete(this::onSelfTestTaskCompleted);
+        antennaTasks.startSelfTest(taskRunner);
 
         LOG.info("AntennaManager activated with {} configured antenna(s)", antennaSet.size());
     }
 
     public boolean isBusy() {
-        return selfTestTaskRunning() || inventoryEnabledSetting.changePending();
+        return antennaTasks.selfTestRunning() || inventoryEnabledSetting.changePending();
     }
 
     public boolean isReady() {
@@ -121,7 +121,7 @@ public final class AntennaManager {
         }
 
         inventoryEnabledSetting.request(Boolean.FALSE);
-        cancel(selfTestOperation);
+        antennaTasks.cancelSelfTest();
         cancel(inventoryOperation);
 
         RuntimeException shutdownFailure = null;
@@ -146,7 +146,6 @@ public final class AntennaManager {
             }
         }
 
-        selfTestOperation = null;
         inventoryOperation = null;
         selfTestPassed = false;
 
@@ -204,19 +203,13 @@ public final class AntennaManager {
         }
     }
 
-    private void onSelfTestTaskCompleted(Void ignored, Throwable taskFailure) {
-        taskRunner.execute(() -> selfTestTaskCompleted(taskFailure));
-    }
-
-    private void selfTestTaskCompleted(Throwable taskFailure) {
-        selfTestOperation = null;
-
+    private void onSelfTestCompleted(AntennaTasks.TaskResult result) {
         if (state != State.ACTIVE) {
             return;
         }
 
-        if (taskFailure != null && !(taskFailure instanceof CancellationException)) {
-            recordFailure(taskFailure);
+        if (!result.successful()) {
+            recordFailure(result.failure());
         }
 
         selfTestPassed = antennaSet.allSelfTestsPassed();
@@ -225,10 +218,6 @@ public final class AntennaManager {
         if (selfTestPassed) {
             startInventoryTaskIfNeeded();
         }
-    }
-
-    private boolean selfTestTaskRunning() {
-        return selfTestOperation != null && !selfTestOperation.isDone();
     }
 
     private boolean inventoryTaskRunning() {
