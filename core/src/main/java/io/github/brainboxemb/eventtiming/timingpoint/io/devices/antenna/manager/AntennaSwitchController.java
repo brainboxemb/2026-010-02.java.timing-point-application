@@ -10,6 +10,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.BooleanSupplier;
 
 /**
  * Coordinates switching across the configured antennas.
@@ -18,8 +20,9 @@ import java.util.List;
  * This class only coordinates the set: validation, status lookup, enabling all
  * independent antennas and rotating the optional mutual-exclusion group.</p>
  *
- * <p>It has no executor or timer dependency. AntennaManager serializes every
- * call into this class on its one control lane.</p>
+ * <p>The controller does not own a worker or scheduler. For multi-step power
+ * stabilization sequences it receives the manager-owned control lane as an
+ * execution capability, while AntennaManager remains lifecycle owner.</p>
  */
 final class AntennaSwitchController {
 
@@ -126,33 +129,100 @@ final class AntennaSwitchController {
                 inventoryGroup) > 1;
     }
 
-    /** Probes every configured antenna once. */
-    void probeAll() {
+    /**
+     * Probes every configured antenna once without occupying the physical worker
+     * while external power stabilization time elapses.
+     */
+    CompletableFuture<Void> probeAll(
+            AntennaControlLane control) {
+        CompletableFuture<Void> sequence =
+                CompletableFuture.completedFuture(null);
+
         for (ManagedAntenna antenna : antennas) {
-            antenna.probe();
+            sequence =
+                    sequence.thenCompose(
+                            ignored ->
+                                    control.runDelayed(
+                                            antenna::beginProbe,
+                                            antenna::completeProbe));
         }
+        return sequence;
     }
 
     /**
      * Enables all independent antennas and one member of the multiplex group.
+     *
+     * <p>The supplied guard lets AntennaManager invalidate an older enable
+     * transition when a newer inventory request arrives while stabilization is
+     * still pending.</p>
      */
-    void enableInventory() {
-        for (ManagedAntenna antenna : antennas) {
-            if (!antenna.inInventoryGroup()
-                    && antenna.prepareForInventory()) {
-                antenna.startInventory();
-            }
-        }
+    CompletableFuture<Void> enableInventory(
+            AntennaControlLane control,
+            BooleanSupplier stillCurrent) {
+        CompletableFuture<Void> sequence =
+                CompletableFuture.completedFuture(null);
 
-        if (inventoryGroup.isEmpty()) {
-            return;
+        for (ManagedAntenna antenna : antennas) {
+            if (antenna.inInventoryGroup()) {
+                continue;
+            }
+
+            sequence =
+                    sequence.thenCompose(
+                            ignored -> {
+                                if (!stillCurrent.getAsBoolean()) {
+                                    return CompletableFuture.completedFuture(null);
+                                }
+                                return control.runDelayed(
+                                        () -> stillCurrent.getAsBoolean()
+                                                ? antenna.beginPrepareForInventory()
+                                                : null,
+                                        () -> {
+                                            if (stillCurrent.getAsBoolean()
+                                                    && antenna.completePrepareForInventory()) {
+                                                antenna.startInventory();
+                                            }
+                                        });
+                            });
         }
 
         for (ManagedAntenna antenna : inventoryGroup) {
-            antenna.prepareForInventory();
+            sequence =
+                    sequence.thenCompose(
+                            ignored -> {
+                                if (!stillCurrent.getAsBoolean()) {
+                                    return CompletableFuture.completedFuture(null);
+                                }
+                                return control.runDelayed(
+                                        () -> stillCurrent.getAsBoolean()
+                                                ? antenna.beginPrepareForInventory()
+                                                : null,
+                                        () -> {
+                                            if (stillCurrent.getAsBoolean()) {
+                                                antenna.completePrepareForInventory();
+                                            }
+                                        });
+                            });
         }
-        startFirstAvailable(
-                inventoryGroup);
+
+        if (!inventoryGroup.isEmpty()) {
+            sequence =
+                    sequence.thenCompose(
+                            ignored -> {
+                                if (!stillCurrent.getAsBoolean()) {
+                                    return CompletableFuture.completedFuture(null);
+                                }
+                                return control.runAsync(
+                                        () -> {
+                                            if (stillCurrent.getAsBoolean()) {
+                                                startFirstAvailable(
+                                                        inventoryGroup);
+                                            }
+                                        });
+                            });
+        }
+
+        return sequence;
     }
 
     /** Stops inventory and removes power from every configured antenna. */
