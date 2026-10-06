@@ -1,5 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager;
 
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.task.AntennaTasks;
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,7 +17,7 @@ import java.util.List;
  * <p>All methods run on the AntennaManager serial control lane. The helper owns
  * no worker, scheduler or synchronization.</p>
  */
-final class AntennaSwitchController {
+final class AntennaSwitchController implements AntennaTasks.SwitchTarget {
 
     private final List<ManagedAntenna> inventoryGroup;
     private final Duration inventoryInterval;
@@ -53,11 +55,13 @@ final class AntennaSwitchController {
                 inventoryInterval;
     }
 
-    boolean hasInventoryGroup() {
+    @Override
+    public boolean hasInventoryGroup() {
         return !inventoryGroup.isEmpty();
     }
 
-    Duration inventoryInterval() {
+    @Override
+    public Duration inventoryInterval() {
         if (inventoryInterval == null) {
             throw new IllegalStateException(
                     "no inventory group is configured");
@@ -68,14 +72,16 @@ final class AntennaSwitchController {
     /**
      * Returns whether periodic round-robin switching is useful.
      */
-    boolean rotationNeeded() {
+    @Override
+    public boolean rotationNeeded() {
         return availableCount() > 1;
     }
 
     /**
      * Starts one available group member when none is inventorying.
      */
-    boolean startFirstAvailable() {
+    @Override
+    public boolean startFirstAvailable() {
         if (currentInventoryIndex() >= 0) {
             return true;
         }
@@ -95,7 +101,8 @@ final class AntennaSwitchController {
      * preserves the at-most-one-inventory invariant even when the failed reader
      * may still be inventorying.</p>
      */
-    void rotateInventoryGroup() {
+    @Override
+    public void rotateInventoryGroup() {
         if (inventoryGroup.isEmpty()) {
             return;
         }
