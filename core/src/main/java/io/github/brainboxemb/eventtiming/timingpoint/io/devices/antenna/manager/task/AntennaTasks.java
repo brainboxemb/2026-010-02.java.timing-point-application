@@ -7,15 +7,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.Cooperat
 import java.time.Duration;
 import java.util.List;
 
-/**
- * Reusable cooperative task set owned by one AntennaManager.
- */
+/** Reusable cooperative task set owned by one AntennaManager. */
 public final class AntennaTasks {
-
-    /** Reusable task contract for component-owned state machines. */
-    public interface ReusableTask extends CooperativeTask {
-        void reset();
-    }
 
     /** Direct one-antenna operations required by the task state machines. */
     public interface AntennaTarget {
@@ -37,12 +30,12 @@ public final class AntennaTasks {
 
         void shutdownProvider();
 
-
         boolean availableForInventory();
 
         boolean inventoryRunning();
     }
 
+    private final SelfTestTask selfTestTask;
     private final InventoryTask inventoryTask;
     private final AntennaShutdownTask antennaShutdownTask;
 
@@ -51,47 +44,28 @@ public final class AntennaTasks {
             List<? extends AntennaTarget> inventoryGroup,
             Duration inventoryInterval,
             Setting<Boolean> inventoryEnabledSetting) {
-        if (antennas == null
-                || antennas.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "antennas must contain at least one antenna");
+        if (antennas == null || antennas.isEmpty()) {
+            throw new IllegalArgumentException("antennas must contain at least one antenna");
         }
         if (inventoryGroup == null) {
-            throw new IllegalArgumentException(
-                    "inventoryGroup must not be null");
+            throw new IllegalArgumentException("inventoryGroup must not be null");
         }
         if (inventoryEnabledSetting == null) {
-            throw new IllegalArgumentException(
-                    "inventoryEnabledSetting must not be null");
+            throw new IllegalArgumentException("inventoryEnabledSetting must not be null");
         }
         if (!inventoryGroup.isEmpty()
-                && (inventoryInterval == null
-                    || inventoryInterval.isZero()
-                    || inventoryInterval.isNegative())) {
-            throw new IllegalArgumentException(
-                    "inventoryInterval must be positive for an inventory group");
+                && (inventoryInterval == null || inventoryInterval.isZero() || inventoryInterval.isNegative())) {
+            throw new IllegalArgumentException("inventoryInterval must be positive for an inventory group");
         }
 
-        inventoryTask =
-                new InventoryTask(
-                        antennas,
-                        inventoryGroup,
-                        inventoryInterval,
-                        inventoryEnabledSetting);
-        antennaShutdownTask =
-                new AntennaShutdownTask(
-                        antennas);
+        selfTestTask = new SelfTestTask(antennas);
+        inventoryTask = new InventoryTask(antennas, inventoryGroup, inventoryInterval, inventoryEnabledSetting);
+        antennaShutdownTask = new AntennaShutdownTask(antennas);
     }
 
-    /** Creates the one reusable self-test task owned by one managed antenna. */
-    public static ReusableTask selfTestTask(
-            AntennaTarget antenna) {
-        if (antenna == null) {
-            throw new IllegalArgumentException(
-                    "antenna must not be null");
-        }
-        return new SelfTestTask(
-                antenna);
+    public CooperativeTask selfTest() {
+        selfTestTask.reset();
+        return selfTestTask;
     }
 
     public CooperativeTask inventory() {
