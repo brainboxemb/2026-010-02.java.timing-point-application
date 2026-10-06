@@ -8,6 +8,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.TaskStep
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
@@ -27,7 +28,7 @@ final class SelfTestTask implements CooperativeTask {
     }
 
     private final List<ManagedAntenna> antennas;
-    private final Event<AntennaTasks.TaskResult> completedEvent = new Event<AntennaTasks.TaskResult>();
+    private final Event<AntennaTaskResult> completedEvent = new Event<AntennaTaskResult>();
 
     private CompletableFuture<Void> operation;
     private int antennaIndex;
@@ -56,7 +57,7 @@ final class SelfTestTask implements CooperativeTask {
         return operation != null && !operation.isDone();
     }
 
-    EventSource<AntennaTasks.TaskResult> completedEvent() {
+    EventSource<AntennaTaskResult> completedEvent() {
         return completedEvent;
     }
 
@@ -121,15 +122,15 @@ final class SelfTestTask implements CooperativeTask {
     }
 
     private void onCompleted(Void ignored, Throwable taskFailure) {
-        if (operation != null && operation.isCancelled()) {
+        if (taskFailure instanceof CancellationException) {
             return;
         }
 
         Throwable effectiveFailure = taskFailure != null ? taskFailure : failure;
         completedEvent.emit(
                 effectiveFailure == null
-                        ? AntennaTasks.TaskResult.success()
-                        : AntennaTasks.TaskResult.failed(effectiveFailure));
+                        ? AntennaTaskResult.success()
+                        : AntennaTaskResult.failed(effectiveFailure));
     }
 
     private TaskStep finish() {
