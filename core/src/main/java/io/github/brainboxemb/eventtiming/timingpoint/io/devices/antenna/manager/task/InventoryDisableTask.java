@@ -5,7 +5,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.TaskStep
 
 import java.util.List;
 
-/** Stops inventory and removes optional external power one device step per turn. */
+/** Reusable inventory-disable state machine. */
 final class InventoryDisableTask implements CooperativeTask {
 
     private enum Phase {
@@ -14,18 +14,21 @@ final class InventoryDisableTask implements CooperativeTask {
     }
 
     private final List<? extends AntennaTasks.AntennaTarget> antennas;
+
     private int antennaIndex;
-    private Phase phase = Phase.STOP_INVENTORY;
+    private Phase phase;
     private RuntimeException failure;
 
     InventoryDisableTask(
             List<? extends AntennaTasks.AntennaTarget> antennas) {
-        if (antennas == null || antennas.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "antennas must contain at least one antenna");
-        }
         this.antennas = antennas;
+        reset();
+    }
+
+    void reset() {
         antennaIndex = antennas.size() - 1;
+        phase = Phase.STOP_INVENTORY;
+        failure = null;
     }
 
     @Override
