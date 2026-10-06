@@ -435,6 +435,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         private final CompletableFuture<R> completion =
                 new CompletableFuture<R>();
 
+        private volatile boolean executionStarted;
         private ScheduledFuture<?> trigger;
 
         private DelayedFutureTask(
@@ -507,11 +508,19 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         }
 
         @Override
+        public void run() {
+            executionStarted = true;
+            super.run();
+        }
+
+        @Override
         protected void done() {
             synchronized (SerialScheduledExecutor.this) {
                 delayedTasks.remove(this);
             }
-            metrics.recordDelayedExecution();
+            if (executionStarted) {
+                metrics.recordDelayedExecution();
+            }
 
             if (isCancelled()) {
                 completion.cancel(false);
