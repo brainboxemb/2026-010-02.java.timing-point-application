@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Simplify antenna lifecycle ownership: make manager activation hardware-free, add explicit startup health checking, separate manager lifecycle from antenna health/operation, move probe/power/initialize/inventory sequencing into `AntennaManager`, reduce `AntennaSwitchController` to multiplex round-robin only, and rename provider cleanup from `close()` to `shutdown()`.
+
 - Move application component lifecycle coordination into `Conductor`; add `ComponentLifecycleManager` for ordered activation, rollback and reverse deactivation, keep Runtime focused on shared execution resources/composition and start Presentation only after the coordinated application core is ready.
 
 - Rework `Conductor` status handling as coalesced current-state reconciliation: synchronous TimingNode callbacks no longer throw downstream queue overloads, stale status snapshots are not executed as commands, and TimingNode/Conductor control transitions gain causal runtime logging.
