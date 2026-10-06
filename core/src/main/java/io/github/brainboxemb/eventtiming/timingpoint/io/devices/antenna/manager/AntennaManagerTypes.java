@@ -28,8 +28,7 @@ public final class AntennaManagerTypes {
         INACTIVE,
         PREPARING,
         READY,
-        INVENTORY,
-        SHUTDOWN
+        INVENTORY
     }
 
     /** Immutable point-in-time view of one configured antenna. */
