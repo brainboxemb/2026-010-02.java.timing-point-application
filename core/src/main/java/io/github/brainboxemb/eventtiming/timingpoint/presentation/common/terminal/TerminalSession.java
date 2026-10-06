@@ -510,8 +510,8 @@ public final class TerminalSession {
                 "  Id        : "
                         + status.timingNodeId().value());
         output.println(
-                "  Lifecycle : "
-                        + status.lifecycle().name());
+                "  State     : "
+                        + status.state().name());
         output.println(
                 "  Location  : "
                         + (status.hasLocation()
