@@ -74,20 +74,22 @@ public final class AntennaManager {
                 && antennaSet.allSelfTestsPassed();
     }
 
+    /**
+     * Requests inventory to become enabled.
+     *
+     * @return false when the manager cannot accept the request
+     */
     public boolean requestEnableInventory() {
         return requestInventory(true);
     }
 
+    /**
+     * Requests inventory to become disabled.
+     *
+     * @return false when the manager cannot accept the request
+     */
     public boolean requestDisableInventory() {
         return requestInventory(false);
-    }
-
-    public void enableInventory() {
-        checkState(requestEnableInventory(), "AntennaManager rejected enable-inventory request");
-    }
-
-    public void disableInventory() {
-        checkState(requestDisableInventory(), "AntennaManager rejected disable-inventory request");
     }
 
     public EventSource<TagObservation> tagObservedEvent(AntennaId antennaId) {
@@ -146,8 +148,6 @@ public final class AntennaManager {
             }
         }
 
-        selfTestPassed = false;
-
         if (shutdownFailure == null) {
             inventoryEnabledSetting.markApplied(Boolean.FALSE);
             state = State.INACTIVE;
@@ -173,6 +173,12 @@ public final class AntennaManager {
         return accepted;
     }
 
+    /**
+     * Starts the reusable inventory task when requested state still differs from applied state.
+     *
+     * <p>This is called both after a new request and after self-test/task completion,
+     * because a request may have arrived while the task could not yet run.</p>
+     */
     private void startInventoryTaskIfNeeded() {
         if (state != State.ACTIVE
                 || !antennaSet.allSelfTestsPassed()
