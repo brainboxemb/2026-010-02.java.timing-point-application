@@ -1,14 +1,22 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager;
 
+import io.github.brainboxemb.eventtiming.eventdata.TagId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Antenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInfo;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntennaPowerControl;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
-import io.github.brainboxemb.eventtiming.eventdata.TagId;
-
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaHealth;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaOperation;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.ControlException;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.FailureReason;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.ManagerHealth;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -21,14 +29,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaState;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.ControlException;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.FailureReason;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -39,7 +39,7 @@ import static org.junit.Assert.fail;
 public class AntennaManagerTest {
 
     @Test
-    public void startupChecksHealthBeforeTimingNodeDrivenInventory() {
+    public void activationIsHardwareFreeAndHealthCheckPrecedesInventory() {
         ScheduledExecutorService shared = sharedExecutor();
         List<String> calls =
                 Collections.synchronizedList(
@@ -56,9 +56,28 @@ public class AntennaManagerTest {
 
         try {
             manager.activate();
+
             assertEquals(
                     State.ACTIVE,
                     manager.state());
+            assertEquals(
+                    ManagerHealth.UNKNOWN,
+                    manager.health());
+            assertTrue(
+                    "activation must not touch antenna hardware",
+                    calls.isEmpty());
+
+            manager.checkHealth();
+
+            assertEquals(
+                    ManagerHealth.HEALTHY,
+                    manager.health());
+            assertEquals(
+                    AntennaHealth.HEALTHY,
+                    manager.status(new AntennaId("ANT1")).health());
+            assertEquals(
+                    AntennaOperation.INACTIVE,
+                    manager.status(new AntennaId("ANT1")).operation());
             assertFalse(first.inventoryRunning());
             assertFalse(second.inventoryRunning());
 
@@ -85,8 +104,8 @@ public class AntennaManagerTest {
                             "B.start",
                             "B.stop",
                             "A.stop",
-                            "B.close",
-                            "A.close"),
+                            "B.shutdown",
+                            "A.shutdown"),
                     calls);
         } finally {
             shared.shutdownNow();
@@ -128,11 +147,13 @@ public class AntennaManagerTest {
         sibling.start();
 
         try {
-            Thread activation =
+            manager.activate();
+
+            Thread healthCheck =
                     new Thread(
-                            manager::activate,
-                            "antenna-activate-test");
-            activation.start();
+                            manager::checkHealth,
+                            "antenna-health-test");
+            healthCheck.start();
 
             awaitCondition(
                     power::powered,
@@ -149,11 +170,14 @@ public class AntennaManagerTest {
                             75L,
                             TimeUnit.MILLISECONDS));
 
-            activation.join(1500L);
-            assertFalse(activation.isAlive());
+            healthCheck.join(1500L);
+            assertFalse(healthCheck.isAlive());
             assertEquals(
                     State.ACTIVE,
                     manager.state());
+            assertEquals(
+                    ManagerHealth.HEALTHY,
+                    manager.health());
             assertFalse(power.powered());
 
             Thread enable =
@@ -213,6 +237,7 @@ public class AntennaManagerTest {
 
         try {
             manager.activate();
+            manager.checkHealth();
             manager.setInventoryEnabled(true);
 
             TagObservation observation =
@@ -269,7 +294,7 @@ public class AntennaManagerTest {
     }
 
     @Test
-    public void oneProbeFailureLeavesHealthyAntennaOperational() {
+    public void oneProbeFailureDegradesHealthButManagerRemainsActive() {
         ScheduledExecutorService shared = sharedExecutor();
         List<String> calls =
                 Collections.synchronizedList(
@@ -286,24 +311,37 @@ public class AntennaManagerTest {
 
         try {
             manager.activate();
+            manager.checkHealth();
 
             assertEquals(
-                    State.DEGRADED,
+                    State.ACTIVE,
                     manager.state());
             assertEquals(
-                    AntennaState.READY,
-                    manager.status(new AntennaId("ANT1")).state());
+                    ManagerHealth.DEGRADED,
+                    manager.health());
             assertEquals(
-                    AntennaState.ERROR,
-                    manager.status(new AntennaId("ANT2")).state());
+                    AntennaHealth.HEALTHY,
+                    manager.status(new AntennaId("ANT1")).health());
+            assertEquals(
+                    AntennaOperation.INACTIVE,
+                    manager.status(new AntennaId("ANT1")).operation());
+            assertEquals(
+                    AntennaHealth.FAILED,
+                    manager.status(new AntennaId("ANT2")).health());
+            assertEquals(
+                    AntennaOperation.INACTIVE,
+                    manager.status(new AntennaId("ANT2")).operation());
 
             manager.setInventoryEnabled(true);
 
             assertTrue(healthy.inventoryRunning());
             assertFalse(failed.inventoryRunning());
             assertEquals(
-                    State.DEGRADED,
+                    State.ACTIVE,
                     manager.state());
+            assertEquals(
+                    ManagerHealth.DEGRADED,
+                    manager.health());
         } finally {
             manager.deactivate();
             shared.shutdownNow();
@@ -311,7 +349,7 @@ public class AntennaManagerTest {
     }
 
     @Test
-    public void reportsSharedExecutorRejectionAsOverload() {
+    public void reportsSharedExecutorRejectionAsManagerFailure() {
         ScheduledExecutorService shared = sharedExecutor();
         shared.shutdownNow();
         AntennaManager manager = manager(
@@ -324,8 +362,10 @@ public class AntennaManagerTest {
                 1,
                 Duration.ofSeconds(1));
 
+        manager.activate();
+
         try {
-            manager.activate();
+            manager.checkHealth();
             fail("expected shared-I/O overload");
         } catch (ControlException expected) {
             assertEquals(
@@ -338,7 +378,7 @@ public class AntennaManagerTest {
     }
 
     @Test
-    public void timesOutAndCancelsBlockingProviderControl() {
+    public void healthCheckTimeoutIsContainedToAntennaAndCancelsProvider() {
         ScheduledExecutorService shared = sharedExecutor();
         BlockingProbeAntenna blocking =
                 new BlockingProbeAntenna();
@@ -350,26 +390,23 @@ public class AntennaManagerTest {
                 Duration.ofMillis(25));
 
         try {
-            try {
-                manager.activate();
-                fail("expected control timeout");
-            } catch (ControlException expected) {
-                assertEquals(
-                        FailureReason.TIMEOUT,
-                        expected.reason());
-                assertEquals(
-                        State.FAILED,
-                        manager.state());
-                assertTrue(
-                        "blocking provider call must be interrupted on timeout",
-                        blocking.interrupted());
-            }
+            manager.activate();
+            manager.checkHealth();
+
+            assertEquals(
+                    State.ACTIVE,
+                    manager.state());
+            assertEquals(
+                    ManagerHealth.FAILED,
+                    manager.health());
+            assertEquals(
+                    AntennaHealth.FAILED,
+                    manager.status(new AntennaId("ANT1")).health());
+            assertTrue(
+                    "blocking provider call must be interrupted on timeout",
+                    blocking.interrupted());
         } finally {
-            try {
-                manager.deactivate();
-            } catch (RuntimeException ignored) {
-                // Timeout path already verifies cancellation/failure reporting.
-            }
+            manager.deactivate();
             shared.shutdownNow();
         }
     }
@@ -481,8 +518,8 @@ public class AntennaManagerTest {
         }
 
         @Override
-        public void close() {
-            calls.add(name + ".close");
+        public void shutdown() {
+            calls.add(name + ".shutdown");
             running = false;
         }
     }
