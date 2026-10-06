@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -135,18 +136,19 @@ final class AntennaSwitchController {
      */
     CompletableFuture<Void> probeAll(
             AntennaControlLane control) {
-        CompletableFuture<Void> sequence =
-                CompletableFuture.completedFuture(null);
+        List<AsyncStep> steps =
+                new ArrayList<AsyncStep>(
+                        antennas.size());
 
         for (ManagedAntenna antenna : antennas) {
-            sequence =
-                    sequence.thenCompose(
-                            ignored ->
-                                    control.runDelayed(
-                                            antenna::beginProbe,
-                                            antenna::completeProbe));
+            steps.add(
+                    () -> control.runDelayed(
+                            antenna::beginProbe,
+                            antenna::completeProbe));
         }
-        return sequence;
+
+        return runSequence(
+                steps);
     }
 
     /**
@@ -159,70 +161,68 @@ final class AntennaSwitchController {
     CompletableFuture<Void> enableInventory(
             AntennaControlLane control,
             BooleanSupplier stillCurrent) {
-        CompletableFuture<Void> sequence =
-                CompletableFuture.completedFuture(null);
+        List<AsyncStep> steps =
+                new ArrayList<AsyncStep>();
 
         for (ManagedAntenna antenna : antennas) {
             if (antenna.inInventoryGroup()) {
                 continue;
             }
 
-            sequence =
-                    sequence.thenCompose(
-                            ignored -> {
-                                if (!stillCurrent.getAsBoolean()) {
-                                    return CompletableFuture.completedFuture(null);
-                                }
-                                return control.runDelayed(
-                                        () -> stillCurrent.getAsBoolean()
-                                                ? antenna.beginPrepareForInventory()
-                                                : null,
-                                        () -> {
-                                            if (stillCurrent.getAsBoolean()
-                                                    && antenna.completePrepareForInventory()) {
-                                                antenna.startInventory();
-                                            }
-                                        });
-                            });
+            steps.add(
+                    () -> {
+                        if (!stillCurrent.getAsBoolean()) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return control.runDelayed(
+                                () -> stillCurrent.getAsBoolean()
+                                        ? antenna.beginPrepareForInventory()
+                                        : null,
+                                () -> {
+                                    if (stillCurrent.getAsBoolean()
+                                            && antenna.completePrepareForInventory()) {
+                                        antenna.startInventory();
+                                    }
+                                });
+                    });
         }
 
         for (ManagedAntenna antenna : inventoryGroup) {
-            sequence =
-                    sequence.thenCompose(
-                            ignored -> {
-                                if (!stillCurrent.getAsBoolean()) {
-                                    return CompletableFuture.completedFuture(null);
-                                }
-                                return control.runDelayed(
-                                        () -> stillCurrent.getAsBoolean()
-                                                ? antenna.beginPrepareForInventory()
-                                                : null,
-                                        () -> {
-                                            if (stillCurrent.getAsBoolean()) {
-                                                antenna.completePrepareForInventory();
-                                            }
-                                        });
-                            });
+            steps.add(
+                    () -> {
+                        if (!stillCurrent.getAsBoolean()) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return control.runDelayed(
+                                () -> stillCurrent.getAsBoolean()
+                                        ? antenna.beginPrepareForInventory()
+                                        : null,
+                                () -> {
+                                    if (stillCurrent.getAsBoolean()) {
+                                        antenna.completePrepareForInventory();
+                                    }
+                                });
+                    });
         }
 
         if (!inventoryGroup.isEmpty()) {
-            sequence =
-                    sequence.thenCompose(
-                            ignored -> {
-                                if (!stillCurrent.getAsBoolean()) {
-                                    return CompletableFuture.completedFuture(null);
-                                }
-                                return control.runAsync(
-                                        () -> {
-                                            if (stillCurrent.getAsBoolean()) {
-                                                startFirstAvailable(
-                                                        inventoryGroup);
-                                            }
-                                        });
-                            });
+            steps.add(
+                    () -> {
+                        if (!stillCurrent.getAsBoolean()) {
+                            return CompletableFuture.completedFuture(null);
+                        }
+                        return control.runAsync(
+                                () -> {
+                                    if (stillCurrent.getAsBoolean()) {
+                                        startFirstAvailable(
+                                                inventoryGroup);
+                                    }
+                                });
+                    });
         }
 
-        return sequence;
+        return runSequence(
+                steps);
     }
 
     /** Stops inventory and removes power from every configured antenna. */
@@ -316,6 +316,97 @@ final class AntennaSwitchController {
         return failed > 0
                 ? State.DEGRADED
                 : State.ACTIVE;
+    }
+
+    @FunctionalInterface
+    private interface AsyncStep {
+        CompletableFuture<Void> start();
+    }
+
+    /**
+     * Runs asynchronous lane steps in order and propagates cancellation to the
+     * step that is currently active.
+     */
+    private static CompletableFuture<Void> runSequence(
+            List<AsyncStep> steps) {
+        CompletableFuture<Void> result =
+                new CompletableFuture<Void>();
+        AtomicReference<CompletableFuture<Void>> active =
+                new AtomicReference<CompletableFuture<Void>>();
+
+        result.whenComplete(
+                (ignored, failure) -> {
+                    if (!result.isCancelled()) {
+                        return;
+                    }
+                    CompletableFuture<Void> current =
+                            active.get();
+                    if (current != null) {
+                        current.cancel(true);
+                    }
+                });
+
+        runSequenceStep(
+                steps,
+                0,
+                result,
+                active);
+        return result;
+    }
+
+    private static void runSequenceStep(
+            List<AsyncStep> steps,
+            int index,
+            CompletableFuture<Void> result,
+            AtomicReference<CompletableFuture<Void>> active) {
+        if (result.isDone()) {
+            return;
+        }
+        if (index >= steps.size()) {
+            result.complete(null);
+            return;
+        }
+
+        final CompletableFuture<Void> step;
+        try {
+            step =
+                    steps.get(index)
+                            .start();
+        } catch (RuntimeException ex) {
+            result.completeExceptionally(ex);
+            return;
+        } catch (Error ex) {
+            result.completeExceptionally(ex);
+            throw ex;
+        }
+
+        active.set(step);
+        if (result.isCancelled()) {
+            step.cancel(true);
+            return;
+        }
+
+        step.whenComplete(
+                (ignored, failure) -> {
+                    active.compareAndSet(
+                            step,
+                            null);
+
+                    if (result.isDone()) {
+                        return;
+                    }
+                    if (failure != null) {
+                        result.completeExceptionally(
+                                failure);
+                        return;
+                    }
+
+                    runSequenceStep(
+                            steps,
+                            index + 1,
+                            result,
+                            active);
+                });
     }
 
     private void startFirstAvailable(
