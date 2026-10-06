@@ -46,8 +46,8 @@ public class AntennaMultiplexTest {
                         "B",
                         calls);
 
-        AntennaId firstId = new AntennaId("ANT1");
-        AntennaId secondId = new AntennaId("ANT2");
+        AntennaId firstId = new AntennaId("1");
+        AntennaId secondId = new AntennaId("2");
         AntennaSet antennaSet = new AntennaSet()
                 .add(firstId, first)
                 .add(secondId, second)
@@ -102,8 +102,8 @@ public class AntennaMultiplexTest {
         SimulatedPowerDevice secondPower =
                 new SimulatedPowerDevice(second);
 
-        AntennaId firstId = new AntennaId("ANT1");
-        AntennaId secondId = new AntennaId("ANT2");
+        AntennaId firstId = new AntennaId("1");
+        AntennaId secondId = new AntennaId("2");
         AntennaSet antennaSet = new AntennaSet()
                 .addPowered(firstId, first, firstPower, Duration.ZERO)
                 .addPowered(secondId, second, secondPower, Duration.ZERO)
@@ -154,8 +154,8 @@ public class AntennaMultiplexTest {
         SimulatedAntenna available = new SimulatedAntenna();
         SimulatedAntenna failed = new SimulatedAntenna();
 
-        AntennaId availableId = new AntennaId("ANT1");
-        AntennaId failedId = new AntennaId("ANT2");
+        AntennaId availableId = new AntennaId("1");
+        AntennaId failedId = new AntennaId("2");
         AntennaSet antennaSet = new AntennaSet()
                 .add(availableId, available)
                 .add(failedId, failed)
@@ -176,7 +176,7 @@ public class AntennaMultiplexTest {
 
             await(
                     () -> manager.status(
-                            new AntennaId("ANT2")).failure()
+                            new AntennaId("2")).failure()
                             != null,
                     1000L);
             await(
@@ -203,8 +203,8 @@ public class AntennaMultiplexTest {
         SimulatedAntenna first = new SimulatedAntenna();
         SimulatedAntenna second = new SimulatedAntenna();
 
-        AntennaId firstId = new AntennaId("ANT1");
-        AntennaId secondId = new AntennaId("ANT2");
+        AntennaId firstId = new AntennaId("1");
+        AntennaId secondId = new AntennaId("2");
         AntennaSet antennaSet = new AntennaSet()
                 .add(firstId, first)
                 .add(secondId, second)
@@ -229,7 +229,7 @@ public class AntennaMultiplexTest {
 
             await(
                     () -> manager.status(
-                            new AntennaId("ANT1")).failure()
+                            new AntennaId("1")).failure()
                             != null,
                     1000L);
 
@@ -254,18 +254,18 @@ public class AntennaMultiplexTest {
     @Test(expected = IllegalArgumentException.class)
     public void rejectsUnknownInventoryGroupMember() {
         AntennaSet antennaSet = new AntennaSet()
-                .add(new AntennaId("ANT1"), new SimulatedAntenna())
-                .add(new AntennaId("ANT2"), new SimulatedAntenna());
+                .add(new AntennaId("1"), new SimulatedAntenna())
+                .add(new AntennaId("2"), new SimulatedAntenna());
 
         antennaSet.inventoryGroup(
                 Duration.ofMillis(25),
-                new AntennaId("ANT1"),
-                new AntennaId("ANT3"));
+                new AntennaId("1"),
+                new AntennaId("3"));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsSingleMemberInventoryGroup() {
-        AntennaId antennaId = new AntennaId("ANT3");
+        AntennaId antennaId = new AntennaId("3");
         new AntennaSet()
                 .add(antennaId, new SimulatedAntenna())
                 .inventoryGroup(Duration.ofMillis(25), antennaId);
