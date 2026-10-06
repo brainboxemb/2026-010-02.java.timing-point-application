@@ -777,6 +777,15 @@ public final class AntennaManager {
         if (failure == null) {
             failure = cause;
         }
+
+        /*
+         * A failed backing/control lane means the manager itself can no longer
+         * perform its role. Ordinary queue-full overload and contained provider
+         * failures do not change component lifecycle.
+         */
+        if (control.failure() != null) {
+            state = State.FAILED;
+        }
     }
 
     private static void validateInstallation(
