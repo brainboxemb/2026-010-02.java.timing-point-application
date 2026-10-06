@@ -30,97 +30,85 @@ public final class DefaultTimingDataFactory implements TimingDataFactory {
         return new ManualRegistration(context, registrationId, timeSource);
     }
 
-    private static final class AutomaticRegistration
-            implements TimingData.AutomaticRegistration {
-
+    /**
+     * Shared immutable implementation of the registration-shaped TimingData
+     * envelope used by the default profile.
+     *
+     * <p>This is deliberately a private implementation detail. The public model
+     * remains the two semantic contracts under {@link TimingData}.</p>
+     */
+    private abstract static class Registration {
         private final Context context;
         private final RegistrationId registrationId;
 
-        private AutomaticRegistration(
+        private Registration(
                 Context context,
                 RegistrationId registrationId) {
-            this.context = requireContext(context);
-            this.registrationId = requireRegistrationId(registrationId);
+            this.context =
+                    requireContext(
+                            context);
+            this.registrationId =
+                    requireRegistrationId(
+                            registrationId);
         }
 
-        @Override
-        public NodeId timingNodeId() {
+        public final NodeId timingNodeId() {
             return context.timingNodeId();
         }
 
-        @Override
-        public long sequenceNumber() {
+        public final long sequenceNumber() {
             return context.sequenceNumber();
         }
 
-        @Override
-        public LocationId locationId() {
+        public final LocationId locationId() {
             return context.locationId();
         }
 
-        @Override
-        public TimingTimestamp effectiveTime() {
+        public final TimingTimestamp effectiveTime() {
             return context.effectiveTime();
         }
 
-        @Override
-        public TimingTimestamp recordedAt() {
+        public final TimingTimestamp recordedAt() {
             return context.recordedAt();
         }
 
-        @Override
-        public RegistrationId registrationId() {
+        public final RegistrationId registrationId() {
             return registrationId;
         }
     }
 
+    private static final class AutomaticRegistration
+            extends Registration
+            implements TimingData.AutomaticRegistration {
+
+        private AutomaticRegistration(
+                Context context,
+                RegistrationId registrationId) {
+            super(
+                    context,
+                    registrationId);
+        }
+    }
+
     private static final class ManualRegistration
+            extends Registration
             implements TimingData.ManualRegistration {
 
-        private final Context context;
-        private final RegistrationId registrationId;
         private final TimingData.ManualTimeSource timeSource;
 
         private ManualRegistration(
                 Context context,
                 RegistrationId registrationId,
                 TimingData.ManualTimeSource timeSource) {
-            this.context = requireContext(context);
-            this.registrationId = requireRegistrationId(registrationId);
+            super(
+                    context,
+                    registrationId);
+
             if (timeSource == null) {
-                throw new IllegalArgumentException("timeSource must not be null");
+                throw new IllegalArgumentException(
+                        "timeSource must not be null");
             }
             this.timeSource = timeSource;
-        }
-
-        @Override
-        public NodeId timingNodeId() {
-            return context.timingNodeId();
-        }
-
-        @Override
-        public long sequenceNumber() {
-            return context.sequenceNumber();
-        }
-
-        @Override
-        public LocationId locationId() {
-            return context.locationId();
-        }
-
-        @Override
-        public TimingTimestamp effectiveTime() {
-            return context.effectiveTime();
-        }
-
-        @Override
-        public TimingTimestamp recordedAt() {
-            return context.recordedAt();
-        }
-
-        @Override
-        public RegistrationId registrationId() {
-            return registrationId;
         }
 
         @Override
