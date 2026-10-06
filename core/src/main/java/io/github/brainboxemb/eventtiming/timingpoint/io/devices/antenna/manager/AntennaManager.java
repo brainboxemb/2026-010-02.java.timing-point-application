@@ -450,13 +450,23 @@ public final class AntennaManager {
             return;
         }
 
-        CompletableFuture<Void> transition =
-                singleAntennaWithoutSwitching()
-                        ? control.runTask(
-                                new InventoryEnableTask(
-                                        antennas.get(0),
-                                        this::inventoryRequestedEnabled))
-                        : prepareInventory();
+        CompletableFuture<Void> transition;
+        if (singleAntennaWithoutSwitching()) {
+            transition =
+                    control.runTask(
+                            new InventoryEnableTask(
+                                    antennas.get(0),
+                                    this::inventoryRequestedEnabled));
+        } else if (allAntennasInSwitchingGroup()) {
+            transition =
+                    control.runTask(
+                            new InventoryPreparationTask(
+                                    antennas,
+                                    this::inventoryRequestedEnabled));
+        } else {
+            transition =
+                    prepareInventory();
+        }
 
         transition.whenComplete(
                 (ignored, transitionFailure) -> {
@@ -509,6 +519,19 @@ public final class AntennaManager {
     private boolean singleAntennaWithoutSwitching() {
         return antennas.size() == 1
                 && !switching.hasInventoryGroup();
+    }
+
+    private boolean allAntennasInSwitchingGroup() {
+        if (!switching.hasInventoryGroup()) {
+            return false;
+        }
+
+        for (ManagedAntenna antenna : antennas) {
+            if (!antenna.inInventoryGroup()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private CompletableFuture<Void> prepareInventory() {
@@ -615,6 +638,9 @@ public final class AntennaManager {
             return;
         }
 
+        if (switching.hasInventoryGroup()) {
+            switching.startFirstAvailable();
+        }
         ensureRotation();
         inventoryEnabledSetting.markApplied(
                 Boolean.TRUE);
