@@ -29,7 +29,7 @@ public final class TimingNodeTypes {
         NOT_RUNNING
     }
 
-    public enum Lifecycle {
+    public enum State {
         CLOSED,
         OPEN,
         ERROR
@@ -154,19 +154,19 @@ public final class TimingNodeTypes {
 
     public static final class Status {
         private final NodeId timingNodeId;
-        private final Lifecycle lifecycle;
+        private final State state;
         private final LocationId locationId;
         private final boolean timingDataTailRecovered;
         private final List<Problem> problems;
 
         Status(
                 NodeId timingNodeId,
-                Lifecycle lifecycle,
+                State state,
                 LocationId locationId,
                 boolean timingDataTailRecovered) {
             this(
                     timingNodeId,
-                    lifecycle,
+                    state,
                     locationId,
                     timingDataTailRecovered,
                     Collections.<Problem>emptyList());
@@ -174,7 +174,7 @@ public final class TimingNodeTypes {
 
         Status(
                 NodeId timingNodeId,
-                Lifecycle lifecycle,
+                State state,
                 LocationId locationId,
                 boolean timingDataTailRecovered,
                 List<Problem> problems) {
@@ -187,7 +187,7 @@ public final class TimingNodeTypes {
                 }
             }
             this.timingNodeId = timingNodeId;
-            this.lifecycle = lifecycle;
+            this.state = state;
             this.locationId = locationId;
             this.timingDataTailRecovered = timingDataTailRecovered;
             this.problems = Collections.unmodifiableList(
@@ -198,7 +198,7 @@ public final class TimingNodeTypes {
             return timingNodeId;
         }
 
-        public Lifecycle lifecycle() {
+        public State state() {
             return lifecycle;
         }
 
