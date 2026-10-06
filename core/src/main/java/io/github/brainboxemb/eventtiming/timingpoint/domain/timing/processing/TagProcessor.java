@@ -12,6 +12,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObser
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -55,6 +58,8 @@ public final class TagProcessor {
 
     private volatile State state = State.NEW;
     private volatile SerialScheduledExecutor.ScheduledTask housekeepingTask;
+    private volatile List<TagPassageSnapshot> passageSnapshots =
+            Collections.emptyList();
 
     public TagProcessor(
             TimingNode timingNode,
@@ -188,6 +193,17 @@ public final class TagProcessor {
         }
     }
 
+    /**
+     * Returns the latest immutable engineering view of active registration passages.
+     *
+     * <p>The returned list is published by the TagProcessor serial lane. Callers
+     * never read the mutable filter state directly and no worker round-trip is
+     * required merely to inspect diagnostics.</p>
+     */
+    public List<TagPassageSnapshot> passageSnapshots() {
+        return passageSnapshots;
+    }
+
     private void scheduleDrainLocked() {
         if (!drainScheduled.compareAndSet(false, true)) {
             return;
@@ -250,6 +266,7 @@ public final class TagProcessor {
         }
 
         observationFilter.add(registrationId, observation);
+        publishPassageSnapshots();
         ensureHousekeeping();
     }
 
@@ -304,6 +321,7 @@ public final class TagProcessor {
         try {
             observationFilter.periodic();
             duplicateFilter.periodic();
+            publishPassageSnapshots();
         } catch (RuntimeException ex) {
             LOG.warn("Tag-processing housekeeping failed", ex);
         } finally {
@@ -314,6 +332,17 @@ public final class TagProcessor {
                 }
             }
         }
+    }
+
+    private void publishPassageSnapshots() {
+        List<TagPassageSnapshot> current =
+                observationFilter.snapshots();
+        passageSnapshots =
+                current.isEmpty()
+                        ? Collections.<TagPassageSnapshot>emptyList()
+                        : Collections.unmodifiableList(
+                                new ArrayList<TagPassageSnapshot>(
+                                        current));
     }
 
     private boolean hasTimedState() {
@@ -348,6 +377,7 @@ public final class TagProcessor {
              * unnecessary timed state.
              */
             observationFilter.discard(registrationId);
+            publishPassageSnapshots();
         }
 
         metrics.recordAdmission(admission);
