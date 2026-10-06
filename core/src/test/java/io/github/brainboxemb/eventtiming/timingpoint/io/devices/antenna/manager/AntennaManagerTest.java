@@ -2,10 +2,10 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager
 
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Antenna;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.Antenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInfo;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.power.SimulatedPowerDevice;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaOperation;
