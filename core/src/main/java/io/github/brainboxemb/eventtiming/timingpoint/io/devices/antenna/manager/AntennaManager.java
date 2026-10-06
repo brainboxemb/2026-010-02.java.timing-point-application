@@ -451,7 +451,12 @@ public final class AntennaManager {
         }
 
         CompletableFuture<Void> transition =
-                prepareInventory();
+                singleAntennaWithoutSwitching()
+                        ? control.runTask(
+                                new InventoryEnableTask(
+                                        antennas.get(0),
+                                        this::inventoryRequestedEnabled))
+                        : prepareInventory();
 
         transition.whenComplete(
                 (ignored, transitionFailure) -> {
@@ -501,6 +506,11 @@ public final class AntennaManager {
      * abstraction. Each delayed step checks the latest requested inventory
      * setting before it may initialize or start a reader.</p>
      */
+    private boolean singleAntennaWithoutSwitching() {
+        return antennas.size() == 1
+                && !switching.hasInventoryGroup();
+    }
+
     private CompletableFuture<Void> prepareInventory() {
         CompletableFuture<Void> transition =
                 CompletableFuture.completedFuture(
