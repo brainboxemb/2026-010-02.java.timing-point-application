@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime.simulator;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagRegistrationMapper;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.TimingApplicationRuntime;
@@ -24,11 +24,11 @@ public final class SimulationRuntime {
             BuildIdentity buildIdentity,
             Config config,
             List<AntennaInstallation> antennaInstallations,
-            TagRegistrationMapper tagRegistrationMapper) {
+            EventData eventData) {
         return TimingApplicationRuntime.create(
                 buildIdentity,
                 config,
                 antennaInstallations,
-                tagRegistrationMapper);
+                eventData);
     }
 }
