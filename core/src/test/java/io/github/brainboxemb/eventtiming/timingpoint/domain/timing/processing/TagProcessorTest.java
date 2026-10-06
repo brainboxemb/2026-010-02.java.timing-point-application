@@ -145,6 +145,17 @@ public class TagProcessorTest {
                     observation("TAG-B", -30, STRONGER_OBSERVED_AT));
             awaitLane(executor);
 
+            List<TagPassageSnapshot> passages =
+                    processor.passageSnapshots();
+            assertEquals(1, passages.size());
+            assertEquals(
+                    new RegistrationId("N-001"),
+                    passages.get(0).registrationId());
+            assertEquals(
+                    new TagId("TAG-B"),
+                    passages.get(0).selectedTagId());
+            assertEquals(2, passages.get(0).tags().size());
+
             clock.advanceNanos(100L);
 
             assertTrue(committed.await(1, TimeUnit.SECONDS));
