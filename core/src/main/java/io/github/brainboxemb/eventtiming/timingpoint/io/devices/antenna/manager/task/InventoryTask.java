@@ -1,11 +1,18 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.task;
 
 import io.github.brainboxemb.eventtiming.timingpoint.infra.setting.Setting;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTask;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.TaskStep;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
 
 /**
  * Reusable inventory state machine for enable, disable and multiplex switching.
@@ -35,7 +42,9 @@ final class InventoryTask implements CooperativeTask {
     private final List<? extends AntennaTasks.AntennaTarget> inventoryGroup;
     private final Duration inventoryInterval;
     private final Setting<Boolean> inventoryEnabledSetting;
+    private final Event<AntennaTasks.TaskResult> completedEvent = new Event<AntennaTasks.TaskResult>();
 
+    private CompletableFuture<Void> operation;
     private Phase phase;
     private int antennaIndex;
     private int groupIndex;
@@ -53,6 +62,38 @@ final class InventoryTask implements CooperativeTask {
         this.inventoryInterval = inventoryInterval;
         this.inventoryEnabledSetting = inventoryEnabledSetting;
         reset();
+    }
+
+    void start(ScheduledTaskRunner taskRunner) {
+        checkState(!isRunning(), "InventoryTask is already running");
+        reset();
+        operation = taskRunner.runTask(this);
+        operation.whenComplete(this::onCompleted);
+    }
+
+    void cancel() {
+        if (isRunning()) {
+            operation.cancel(true);
+        }
+    }
+
+    boolean isRunning() {
+        return operation != null && !operation.isDone();
+    }
+
+    EventSource<AntennaTasks.TaskResult> completedEvent() {
+        return completedEvent;
+    }
+
+    private void onCompleted(Void ignored, Throwable taskFailure) {
+        if (taskFailure instanceof CancellationException) {
+            return;
+        }
+
+        completedEvent.emit(
+                taskFailure == null
+                        ? AntennaTasks.TaskResult.success()
+                        : AntennaTasks.TaskResult.failed(taskFailure));
     }
 
     void reset() {
