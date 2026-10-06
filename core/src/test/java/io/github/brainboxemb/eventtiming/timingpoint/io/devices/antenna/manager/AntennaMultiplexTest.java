@@ -89,7 +89,7 @@ public class AntennaMultiplexTest {
     }
 
     @Test
-    public void failedGroupMemberIsSkippedWhileHealthyMemberContinues()
+    public void failedGroupMemberIsSkippedWhileAvailableMemberContinues()
             throws Exception {
         ScheduledExecutorService shared = sharedExecutor();
         SimulatedAntenna available = new SimulatedAntenna();
