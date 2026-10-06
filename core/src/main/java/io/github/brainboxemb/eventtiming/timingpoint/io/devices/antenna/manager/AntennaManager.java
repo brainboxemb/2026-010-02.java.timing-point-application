@@ -70,7 +70,7 @@ public final class AntennaManager {
 
     public void activate() {
         synchronized (this) {
-            checkState(state == State.NEW, "AntennaManager must be NEW, was %s", state);
+            checkState(state == State.NEW || state == State.INACTIVE, "AntennaManager cannot activate from %s", state);
         }
 
         taskRunner.start();
