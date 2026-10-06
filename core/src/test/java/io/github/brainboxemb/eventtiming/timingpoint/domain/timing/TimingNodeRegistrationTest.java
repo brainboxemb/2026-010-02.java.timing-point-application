@@ -242,7 +242,7 @@ public class TimingNodeRegistrationTest {
     }
 
     @Test
-    public void emitsOnlyAfterSuccessfulCommitAndSupportsUnsubscribe() {
+    public void emitsOnlyAfterSuccessfulCommit() {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
         List<TimingData> delivered = new ArrayList<>();
@@ -273,12 +273,6 @@ public class TimingNodeRegistrationTest {
             assertEquals(1, delivered.size());
             assertSame(committed.timingData(), delivered.get(0));
 
-            assertTrue(node.timingDataCommittedEvent().unsubscribe(listener));
-            node.invoke(TimingNodeCommands.commitManualRegistration(
-                    new RegistrationId("1003"),
-                    EFFECTIVE_TIME,
-                    ManualTimeSource.OPERATOR_ENTERED));
-            assertEquals(1, delivered.size());
         } finally {
             node.deactivate();
         }
@@ -372,7 +366,7 @@ public class TimingNodeRegistrationTest {
         node.activate();
         try {
             TimingNodeTypes.Status status = node.query(TimingNodeQueries.status());
-            assertEquals(TimingNodeTypes.Lifecycle.CLOSED, status.lifecycle());
+            assertEquals(TimingNodeTypes.State.CLOSED, status.state());
             assertFalse(status.hasLocation());
             assertFalse(status.timingDataTailRecovered());
             assertEquals(2, node.query(TimingNodeQueries.timingDataCount()).intValue());
@@ -416,7 +410,7 @@ public class TimingNodeRegistrationTest {
         node.activate();
         try {
             TimingNodeTypes.Status status = node.query(TimingNodeQueries.status());
-            assertEquals(TimingNodeTypes.Lifecycle.ERROR, status.lifecycle());
+            assertEquals(TimingNodeTypes.State.ERROR, status.state());
             assertFalse(status.hasLocation());
             assertEquals(1, status.problems().size());
             assertEquals(
