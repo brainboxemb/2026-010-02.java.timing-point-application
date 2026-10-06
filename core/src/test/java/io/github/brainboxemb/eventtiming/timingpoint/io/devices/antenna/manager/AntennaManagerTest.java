@@ -401,7 +401,7 @@ public class AntennaManagerTest {
     }
 
     @Test
-    public void selfTestTimeoutCancelsProviderAndLeavesManagerNotReady()
+    public void blockingSelfTestKeepsManagerBusyUntilProviderReturns()
             throws Exception {
         ScheduledExecutorService shared =
                 sharedExecutor();
@@ -413,10 +413,20 @@ public class AntennaManagerTest {
                                 blocking),
                         shared,
                         1,
-                        Duration.ofMillis(25));
+                        Duration.ofSeconds(1));
 
         try {
             manager.activate();
+
+            assertTrue(
+                    blocking.awaitEntered(
+                            500L));
+            assertTrue(
+                    manager.isBusy());
+            assertFalse(
+                    manager.isReady());
+
+            blocking.release();
 
             awaitCondition(
                     () -> !manager.isBusy(),
@@ -425,16 +435,14 @@ public class AntennaManagerTest {
             assertEquals(
                     State.ACTIVE,
                     manager.state());
-            assertFalse(
+            assertTrue(
                     manager.isReady());
-            assertFalse(
+            assertTrue(
                     manager.status(
                             new AntennaId("1"))
                             .selfTestPassed());
-            assertTrue(
-                    "blocking provider call must be interrupted on timeout",
-                    blocking.interrupted());
         } finally {
+            blocking.release();
             manager.deactivate();
             shared.shutdownNow();
         }
@@ -584,7 +592,10 @@ public class AntennaManagerTest {
 
     private static final class BlockingSelfTestAntenna
             extends RecordingAntenna {
-        private volatile boolean interrupted;
+        private final CountDownLatch entered =
+                new CountDownLatch(1);
+        private final CountDownLatch release =
+                new CountDownLatch(1);
 
         private BlockingSelfTestAntenna() {
             super(
@@ -595,23 +606,31 @@ public class AntennaManagerTest {
 
         @Override
         public AntennaInfo selfTest() {
+            entered.countDown();
             try {
-                while (true) {
-                    Thread.sleep(
-                            1000L);
-                }
+                release.await();
             } catch (InterruptedException ex) {
-                interrupted = true;
                 Thread.currentThread()
                         .interrupt();
                 throw new IllegalStateException(
                         "self-test interrupted",
                         ex);
             }
+            return new AntennaInfo(
+                    "blocking",
+                    "1");
         }
 
-        private boolean interrupted() {
-            return interrupted;
+        private boolean awaitEntered(
+                long timeoutMillis)
+                throws InterruptedException {
+            return entered.await(
+                    timeoutMillis,
+                    TimeUnit.MILLISECONDS);
+        }
+
+        private void release() {
+            release.countDown();
         }
     }
 }
