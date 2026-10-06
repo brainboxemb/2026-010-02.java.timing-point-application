@@ -6,6 +6,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.EventData;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes;
@@ -13,7 +15,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.Ta
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.DecryptedTagId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.simulator.SimulationRuntime;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
@@ -24,6 +25,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -106,7 +109,9 @@ public class TimingApplicationRuntimeTest {
                         AntennaInstallation.direct(
                                 new AntennaId("ANT1"),
                                 antenna)),
-                tagId -> new RegistrationId("R-1001"));
+                eventData(
+                        "TAG-1001", "R-1001",
+                        "TAG-1001-B", "R-1001"));
 
         assertEquals(
                 tagProcessingPolicy,
@@ -136,7 +141,7 @@ public class TimingApplicationRuntimeTest {
             TimingTimestamp observedAt =
                     TimingTimestamp.parse("2026-10-05T08:30:00.000000000Z");
             antenna.emit(
-                    new DecryptedTagId("TAG-1001"),
+                    new TagId("TAG-1001"),
                     -42,
                     observedAt);
 
@@ -158,7 +163,7 @@ public class TimingApplicationRuntimeTest {
         assertFalse(antenna.inventoryRunning());
         try {
             antenna.emit(
-                    new DecryptedTagId("TAG-1002"),
+                    new TagId("TAG-1002"),
                     -40,
                     TimingTimestamp.parse("2026-10-05T08:30:01.000000000Z"));
             fail("expected closed antenna after application shutdown");
@@ -227,6 +232,23 @@ public class TimingApplicationRuntimeTest {
                 null,
                 timingDataPath,
                 tagProcessingPolicy);
+    }
+
+    private static EventData eventData(
+            String... tagAndRegistrationIds) {
+        Map<TagId, RegistrationId> registrations =
+                new LinkedHashMap<TagId, RegistrationId>();
+        for (int index = 0;
+                index < tagAndRegistrationIds.length;
+                index += 2) {
+            registrations.put(
+                    new TagId(
+                            tagAndRegistrationIds[index]),
+                    new RegistrationId(
+                            tagAndRegistrationIds[index + 1]));
+        }
+        return new EventData(
+                registrations);
     }
 
     private static BuildIdentity identity() {
