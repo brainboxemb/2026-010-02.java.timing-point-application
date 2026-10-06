@@ -17,6 +17,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTi
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.DynamicConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevelControl;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.extension.ExtensionRegistry;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
@@ -111,6 +112,7 @@ public final class TimingApplicationRuntime {
                 Thread.currentThread()
                         .getContextClassLoader(),
                 null,
+                null,
                 null);
     }
 
@@ -130,6 +132,7 @@ public final class TimingApplicationRuntime {
                 config,
                 PlatformEnvironment.system(),
                 extensionClassLoader,
+                null,
                 null,
                 null);
     }
@@ -165,15 +168,39 @@ public final class TimingApplicationRuntime {
                 PlatformEnvironment.system(),
                 Thread.currentThread()
                         .getContextClassLoader(),
+                null,
                 consoleInput,
                 consoleOutput);
     }
+
+    /**
+     * Constructs the normal executable composition with process console I/O and
+     * runtime log-level control for local/remote terminal commands.
+     */
+    public static TimingApplicationRuntime create(
+            BuildIdentity buildIdentity,
+            Config config,
+            LoggingLevelControl loggingLevelControl,
+            Reader consoleInput,
+            Writer consoleOutput) {
+        return createNormal(
+                buildIdentity,
+                config,
+                PlatformEnvironment.system(),
+                Thread.currentThread()
+                        .getContextClassLoader(),
+                loggingLevelControl,
+                consoleInput,
+                consoleOutput);
+    }
+
 
     private static TimingApplicationRuntime createNormal(
             BuildIdentity buildIdentity,
             Config config,
             PlatformEnvironment platform,
             ClassLoader extensionClassLoader,
+            LoggingLevelControl loggingLevelControl,
             Reader consoleInput,
             Writer consoleOutput) {
         if (platform == null) {
@@ -196,6 +223,7 @@ public final class TimingApplicationRuntime {
                         platform),
                 extensions,
                 platform,
+                loggingLevelControl,
                 consoleInput,
                 consoleOutput);
     }
@@ -221,6 +249,7 @@ public final class TimingApplicationRuntime {
                 timingDataProvider.createCodec(),
                 PlatformEnvironment.system(),
                 null,
+                null,
                 null);
     }
 
@@ -233,6 +262,7 @@ public final class TimingApplicationRuntime {
             AntennaSet antennaSet,
             ExtensionRegistry extensions,
             PlatformEnvironment platform,
+            LoggingLevelControl loggingLevelControl,
             Reader consoleInput,
             Writer consoleOutput) {
         if (config == null) {
@@ -268,6 +298,7 @@ public final class TimingApplicationRuntime {
                 timingDataProvider.createFactory(),
                 timingDataProvider.createCodec(),
                 platform,
+                loggingLevelControl,
                 consoleInput,
                 consoleOutput);
     }
@@ -283,6 +314,7 @@ public final class TimingApplicationRuntime {
             TimingDataFactory timingDataFactory,
             TimingDataCodec timingDataCodec,
             PlatformEnvironment platform,
+            LoggingLevelControl loggingLevelControl,
             Reader consoleInput,
             Writer consoleOutput) {
         requireCompositionInput(
@@ -363,6 +395,7 @@ public final class TimingApplicationRuntime {
                     new PresentationRuntime(
                             config.presentation(),
                             presentationGateway,
+                            loggingLevelControl,
                             shutdownSignal::request,
                             consoleInput,
                             consoleOutput);
