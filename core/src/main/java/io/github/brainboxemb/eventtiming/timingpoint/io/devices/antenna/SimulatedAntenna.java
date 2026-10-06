@@ -11,7 +11,8 @@ public final class SimulatedAntenna implements Antenna {
         NONE,
         PROBE,
         INITIALIZE,
-        START_INVENTORY
+        START_INVENTORY,
+        STOP_INVENTORY
     }
 
     private static final AntennaInfo INFO =
@@ -67,6 +68,7 @@ public final class SimulatedAntenna implements Antenna {
     @Override
     public synchronized void stopInventory() {
         requireOpen();
+        failIf(FailurePoint.STOP_INVENTORY);
         inventoryRunning = false;
     }
 
