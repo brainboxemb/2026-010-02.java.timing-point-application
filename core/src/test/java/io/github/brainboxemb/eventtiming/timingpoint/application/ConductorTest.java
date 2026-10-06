@@ -48,7 +48,7 @@ public class ConductorTest {
     }
 
     @Test
-    public void coalescesStatusSignalsWhileReconcileIsPending()
+    public void lifecyclePropertyCoalescesSignalsWhileRefreshIsPending()
             throws Exception {
         TimingNode node = newTimingNode();
         SimulatedAntenna antenna = new SimulatedAntenna();
@@ -99,8 +99,9 @@ public class ConductorTest {
             for (int index = 0;
                     index < 20;
                     index++) {
-                conductor.onTimingNodeStatusChanged(
-                        current);
+                conductor.timingNodeLifecycleProperty()
+                        .changeSignal()
+                        .accept(current);
             }
 
             assertEquals(
@@ -120,7 +121,7 @@ public class ConductorTest {
     }
 
     @Test
-    public void statusEventTriggersReconcileOfCurrentStateNotEventSnapshot()
+    public void lifecyclePropertyReadsCurrentStateInsteadOfEventSnapshot()
             throws Exception {
         TimingNode node = newTimingNode();
         SimulatedAntenna antenna = new SimulatedAntenna();
@@ -149,12 +150,13 @@ public class ConductorTest {
                             new LocationId(24)));
 
             /*
-             * The callback receives an intentionally stale CLOSED snapshot.
-             * It must be treated only as "something changed"; the reconcile
-             * reads the authoritative current OPEN state and enables inventory.
+             * The property receives an intentionally stale CLOSED snapshot.
+             * The payload is only a change signal; the property rereads the
+             * authoritative current OPEN lifecycle and enables inventory.
              */
-            conductor.onTimingNodeStatusChanged(
-                    staleClosedSnapshot);
+            conductor.timingNodeLifecycleProperty()
+                    .changeSignal()
+                    .accept(staleClosedSnapshot);
 
             await(
                     antenna::inventoryRunning,
