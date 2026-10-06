@@ -237,9 +237,12 @@ public final class TimingNode {
     }
 
     /**
-     * Recovers committed TimingData before accepting serial operations.
+     * Recovers the TimingData state currently defined by the active recovery
+     * design before accepting serial operations.
      *
-     * <p>Recovery does not restore the operational LocationId or OPEN state.</p>
+     * <p>OPEN/CLOSE lifecycle recovery is defined by the dedicated TimingData
+     * design/implementation track; this component must not hard-code a separate
+     * startup lifecycle policy.</p>
      */
     public void activate() {
         if (serialExecutor.state() != SerialExecutor.State.NEW) {
