@@ -112,10 +112,18 @@ final class ManagedAntenna implements AntennaTasks.AntennaTarget {
                         selfTestTask);
 
         selfTestOperation.whenComplete(
-                (ignored, taskFailure) ->
-                        finishSelfTest(
-                                taskFailure));
+                this::onSelfTestTaskCompleted);
         return true;
+    }
+
+    /**
+     * Named completion boundary for the antenna-owned self-test task.
+     */
+    private void onSelfTestTaskCompleted(
+            Void ignored,
+            Throwable taskFailure) {
+        finishSelfTest(
+                taskFailure);
     }
 
     @Override
