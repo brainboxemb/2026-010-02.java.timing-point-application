@@ -65,7 +65,7 @@ public final class TagProcessor {
             SerialScheduledExecutor executor) {
         this(
                 timingNode,
-                mapper,
+                eventData,
                 ReadOnlyConfiguration.fixed(policy),
                 monotonicClock,
                 metrics,
