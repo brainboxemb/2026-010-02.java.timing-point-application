@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.task;
 
 import io.github.brainboxemb.eventtiming.timingpoint.infra.setting.Setting;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInfo;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTask;
 
 import java.time.Duration;
@@ -8,29 +9,31 @@ import java.util.List;
 
 /**
  * Reusable cooperative task set owned by one AntennaManager.
- *
- * <p>The three task objects are constructed once and reset before a new run.
- * Concrete task classes remain package-private.</p>
  */
 public final class AntennaTasks {
 
+    /** Reusable task contract for component-owned state machines. */
+    public interface ReusableTask extends CooperativeTask {
+        void reset();
+    }
+
     /** Direct one-antenna operations required by the task state machines. */
     public interface AntennaTarget {
-        Duration powerOnForSelfTest();
+        void powerOn();
 
-        void selfTest();
+        void powerOff();
 
-        void powerOffAfterSelfTest();
+        Duration powerStabilization();
 
-        Duration powerOnForInventory();
+        AntennaInfo selfTest();
+
+        void beginInventoryPreparation();
 
         void initialize();
 
         void startInventory();
 
         void stopInventory();
-
-        void powerOffAfterInventory();
 
         void shutdownProvider();
 
@@ -41,7 +44,6 @@ public final class AntennaTasks {
         boolean inventoryRunning();
     }
 
-    private final SelfTestTask selfTestTask;
     private final InventoryTask inventoryTask;
     private final AntennaShutdownTask antennaShutdownTask;
 
@@ -71,9 +73,6 @@ public final class AntennaTasks {
                     "inventoryInterval must be positive for an inventory group");
         }
 
-        selfTestTask =
-                new SelfTestTask(
-                        antennas);
         inventoryTask =
                 new InventoryTask(
                         antennas,
@@ -85,9 +84,15 @@ public final class AntennaTasks {
                         antennas);
     }
 
-    public CooperativeTask selfTest() {
-        selfTestTask.reset();
-        return selfTestTask;
+    /** Creates the one reusable self-test task owned by one managed antenna. */
+    public static ReusableTask selfTestTask(
+            AntennaTarget antenna) {
+        if (antenna == null) {
+            throw new IllegalArgumentException(
+                    "antenna must not be null");
+        }
+        return new SelfTestTask(
+                antenna);
     }
 
     public CooperativeTask inventory() {
