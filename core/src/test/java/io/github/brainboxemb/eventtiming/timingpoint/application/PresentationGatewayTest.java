@@ -49,8 +49,8 @@ public class PresentationGatewayTest {
             TimingNodeStatus status = gateway.timingNode().status();
             assertEquals(new NodeId("TN-01"), status.timingNodeId());
             assertEquals(
-                    TimingNodeTypes.Lifecycle.CLOSED,
-                    status.lifecycle());
+                    TimingNodeTypes.State.CLOSED,
+                    status.state());
         } finally {
             node.deactivate();
         }
@@ -67,8 +67,8 @@ public class PresentationGatewayTest {
         try {
             TimingNodeStatus status = gateway.timingNode().status();
             assertEquals(
-                    TimingNodeTypes.Lifecycle.ERROR,
-                    status.lifecycle());
+                    TimingNodeTypes.State.ERROR,
+                    status.state());
             assertEquals(1, status.problems().size());
             assertEquals(
                     TimingNodeTypes.ProblemCode.TIMING_DATA_RECOVERY_FAILED,
@@ -105,8 +105,8 @@ public class PresentationGatewayTest {
                     proxy.open(new LocationId(24)));
             assertEquals(1, statusChanges.size());
             assertEquals(
-                    TimingNodeTypes.Lifecycle.OPEN,
-                    statusChanges.get(0).lifecycle());
+                    TimingNodeTypes.State.OPEN,
+                    statusChanges.get(0).state());
             assertEquals(
                     new LocationId(24),
                     statusChanges.get(0).locationId());
@@ -143,8 +143,8 @@ public class PresentationGatewayTest {
             assertEquals(TimingNodeTypes.CloseResult.CLOSED, proxy.close());
             assertEquals(2, statusChanges.size());
             assertEquals(
-                    TimingNodeTypes.Lifecycle.CLOSED,
-                    statusChanges.get(1).lifecycle());
+                    TimingNodeTypes.State.CLOSED,
+                    statusChanges.get(1).state());
         } finally {
             node.deactivate();
         }
