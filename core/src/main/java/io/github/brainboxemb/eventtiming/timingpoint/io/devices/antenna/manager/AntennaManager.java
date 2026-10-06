@@ -48,14 +48,16 @@ public final class AntennaManager {
     private final ScheduledTaskRunner taskRunner;
     private final AntennaSet antennaSet;
     private final Setting<Boolean> inventoryEnabledSetting = new Setting<Boolean>(Boolean.FALSE);
-    private final AntennaTasks antennaTasks;
+    private final SelfTestTask selfTestTask;
+    private final InventoryTask inventoryTask;
+    private final AntennaShutdownTask shutdownTask;
 
     private volatile State state = State.NEW;
     private volatile Phase phase = Phase.STOPPED;
     private volatile Throwable failure;
 
-    private AntennaTasks.TaskResult selfTestResult;
-    private AntennaTasks.TaskResult inventoryResult;
+    private AntennaTaskResult selfTestResult;
+    private AntennaTaskResult inventoryResult;
 
     public AntennaManager(
             AntennaSet antennaSet,
@@ -67,18 +69,20 @@ public final class AntennaManager {
         antennaSet.seal();
         this.antennaSet = antennaSet;
         taskRunner = new ScheduledTaskRunner(controlLane, controlTimeout);
-        antennaTasks = new AntennaTasks(
+        selfTestTask = new SelfTestTask(antennaSet.antennas());
+        inventoryTask = new InventoryTask(
                 antennaSet.antennas(),
                 antennaSet.inventoryGroup(),
                 antennaSet.hasInventoryGroup() ? antennaSet.inventoryInterval() : null,
                 inventoryEnabledSetting);
+        shutdownTask = new AntennaShutdownTask(antennaSet.antennas());
 
         /*
          * Task events are wired once during composition. The callbacks only
          * store the completed result and advance this manager state machine.
          */
-        antennaTasks.selfTestCompletedEvent().subscribe(this::onSelfTestCompleted);
-        antennaTasks.inventoryCompletedEvent().subscribe(this::onInventoryCompleted);
+        selfTestTask.completedEvent().subscribe(this::onSelfTestCompleted);
+        inventoryTask.completedEvent().subscribe(this::onInventoryCompleted);
     }
 
     public synchronized void activate() {
@@ -91,7 +95,7 @@ public final class AntennaManager {
         selfTestResult = null;
         inventoryResult = null;
 
-        antennaTasks.startSelfTest(taskRunner);
+        selfTestTask.start(taskRunner);
         LOG.info("AntennaManager activated with {} configured antenna(s)", antennaSet.size());
     }
 
@@ -147,15 +151,15 @@ public final class AntennaManager {
         }
 
         inventoryEnabledSetting.request(Boolean.FALSE);
-        antennaTasks.cancelSelfTest();
-        antennaTasks.cancelInventory();
+        selfTestTask.cancel();
+        inventoryTask.cancel();
 
         RuntimeException shutdownFailure = null;
         try {
             if (taskRunner.isNew()) {
                 taskRunner.start();
             }
-            antennaTasks.shutdownAndWait(taskRunner);
+            shutdownTask.runAndWait(taskRunner);
         } catch (RuntimeException ex) {
             shutdownFailure = ex;
         }
@@ -210,12 +214,12 @@ public final class AntennaManager {
         return true;
     }
 
-    private synchronized void onSelfTestCompleted(AntennaTasks.TaskResult result) {
+    private synchronized void onSelfTestCompleted(AntennaTaskResult result) {
         selfTestResult = result;
         advanceStateMachine();
     }
 
-    private synchronized void onInventoryCompleted(AntennaTasks.TaskResult result) {
+    private synchronized void onInventoryCompleted(AntennaTaskResult result) {
         inventoryResult = result;
         advanceStateMachine();
     }
@@ -247,7 +251,7 @@ public final class AntennaManager {
                     }
                     phase = Phase.INVENTORY_TASK;
                     inventoryResult = null;
-                    antennaTasks.startInventory(taskRunner);
+                    inventoryTask.start(taskRunner);
                     return;
 
                 case INVENTORY_TASK:
@@ -269,7 +273,7 @@ public final class AntennaManager {
     }
 
     private void completeSelfTest() {
-        AntennaTasks.TaskResult result = selfTestResult;
+        AntennaTaskResult result = selfTestResult;
         selfTestResult = null;
 
         if (!result.successful() || !antennaSet.allSelfTestsPassed()) {
@@ -284,7 +288,7 @@ public final class AntennaManager {
     }
 
     private void completeInventoryTask() {
-        AntennaTasks.TaskResult result = inventoryResult;
+        AntennaTaskResult result = inventoryResult;
         inventoryResult = null;
 
         if (!result.successful()) {
