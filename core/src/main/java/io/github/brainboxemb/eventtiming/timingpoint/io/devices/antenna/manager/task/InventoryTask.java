@@ -46,6 +46,7 @@ final class InventoryTask extends AbstractTask {
     private final Setting<Boolean> inventoryEnabledSetting;
     private final Event<AntennaTaskResult> completedEvent = new Event<AntennaTaskResult>();
 
+    private volatile AntennaTaskResult lastResult;
     private Phase phase;
     private int antennaIndex;
     private int groupIndex;
@@ -69,16 +70,26 @@ final class InventoryTask extends AbstractTask {
         return completedEvent;
     }
 
+    /**
+     * Result of the most recently completed run, or null while no run has
+     * completed since the latest start.
+     */
+    AntennaTaskResult lastResult() {
+        return lastResult;
+    }
+
     @Override
     protected void onRunCompleted(Throwable taskFailure) {
-        completedEvent.emit(
-                taskFailure == null
-                        ? AntennaTaskResult.success()
-                        : AntennaTaskResult.failed(taskFailure));
+        lastResult = taskFailure == null
+                ? AntennaTaskResult.success()
+                : AntennaTaskResult.failed(taskFailure);
+
+        completedEvent.emit(lastResult);
     }
 
     @Override
     protected void resetForRun() {
+        lastResult = null;
         phase = Phase.DECIDE;
         antennaIndex = 0;
         groupIndex = 0;
