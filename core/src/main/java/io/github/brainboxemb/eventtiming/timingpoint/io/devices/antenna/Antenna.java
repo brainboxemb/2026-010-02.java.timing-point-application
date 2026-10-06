@@ -14,7 +14,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
  * {@link #probe()}, {@link #initialize()} and the explicit inventory lifecycle.
  * This keeps Runtime composition free of hidden activation side effects.</p>
  */
-public interface Antenna extends AutoCloseable {
+public interface Antenna {
 
     /** Performs a one-shot identity/version probe without starting inventory. */
     AntennaInfo probe();
@@ -34,7 +34,10 @@ public interface Antenna extends AutoCloseable {
     /** Returns the subscription-only event emitted when this antenna observes a tag. */
     EventSource<TagObservation> tagObservedEvent();
 
-    /** Stops delivery and releases antenna resources. */
-    @Override
-    void close();
+    /**
+     * Stops delivery and releases provider/device resources.
+     *
+     * <p>Shutdown is valid even when normal initialization did not complete.</p>
+     */
+    void shutdown();
 }

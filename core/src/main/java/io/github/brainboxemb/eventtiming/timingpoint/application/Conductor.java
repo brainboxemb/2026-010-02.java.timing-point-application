@@ -112,6 +112,14 @@ public final class Conductor {
 
         try {
             componentLifecycle.activateAll();
+
+            if (antennaManager != null) {
+                antennaManager.checkHealth();
+                LOG.info(
+                        "Antenna startup health check completed: health={}",
+                        antennaManager.health());
+            }
+
             serialExecutor.start();
 
             synchronized (this) {

@@ -165,9 +165,9 @@ public class TimingApplicationRuntimeTest {
                     new TagId("TAG-1002"),
                     -40,
                     TimingTimestamp.parse("2026-10-05T08:30:01.000000000Z"));
-            fail("expected closed antenna after application shutdown");
+            fail("expected shut-down antenna after application shutdown");
         } catch (IllegalStateException expected) {
-            assertTrue(expected.getMessage().contains("closed"));
+            assertTrue(expected.getMessage().contains("shut down"));
         }
     }
 

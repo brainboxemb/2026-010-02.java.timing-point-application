@@ -3,6 +3,10 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntennaPowerControl;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaHealth;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.ManagerHealth;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -10,10 +14,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
-
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaState;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
 import org.junit.Test;
 
@@ -56,8 +56,13 @@ public class AntennaMultiplexTest {
 
         try {
             manager.activate();
+            manager.checkHealth();
+
             assertFalse(firstPower.powered());
             assertFalse(secondPower.powered());
+            assertEquals(
+                    ManagerHealth.HEALTHY,
+                    manager.health());
 
             manager.setInventoryEnabled(true);
             assertTrue(firstPower.powered());
@@ -106,22 +111,86 @@ public class AntennaMultiplexTest {
 
         try {
             manager.activate();
+            manager.checkHealth();
+
             failed.setFailurePoint(
                     SimulatedAntenna.FailurePoint.START_INVENTORY);
             manager.setInventoryEnabled(true);
 
             await(
                     () -> manager.status(
-                            new AntennaId("ANT2")).state()
-                            == AntennaState.ERROR,
+                            new AntennaId("ANT2")).health()
+                            == AntennaHealth.FAILED,
                     1000L);
             await(healthy::inventoryRunning, 1000L);
 
             assertEquals(
-                    State.DEGRADED,
+                    State.ACTIVE,
                     manager.state());
+            assertEquals(
+                    ManagerHealth.DEGRADED,
+                    manager.health());
             assertTrue(healthy.inventoryRunning());
             assertFalse(failed.inventoryRunning());
+        } finally {
+            manager.deactivate();
+            shared.shutdownNow();
+        }
+    }
+
+    @Test
+    public void failedStopDoesNotStartAnotherGroupMember()
+            throws Exception {
+        ScheduledExecutorService shared = sharedExecutor();
+        SimulatedAntenna first = new SimulatedAntenna();
+        SimulatedAntenna second = new SimulatedAntenna();
+
+        AntennaManager manager = manager(
+                Arrays.asList(
+                        AntennaInstallation.direct(
+                                        new AntennaId("ANT1"),
+                                        first)
+                                .inInventoryGroup(
+                                        Duration.ofMillis(200)),
+                        AntennaInstallation.direct(
+                                        new AntennaId("ANT2"),
+                                        second)
+                                .inInventoryGroup(
+                                        Duration.ofMillis(200))),
+                shared,
+                8,
+                Duration.ofSeconds(1));
+
+        try {
+            manager.activate();
+            manager.checkHealth();
+            manager.setInventoryEnabled(true);
+
+            await(
+                    first::inventoryRunning,
+                    500L);
+
+            first.setFailurePoint(
+                    SimulatedAntenna.FailurePoint.STOP_INVENTORY);
+
+            await(
+                    () -> manager.status(
+                            new AntennaId("ANT1")).health()
+                            == AntennaHealth.FAILED,
+                    1000L);
+
+            assertTrue(
+                    "failed stop means the first reader may still be inventorying",
+                    first.inventoryRunning());
+            assertEquals(
+                    "second reader must not start when stopping the first failed",
+                    0,
+                    second.inventoryStartCount());
+            assertAtMostOneInventories(
+                    first,
+                    second);
+
+            first.clearFailure();
         } finally {
             manager.deactivate();
             shared.shutdownNow();
