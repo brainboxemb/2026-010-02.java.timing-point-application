@@ -24,9 +24,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Lifecycle and control state machine for one antenna set.
  *
- * <p>External calls and task-completion events only provide new input. The
- * manager makes all follow-up decisions in {@link #advanceStateMachine()}, so
- * task handlers do not each implement their own transition rules.</p>
+ * <p>External calls and task-completion events only wake this state machine.
+ * Task results remain owned by the tasks that produced them; manager transitions
+ * read that authoritative task state in {@link #runStep()}.</p>
  */
 public final class AntennaManager implements CooperativeTask {
     private static final Logger LOG = LoggerFactory.getLogger(AntennaManager.class);
@@ -77,15 +77,6 @@ public final class AntennaManager implements CooperativeTask {
     private boolean stateMachineRunning;
     private boolean stateMachineWakePending;
 
-    /*
-     * A request after INVENTORY_FAILED is the explicit retry trigger. The
-     * requested inventory value itself lives in inventoryEnabledSetting.
-     */
-    private boolean inventoryRequestReceived;
-
-    private volatile AntennaTaskResult selfTestResult;
-    private volatile AntennaTaskResult inventoryResult;
-
     public AntennaManager(
             AntennaSet antennaSet,
             SerialScheduledExecutor controlLane,
@@ -119,10 +110,6 @@ public final class AntennaManager implements CooperativeTask {
         state = State.ACTIVE;
         phase = Phase.START_SELF_TEST;
         failure = null;
-        selfTestResult = null;
-        inventoryResult = null;
-        inventoryRequestReceived = false;
-
         requestStateMachineRun();
         LOG.info("AntennaManager activated with {} configured antenna(s)", antennaSet.size());
     }
@@ -209,11 +196,8 @@ public final class AntennaManager implements CooperativeTask {
         }
 
         synchronized (this) {
-            selfTestResult = null;
-            inventoryResult = null;
             stateMachineRunning = false;
             stateMachineWakePending = false;
-            inventoryRequestReceived = false;
 
             if (shutdownFailure == null) {
                 inventoryEnabledSetting.markApplied(Boolean.FALSE);
@@ -233,23 +217,30 @@ public final class AntennaManager implements CooperativeTask {
     }
 
     private synchronized boolean requestInventory(boolean enabled) {
-        if (state != State.ACTIVE) {
+        if (state != State.ACTIVE
+                || phase == Phase.SELF_TEST_FAILED
+                || phase == Phase.INVENTORY_FAILED) {
             return false;
         }
 
         inventoryEnabledSetting.request(Boolean.valueOf(enabled));
-        inventoryRequestReceived = true;
         requestStateMachineRun();
         return true;
     }
 
-    private synchronized void onSelfTestCompleted(AntennaTaskResult result) {
-        selfTestResult = result;
+    /**
+     * Completion events only wake the manager. The result itself remains with
+     * the task and is read from that task when WAIT_SELF_TEST is processed.
+     */
+    private void onSelfTestCompleted(AntennaTaskResult ignored) {
         requestStateMachineRun();
     }
 
-    private synchronized void onInventoryCompleted(AntennaTaskResult result) {
-        inventoryResult = result;
+    /**
+     * Completion events only wake the manager. The result itself remains with
+     * the task and is read from that task when WAIT_INVENTORY is processed.
+     */
+    private void onInventoryCompleted(AntennaTaskResult ignored) {
         requestStateMachineRun();
     }
 
@@ -267,7 +258,6 @@ public final class AntennaManager implements CooperativeTask {
 
         switch (phase) {
             case START_SELF_TEST:
-                selfTestResult = null;
                 selfTestTask.start(taskRunner);
                 phase = Phase.WAIT_SELF_TEST;
                 return TaskStep.done();
@@ -276,7 +266,6 @@ public final class AntennaManager implements CooperativeTask {
                 return handleSelfTestCompletion();
 
             case IDLE:
-                inventoryRequestReceived = false;
                 if (!inventoryEnabledSetting.changePending()) {
                     return TaskStep.done();
                 }
@@ -284,7 +273,6 @@ public final class AntennaManager implements CooperativeTask {
                 return TaskStep.again();
 
             case START_INVENTORY:
-                inventoryResult = null;
                 inventoryTask.start(taskRunner);
                 phase = Phase.WAIT_INVENTORY;
                 return TaskStep.done();
@@ -292,15 +280,8 @@ public final class AntennaManager implements CooperativeTask {
             case WAIT_INVENTORY:
                 return handleInventoryCompletion();
 
-            case INVENTORY_FAILED:
-                if (!inventoryRequestReceived) {
-                    return TaskStep.done();
-                }
-                inventoryRequestReceived = false;
-                phase = Phase.IDLE;
-                return TaskStep.again();
-
             case SELF_TEST_FAILED:
+            case INVENTORY_FAILED:
             case STOPPED:
                 return TaskStep.done();
 
@@ -310,11 +291,10 @@ public final class AntennaManager implements CooperativeTask {
     }
 
     private TaskStep handleSelfTestCompletion() {
-        AntennaTaskResult result = selfTestResult;
+        AntennaTaskResult result = selfTestTask.lastResult();
         if (result == null) {
             return TaskStep.done();
         }
-        selfTestResult = null;
 
         if (!result.successful() || !antennaSet.allSelfTestsPassed()) {
             recordFailure(result.failure());
@@ -329,11 +309,10 @@ public final class AntennaManager implements CooperativeTask {
     }
 
     private TaskStep handleInventoryCompletion() {
-        AntennaTaskResult result = inventoryResult;
+        AntennaTaskResult result = inventoryTask.lastResult();
         if (result == null) {
             return TaskStep.done();
         }
-        inventoryResult = null;
 
         if (!result.successful()) {
             recordFailure(result.failure());
