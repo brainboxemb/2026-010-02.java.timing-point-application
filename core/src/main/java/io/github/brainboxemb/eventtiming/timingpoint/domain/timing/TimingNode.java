@@ -240,9 +240,9 @@ public final class TimingNode {
      * Recovers the TimingData state currently defined by the active recovery
      * design before accepting serial operations.
      *
-     * <p>OPEN/CLOSE lifecycle recovery is defined by the dedicated TimingData
-     * design/implementation track; this component must not hard-code a separate
-     * startup lifecycle policy.</p>
+     * <p>OPEN/CLOSED state recovery is defined by the dedicated TimingData
+     * design/implementation track; component activation must not invent a
+     * separate TimingNode operational-state policy.</p>
      */
     public void activate() {
         if (serialExecutor.state() != SerialExecutor.State.NEW) {
@@ -400,10 +400,10 @@ public final class TimingNode {
         }
 
         LOG.info(
-                "TimingNode {} status changed: lifecycle {} -> {}, location {} -> {}, problems {} -> {}",
+                "TimingNode {} status changed: state {} -> {}, location {} -> {}, problems {} -> {}",
                 timingNodeId().value(),
-                before.lifecycle(),
-                after.lifecycle(),
+                before.state(),
+                after.state(),
                 before.hasLocation() ? before.locationId() : "-",
                 after.hasLocation() ? after.locationId() : "-",
                 before.problems().size(),
@@ -439,7 +439,7 @@ public final class TimingNode {
         if (!left.timingNodeId().equals(right.timingNodeId())) {
             return false;
         }
-        if (left.lifecycle() != right.lifecycle()) {
+        if (left.state() != right.state()) {
             return false;
         }
         if (left.timingDataTailRecovered() != right.timingDataTailRecovered()) {
