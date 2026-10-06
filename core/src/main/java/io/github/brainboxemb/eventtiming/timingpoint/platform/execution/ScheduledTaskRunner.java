@@ -24,7 +24,7 @@ import java.util.concurrent.TimeoutException;
  * <p>Domain/I/O components map {@link OperationException} to their own failure
  * semantics instead of putting component-specific policy in this platform type.</p>
  */
-public final class ScheduledTaskRunner {
+public final class ScheduledRegistrationRunner {
 
     public enum FailureReason {
         OVERLOADED,
@@ -53,7 +53,7 @@ public final class ScheduledTaskRunner {
     private final SerialScheduledExecutor lane;
     private final long timeoutNanos;
 
-    public ScheduledTaskRunner(
+    public ScheduledRegistrationRunner(
             SerialScheduledExecutor lane,
             Duration timeout) {
         if (lane == null) {
@@ -421,7 +421,7 @@ public final class ScheduledTaskRunner {
         }
     }
 
-    public SerialScheduledExecutor.ScheduledTask scheduleWithFixedDelay(
+    public SerialScheduledExecutor.ScheduledRegistration scheduleWithFixedDelay(
             Runnable action,
             Duration delay) {
         if (delay == null
