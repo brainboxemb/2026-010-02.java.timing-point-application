@@ -152,13 +152,15 @@ public final class AntennaManager {
     }
 
     /**
-     * Returns whether startup self-test passed and the manager is available for
-     * normal inventory requests.
+     * Returns whether startup self-test passed and normal antenna control may
+     * be requested.
+     *
+     * <p>Ready is independent from {@link #isBusy()}. A ready manager can be
+     * busy applying an inventory setting.</p>
      */
     public boolean isReady() {
         return state == State.ACTIVE
-                && selfTestPassed
-                && !busy;
+                && selfTestPassed;
     }
 
     private void startSelfTest() {
