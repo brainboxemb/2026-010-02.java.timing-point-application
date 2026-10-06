@@ -1,4 +1,7 @@
-package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
+package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model;
+
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInfo;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
@@ -9,7 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
 public final class SimulatedAntenna implements Antenna {
     public enum FailurePoint {
         NONE,
-        PROBE,
+        SELF_TEST,
         INITIALIZE,
         START_INVENTORY,
         STOP_INVENTORY
@@ -22,23 +25,20 @@ public final class SimulatedAntenna implements Antenna {
 
     private boolean initialized;
     private boolean inventoryRunning;
-    private boolean shutdown;
-    private boolean externalPowerControlled;
+    private boolean externalPowerDevice;
     private boolean powered = true;
     private FailurePoint failurePoint = FailurePoint.NONE;
     private int inventoryStartCount;
 
     @Override
-    public synchronized AntennaInfo probe() {
-        requireOpen();
+    public synchronized AntennaInfo selfTest() {
         requirePowered();
-        failIf(FailurePoint.PROBE);
+        failIf(FailurePoint.SELF_TEST);
         return INFO;
     }
 
     @Override
     public synchronized void initialize() {
-        requireOpen();
         requirePowered();
         failIf(FailurePoint.INITIALIZE);
         if (inventoryRunning) {
@@ -50,7 +50,6 @@ public final class SimulatedAntenna implements Antenna {
 
     @Override
     public synchronized void startInventory() {
-        requireOpen();
         requirePowered();
         failIf(FailurePoint.START_INVENTORY);
         if (!initialized) {
@@ -67,7 +66,6 @@ public final class SimulatedAntenna implements Antenna {
 
     @Override
     public synchronized void stopInventory() {
-        requireOpen();
         failIf(FailurePoint.STOP_INVENTORY);
         inventoryRunning = false;
     }
@@ -88,8 +86,7 @@ public final class SimulatedAntenna implements Antenna {
             throw new IllegalArgumentException("observation must not be null");
         }
         synchronized (this) {
-            requireOpen();
-            requirePowered();
+                requirePowered();
             if (!inventoryRunning) {
                 throw new IllegalStateException(
                         "SimulatedAntenna inventory is not running");
@@ -129,29 +126,26 @@ public final class SimulatedAntenna implements Antenna {
     public synchronized void shutdown() {
         inventoryRunning = false;
         initialized = false;
-        if (externalPowerControlled) {
+        if (externalPowerDevice) {
             powered = false;
         }
-        shutdown = true;
     }
 
-    synchronized void attachExternalPowerControl() {
-        requireOpen();
-        if (externalPowerControlled) {
+    public synchronized void attachExternalPowerDevice() {
+        if (externalPowerDevice) {
             throw new IllegalStateException(
-                    "SimulatedAntenna already has external power control");
+                    "SimulatedAntenna already has an external power device");
         }
-        externalPowerControlled = true;
+        externalPowerDevice = true;
         powered = false;
         initialized = false;
         inventoryRunning = false;
     }
 
-    synchronized void setExternallyPowered(boolean powered) {
-        requireOpen();
-        if (!externalPowerControlled) {
+    public synchronized void setExternallyPowered(boolean powered) {
+        if (!externalPowerDevice) {
             throw new IllegalStateException(
-                    "SimulatedAntenna has no external power control");
+                    "SimulatedAntenna has no external power device");
         }
         this.powered = powered;
         if (!powered) {
@@ -173,9 +167,4 @@ public final class SimulatedAntenna implements Antenna {
         }
     }
 
-    private void requireOpen() {
-        if (shutdown) {
-            throw new IllegalStateException("SimulatedAntenna is shut down");
-        }
-    }
 }

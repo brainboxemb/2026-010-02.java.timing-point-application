@@ -74,6 +74,25 @@ public class SerialScheduledExecutorTest {
     }
 
     @Test
+    public void restartsAfterCleanStop() throws Exception {
+        SerialScheduledExecutor executor = newLane("serial-scheduled-restart-test");
+        CountDownLatch first = new CountDownLatch(1);
+        CountDownLatch second = new CountDownLatch(1);
+
+        executor.start();
+        assertTrue(executor.execute(first::countDown));
+        assertTrue(first.await(1, TimeUnit.SECONDS));
+        executor.close();
+
+        executor.start();
+        assertTrue(executor.execute(second::countDown));
+        assertTrue(second.await(1, TimeUnit.SECONDS));
+        executor.close();
+
+        assertEquals(SerialScheduledExecutor.State.STOPPED, executor.state());
+    }
+
+    @Test
     public void delayedWorkRunsOnceOnTheSameSerialThread()
             throws Exception {
         SerialScheduledExecutor executor =
@@ -137,7 +156,7 @@ public class SerialScheduledExecutorTest {
         CountDownLatch periodicDone = new CountDownLatch(1);
 
         executor.start();
-        SerialScheduledExecutor.ScheduledTask periodic = null;
+        SerialScheduledExecutor.ScheduledRegistration periodic = null;
         try {
             assertTrue(executor.execute(() -> {
                 immediateThread.set(Thread.currentThread().getName());
@@ -169,7 +188,7 @@ public class SerialScheduledExecutorTest {
         CountDownLatch secondCall = new CountDownLatch(1);
 
         executor.start();
-        SerialScheduledExecutor.ScheduledTask periodic =
+        SerialScheduledExecutor.ScheduledRegistration periodic =
                 executor.scheduleWithFixedDelay(() -> {
                     if (calls.incrementAndGet() == 1) {
                         throw new IllegalStateException("expected");
@@ -209,7 +228,7 @@ public class SerialScheduledExecutorTest {
         assertFalse(executor.execute(() -> { }));
 
         executor.start();
-        SerialScheduledExecutor.ScheduledTask periodic =
+        SerialScheduledExecutor.ScheduledRegistration periodic =
                 executor.scheduleWithFixedDelay(
                         periodicDone::countDown,
                         TimeUnit.MILLISECONDS.toNanos(5));
@@ -343,7 +362,7 @@ public class SerialScheduledExecutorTest {
                 new CountDownLatch(1);
 
         lane.start();
-        SerialScheduledExecutor.ScheduledTask periodic =
+        SerialScheduledExecutor.ScheduledRegistration periodic =
                 lane.scheduleWithFixedDelay(() -> {
                     periodicThread.set(
                             Thread.currentThread().getName());

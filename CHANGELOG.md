@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add cooperative reusable task execution with `AbstractTask`; refactor antenna control around `AntennaSet`, manager-owned self-test/inventory/shutdown state machines, diagnostic-only self-test PASS/FAIL, and explicit retryable inventory attempts after earlier device failure without requiring process restart.
+
+- Add small `infra.setting.Setting<T>` requested/applied/pending state; make AntennaManager activation start an asynchronous startup self-test with PASS/FAIL result, retain the latest inventory setting while busy, avoid redundant initial CLOSED disable work, and let Presentation start without waiting for antenna startup I/O.
+
 - Rename TimingNode OPEN/CLOSED/ERROR from lifecycle to operational `State`; replace boolean antenna inventory control with explicit enable/disable actions; publish tracked-property changes through `EventSource`; and make local event wiring composition-time only with compact 0/1/N subscriber storage.
 
 - Restore normal startup build-identity output so application name, version and provenance are written before configuration/loading can fail.
@@ -12,13 +16,13 @@
 
 - Extract generic Conductor lifecycle/cleanup mechanics into `application.logic.AbstractConductor`; keep concrete `Conductor` focused on SI-01 properties, startup actions and cross-component rules, and move `ComponentLifecycleManager` beside the lifecycle base.
 
-- Replace Conductor-specific reconcile bookkeeping with tracked application properties: add generic `infra.property.TrackedProperty`, add `application.property.TimingNodeLifecycleProperty`, wire TimingNode status events as change signals, and keep Conductor focused on the lifecycle-to-antenna application rule.
+- Replace Conductor-specific state bookkeeping with tracked application properties: add generic `infra.property.TrackedProperty`, add `application.property.TimingNodeLifecycleProperty`, wire TimingNode status events as change signals, and keep Conductor focused on the TimingNode-to-antenna application rule.
 
-- Simplify antenna lifecycle ownership: make manager activation hardware-free, add explicit startup health checking, separate manager lifecycle from antenna health/operation, move probe/power/initialize/inventory sequencing into `AntennaManager`, reduce `AntennaSwitchController` to multiplex round-robin only, and rename provider cleanup from `close()` to `shutdown()`.
+- Simplify antenna lifecycle ownership: keep device startup and power/initialize/inventory sequencing inside `AntennaManager`, reduce `AntennaSwitchController` to multiplex round-robin only, and rename provider cleanup from `close()` to `shutdown()`.
 
 - Move application component lifecycle coordination into `Conductor`; add `ComponentLifecycleManager` for ordered activation, rollback and reverse deactivation, keep Runtime focused on shared execution resources/composition and start Presentation only after the coordinated application core is ready.
 
-- Rework `Conductor` status handling as coalesced current-state reconciliation: synchronous TimingNode callbacks no longer throw downstream queue overloads, stale status snapshots are not executed as commands, and TimingNode/Conductor control transitions gain causal runtime logging.
+- Rework `Conductor` status handling around coalesced current-state reads: synchronous TimingNode callbacks no longer throw downstream queue overloads, stale status snapshots are not executed as commands, and TimingNode/Conductor control transitions gain causal runtime logging.
 
 - Extract `EventData` and semantic `TagId` into a shared Java-8 `event-data` artifact with typed `EventDataProvider` SPI; keep TagProcessor multi-tag passage diagnostics on the shared contract and remove EventData injection from the public `TimingApplicationRuntime` API, leaving an explicit simulation-only seam.
 
@@ -35,7 +39,7 @@
 - Move concrete HTTP/WebSocket/remote-shell/local-console construction and lifecycle out of `Main` into runtime-owned `PresentationRuntime`; `Main` now supplies only process console I/O and shutdown-hook handling.
 - Use one physical shared I/O worker for the Step-5 baseline; additional I/O parallelism is deferred to V01 evidence.
 
-- Refactor antenna ownership under `io.devices.antenna.manager`: `AntennaManager` exposes activation/inventory/status only, one `SerialScheduledExecutor` lane handles immediate/result-bearing/scheduled control, `AntennaSwitchController` coordinates the set/multiplex group, and `ManagedAntenna` owns one physical power/probe/init/inventory sequence. Remove the separate JDK scheduler dependency from AntennaManager.
+- Refactor antenna ownership under `io.devices.antenna.manager`: `AntennaManager` exposes activation/inventory/status only, one `SerialScheduledExecutor` lane handles immediate/result-bearing/scheduled control, `AntennaSwitchController` coordinates the set/multiplex group, and `ManagedAntenna` owns one physical power/self-test/init/inventory sequence. Remove the separate JDK scheduler dependency from AntennaManager.
 
 - Expose authoritative TagProcessingPolicy startup/current runtime configuration through Application ConfigurationControl, IF-03 HTTP/WebSocket change events, and shared local/remote terminal commands including open, close and automatic-registration control.
 
@@ -49,7 +53,7 @@
 
 - Add conventional packaged-application startup options (`--help`, `--version`, `--config`) and `--generate-config`, which writes the complete version-matched example IF-11 YAML without silently overwriting an existing target.
 
-- Replace all-or-nothing antenna startup with independent per-antenna health/lifecycle, optional external power control, TimingNode-driven inventory activation and mutual-exclusion inventory multiplexing; extend the simulated antenna path with power and injected-failure behaviour.
+- Add independent per-antenna startup handling, optional external power control, TimingNode-driven inventory activation and mutual-exclusion inventory multiplexing; extend the simulated antenna path with power and injected-failure behaviour.
 
 - Correct configuration package ownership: move generic typed configuration mechanics to `infra.configuration`, move the concrete running `ApplicationConfiguration` tree to `runtime.configuration`, and stop exposing the writable runtime tree directly from `Application`.
 

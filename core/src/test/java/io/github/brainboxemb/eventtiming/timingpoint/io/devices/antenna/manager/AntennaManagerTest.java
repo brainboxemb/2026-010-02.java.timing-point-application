@@ -2,17 +2,13 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager
 
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.Antenna;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.Antenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInfo;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntennaPowerControl;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.power.SimulatedPowerDevice;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaHealth;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaOperation;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.ControlException;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.FailureReason;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.ManagerHealth;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -39,75 +35,134 @@ import static org.junit.Assert.fail;
 public class AntennaManagerTest {
 
     @Test
-    public void activationIsHardwareFreeAndHealthCheckPrecedesInventory() {
+    public void activationStartsAsynchronousSelfTestAndAppliesPendingEnable()
+            throws Exception {
+        ScheduledExecutorService shared =
+                sharedExecutor();
+        SimulatedAntenna antenna =
+                new SimulatedAntenna();
+        SimulatedPowerDevice power =
+                new SimulatedPowerDevice(
+                        antenna);
+        AntennaManager manager =
+                new AntennaManager(
+                        new AntennaSet().addPowered(
+                                new AntennaId("1"),
+                                antenna,
+                                power,
+                                Duration.ofMillis(200)),
+                        new SerialScheduledExecutor(
+                                8,
+                                "antenna-manager-test",
+                                shared),
+                        Duration.ofSeconds(1));
+
+        try {
+            manager.activate();
+
+            awaitCondition(
+                    power::powered,
+                    500L);
+            assertTrue(
+                    manager.isBusy());
+            assertFalse(
+                    manager.isReady());
+
+            assertTrue(
+                    manager.requestEnableInventory());
+            assertFalse(
+                    antenna.inventoryRunning());
+
+            awaitCondition(
+                    antenna::inventoryRunning,
+                    1500L);
+
+            assertTrue(
+                    manager.isReady());
+            assertTrue(
+                    power.powered());
+            assertTrue(
+                    manager.status(
+                            new AntennaId("1"))
+                            .selfTestPassed());
+        } finally {
+            manager.deactivate();
+            shared.shutdownNow();
+        }
+    }
+
+    @Test
+    public void activatesAgainAfterDeactivation() throws Exception {
         ScheduledExecutorService shared = sharedExecutor();
-        List<String> calls =
-                Collections.synchronizedList(
-                        new ArrayList<String>());
-        RecordingAntenna first =
-                new RecordingAntenna("A", calls);
-        RecordingAntenna second =
-                new RecordingAntenna("B", calls);
+        SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = manager(
-                Arrays.<Antenna>asList(first, second),
+                Collections.<Antenna>singletonList(antenna),
                 shared,
                 4,
                 Duration.ofSeconds(1));
 
         try {
             manager.activate();
-
-            assertEquals(
-                    State.ACTIVE,
-                    manager.state());
-            assertEquals(
-                    ManagerHealth.UNKNOWN,
-                    manager.health());
-            assertTrue(
-                    "activation must not touch antenna hardware",
-                    calls.isEmpty());
-
-            manager.checkHealth();
-
-            assertEquals(
-                    ManagerHealth.HEALTHY,
-                    manager.health());
-            assertEquals(
-                    AntennaHealth.HEALTHY,
-                    manager.status(new AntennaId("ANT1")).health());
-            assertEquals(
-                    AntennaOperation.INACTIVE,
-                    manager.status(new AntennaId("ANT1")).operation());
-            assertFalse(first.inventoryRunning());
-            assertFalse(second.inventoryRunning());
-
-            manager.enableInventory();
-            assertTrue(first.inventoryRunning());
-            assertTrue(second.inventoryRunning());
-
-            manager.disableInventory();
-            assertFalse(first.inventoryRunning());
-            assertFalse(second.inventoryRunning());
-
+            awaitCondition(manager::isReady, 1000L);
             manager.deactivate();
-            assertEquals(
-                    State.INACTIVE,
-                    manager.state());
 
-            assertEquals(
-                    Arrays.asList(
-                            "A.probe",
-                            "B.probe",
-                            "A.initialize",
-                            "A.start",
-                            "B.initialize",
-                            "B.start",
-                            "B.stop",
-                            "A.stop",
-                            "B.shutdown",
-                            "A.shutdown"),
-                    calls);
+            assertEquals(State.INACTIVE, manager.state());
+
+            manager.activate();
+            awaitCondition(manager::isReady, 1000L);
+
+            assertEquals(State.ACTIVE, manager.state());
+            assertTrue(manager.status(new AntennaId("1")).selfTestPassed());
         } finally {
+            manager.deactivate();
+            shared.shutdownNow();
+        }
+    }
+
+    @Test
+    public void laterDisableCancelsPendingEnableBeforeSelfTestCompletes()
+            throws Exception {
+        ScheduledExecutorService shared =
+                sharedExecutor();
+        SimulatedAntenna antenna =
+                new SimulatedAntenna();
+        SimulatedPowerDevice power =
+                new SimulatedPowerDevice(
+                        antenna);
+        AntennaManager manager =
+                new AntennaManager(
+                        new AntennaSet().addPowered(
+                                new AntennaId("1"),
+                                antenna,
+                                power,
+                                Duration.ofMillis(200)),
+                        new SerialScheduledExecutor(
+                                8,
+                                "antenna-manager-test",
+                                shared),
+                        Duration.ofSeconds(1));
+
+        try {
+            manager.activate();
+            awaitCondition(
+                    power::powered,
+                    500L);
+
+            assertTrue(
+                    manager.requestEnableInventory());
+            assertTrue(
+                    manager.requestDisableInventory());
+
+            awaitCondition(
+                    manager::isReady,
+                    1000L);
+
+            assertFalse(
+                    antenna.inventoryRunning());
+            assertFalse(
+                    power.powered());
+        } finally {
+            manager.deactivate();
             shared.shutdownNow();
         }
     }
@@ -119,20 +174,19 @@ public class AntennaManagerTest {
                 sharedExecutor();
         SimulatedAntenna antenna =
                 new SimulatedAntenna();
-        SimulatedAntennaPowerControl power =
-                new SimulatedAntennaPowerControl(
+        SimulatedPowerDevice power =
+                new SimulatedPowerDevice(
                         antenna);
         Duration stabilization =
                 Duration.ofMillis(200);
 
         AntennaManager manager =
                 new AntennaManager(
-                        Collections.singletonList(
-                                AntennaInstallation.powered(
-                                        new AntennaId("ANT1"),
-                                        antenna,
-                                        power,
-                                        stabilization)),
+                        new AntennaSet().addPowered(
+                                new AntennaId("1"),
+                                antenna,
+                                power,
+                                stabilization),
                         new SerialScheduledExecutor(
                                 8,
                                 "antenna-manager-test",
@@ -149,42 +203,29 @@ public class AntennaManagerTest {
         try {
             manager.activate();
 
-            Thread healthCheck =
-                    new Thread(
-                            manager::checkHealth,
-                            "antenna-health-test");
-            healthCheck.start();
-
             awaitCondition(
                     power::powered,
                     500L);
 
-            CountDownLatch duringProbeDelay =
+            CountDownLatch duringSelfTestDelay =
                     new CountDownLatch(1);
             assertTrue(
                     sibling.execute(
-                            duringProbeDelay::countDown));
+                            duringSelfTestDelay::countDown));
             assertTrue(
-                    "probe stabilization must not occupy the shared worker",
-                    duringProbeDelay.await(
+                    "self-test stabilization must not occupy the shared worker",
+                    duringSelfTestDelay.await(
                             75L,
                             TimeUnit.MILLISECONDS));
 
-            healthCheck.join(1500L);
-            assertFalse(healthCheck.isAlive());
-            assertEquals(
-                    State.ACTIVE,
-                    manager.state());
-            assertEquals(
-                    ManagerHealth.HEALTHY,
-                    manager.health());
-            assertFalse(power.powered());
+            awaitCondition(
+                    manager::isReady,
+                    1000L);
+            assertFalse(
+                    power.powered());
 
-            Thread enable =
-                    new Thread(
-                            () -> manager.enableInventory(),
-                            "antenna-enable-test");
-            enable.start();
+            assertTrue(
+                    manager.requestEnableInventory());
 
             awaitCondition(
                     power::powered,
@@ -201,17 +242,20 @@ public class AntennaManagerTest {
                             75L,
                             TimeUnit.MILLISECONDS));
 
-            enable.join(1500L);
-            assertFalse(enable.isAlive());
-            assertTrue(antenna.inventoryRunning());
-            assertTrue(power.powered());
-
-            manager.disableInventory();
-
-            assertFalse(antenna.inventoryRunning());
-            assertFalse(
-                    "disableInventory must remove configured external antenna power",
+            awaitCondition(
+                    antenna::inventoryRunning,
+                    1000L);
+            assertTrue(
                     power.powered());
+
+            assertTrue(
+                    manager.requestDisableInventory());
+            awaitCondition(
+                    () -> !antenna.inventoryRunning(),
+                    1000L);
+            awaitCondition(
+                    () -> !power.powered(),
+                    1000L);
         } finally {
             try {
                 manager.deactivate();
@@ -223,30 +267,42 @@ public class AntennaManagerTest {
     }
 
     @Test
-    public void exposesTagObservedEventByConfiguredAntennaId() {
-        ScheduledExecutorService shared = sharedExecutor();
+    public void exposesTagObservedEventByConfiguredAntennaId()
+            throws Exception {
+        ScheduledExecutorService shared =
+                sharedExecutor();
         List<String> calls =
                 Collections.synchronizedList(
                         new ArrayList<String>());
         RecordingAntenna antenna =
-                new RecordingAntenna("A", calls);
-        AntennaManager manager = manager(
-                Collections.<Antenna>singletonList(
-                        antenna),
-                shared,
-                4,
-                Duration.ofSeconds(1));
+                new RecordingAntenna(
+                        "A",
+                        calls);
+        AntennaManager manager =
+                manager(
+                        Collections.<Antenna>singletonList(
+                                antenna),
+                        shared,
+                        4,
+                        Duration.ofSeconds(1));
 
         AtomicReference<TagObservation> received =
                 new AtomicReference<TagObservation>();
         manager.tagObservedEvent(
-                        new AntennaId("ANT1"))
-                .subscribe(received::set);
+                        new AntennaId("1"))
+                .subscribe(
+                        received::set);
 
         try {
             manager.activate();
-            manager.checkHealth();
-            manager.enableInventory();
+            awaitCondition(
+                    manager::isReady,
+                    1000L);
+            assertTrue(
+                    manager.requestEnableInventory());
+            awaitCondition(
+                    antenna::inventoryRunning,
+                    1000L);
 
             TagObservation observation =
                     new TagObservation(
@@ -254,7 +310,8 @@ public class AntennaManagerTest {
                             -40,
                             TimingTimestamp.parse(
                                     "2026-10-05T12:00:00.000000000Z"));
-            antenna.emit(observation);
+            antenna.emit(
+                    observation);
 
             assertEquals(
                     observation,
@@ -267,34 +324,20 @@ public class AntennaManagerTest {
 
     @Test
     public void rejectsDuplicateConfiguredAntennaIds() {
-        ScheduledExecutorService shared = sharedExecutor();
+        ScheduledExecutorService shared =
+                sharedExecutor();
         try {
-            List<AntennaInstallation> installations =
-                    Arrays.asList(
-                            AntennaInstallation.direct(
-                                    new AntennaId("ANT1"),
-                                    new RecordingAntenna(
-                                            "A",
-                                            new ArrayList<String>())),
-                            AntennaInstallation.direct(
-                                    new AntennaId("ANT1"),
-                                    new RecordingAntenna(
-                                            "B",
-                                            new ArrayList<String>())));
-
             try {
-                new AntennaManager(
-                        installations,
-                        new SerialScheduledExecutor(
-                                4,
-                                "antenna-manager-test",
-                                shared),
-                        Duration.ofSeconds(1));
+                new AntennaSet()
+                        .add(
+                                new AntennaId("1"),
+                                new RecordingAntenna("A", new ArrayList<String>()))
+                        .add(
+                                new AntennaId("1"),
+                                new RecordingAntenna("B", new ArrayList<String>()));
                 fail("expected duplicate AntennaId rejection");
             } catch (IllegalArgumentException expected) {
-                assertTrue(
-                        expected.getMessage()
-                                .contains("duplicate AntennaId"));
+                assertTrue(expected.getMessage().contains("duplicate AntennaId"));
             }
         } finally {
             shared.shutdownNow();
@@ -302,54 +345,36 @@ public class AntennaManagerTest {
     }
 
     @Test
-    public void oneProbeFailureDegradesHealthButManagerRemainsActive() {
+    public void failedSelfTestDoesNotBlockLaterInventoryAttempt()
+            throws Exception {
         ScheduledExecutorService shared = sharedExecutor();
-        List<String> calls =
-                Collections.synchronizedList(
-                        new ArrayList<String>());
-        RecordingAntenna healthy =
-                new RecordingAntenna("healthy", calls);
-        RecordingAntenna failed =
-                new FailingProbeAntenna("failed", calls);
+        List<String> calls = Collections.synchronizedList(new ArrayList<String>());
+        RecordingAntenna first = new RecordingAntenna("first", calls);
+        RecordingAntenna failedSelfTest = new FailingSelfTestAntenna("failed", calls);
         AntennaManager manager = manager(
-                Arrays.<Antenna>asList(healthy, failed),
+                Arrays.<Antenna>asList(first, failedSelfTest),
                 shared,
                 4,
                 Duration.ofSeconds(1));
 
         try {
             manager.activate();
-            manager.checkHealth();
+            awaitCondition(manager::isReady, 1000L);
 
-            assertEquals(
-                    State.ACTIVE,
-                    manager.state());
-            assertEquals(
-                    ManagerHealth.DEGRADED,
-                    manager.health());
-            assertEquals(
-                    AntennaHealth.HEALTHY,
-                    manager.status(new AntennaId("ANT1")).health());
-            assertEquals(
-                    AntennaOperation.INACTIVE,
-                    manager.status(new AntennaId("ANT1")).operation());
-            assertEquals(
-                    AntennaHealth.FAILED,
-                    manager.status(new AntennaId("ANT2")).health());
-            assertEquals(
-                    AntennaOperation.INACTIVE,
-                    manager.status(new AntennaId("ANT2")).operation());
+            assertEquals(State.ACTIVE, manager.state());
+            assertTrue(manager.status(new AntennaId("1")).selfTestPassed());
+            assertFalse(manager.status(new AntennaId("2")).selfTestPassed());
 
-            manager.enableInventory();
+            /*
+             * Self-test FAIL is diagnostic only. A later inventory demand must
+             * still make a fresh preparation/start attempt.
+             */
+            assertTrue(manager.requestEnableInventory());
+            awaitCondition(first::inventoryRunning, 1000L);
+            awaitCondition(failedSelfTest::inventoryRunning, 1000L);
 
-            assertTrue(healthy.inventoryRunning());
-            assertFalse(failed.inventoryRunning());
-            assertEquals(
-                    State.ACTIVE,
-                    manager.state());
-            assertEquals(
-                    ManagerHealth.DEGRADED,
-                    manager.health());
+            assertTrue(first.inventoryRunning());
+            assertTrue(failedSelfTest.inventoryRunning());
         } finally {
             manager.deactivate();
             shared.shutdownNow();
@@ -357,63 +382,88 @@ public class AntennaManagerTest {
     }
 
     @Test
-    public void reportsSharedExecutorRejectionAsManagerFailure() {
+    public void repeatedEnableRetriesAfterFailedInventoryAttempt()
+            throws Exception {
         ScheduledExecutorService shared = sharedExecutor();
-        shared.shutdownNow();
+        SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = manager(
-                Collections.<Antenna>singletonList(
-                        new RecordingAntenna(
-                                "A",
-                                Collections.synchronizedList(
-                                        new ArrayList<String>()))),
+                Collections.<Antenna>singletonList(antenna),
                 shared,
-                1,
+                4,
                 Duration.ofSeconds(1));
 
-        manager.activate();
-
         try {
-            manager.checkHealth();
-            fail("expected shared-I/O overload");
-        } catch (ControlException expected) {
-            assertEquals(
-                    FailureReason.OVERLOADED,
-                    expected.reason());
-            assertEquals(
-                    State.FAILED,
-                    manager.state());
+            manager.activate();
+            awaitCondition(manager::isReady, 1000L);
+
+            antenna.setFailurePoint(SimulatedAntenna.FailurePoint.START_INVENTORY);
+            assertTrue(manager.requestEnableInventory());
+
+            awaitCondition(
+                    () -> manager.status(new AntennaId("1")).failure() != null,
+                    1000L);
+            awaitCondition(() -> !manager.isBusy(), 1000L);
+            assertFalse(antenna.inventoryRunning());
+
+            antenna.clearFailure();
+
+            /*
+             * The desired value is still TRUE. This second TRUE is nevertheless
+             * a new explicit request and must trigger a new attempt.
+             */
+            assertTrue(manager.requestEnableInventory());
+            awaitCondition(antenna::inventoryRunning, 1000L);
+
+            assertTrue(antenna.inventoryRunning());
+        } finally {
+            manager.deactivate();
+            shared.shutdownNow();
         }
     }
 
     @Test
-    public void healthCheckTimeoutIsContainedToAntennaAndCancelsProvider() {
-        ScheduledExecutorService shared = sharedExecutor();
-        BlockingProbeAntenna blocking =
-                new BlockingProbeAntenna();
-        AntennaManager manager = manager(
-                Collections.<Antenna>singletonList(
-                        blocking),
-                shared,
-                1,
-                Duration.ofMillis(25));
+    public void blockingSelfTestKeepsManagerBusyUntilProviderReturns()
+            throws Exception {
+        ScheduledExecutorService shared =
+                sharedExecutor();
+        BlockingSelfTestAntenna blocking =
+                new BlockingSelfTestAntenna();
+        AntennaManager manager =
+                manager(
+                        Collections.<Antenna>singletonList(
+                                blocking),
+                        shared,
+                        1,
+                        Duration.ofSeconds(1));
 
         try {
             manager.activate();
-            manager.checkHealth();
+
+            assertTrue(
+                    blocking.awaitEntered(
+                            500L));
+            assertTrue(
+                    manager.isBusy());
+            assertFalse(
+                    manager.isReady());
+
+            blocking.release();
+
+            awaitCondition(
+                    () -> !manager.isBusy(),
+                    1000L);
 
             assertEquals(
                     State.ACTIVE,
                     manager.state());
-            assertEquals(
-                    ManagerHealth.FAILED,
-                    manager.health());
-            assertEquals(
-                    AntennaHealth.FAILED,
-                    manager.status(new AntennaId("ANT1")).health());
             assertTrue(
-                    "blocking provider call must be interrupted on timeout",
-                    blocking.interrupted());
+                    manager.isReady());
+            assertTrue(
+                    manager.status(
+                            new AntennaId("1"))
+                            .selfTestPassed());
         } finally {
+            blocking.release();
             manager.deactivate();
             shared.shutdownNow();
         }
@@ -433,7 +483,8 @@ public class AntennaManagerTest {
                 throw new AssertionError(
                         "condition did not become true before timeout");
             }
-            Thread.sleep(2L);
+            Thread.sleep(
+                    2L);
         }
     }
 
@@ -442,21 +493,13 @@ public class AntennaManagerTest {
             ScheduledExecutorService shared,
             int capacity,
             Duration timeout) {
-        List<AntennaInstallation> installations =
-                new ArrayList<AntennaInstallation>(
-                        antennas.size());
-        for (int index = 0;
-                index < antennas.size();
-                index++) {
-            installations.add(
-                    AntennaInstallation.direct(
-                            new AntennaId(
-                                    "ANT" + (index + 1)),
-                            antennas.get(index)));
+        AntennaSet antennaSet = new AntennaSet();
+        for (int index = 0; index < antennas.size(); index++) {
+            antennaSet.add(new AntennaId(Integer.toString(index + 1)), antennas.get(index));
         }
 
         return new AntennaManager(
-                installations,
+                antennaSet,
                 new SerialScheduledExecutor(
                         capacity,
                         "antenna-manager-test",
@@ -488,25 +531,31 @@ public class AntennaManagerTest {
         }
 
         @Override
-        public AntennaInfo probe() {
-            calls.add(name + ".probe");
-            return new AntennaInfo(name, "1");
+        public AntennaInfo selfTest() {
+            calls.add(
+                    name + ".selfTest");
+            return new AntennaInfo(
+                    name,
+                    "1");
         }
 
         @Override
         public void initialize() {
-            calls.add(name + ".initialize");
+            calls.add(
+                    name + ".initialize");
         }
 
         @Override
         public void startInventory() {
-            calls.add(name + ".start");
+            calls.add(
+                    name + ".start");
             running = true;
         }
 
         @Override
         public void stopInventory() {
-            calls.add(name + ".stop");
+            calls.add(
+                    name + ".stop");
             running = false;
         }
 
@@ -522,37 +571,44 @@ public class AntennaManagerTest {
 
         private void emit(
                 TagObservation observation) {
-            tagObservedEvent.emit(observation);
+            tagObservedEvent.emit(
+                    observation);
         }
 
         @Override
         public void shutdown() {
-            calls.add(name + ".shutdown");
+            calls.add(
+                    name + ".shutdown");
             running = false;
         }
     }
 
-    private static final class FailingProbeAntenna
+    private static final class FailingSelfTestAntenna
             extends RecordingAntenna {
-        private FailingProbeAntenna(
+        private FailingSelfTestAntenna(
                 String name,
                 List<String> calls) {
-            super(name, calls);
+            super(
+                    name,
+                    calls);
         }
 
         @Override
-        public AntennaInfo probe() {
-            super.probe();
+        public AntennaInfo selfTest() {
+            super.selfTest();
             throw new IllegalStateException(
-                    "configured probe failure");
+                    "configured self-test failure");
         }
     }
 
-    private static final class BlockingProbeAntenna
+    private static final class BlockingSelfTestAntenna
             extends RecordingAntenna {
-        private volatile boolean interrupted;
+        private final CountDownLatch entered =
+                new CountDownLatch(1);
+        private final CountDownLatch release =
+                new CountDownLatch(1);
 
-        private BlockingProbeAntenna() {
+        private BlockingSelfTestAntenna() {
             super(
                     "blocking",
                     Collections.synchronizedList(
@@ -560,22 +616,32 @@ public class AntennaManagerTest {
         }
 
         @Override
-        public AntennaInfo probe() {
+        public AntennaInfo selfTest() {
+            entered.countDown();
             try {
-                while (true) {
-                    Thread.sleep(1000L);
-                }
+                release.await();
             } catch (InterruptedException ex) {
-                interrupted = true;
-                Thread.currentThread().interrupt();
+                Thread.currentThread()
+                        .interrupt();
                 throw new IllegalStateException(
-                        "probe interrupted",
+                        "self-test interrupted",
                         ex);
             }
+            return new AntennaInfo(
+                    "blocking",
+                    "1");
         }
 
-        private boolean interrupted() {
-            return interrupted;
+        private boolean awaitEntered(
+                long timeoutMillis)
+                throws InterruptedException {
+            return entered.await(
+                    timeoutMillis,
+                    TimeUnit.MILLISECONDS);
+        }
+
+        private void release() {
+            release.countDown();
         }
     }
 }

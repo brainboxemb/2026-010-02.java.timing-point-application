@@ -19,8 +19,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.DynamicConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.extension.ExtensionRegistry;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.power.SimulatedPowerDevice;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
@@ -60,6 +61,8 @@ public final class TimingApplicationRuntime {
 
     private static final Duration ANTENNA_CONTROL_TIMEOUT =
             Duration.ofSeconds(2);
+    private static final Duration SIMULATED_ANTENNA_POWER_STABILIZATION =
+            Duration.ofMillis(200);
 
     private final BuildIdentity buildIdentity;
     private final TimingNode timingNode;
@@ -189,7 +192,7 @@ public final class TimingApplicationRuntime {
         return createConfigured(
                 buildIdentity,
                 config,
-                platformDefaultAntennaInstallations(
+                platformDefaultAntennaSet(
                         platform),
                 extensions,
                 platform,
@@ -204,7 +207,7 @@ public final class TimingApplicationRuntime {
     static TimingApplicationRuntime createSimulation(
             BuildIdentity buildIdentity,
             Config config,
-            List<AntennaInstallation> antennaInstallations,
+            AntennaSet antennaSet,
             EventData eventData) {
         TimingDataProvider timingDataProvider =
                 new DefaultTimingDataProvider();
@@ -212,7 +215,7 @@ public final class TimingApplicationRuntime {
         return createResolved(
                 buildIdentity,
                 config,
-                antennaInstallations,
+                antennaSet,
                 eventData,
                 timingDataProvider.createFactory(),
                 timingDataProvider.createCodec(),
@@ -227,7 +230,7 @@ public final class TimingApplicationRuntime {
     private static TimingApplicationRuntime createConfigured(
             BuildIdentity buildIdentity,
             Config config,
-            List<AntennaInstallation> antennaInstallations,
+            AntennaSet antennaSet,
             ExtensionRegistry extensions,
             PlatformEnvironment platform,
             Reader consoleInput,
@@ -260,7 +263,7 @@ public final class TimingApplicationRuntime {
         return createResolved(
                 buildIdentity,
                 config,
-                antennaInstallations,
+                antennaSet,
                 eventDataProvider.createEventData(),
                 timingDataProvider.createFactory(),
                 timingDataProvider.createCodec(),
@@ -275,7 +278,7 @@ public final class TimingApplicationRuntime {
     private static TimingApplicationRuntime createResolved(
             BuildIdentity buildIdentity,
             Config config,
-            List<AntennaInstallation> antennaInstallations,
+            AntennaSet antennaSet,
             EventData eventData,
             TimingDataFactory timingDataFactory,
             TimingDataCodec timingDataCodec,
@@ -285,15 +288,11 @@ public final class TimingApplicationRuntime {
         requireCompositionInput(
                 buildIdentity,
                 config,
-                antennaInstallations,
+                antennaSet,
                 eventData,
                 timingDataFactory,
                 timingDataCodec,
                 platform);
-
-        List<AntennaInstallation> installations =
-                copyInstallations(
-                        antennaInstallations);
 
         ApplicationConfiguration applicationConfiguration =
                 ApplicationConfiguration.singleTimingNode(
@@ -331,10 +330,10 @@ public final class TimingApplicationRuntime {
                             platform.monotonicClock());
 
             AntennaManager antennaManager = null;
-            if (!installations.isEmpty()) {
+            if (!antennaSet.isEmpty()) {
                 antennaManager =
                         new AntennaManager(
-                                installations,
+                                antennaSet,
                                 executors
                                         .createAntennaControlExecutor(),
                                 ANTENNA_CONTROL_TIMEOUT);
@@ -379,15 +378,9 @@ public final class TimingApplicationRuntime {
                                             .signalChanged());
 
             if (antennaManager != null) {
-                for (AntennaInstallation installation
-                        : installations) {
-                    antennaManager
-                            .tagObservedEvent(
-                                    installation.antennaId())
-                            .subscribe(
-                                    timingNode
-                                            .tagProcessor()
-                                            ::onTagObserved);
+                for (AntennaId antennaId : antennaSet.antennaIds()) {
+                    antennaManager.tagObservedEvent(antennaId)
+                            .subscribe(timingNode.tagProcessor()::onTagObserved);
                 }
             }
 
@@ -550,20 +543,24 @@ public final class TimingApplicationRuntime {
      * Temporary Windows development fallback until explicit IF-11 antenna
      * configuration is composed by the normal runtime mapper.
      */
-    private static List<AntennaInstallation> platformDefaultAntennaInstallations(
+    private static AntennaSet platformDefaultAntennaSet(
             PlatformEnvironment platform) {
-        if (platform.operatingSystem()
-                != OperatingSystem.WINDOWS) {
-            return Collections.emptyList();
+        AntennaSet antennas = new AntennaSet();
+
+        if (platform.operatingSystem() != OperatingSystem.WINDOWS) {
+            return antennas;
         }
 
         LOG.warn(
                 "Windows development platform default selected simulated antenna ANT1; no physical RFID reader is in use");
 
-        return Collections.singletonList(
-                AntennaInstallation.direct(
-                        new AntennaId("ANT1"),
-                        new SimulatedAntenna()));
+        SimulatedAntenna antenna = new SimulatedAntenna();
+        antennas.addPowered(
+                new AntennaId("ANT1"),
+                antenna,
+                new SimulatedPowerDevice(antenna),
+                SIMULATED_ANTENNA_POWER_STABILIZATION);
+        return antennas;
     }
 
     private static ConfigurationControl createConfigurationControl(
@@ -586,29 +583,10 @@ public final class TimingApplicationRuntime {
                 tagProcessing);
     }
 
-    private static List<AntennaInstallation> copyInstallations(
-            List<AntennaInstallation> installations) {
-        List<AntennaInstallation> copy =
-                new ArrayList<AntennaInstallation>(
-                        installations.size());
-
-        for (AntennaInstallation installation
-                : installations) {
-            if (installation == null) {
-                throw new IllegalArgumentException(
-                        "antennaInstallations must not contain null");
-            }
-            copy.add(installation);
-        }
-
-        return Collections.unmodifiableList(
-                copy);
-    }
-
     private static void requireCompositionInput(
             BuildIdentity buildIdentity,
             Config config,
-            List<AntennaInstallation> antennaInstallations,
+            AntennaSet antennaSet,
             EventData eventData,
             TimingDataFactory timingDataFactory,
             TimingDataCodec timingDataCodec,
@@ -625,9 +603,8 @@ public final class TimingApplicationRuntime {
             throw new IllegalArgumentException(
                     "TimingData storage path must be configured before composition");
         }
-        if (antennaInstallations == null) {
-            throw new IllegalArgumentException(
-                    "antennaInstallations must not be null");
+        if (antennaSet == null) {
+            throw new IllegalArgumentException("antennaSet must not be null");
         }
         if (eventData == null) {
             throw new IllegalArgumentException(

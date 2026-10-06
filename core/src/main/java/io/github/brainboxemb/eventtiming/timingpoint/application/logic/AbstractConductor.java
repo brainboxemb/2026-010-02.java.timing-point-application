@@ -75,8 +75,7 @@ public abstract class AbstractConductor {
      */
     public final void activate() {
         LOG.info(
-                "Activating {}",
-                getClass().getSimpleName());
+                "Starting application coordination");
 
         try {
             componentLifecycle.activateAll();
@@ -84,8 +83,7 @@ public abstract class AbstractConductor {
             onActivated();
 
             LOG.info(
-                    "Activated {}",
-                    getClass().getSimpleName());
+                    "Application coordination started");
         } catch (RuntimeException ex) {
             cleanupAfterActivationFailure(ex);
             throw ex;
@@ -104,8 +102,7 @@ public abstract class AbstractConductor {
      */
     public final void deactivate() {
         LOG.info(
-                "Deactivating {}",
-                getClass().getSimpleName());
+                "Stopping application coordination");
 
         Throwable firstFailure = null;
 
@@ -134,16 +131,16 @@ public abstract class AbstractConductor {
         rethrow(firstFailure);
 
         LOG.info(
-                "Deactivated {}",
-                getClass().getSimpleName());
+                "Application coordination stopped");
     }
 
     /**
      * Concrete startup hook called after all registered components are active
      * and the Application lane is running.
      *
-     * <p>SI-01-specific startup actions such as health checks and initial
-     * tracked-property reads belong here.</p>
+     * <p>SI-01-specific startup actions such as initial tracked-property
+     * reads belong here. Long-running device startup work belongs to the
+     * component that owns that device.</p>
      */
     protected abstract void onActivated();
 

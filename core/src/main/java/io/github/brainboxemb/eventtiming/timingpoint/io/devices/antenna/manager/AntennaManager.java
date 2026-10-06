@@ -1,888 +1,403 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager;
 
+import io.github.brainboxemb.eventtiming.timingpoint.infra.setting.Setting;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.ControlException;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.FailureReason;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.ManagerHealth;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.TaskStep;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
+import java.util.concurrent.CancellationException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+
 /**
- * Public lifecycle and control boundary for one configured antenna set.
+ * Lifecycle and control state machine for one antenna set.
  *
- * <p>AntennaManager owns the configured {@link ManagedAntenna} objects and the
- * device lifecycle needed to realise application intent: health checking,
- * optional power preparation, initialization, inventory start/stop and shutdown.
- * {@link AntennaSwitchController} owns only mutual-exclusion round-robin
- * switching for the optional inventory group.</p>
- *
- * <p>All device state changes run on one manager-owned logical
- * {@link SerialScheduledExecutor} lane. The physical scheduled I/O worker is
- * supplied and owned by Runtime.</p>
+ * <p>External calls and task-completion events only wake this state machine.
+ * Task results remain owned by the tasks that produced them; manager transitions
+ * read that authoritative task state in {@link #runStep()}.</p>
  */
-public final class AntennaManager {
-    private static final Logger LOG =
-            LoggerFactory.getLogger(AntennaManager.class);
+public final class AntennaManager implements CooperativeTask {
+    private static final Logger LOG = LoggerFactory.getLogger(AntennaManager.class);
 
-    private final List<ManagedAntenna> antennas;
-    private final AntennaSwitchController switching;
-    private final ScheduledTaskRunner control;
-
-    private enum InventoryRequest {
-        ENABLE,
-        DISABLE
+    /**
+     * Internal control phase while the public lifecycle remains ACTIVE.
+     *
+     * <p>IDLE means that startup self-test passed and no manager task is
+     * currently running. Physical inventory may still be active after an
+     * enable task completed.</p>
+     */
+    private enum Phase {
+        STOPPED,
+        START_SELF_TEST,
+        WAIT_SELF_TEST,
+        IDLE,
+        START_INVENTORY,
+        WAIT_INVENTORY,
+        INVENTORY_FAILED
     }
+
+    private final ScheduledTaskRunner taskRunner;
+    private final AntennaSet antennaSet;
+    private final Setting<Boolean> inventoryEnabledSetting = new Setting<Boolean>(Boolean.FALSE);
+    private final SelfTestTask selfTestTask;
+    private final InventoryTask inventoryTask;
+    private final AntennaShutdownTask shutdownTask;
 
     private volatile State state = State.NEW;
+    private volatile Phase phase = Phase.STOPPED;
     private volatile Throwable failure;
-    private volatile InventoryRequest latestInventoryRequest =
-            InventoryRequest.DISABLE;
-    private volatile long inventoryRequestVersion;
 
-    private SerialScheduledExecutor.ScheduledTask rotationTask;
+    /*
+     * The manager state machine is started only when there is new input.
+     *
+     * stateMachineRunning prevents two runs of this same state machine from
+     * being admitted concurrently.
+     *
+     * stateMachineWakePending remembers an input that arrives while a run is
+     * still active. The completion callback starts one new run afterwards.
+     * Multiple inputs may therefore coalesce into one run without losing the
+     * fact that the state machine must look at its current state again.
+     *
+     * No Future is stored here: the Future belongs only to the execution
+     * mechanism. The manager needs these two state facts, not the Future itself.
+     */
+    private boolean stateMachineRunning;
+    private boolean stateMachineWakePending;
 
     public AntennaManager(
-            List<AntennaInstallation> installations,
+            AntennaSet antennaSet,
             SerialScheduledExecutor controlLane,
             Duration controlTimeout) {
-        if (installations == null
-                || installations.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "installations must contain at least one antenna");
-        }
-        if (controlLane == null) {
-            throw new IllegalArgumentException(
-                    "controlLane must not be null");
-        }
-        if (controlTimeout == null
-                || controlTimeout.isZero()
-                || controlTimeout.isNegative()) {
-            throw new IllegalArgumentException(
-                    "controlTimeout must be positive");
-        }
+        checkArgument(antennaSet != null, "antennaSet must not be null");
+        checkArgument(controlLane != null, "controlLane must not be null");
 
-        List<ManagedAntenna> configured =
-                new ArrayList<ManagedAntenna>(
-                        installations.size());
-        List<ManagedAntenna> inventoryGroup =
-                new ArrayList<ManagedAntenna>();
-        Duration groupInterval = null;
+        antennaSet.seal();
+        this.antennaSet = antennaSet;
+        taskRunner = new ScheduledTaskRunner(controlLane, controlTimeout);
+        selfTestTask = new SelfTestTask(antennaSet.antennas());
+        inventoryTask = new InventoryTask(
+                antennaSet.antennas(),
+                antennaSet.inventoryGroup(),
+                antennaSet.hasInventoryGroup() ? antennaSet.inventoryInterval() : null,
+                inventoryEnabledSetting);
+        shutdownTask = new AntennaShutdownTask(antennaSet.antennas());
 
-        for (AntennaInstallation installation
-                : installations) {
-            validateInstallation(
-                    installation,
-                    configured);
-
-            ManagedAntenna antenna =
-                    new ManagedAntenna(
-                            installation);
-            configured.add(
-                    antenna);
-
-            if (antenna.inInventoryGroup()) {
-                groupInterval =
-                        sharedGroupInterval(
-                                groupInterval,
-                                antenna.inventoryInterval());
-                inventoryGroup.add(
-                        antenna);
-            }
-        }
-
-        antennas =
-                Collections.unmodifiableList(
-                        configured);
-        switching =
-                new AntennaSwitchController(
-                        inventoryGroup,
-                        groupInterval);
-        control =
-                new ScheduledTaskRunner(
-                        controlLane,
-                        controlTimeout);
+        /*
+         * Task events are wired once during composition. The callbacks only
+         * wake this manager state machine; each task keeps its own result.
+         */
+        selfTestTask.completedEvent().subscribe(this::onSelfTestCompleted);
+        inventoryTask.completedEvent().subscribe(this::onInventoryCompleted);
     }
 
-    /**
-     * Activates only the AntennaManager software component.
-     *
-     * <p>No hardware probe, power change or inventory action is hidden in
-     * activation. Application startup explicitly requests health checking
-     * through {@link #checkHealth()}.</p>
-     */
-    public void activate() {
-        synchronized (this) {
-            if (state != State.NEW) {
-                throw new IllegalStateException(
-                        "AntennaManager can only activate from NEW; current state="
-                                + state);
-            }
-        }
+    public synchronized void activate() {
+        checkState(state == State.NEW || state == State.INACTIVE, "AntennaManager cannot activate from %s", state);
 
-        try {
-            control.start();
-            state = State.ACTIVE;
-            LOG.info(
-                    "AntennaManager activated with {} configured antenna(s)",
-                    antennas.size());
-        } catch (RuntimeException ex) {
-            failure = ex;
-            state = State.FAILED;
-            throw ex;
-        }
+        taskRunner.start();
+        state = State.ACTIVE;
+        phase = Phase.START_SELF_TEST;
+        failure = null;
+        requestStateMachineRun();
+        LOG.info("AntennaManager activated with {} configured antenna(s)", antennaSet.size());
     }
 
-    /**
-     * Performs one startup/diagnostic health check for every configured antenna.
-     *
-     * <p>Provider failures are contained to the affected antenna. A timed-out
-     * provider operation is cancelled and recorded on that antenna, then the
-     * manager continues with the remaining configured antennas when the shared
-     * control lane remains usable.</p>
-     */
-    public void checkHealth() {
-        requireActive(
-                "checkHealth");
-
-        for (ManagedAntenna antenna : antennas) {
-            LOG.info(
-                    "Checking antenna {} health",
-                    antenna.antennaId());
-
-            try {
-                awaitControl(
-                        control.runDelayed(
-                                antenna::beginProbe,
-                                antenna::completeProbe));
-            } catch (ControlException ex) {
-                if (ex.reason()
-                        != FailureReason.TIMEOUT) {
-                    recordFailure(
-                            ex);
-                    throw ex;
-                }
-
-                /*
-                 * Timeout belongs to this provider operation, not to the whole
-                 * configured set. Queue the status update behind the cancelled
-                 * operation so single-writer ordering is preserved.
-                 */
-                runControl(
-                        () -> antenna.healthCheckFailed(
-                                ex));
-            }
-        }
-
-        LOG.info(
-                "Antenna health check completed: health={}",
-                health());
+    public boolean isBusy() {
+        /*
+         * Busy means work is currently executing, not merely that requested
+         * state differs from applied state after a failed attempt.
+         */
+        return selfTestTask.isRunning()
+                || inventoryTask.isRunning() && inventoryEnabledSetting.changePending();
     }
 
-    /**
-     * Requests inventory enable without waiting for provider I/O.
-     *
-     * <p>The manager owns the required power, initialize and start sequence. A
-     * newer enable/disable request invalidates older delayed continuations.</p>
-     */
+    public boolean isReady() {
+        Phase current = phase;
+        return state == State.ACTIVE
+                && current != Phase.START_SELF_TEST
+                && current != Phase.WAIT_SELF_TEST;
+    }
+
+    /** Requests inventory to become enabled. */
     public boolean requestEnableInventory() {
-        return requestInventory(
-                InventoryRequest.ENABLE);
+        return requestInventory(true);
     }
 
-    /**
-     * Requests inventory disable without waiting for provider I/O.
-     *
-     * <p>Disable stops multiplex rotation, stops inventory on every configured
-     * antenna and removes external antenna power where configured. It does not
-     * shut down the provider; a later enable can prepare and start it again.</p>
-     */
+    /** Requests inventory to become disabled. */
     public boolean requestDisableInventory() {
-        return requestInventory(
-                InventoryRequest.DISABLE);
+        return requestInventory(false);
     }
 
-    /**
-     * Synchronously enables inventory and waits for required preparation.
-     */
-    public void enableInventory() {
-        requireActive(
-                "enableInventory");
-
-        long requestVersion =
-                recordInventoryRequest(
-                        InventoryRequest.ENABLE);
-
-        CompletableFuture<Void> transition =
-                prepareInventory(
-                        requestVersion);
-
-        awaitControl(
-                transition);
-
-        runControl(
-                () -> finishInventoryEnable(
-                        requestVersion,
-                        null));
+    public EventSource<TagObservation> tagObservedEvent(AntennaId antennaId) {
+        return antennaSet.tagObservedEvent(antennaId);
     }
 
-    /**
-     * Synchronously disables inventory.
-     *
-     * <p>This is operational disable, not provider shutdown.</p>
-     */
-    public void disableInventory() {
-        requireActive(
-                "disableInventory");
-
-        long requestVersion =
-                recordInventoryRequest(
-                        InventoryRequest.DISABLE);
-
-        runControl(
-                () -> applyInventoryDisable(
-                        requestVersion));
-    }
-
-    private boolean requestInventory(
-            InventoryRequest request) {
-        if (state != State.ACTIVE) {
-            return false;
-        }
-
-        long requestVersion =
-                recordInventoryRequest(
-                        request);
-
-        if (control.execute(
-                () -> applyInventoryRequest(
-                        requestVersion,
-                        request))) {
-            return true;
-        }
-
-        ControlException rejection =
-                controlFailure(
-                        FailureReason.OVERLOADED,
-                        "AntennaManager control lane rejected inventory "
-                                + request.name().toLowerCase()
-                                + " request",
-                        control.failure());
-        recordFailure(
-                rejection);
-        LOG.warn(
-                "AntennaManager rejected inventory {} request because control work was not admitted",
-                request.name().toLowerCase(),
-                rejection);
-        return false;
-    }
-
-    /**
-     * Returns the subscription-only tag-observed event for one configured
-     * antenna without exposing the concrete provider object.
-     */
-    public EventSource<TagObservation> tagObservedEvent(
-            AntennaId antennaId) {
-        return find(
-                antennaId)
-                .tagObservedEvent();
-    }
-
-    /** Returns software-component lifecycle only. */
     public State state() {
         return state;
     }
 
-    /** Returns aggregate health of the configured antenna set. */
-    public ManagerHealth health() {
-        int healthy = 0;
-        int failed = 0;
-
-        for (ManagedAntenna antenna : antennas) {
-            AntennaStatus status =
-                    antenna.status();
-            if (status.healthy()) {
-                healthy++;
-            } else if (status.health()
-                    == AntennaManagerTypes.AntennaHealth.FAILED) {
-                failed++;
-            }
-        }
-
-        if (healthy == antennas.size()) {
-            return ManagerHealth.HEALTHY;
-        }
-        if (failed == antennas.size()) {
-            return ManagerHealth.FAILED;
-        }
-        if (healthy > 0
-                || failed > 0) {
-            return ManagerHealth.DEGRADED;
-        }
-        return ManagerHealth.UNKNOWN;
-    }
-
-    /**
-     * Returns a manager/control failure. Per-antenna provider failures are
-     * exposed through {@link #statuses()} instead.
-     */
     public Throwable failure() {
         return failure;
     }
 
     public List<AntennaStatus> statuses() {
-        List<AntennaStatus> result =
-                new ArrayList<AntennaStatus>(
-                        antennas.size());
-        for (ManagedAntenna antenna : antennas) {
-            result.add(
-                    antenna.status());
-        }
-        return Collections.unmodifiableList(
-                result);
+        return antennaSet.statuses();
     }
 
-    public AntennaStatus status(
-            AntennaId antennaId) {
-        return find(
-                antennaId)
-                .status();
+    public AntennaStatus status(AntennaId antennaId) {
+        return antennaSet.status(antennaId);
     }
 
-    /**
-     * Deactivates manager control and shuts down every configured antenna.
-     *
-     * <p>This remains safe before successful activation so application rollback
-     * can use one reverse-order lifecycle path.</p>
-     */
     public void deactivate() {
         synchronized (this) {
             if (state == State.INACTIVE) {
                 return;
             }
-            if (state == State.DEACTIVATING) {
-                throw new IllegalStateException(
-                        "AntennaManager is already deactivating");
-            }
+
+            checkState(state != State.DEACTIVATING, "AntennaManager is already deactivating");
             state = State.DEACTIVATING;
         }
 
-        recordInventoryRequest(
-                InventoryRequest.DISABLE);
-        cancelRotation();
+        inventoryEnabledSetting.request(Boolean.FALSE);
+        cancelStateMachine();
+        selfTestTask.cancel();
+        inventoryTask.cancel();
 
-        RuntimeException firstFailure = null;
+        RuntimeException shutdownFailure = null;
+        try {
+            if (taskRunner.isNew()) {
+                taskRunner.start();
+            }
+            shutdownTask.runAndWait(taskRunner);
+        } catch (RuntimeException ex) {
+            shutdownFailure = ex;
+        }
 
         try {
-            if (control.isNew()) {
-                control.start();
-            }
-            runControl(
-                    this::shutdownAll);
+            taskRunner.close();
         } catch (RuntimeException ex) {
-            firstFailure = ex;
-        }
-
-        try {
-            control.close();
-        } catch (RuntimeException ex) {
-            firstFailure =
-                    appendFailure(
-                            firstFailure,
-                            ex);
-        }
-
-        if (firstFailure == null) {
-            state = State.INACTIVE;
-            LOG.info(
-                    "AntennaManager deactivated");
-            return;
-        }
-
-        failure = firstFailure;
-        state = State.FAILED;
-        throw firstFailure;
-    }
-
-    /**
-     * Applies one captured enable/disable request on the manager control lane.
-     */
-    private void applyInventoryRequest(
-            long requestVersion,
-            InventoryRequest request) {
-        if (!isCurrentInventoryRequest(
-                requestVersion,
-                request)) {
-            return;
-        }
-
-        switch (request) {
-            case DISABLE:
-                applyInventoryDisable(
-                        requestVersion);
-                return;
-
-            case ENABLE:
-                CompletableFuture<Void> transition =
-                        prepareInventory(
-                                requestVersion);
-
-                transition.whenComplete(
-                        (ignored, transitionFailure) -> {
-                            boolean accepted =
-                                    control.execute(
-                                            () -> finishInventoryEnable(
-                                                    requestVersion,
-                                                    transitionFailure));
-                            if (!accepted) {
-                                ControlException rejection =
-                                        controlFailure(
-                                                FailureReason.OVERLOADED,
-                                                "AntennaManager control lane rejected inventory-enable completion",
-                                                control.failure());
-                                recordFailure(
-                                        rejection);
-                                LOG.warn(
-                                        "AntennaManager could not complete inventory enable",
-                                        rejection);
-                            }
-                        });
-                return;
-
-            default:
-                throw new IllegalStateException(
-                        "Unsupported inventory request "
-                                + request);
-        }
-    }
-
-    private void applyInventoryDisable(
-            long requestVersion) {
-        if (!isCurrentInventoryRequest(
-                requestVersion,
-                InventoryRequest.DISABLE)) {
-            return;
-        }
-
-        LOG.info(
-                "Disabling antenna inventory");
-        cancelRotation();
-        disableAllInventory();
-        LOG.info(
-                "Antenna inventory disabled; external power removed where configured");
-    }
-
-    /**
-     * Builds the antenna-specific preparation sequence directly.
-     *
-     * <p>This is lifecycle policy, not a generic CompletableFuture sequencing
-     * abstraction. Each delayed step checks the current request version before
-     * it may initialize or start a reader.</p>
-     */
-    private CompletableFuture<Void> prepareInventory(
-            long requestVersion) {
-        CompletableFuture<Void> transition =
-                CompletableFuture.completedFuture(
-                        null);
-
-        for (ManagedAntenna antenna : antennas) {
-            if (antenna.inInventoryGroup()) {
-                continue;
-            }
-
-            transition =
-                    transition.thenCompose(
-                            ignored -> prepareAntenna(
-                                    antenna,
-                                    requestVersion,
-                                    true));
-        }
-
-        for (ManagedAntenna antenna : antennas) {
-            if (!antenna.inInventoryGroup()) {
-                continue;
-            }
-
-            transition =
-                    transition.thenCompose(
-                            ignored -> prepareAntenna(
-                                    antenna,
-                                    requestVersion,
-                                    false));
-        }
-
-        if (switching.hasInventoryGroup()) {
-            transition =
-                    transition.thenCompose(
-                            ignored -> {
-                                if (!isCurrentInventoryRequest(
-                                        requestVersion,
-                                        InventoryRequest.ENABLE)) {
-                                    return CompletableFuture.completedFuture(
-                                            null);
-                                }
-                                return control.runAsync(
-                                        () -> {
-                                            if (isCurrentInventoryRequest(
-                                                    requestVersion,
-                                                    InventoryRequest.ENABLE)) {
-                                                switching.startFirstAvailable();
-                                            }
-                                        });
-                            });
-        }
-
-        return transition;
-    }
-
-    private CompletableFuture<Void> prepareAntenna(
-            ManagedAntenna antenna,
-            long requestVersion,
-            boolean startInventory) {
-        if (!isCurrentInventoryRequest(
-                requestVersion,
-                InventoryRequest.ENABLE)) {
-            return CompletableFuture.completedFuture(
-                    null);
-        }
-
-        return control.runDelayed(
-                () -> isCurrentInventoryRequest(
-                                requestVersion,
-                                InventoryRequest.ENABLE)
-                        ? antenna.beginPrepareForInventory()
-                        : null,
-                () -> {
-                    if (!isCurrentInventoryRequest(
-                            requestVersion,
-                            InventoryRequest.ENABLE)) {
-                        return;
-                    }
-
-                    boolean prepared =
-                            antenna.completePrepareForInventory();
-                    if (prepared
-                            && startInventory
-                            && isCurrentInventoryRequest(
-                                    requestVersion,
-                                    InventoryRequest.ENABLE)) {
-                        antenna.startInventory();
-                    }
-                });
-    }
-
-    private void finishInventoryEnable(
-            long requestVersion,
-            Throwable transitionFailure) {
-        if (!isCurrentInventoryRequest(
-                requestVersion,
-                InventoryRequest.ENABLE)) {
-            return;
-        }
-
-        if (transitionFailure != null) {
-            ControlException mapped =
-                    mapControlFailure(
-                            unwrapCompletionFailure(
-                                    transitionFailure));
-            recordFailure(
-                    mapped);
-            LOG.warn(
-                    "Antenna inventory preparation failed",
-                    mapped);
-            return;
-        }
-
-        ensureRotation();
-        LOG.info(
-                "Antenna inventory enabled");
-    }
-
-    /**
-     * Starts one fixed-delay multiplex callback on the existing manager lane.
-     */
-    private synchronized void ensureRotation() {
-        if (latestInventoryRequest != InventoryRequest.ENABLE
-                || !switching.hasInventoryGroup()
-                || !switching.rotationNeeded()) {
-            cancelRotation();
-            return;
-        }
-        if (rotationTask != null) {
-            return;
-        }
-
-        rotationTask =
-                control.scheduleWithFixedDelay(
-                        this::rotateInventoryGroup,
-                        switching.inventoryInterval());
-    }
-
-    private void rotateInventoryGroup() {
-        if (latestInventoryRequest != InventoryRequest.ENABLE) {
-            return;
-        }
-
-        switching.rotateInventoryGroup();
-        if (!switching.rotationNeeded()) {
-            cancelRotation();
-        }
-    }
-
-    private synchronized void cancelRotation() {
-        SerialScheduledExecutor.ScheduledTask task =
-                rotationTask;
-        rotationTask = null;
-        if (task != null) {
-            task.close();
-        }
-    }
-
-    private void disableAllInventory() {
-        for (int index = antennas.size() - 1;
-                index >= 0;
-                index--) {
-            antennas.get(index)
-                    .disableInventory();
-        }
-    }
-
-    private void shutdownAll() {
-        RuntimeException firstFailure = null;
-
-        for (int index = antennas.size() - 1;
-                index >= 0;
-                index--) {
-            try {
-                antennas.get(index)
-                        .shutdown();
-            } catch (RuntimeException ex) {
-                firstFailure =
-                        appendFailure(
-                                firstFailure,
-                                ex);
+            if (shutdownFailure == null) {
+                shutdownFailure = ex;
+            } else if (shutdownFailure != ex) {
+                shutdownFailure.addSuppressed(ex);
             }
         }
 
-        if (firstFailure != null) {
-            throw firstFailure;
-        }
-    }
-
-    private long recordInventoryRequest(
-            InventoryRequest request) {
         synchronized (this) {
-            latestInventoryRequest = request;
-            inventoryRequestVersion++;
+            stateMachineRunning = false;
+            stateMachineWakePending = false;
 
-            LOG.info(
-                    "AntennaManager inventory request={} requestVersion={}",
-                    request,
-                    inventoryRequestVersion);
-
-            return inventoryRequestVersion;
-        }
-    }
-
-    private boolean isCurrentInventoryRequest(
-            long requestVersion,
-            InventoryRequest request) {
-        return inventoryRequestVersion == requestVersion
-                && latestInventoryRequest == request;
-    }
-
-    private ManagedAntenna find(
-            AntennaId antennaId) {
-        if (antennaId == null) {
-            throw new IllegalArgumentException(
-                    "antennaId must not be null");
-        }
-
-        for (ManagedAntenna antenna : antennas) {
-            if (antenna.antennaId()
-                    .equals(
-                            antennaId)) {
-                return antenna;
+            if (shutdownFailure == null) {
+                inventoryEnabledSetting.markApplied(Boolean.FALSE);
+                phase = Phase.STOPPED;
+                state = State.INACTIVE;
+                LOG.info("AntennaManager deactivated");
+            } else {
+                failure = shutdownFailure;
+                phase = Phase.STOPPED;
+                state = State.FAILED;
             }
         }
 
-        throw new IllegalArgumentException(
-                "unknown AntennaId "
-                        + antennaId);
+        if (shutdownFailure != null) {
+            throw shutdownFailure;
+        }
     }
 
-    private void requireActive(
-            String operation) {
+    private synchronized boolean requestInventory(boolean enabled) {
         if (state != State.ACTIVE) {
-            throw new IllegalStateException(
-                    operation
-                            + " requires active AntennaManager; current state="
-                            + state);
+            return false;
         }
+
+        inventoryEnabledSetting.request(Boolean.valueOf(enabled));
+        requestStateMachineRun();
+        return true;
     }
 
-    private static Throwable unwrapCompletionFailure(
-            Throwable failure) {
-        if (!(failure instanceof CompletionException)) {
-            return failure;
-        }
-
-        Throwable cause =
-                failure.getCause();
-        return cause == null
-                ? failure
-                : cause;
+    /**
+     * Completion events only wake the manager. The result itself remains with
+     * the task and is read from that task when WAIT_SELF_TEST is processed.
+     */
+    private void onSelfTestCompleted(AntennaTaskResult ignored) {
+        requestStateMachineRun();
     }
 
-    private void runControl(
-            Runnable action) {
-        try {
-            control.run(
-                    action);
-        } catch (OperationException ex) {
-            throw mapControlFailure(
-                    ex);
-        }
+    /**
+     * Completion events only wake the manager. The result itself remains with
+     * the task and is read from that task when WAIT_INVENTORY is processed.
+     */
+    private void onInventoryCompleted(AntennaTaskResult ignored) {
+        requestStateMachineRun();
     }
 
-    private void awaitControl(
-            CompletableFuture<Void> future) {
-        try {
-            control.await(
-                    future);
-        } catch (OperationException ex) {
-            throw mapControlFailure(
-                    ex);
-        }
-    }
-
-    private static ControlException mapControlFailure(
-            Throwable failure) {
-        if (failure instanceof ControlException) {
-            return (ControlException) failure;
-        }
-        if (!(failure instanceof OperationException)) {
-            return controlFailure(
-                    FailureReason.PROVIDER_FAILURE,
-                    "AntennaManager provider operation failed",
-                    failure);
+    /**
+     * Runs one AntennaManager control transition on the manager serial lane.
+     *
+     * <p>The task stops whenever it must wait for a child task or external
+     * request. That later input requests another run of this same state machine.</p>
+     */
+    @Override
+    public TaskStep runStep() {
+        if (state != State.ACTIVE) {
+            return TaskStep.done();
         }
 
-        OperationException operation =
-                (OperationException) failure;
-        switch (operation.reason()) {
-            case OVERLOADED:
-                return controlFailure(
-                        FailureReason.OVERLOADED,
-                        "AntennaManager control operation was rejected",
-                        operation);
-            case TIMEOUT:
-                return controlFailure(
-                        FailureReason.TIMEOUT,
-                        "AntennaManager control operation timed out",
-                        operation);
-            case INTERRUPTED:
-                return controlFailure(
-                        FailureReason.INTERRUPTED,
-                        "AntennaManager control operation was interrupted",
-                        operation);
-            case EXECUTION_FAILURE:
-                return controlFailure(
-                        FailureReason.PROVIDER_FAILURE,
-                        "AntennaManager provider operation failed",
-                        operation.getCause() == null
-                                ? operation
-                                : operation.getCause());
+        switch (phase) {
+            case START_SELF_TEST:
+                selfTestTask.start(taskRunner);
+                phase = Phase.WAIT_SELF_TEST;
+                return TaskStep.done();
+
+            case WAIT_SELF_TEST:
+                return handleSelfTestCompletion();
+
+            case IDLE:
+                if (!inventoryEnabledSetting.changePending()) {
+                    return TaskStep.done();
+                }
+                phase = Phase.START_INVENTORY;
+                return TaskStep.again();
+
+            case START_INVENTORY:
+                inventoryTask.start(taskRunner);
+                phase = Phase.WAIT_INVENTORY;
+                return TaskStep.done();
+
+            case WAIT_INVENTORY:
+                return handleInventoryCompletion();
+
+            case INVENTORY_FAILED:
+                if (!inventoryTask.hasNewRequestSinceLastRun()) {
+                    return TaskStep.done();
+                }
+                phase = Phase.START_INVENTORY;
+                return TaskStep.again();
+
+            case STOPPED:
+                return TaskStep.done();
+
             default:
-                throw new IllegalStateException(
-                        "Unsupported serial operation failure "
-                                + operation.reason());
+                throw new IllegalStateException("Unsupported AntennaManager phase " + phase);
         }
     }
 
-    private static ControlException controlFailure(
-            FailureReason reason,
-            String message,
-            Throwable cause) {
-        return new ControlException(
-                reason,
-                message,
-                cause);
+    private TaskStep handleSelfTestCompletion() {
+        AntennaTaskResult result = selfTestTask.lastResult();
+        if (result == null) {
+            return TaskStep.done();
+        }
+
+        phase = Phase.IDLE;
+
+        if (result.successful() && antennaSet.allSelfTestsPassed()) {
+            LOG.info("AntennaManager self-test PASS");
+        } else {
+            /*
+             * Startup self-test is diagnostic. A failed result remains visible
+             * per antenna but does not block a later inventory attempt.
+             */
+            LOG.warn("AntennaManager self-test completed with one or more FAIL results");
+        }
+
+        return TaskStep.again();
     }
 
-    private void recordFailure(
-            Throwable cause) {
+    private TaskStep handleInventoryCompletion() {
+        AntennaTaskResult result = inventoryTask.lastResult();
+        if (result == null) {
+            return TaskStep.done();
+        }
+
+        if (!result.successful()) {
+            recordFailure(result.failure());
+            phase = Phase.INVENTORY_FAILED;
+            LOG.warn("Antenna inventory task failed", result.failure());
+            return TaskStep.again();
+        }
+
+        phase = Phase.IDLE;
+        return TaskStep.again();
+    }
+
+    /**
+     * Wakes the manager state machine.
+     *
+     * <p>Only one run may be active at a time. If input arrives during that run,
+     * wakePending remains true. When the run completes, one new run is admitted.
+     * The state machine always reads current manager state, so ten wake-ups while
+     * running do not require ten queued executions.</p>
+     */
+    private synchronized void requestStateMachineRun() {
+        stateMachineWakePending = true;
+
+        if (state != State.ACTIVE || stateMachineRunning) {
+            return;
+        }
+
+        stateMachineWakePending = false;
+        stateMachineRunning = true;
+
+        /*
+         * The Future is deliberately not stored. It is used only here to learn
+         * when this particular run has finished, so we can clear the running
+         * flag and honour a wake-up that arrived in the meantime.
+         */
+        taskRunner.runTask(this).whenComplete(this::onStateMachineRunCompleted);
+    }
+
+    /**
+     * Execution callback for one completed manager-task run.
+     *
+     * <p>This does not contain manager transition logic; it only maintains the
+     * scheduling state of the manager task and starts a pending wake-up.</p>
+     */
+    private synchronized void onStateMachineRunCompleted(Void ignored, Throwable taskFailure) {
+        stateMachineRunning = false;
+
+        if (taskFailure != null && !(taskFailure instanceof CancellationException)) {
+            recordFailure(taskFailure);
+            state = State.FAILED;
+            LOG.warn("AntennaManager state machine failed", taskFailure);
+            return;
+        }
+
+        if (stateMachineWakePending && state == State.ACTIVE) {
+            requestStateMachineRun();
+        }
+    }
+
+    /**
+     * Prevents a pending wake-up from starting another manager run during
+     * deactivation. An already admitted run is intentionally not cancelled:
+     * its next short step observes DEACTIVATING and returns DONE before the
+     * shutdown task can run on the same serial lane.
+     */
+    private synchronized void cancelStateMachine() {
+        stateMachineWakePending = false;
+    }
+
+    private void recordFailure(Throwable cause) {
+        if (cause == null || cause instanceof CancellationException) {
+            return;
+        }
+
         if (failure == null) {
             failure = cause;
         }
 
-        /*
-         * A failed backing/control lane means the manager itself can no longer
-         * perform its role. Ordinary queue-full overload and contained provider
-         * failures do not change component lifecycle.
-         */
-        if (control.failure() != null) {
+        if (taskRunner.failure() != null) {
             state = State.FAILED;
         }
-    }
-
-    private static void validateInstallation(
-            AntennaInstallation installation,
-            List<ManagedAntenna> existing) {
-        if (installation == null) {
-            throw new IllegalArgumentException(
-                    "installations must not contain null");
-        }
-
-        for (ManagedAntenna antenna : existing) {
-            if (antenna.antennaId()
-                    .equals(
-                            installation.antennaId())) {
-                throw new IllegalArgumentException(
-                        "duplicate AntennaId "
-                                + installation.antennaId());
-            }
-        }
-    }
-
-    private static Duration sharedGroupInterval(
-            Duration current,
-            Duration candidate) {
-        if (current == null) {
-            return candidate;
-        }
-        if (!current.equals(
-                candidate)) {
-            throw new IllegalArgumentException(
-                    "all antennas in the inventory group must use the same interval");
-        }
-        return current;
-    }
-
-    private static RuntimeException appendFailure(
-            RuntimeException current,
-            RuntimeException later) {
-        if (current == null) {
-            return later;
-        }
-        if (current != later) {
-            current.addSuppressed(
-                    later);
-        }
-        return current;
     }
 }

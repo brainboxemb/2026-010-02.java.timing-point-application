@@ -253,9 +253,9 @@ public final class TimingNode {
      * separate TimingNode operational-state policy.</p>
      */
     public void activate() {
-        if (serialExecutor.state() != SerialExecutor.State.NEW) {
-            throw new IllegalStateException(
-                    "TimingNode can only activate once; executor state=" + serialExecutor.state());
+        SerialExecutor.State executorState = serialExecutor.state();
+        if (executorState != SerialExecutor.State.NEW && executorState != SerialExecutor.State.STOPPED) {
+            throw new IllegalStateException("TimingNode cannot activate with executor state=" + executorState);
         }
         try {
             logic.recoverTimingData();

@@ -1,4 +1,8 @@
-package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
+package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model;
+
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInfo;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.power.SimulatedPowerDevice;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
@@ -19,13 +23,13 @@ public class SimulatedAntennaTest {
                     "2026-10-01T12:00:00.000000000Z");
 
     @Test
-    public void probeDoesNotStartInventoryAndObservationUsesEventSource() {
+    public void selfTestDoesNotStartInventoryAndObservationUsesEventSource() {
         SimulatedAntenna antenna = new SimulatedAntenna();
         AtomicReference<TagObservation> received =
                 new AtomicReference<TagObservation>();
         antenna.tagObservedEvent().subscribe(received::set);
 
-        AntennaInfo info = antenna.probe();
+        AntennaInfo info = antenna.selfTest();
         assertEquals("simulated-antenna", info.identity());
         assertEquals("1", info.version());
         assertFalse(antenna.inventoryRunning());
@@ -50,14 +54,14 @@ public class SimulatedAntennaTest {
     @Test
     public void externalPowerControlModelsPowerLossAndReinitialization() {
         SimulatedAntenna antenna = new SimulatedAntenna();
-        SimulatedAntennaPowerControl power =
-                new SimulatedAntennaPowerControl(antenna);
+        SimulatedPowerDevice power =
+                new SimulatedPowerDevice(antenna);
 
         assertFalse(power.powered());
 
         power.powerOn();
         assertTrue(power.powered());
-        antenna.probe();
+        antenna.selfTest();
         antenna.initialize();
         antenna.startInventory();
         assertTrue(antenna.inventoryRunning());
@@ -82,21 +86,40 @@ public class SimulatedAntennaTest {
     }
 
     @Test
+    public void shutdownAllowsAntennaToBeUsedAgain() {
+        SimulatedAntenna antenna = new SimulatedAntenna();
+
+        antenna.selfTest();
+        antenna.initialize();
+        antenna.startInventory();
+        antenna.shutdown();
+
+        assertFalse(antenna.inventoryRunning());
+
+        antenna.selfTest();
+        antenna.initialize();
+        antenna.startInventory();
+
+        assertTrue(antenna.inventoryRunning());
+        antenna.shutdown();
+    }
+
+    @Test
     public void configurableFailurePointSupportsHardwareIndependentFaultTests() {
         SimulatedAntenna antenna = new SimulatedAntenna();
         antenna.setFailurePoint(
-                SimulatedAntenna.FailurePoint.PROBE);
+                SimulatedAntenna.FailurePoint.SELF_TEST);
 
         try {
-            antenna.probe();
-            fail("expected simulated probe failure");
+            antenna.selfTest();
+            fail("expected simulated self-test failure");
         } catch (IllegalStateException expected) {
             assertTrue(
-                    expected.getMessage().contains("PROBE"));
+                    expected.getMessage().contains("SELF_TEST"));
         }
 
         antenna.clearFailure();
-        antenna.probe();
+        antenna.selfTest();
         antenna.initialize();
         antenna.setFailurePoint(
                 SimulatedAntenna.FailurePoint.START_INVENTORY);

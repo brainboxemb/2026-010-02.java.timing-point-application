@@ -14,12 +14,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTyp
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaHealth;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaOperation;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.ManagerHealth;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.power.SimulatedPowerDevice;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Presentation;
 
@@ -96,16 +95,14 @@ public class TimingApplicationRuntimeTest {
 
         application.activate();
         try {
-            assertEquals(
-                    ManagerHealth.HEALTHY,
-                    application.antennaManager()
-                            .health());
-            assertEquals(
-                    AntennaHealth.HEALTHY,
+            await(
+                    application.antennaManager()::isReady,
+                    1000L);
+            assertTrue(
                     application.antennaManager()
                             .status(
                                     new AntennaId("ANT1"))
-                            .health());
+                            .selfTestPassed());
             assertEquals(
                     AntennaOperation.INACTIVE,
                     application.antennaManager()
@@ -137,6 +134,56 @@ public class TimingApplicationRuntimeTest {
                             .operation()
                             == AntennaOperation.INACTIVE,
                     1000L);
+        } finally {
+            application.deactivate();
+        }
+    }
+
+    @Test
+    public void presentationStartupDoesNotWaitForAntennaSelfTest()
+            throws Exception {
+        Path file =
+                temporaryFolder
+                        .getRoot()
+                        .toPath()
+                        .resolve(
+                                "self-test-does-not-block-presentation.jsonl");
+        SimulatedAntenna antenna =
+                new SimulatedAntenna();
+        SimulatedPowerDevice power =
+                new SimulatedPowerDevice(
+                        antenna);
+
+        AntennaSet antennaSet = new AntennaSet()
+                .addPowered(
+                        new AntennaId("1"),
+                        antenna,
+                        power,
+                        Duration.ofMillis(1000));
+
+        TimingApplicationRuntime application =
+                SimulationRuntime.create(
+                        identity(),
+                        config(file),
+                        antennaSet,
+                        EventData.empty());
+
+        application.activate();
+        try {
+            assertEquals(
+                    TimingApplicationRuntime.State.ACTIVE,
+                    application.state());
+            assertTrue(
+                    "Runtime must be ACTIVE while antenna self-test continues",
+                    application.antennaManager()
+                            .isBusy());
+            assertFalse(
+                    application.antennaManager()
+                            .isReady());
+
+            await(
+                    application.antennaManager()::isReady,
+                    1750L);
         } finally {
             application.deactivate();
         }
@@ -221,13 +268,13 @@ public class TimingApplicationRuntimeTest {
                         Duration.ofMillis(100),
                         Duration.ofMillis(5),
                         8);
+        AntennaSet antennaSet = new AntennaSet()
+                .add(new AntennaId("ANT1"), antenna);
+
         TimingApplicationRuntime application = SimulationRuntime.create(
                 identity(),
                 config(file, tagProcessingPolicy),
-                Collections.singletonList(
-                        AntennaInstallation.direct(
-                                new AntennaId("ANT1"),
-                                antenna)),
+                antennaSet,
                 eventData(
                         "TAG-1001", "R-1001",
                         "TAG-1001-B", "R-1001"));
@@ -287,7 +334,7 @@ public class TimingApplicationRuntimeTest {
                     TimingTimestamp.parse("2026-10-05T08:30:01.000000000Z"));
             fail("expected shut-down antenna after application shutdown");
         } catch (IllegalStateException expected) {
-            assertTrue(expected.getMessage().contains("shut down"));
+            assertTrue(expected.getMessage().contains("inventory is not running"));
         }
     }
 

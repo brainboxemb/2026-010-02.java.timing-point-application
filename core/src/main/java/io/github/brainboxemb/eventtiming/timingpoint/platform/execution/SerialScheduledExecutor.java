@@ -48,7 +48,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
      * <p>Closing the handle cancels future triggers but does not close this lane
      * or the shared runtime worker.</p>
      */
-    public interface ScheduledTask extends AutoCloseable {
+    public interface ScheduledRegistration extends AutoCloseable {
         @Override
         void close();
     }
@@ -62,7 +62,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
      * blocking a worker.</p>
      */
     public interface ScheduledResult<R>
-            extends ScheduledTask {
+            extends ScheduledRegistration {
         Future<R> futureResult();
 
         CompletionStage<R> completion();
@@ -127,18 +127,13 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                 this::metricQueueDepth);
     }
 
-    /** Activates this logical lane on the supplied worker. */
+    /** Starts or restarts this logical lane on the supplied worker. */
     public synchronized void start() {
-        if (state != State.NEW) {
-            throw new IllegalStateException(
-                    "SerialScheduledExecutor can only start from NEW; current state="
-                            + state);
+        if (state != State.NEW && state != State.STOPPED) {
+            throw new IllegalStateException("SerialScheduledExecutor cannot start from " + state);
         }
 
-        lane = new SerialExecutor(
-                laneCapacity,
-                laneName,
-                workerExecutor);
+        lane = new SerialExecutor(laneCapacity, laneName, workerExecutor);
         lane.start();
         state = State.RUNNING;
     }
@@ -212,7 +207,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
     /**
      * Schedules one delayed callback on this same logical serial lane.
      */
-    public ScheduledTask schedule(
+    public ScheduledRegistration schedule(
             Runnable task,
             long delayNanos) {
         if (task == null) {
@@ -272,7 +267,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
      * actual callback is admitted to the same serial lane as immediate work.
      * The next trigger is scheduled only after that callback finishes.</p>
      */
-    public ScheduledTask scheduleWithFixedDelay(
+    public ScheduledRegistration scheduleWithFixedDelay(
             Runnable task,
             long delayNanos) {
         if (task == null) {
@@ -592,7 +587,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
      * The actual user callback is serialized through {@link #lane}.</p>
      */
     private final class PeriodicTask
-            implements ScheduledTask {
+            implements ScheduledRegistration {
         private final Runnable task;
         private final long delayNanos;
 

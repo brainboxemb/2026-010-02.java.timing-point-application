@@ -88,10 +88,8 @@ final class ComponentLifecycleManager {
      * rollback failures are attached as suppressed failures.</p>
      */
     synchronized void activateAll() {
-        if (state != State.NEW) {
-            throw new IllegalStateException(
-                    "Components can only activate from NEW; current state="
-                            + state);
+        if (state == State.ACTIVE) {
+            throw new IllegalStateException("Components are already active");
         }
 
         int activatedCount = 0;

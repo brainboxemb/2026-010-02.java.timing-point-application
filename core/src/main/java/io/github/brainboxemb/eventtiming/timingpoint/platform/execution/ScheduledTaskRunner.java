@@ -16,10 +16,10 @@ import java.util.concurrent.TimeoutException;
  * {@link SerialScheduledExecutor}.
  *
  * <p>This class centralizes task handling that would otherwise be repeated by
- * components: bounded result waiting, cancellation propagation, asynchronous
- * completion and delayed begin/complete continuations. It owns neither a
- * physical worker nor a scheduler; those remain external to the wrapped
- * logical lane.</p>
+ * components: cooperative multi-step task continuation, bounded result waiting,
+ * cancellation propagation, asynchronous completion and delayed continuations.
+ * It owns neither a physical worker nor a scheduler; those remain external to
+ * the wrapped logical lane.</p>
  *
  * <p>Domain/I/O components map {@link OperationException} to their own failure
  * semantics instead of putting component-specific policy in this platform type.</p>
@@ -84,6 +84,147 @@ public final class ScheduledTaskRunner {
     public boolean execute(
             Runnable action) {
         return lane.execute(action);
+    }
+
+    /**
+     * Runs one cooperative state-machine task until it returns
+     * {@link TaskStep#done()} or fails.
+     *
+     * <p>Each invocation of {@link CooperativeTask#runStep()} is one logical
+     * turn. {@link TaskStep#again()} yields the lane and re-admits the task at
+     * the back of the same serial queue. {@link TaskStep#after(Duration)}
+     * releases the physical worker and re-admits the task when the delay
+     * expires.</p>
+     */
+    public CompletableFuture<Void> runTask(
+            CooperativeTask task) {
+        if (task == null) {
+            throw new IllegalArgumentException(
+                    "task must not be null");
+        }
+
+        CompletableFuture<Void> result =
+                new CompletableFuture<Void>();
+        AtomicReference<SerialScheduledExecutor.ScheduledResult<?>> active =
+                new AtomicReference<SerialScheduledExecutor.ScheduledResult<?>>();
+
+        result.whenComplete(
+                (ignored, failure) -> {
+                    if (!result.isCancelled()) {
+                        return;
+                    }
+
+                    SerialScheduledExecutor.ScheduledResult<?> scheduled =
+                            active.get();
+                    if (scheduled != null) {
+                        scheduled.futureResult()
+                                .cancel(true);
+                    }
+                });
+
+        scheduleTaskStep(
+                task,
+                0L,
+                result,
+                active);
+        return result;
+    }
+
+    private void scheduleTaskStep(
+            CooperativeTask task,
+            long delayNanos,
+            CompletableFuture<Void> result,
+            AtomicReference<SerialScheduledExecutor.ScheduledResult<?>> active) {
+        if (result.isDone()) {
+            return;
+        }
+
+        final SerialScheduledExecutor.ScheduledResult<TaskStep> scheduled;
+        try {
+            scheduled =
+                    lane.submitAfter(
+                            task::runStep,
+                            delayNanos);
+            active.set(
+                    scheduled);
+        } catch (RuntimeException ex) {
+            result.completeExceptionally(
+                    failure(
+                            FailureReason.OVERLOADED,
+                            "Serial scheduled operation lane rejected cooperative task step",
+                            ex));
+            return;
+        }
+
+        if (result.isCancelled()) {
+            scheduled.futureResult()
+                    .cancel(true);
+            return;
+        }
+
+        scheduled.completion()
+                .whenComplete(
+                        (step, stepFailure) -> {
+                            if (result.isDone()) {
+                                return;
+                            }
+                            if (stepFailure != null) {
+                                result.completeExceptionally(
+                                        stepFailure);
+                                return;
+                            }
+                            if (step == null) {
+                                result.completeExceptionally(
+                                        new IllegalStateException(
+                                                "cooperative task returned no TaskStep"));
+                                return;
+                            }
+
+                            switch (step.type()) {
+                                case DONE:
+                                    result.complete(
+                                            null);
+                                    return;
+                                case AGAIN:
+                                    scheduleTaskStep(
+                                            task,
+                                            0L,
+                                            result,
+                                            active);
+                                    return;
+                                case AFTER:
+                                    Duration delay =
+                                            step.delay();
+                                    if (delay == null) {
+                                        result.completeExceptionally(
+                                                new IllegalStateException(
+                                                        "AFTER task step requires a delay"));
+                                        return;
+                                    }
+                                    final long nextDelayNanos;
+                                    try {
+                                        nextDelayNanos =
+                                                delay.toNanos();
+                                    } catch (ArithmeticException ex) {
+                                        result.completeExceptionally(
+                                                new IllegalArgumentException(
+                                                        "task delay is too large",
+                                                        ex));
+                                        return;
+                                    }
+                                    scheduleTaskStep(
+                                            task,
+                                            nextDelayNanos,
+                                            result,
+                                            active);
+                                    return;
+                                default:
+                                    result.completeExceptionally(
+                                            new IllegalStateException(
+                                                    "Unsupported cooperative task step "
+                                                            + step.type()));
+                            }
+                        });
     }
 
     /**
@@ -280,7 +421,7 @@ public final class ScheduledTaskRunner {
         }
     }
 
-    public SerialScheduledExecutor.ScheduledTask scheduleWithFixedDelay(
+    public SerialScheduledExecutor.ScheduledRegistration scheduleWithFixedDelay(
             Runnable action,
             Duration delay) {
         if (delay == null

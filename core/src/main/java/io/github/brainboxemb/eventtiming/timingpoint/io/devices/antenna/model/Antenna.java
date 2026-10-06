@@ -1,4 +1,7 @@
-package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
+package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model;
+
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInfo;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
@@ -11,13 +14,13 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
  *
  * <p>Construction is passive: creating/wiring an Antenna must not start
  * inventory or background device activity. Hardware interaction belongs to
- * {@link #probe()}, {@link #initialize()} and the explicit inventory lifecycle.
+ * {@link #selfTest()}, {@link #initialize()} and the explicit inventory lifecycle.
  * This keeps Runtime composition free of hidden activation side effects.</p>
  */
 public interface Antenna {
 
-    /** Performs a one-shot identity/version probe without starting inventory. */
-    AntennaInfo probe();
+    /** Performs the startup self-test without starting inventory. */
+    AntennaInfo selfTest();
 
     /** Initializes the antenna for normal inventory operation. */
     void initialize();
