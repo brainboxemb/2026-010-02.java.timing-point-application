@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add cooperative reusable task execution with `AbstractTask`; refactor antenna control around `AntennaSet`, manager-owned self-test/inventory/shutdown state machines, diagnostic-only self-test PASS/FAIL, and explicit retryable inventory attempts after earlier device failure without requiring process restart.
+
 - Add small `infra.setting.Setting<T>` requested/applied/pending state; make AntennaManager activation start an asynchronous startup self-test with PASS/FAIL result, retain the latest inventory setting while busy, avoid redundant initial CLOSED disable work, and let Presentation start without waiting for antenna startup I/O.
 
 - Rename TimingNode OPEN/CLOSED/ERROR from lifecycle to operational `State`; replace boolean antenna inventory control with explicit enable/disable actions; publish tracked-property changes through `EventSource`; and make local event wiring composition-time only with compact 0/1/N subscriber storage.
