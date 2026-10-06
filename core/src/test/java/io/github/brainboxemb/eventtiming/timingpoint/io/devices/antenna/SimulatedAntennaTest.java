@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model;
 
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInfo;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.power.SimulatedPowerDevice;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
