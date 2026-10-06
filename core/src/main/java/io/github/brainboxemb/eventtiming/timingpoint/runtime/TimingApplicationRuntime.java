@@ -8,6 +8,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationCo
 import io.github.brainboxemb.eventtiming.timingpoint.application.Conductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
+import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventDataProvider;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTimingDataPersistence;
@@ -98,7 +99,7 @@ public final class TimingApplicationRuntime {
                 buildIdentity,
                 config,
                 Collections.<AntennaInstallation>emptyList(),
-                EventData.empty(),
+                defaultEventData(),
                 null,
                 null);
     }
@@ -118,17 +119,16 @@ public final class TimingApplicationRuntime {
                 buildIdentity,
                 config,
                 Collections.<AntennaInstallation>emptyList(),
-                EventData.empty(),
+                defaultEventData(),
                 consoleInput,
                 consoleOutput);
     }
 
     /**
-     * Constructs and wires the same application graph with explicitly supplied
-     * antenna installations and event data. Simulation uses this overload rather
-     * than a parallel runtime path.
+     * Package-local simulation seam that keeps EventData injection out of the
+     * public TimingApplicationRuntime API while reusing this exact composition path.
      */
-    public static TimingApplicationRuntime create(
+    static TimingApplicationRuntime createSimulation(
             BuildIdentity buildIdentity,
             Config config,
             List<AntennaInstallation> antennaInstallations,
@@ -438,6 +438,11 @@ public final class TimingApplicationRuntime {
                 + buildIdentity.version()
                 + " state="
                 + state;
+    }
+
+    private static EventData defaultEventData() {
+        return new DefaultEventDataProvider()
+                .createEventData();
     }
 
     private static ConfigurationControl createConfigurationControl(
