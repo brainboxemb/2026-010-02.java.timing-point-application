@@ -60,6 +60,10 @@ public final class SerialScheduledExecutor implements AutoCloseable {
 
     private final SerialScheduledExecutorMetrics metrics;
 
+    /** Active one-shot delayed registrations owned by this lane. */
+    private final List<DelayedTask> delayedTasks =
+            new ArrayList<DelayedTask>();
+
     /** Active fixed-delay registrations owned by this lane. */
     private final List<PeriodicTask> periodicTasks =
             new ArrayList<PeriodicTask>();
@@ -185,6 +189,45 @@ public final class SerialScheduledExecutor implements AutoCloseable {
     }
 
     /**
+     * Schedules one delayed callback on this same logical serial lane.
+     *
+     * <p>The supplied scheduled worker owns only the timer wake-up. When the
+     * delay expires, the callback is admitted to the normal serial lane and
+     * therefore preserves ordering with immediate and periodic work.</p>
+     *
+     * <p>This is the preferred representation for elapsed-time waits: the
+     * physical worker remains free while the delay passes.</p>
+     */
+    public ScheduledTask schedule(
+            Runnable task,
+            long delayNanos) {
+        if (task == null) {
+            throw new IllegalArgumentException(
+                    "task must not be null");
+        }
+        if (delayNanos < 1L) {
+            throw new IllegalArgumentException(
+                    "delayNanos must be positive");
+        }
+
+        final DelayedTask delayed;
+        synchronized (this) {
+            if (state != State.RUNNING) {
+                throw new IllegalStateException(
+                        "SerialScheduledExecutor is not running");
+            }
+            delayed =
+                    new DelayedTask(
+                            task,
+                            delayNanos);
+            delayedTasks.add(delayed);
+            metrics.recordScheduledRegistration();
+        }
+        delayed.schedule();
+        return delayed;
+    }
+
+    /**
      * Registers fixed-delay work on this serial lane.
      *
      * <p>The timer trigger is scheduled on the supplied scheduler, while the
@@ -245,6 +288,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
     @Override
     public void close() {
         final SerialExecutor activeLane;
+        final List<DelayedTask> delayed;
         final List<PeriodicTask> tasks;
 
         synchronized (this) {
@@ -260,9 +304,13 @@ public final class SerialScheduledExecutor implements AutoCloseable {
             }
 
             activeLane = lane;
+            delayed = new ArrayList<DelayedTask>(delayedTasks);
             tasks = new ArrayList<PeriodicTask>(periodicTasks);
         }
 
+        for (DelayedTask task : delayed) {
+            task.close();
+        }
         for (PeriodicTask periodic : tasks) {
             periodic.close();
         }
@@ -298,6 +346,26 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         };
     }
 
+    private Runnable wrapDelayed(Runnable task) {
+        return () -> {
+            try {
+                task.run();
+            } catch (RuntimeException ex) {
+                metrics.recordRuntimeFailure();
+                LOG.warn(
+                        "Serial scheduled lane {} delayed task failed",
+                        laneName,
+                        ex);
+            } catch (Error ex) {
+                metrics.recordRuntimeFailure();
+                markFailed(ex);
+                throw ex;
+            } finally {
+                metrics.recordDelayedExecution();
+            }
+        };
+    }
+
     private Runnable wrapPeriodic(Runnable task) {
         return () -> {
             try {
@@ -319,6 +387,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
     }
 
     private void markFailed(Error cause) {
+        List<DelayedTask> delayed;
         List<PeriodicTask> tasks;
         synchronized (this) {
             if (state == State.FAILED) {
@@ -326,11 +395,136 @@ public final class SerialScheduledExecutor implements AutoCloseable {
             }
             failure = cause;
             state = State.FAILED;
+            delayed = new ArrayList<DelayedTask>(delayedTasks);
             tasks = new ArrayList<PeriodicTask>(periodicTasks);
         }
 
+        for (DelayedTask task : delayed) {
+            task.close();
+        }
         for (PeriodicTask periodic : tasks) {
             periodic.close();
+        }
+    }
+
+    /**
+     * One logical one-shot delayed registration.
+     */
+    private final class DelayedTask
+            implements ScheduledTask {
+        private final Runnable task;
+        private final long delayNanos;
+
+        private boolean closed;
+        private ScheduledFuture<?> trigger;
+
+        private DelayedTask(
+                Runnable task,
+                long delayNanos) {
+            this.task = task;
+            this.delayNanos = delayNanos;
+        }
+
+        private void schedule() {
+            synchronized (this) {
+                if (closed) {
+                    return;
+                }
+            }
+            synchronized (SerialScheduledExecutor.this) {
+                if (state != State.RUNNING) {
+                    return;
+                }
+            }
+
+            try {
+                ScheduledFuture<?> next =
+                        workerExecutor.schedule(
+                                this::enqueueExecution,
+                                delayNanos,
+                                TimeUnit.NANOSECONDS);
+                synchronized (this) {
+                    if (closed) {
+                        next.cancel(false);
+                    } else {
+                        trigger = next;
+                    }
+                }
+            } catch (RejectedExecutionException ex) {
+                synchronized (SerialScheduledExecutor.this) {
+                    if (state == State.RUNNING) {
+                        failure = ex;
+                        state = State.FAILED;
+                    }
+                }
+            }
+        }
+
+        private void enqueueExecution() {
+            synchronized (this) {
+                trigger = null;
+                if (closed) {
+                    return;
+                }
+            }
+
+            final SerialExecutor activeLane;
+            synchronized (SerialScheduledExecutor.this) {
+                if (state != State.RUNNING) {
+                    return;
+                }
+                activeLane = lane;
+            }
+
+            SerialExecutor.AdmissionResult admission =
+                    activeLane.offer(() -> {
+                        try {
+                            wrapDelayed(task).run();
+                        } finally {
+                            complete();
+                        }
+                    });
+
+            if (admission
+                    != SerialExecutor.AdmissionResult.ACCEPTED) {
+                /*
+                 * This callback represents required control continuation work.
+                 * Keep it bounded and retry after the same delay instead of
+                 * creating another unbounded queue.
+                 */
+                schedule();
+            }
+        }
+
+        private void complete() {
+            synchronized (this) {
+                closed = true;
+            }
+            synchronized (SerialScheduledExecutor.this) {
+                delayedTasks.remove(this);
+            }
+        }
+
+        @Override
+        public void close() {
+            ScheduledFuture<?> pending;
+            synchronized (this) {
+                if (closed) {
+                    return;
+                }
+                closed = true;
+                pending = trigger;
+                trigger = null;
+            }
+
+            if (pending != null) {
+                pending.cancel(false);
+            }
+
+            synchronized (SerialScheduledExecutor.this) {
+                delayedTasks.remove(this);
+            }
+            metrics.recordScheduledCancellation();
         }
     }
 
