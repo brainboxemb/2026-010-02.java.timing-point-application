@@ -72,8 +72,16 @@ final class ManagedAntenna {
         operation = AntennaOperation.PREPARING;
     }
 
-    boolean availableForInventory() {
-        return selfTestPassed && failure == null;
+    /**
+     * Returns whether this antenna completed preparation for the current
+     * inventory attempt.
+     *
+     * <p>Startup self-test PASS/FAIL is deliberately not part of this check.
+     * A later inventory request is allowed to try again after self-test or an
+     * earlier runtime operation failed.</p>
+     */
+    boolean preparedForInventory() {
+        return operation == AntennaOperation.READY && failure == null;
     }
 
     boolean inventoryRunning() {
@@ -134,15 +142,19 @@ final class ManagedAntenna {
      * Marks the start of the prepare sequence owned by {@code InventoryTask}.
      */
     void beginInventoryPreparation() {
-        checkState(availableForInventory(), "Antenna %s is not available for inventory", antennaId);
         checkState(operation != AntennaOperation.INVENTORY, "Antenna %s is already inventorying", antennaId);
-        checkState(operation != AntennaOperation.READY, "Antenna %s is already prepared", antennaId);
         checkState(operation != AntennaOperation.PREPARING, "Antenna %s is already preparing", antennaId);
+
+        /*
+         * A new explicit inventory attempt replaces the failure from the
+         * previous attempt. selfTestPassed is intentionally left untouched
+         * because it remains the diagnostic result of the startup self-test.
+         */
+        failure = null;
         operation = AntennaOperation.PREPARING;
     }
 
     void initialize() {
-        checkState(availableForInventory(), "Antenna %s is not available for initialization", antennaId);
         checkState(operation == AntennaOperation.PREPARING,
                 "Antenna %s cannot initialize from %s", antennaId, operation);
 
@@ -162,7 +174,7 @@ final class ManagedAntenna {
             return;
         }
 
-        checkState(availableForInventory(), "Antenna %s is not available for inventory", antennaId);
+        checkState(preparedForInventory(), "Antenna %s is not prepared for inventory", antennaId);
         checkState(operation == AntennaOperation.READY,
                 "Antenna %s cannot start inventory from %s", antennaId, operation);
 
@@ -171,6 +183,7 @@ final class ManagedAntenna {
             operation = AntennaOperation.INVENTORY;
             LOG.info("Antenna {} inventory started", antennaId);
         } catch (RuntimeException ex) {
+            operation = AntennaOperation.INACTIVE;
             recordFailure(ex);
             throw ex;
         }
