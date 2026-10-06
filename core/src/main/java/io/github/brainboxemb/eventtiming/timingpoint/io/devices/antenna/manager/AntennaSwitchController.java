@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * Performs only mutual-exclusion inventory switching for one configured group.
  *
- * <p>AntennaManager owns antenna creation, health checks, power/initialize
+ * <p>AntennaManager owns antenna creation, startup self-test, power/initialize
  * sequencing, status and recovery decisions. This helper only knows the group
  * members that may not inventory at the same time and the round-robin interval.</p>
  *
@@ -69,7 +69,7 @@ final class AntennaSwitchController {
      * Returns whether periodic round-robin switching is useful.
      */
     boolean rotationNeeded() {
-        return healthyCount() > 1;
+        return availableCount() > 1;
     }
 
     /**
@@ -88,7 +88,7 @@ final class AntennaSwitchController {
     }
 
     /**
-     * Rotates from the current member to the next healthy member.
+     * Rotates from the current member to the next available member.
      *
      * <p>If stopping the current member fails, no next member is started. This
      * preserves the at-most-one-inventory invariant even when the failed reader
@@ -146,10 +146,10 @@ final class AntennaSwitchController {
         return -1;
     }
 
-    private int healthyCount() {
+    private int availableCount() {
         int count = 0;
         for (ManagedAntenna antenna : inventoryGroup) {
-            if (antenna.healthy()) {
+            if (antenna.availableForInventory()) {
                 count++;
             }
         }
