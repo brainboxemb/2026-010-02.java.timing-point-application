@@ -4,6 +4,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaI
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -24,7 +25,8 @@ final class ManagedAntennaSet {
     private final Duration inventoryInterval;
 
     ManagedAntennaSet(
-            List<AntennaInstallation> installations) {
+            List<AntennaInstallation> installations,
+            ScheduledTaskRunner taskRunner) {
         if (installations == null
                 || installations.isEmpty()) {
             throw new IllegalArgumentException(
@@ -45,7 +47,8 @@ final class ManagedAntennaSet {
 
             ManagedAntenna antenna =
                     new ManagedAntenna(
-                            installation);
+                            installation,
+                            taskRunner);
             configured.add(
                     antenna);
 
