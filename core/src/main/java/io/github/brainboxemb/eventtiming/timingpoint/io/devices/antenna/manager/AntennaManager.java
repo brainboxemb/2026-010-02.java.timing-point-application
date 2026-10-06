@@ -32,7 +32,6 @@ public final class AntennaManager {
 
     private volatile State state = State.NEW;
     private volatile Throwable failure;
-    private volatile boolean selfTestPassed;
 
 
     public AntennaManager(
@@ -59,7 +58,6 @@ public final class AntennaManager {
         taskRunner.start();
         state = State.ACTIVE;
         failure = null;
-        selfTestPassed = false;
 
         antennaTasks.startSelfTest(taskRunner);
 
@@ -71,7 +69,9 @@ public final class AntennaManager {
     }
 
     public boolean isReady() {
-        return state == State.ACTIVE && selfTestPassed;
+        return state == State.ACTIVE
+                && !antennaTasks.selfTestRunning()
+                && antennaSet.allSelfTestsPassed();
     }
 
     public boolean requestEnableInventory() {
@@ -175,7 +175,7 @@ public final class AntennaManager {
 
     private void startInventoryTaskIfNeeded() {
         if (state != State.ACTIVE
-                || !selfTestPassed
+                || !antennaSet.allSelfTestsPassed()
                 || !inventoryEnabledSetting.changePending()
                 || antennaTasks.inventoryRunning()) {
             return;
@@ -204,10 +204,10 @@ public final class AntennaManager {
             recordFailure(result.failure());
         }
 
-        selfTestPassed = antennaSet.allSelfTestsPassed();
-        LOG.info("AntennaManager self-test {}", selfTestPassed ? "PASS" : "FAIL");
+        boolean passed = antennaSet.allSelfTestsPassed();
+        LOG.info("AntennaManager self-test {}", passed ? "PASS" : "FAIL");
 
-        if (selfTestPassed) {
+        if (passed) {
             startInventoryTaskIfNeeded();
         }
     }
