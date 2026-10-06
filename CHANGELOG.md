@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Rework `Conductor` status handling as coalesced current-state reconciliation: synchronous TimingNode callbacks no longer throw downstream queue overloads, stale status snapshots are not executed as commands, and TimingNode/Conductor control transitions gain causal runtime logging.
+
 - Extract `EventData` and semantic `TagId` into a shared Java-8 `event-data` artifact with typed `EventDataProvider` SPI; keep TagProcessor multi-tag passage diagnostics on the shared contract and remove EventData injection from the public `TimingApplicationRuntime` API, leaving an explicit simulation-only seam.
 
 - Add immutable `EventData` and semantic `TagId`; resolve RFID observations through EventData before RegistrationId-keyed duplicate/passsage filtering; retain compact per-tag passage diagnostics; remove `TagRegistrationMapper`/`DecryptedTagId` and the loose mapper runtime-composition path.
