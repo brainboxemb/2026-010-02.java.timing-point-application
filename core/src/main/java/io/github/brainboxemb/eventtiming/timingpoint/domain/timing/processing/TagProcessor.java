@@ -129,9 +129,8 @@ public final class TagProcessor {
 
     public void activate() {
         synchronized (lifecycleLock) {
-            if (state != State.NEW) {
-                throw new IllegalStateException(
-                        "TagProcessor can only activate from NEW; current state=" + state);
+            if (state == State.ACTIVE) {
+                throw new IllegalStateException("TagProcessor is already active");
             }
             executor.start();
             state = State.ACTIVE;
