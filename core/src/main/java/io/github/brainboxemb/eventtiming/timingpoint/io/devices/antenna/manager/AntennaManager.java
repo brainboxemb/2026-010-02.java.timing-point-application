@@ -26,7 +26,7 @@ public final class AntennaManager {
     private static final Logger LOG = LoggerFactory.getLogger(AntennaManager.class);
 
     private final ScheduledTaskRunner taskRunner;
-    private final ManagedAntennaSet antennaSet;
+    private final AntennaSet antennaSet;
     private final Setting<Boolean> inventoryEnabledSetting = new Setting<Boolean>(Boolean.FALSE);
     private final AntennaTasks antennaTasks;
 
@@ -35,13 +35,15 @@ public final class AntennaManager {
 
 
     public AntennaManager(
-            List<AntennaInstallation> installations,
+            AntennaSet antennaSet,
             SerialScheduledExecutor controlLane,
             Duration controlTimeout) {
+        checkArgument(antennaSet != null, "antennaSet must not be null");
         checkArgument(controlLane != null, "controlLane must not be null");
 
+        antennaSet.seal();
+        this.antennaSet = antennaSet;
         taskRunner = new ScheduledTaskRunner(controlLane, controlTimeout);
-        antennaSet = new ManagedAntennaSet(installations);
         antennaTasks = new AntennaTasks(
                 antennaSet.antennas(),
                 antennaSet.inventoryGroup(),
