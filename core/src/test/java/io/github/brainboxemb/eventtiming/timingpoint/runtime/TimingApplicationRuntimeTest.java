@@ -332,7 +332,7 @@ public class TimingApplicationRuntimeTest {
                     TimingTimestamp.parse("2026-10-05T08:30:01.000000000Z"));
             fail("expected shut-down antenna after application shutdown");
         } catch (IllegalStateException expected) {
-            assertTrue(expected.getMessage().contains("shut down"));
+            assertTrue(expected.getMessage().contains("inventory is not running"));
         }
     }
 
