@@ -9,7 +9,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import java.time.Duration;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Runtime owner of one configured physical antenna.
@@ -79,14 +78,33 @@ final class ManagedAntenna {
     }
 
     /**
-     * Health-checks the provider and leaves externally switched hardware off.
+     * Begins a probe by applying external power when required.
+     *
+     * @return the required stabilization delay, or {@code null} when power
+     *         preparation failed and the probe must be skipped
      */
-    void probe() {
+    Duration beginProbe() {
         state = AntennaState.CHECKING;
         failure = null;
 
         try {
-            powerOn();
+            return powerOn();
+        } catch (RuntimeException ex) {
+            fail(ex);
+            powerOffAfterFailure();
+            return null;
+        } catch (Error ex) {
+            fail(ex);
+            powerOffAfterFailure();
+            return null;
+        }
+    }
+
+    /**
+     * Completes a probe after any required stabilization delay has elapsed.
+     */
+    void completeProbe() {
+        try {
             installation.antenna().probe();
             state = AntennaState.READY;
         } catch (RuntimeException ex) {
@@ -99,19 +117,42 @@ final class ManagedAntenna {
     }
 
     /**
-     * Powers and initializes this antenna, but does not start inventory.
+     * Begins inventory preparation by applying external power when required.
+     *
+     * @return the required stabilization delay, or {@code null} when this
+     *         antenna cannot currently be prepared
      */
-    boolean prepareForInventory() {
+    Duration beginPrepareForInventory() {
         if (state == AntennaState.ERROR
-                || state == AntennaState.CLOSED) {
-            return false;
-        }
-        if (state == AntennaState.INVENTORY) {
-            return true;
+                || state == AntennaState.CLOSED
+                || state == AntennaState.INVENTORY) {
+            return null;
         }
 
         try {
-            powerOn();
+            return powerOn();
+        } catch (RuntimeException ex) {
+            fail(ex);
+            powerOffAfterFailure();
+            return null;
+        } catch (Error ex) {
+            fail(ex);
+            powerOffAfterFailure();
+            return null;
+        }
+    }
+
+    /**
+     * Initializes this antenna after any required stabilization delay.
+     */
+    boolean completePrepareForInventory() {
+        if (state == AntennaState.ERROR
+                || state == AntennaState.CLOSED
+                || state == AntennaState.INVENTORY) {
+            return false;
+        }
+
+        try {
             installation.antenna().initialize();
             state = AntennaState.READY;
             return true;
@@ -218,19 +259,23 @@ final class ManagedAntenna {
         }
     }
 
-    private void powerOn() {
+    /**
+     * Applies external power without occupying the worker for stabilization.
+     *
+     * @return the delay that must elapse before provider I/O may continue
+     */
+    private Duration powerOn() {
         AntennaPowerControl power =
                 installation.powerControl();
 
         if (power == null
                 || externalPowerApplied) {
-            return;
+            return Duration.ZERO;
         }
 
         power.powerOn();
         externalPowerApplied = true;
-        waitForStabilization(
-                installation.powerStabilization());
+        return installation.powerStabilization();
     }
 
     private void powerOff() {
@@ -275,23 +320,6 @@ final class ManagedAntenna {
             failure = cause;
         }
         state = AntennaState.ERROR;
-    }
-
-    private static void waitForStabilization(
-            Duration delay) {
-        if (delay.isZero()) {
-            return;
-        }
-
-        try {
-            TimeUnit.NANOSECONDS.sleep(
-                    delay.toNanos());
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException(
-                    "Antenna power stabilization was interrupted",
-                    ex);
-        }
     }
 
     private static RuntimeException appendFailure(
