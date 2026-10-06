@@ -263,23 +263,24 @@ public final class AntennaManager {
         inventoryOperation =
                 taskRunner.runTask(
                         antennaTasks.inventory());
-        CompletableFuture<Void> running =
-                inventoryOperation;
+        inventoryOperation.whenComplete(
+                this::onInventoryTaskCompleted);
+    }
 
-        running.whenComplete(
-                (ignored, taskFailure) ->
-                        taskRunner.execute(
-                                () -> inventoryTaskCompleted(
-                                        running,
-                                        taskFailure)));
+    /**
+     * Re-admits inventory-task completion onto the manager serial lane.
+     */
+    private void onInventoryTaskCompleted(
+            Void ignored,
+            Throwable taskFailure) {
+        taskRunner.execute(
+                () -> inventoryTaskCompleted(
+                        taskFailure));
     }
 
     private void inventoryTaskCompleted(
-            CompletableFuture<Void> running,
             Throwable taskFailure) {
-        if (inventoryOperation == running) {
-            inventoryOperation = null;
-        }
+        inventoryOperation = null;
 
         if (taskFailure != null
                 && !(taskFailure instanceof CancellationException)) {
