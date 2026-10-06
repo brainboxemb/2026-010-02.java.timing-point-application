@@ -1,15 +1,15 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.task;
 
+import io.github.brainboxemb.eventtiming.timingpoint.infra.setting.Setting;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTask;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.function.BooleanSupplier;
 
 /**
  * Reusable cooperative task set owned by one AntennaManager.
  *
- * <p>The task objects are constructed once and reset before each new run.
+ * <p>The three task objects are constructed once and reset before a new run.
  * Concrete task classes remain package-private.</p>
  */
 public final class AntennaTasks {
@@ -39,21 +39,17 @@ public final class AntennaTasks {
         boolean availableForInventory();
 
         boolean inventoryRunning();
-
-        Throwable failure();
     }
 
     private final SelfTestTask selfTestTask;
-    private final InventoryEnableTask inventoryEnableTask;
-    private final InventoryDisableTask inventoryDisableTask;
-    private final AntennaSwitchTask antennaSwitchTask;
+    private final InventoryTask inventoryTask;
     private final AntennaShutdownTask antennaShutdownTask;
 
     public AntennaTasks(
             List<? extends AntennaTarget> antennas,
             List<? extends AntennaTarget> inventoryGroup,
             Duration inventoryInterval,
-            BooleanSupplier inventoryRequested) {
+            Setting<Boolean> inventoryEnabledSetting) {
         if (antennas == null
                 || antennas.isEmpty()) {
             throw new IllegalArgumentException(
@@ -63,9 +59,9 @@ public final class AntennaTasks {
             throw new IllegalArgumentException(
                     "inventoryGroup must not be null");
         }
-        if (inventoryRequested == null) {
+        if (inventoryEnabledSetting == null) {
             throw new IllegalArgumentException(
-                    "inventoryRequested must not be null");
+                    "inventoryEnabledSetting must not be null");
         }
         if (!inventoryGroup.isEmpty()
                 && (inventoryInterval == null
@@ -78,19 +74,12 @@ public final class AntennaTasks {
         selfTestTask =
                 new SelfTestTask(
                         antennas);
-        inventoryEnableTask =
-                new InventoryEnableTask(
+        inventoryTask =
+                new InventoryTask(
                         antennas,
                         inventoryGroup,
-                        inventoryRequested);
-        inventoryDisableTask =
-                new InventoryDisableTask(
-                        antennas);
-        antennaSwitchTask =
-                new AntennaSwitchTask(
-                        inventoryGroup,
                         inventoryInterval,
-                        inventoryRequested);
+                        inventoryEnabledSetting);
         antennaShutdownTask =
                 new AntennaShutdownTask(
                         antennas);
@@ -101,19 +90,9 @@ public final class AntennaTasks {
         return selfTestTask;
     }
 
-    public CooperativeTask enableInventory() {
-        inventoryEnableTask.reset();
-        return inventoryEnableTask;
-    }
-
-    public CooperativeTask disableInventory() {
-        inventoryDisableTask.reset();
-        return inventoryDisableTask;
-    }
-
-    public CooperativeTask switchInventory() {
-        antennaSwitchTask.reset();
-        return antennaSwitchTask;
+    public CooperativeTask inventory() {
+        inventoryTask.reset();
+        return inventoryTask;
     }
 
     public CooperativeTask shutdown() {
