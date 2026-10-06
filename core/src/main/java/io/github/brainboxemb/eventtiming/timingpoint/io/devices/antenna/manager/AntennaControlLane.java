@@ -11,6 +11,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -312,11 +313,25 @@ final class AntennaControlLane {
                     "AntennaManager control operation was cancelled before completion",
                     ex);
         } catch (ExecutionException ex) {
-            Throwable cause = ex.getCause();
+            Throwable cause =
+                    ex.getCause() == null
+                            ? ex
+                            : ex.getCause();
+
+            if (cause instanceof ControlException) {
+                throw (ControlException) cause;
+            }
+            if (cause instanceof RejectedExecutionException) {
+                throw failure(
+                        FailureReason.OVERLOADED,
+                        "AntennaManager shared I/O worker rejected control work",
+                        cause);
+            }
+
             throw failure(
                     FailureReason.PROVIDER_FAILURE,
                     "AntennaManager provider operation failed",
-                    cause == null ? ex : cause);
+                    cause);
         }
     }
 
