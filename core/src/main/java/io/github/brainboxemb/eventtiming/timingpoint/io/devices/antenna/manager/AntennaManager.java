@@ -533,8 +533,8 @@ public final class AntennaManager {
      * Builds the antenna-specific preparation sequence directly.
      *
      * <p>This is lifecycle policy, not a generic CompletableFuture sequencing
-     * abstraction. Each delayed step checks the current request version before
-     * it may initialize or start a reader.</p>
+     * abstraction. Each delayed step checks the latest requested inventory
+     * setting before it may initialize or start a reader.</p>
      */
     private CompletableFuture<Void> prepareInventory() {
         CompletableFuture<Void> transition =
