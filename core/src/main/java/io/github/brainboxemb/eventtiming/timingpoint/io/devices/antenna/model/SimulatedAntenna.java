@@ -25,7 +25,6 @@ public final class SimulatedAntenna implements Antenna {
 
     private boolean initialized;
     private boolean inventoryRunning;
-    private boolean shutdown;
     private boolean externalPowerDevice;
     private boolean powered = true;
     private FailurePoint failurePoint = FailurePoint.NONE;
@@ -33,7 +32,6 @@ public final class SimulatedAntenna implements Antenna {
 
     @Override
     public synchronized AntennaInfo selfTest() {
-        requireOpen();
         requirePowered();
         failIf(FailurePoint.SELF_TEST);
         return INFO;
@@ -41,7 +39,6 @@ public final class SimulatedAntenna implements Antenna {
 
     @Override
     public synchronized void initialize() {
-        requireOpen();
         requirePowered();
         failIf(FailurePoint.INITIALIZE);
         if (inventoryRunning) {
@@ -53,7 +50,6 @@ public final class SimulatedAntenna implements Antenna {
 
     @Override
     public synchronized void startInventory() {
-        requireOpen();
         requirePowered();
         failIf(FailurePoint.START_INVENTORY);
         if (!initialized) {
@@ -70,7 +66,6 @@ public final class SimulatedAntenna implements Antenna {
 
     @Override
     public synchronized void stopInventory() {
-        requireOpen();
         failIf(FailurePoint.STOP_INVENTORY);
         inventoryRunning = false;
     }
@@ -91,8 +86,7 @@ public final class SimulatedAntenna implements Antenna {
             throw new IllegalArgumentException("observation must not be null");
         }
         synchronized (this) {
-            requireOpen();
-            requirePowered();
+                requirePowered();
             if (!inventoryRunning) {
                 throw new IllegalStateException(
                         "SimulatedAntenna inventory is not running");
@@ -135,11 +129,9 @@ public final class SimulatedAntenna implements Antenna {
         if (externalPowerDevice) {
             powered = false;
         }
-        shutdown = true;
     }
 
     public synchronized void attachExternalPowerDevice() {
-        requireOpen();
         if (externalPowerDevice) {
             throw new IllegalStateException(
                     "SimulatedAntenna already has an external power device");
@@ -151,7 +143,6 @@ public final class SimulatedAntenna implements Antenna {
     }
 
     public synchronized void setExternallyPowered(boolean powered) {
-        requireOpen();
         if (!externalPowerDevice) {
             throw new IllegalStateException(
                     "SimulatedAntenna has no external power device");
@@ -176,9 +167,4 @@ public final class SimulatedAntenna implements Antenna {
         }
     }
 
-    private void requireOpen() {
-        if (shutdown) {
-            throw new IllegalStateException("SimulatedAntenna is shut down");
-        }
-    }
 }
