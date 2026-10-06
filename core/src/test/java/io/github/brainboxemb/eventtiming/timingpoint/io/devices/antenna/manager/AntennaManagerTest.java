@@ -340,9 +340,11 @@ public class AntennaManagerTest {
     @Test
     public void timesOutAndCancelsBlockingProviderControl() {
         ScheduledExecutorService shared = sharedExecutor();
-        Antenna blocking = new BlockingProbeAntenna();
+        BlockingProbeAntenna blocking =
+                new BlockingProbeAntenna();
         AntennaManager manager = manager(
-                Collections.singletonList(blocking),
+                Collections.<Antenna>singletonList(
+                        blocking),
                 shared,
                 1,
                 Duration.ofMillis(25));
@@ -358,6 +360,9 @@ public class AntennaManagerTest {
                 assertEquals(
                         State.FAILED,
                         manager.state());
+                assertTrue(
+                        "blocking provider call must be interrupted on timeout",
+                        blocking.interrupted());
             }
         } finally {
             try {
@@ -500,6 +505,8 @@ public class AntennaManagerTest {
 
     private static final class BlockingProbeAntenna
             extends RecordingAntenna {
+        private volatile boolean interrupted;
+
         private BlockingProbeAntenna() {
             super(
                     "blocking",
@@ -514,11 +521,16 @@ public class AntennaManagerTest {
                     Thread.sleep(1000L);
                 }
             } catch (InterruptedException ex) {
+                interrupted = true;
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException(
                         "probe interrupted",
                         ex);
             }
+        }
+
+        private boolean interrupted() {
+            return interrupted;
         }
     }
 }
