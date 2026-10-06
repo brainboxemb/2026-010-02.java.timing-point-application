@@ -114,10 +114,12 @@ public final class AntennaManager implements CooperativeTask {
     }
 
     public boolean isBusy() {
-        Phase current = phase;
-        return current == Phase.START_SELF_TEST
-                || current == Phase.WAIT_SELF_TEST
-                || inventoryEnabledSetting.changePending();
+        /*
+         * Busy means work is currently executing, not merely that requested
+         * state differs from applied state after a failed attempt.
+         */
+        return selfTestTask.isRunning()
+                || inventoryTask.isRunning() && inventoryEnabledSetting.changePending();
     }
 
     public boolean isReady() {
