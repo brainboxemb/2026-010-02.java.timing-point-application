@@ -309,6 +309,10 @@ public class TagProcessorTest {
                 clock,
                 new TagProcessingMetrics(),
                 executor);
+        configuration.timingNode(new NodeId("TN-01"))
+                .tagProcessing()
+                .changes()
+                .subscribe(processor::onPolicyConfigurationChanged);
         CountDownLatch committed = new CountDownLatch(1);
         node.timingDataCommittedEvent().subscribe(data -> committed.countDown());
 
@@ -364,6 +368,10 @@ public class TagProcessorTest {
                 clock,
                 new TagProcessingMetrics(),
                 executor);
+        configuration.timingNode(new NodeId("TN-01"))
+                .tagProcessing()
+                .changes()
+                .subscribe(processor::onPolicyConfigurationChanged);
 
         processor.activate();
         try {
