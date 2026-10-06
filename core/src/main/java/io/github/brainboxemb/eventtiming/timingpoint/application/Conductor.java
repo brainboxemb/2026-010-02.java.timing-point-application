@@ -63,8 +63,9 @@ public final class Conductor extends AbstractConductor {
                 new TimingNodeStateProperty(
                         timingNode,
                         applicationLane());
-        timingNodeStateProperty.onChange(
-                this::onTimingNodeStateChanged);
+        timingNodeStateProperty.changedEvent()
+                .subscribe(
+                        this::onTimingNodeStateChanged);
 
         registerComponent(
                 "TimingNode " + timingNode.timingNodeId().value(),
@@ -92,7 +93,10 @@ public final class Conductor extends AbstractConductor {
                     antennaManager.health());
         }
 
-        timingNodeStateProperty.initialize();
+        State initialState =
+                timingNodeStateProperty.initialize();
+        onTimingNodeStateChanged(
+                initialState);
 
         LOG.info(
                 "SI-01 application coordination initialized for TimingNode {}",
