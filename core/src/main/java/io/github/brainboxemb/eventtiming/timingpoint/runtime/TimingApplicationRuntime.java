@@ -259,12 +259,13 @@ public final class TimingApplicationRuntime {
             /*
              * 6. Wire the object graph explicitly.
              */
-            if (antennaManager != null) {
-                timingNode.statusChangedEvent()
-                        .subscribe(
-                                conductor
-                                        ::onTimingNodeStatusChanged);
+            timingNode.statusChangedEvent()
+                    .subscribe(
+                            conductor
+                                    .timingNodeLifecycleProperty()
+                                    .changeSignal());
 
+            if (antennaManager != null) {
                 for (AntennaInstallation installation
                         : installations) {
                     antennaManager
