@@ -66,21 +66,21 @@ final class ManagedAntenna {
     /**
      * Starts a new self-test result window before the task touches hardware.
      */
-    public void beginSelfTest() {
+    void beginSelfTest() {
         selfTestPassed = false;
         failure = null;
         operation = AntennaOperation.PREPARING;
     }
 
-    public boolean availableForInventory() {
+    boolean availableForInventory() {
         return selfTestPassed && failure == null;
     }
 
-    public boolean inventoryRunning() {
+    boolean inventoryRunning() {
         return operation == AntennaOperation.INVENTORY;
     }
 
-    public void powerOn() {
+    void powerOn() {
         if (powerDevice == null || externalPowerApplied) {
             return;
         }
@@ -95,7 +95,7 @@ final class ManagedAntenna {
         }
     }
 
-    public void powerOff() {
+    void powerOff() {
         try {
             if (powerDevice != null && externalPowerApplied) {
                 powerDevice.powerOff();
@@ -112,11 +112,11 @@ final class ManagedAntenna {
         }
     }
 
-    public Duration powerStabilization() {
+    Duration powerStabilization() {
         return powerStabilization;
     }
 
-    public AntennaInfo selfTest() {
+    AntennaInfo selfTest() {
         try {
             AntennaInfo info = antenna.selfTest();
             selfTestPassed = true;
@@ -133,7 +133,7 @@ final class ManagedAntenna {
     /**
      * Marks the start of the prepare sequence owned by {@code InventoryTask}.
      */
-    public void beginInventoryPreparation() {
+    void beginInventoryPreparation() {
         checkState(availableForInventory(), "Antenna %s is not available for inventory", antennaId);
         checkState(operation != AntennaOperation.INVENTORY, "Antenna %s is already inventorying", antennaId);
         checkState(operation != AntennaOperation.READY, "Antenna %s is already prepared", antennaId);
@@ -141,7 +141,7 @@ final class ManagedAntenna {
         operation = AntennaOperation.PREPARING;
     }
 
-    public void initialize() {
+    void initialize() {
         checkState(availableForInventory(), "Antenna %s is not available for initialization", antennaId);
         checkState(operation == AntennaOperation.PREPARING,
                 "Antenna %s cannot initialize from %s", antennaId, operation);
@@ -157,7 +157,7 @@ final class ManagedAntenna {
         }
     }
 
-    public void startInventory() {
+    void startInventory() {
         if (operation == AntennaOperation.INVENTORY) {
             return;
         }
@@ -176,7 +176,7 @@ final class ManagedAntenna {
         }
     }
 
-    public void stopInventory() {
+    void stopInventory() {
         if (operation != AntennaOperation.INVENTORY) {
             return;
         }
@@ -191,7 +191,7 @@ final class ManagedAntenna {
         }
     }
 
-    public void shutdownProvider() {
+    void shutdownProvider() {
         try {
             antenna.shutdown();
         } catch (RuntimeException ex) {
