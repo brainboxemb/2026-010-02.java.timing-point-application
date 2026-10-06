@@ -169,7 +169,8 @@ public final class Main {
 
             runTimingApplication(
                     buildIdentity,
-                    config);
+                    config,
+                    logging);
         } finally {
             if (loggingServer != null) {
                 loggingServer.close();
@@ -188,11 +189,13 @@ public final class Main {
      */
     private static void runTimingApplication(
             BuildIdentity buildIdentity,
-            Config config) {
+            Config config,
+            Logging logging) {
         TimingApplicationRuntime application =
                 TimingApplicationRuntime.create(
                         buildIdentity,
                         config,
+                        logging,
                         new InputStreamReader(
                                 System.in),
                         new OutputStreamWriter(
