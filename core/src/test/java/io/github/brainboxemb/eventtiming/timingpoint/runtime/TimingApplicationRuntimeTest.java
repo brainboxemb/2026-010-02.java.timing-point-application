@@ -18,7 +18,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntennaPowerControl;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.power.SimulatedPowerDevice;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Presentation;
 
@@ -150,8 +150,8 @@ public class TimingApplicationRuntimeTest {
                                 "self-test-does-not-block-presentation.jsonl");
         SimulatedAntenna antenna =
                 new SimulatedAntenna();
-        SimulatedAntennaPowerControl power =
-                new SimulatedAntennaPowerControl(
+        SimulatedPowerDevice power =
+                new SimulatedPowerDevice(
                         antenna);
 
         TimingApplicationRuntime application =
