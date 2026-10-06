@@ -3,11 +3,9 @@ package io.github.brainboxemb.eventtiming.timingpoint.application.property;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.State;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.property.TrackedProperty;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
-
-import java.util.function.Consumer;
 
 /**
  * Application property that tracks the current authoritative TimingNode
@@ -38,22 +36,30 @@ public final class TimingNodeStateProperty {
                                 .state());
     }
 
-    public void onChange(
-            Consumer<State> handler) {
-        property.onChange(handler);
-    }
-
-    public void initialize() {
-        property.initialize();
+    /**
+     * Event emitted after initialization when the authoritative TimingNode state
+     * really changes.
+     */
+    public EventSource<State> changedEvent() {
+        return property.changedEvent();
     }
 
     /**
-     * Listener used for direct Runtime wiring from TimingNode.statusChangedEvent().
+     * Reads and stores the initial authoritative TimingNode state.
+     *
+     * <p>The initial value is returned explicitly and is not emitted as a
+     * changedEvent.</p>
      */
-    public Consumer<Status> changeSignal() {
-        return ignored -> property.signalChanged();
+    public State initialize() {
+        return property.initialize();
     }
 
+    /**
+     * Signals that TimingNode status may have changed.
+     *
+     * <p>The Status event payload is intentionally not used as authority. The
+     * underlying tracked property rereads TimingNodeQueries.status().state().</p>
+     */
     public boolean signalChanged() {
         return property.signalChanged();
     }
