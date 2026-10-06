@@ -178,7 +178,8 @@ final class InventoryTask implements CooperativeTask {
                 antennas.get(antennaIndex);
         antenna.initialize();
 
-        if (antenna.inInventoryGroup()) {
+        if (inventoryGroup.contains(
+                antenna)) {
             moveToNextAntenna();
         } else {
             phase = Phase.ENABLE_START_DIRECT;
