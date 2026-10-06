@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Move application component lifecycle coordination into `Conductor`; add `ComponentLifecycleManager` for ordered activation, rollback and reverse deactivation, keep Runtime focused on shared execution resources/composition and start Presentation only after the coordinated application core is ready.
+
 - Rework `Conductor` status handling as coalesced current-state reconciliation: synchronous TimingNode callbacks no longer throw downstream queue overloads, stale status snapshots are not executed as commands, and TimingNode/Conductor control transitions gain causal runtime logging.
 
 - Extract `EventData` and semantic `TagId` into a shared Java-8 `event-data` artifact with typed `EventDataProvider` SPI; keep TagProcessor multi-tag passage diagnostics on the shared contract and remove EventData injection from the public `TimingApplicationRuntime` API, leaving an explicit simulation-only seam.
