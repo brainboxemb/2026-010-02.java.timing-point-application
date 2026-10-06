@@ -98,6 +98,10 @@ public final class AntennaSet {
         return inventoryInterval;
     }
 
+    public boolean isEmpty() {
+        return antennas.isEmpty();
+    }
+
     int size() {
         return antennas.size();
     }
