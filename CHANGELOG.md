@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Extract generic Conductor lifecycle/cleanup mechanics into `application.logic.AbstractConductor`; keep concrete `Conductor` focused on SI-01 properties, startup actions and cross-component rules, and move `ComponentLifecycleManager` beside the lifecycle base.
+
 - Replace Conductor-specific reconcile bookkeeping with tracked application properties: add generic `infra.property.TrackedProperty`, add `application.property.TimingNodeLifecycleProperty`, wire TimingNode status events as change signals, and keep Conductor focused on the lifecycle-to-antenna application rule.
 
 - Simplify antenna lifecycle ownership: make manager activation hardware-free, add explicit startup health checking, separate manager lifecycle from antenna health/operation, move probe/power/initialize/inventory sequencing into `AntennaManager`, reduce `AntennaSwitchController` to multiplex round-robin only, and rename provider cleanup from `close()` to `shutdown()`.
