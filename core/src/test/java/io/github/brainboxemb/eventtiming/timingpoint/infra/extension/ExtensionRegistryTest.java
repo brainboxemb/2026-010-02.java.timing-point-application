@@ -215,8 +215,7 @@ public class ExtensionRegistryTest {
                         "-target",
                         "8",
                         "-classpath",
-                        System.getProperty(
-                                "java.class.path"),
+                        testClasspath(),
                         "-d",
                         classesRoot.toString(),
                         eventSource.toString(),
@@ -300,6 +299,18 @@ public class ExtensionRegistryTest {
                 (implementation + "\n")
                         .getBytes(
                                 StandardCharsets.UTF_8));
+    }
+
+    private static String testClasspath() {
+        String surefireClasspath =
+                System.getProperty(
+                        "surefire.test.class.path");
+        if (surefireClasspath != null
+                && !surefireClasspath.trim().isEmpty()) {
+            return surefireClasspath;
+        }
+        return System.getProperty(
+                "java.class.path");
     }
 
     private static String eventProviderSource(
