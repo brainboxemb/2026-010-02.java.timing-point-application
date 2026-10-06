@@ -20,7 +20,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.Dynamic
 import io.github.brainboxemb.eventtiming.timingpoint.infra.extension.ExtensionRegistry;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntenna;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.SimulatedAntennaPowerControl;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.power.SimulatedPowerDevice;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaInstallation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
@@ -570,7 +570,7 @@ public final class TimingApplicationRuntime {
                 AntennaInstallation.powered(
                         new AntennaId("ANT1"),
                         antenna,
-                        new SimulatedAntennaPowerControl(
+                        new SimulatedPowerDevice(
                                 antenna),
                         SIMULATED_ANTENNA_POWER_STABILIZATION));
     }
