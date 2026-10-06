@@ -20,7 +20,7 @@ import static org.junit.Assert.assertTrue;
  * port-allocation and Remote Shell mechanics live in the system-test framework.</p>
  */
 public class VcSt1_002Test {
-    private static final String NODE_ID = "Test";
+    private static final String NODE_ID = "A";
     private static final String REGISTRATION_ID = "N0001";
     private static final String OBSERVATION_TIME = "2026-10-01T12:00:00Z";
 
