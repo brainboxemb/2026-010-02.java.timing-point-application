@@ -66,7 +66,7 @@ public class WebSocketEndpointTest {
             TestClient first = connect(server.boundPort());
             try {
                 String snapshot = first.awaitMessage();
-                assertSnapshot(snapshot, "TN-01", "OPEN", "24");
+                assertSnapshot(snapshot, "A", "OPEN", "24");
                 assertNull(first.pollMessage(250));
             } finally {
                 first.closeBlocking();
@@ -75,7 +75,7 @@ public class WebSocketEndpointTest {
             TestClient second = connect(server.boundPort());
             try {
                 String snapshot = second.awaitMessage();
-                assertSnapshot(snapshot, "TN-01", "OPEN", "24");
+                assertSnapshot(snapshot, "A", "OPEN", "24");
                 assertNull(second.pollMessage(250));
             } finally {
                 second.closeBlocking();
@@ -105,7 +105,7 @@ public class WebSocketEndpointTest {
         try {
             assertSnapshot(
                     client.awaitMessage(),
-                    "TN-01",
+                    "A",
                     "CLOSED",
                     "null");
 
@@ -156,7 +156,7 @@ public class WebSocketEndpointTest {
         try {
             assertSnapshot(
                     client.awaitMessage(),
-                    "TN-01",
+                    "A",
                     "CLOSED",
                     "null");
 
@@ -164,7 +164,7 @@ public class WebSocketEndpointTest {
                     fixture.handler
                             .configuration()
                             .setTagProcessing(
-                                    new NodeId("TN-01"),
+                                    new NodeId("A"),
                                     new ConfigurationControl
                                             .TagProcessingPatch(
                                                     300L,
@@ -184,7 +184,7 @@ public class WebSocketEndpointTest {
             assertTrue(changed.contains(
                     "\"occurredAt\":\"2026-10-01T12:00:02Z\""));
             assertTrue(changed.contains(
-                    "\"nodeId\":\"TN-01\""));
+                    "\"nodeId\":\"A\""));
             assertTrue(changed.contains(
                     "\"section\":\"tagProcessing\""));
             assertTrue(changed.contains(
@@ -198,7 +198,7 @@ public class WebSocketEndpointTest {
                     fixture.handler
                             .configuration()
                             .setTagProcessing(
-                                    new NodeId("TN-01"),
+                                    new NodeId("A"),
                                     new ConfigurationControl
                                             .TagProcessingPatch(
                                                     300L,
@@ -216,7 +216,7 @@ public class WebSocketEndpointTest {
                     fixture.handler
                             .configuration()
                             .setTagProcessing(
-                                    new NodeId("TN-01"),
+                                    new NodeId("A"),
                                     new ConfigurationControl
                                             .TagProcessingPatch(
                                                     null,
@@ -234,7 +234,7 @@ public class WebSocketEndpointTest {
                     fixture.handler
                             .configuration()
                             .clearTagProcessing(
-                                    new NodeId("TN-01"));
+                                    new NodeId("A"));
             assertTrue(
                     cleared.result()
                             == ConfigurationControl
@@ -261,7 +261,7 @@ public class WebSocketEndpointTest {
     public void snapshotExposesContainedTimingDataRecoveryFailure()
             throws Exception {
         TimingNode node = TimingNodeFixture.create(
-                new NodeId("TN-01"),
+                new NodeId("A"),
                 new FailingRecoveryStore(),
                 () -> RECORDED_AT);
         PresentationGateway handler =
@@ -269,7 +269,7 @@ public class WebSocketEndpointTest {
                         identity(),
                         node,
                         PresentationGatewayFixture.configurationControl(
-                                new NodeId("TN-01")));
+                                new NodeId("A")));
         node.activate();
         WebSocketEndpoint server = new WebSocketEndpoint(
                 "127.0.0.1",
@@ -287,13 +287,13 @@ public class WebSocketEndpointTest {
                 String snapshot = client.awaitMessage();
                 assertNotNull(snapshot);
                 assertTrue(snapshot.contains("\"eventType\":\"STATUS_SNAPSHOT\""));
-                assertTrue(snapshot.contains("\"id\":\"TN-01\""));
+                assertTrue(snapshot.contains("\"id\":\"A\""));
                 assertTrue(snapshot.contains("\"locationId\":null"));
                 assertTrue(snapshot.contains("\"state\":\"ERROR\""));
                 assertTrue(snapshot.contains(
                         "\"code\":\"TIMING_DATA_RECOVERY_FAILED\""));
                 assertTrue(snapshot.contains("\"severity\":\"ERROR\""));
-                assertTrue(snapshot.contains("\"nodeId\":\"TN-01\""));
+                assertTrue(snapshot.contains("\"nodeId\":\"A\""));
                 assertTrue(snapshot.contains("expected recovery failure"));
             } finally {
                 client.closeBlocking();
@@ -358,7 +358,7 @@ public class WebSocketEndpointTest {
 
         private Fixture() {
             node = TimingNodeFixture.create(
-                    new NodeId("TN-01"),
+                    new NodeId("A"),
                     new MemoryStore(),
                     () -> RECORDED_AT);
             handler =
@@ -366,7 +366,7 @@ public class WebSocketEndpointTest {
                             identity(),
                             node,
                             PresentationGatewayFixture.configurationControl(
-                                    new NodeId("TN-01")));
+                                    new NodeId("A")));
         }
 
         private void start() {
