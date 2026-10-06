@@ -31,6 +31,8 @@ import org.yaml.snakeyaml.error.YAMLException;
  */
 public final class YamlLoader {
     private static final String TIMING_SYSTEMS = "timingSystems";
+    private static final String EVENT_DATA_PROVIDER = "eventDataProvider";
+    private static final String TIMING_DATA_PROVIDER = "timingDataProvider";
     private static final String TIMING_NODES = "timingNodes";
     private static final String TIMING_NODE_ID = "timingNodeId";
     private static final String TAG_PROCESSING = "tagProcessing";
@@ -85,63 +87,84 @@ public final class YamlLoader {
                 LOGGING,
                 IO);
 
-        TimingNodeStartup timingNode =
-                mapSingleTimingNode(root.get(TIMING_SYSTEMS));
+        TimingSystemStartup timingSystem =
+                mapSingleTimingSystem(
+                        root.get(TIMING_SYSTEMS));
 
         return new Config(
-                timingNode.timingNodeId,
+                timingSystem.timingNodeId,
                 mapPresentation(root.get(PRESENTATION)),
                 mapLogging(root.get(LOGGING)),
                 mapLoggingLive(root.get(LOGGING)),
                 mapTimingDataPath(root.get(IO)),
-                timingNode.tagProcessingPolicy);
+                timingSystem.tagProcessingPolicy,
+                timingSystem.eventDataProviderId,
+                timingSystem.timingDataProviderId);
     }
 
     /**
-     * Maps the current single-TimingNode executable subset from the canonical
-     * IF-11 ownership hierarchy.
+     * Maps the current single-TimingSystem/single-TimingNode executable subset
+     * from the canonical IF-11 ownership hierarchy.
      */
-    private static TimingNodeStartup mapSingleTimingNode(
+    private static TimingSystemStartup mapSingleTimingSystem(
             Object rawTimingSystems) {
         if (rawTimingSystems == null) {
             throw new IllegalArgumentException(
-                    "Missing required configuration field: " + TIMING_SYSTEMS);
+                    "Missing required configuration field: "
+                            + TIMING_SYSTEMS);
         }
 
         Map<?, ?> timingSystems =
-                requireMapping(rawTimingSystems, TIMING_SYSTEMS);
+                requireMapping(
+                        rawTimingSystems,
+                        TIMING_SYSTEMS);
         String timingSystemKey =
-                requireSingleMappingKey(timingSystems, TIMING_SYSTEMS);
+                requireSingleMappingKey(
+                        timingSystems,
+                        TIMING_SYSTEMS);
         String timingSystemField =
                 TIMING_SYSTEMS + "." + timingSystemKey;
         Map<?, ?> timingSystem =
                 requireMapping(
-                        timingSystems.get(timingSystemKey),
+                        timingSystems.get(
+                                timingSystemKey),
                         timingSystemField);
         rejectUnknownFields(
                 timingSystem,
                 timingSystemField,
+                EVENT_DATA_PROVIDER,
+                TIMING_DATA_PROVIDER,
                 TIMING_NODES);
 
         if (!timingSystem.containsKey(TIMING_NODES)) {
             throw new IllegalArgumentException(
                     "Missing required configuration field: "
-                            + timingSystemField + "." + TIMING_NODES);
+                            + timingSystemField
+                            + "."
+                            + TIMING_NODES);
         }
 
         String timingNodesField =
-                timingSystemField + "." + TIMING_NODES;
+                timingSystemField
+                        + "."
+                        + TIMING_NODES;
         Map<?, ?> timingNodes =
                 requireMapping(
-                        timingSystem.get(TIMING_NODES),
+                        timingSystem.get(
+                                TIMING_NODES),
                         timingNodesField);
         String timingNodeKey =
-                requireSingleMappingKey(timingNodes, timingNodesField);
+                requireSingleMappingKey(
+                        timingNodes,
+                        timingNodesField);
         String timingNodeField =
-                timingNodesField + "." + timingNodeKey;
+                timingNodesField
+                        + "."
+                        + timingNodeKey;
         Map<?, ?> timingNode =
                 requireMapping(
-                        timingNodes.get(timingNodeKey),
+                        timingNodes.get(
+                                timingNodeKey),
                         timingNodeField);
         rejectUnknownFields(
                 timingNode,
@@ -152,18 +175,33 @@ public final class YamlLoader {
         if (!timingNode.containsKey(TIMING_NODE_ID)) {
             throw new IllegalArgumentException(
                     "Missing required configuration field: "
-                            + timingNodeField + "." + TIMING_NODE_ID);
+                            + timingNodeField
+                            + "."
+                            + TIMING_NODE_ID);
         }
 
-        NodeId timingNodeId = new NodeId(
-                requireString(
-                        timingNode.get(TIMING_NODE_ID),
-                        timingNodeField + "." + TIMING_NODE_ID));
-        return new TimingNodeStartup(
+        NodeId timingNodeId =
+                new NodeId(
+                        requireString(
+                                timingNode.get(
+                                        TIMING_NODE_ID),
+                                timingNodeField
+                                        + "."
+                                        + TIMING_NODE_ID));
+
+        return new TimingSystemStartup(
                 timingNodeId,
                 mapTagProcessing(
                         timingNode,
-                        timingNodeField));
+                        timingNodeField),
+                providerId(
+                        timingSystem,
+                        timingSystemField,
+                        EVENT_DATA_PROVIDER),
+                providerId(
+                        timingSystem,
+                        timingSystemField,
+                        TIMING_DATA_PROVIDER));
     }
 
     private static TagProcessingPolicy mapTagProcessing(
@@ -494,6 +532,29 @@ public final class YamlLoader {
         return (String) value;
     }
 
+    private static String providerId(
+            Map<?, ?> timingSystem,
+            String timingSystemField,
+            String name) {
+        if (!timingSystem.containsKey(name)) {
+            return Config.REFERENCE_PROVIDER_ID;
+        }
+
+        String value =
+                requireString(
+                        timingSystem.get(name),
+                        timingSystemField + "." + name)
+                        .trim();
+        if (value.isEmpty()) {
+            throw new IllegalArgumentException(
+                    timingSystemField
+                            + "."
+                            + name
+                            + " must not be blank");
+        }
+        return value;
+    }
+
     private static void rejectUnknownFields(
             Map<?, ?> values,
             String field,
@@ -506,15 +567,21 @@ public final class YamlLoader {
             }
         }
     }
-    private static final class TimingNodeStartup {
+    private static final class TimingSystemStartup {
         private final NodeId timingNodeId;
         private final TagProcessingPolicy tagProcessingPolicy;
+        private final String eventDataProviderId;
+        private final String timingDataProviderId;
 
-        private TimingNodeStartup(
+        private TimingSystemStartup(
                 NodeId timingNodeId,
-                TagProcessingPolicy tagProcessingPolicy) {
+                TagProcessingPolicy tagProcessingPolicy,
+                String eventDataProviderId,
+                String timingDataProviderId) {
             this.timingNodeId = timingNodeId;
             this.tagProcessingPolicy = tagProcessingPolicy;
+            this.eventDataProviderId = eventDataProviderId;
+            this.timingDataProviderId = timingDataProviderId;
         }
     }
 
