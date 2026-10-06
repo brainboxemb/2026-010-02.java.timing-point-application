@@ -5,7 +5,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.TaskStep
 
 import java.util.List;
 
-/** Shuts down each antenna through stop, power-off and provider cleanup steps. */
+/** Reusable antenna shutdown state machine. */
 final class AntennaShutdownTask implements CooperativeTask {
 
     private enum Phase {
@@ -15,18 +15,21 @@ final class AntennaShutdownTask implements CooperativeTask {
     }
 
     private final List<? extends AntennaTasks.AntennaTarget> antennas;
+
     private int antennaIndex;
-    private Phase phase = Phase.STOP_INVENTORY;
+    private Phase phase;
     private RuntimeException failure;
 
     AntennaShutdownTask(
             List<? extends AntennaTasks.AntennaTarget> antennas) {
-        if (antennas == null || antennas.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "antennas must contain at least one antenna");
-        }
         this.antennas = antennas;
+        reset();
+    }
+
+    void reset() {
         antennaIndex = antennas.size() - 1;
+        phase = Phase.STOP_INVENTORY;
+        failure = null;
     }
 
     @Override
