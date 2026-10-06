@@ -20,19 +20,23 @@ public final class AntennaTasks {
      * Device operations required by manager tasks.
      */
     public interface AntennaTarget {
-        Duration beginSelfTest();
+        Duration powerOnForSelfTest();
 
-        void completeSelfTest();
+        void selfTest();
 
-        Duration beginPrepareForInventory();
+        void powerOffAfterSelfTest();
 
-        boolean completePrepareForInventory();
+        Duration powerOnForInventory();
 
-        boolean startInventory();
+        void initialize();
 
-        boolean disableInventory();
+        void startInventory();
 
-        void shutdown();
+        void stopInventory();
+
+        void powerOffAfterInventory();
+
+        void shutdownProvider();
 
         boolean inInventoryGroup();
 
