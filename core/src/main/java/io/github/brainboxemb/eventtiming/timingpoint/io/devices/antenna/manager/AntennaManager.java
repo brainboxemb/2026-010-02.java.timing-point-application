@@ -36,6 +36,7 @@ public final class AntennaManager {
     private volatile Throwable failure;
     private volatile boolean inventoryEnabledRequested;
     private volatile long inventoryRequestVersion;
+    private volatile CompletableFuture<Void> inventoryTransition;
 
     private SerialScheduledExecutor.ScheduledTask rotationTask;
 
@@ -160,12 +161,22 @@ public final class AntennaManager {
             return;
         }
 
-        control.await(
+        CompletableFuture<Void> transition =
                 switching.enableInventory(
                         control,
                         () -> isCurrentInventoryRequest(
                                 requestVersion,
-                                true)));
+                                true));
+        trackInventoryTransition(
+                transition);
+
+        try {
+            control.await(
+                    transition);
+        } finally {
+            clearInventoryTransition(
+                    transition);
+        }
 
         control.run(
                 () -> finishInventoryEnable(
@@ -288,9 +299,14 @@ public final class AntennaManager {
                         () -> isCurrentInventoryRequest(
                                 requestVersion,
                                 true));
+        trackInventoryTransition(
+                transition);
 
         transition.whenComplete(
                 (ignored, transitionFailure) -> {
+                    clearInventoryTransition(
+                            transition);
+
                     boolean accepted =
                             control.execute(
                                     () -> finishInventoryEnable(
@@ -372,11 +388,38 @@ public final class AntennaManager {
         }
     }
 
-    private synchronized long recordInventoryRequest(
+    private long recordInventoryRequest(
             boolean enabled) {
-        inventoryEnabledRequested = enabled;
-        inventoryRequestVersion++;
-        return inventoryRequestVersion;
+        final CompletableFuture<Void> previous;
+        final long requestVersion;
+
+        synchronized (this) {
+            previous = inventoryTransition;
+            inventoryTransition = null;
+
+            inventoryEnabledRequested = enabled;
+            inventoryRequestVersion++;
+            requestVersion = inventoryRequestVersion;
+        }
+
+        if (previous != null
+                && !previous.isDone()) {
+            previous.cancel(true);
+        }
+
+        return requestVersion;
+    }
+
+    private synchronized void trackInventoryTransition(
+            CompletableFuture<Void> transition) {
+        inventoryTransition = transition;
+    }
+
+    private synchronized void clearInventoryTransition(
+            CompletableFuture<Void> transition) {
+        if (inventoryTransition == transition) {
+            inventoryTransition = null;
+        }
     }
 
     private boolean isCurrentInventoryRequest(
