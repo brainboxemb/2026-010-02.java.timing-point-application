@@ -114,6 +114,18 @@ final class TimingNodeLogic {
         if (state == State.OPEN) {
             return OpenResult.ALREADY_OPEN;
         }
+        ensureTimingDataCommitAvailable();
+
+        TimingTimestamp transitionTime =
+                new TimingTimestamp(
+                        timeSource.now());
+        TimingData data =
+                timingDataFactory.createNodeOpen(
+                        nextLifecycleContext(
+                                newLocationId,
+                                transitionTime));
+        commitTimingData(data);
+
         locationId = newLocationId;
         state = State.OPEN;
         return OpenResult.OPENED;
@@ -124,6 +136,19 @@ final class TimingNodeLogic {
         if (state == State.CLOSED) {
             return CloseResult.ALREADY_CLOSED;
         }
+        ensureTimingDataCommitAvailable();
+
+        LocationId closingLocation = locationId;
+        TimingTimestamp transitionTime =
+                new TimingTimestamp(
+                        timeSource.now());
+        TimingData data =
+                timingDataFactory.createNodeClose(
+                        nextLifecycleContext(
+                                closingLocation,
+                                transitionTime));
+        commitTimingData(data);
+
         state = State.CLOSED;
         return CloseResult.CLOSED;
     }
@@ -231,6 +256,34 @@ final class TimingNodeLogic {
                         timeSource.now()));
     }
 
+    private Context nextLifecycleContext(
+            LocationId lifecycleLocation,
+            TimingTimestamp effectiveTime) {
+        return new Context(
+                timingNodeId,
+                logBook.nextSequence(),
+                lifecycleLocation,
+                effectiveTime,
+                new TimingTimestamp(
+                        timeSource.now()));
+    }
+
+    int committedTimingDataCount() {
+        return logBook.size();
+    }
+
+    TimingData latestCommittedTimingData() {
+        final TimingData[] latest = new TimingData[1];
+        logBook.visitLatest(
+                1,
+                data -> latest[0] = data);
+        if (latest[0] == null) {
+            throw new IllegalStateException(
+                    "no committed TimingData is available");
+        }
+        return latest[0];
+    }
+
     private void ensureOperational() {
         if (state != State.ERROR) {
             return;
@@ -250,6 +303,12 @@ final class TimingNodeLogic {
     }
 
     private RegistrationResult commitRegistration(TimingData data)
+            throws TimingDataPersistence.PersistenceException {
+        commitTimingData(data);
+        return RegistrationResult.committed(data);
+    }
+
+    private void commitTimingData(TimingData data)
             throws TimingDataPersistence.PersistenceException {
         if (data == null) {
             throw new IllegalStateException("timingDataFactory returned null");
@@ -277,6 +336,5 @@ final class TimingNodeLogic {
         }
 
         metrics.recordCommit();
-        return RegistrationResult.committed(data);
     }
 }
