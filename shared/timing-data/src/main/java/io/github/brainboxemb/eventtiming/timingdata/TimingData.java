@@ -47,6 +47,14 @@ public interface TimingData {
         TimingDataTypes.RegistrationId registrationId();
     }
 
+    /** Type-safe semantic contract for one successful CLOSED -> OPEN transition. */
+    interface NodeOpen extends TimingData {
+    }
+
+    /** Type-safe semantic contract for one successful OPEN -> CLOSED transition. */
+    interface NodeClose extends TimingData {
+    }
+
     /** Type-safe semantic contract for one manual registration. */
     interface ManualRegistration extends TimingData {
         TimingDataTypes.RegistrationId registrationId();
