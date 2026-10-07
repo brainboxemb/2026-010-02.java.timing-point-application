@@ -196,6 +196,7 @@ public final class Main {
                         buildIdentity,
                         config,
                         logging,
+                        logging,
                         new InputStreamReader(
                                 System.in),
                         new OutputStreamWriter(
