@@ -208,7 +208,8 @@ final class TimingNodeLogic {
                 logBook.nextSequence(),
                 locationId,
                 effectiveTime,
-                timeSource.now());
+                new TimingTimestamp(
+                        timeSource.now()));
     }
 
     private void ensureOperational() {
