@@ -34,8 +34,10 @@ import org.slf4j.LoggerFactory;
  * <p>The endpoint subscribes only to the transport-independent
  * {@link PresentationGateway}. It sends one complete STATUS_SNAPSHOT when a client
  * connects, then broadcasts authoritative STATUS_CHANGED and
- * TIMING_DATA_COMMITTED notifications. Historical TimingData is deliberately
- * not replayed here; reconnect recovery uses the HTTP history resource.</p>
+ * TIMING_DATA_COMMITTED notifications. Slow clients are disconnected before
+ * their transport backlog can grow without bound. Historical TimingData is
+ * deliberately not replayed here; reconnect recovery uses the HTTP history
+ * resource.</p>
  */
 public final class WebSocketEndpoint implements AutoCloseable {
     public static final String EVENTS_PATH = "/api/v1/events";
@@ -50,6 +52,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
     private final TimingNodeProxy timingNode;
     private final Clock clock;
     private final TimingDataCodec timingDataCodec;
+    private final WebSocketOutboundDelivery outboundDelivery;
 
     private Server server;
 
@@ -88,6 +91,8 @@ public final class WebSocketEndpoint implements AutoCloseable {
         this.timingNode = presentationGateway.timingNode();
         this.clock = clock;
         this.timingDataCodec = new DefaultTimingDataCodec();
+        this.outboundDelivery =
+                new WebSocketOutboundDelivery();
     }
 
     /**
@@ -156,7 +161,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
             TimingNodeStatus status) {
         Server current = currentServer();
         if (current != null) {
-            current.broadcast(
+            current.broadcastEvent(
                     MessageWriter.statusEvent(
                             "STATUS_CHANGED",
                             clock.instant(),
@@ -174,7 +179,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
             return;
         }
         try {
-            current.broadcast(
+            current.broadcastEvent(
                     MessageWriter.timingDataEvent(
                             clock.instant(),
                             data,
@@ -196,7 +201,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
             ConfigurationControl.Change change) {
         Server current = currentServer();
         if (current != null) {
-            current.broadcast(
+            current.broadcastEvent(
                     MessageWriter.configurationChangedEvent(
                             clock.instant(),
                             change));
@@ -266,10 +271,16 @@ public final class WebSocketEndpoint implements AutoCloseable {
                         "Unknown IF-03 WebSocket resource");
                 return;
             }
+            outboundDelivery.connected(
+                    connection);
             try {
-                connection.send(snapshotJson());
+                sendEvent(
+                        connection,
+                        snapshotJson());
             } catch (RuntimeException ex) {
-                LOG.warn("Unable to create initial IF-03 status snapshot", ex);
+                LOG.warn(
+                        "Unable to create initial IF-03 status snapshot",
+                        ex);
                 connection.close(
                         CloseFrame.UNEXPECTED_CONDITION,
                         "Unable to create status snapshot");
@@ -278,6 +289,8 @@ public final class WebSocketEndpoint implements AutoCloseable {
 
         @Override
         public void onClose(WebSocket connection, int code, String reason, boolean remote) {
+            outboundDelivery.disconnected(
+                    connection);
             LOG.debug(
                     "IF-03 WebSocket client closed code={} remote={} reason={}",
                     code,
@@ -293,6 +306,64 @@ public final class WebSocketEndpoint implements AutoCloseable {
         @Override
         public void onMessage(WebSocket connection, ByteBuffer message) {
             rejectClientMessage(connection);
+        }
+
+        /**
+         * Broadcasts one already encoded event without blocking for socket drain.
+         *
+         * <p>One slow/broken client is handled independently so it cannot stop
+         * delivery to the remaining connected clients.</p>
+         */
+        private void broadcastEvent(
+                String message) {
+            for (WebSocket connection : getConnections()) {
+                sendEvent(
+                        connection,
+                        message);
+            }
+        }
+
+        private void sendEvent(
+                WebSocket connection,
+                String message) {
+            try {
+                WebSocketOutboundDelivery.SendResult result =
+                        outboundDelivery.send(
+                                connection,
+                                message);
+                if (result
+                        == WebSocketOutboundDelivery.SendResult.OVERLOADED) {
+                    LOG.warn(
+                            "Disconnecting slow IF-03 WebSocket client {} after outbound backlog limit",
+                            connection.getRemoteSocketAddress());
+                }
+            } catch (RuntimeException ex) {
+                LOG.debug(
+                        "IF-03 WebSocket event send failed for {}",
+                        connection.getRemoteSocketAddress(),
+                        ex);
+                closeAfterDeliveryFailure(
+                        connection);
+            }
+        }
+
+        /**
+         * Best-effort cleanup after one client send failure.
+         *
+         * <p>A close failure is diagnostic only; it must not escape the
+         * application event callback and prevent delivery to sibling clients.</p>
+         */
+        private void closeAfterDeliveryFailure(
+                WebSocket connection) {
+            try {
+                connection.close(
+                        CloseFrame.UNEXPECTED_CONDITION,
+                        "Unable to deliver IF-03 event");
+            } catch (RuntimeException closeFailure) {
+                LOG.debug(
+                        "Unable to close failed IF-03 WebSocket client",
+                        closeFailure);
+            }
         }
 
         private void rejectClientMessage(WebSocket connection) {

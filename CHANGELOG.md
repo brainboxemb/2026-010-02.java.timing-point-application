@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Bound IF-03 WebSocket outbound delivery: track only a small per-client buffered-send budget, disconnect a slow client with close code 1013 before another event is queued after the limit, and recover through the existing reconnect snapshot + LogBook flow instead of adding an application event queue.
+
 - Simplify `ScheduledTaskRunner` around the cooperative task model: remove legacy `runAsync` / `runDelayed` / direct-run scheduling helpers and replace nested completion lambdas with a named per-run context that makes cancellation and task-step boundaries explicit.
 
 - Separate raw platform wall-clock time from the shared timing `TimeSource`: move the `TimeSource` contract below Domain/I/O into `platform.time`, add a `ClockTimeSource` baseline implementation, and let `RuntimeTimeSources` compose explicit timing sources from `PlatformEnvironment.clock()` instead of hiding that boundary in an inline lambda.
