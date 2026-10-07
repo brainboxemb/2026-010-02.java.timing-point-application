@@ -1,7 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.time;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -25,7 +23,7 @@ public class ClockTimeSourceTest {
                         clock);
 
         assertEquals(
-                TimingTimestamp.parse(
+                Instant.parse(
                         "2026-10-07T06:00:00Z"),
                 timeSource.now());
     }
