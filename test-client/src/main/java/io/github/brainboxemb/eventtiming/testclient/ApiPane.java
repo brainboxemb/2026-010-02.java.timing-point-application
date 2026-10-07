@@ -63,7 +63,7 @@ final class ApiPane extends VBox {
                         application,
                         new Label("Version"),
                         version,
-                        new Label("API"),
+                        new Label("API version"),
                         apiVersion,
                         versionButton,
                         statusButton);
