@@ -61,9 +61,15 @@ public interface TimingDataFactory {
                 "TimingData profile does not support manual REV records");
     }
 
-    TimingData.NodeOpen createNodeOpen(Context context);
+    default TimingData.NodeOpen createNodeOpen(Context context) {
+        throw new UnsupportedOperationException(
+                "TimingData profile does not support NODE_INFO OPEN records");
+    }
 
-    TimingData.NodeClose createNodeClose(Context context);
+    default TimingData.NodeClose createNodeClose(Context context) {
+        throw new UnsupportedOperationException(
+                "TimingData profile does not support NODE_INFO CLOSE records");
+    }
 
     /**
      * Immutable common construction values supplied to every TimingData variant.
