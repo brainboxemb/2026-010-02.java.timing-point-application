@@ -46,7 +46,7 @@ public final class TimingNodeCommands {
             throw new IllegalArgumentException("time must not be null");
         }
 
-        return registrationCommand(
+        return simple(
                 "addAutomaticRegistration",
                 logic -> logic.addAutomaticRegistration(
                         registrationId,
@@ -69,7 +69,7 @@ public final class TimingNodeCommands {
                     "registrationTimeSource must not be null");
         }
 
-        return registrationCommand(
+        return simple(
                 "commitManualRegistration",
                 logic -> logic.commitManualRegistration(
                         registrationId,
@@ -86,13 +86,4 @@ public final class TimingNodeCommands {
                 (node, result) -> result);
     }
 
-    private static TimingNodeCommand<RegistrationResult>
-            registrationCommand(
-                    String name,
-                    TimingNodeCommand.Action<RegistrationResult> action) {
-        return new TimingNodeCommand<>(
-                name,
-                action,
-                TimingNode::publishCommitted);
-    }
 }
