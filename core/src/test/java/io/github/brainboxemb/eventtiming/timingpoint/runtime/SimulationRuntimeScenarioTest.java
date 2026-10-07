@@ -18,6 +18,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Presentation
 
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -146,9 +147,17 @@ public class SimulationRuntimeScenarioTest {
             assertEquals(
                     -42,
                     strongest.rssi());
+            Instant strongestInstant =
+                    strongest.observedAt().instant();
+            long expectedNanos =
+                    (strongestInstant.getNano()
+                            / 10_000_000L)
+                            * 10_000_000L;
             assertEquals(
-                    strongest.observedAt(),
-                    registration.effectiveTime());
+                    Instant.ofEpochSecond(
+                            strongestInstant.getEpochSecond(),
+                            expectedNanos),
+                    registration.effectiveTime().instant());
 
             List<TimingData> history =
                     new ArrayList<TimingData>();
