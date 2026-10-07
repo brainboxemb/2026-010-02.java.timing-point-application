@@ -382,6 +382,72 @@ public class AntennaManagerTest {
     }
 
     @Test
+    public void repeatedDesiredInventoryStateDoesNotRetryFailedAttempt()
+            throws Exception {
+        ScheduledExecutorService shared = sharedExecutor();
+        SimulatedAntenna antenna = new SimulatedAntenna();
+        AntennaManager manager = manager(
+                Collections.<Antenna>singletonList(antenna),
+                shared,
+                4,
+                Duration.ofSeconds(1));
+
+        try {
+            manager.activate();
+            awaitCondition(manager::isReady, 1000L);
+
+            antenna.setFailurePoint(
+                    SimulatedAntenna.FailurePoint.START_INVENTORY);
+            assertTrue(
+                    manager.setInventoryEnabled(
+                            true));
+
+            awaitCondition(
+                    () -> manager.status(new AntennaId("1")).failure() != null,
+                    1000L);
+            awaitCondition(
+                    () -> !manager.isBusy(),
+                    1000L);
+            assertFalse(
+                    antenna.inventoryRunning());
+
+            antenna.clearFailure();
+
+            /*
+             * State-driven control may observe OPEN again after wake
+             * coalescing. Repeating the same desired TRUE must not become an
+             * implicit retry.
+             */
+            assertTrue(
+                    manager.setInventoryEnabled(
+                            true));
+            Thread.sleep(
+                    50L);
+
+            assertFalse(
+                    antenna.inventoryRunning());
+            assertEquals(
+                    0,
+                    antenna.inventoryStartCount());
+
+            /*
+             * An explicit repeated request is still a deliberate retry.
+             */
+            assertTrue(
+                    manager.requestEnableInventory());
+            awaitCondition(
+                    antenna::inventoryRunning,
+                    1000L);
+            assertEquals(
+                    1,
+                    antenna.inventoryStartCount());
+        } finally {
+            manager.deactivate();
+            shared.shutdownNow();
+        }
+    }
+
+    @Test
     public void repeatedEnableRetriesAfterFailedInventoryAttempt()
             throws Exception {
         ScheduledExecutorService shared = sharedExecutor();

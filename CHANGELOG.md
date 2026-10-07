@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Remove Conductor's mirrored `lastHandledTimingNodeState`: `TimingNodeStateProperty` remains the sole TimingNode-state holder, while AntennaManager reuses its existing `Setting<Boolean>` through an idempotent desired-inventory update; explicit repeated requests still remain available for retry.
+
 - Bound IF-03 WebSocket outbound delivery: track only a small per-client buffered-send budget, disconnect a slow client with close code 1013 before another event is queued after the limit, and recover through the existing reconnect snapshot + LogBook flow instead of adding an application event queue.
 
 - Simplify `ScheduledTaskRunner` around the cooperative task model: remove legacy `runAsync` / `runDelayed` / direct-run scheduling helpers and replace nested completion lambdas with a named per-run context that makes cancellation and task-step boundaries explicit.

@@ -124,7 +124,33 @@ public final class AntennaManager implements CooperativeTask {
                 && current != Phase.WAIT_SELF_TEST;
     }
 
-    /** Requests inventory to become enabled. */
+    /**
+     * Sets the desired inventory state without turning the same desired value
+     * into an implicit retry.
+     *
+     * <p>This is the state-driven input used by application coordination.
+     * Repeating the same value is accepted but does not advance the underlying
+     * Setting request revision or wake the manager again.</p>
+     */
+    public synchronized boolean setInventoryEnabled(
+            boolean enabled) {
+        if (state != State.ACTIVE) {
+            return false;
+        }
+
+        if (inventoryEnabledSetting.requestIfChanged(
+                Boolean.valueOf(enabled))) {
+            stateMachine.wake();
+        }
+        return true;
+    }
+
+    /**
+     * Explicitly requests inventory to become enabled.
+     *
+     * <p>Unlike {@link #setInventoryEnabled(boolean)}, repeating this request is
+     * a new retry request.</p>
+     */
     public boolean requestEnableInventory() {
         return requestInventory(true);
     }

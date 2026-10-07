@@ -98,6 +98,37 @@ public class SettingTest {
     }
 
     @Test
+    public void requestIfChangedDoesNotTurnSameValueIntoRetry() {
+        Setting<Boolean> setting =
+                new Setting<Boolean>(
+                        Boolean.FALSE);
+
+        assertTrue(
+                setting.requestIfChanged(
+                        Boolean.TRUE));
+        assertEquals(
+                1L,
+                setting.requestRevision());
+        assertTrue(
+                setting.changePending());
+
+        assertFalse(
+                setting.requestIfChanged(
+                        Boolean.TRUE));
+        assertEquals(
+                "same desired value must not create another request",
+                1L,
+                setting.requestRevision());
+
+        setting.request(
+                Boolean.TRUE);
+        assertEquals(
+                "explicit request still creates a retry revision",
+                2L,
+                setting.requestRevision());
+    }
+
+    @Test
     public void cancelledRequestNeedsNoChangeWhenAppliedValueAlreadyMatches() {
         Setting<Boolean> setting =
                 new Setting<Boolean>(

@@ -46,12 +46,41 @@ public final class Setting<T> {
         return requestRevision;
     }
 
-    /** Records the latest value the owner should eventually apply. */
+    /**
+     * Records an explicit request, including when the requested value is
+     * unchanged.
+     *
+     * <p>Repeated explicit requests advance {@link #requestRevision()} so an
+     * owner can use the same value to request a retry after an earlier failed
+     * attempt.</p>
+     */
     public synchronized void request(
             T value) {
         requestedValue = value;
         requestRevision++;
         updatePending();
+    }
+
+    /**
+     * Updates the requested value only when the desired value changed.
+     *
+     * <p>This is useful for state-driven control where repeated observation of
+     * the same desired state must not become an implicit retry request.</p>
+     *
+     * @return {@code true} when a new request was recorded
+     */
+    public synchronized boolean requestIfChanged(
+            T value) {
+        if (Objects.equals(
+                requestedValue,
+                value)) {
+            return false;
+        }
+
+        requestedValue = value;
+        requestRevision++;
+        updatePending();
+        return true;
     }
 
     /**
