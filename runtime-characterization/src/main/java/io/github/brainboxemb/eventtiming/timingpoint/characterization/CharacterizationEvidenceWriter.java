@@ -258,8 +258,19 @@ final class CharacterizationEvidenceWriter {
                 "measuredCount",
                 config.measuredCount());
         json.writeNumberField(
-                "aggregateRegistrationsPerSecond",
+                "referenceRegistrationsPerSecond",
                 config.registrationsPerSecond());
+        if (config.workload() == CharacterizationConfig.Workload.BURST) {
+            json.writeNullField(
+                    "pacedDeliveryRegistrationsPerSecond");
+        } else {
+            json.writeNumberField(
+                    "pacedDeliveryRegistrationsPerSecond",
+                    config.registrationsPerSecond());
+        }
+        json.writeNumberField(
+                "repetitionsInRun",
+                1);
         json.writeNumberField(
                 "preloadedCommittedRecords",
                 config.preloadCount());
@@ -295,6 +306,9 @@ final class CharacterizationEvidenceWriter {
                 "queueDepthAfter",
                 after.queueDepth());
         json.writeNumberField(
+                "queueHighWaterBefore",
+                before.queueHighWaterMark());
+        json.writeNumberField(
                 "queueHighWaterAfter",
                 after.queueHighWaterMark());
         json.writeNumberField(
@@ -323,6 +337,9 @@ final class CharacterizationEvidenceWriter {
                         before.totalQueueWaitNanos(),
                         after.totalQueueWaitNanos()));
         json.writeNumberField(
+                "maxQueueWaitNanosBefore",
+                before.maxQueueWaitNanos());
+        json.writeNumberField(
                 "maxQueueWaitNanosAfter",
                 after.maxQueueWaitNanos());
         json.writeNumberField(
@@ -330,6 +347,9 @@ final class CharacterizationEvidenceWriter {
                 delta(
                         before.totalExecutionNanos(),
                         after.totalExecutionNanos()));
+        json.writeNumberField(
+                "maxExecutionNanosBefore",
+                before.maxExecutionNanos());
         json.writeNumberField(
                 "maxExecutionNanosAfter",
                 after.maxExecutionNanos());
@@ -354,6 +374,9 @@ final class CharacterizationEvidenceWriter {
                         before.totalTimingDataAppendNanos(),
                         after.totalTimingDataAppendNanos()));
         json.writeNumberField(
+                "maxAppendNanosBefore",
+                before.maxTimingDataAppendNanos());
+        json.writeNumberField(
                 "maxAppendNanosAfter",
                 after.maxTimingDataAppendNanos());
         json.writeNumberField(
@@ -371,6 +394,9 @@ final class CharacterizationEvidenceWriter {
                 delta(
                         before.totalTimingDataEventNanos(),
                         after.totalTimingDataEventNanos()));
+        json.writeNumberField(
+                "maxEventDeliveryNanosBefore",
+                before.maxTimingDataEventNanos());
         json.writeNumberField(
                 "maxEventDeliveryNanosAfter",
                 after.maxTimingDataEventNanos());
