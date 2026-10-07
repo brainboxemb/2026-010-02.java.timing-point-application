@@ -18,6 +18,10 @@ public interface TimingDataFactory {
             TimingDataTypes.RegistrationId registrationId,
             TimingData.ManualTimeSource timeSource);
 
+    TimingData.NodeOpen createNodeOpen(Context context);
+
+    TimingData.NodeClose createNodeClose(Context context);
+
     /**
      * Immutable common construction values supplied to every TimingData variant.
      *
