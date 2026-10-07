@@ -69,6 +69,10 @@ public class ApiClientTest {
                         + "\"id\":\"DIRECT_REGISTRATION_SIMULATION\","
                         + "\"supported\":true,"
                         + "\"enabled\":true"
+                        + "},{"
+                        + "\"id\":\"TAG_SCENARIO_SIMULATION\","
+                        + "\"supported\":true,"
+                        + "\"enabled\":true"
                         + "}]"
                         + "}"));
         server.start();
@@ -99,6 +103,7 @@ public class ApiClientTest {
 
         var capabilities = client.getCapabilities();
         assertTrue(capabilities.enabled("DIRECT_REGISTRATION_SIMULATION"));
+        assertTrue(capabilities.enabled("TAG_SCENARIO_SIMULATION"));
         assertFalse(capabilities.enabled("UNKNOWN"));
     }
 
@@ -120,6 +125,8 @@ public class ApiClientTest {
                 respond(exchange, 200, "{\"result\":\"CLOSED\"}");
             } else if (path.endsWith("/auto-reg")) {
                 respond(exchange, 200, "{\"seq\":2}");
+            } else if (path.endsWith("/simulation/registration")) {
+                respond(exchange, 200, "{\"result\":\"ACCEPTED\"}");
             } else if (path.endsWith("/registration/manual")) {
                 respond(exchange, 200, "{\"seq\":3}");
             } else if (path.endsWith("/registration/revoke")) {
@@ -151,6 +158,13 @@ public class ApiClientTest {
                 "TN-01",
                 "N0002",
                 "2026-10-01T12:00:04.00Z").seq());
+        assertEquals(
+                "ACCEPTED",
+                client.simulateRegistration(
+                        "TN-01",
+                        "N0042",
+                        "normal")
+                        .result());
         assertEquals(
                 3L,
                 client.manualRegistration(
@@ -202,6 +216,17 @@ public class ApiClientTest {
         assertTrue(requests.get(1).body().contains("\"id\":\"N0002\""));
         assertTrue(requests.get(1).body().contains(
                 "\"time\":\"2026-10-01T12:00:04.00Z\""));
+
+        Request simulation = requests.stream()
+                .filter(request -> request.uri().endsWith("/simulation/registration"))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("POST", simulation.method());
+        assertEquals(
+                "/api/v1/dev/node/TN-01/simulation/registration",
+                simulation.uri());
+        assertTrue(simulation.body().contains("\"regId\":\"N0042\""));
+        assertTrue(simulation.body().contains("\"profile\":\"normal\""));
 
         Request manual = requests.stream()
                 .filter(request -> request.uri().endsWith("/registration/manual"))
