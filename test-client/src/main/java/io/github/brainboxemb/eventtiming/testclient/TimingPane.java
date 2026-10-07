@@ -12,6 +12,8 @@ import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
 import javafx.scene.control.Tooltip;
@@ -19,6 +21,7 @@ import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 import java.time.LocalDate;
@@ -54,6 +57,7 @@ final class TimingPane extends VBox {
     private boolean eventsConnected;
 
     private final ComboBox<String> node = new ComboBox<>();
+    private final Label nodeSummary = new Label("-");
     private final Label state = new Label("-");
     private final Label location = new Label("-");
     private final Label problem = new Label("-");
@@ -90,12 +94,11 @@ final class TimingPane extends VBox {
             Supplier<ApiClient> clientSupplier,
             ExecutorService requests,
             String initialPrefix,
-            javafx.scene.Node leftHeader,
             Consumer<String> rawSink,
             Consumer<String> feedback,
             Consumer<String> apiState,
             ClientLog clientLog) {
-        if (clientSupplier == null || requests == null || leftHeader == null || rawSink == null
+        if (clientSupplier == null || requests == null || rawSink == null
                 || feedback == null || apiState == null || clientLog == null) {
             throw new IllegalArgumentException("TimingPane dependencies must not be null");
         }
@@ -108,10 +111,22 @@ final class TimingPane extends VBox {
 
         setSpacing(10);
 
+        Region syncSpacer =
+                new Region();
+        HBox.setHgrow(
+                syncSpacer,
+                Priority.ALWAYS);
         syncStateBar.setSpacing(8);
         syncStateBar.getChildren().setAll(
                 new Label("Timing view"),
                 historyState,
+                new Label("Node"),
+                nodeSummary,
+                new Label("State"),
+                state,
+                new Label("Location"),
+                location,
+                syncSpacer,
                 syncViewButton);
 
         node.setPrefWidth(230);
@@ -121,9 +136,7 @@ final class TimingPane extends VBox {
         nodeGrid.setVgap(8);
         nodeGrid.setPadding(new Insets(10));
         add(nodeGrid, 0, "TimingNode", node);
-        add(nodeGrid, 1, "State", state);
-        add(nodeGrid, 2, "LocationId", location);
-        add(nodeGrid, 3, "Problem", problem);
+        add(nodeGrid, 1, "Problem", problem);
 
         HBox locationRow = new HBox(
                 8,
@@ -131,16 +144,13 @@ final class TimingPane extends VBox {
                 locationInput,
                 open,
                 close);
-        nodeGrid.add(locationRow, 0, 4, 2, 1);
+        nodeGrid.add(locationRow, 0, 2, 2, 1);
         nodeGrid.add(
                 new HBox(8, new Label("Last API operation"), lastOperation),
                 0,
-                5,
+                3,
                 2,
                 1);
-
-        TitledPane nodePane = new TitledPane("Selected TimingNode", nodeGrid);
-        nodePane.setCollapsible(false);
 
         registrationPrefix.setText(initialPrefix == null ? "" : initialPrefix);
         registrationPrefix.setPrefColumnCount(6);
@@ -189,9 +199,6 @@ final class TimingPane extends VBox {
 
         VBox registrationBox = new VBox(8, autoRegCapability, registrationGrid);
         registrationBox.setPadding(new Insets(10));
-        TitledPane registrationPane =
-                new TitledPane("Registration input", registrationBox);
-        registrationPane.setCollapsible(false);
 
         simulationPane =
                 new SimulatedTagsPane(
@@ -237,13 +244,27 @@ final class TimingPane extends VBox {
                 new TitledPane("LogBook / committed TimingData", historyBox);
         historyPane.setCollapsible(false);
 
+        TabPane inputTabs =
+                new TabPane(
+                        tab(
+                                "TimingNode",
+                                nodeGrid),
+                        tab(
+                                "Registration",
+                                registrationBox),
+                        tab(
+                                "Simulation",
+                                simulationPane));
+        inputTabs.setTabClosingPolicy(
+                TabPane.TabClosingPolicy.UNAVAILABLE);
+        inputTabs.setPrefHeight(
+                270);
+        inputTabs.setMinHeight(
+                220);
+
         VBox left =
                 new VBox(
-                        10,
-                        leftHeader,
-                        nodePane,
-                        registrationPane,
-                        simulationPane);
+                        inputTabs);
         VBox right = new VBox(10, interpretedPane, historyPane);
         VBox.setVgrow(interpretedPane, Priority.SOMETIMES);
         VBox.setVgrow(historyPane, Priority.ALWAYS);
@@ -841,6 +862,10 @@ final class TimingPane extends VBox {
     private void refresh() {
         syncNodeChoice();
         ApiClient.TimingNodeInfo selected = model.selectedNode();
+        nodeSummary.setText(
+                selected == null
+                        ? "-"
+                        : selected.id());
         state.setText(selected == null ? "-" : selected.state());
         location.setText(selected == null || selected.locationId() == null
                 ? "-"
@@ -1119,6 +1144,18 @@ final class TimingPane extends VBox {
             }
         }
         return status.nodes().isEmpty() ? null : status.nodes().get(0).id();
+    }
+
+    private static Tab tab(
+            String title,
+            javafx.scene.Node content) {
+        Tab tab =
+                new Tab(
+                        title,
+                        content);
+        tab.setClosable(
+                false);
+        return tab;
     }
 
     private static void add(GridPane grid, int row, String label, javafx.scene.Node value) {
