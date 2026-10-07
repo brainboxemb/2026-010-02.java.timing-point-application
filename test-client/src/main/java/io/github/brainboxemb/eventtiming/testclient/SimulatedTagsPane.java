@@ -8,7 +8,6 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
-import javafx.scene.control.TitledPane;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -28,7 +27,7 @@ import java.util.function.Supplier;
  * <p>The pane owns only client-side batch selection and pacing. SI-01 owns each
  * individual simulated-tag scenario and its observation profile.</p>
  */
-final class SimulatedTagsPane extends TitledPane {
+final class SimulatedTagsPane extends VBox {
     private final Supplier<ApiClient> clientSupplier;
     private final ExecutorService requests;
     private final Supplier<String> selectedNodeSupplier;
@@ -177,20 +176,13 @@ final class SimulatedTagsPane extends TitledPane {
                 1,
                 6);
 
-        VBox content =
-                new VBox(
-                        8,
-                        capability,
-                        grid);
-        content.setPadding(
+        setSpacing(
+                8);
+        setPadding(
                 new Insets(10));
-
-        setText(
-                "Simulated tags");
-        setContent(
-                content);
-        setCollapsible(
-                true);
+        getChildren().setAll(
+                capability,
+                grid);
 
         start.setOnAction(
                 event -> startBatch());

@@ -91,6 +91,8 @@ public final class TestClientFxApplication extends Application {
                 this::client,
                 requests,
                 config.registrationPrefix(),
+                liveLogs.textProperty(),
+                clientLogs.textProperty(),
                 feedback::setText,
                 this::setApiState,
                 clientLog);
