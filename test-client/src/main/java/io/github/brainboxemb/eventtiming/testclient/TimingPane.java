@@ -107,6 +107,7 @@ final class TimingPane extends VBox {
             List.of();
     private int simulationBatchIndex;
     private long simulationIntervalMillis;
+    private long simulationRequestStartedNanos;
     private boolean simulationBatchRunning;
     private String simulationBatchProfile;
 
@@ -1021,6 +1022,8 @@ final class TimingPane extends VBox {
                         + simulationBatch.size()
                         + " — "
                         + registrationId);
+        simulationRequestStartedNanos =
+                System.nanoTime();
 
         CompletableFuture
                 .supplyAsync(
@@ -1077,10 +1080,21 @@ final class TimingPane extends VBox {
                                                 return;
                                             }
 
+                                            long elapsedNanos =
+                                                    Math.max(
+                                                            0L,
+                                                            System.nanoTime()
+                                                                    - simulationRequestStartedNanos);
+                                            double remainingMillis =
+                                                    Math.max(
+                                                            0.0,
+                                                            simulationIntervalMillis
+                                                                    - elapsedNanos
+                                                                    / 1_000_000.0);
                                             simulationDelay.stop();
                                             simulationDelay.setDuration(
                                                     Duration.millis(
-                                                            simulationIntervalMillis));
+                                                            remainingMillis));
                                             simulationDelay.setOnFinished(
                                                     event ->
                                                             sendNextSimulation());
