@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Simplify `ScheduledTaskRunner` around the cooperative task model: remove legacy `runAsync` / `runDelayed` / direct-run scheduling helpers and replace nested completion lambdas with a named per-run context that makes cancellation and task-step boundaries explicit.
+
 - Separate raw platform wall-clock time from the shared timing `TimeSource`: move the `TimeSource` contract below Domain/I/O into `platform.time`, add a `ClockTimeSource` baseline implementation, and let `RuntimeTimeSources` compose explicit timing sources from `PlatformEnvironment.clock()` instead of hiding that boundary in an inline lambda.
 
 - Generalize cooperative state-machine execution beyond scheduled I/O: add a serial-lane task runner and reusable wake/coalescing controller, use the same controller in AntennaManager, and make Conductor own one self-scheduled current-state handling task instead of cross-component decisions in event handlers.
