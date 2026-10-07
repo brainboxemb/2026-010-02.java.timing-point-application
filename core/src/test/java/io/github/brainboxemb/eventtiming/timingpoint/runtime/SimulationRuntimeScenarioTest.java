@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
+import io.github.brainboxemb.eventtiming.eventdata.simulation.SimulationEventDataProvider;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData.AutomaticRegistration;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
@@ -21,9 +22,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -38,11 +37,11 @@ import static org.junit.Assert.assertTrue;
 
 public class SimulationRuntimeScenarioTest {
     private static final RegistrationId REGISTRATION =
-            new RegistrationId("N0042");
+            new RegistrationId("RT-A-0042");
     private static final TagId TAG_A =
-            new TagId("N0042-A");
+            new TagId("TT-A-0042-1");
     private static final TagId TAG_B =
-            new TagId("N0042-B");
+            new TagId("TT-A-0042-2");
 
     @Rule
     public final TemporaryFolder temporaryFolder =
@@ -182,23 +181,11 @@ public class SimulationRuntimeScenarioTest {
     public void allBuiltInProfilesCommitThroughTheFullSimulationPath()
             throws Exception {
         RegistrationId simpleRegistration =
-                new RegistrationId("N0003");
+                new RegistrationId("RT-A-0001");
         RegistrationId normalRegistration =
-                new RegistrationId("N0004");
+                new RegistrationId("RT-A-0004");
         RegistrationId edgeRegistration =
-                new RegistrationId("N0002");
-
-        Map<TagId, RegistrationId> mapping =
-                new LinkedHashMap<TagId, RegistrationId>();
-        addTwoTags(
-                mapping,
-                simpleRegistration);
-        addTwoTags(
-                mapping,
-                normalRegistration);
-        addTwoTags(
-                mapping,
-                edgeRegistration);
+                new RegistrationId("RT-A-0003");
 
         SimulatedAntenna antenna =
                 new SimulatedAntenna();
@@ -207,7 +194,8 @@ public class SimulationRuntimeScenarioTest {
                         identity(),
                         config(),
                         antenna,
-                        new EventData(mapping));
+                        new SimulationEventDataProvider()
+                                .createEventData());
 
         List<TagObservation> observations =
                 Collections.synchronizedList(
@@ -296,11 +284,11 @@ public class SimulationRuntimeScenarioTest {
                 String tag =
                         observation.tagId()
                                 .value();
-                if ("N0004-A".equals(tag)) {
+                if ("TT-A-0004-1".equals(tag)) {
                     normalTagAObserved = true;
-                } else if ("N0004-B".equals(tag)) {
+                } else if ("TT-A-0004-2".equals(tag)) {
                     normalTagBObserved = true;
-                } else if ("N0002-B".equals(tag)) {
+                } else if ("TT-A-0003-2".equals(tag)) {
                     edgeTagBObserved = true;
                 }
             }
@@ -311,7 +299,7 @@ public class SimulationRuntimeScenarioTest {
                     "normal profile must exercise the second mapped tag",
                     normalTagBObserved);
             assertFalse(
-                    "N0002 edge variant must remain a single-tag scenario",
+                    "RT-A-0003 edge variant must remain a single-tag scenario",
                     edgeTagBObserved);
 
             List<TimingData> history =
@@ -328,19 +316,6 @@ public class SimulationRuntimeScenarioTest {
         } finally {
             application.deactivate();
         }
-    }
-
-    private static void addTwoTags(
-            Map<TagId, RegistrationId> mapping,
-            RegistrationId registrationId) {
-        String id =
-                registrationId.value();
-        mapping.put(
-                new TagId(id + "-A"),
-                registrationId);
-        mapping.put(
-                new TagId(id + "-B"),
-                registrationId);
     }
 
     private Config config() {
@@ -367,16 +342,8 @@ public class SimulationRuntimeScenarioTest {
     }
 
     private static EventData eventData() {
-        Map<TagId, RegistrationId> mapping =
-                new LinkedHashMap<TagId, RegistrationId>();
-        mapping.put(
-                TAG_A,
-                REGISTRATION);
-        mapping.put(
-                TAG_B,
-                REGISTRATION);
-        return new EventData(
-                mapping);
+        return new SimulationEventDataProvider()
+                .createEventData();
     }
 
     private static BuildIdentity identity() {

@@ -165,6 +165,40 @@ class TimingViewModelTest {
     }
 
     @Test
+    void projectsDefaultNormalTeamIdAndLeavesReserveUnresolved() {
+        TimingViewModel model = new TimingViewModel();
+        model.applyStatus(status(node("node-01", 24, "OPEN")));
+
+        model.mergeCommitted(new ApiClient.TimingDataInfo(
+                "node-01",
+                1L,
+                24,
+                "AUTO_REG",
+                "2026-10-01T10:00:00.00Z",
+                "RT-A-0042",
+                List.of("ADD"),
+                "2026-10-01T10:00:00.100Z",
+                "{}"));
+        model.mergeCommitted(new ApiClient.TimingDataInfo(
+                "node-01",
+                2L,
+                24,
+                "AUTO_REG",
+                "2026-10-01T10:00:01.00Z",
+                "RT-R-0001",
+                List.of("ADD"),
+                "2026-10-01T10:00:01.100Z",
+                "{}"));
+
+        List<TimingViewModel.InterpretedRegistration> values =
+                model.interpretedRegistrations(
+                        ZoneId.of("Europe/Amsterdam"));
+
+        assertEquals("0042", values.get(0).teamId());
+        assertNull(values.get(1).teamId());
+    }
+
+    @Test
     void manualRegistrationCanHaveManualTypeAndAutomaticTimeCode() {
         TimingViewModel model = new TimingViewModel();
         model.applyStatus(status(node("node-01", 24, "OPEN")));

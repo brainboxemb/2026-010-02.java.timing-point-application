@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.EventDataProvider;
+import io.github.brainboxemb.eventtiming.eventdata.simulation.SimulationEventDataProvider;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataProvider;
@@ -281,6 +282,7 @@ public final class TimingApplicationRuntime {
                 config,
                 antennaSet,
                 null,
+                false,
                 eventData,
                 timingDataProvider.createFactory(),
                 timingDataProvider.createCodec(),
@@ -318,6 +320,7 @@ public final class TimingApplicationRuntime {
                 config,
                 antennaSet,
                 antenna,
+                true,
                 eventData,
                 timingDataProvider.createFactory(),
                 timingDataProvider.createCodec(),
@@ -372,6 +375,8 @@ public final class TimingApplicationRuntime {
                 config,
                 antennaSet,
                 simulatedAntenna,
+                SimulationEventDataProvider.ID.equals(
+                        eventDataProvider.id()),
                 eventDataProvider.createEventData(),
                 timingDataProvider.createFactory(),
                 timingDataProvider.createCodec(),
@@ -390,6 +395,7 @@ public final class TimingApplicationRuntime {
             Config config,
             AntennaSet antennaSet,
             SimulatedAntenna simulatedAntenna,
+            boolean tagScenarioSimulationEnabled,
             EventData eventData,
             TimingDataFactory timingDataFactory,
             TimingDataCodec timingDataCodec,
@@ -476,7 +482,8 @@ public final class TimingApplicationRuntime {
                             applicationConfiguration);
 
             SimulatedTagScenarioRunner simulationRunner =
-                    simulatedAntenna == null
+                    !tagScenarioSimulationEnabled
+                                    || simulatedAntenna == null
                                     || eventData.isEmpty()
                             ? null
                             : new SimulatedTagScenarioRunner(

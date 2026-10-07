@@ -2,9 +2,11 @@
 
 ## Unreleased
 
-- Add capability-gated simulated-tag scenarios through the real `SimulatedAntenna -> AntennaManager -> TagProcessor -> TimingNode` path, with public `simulation` EventData (`N0001..N2000`, `-A/-B` tags), deterministic `simple`/`normal`/`edge` profiles, and a Development Client batch driver for count/range/ascending-or-seeded-random selection and scenario interval.
+- Add the default/reference EventData identity convention: `TT-A/R-NNNN-{1|2}` physical tags resolve to `RT-A/R-NNNN`; normal registrations resolve directly to TeamId `NNNN`; reserve TeamId remains lookup-driven; `0000` is invalid; the Development Client and simulation fixture use the same identity grammar.
 
-- Add normal IF-03 manual-registration ADD with client-selected AUTO/MAN time semantics; normalize SI-01-generated lifecycle time to centiseconds and record-creation time to milliseconds while preserving registration effective-time precision.
+- Add capability-gated simulated-tag scenarios through the real `SimulatedAntenna -> AntennaManager -> TagProcessor -> TimingNode` path, with public `simulation` EventData using `RT-A-0001..RT-A-2000` and physical tag pairs `TT-A-NNNN-1/-2`, deterministic `simple`/`normal`/`edge` profiles, and a Development Client batch driver for count/range/ascending-or-seeded-random selection and scenario interval.
+
+- Add normal IF-03 manual-registration ADD with client-selected AUTO/MAN time semantics; normalize registration/lifecycle effective time to centiseconds and record-creation time to milliseconds, and emit canonical IF-05 v1 timestamp text with fixed two/three fractional digits.
 
 - Refine the Development Client registration workbench: hundredth-second input/display, automatic AUTO/MAN classification from **Now** versus edited time, normal manual registration, and current-open-location filtering with an explicit **All** history view.
 

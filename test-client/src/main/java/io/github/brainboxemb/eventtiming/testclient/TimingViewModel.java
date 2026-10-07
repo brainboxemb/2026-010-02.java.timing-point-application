@@ -249,7 +249,7 @@ public final class TimingViewModel {
                         key,
                         new InterpretedRegistration(
                                 record.registrationId(),
-                                null,
+                                defaultTeamId(record.registrationId()),
                                 displayTime(record.effectiveTime(), zone),
                                 type,
                                 code,
@@ -331,6 +331,22 @@ public final class TimingViewModel {
             return "AUTO";
         }
         return previous == null ? "" : previous.code();
+    }
+
+    private static String defaultTeamId(
+            String registrationId) {
+        if (registrationId == null
+                || !registrationId.matches(
+                        "RT-A-\\d{4}")) {
+            return null;
+        }
+
+        String number =
+                registrationId.substring(
+                        "RT-A-".length());
+        return "0000".equals(number)
+                ? null
+                : number;
     }
 
     private static String displayTime(String value, ZoneId zone) {

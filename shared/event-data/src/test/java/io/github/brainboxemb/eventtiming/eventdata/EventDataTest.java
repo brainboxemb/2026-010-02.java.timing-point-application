@@ -45,4 +45,35 @@ public class EventDataTest {
                 eventData.registrationIdFor(
                         new TagId("TAG-X")));
     }
+
+    @Test
+    public void mapBackedProfileCanResolveTeamInBothDirections() {
+        RegistrationId registrationId =
+                new RegistrationId("R-123");
+        TeamId teamId =
+                new TeamId("0042");
+
+        Map<RegistrationId, TeamId> teams =
+                new LinkedHashMap<RegistrationId, TeamId>();
+        teams.put(
+                registrationId,
+                teamId);
+
+        EventData eventData =
+                new EventData(
+                        new LinkedHashMap<TagId, RegistrationId>(),
+                        teams);
+
+        assertEquals(
+                teamId,
+                eventData.teamIdFor(
+                        registrationId));
+        assertEquals(
+                registrationId,
+                eventData.registrationIdFor(
+                        teamId));
+        assertNull(
+                eventData.teamIdFor(
+                        new RegistrationId("R-999")));
+    }
 }
