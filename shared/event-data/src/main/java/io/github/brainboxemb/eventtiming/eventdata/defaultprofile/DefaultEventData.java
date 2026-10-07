@@ -34,12 +34,14 @@ public final class DefaultEventData extends EventData {
 
     private final int firstNumber;
     private final int lastNumber;
+    private final boolean reserveSupported;
 
     /** Creates the full default/reference identity range 0001..9999. */
     public DefaultEventData() {
         this(
                 FIRST_NUMBER,
-                LAST_NUMBER);
+                LAST_NUMBER,
+                true);
     }
 
     /**
@@ -51,6 +53,28 @@ public final class DefaultEventData extends EventData {
     public DefaultEventData(
             int firstNumber,
             int lastNumber) {
+        this(
+                firstNumber,
+                lastNumber,
+                true);
+    }
+
+    /**
+     * Creates a normal-registration-only subset using the same identifier grammar.
+     */
+    public static DefaultEventData normalOnly(
+            int firstNumber,
+            int lastNumber) {
+        return new DefaultEventData(
+                firstNumber,
+                lastNumber,
+                false);
+    }
+
+    private DefaultEventData(
+            int firstNumber,
+            int lastNumber,
+            boolean reserveSupported) {
         if (firstNumber < FIRST_NUMBER
                 || lastNumber > LAST_NUMBER
                 || firstNumber > lastNumber) {
@@ -59,6 +83,7 @@ public final class DefaultEventData extends EventData {
         }
         this.firstNumber = firstNumber;
         this.lastNumber = lastNumber;
+        this.reserveSupported = reserveSupported;
     }
 
     @Override
@@ -73,7 +98,9 @@ public final class DefaultEventData extends EventData {
                 TAG_PATTERN.matcher(
                         tagId.value());
         if (!matcher.matches()
-                || !inRange(matcher.group(2))) {
+                || !inRange(matcher.group(2))
+                || (!reserveSupported
+                        && "R".equals(matcher.group(1)))) {
             return null;
         }
 
@@ -157,7 +184,9 @@ public final class DefaultEventData extends EventData {
                 REGISTRATION_PATTERN.matcher(
                         registrationId.value());
         if (!matcher.matches()
-                || !inRange(matcher.group(2))) {
+                || !inRange(matcher.group(2))
+                || (!reserveSupported
+                        && "R".equals(matcher.group(1)))) {
             return null;
         }
 
