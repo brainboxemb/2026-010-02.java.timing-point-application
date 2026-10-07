@@ -120,6 +120,8 @@ public class ApiClientTest {
                 respond(exchange, 200, "{\"result\":\"CLOSED\"}");
             } else if (path.endsWith("/auto-reg")) {
                 respond(exchange, 200, "{\"seq\":2}");
+            } else if (path.endsWith("/registration/manual")) {
+                respond(exchange, 200, "{\"seq\":3}");
             } else if (path.endsWith("/registration/revoke")) {
                 respond(exchange, 200, "{\"seq\":3}");
             } else if (path.endsWith("/logbook") && query == null) {
@@ -148,7 +150,15 @@ public class ApiClientTest {
         assertEquals(2L, client.autoReg(
                 "TN-01",
                 "N0002",
-                "2026-10-01T12:00:04.000000000Z").seq());
+                "2026-10-01T12:00:04.00Z").seq());
+        assertEquals(
+                3L,
+                client.manualRegistration(
+                        "TN-01",
+                        "N0003",
+                        "2026-10-01T12:00:05.25Z",
+                        "AUTO")
+                        .seq());
 
         var info = client.getLogBookInfo("TN-01");
         assertEquals(2L, info.count());
@@ -191,7 +201,17 @@ public class ApiClientTest {
                 requests.get(1).uri());
         assertTrue(requests.get(1).body().contains("\"id\":\"N0002\""));
         assertTrue(requests.get(1).body().contains(
-                "\"time\":\"2026-10-01T12:00:04.000000000Z\""));
+                "\"time\":\"2026-10-01T12:00:04.00Z\""));
+
+        Request manual = requests.stream()
+                .filter(request -> request.uri().endsWith("/registration/manual"))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("POST", manual.method());
+        assertTrue(manual.body().contains("\"regId\":\"N0003\""));
+        assertTrue(manual.body().contains(
+                "\"time\":\"2026-10-01T12:00:05.25Z\""));
+        assertTrue(manual.body().contains("\"timeSource\":\"AUTO\""));
 
         Request revoke = requests.stream()
                 .filter(request -> request.uri().endsWith("/registration/revoke"))
