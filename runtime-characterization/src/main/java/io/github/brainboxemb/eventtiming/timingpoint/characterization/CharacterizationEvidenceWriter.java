@@ -153,6 +153,9 @@ final class CharacterizationEvidenceWriter {
                 "schemaVersion",
                 SCHEMA_VERSION);
         json.writeStringField(
+                "runId",
+                config.runId());
+        json.writeStringField(
                 "outcome",
                 outcome);
         json.writeStringField(
@@ -265,6 +268,10 @@ final class CharacterizationEvidenceWriter {
         json.writeStringField(
                 "persistenceMode",
                 "file-backed-jsonl");
+        json.writeStringField(
+                "workDirectory",
+                config.workDirectory()
+                        .toString());
         json.writeEndObject();
     }
 
