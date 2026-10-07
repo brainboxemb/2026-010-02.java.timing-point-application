@@ -7,7 +7,10 @@ or run it explicitly:
 
 ```bash
 ./mvnw verify -Pruntime-characterization
-./mvnw -Pruntime-characterization -pl runtime-characterization -am exec:java \
+
+# Install the selected reactor artifacts once, then run only the harness module.
+./mvnw -Pruntime-characterization -pl runtime-characterization -am install
+./mvnw -Pruntime-characterization -pl runtime-characterization exec:java \
   -Dexec.args="--workload steady --output target/evidence/steady.json"
 ```
 
