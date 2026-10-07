@@ -48,12 +48,12 @@ public final class Conductor extends AbstractConductor
     private final CooperativeTaskController stateMachine;
 
     /**
-     * Last TimingNode state reconciled by this Conductor.
+     * Last TimingNode state handled by this Conductor.
      *
      * <p>This is application state, not scheduling state. Repeated wake-ups may
      * therefore safely coalesce without repeating an already applied rule.</p>
      */
-    private volatile State reconciledTimingNodeState;
+    private volatile State handledTimingNodeState;
 
     /**
      * Creates the SI-01 coordinator and declares the components/properties it
@@ -122,15 +122,15 @@ public final class Conductor extends AbstractConductor
          * later changes.
          */
         if (antennaManager == null) {
-            reconciledTimingNodeState = initialState;
+            handledTimingNodeState = initialState;
             return;
         }
 
         if (initialState == State.OPEN) {
-            reconciledTimingNodeState = null;
+            handledTimingNodeState = null;
             stateMachine.wake();
         } else {
-            reconciledTimingNodeState = initialState;
+            handledTimingNodeState = initialState;
             LOG.info(
                     "TimingNode {} initial state {} -> inventory disabled",
                     timingNode.timingNodeId().value(),
@@ -151,7 +151,7 @@ public final class Conductor extends AbstractConductor
      *
      * <p>The changed-event payload is deliberately not used here. The state
      * machine reads the latest authoritative tracked value, so several source
-     * events may collapse into one reconciliation without replaying stale
+     * events may collapse into one state-machine pass without replaying stale
      * intermediate callback decisions.</p>
      */
     @Override
@@ -164,12 +164,12 @@ public final class Conductor extends AbstractConductor
         State state =
                 timingNodeStateProperty.currentValue();
 
-        if (state == reconciledTimingNodeState) {
+        if (state == handledTimingNodeState) {
             return TaskStep.done();
         }
 
         if (applyTimingNodeState(state)) {
-            reconciledTimingNodeState = state;
+            handledTimingNodeState = state;
         }
 
         return TaskStep.done();
