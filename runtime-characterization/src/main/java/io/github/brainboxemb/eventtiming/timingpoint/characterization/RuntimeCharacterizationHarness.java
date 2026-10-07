@@ -64,6 +64,7 @@ final class RuntimeCharacterizationHarness
     private static final int ANTENNA_CONTROL_QUEUE_CAPACITY = 8;
     private static final Duration ANTENNA_CONTROL_TIMEOUT = Duration.ofSeconds(2);
     private static final long COMPLETION_TIMEOUT_MILLIS = 5000L;
+    private static final long INITIAL_LIFECYCLE_RECORD_COUNT = 1L;
     private static final Instant INPUT_TIME_BASE =
             Instant.parse("2026-01-01T00:00:00Z");
 
@@ -262,7 +263,8 @@ final class RuntimeCharacterizationHarness
                     config.warmupCount());
         } else {
             awaitCommitted(
-                    config.preloadCount()
+                    INITIAL_LIFECYCLE_RECORD_COUNT
+                            + config.preloadCount()
                             + config.warmupCount());
         }
 
@@ -290,7 +292,8 @@ final class RuntimeCharacterizationHarness
                             + config.measuredCount());
         } else {
             awaitCommitted(
-                    config.preloadCount()
+                    INITIAL_LIFECYCLE_RECORD_COUNT
+                            + config.preloadCount()
                             + config.warmupCount()
                             + config.measuredCount());
         }
@@ -441,7 +444,8 @@ final class RuntimeCharacterizationHarness
         TagProcessingMetrics.Snapshot settled =
                 measurements.tagProcessing();
         awaitCommitted(
-                preloadedCount
+                INITIAL_LIFECYCLE_RECORD_COUNT
+                        + preloadedCount
                         + settled.admitted());
     }
 
