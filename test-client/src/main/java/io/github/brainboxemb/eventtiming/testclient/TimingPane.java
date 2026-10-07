@@ -25,6 +25,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.RowConstraints;
 import javafx.scene.layout.VBox;
+import jfxtras.styles.jmetro.JMetroStyleClass;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -125,6 +126,7 @@ final class TimingPane extends VBox {
         HBox.setHgrow(
                 syncSpacer,
                 Priority.ALWAYS);
+        syncStateBar.getStyleClass().add("workbench-status-bar");
         syncStateBar.setSpacing(8);
         syncStateBar.getChildren().setAll(
                 new Label("Timing view"),
@@ -222,6 +224,10 @@ final class TimingPane extends VBox {
                         clientLog);
 
         configureRegistrationView();
+        registrations.getStyleClass().add(
+                JMetroStyleClass.ALTERNATING_ROW_COLORS);
+        registrations.getStyleClass().add(
+                JMetroStyleClass.TABLE_GRID_LINES);
         registrationScope.setItems(
                 FXCollections.observableArrayList(
                         "Current location",
@@ -244,6 +250,10 @@ final class TimingPane extends VBox {
         interpretedPane.setCollapsible(false);
 
         configureLogBook();
+        logBook.getStyleClass().add(
+                JMetroStyleClass.ALTERNATING_ROW_COLORS);
+        logBook.getStyleClass().add(
+                JMetroStyleClass.TABLE_GRID_LINES);
         VBox historyBox = new VBox(
                 6,
                 new HBox(8, new Label("Count"), logBookCount),
@@ -267,6 +277,10 @@ final class TimingPane extends VBox {
                         tab(
                                 "Terminal",
                                 terminalContent));
+        inputTabs.getStyleClass().add(
+                JMetroStyleClass.UNDERLINE_TAB_PANE);
+        inputTabs.getStyleClass().add(
+                "workbench-tabs");
         inputTabs.setTabClosingPolicy(
                 TabPane.TabClosingPolicy.UNAVAILABLE);
         inputTabs.setPrefHeight(260);
@@ -277,6 +291,8 @@ final class TimingPane extends VBox {
                         10,
                         rightHeader,
                         interpretedPane);
+        upperRight.getStyleClass().add(
+                "workbench-upper-right");
         VBox.setVgrow(
                 interpretedPane,
                 Priority.ALWAYS);

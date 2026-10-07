@@ -16,6 +16,7 @@
     <maven.compiler.release>17</maven.compiler.release>
     <javafx.version>21.0.10</javafx.version>
     <jackson.version>2.21.2</jackson.version>
+    <jmetro.version>11.6.15</jmetro.version>
     <junit.version>5.10.2</junit.version>
     <maven.compiler.plugin.version>3.13.0</maven.compiler.plugin.version>
     <maven.surefire.plugin.version>3.2.5</maven.surefire.plugin.version>
@@ -35,6 +36,11 @@
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
       <version>${jackson.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.jfxtras</groupId>
+      <artifactId>jmetro</artifactId>
+      <version>${jmetro.version}</version>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>

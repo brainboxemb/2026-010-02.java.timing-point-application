@@ -23,6 +23,9 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import jfxtras.styles.jmetro.JMetro;
+import jfxtras.styles.jmetro.JMetroStyleClass;
+import jfxtras.styles.jmetro.Style;
 
 import java.net.URI;
 import java.nio.file.Path;
@@ -118,15 +121,26 @@ public final class TestClientFxApplication extends Application {
         MenuBar menuBar = new MenuBar(help);
 
         VBox top = new VBox(menuBar, targetBar());
+        top.getStyleClass().add("application-top");
 
         BorderPane root = new BorderPane();
+        root.getStyleClass().add(JMetroStyleClass.BACKGROUND);
+        tabs.getStyleClass().add(JMetroStyleClass.UNDERLINE_TAB_PANE);
         root.setTop(top);
         root.setCenter(tabs);
+        feedback.getStyleClass().add("feedback-bar");
         root.setBottom(feedback);
         BorderPane.setMargin(feedback, new Insets(0, 12, 12, 12));
 
+        Scene scene = new Scene(root, 1240, 820);
+        new JMetro(Style.LIGHT).setScene(scene);
+        scene.getStylesheets().add(
+                TestClientFxApplication.class
+                        .getResource("/development-client.css")
+                        .toExternalForm());
+
         stage.setTitle(clientBuild.application() + " — " + clientBuild.version());
-        stage.setScene(new Scene(root, 1240, 820));
+        stage.setScene(scene);
         stage.show();
         clientLog.info("Development Client UI ready");
     }
@@ -163,7 +177,8 @@ public final class TestClientFxApplication extends Application {
                 deviceLogBoundary,
                 clientLogBoundary);
         HBox.setHgrow(targetHost, Priority.NEVER);
-        bar.setPadding(new Insets(10, 12, 10, 12));
+        bar.getStyleClass().add("target-bar");
+        bar.setPadding(new Insets(7, 10, 7, 10));
         return bar;
     }
 

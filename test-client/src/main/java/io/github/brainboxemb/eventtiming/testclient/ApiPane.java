@@ -69,6 +69,8 @@ final class ApiPane extends VBox {
                         apiVersion,
                         versionButton,
                         statusButton);
+        identityBar.getStyleClass().add(
+                "identity-bar");
 
         timingPane = new TimingPane(
                 clientSupplier,
@@ -89,6 +91,8 @@ final class ApiPane extends VBox {
         TitledPane rawPane = new TitledPane(
                 "Raw response / selected record",
                 rawResponse);
+        rawPane.getStyleClass().add(
+                "secondary-pane");
         rawPane.setCollapsible(true);
         rawPane.setExpanded(false);
 
