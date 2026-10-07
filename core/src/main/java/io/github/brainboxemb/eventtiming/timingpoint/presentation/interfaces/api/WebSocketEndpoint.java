@@ -342,9 +342,27 @@ public final class WebSocketEndpoint implements AutoCloseable {
                         "IF-03 WebSocket event send failed for {}",
                         connection.getRemoteSocketAddress(),
                         ex);
+                closeAfterDeliveryFailure(
+                        connection);
+            }
+        }
+
+        /**
+         * Best-effort cleanup after one client send failure.
+         *
+         * <p>A close failure is diagnostic only; it must not escape the
+         * application event callback and prevent delivery to sibling clients.</p>
+         */
+        private void closeAfterDeliveryFailure(
+                WebSocket connection) {
+            try {
                 connection.close(
                         CloseFrame.UNEXPECTED_CONDITION,
                         "Unable to deliver IF-03 event");
+            } catch (RuntimeException closeFailure) {
+                LOG.debug(
+                        "Unable to close failed IF-03 WebSocket client",
+                        closeFailure);
             }
         }
 
