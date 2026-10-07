@@ -188,6 +188,11 @@ public final class HttpEndpoint implements AutoCloseable {
                     MessageWriter.result(timingNode.close().name()));
             return;
         }
+        if ("/registration/manual".equals(route.resource)) {
+            requireMethod(exchange, "POST");
+            handleManualRegistration(exchange);
+            return;
+        }
         if ("/registration/revoke".equals(route.resource)) {
             requireMethod(exchange, "POST");
             handleRegistrationRevoke(exchange);
@@ -310,6 +315,54 @@ public final class HttpEndpoint implements AutoCloseable {
                         result.timingData()));
     }
 
+    private void handleManualRegistration(
+            HttpExchange exchange)
+            throws IOException {
+        HttpRequestReader.ManualRegistrationRequest request =
+                requestReader.readManualRegistrationRequest(
+                        exchange);
+
+        final RegistrationId registrationId;
+        final TimingTimestamp time;
+        final ManualTimeSource timeSource;
+        try {
+            registrationId =
+                    new RegistrationId(
+                            request.registrationId);
+            time =
+                    TimingTimestamp.parse(
+                            request.time);
+            timeSource =
+                    "AUTO".equals(request.timeSource)
+                            ? ManualTimeSource.AUTOMATIC
+                            : ManualTimeSource.OPERATOR_ENTERED;
+        } catch (IllegalArgumentException ex) {
+            throw HttpRequestReader.invalidValue(
+                    ex.getMessage());
+        }
+
+        RegistrationResult result =
+                timingNode.addManualRegistration(
+                        registrationId,
+                        time,
+                        timeSource);
+        if (result.outcome()
+                == RegistrationResult.Outcome.NODE_NOT_OPEN) {
+            sendJson(
+                    exchange,
+                    409,
+                    MessageWriter.error(
+                            "NODE_NOT_OPEN",
+                            "Manual registration requires an OPEN TimingNode"));
+            return;
+        }
+        sendJson(
+                exchange,
+                200,
+                MessageWriter.committedRegistration(
+                        result.timingData()));
+    }
+
     private void handleRegistrationRevoke(
             HttpExchange exchange)
             throws IOException {
@@ -339,7 +392,7 @@ public final class HttpEndpoint implements AutoCloseable {
                 timeSource = null;
             } else if ("AUTO".equals(request.timeSource)) {
                 timeSource =
-                        ManualTimeSource.SYSTEM_ASSIGNED;
+                        ManualTimeSource.AUTOMATIC;
             } else if ("MAN".equals(request.timeSource)) {
                 timeSource =
                         ManualTimeSource.OPERATOR_ENTERED;

@@ -146,6 +146,93 @@ final class HttpRequestReader {
         }
     }
 
+    ManualRegistrationRequest readManualRegistrationRequest(
+            HttpExchange exchange)
+            throws IOException {
+        return parseManualRegistrationBody(
+                readBody(exchange));
+    }
+
+    ManualRegistrationRequest parseManualRegistrationBody(
+            byte[] body) {
+        try (JsonParser parser = jsonFactory.createParser(body)) {
+            if (parser.nextToken() != JsonToken.START_OBJECT) {
+                throw malformed("Request must be one JSON object");
+            }
+
+            String registrationId = null;
+            String time = null;
+            String timeSource = null;
+            Set<String> seen = new HashSet<String>();
+
+            while (parser.nextToken() != JsonToken.END_OBJECT) {
+                if (parser.currentToken() != JsonToken.FIELD_NAME) {
+                    throw malformed("Expected JSON member name");
+                }
+                String name = parser.currentName();
+                if (!seen.add(name)) {
+                    throw invalidValue(
+                            "Duplicate manual registration field: " + name);
+                }
+                JsonToken value = parser.nextToken();
+
+                switch (name) {
+                    case "regId":
+                        if (value != JsonToken.VALUE_STRING) {
+                            throw invalidValue(
+                                    "regId must be one JSON string");
+                        }
+                        registrationId = parser.getText();
+                        break;
+                    case "time":
+                        if (value != JsonToken.VALUE_STRING) {
+                            throw invalidValue(
+                                    "time must be one JSON string");
+                        }
+                        time = parser.getText();
+                        break;
+                    case "timeSource":
+                        if (value != JsonToken.VALUE_STRING) {
+                            throw invalidValue(
+                                    "timeSource must be one JSON string");
+                        }
+                        timeSource = parser.getText();
+                        break;
+                    default:
+                        throw invalidValue(
+                                "Unsupported request field: " + name);
+                }
+            }
+
+            if (parser.nextToken() != null) {
+                throw malformed(
+                        "Unexpected data after request object");
+            }
+            if (registrationId == null) {
+                throw invalidValue(
+                        "Missing required field: regId");
+            }
+            if (time == null) {
+                throw invalidValue(
+                        "Missing required field: time");
+            }
+            if (!"AUTO".equals(timeSource)
+                    && !"MAN".equals(timeSource)) {
+                throw invalidValue(
+                        "timeSource must be AUTO or MAN");
+            }
+
+            return new ManualRegistrationRequest(
+                    registrationId,
+                    time,
+                    timeSource);
+        } catch (RequestException ex) {
+            throw ex;
+        } catch (IOException | RuntimeException ex) {
+            throw malformed("Malformed JSON request", ex);
+        }
+    }
+
     RegistrationRevokeRequest readRegistrationRevokeRequest(
             HttpExchange exchange)
             throws IOException {
@@ -581,6 +668,21 @@ final class HttpRequestReader {
                 String time) {
             this.id = id;
             this.time = time;
+        }
+    }
+
+    static final class ManualRegistrationRequest {
+        final String registrationId;
+        final String time;
+        final String timeSource;
+
+        private ManualRegistrationRequest(
+                String registrationId,
+                String time,
+                String timeSource) {
+            this.registrationId = registrationId;
+            this.time = time;
+            this.timeSource = timeSource;
         }
     }
 

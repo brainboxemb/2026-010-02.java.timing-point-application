@@ -84,9 +84,9 @@ public interface TimingData {
         REV
     }
 
-    /** Source of the effective time selected for a manual registration. */
+    /** How the presentation client selected the effective time for a manual registration. */
     enum ManualTimeSource {
-        SYSTEM_ASSIGNED,
+        AUTOMATIC,
         OPERATOR_ENTERED
     }
 
