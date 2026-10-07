@@ -53,8 +53,6 @@ public final class CooperativeTaskController {
      * run rather than one queued run per event.</p>
      */
     public void wake() {
-        final boolean start;
-
         synchronized (this) {
             wakePending = true;
             if (running) {
@@ -63,12 +61,9 @@ public final class CooperativeTaskController {
 
             wakePending = false;
             running = true;
-            start = true;
         }
 
-        if (start) {
-            startRun();
-        }
+        startRun();
     }
 
     /**
