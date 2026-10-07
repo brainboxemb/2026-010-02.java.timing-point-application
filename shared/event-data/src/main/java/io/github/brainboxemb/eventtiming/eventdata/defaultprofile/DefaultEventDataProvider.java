@@ -4,12 +4,11 @@ import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.EventDataProvider;
 
 /**
- * Built-in empty EventData profile used until deployment/provider selection
- * supplies an event-specific profile.
+ * Built-in algorithmic default/reference EventData profile.
  *
- * <p>This provider is intentionally deterministic and contains no deployment
- * mappings. External event-specific providers can supply real profile data
- * through the same SPI.</p>
+ * <p>Normal and reserve TagId-to-RegistrationId relationships follow the
+ * public default identity convention without materialising lookup rows.
+ * Reserve RegistrationId-to-TeamId assignment remains outside stable EventData.</p>
  */
 public final class DefaultEventDataProvider
         implements EventDataProvider {
@@ -23,6 +22,6 @@ public final class DefaultEventDataProvider
 
     @Override
     public EventData createEventData() {
-        return EventData.empty();
+        return new DefaultEventData();
     }
 }
