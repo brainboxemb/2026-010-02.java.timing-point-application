@@ -68,7 +68,7 @@ final class SimulationBatchPlan {
                 index++) {
             result.add(
                     String.format(
-                            "N%04d",
+                            "RT-A-%04d",
                             numbers.get(index)));
         }
         return Collections.unmodifiableList(
