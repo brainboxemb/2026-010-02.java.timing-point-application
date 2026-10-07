@@ -87,7 +87,7 @@ public final class ScheduledTaskRunner implements CooperativeTaskRunner {
     }
 
     /**
-     * Runs one cooperative state-machine task until it returns
+     * Runs one cooperative task until it returns
      * {@link TaskStep#done()} or fails.
      *
      * <p>Each invocation of {@link CooperativeTask#runStep()} is one logical
