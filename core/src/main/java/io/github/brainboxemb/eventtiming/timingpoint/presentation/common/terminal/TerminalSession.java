@@ -14,6 +14,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatu
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Problem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.ConsolePromptControl;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevel;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevelControl;
 
@@ -32,11 +33,24 @@ public final class TerminalSession {
 
     private final PresentationGateway presentationGateway;
     private final LoggingLevelControl loggingLevelControl;
+    private final ConsolePromptControl consolePromptControl;
     private final Runnable shutdown;
 
     public TerminalSession(
             PresentationGateway presentationGateway,
             LoggingLevelControl loggingLevelControl,
+            Runnable shutdown) {
+        this(
+                presentationGateway,
+                loggingLevelControl,
+                null,
+                shutdown);
+    }
+
+    public TerminalSession(
+            PresentationGateway presentationGateway,
+            LoggingLevelControl loggingLevelControl,
+            ConsolePromptControl consolePromptControl,
             Runnable shutdown) {
         if (presentationGateway == null) {
             throw new IllegalArgumentException(
@@ -48,6 +62,7 @@ public final class TerminalSession {
         }
         this.presentationGateway = presentationGateway;
         this.loggingLevelControl = loggingLevelControl;
+        this.consolePromptControl = consolePromptControl;
         this.shutdown = shutdown;
     }
 
@@ -77,7 +92,20 @@ public final class TerminalSession {
         while (true) {
             writer.print(PROMPT);
             writer.flush();
-            line = reader.readLine();
+            if (consolePromptControl != null) {
+                consolePromptControl.promptDisplayed(
+                        writer,
+                        PROMPT);
+            }
+
+            try {
+                line = reader.readLine();
+            } finally {
+                if (consolePromptControl != null) {
+                    consolePromptControl.promptConsumed();
+                }
+            }
+
             if (line == null) {
                 return;
             }
