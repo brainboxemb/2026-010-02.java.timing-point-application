@@ -47,6 +47,14 @@ public final class TrackedProperty<T> {
     private boolean refreshPending;
     private boolean refreshDirty;
 
+    /**
+     * Creates a tracked property without reading its source.
+     *
+     * <p>The reader is stored for deferred use. It is first invoked by
+     * {@link #initialize()} and later by admitted refresh work on the supplied
+     * serial lane. Construction therefore never performs the potentially
+     * blocking or otherwise non-trivial source read.</p>
+     */
     public TrackedProperty(
             String name,
             SerialExecutor serialExecutor,
