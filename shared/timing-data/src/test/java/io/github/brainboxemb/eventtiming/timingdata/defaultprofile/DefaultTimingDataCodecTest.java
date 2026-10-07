@@ -102,8 +102,9 @@ public class DefaultTimingDataCodecTest {
                         + "\"nodeId\":\"A\","
                         + "\"seqNr\":3,"
                         + "\"locId\":7,"
-                        + "\"recType\":\"NODE_OPEN\","
+                        + "\"recType\":\"NODE_REG\","
                         + "\"time\":\"2026-09-30T20:01:39.123Z\","
+                        + "\"code\":[\"OPEN\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.456Z\"}",
                 json);
 
@@ -125,16 +126,17 @@ public class DefaultTimingDataCodecTest {
     }
 
     @Test
-    public void lifecycleRecordRejectsRegistrationOnlyMembers() throws Exception {
+    public void lifecycleRecordRejectsRegistrationOnlyMembersAndInvalidCodes() throws Exception {
         assertInvalid(json(
                 "{"
                         + "\"v\":1,"
                         + "\"nodeId\":\"A\","
                         + "\"seqNr\":3,"
                         + "\"locId\":7,"
-                        + "\"recType\":\"NODE_OPEN\","
+                        + "\"recType\":\"NODE_REG\","
                         + "\"time\":\"2026-09-30T20:01:39.123Z\","
                         + "\"regId\":\"registration-0042\","
+                        + "\"code\":[\"OPEN\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
                         + "}"));
         assertInvalid(json(
@@ -143,7 +145,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"nodeId\":\"A\","
                         + "\"seqNr\":4,"
                         + "\"locId\":7,"
-                        + "\"recType\":\"NODE_CLOSE\","
+                        + "\"recType\":\"NODE_REG\","
                         + "\"time\":\"2026-09-30T20:01:39.123Z\","
                         + "\"code\":[\"ADD\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
