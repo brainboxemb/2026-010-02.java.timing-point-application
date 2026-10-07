@@ -86,6 +86,35 @@ public final class ApiClient {
         return new AutoRegResult(requiredLong(root, "seq"), rawJson);
     }
 
+    public OperationResult simulateRegistration(
+            String nodeId,
+            String registrationId,
+            String profile)
+            throws IOException, InterruptedException {
+        if (registrationId == null
+                || registrationId.trim().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "registrationId must not be blank");
+        }
+        if (profile == null
+                || profile.trim().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "profile must not be blank");
+        }
+
+        ObjectNode body = JSON.createObjectNode();
+        body.put("regId", registrationId);
+        body.put("profile", profile);
+
+        return parseOperation(
+                request(
+                        "POST",
+                        "/api/v1/dev/node/"
+                                + pathSegment(nodeId)
+                                + "/simulation/registration",
+                        JSON.writeValueAsString(body)));
+    }
+
     public CommitResult manualRegistration(
             String nodeId,
             String registrationId,
