@@ -68,6 +68,48 @@ public class RuntimeCharacterizationHarnessTest {
     }
 
     @Test
+    public void largerBurstSettlesWithoutRequiringEveryObservationToCommit()
+            throws Exception {
+        Path base =
+                temporaryFolder
+                        .newFolder("characterization-large-burst")
+                        .toPath();
+        CharacterizationConfig config =
+                CharacterizationConfig.parse(
+                        new String[] {
+                            "--workload", "burst",
+                            "--work-dir", base.resolve("work").toString(),
+                            "--output", base.resolve("evidence.json").toString(),
+                            "--warmup-count", "20",
+                            "--measured-count", "100",
+                            "--rate", "20",
+                            "--query-limit", "10"
+                        });
+
+        RuntimeCharacterizationHarness.Result result;
+        try (RuntimeCharacterizationHarness harness =
+                new RuntimeCharacterizationHarness(
+                        config)) {
+            result =
+                    harness.run();
+        }
+
+        long observationDelta =
+                result.tagAfter().observations()
+                        - result.tagBefore().observations();
+        long committedDelta =
+                result.nodeAfter().timingDataCommitCount()
+                        - result.nodeBefore().timingDataCommitCount();
+
+        assertEquals(
+                100L,
+                observationDelta);
+        assertTrue(
+                "bounded burst handling may commit at most the observations offered during measurement",
+                committedDelta <= observationDelta);
+    }
+
+    @Test
     public void historyWorkloadRequiresExplicitPreload() {
         try {
             CharacterizationConfig.parse(
