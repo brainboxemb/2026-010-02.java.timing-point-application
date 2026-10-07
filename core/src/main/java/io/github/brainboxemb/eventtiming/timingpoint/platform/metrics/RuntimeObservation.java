@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.platform.metrics;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
+import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
 
 /**
@@ -44,6 +45,68 @@ public final class RuntimeObservation {
                 threads.getThreadCount(),
                 hasKnownGcCount ? gcCount : -1L,
                 hasKnownGcTime ? gcTimeMillis : -1L);
+    }
+
+    /**
+     * Returns aggregate CPU time for live threads whose names start with one of
+     * the supplied prefixes.
+     *
+     * <p>The method does not enable JVM thread CPU accounting. When the selected
+     * JVM does not support it or has it disabled, {@code -1} is returned.</p>
+     */
+    public static long threadCpuTimeNanos(
+            String... threadNamePrefixes) {
+        if (threadNamePrefixes == null
+                || threadNamePrefixes.length == 0) {
+            throw new IllegalArgumentException(
+                    "threadNamePrefixes must not be empty");
+        }
+
+        ThreadMXBean threads =
+                ManagementFactory.getThreadMXBean();
+        if (!threads.isThreadCpuTimeSupported()
+                || !threads.isThreadCpuTimeEnabled()) {
+            return -1L;
+        }
+
+        long total = 0L;
+        boolean observed = false;
+        long[] ids = threads.getAllThreadIds();
+        ThreadInfo[] infos = threads.getThreadInfo(ids);
+        for (int index = 0; index < ids.length; index++) {
+            ThreadInfo info = infos[index];
+            if (info == null
+                    || !matchesPrefix(
+                            info.getThreadName(),
+                            threadNamePrefixes)) {
+                continue;
+            }
+
+            long cpuTime =
+                    threads.getThreadCpuTime(
+                            ids[index]);
+            if (cpuTime >= 0L) {
+                total += cpuTime;
+                observed = true;
+            }
+        }
+        return observed ? total : -1L;
+    }
+
+    private static boolean matchesPrefix(
+            String threadName,
+            String[] prefixes) {
+        for (String prefix : prefixes) {
+            if (prefix == null
+                    || prefix.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "threadNamePrefix must not be blank");
+            }
+            if (threadName.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Immutable explicit-capture result; not allocated on event processing. */

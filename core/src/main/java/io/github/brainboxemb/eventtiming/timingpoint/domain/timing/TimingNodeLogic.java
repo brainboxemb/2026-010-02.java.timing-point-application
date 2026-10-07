@@ -39,6 +39,7 @@ final class TimingNodeLogic {
     private final TimingDataFactory timingDataFactory;
     private final TimeSource timeSource;
     private final MonotonicClock monotonicClock;
+    private final TimingNodeMetrics metrics;
 
     private State state = State.CLOSED;
     private LocationId locationId;
@@ -46,18 +47,28 @@ final class TimingNodeLogic {
     private Throwable timingDataCommitFailure;
     private List<Problem> problems = Collections.emptyList();
 
-    private volatile long timingDataAppendAttempts;
-    private volatile long timingDataAppendFailures;
-    private volatile long timingDataCommitCount;
-    private volatile long totalTimingDataAppendNanos;
-    private volatile long maxTimingDataAppendNanos;
-
     TimingNodeLogic(
             NodeId timingNodeId,
             TimingDataPersistence timingDataPersistence,
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
             MonotonicClock monotonicClock) {
+        this(
+                timingNodeId,
+                timingDataPersistence,
+                timingDataFactory,
+                timeSource,
+                monotonicClock,
+                new TimingNodeMetrics());
+    }
+
+    TimingNodeLogic(
+            NodeId timingNodeId,
+            TimingDataPersistence timingDataPersistence,
+            TimingDataFactory timingDataFactory,
+            TimeSource timeSource,
+            MonotonicClock monotonicClock,
+            TimingNodeMetrics metrics) {
         if (timingNodeId == null) {
             throw new IllegalArgumentException("timingNodeId must not be null");
         }
@@ -74,17 +85,25 @@ final class TimingNodeLogic {
         if (monotonicClock == null) {
             throw new IllegalArgumentException("monotonicClock must not be null");
         }
+        if (metrics == null) {
+            throw new IllegalArgumentException("metrics must not be null");
+        }
 
         this.timingNodeId = timingNodeId;
         this.timingDataPersistence = timingDataPersistence;
         this.timingDataFactory = timingDataFactory;
         this.timeSource = timeSource;
         this.monotonicClock = monotonicClock;
+        this.metrics = metrics;
         this.logBook = new LogBook(timingNodeId);
     }
 
     NodeId timingNodeId() {
         return timingNodeId;
+    }
+
+    TimingNodeMetrics metrics() {
+        return metrics;
     }
 
     OpenResult open(LocationId newLocationId) {
@@ -230,51 +249,25 @@ final class TimingNodeLogic {
         }
     }
 
-    long timingDataAppendAttempts() {
-        return timingDataAppendAttempts;
-    }
-
-    long timingDataAppendFailures() {
-        return timingDataAppendFailures;
-    }
-
-    long timingDataCommitCount() {
-        return timingDataCommitCount;
-    }
-
-    long totalTimingDataAppendNanos() {
-        return totalTimingDataAppendNanos;
-    }
-
-    long maxTimingDataAppendNanos() {
-        return maxTimingDataAppendNanos;
-    }
-
-    private void recordTimingDataAppend(long elapsedNanos) {
-        long safeElapsed = elapsedNanos < 0L ? 0L : elapsedNanos;
-        totalTimingDataAppendNanos += safeElapsed;
-        if (safeElapsed > maxTimingDataAppendNanos) {
-            maxTimingDataAppendNanos = safeElapsed;
-        }
-    }
-
     private RegistrationResult commitRegistration(TimingData data)
             throws TimingDataPersistence.PersistenceException {
         if (data == null) {
             throw new IllegalStateException("timingDataFactory returned null");
         }
 
-        timingDataAppendAttempts++;
+        metrics.recordAppendAttempt();
         long appendStartedNanos = monotonicClock.nowNanos();
         try {
             timingDataPersistence.append(data);
         } catch (TimingDataPersistence.PersistenceException ex) {
-            recordTimingDataAppend(monotonicClock.nowNanos() - appendStartedNanos);
-            timingDataAppendFailures++;
+            metrics.recordAppendDuration(
+                    monotonicClock.nowNanos() - appendStartedNanos);
+            metrics.recordAppendFailure();
             timingDataCommitFailure = ex;
             throw ex;
         }
-        recordTimingDataAppend(monotonicClock.nowNanos() - appendStartedNanos);
+        metrics.recordAppendDuration(
+                monotonicClock.nowNanos() - appendStartedNanos);
 
         try {
             logBook.add(data);
@@ -283,7 +276,7 @@ final class TimingNodeLogic {
             throw ex;
         }
 
-        timingDataCommitCount++;
+        metrics.recordCommit();
         return RegistrationResult.committed(data);
     }
 }

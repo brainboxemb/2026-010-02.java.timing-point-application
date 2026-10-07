@@ -15,12 +15,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutorMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.RegistrationResult;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.RuntimeMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Status;
 
 import java.util.concurrent.Callable;
@@ -56,14 +54,9 @@ public final class TimingNode {
     private final TagProcessor tagProcessor;
     private final long operationTimeoutMillis;
     private final MonotonicClock monotonicClock;
+    private final TimingNodeMetrics metrics;
     private final Event<Status> statusChangedEvent = new Event<>();
     private final Event<TimingData> timingDataCommittedEvent = new Event<>();
-
-    private volatile long timingDataEventDeliveries;
-    private volatile long timingDataEventListenerFailures;
-    private volatile long totalTimingDataEventNanos;
-    private volatile long maxTimingDataEventNanos;
-
 
     /**
      * Test-only convenience construction for tests in the TimingNode package.
@@ -83,7 +76,8 @@ public final class TimingNode {
                         timingDataPersistence,
                         timingDataFactory,
                         timeSource,
-                        SystemMonotonicClock.INSTANCE),
+                        SystemMonotonicClock.INSTANCE,
+                        new TimingNodeMetrics()),
                 new SerialExecutor(
                         32,
                         "test-node-" + requireId(timingNodeId).value(),
@@ -118,7 +112,9 @@ public final class TimingNode {
                 eventData,
                 serialExecutor,
                 tagProcessorExecutor,
-                SystemMonotonicClock.INSTANCE);
+                SystemMonotonicClock.INSTANCE,
+                new TimingNodeMetrics(),
+                new TagProcessingMetrics());
     }
 
     public TimingNode(
@@ -131,6 +127,36 @@ public final class TimingNode {
             SerialExecutor serialExecutor,
             SerialScheduledExecutor tagProcessorExecutor,
             MonotonicClock monotonicClock) {
+        this(
+                timingNodeId,
+                timingDataPersistence,
+                timingDataFactory,
+                timeSource,
+                tagProcessingConfiguration,
+                eventData,
+                serialExecutor,
+                tagProcessorExecutor,
+                monotonicClock,
+                new TimingNodeMetrics(),
+                new TagProcessingMetrics());
+    }
+
+    /**
+     * Engineering-composition constructor that retains the component-owned
+     * metric handles used by RuntimeMeasurementReader.
+     */
+    public TimingNode(
+            NodeId timingNodeId,
+            TimingDataPersistence timingDataPersistence,
+            TimingDataFactory timingDataFactory,
+            TimeSource timeSource,
+            ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
+            EventData eventData,
+            SerialExecutor serialExecutor,
+            SerialScheduledExecutor tagProcessorExecutor,
+            MonotonicClock monotonicClock,
+            TimingNodeMetrics timingNodeMetrics,
+            TagProcessingMetrics tagProcessingMetrics) {
         if (serialExecutor == null) {
             throw new IllegalArgumentException("serialExecutor must not be null");
         }
@@ -149,16 +175,24 @@ public final class TimingNode {
         if (monotonicClock == null) {
             throw new IllegalArgumentException("monotonicClock must not be null");
         }
+        if (timingNodeMetrics == null) {
+            throw new IllegalArgumentException("timingNodeMetrics must not be null");
+        }
+        if (tagProcessingMetrics == null) {
+            throw new IllegalArgumentException("tagProcessingMetrics must not be null");
+        }
 
         this.logic = new TimingNodeLogic(
                 timingNodeId,
                 timingDataPersistence,
                 timingDataFactory,
                 timeSource,
-                monotonicClock);
+                monotonicClock,
+                timingNodeMetrics);
         this.serialExecutor = serialExecutor;
         this.operationTimeoutMillis = DEFAULT_OPERATION_TIMEOUT_MILLIS;
         this.monotonicClock = monotonicClock;
+        this.metrics = timingNodeMetrics;
 
         /*
          * TagProcessor is a child of this TimingNode aggregate. Runtime chooses
@@ -170,7 +204,7 @@ public final class TimingNode {
                 eventData,
                 tagProcessingConfiguration,
                 monotonicClock,
-                new TagProcessingMetrics(),
+                tagProcessingMetrics,
                 tagProcessorExecutor);
 
         /*
@@ -238,6 +272,7 @@ public final class TimingNode {
         this.tagProcessor = tagProcessor;
         this.operationTimeoutMillis = operationTimeoutMillis;
         this.monotonicClock = monotonicClock;
+        this.metrics = logic.metrics();
     }
 
     public NodeId timingNodeId() {
@@ -471,7 +506,7 @@ public final class TimingNode {
         TimingData data = result.timingData();
         long eventStartedNanos = monotonicClock.nowNanos();
         Event.DeliveryReport delivery = timingDataCommittedEvent.emit(data);
-        recordTimingDataEventDelivery(
+        metrics.recordEventDelivery(
                 monotonicClock.nowNanos() - eventStartedNanos,
                 delivery.failureCount());
         if (!delivery.successful()) {
@@ -485,52 +520,6 @@ public final class TimingNode {
                     delivery.failures().get(0));
         }
         return result;
-    }
-
-    /**
-     * Returns an explicit pull-based engineering snapshot of runtime counters.
-     *
-     * <p>Calling this method may allocate the snapshot itself and query JVM
-     * thread CPU state. The registration hot path retains only primitive
-     * counters and monotonic timestamps.</p>
-     */
-    public RuntimeMetrics runtimeMetrics() {
-        SerialExecutorMetrics.Snapshot executorMetrics =
-                serialExecutor.metrics().snapshot();
-
-        return new RuntimeMetrics(
-                executorMetrics.queueDepth(),
-                executorMetrics.queueHighWaterMark(),
-                executorMetrics.acceptedCount(),
-                executorMetrics.fullCount(),
-                executorMetrics.notRunningCount(),
-                executorMetrics.completedCount(),
-                executorMetrics.totalQueueWaitNanos(),
-                executorMetrics.maxQueueWaitNanos(),
-                executorMetrics.totalExecutionNanos(),
-                executorMetrics.maxExecutionNanos(),
-                logic.timingDataAppendAttempts(),
-                logic.timingDataAppendFailures(),
-                logic.timingDataCommitCount(),
-                logic.totalTimingDataAppendNanos(),
-                logic.maxTimingDataAppendNanos(),
-                timingDataEventDeliveries,
-                timingDataEventListenerFailures,
-                totalTimingDataEventNanos,
-                maxTimingDataEventNanos,
-                executorMetrics.workerThreadCpuTimeNanos());
-    }
-
-    private void recordTimingDataEventDelivery(
-            long elapsedNanos,
-            int listenerFailures) {
-        long safeElapsed = elapsedNanos < 0L ? 0L : elapsedNanos;
-        timingDataEventDeliveries++;
-        timingDataEventListenerFailures += listenerFailures;
-        totalTimingDataEventNanos += safeElapsed;
-        if (safeElapsed > maxTimingDataEventNanos) {
-            maxTimingDataEventNanos = safeElapsed;
-        }
     }
 
     private <R> R runSerialized(Callable<R> work, String operation) {
