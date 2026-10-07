@@ -248,14 +248,23 @@ final class RuntimeCharacterizationHarness
                 antenna::inventoryRunning,
                 "simulated antenna inventory");
 
+        boolean burstWorkload =
+                config.workload()
+                        == CharacterizationConfig.Workload.BURST;
+
         runInput(
                 0,
                 config.warmupCount(),
-                config.workload()
-                        != CharacterizationConfig.Workload.BURST);
-        awaitCommitted(
-                config.preloadCount()
-                        + config.warmupCount());
+                !burstWorkload);
+        if (burstWorkload) {
+            awaitBurstSettled(
+                    config.preloadCount(),
+                    config.warmupCount());
+        } else {
+            awaitCommitted(
+                    config.preloadCount()
+                            + config.warmupCount());
+        }
 
         int historyAtMeasurementStart =
                 node.query(
@@ -273,12 +282,18 @@ final class RuntimeCharacterizationHarness
         runInput(
                 config.warmupCount(),
                 config.measuredCount(),
-                config.workload()
-                        != CharacterizationConfig.Workload.BURST);
-        awaitCommitted(
-                config.preloadCount()
-                        + config.warmupCount()
-                        + config.measuredCount());
+                !burstWorkload);
+        if (burstWorkload) {
+            awaitBurstSettled(
+                    config.preloadCount(),
+                    config.warmupCount()
+                            + config.measuredCount());
+        } else {
+            awaitCommitted(
+                    config.preloadCount()
+                            + config.warmupCount()
+                            + config.measuredCount());
+        }
         long measuredElapsedNanos =
                 Math.max(
                         0L,
@@ -386,6 +401,48 @@ final class RuntimeCharacterizationHarness
                 visited.get(),
                 total,
                 elapsed);
+    }
+
+    /**
+     * Waits until an unpaced burst has reached a stable bounded outcome.
+     *
+     * <p>A characterization burst is allowed to expose bounded queue rejection.
+     * The harness therefore must not assume every observation becomes committed
+     * TimingData. It first waits until every emitted observation was either
+     * processed or rejected at TagProcessor ingress, then until no active
+     * passage remains. Finally it waits only for the registrations that were
+     * actually admitted to TimingNode.</p>
+     */
+    private void awaitBurstSettled(
+            long preloadedCount,
+            long expectedObservationCount)
+            throws InterruptedException {
+        await(
+                () -> {
+                    TagProcessingMetrics.Snapshot snapshot =
+                            measurements.tagProcessing();
+
+                    long processedOrRejected =
+                            snapshot.mapped()
+                                    + snapshot.unmapped()
+                                    + snapshot.observationQueueFull()
+                                    + snapshot.processorNotRunning();
+
+                    return snapshot.observations()
+                                    >= expectedObservationCount
+                            && processedOrRejected
+                                    >= expectedObservationCount
+                            && node.tagProcessor()
+                                    .passageSnapshots()
+                                    .isEmpty();
+                },
+                "burst processing to settle");
+
+        TagProcessingMetrics.Snapshot settled =
+                measurements.tagProcessing();
+        awaitCommitted(
+                preloadedCount
+                        + settled.admitted());
     }
 
     private void awaitCommitted(
