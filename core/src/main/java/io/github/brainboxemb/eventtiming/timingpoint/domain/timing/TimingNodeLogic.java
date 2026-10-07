@@ -187,6 +187,44 @@ final class TimingNodeLogic {
         return commitRegistration(data);
     }
 
+    RegistrationResult revokeAutomaticRegistration(
+            LocationId originalLocationId,
+            RegistrationId registrationId,
+            TimingTimestamp originalTime)
+            throws TimingDataPersistence.PersistenceException {
+        ensureOperational();
+        ensureTimingDataCommitAvailable();
+
+        TimingData data =
+                timingDataFactory.createAutomaticRegistration(
+                        nextRegistrationContext(
+                                originalLocationId,
+                                originalTime),
+                        registrationId,
+                        TimingData.RegistrationAction.REV);
+        return commitRegistration(data);
+    }
+
+    RegistrationResult revokeManualRegistration(
+            LocationId originalLocationId,
+            RegistrationId registrationId,
+            TimingTimestamp originalTime,
+            ManualTimeSource originalTimeSource)
+            throws TimingDataPersistence.PersistenceException {
+        ensureOperational();
+        ensureTimingDataCommitAvailable();
+
+        TimingData data =
+                timingDataFactory.createManualRegistration(
+                        nextRegistrationContext(
+                                originalLocationId,
+                                originalTime),
+                        registrationId,
+                        originalTimeSource,
+                        TimingData.RegistrationAction.REV);
+        return commitRegistration(data);
+    }
+
     int timingDataCount() {
         ensureOperational();
         return logBook.size();
@@ -247,10 +285,18 @@ final class TimingNodeLogic {
     }
 
     private Context nextRegistrationContext(TimingTimestamp effectiveTime) {
+        return nextRegistrationContext(
+                locationId,
+                effectiveTime);
+    }
+
+    private Context nextRegistrationContext(
+            LocationId recordLocationId,
+            TimingTimestamp effectiveTime) {
         return new Context(
                 timingNodeId,
                 logBook.nextSequence(),
-                locationId,
+                recordLocationId,
                 effectiveTime,
                 new TimingTimestamp(
                         timeSource.now()));
