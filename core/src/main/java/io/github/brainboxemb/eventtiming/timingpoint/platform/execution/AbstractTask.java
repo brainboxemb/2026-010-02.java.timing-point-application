@@ -6,7 +6,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Base class for a reusable cooperative task.
  *
- * <p>The concrete task owns its state machine. This base class owns only the
+ * <p>The concrete task owns its operation/control state. This base class owns only the
  * execution lifecycle that would otherwise be repeated in every task:
  * starting one run, remembering its Future, cancellation and completion.</p>
  *
