@@ -13,5 +13,11 @@ public class RuntimeObservationTest {
         assertTrue(snapshot.liveThreadCount() > 0);
         assertTrue(snapshot.gcCollectionCount() >= -1L);
         assertTrue(snapshot.gcCollectionTimeMillis() >= -1L);
+        assertTrue(
+                RuntimeObservation.threadCpuTimeNanos(
+                        "tp-dml-",
+                        "tp-apl-",
+                        "tp-io-")
+                        >= -1L);
     }
 }
