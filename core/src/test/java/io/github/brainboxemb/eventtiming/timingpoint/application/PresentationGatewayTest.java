@@ -110,6 +110,8 @@ public class PresentationGatewayTest {
             assertEquals(
                     new LocationId(24),
                     statusChanges.get(0).locationId());
+            assertEquals(1, committed.size());
+            assertTrue(committed.get(0) instanceof TimingData.NodeOpen);
 
             TimingNodeTypes.RegistrationResult registration =
                     proxy.applyAutomaticRegistration(
@@ -117,28 +119,29 @@ public class PresentationGatewayTest {
                             new RegistrationId("N0001"),
                             TIME);
             assertTrue(registration.committed());
-            assertEquals(1, committed.size());
-            assertSame(registration.timingData(), committed.get(0));
-            assertEquals(1, proxy.logBookCount());
+            assertEquals(2, committed.size());
+            assertSame(registration.timingData(), committed.get(1));
+            assertEquals(2, proxy.logBookCount());
 
             List<TimingData> visited = new ArrayList<>();
             assertEquals(
-                    1,
+                    2,
                     proxy.visitLogBookFrom(
                             1L,
                             10,
                             visited::add));
-            assertEquals(1, visited.size());
-            assertSame(registration.timingData(), visited.get(0));
+            assertEquals(2, visited.size());
+            assertTrue(visited.get(0) instanceof TimingData.NodeOpen);
+            assertSame(registration.timingData(), visited.get(1));
 
             visited.clear();
             assertEquals(
-                    1,
+                    2,
                     proxy.visitLatestLogBook(
                             10,
                             visited::add));
-            assertEquals(1, visited.size());
-            assertSame(registration.timingData(), visited.get(0));
+            assertEquals(2, visited.size());
+            assertSame(registration.timingData(), visited.get(1));
 
             assertEquals(TimingNodeTypes.CloseResult.CLOSED, proxy.close());
             assertEquals(2, statusChanges.size());
