@@ -146,6 +146,78 @@ final class HttpRequestReader {
         }
     }
 
+    SimulationRegistrationRequest readSimulationRegistrationRequest(
+            HttpExchange exchange)
+            throws IOException {
+        return parseSimulationRegistrationBody(
+                readBody(exchange));
+    }
+
+    SimulationRegistrationRequest parseSimulationRegistrationBody(
+            byte[] body) {
+        try (JsonParser parser = jsonFactory.createParser(body)) {
+            if (parser.nextToken() != JsonToken.START_OBJECT) {
+                throw malformed("Request must be one JSON object");
+            }
+
+            String registrationId = null;
+            String profile = null;
+            Set<String> seen = new HashSet<String>();
+
+            while (parser.nextToken() != JsonToken.END_OBJECT) {
+                if (parser.currentToken() != JsonToken.FIELD_NAME) {
+                    throw malformed("Expected JSON member name");
+                }
+                String name = parser.currentName();
+                if (!seen.add(name)) {
+                    throw invalidValue(
+                            "Duplicate simulation registration field: " + name);
+                }
+                JsonToken value = parser.nextToken();
+
+                if ("regId".equals(name)) {
+                    if (value != JsonToken.VALUE_STRING) {
+                        throw invalidValue(
+                                "regId must be one JSON string");
+                    }
+                    registrationId = parser.getText();
+                } else if ("profile".equals(name)) {
+                    if (value != JsonToken.VALUE_STRING) {
+                        throw invalidValue(
+                                "profile must be one JSON string");
+                    }
+                    profile = parser.getText();
+                } else {
+                    throw invalidValue(
+                            "Unsupported request field: " + name);
+                }
+            }
+
+            if (parser.nextToken() != null) {
+                throw malformed(
+                        "Unexpected data after request object");
+            }
+            if (registrationId == null
+                    || registrationId.trim().isEmpty()) {
+                throw invalidValue(
+                        "Missing or blank required field: regId");
+            }
+            if (profile == null
+                    || profile.trim().isEmpty()) {
+                throw invalidValue(
+                        "Missing or blank required field: profile");
+            }
+
+            return new SimulationRegistrationRequest(
+                    registrationId,
+                    profile);
+        } catch (RequestException ex) {
+            throw ex;
+        } catch (IOException | RuntimeException ex) {
+            throw malformed("Malformed JSON request", ex);
+        }
+    }
+
     ManualRegistrationRequest readManualRegistrationRequest(
             HttpExchange exchange)
             throws IOException {
@@ -668,6 +740,18 @@ final class HttpRequestReader {
                 String time) {
             this.id = id;
             this.time = time;
+        }
+    }
+
+    static final class SimulationRegistrationRequest {
+        final String registrationId;
+        final String profile;
+
+        private SimulationRegistrationRequest(
+                String registrationId,
+                String profile) {
+            this.registrationId = registrationId;
+            this.profile = profile;
         }
     }
 
