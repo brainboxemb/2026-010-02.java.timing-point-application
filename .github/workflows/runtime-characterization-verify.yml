@@ -47,7 +47,7 @@ jobs:
 
       - name: Verify optional runtime-characterization module
         shell: bash
-        run: ./mvnw --batch-mode --no-transfer-progress install -Pruntime-characterization
+        run: ./mvnw --batch-mode --no-transfer-progress install -Pruntime-characterization -pl runtime-characterization -am
 
       - name: Run small characterization and verify JSON evidence
         shell: bash
@@ -57,17 +57,17 @@ jobs:
             -Pruntime-characterization \
             -pl runtime-characterization \
             exec:java \
-            -Dexec.args="--workload burst --warmup-count 1 --measured-count 3 --rate 20 --query-limit 10 --work-dir target/runtime-characterization/ci-work --output target/runtime-characterization/ci-evidence.json"
+            -Dexec.args="--workload burst --warmup-count 1 --measured-count 3 --rate 20 --query-limit 10 --work-dir runtime-characterization/target/work/ci-smoke --output runtime-characterization/target/evidence/ci-smoke.json"
 
-          test -s target/runtime-characterization/ci-evidence.json
-          grep -F '"outcome" : "PASS"' target/runtime-characterization/ci-evidence.json
-          grep -F '"measuredCount" : 3' target/runtime-characterization/ci-evidence.json
+          test -s runtime-characterization/target/evidence/ci-smoke.json
+          grep -F '"outcome" : "PASS"' runtime-characterization/target/evidence/ci-smoke.json
+          grep -F '"measuredCount" : 3' runtime-characterization/target/evidence/ci-smoke.json
 
       - name: Upload harness smoke evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: runtime-characterization-smoke-evidence
-          path: target/runtime-characterization/ci-evidence.json
+          path: runtime-characterization/target/evidence/ci-smoke.json
           if-no-files-found: warn
           retention-days: 7
