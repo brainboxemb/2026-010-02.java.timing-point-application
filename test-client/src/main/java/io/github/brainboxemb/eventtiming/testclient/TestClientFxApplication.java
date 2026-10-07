@@ -87,10 +87,14 @@ public final class TestClientFxApplication extends Application {
 
         configureBoundaryButtons();
 
+        VBox embeddedTerminal =
+                terminalPane();
+
         apiPane = new ApiPane(
                 this::client,
                 requests,
                 config.registrationPrefix(),
+                embeddedTerminal,
                 liveLogs.textProperty(),
                 clientLogs.textProperty(),
                 feedback::setText,
@@ -100,13 +104,11 @@ public final class TestClientFxApplication extends Application {
         Tab apiTab = tab("API", apiPane);
         Tab eventsTab = tab("Events", eventsPane());
         Tab deviceLogTab = tab("Device Log", deviceLogPane());
-        Tab terminalTab = tab("Terminal", terminalPane());
         Tab clientLogTab = tab("Client Log", clientLogPane());
         TabPane tabs = new TabPane(
                 apiTab,
                 eventsTab,
                 deviceLogTab,
-                terminalTab,
                 clientLogTab);
 
         MenuItem about = new MenuItem("About");
