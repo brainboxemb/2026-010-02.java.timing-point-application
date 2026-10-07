@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the repeatable V01 development-host runtime-characterization baseline: three repetitions of steady, burst, 1,000-record history and 9,999-record history workloads, with durable generated evidence published separately on `prod/characterization`.
+
 - Add the optional `runtime-characterization` Maven profile/module for SIP Step-5 engineering workloads, using the normal SimulatedAntenna -> TagProcessor -> TimingNode -> file persistence path and retained JSON evidence from `RuntimeMeasurementReader`.
 
 - Move Step-5 runtime characterization out of the public TimingNode Domain contract: remove `TimingNode.runtimeMetrics()` / `TimingNodeTypes.RuntimeMetrics`, keep component-owned counters, and add the engineering-only `runtime.measurement.RuntimeMeasurementReader` with TimingNode, tag-processing and JVM snapshots.

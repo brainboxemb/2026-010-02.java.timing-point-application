@@ -43,3 +43,27 @@ Use `--output` and `--work-dir` only when an explicit location is useful.
 
 The JSON evidence is characterization input for SIP V01/A03. It is not a product
 performance result or a product limit.
+
+
+## V01 repeatable baseline
+
+The retained development-host V01 baseline is run with:
+
+```bash
+bash tools/run_runtime_characterization_baseline.sh
+```
+
+It executes three repetitions of four fixed cases:
+
+- `steady` — 100 measured observations paced at 20 registrations/s;
+- `burst` — 100 measured observations delivered without pacing;
+- `history-1000` — paced workload after 1,000 committed records are preloaded;
+- `history-9999` — paced workload after 9,999 committed records are preloaded.
+
+Every run uses 20 warm-up observations and a bounded history query limit of 100.
+The GitHub workflow publishes successful main/manual baseline evidence to the generated
+`prod/characterization` branch under
+`v01/development-host/<source-sha>/`.
+
+This baseline is engineering evidence for the recorded host/JVM only. It is not a product
+performance limit and it does not replace later Raspberry Pi target characterization.
