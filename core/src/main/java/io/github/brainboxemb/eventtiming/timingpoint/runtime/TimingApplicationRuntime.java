@@ -72,6 +72,7 @@ public final class TimingApplicationRuntime {
     private final PresentationGateway presentationGateway;
     private final RuntimeExecutors runtimeExecutors;
     private final AntennaManager antennaManager;
+    private final SimulatedTagScenarioRunner simulationRunner;
     private final Conductor conductor;
     private final PresentationRuntime presentationRuntime;
     private final ShutdownSignal shutdownSignal;
@@ -85,6 +86,7 @@ public final class TimingApplicationRuntime {
             PresentationGateway presentationGateway,
             RuntimeExecutors runtimeExecutors,
             AntennaManager antennaManager,
+            SimulatedTagScenarioRunner simulationRunner,
             Conductor conductor,
             PresentationRuntime presentationRuntime,
             ShutdownSignal shutdownSignal) {
@@ -94,6 +96,7 @@ public final class TimingApplicationRuntime {
         this.presentationGateway = presentationGateway;
         this.runtimeExecutors = runtimeExecutors;
         this.antennaManager = antennaManager;
+        this.simulationRunner = simulationRunner;
         this.conductor = conductor;
         this.presentationRuntime = presentationRuntime;
         this.shutdownSignal = shutdownSignal;
@@ -244,11 +247,15 @@ public final class TimingApplicationRuntime {
                 ExtensionRegistry.discover(
                         extensionClassLoader);
 
+        AntennaComposition antennas =
+                platformDefaultAntennaComposition(
+                        platform);
+
         return createConfigured(
                 buildIdentity,
                 config,
-                platformDefaultAntennaSet(
-                        platform),
+                antennas.antennaSet,
+                antennas.simulatedAntenna,
                 extensions,
                 platform,
                 loggingLevelControl,
@@ -273,6 +280,44 @@ public final class TimingApplicationRuntime {
                 buildIdentity,
                 config,
                 antennaSet,
+                null,
+                eventData,
+                timingDataProvider.createFactory(),
+                timingDataProvider.createCodec(),
+                PlatformEnvironment.system(),
+                null,
+                null,
+                null,
+                null);
+    }
+
+    /**
+     * Package-local simulator composition with one explicitly controllable
+     * SimulatedAntenna for the IF-03 tag-scenario capability.
+     */
+    static TimingApplicationRuntime createSimulation(
+            BuildIdentity buildIdentity,
+            Config config,
+            SimulatedAntenna antenna,
+            EventData eventData) {
+        if (antenna == null) {
+            throw new IllegalArgumentException(
+                    "antenna must not be null");
+        }
+
+        AntennaSet antennaSet =
+                new AntennaSet()
+                        .add(
+                                new AntennaId("1"),
+                                antenna);
+        TimingDataProvider timingDataProvider =
+                new DefaultTimingDataProvider();
+
+        return createResolved(
+                buildIdentity,
+                config,
+                antennaSet,
+                antenna,
                 eventData,
                 timingDataProvider.createFactory(),
                 timingDataProvider.createCodec(),
@@ -290,6 +335,7 @@ public final class TimingApplicationRuntime {
             BuildIdentity buildIdentity,
             Config config,
             AntennaSet antennaSet,
+            SimulatedAntenna simulatedAntenna,
             ExtensionRegistry extensions,
             PlatformEnvironment platform,
             LoggingLevelControl loggingLevelControl,
@@ -325,6 +371,7 @@ public final class TimingApplicationRuntime {
                 buildIdentity,
                 config,
                 antennaSet,
+                simulatedAntenna,
                 eventDataProvider.createEventData(),
                 timingDataProvider.createFactory(),
                 timingDataProvider.createCodec(),
@@ -342,6 +389,7 @@ public final class TimingApplicationRuntime {
             BuildIdentity buildIdentity,
             Config config,
             AntennaSet antennaSet,
+            SimulatedAntenna simulatedAntenna,
             EventData eventData,
             TimingDataFactory timingDataFactory,
             TimingDataCodec timingDataCodec,
@@ -427,11 +475,22 @@ public final class TimingApplicationRuntime {
                     createConfigurationControl(
                             applicationConfiguration);
 
+            SimulatedTagScenarioRunner simulationRunner =
+                    simulatedAntenna == null
+                            ? null
+                            : new SimulatedTagScenarioRunner(
+                                    simulatedAntenna,
+                                    eventData,
+                                    timeSource,
+                                    executors
+                                            .createSimulationExecutor());
+
             PresentationGateway presentationGateway =
                     new PresentationGateway(
                             buildIdentity,
                             timingNode,
-                            configurationControl);
+                            configurationControl,
+                            simulationRunner);
 
             ShutdownSignal shutdownSignal =
                     new ShutdownSignal();
@@ -470,6 +529,7 @@ public final class TimingApplicationRuntime {
                     presentationGateway,
                     executors,
                     antennaManager,
+                    simulationRunner,
                     conductor,
                     presentation,
                     shutdownSignal);
@@ -492,6 +552,9 @@ public final class TimingApplicationRuntime {
         try {
             runtimeExecutors.start();
             conductor.activate();
+            if (simulationRunner != null) {
+                simulationRunner.activate();
+            }
             presentationRuntime.activate();
             state = State.ACTIVE;
         } catch (RuntimeException | Error failure) {
@@ -500,6 +563,14 @@ public final class TimingApplicationRuntime {
             } catch (RuntimeException | Error deactivateFailure) {
                 failure.addSuppressed(
                         deactivateFailure);
+            }
+            if (simulationRunner != null) {
+                try {
+                    simulationRunner.deactivate();
+                } catch (RuntimeException | Error deactivateFailure) {
+                    failure.addSuppressed(
+                            deactivateFailure);
+                }
             }
             try {
                 conductor.deactivate();
@@ -569,6 +640,19 @@ public final class TimingApplicationRuntime {
             firstFailure = failure;
         }
 
+        if (simulationRunner != null) {
+            try {
+                simulationRunner.deactivate();
+            } catch (RuntimeException | Error failure) {
+                if (firstFailure == null) {
+                    firstFailure = failure;
+                } else {
+                    firstFailure.addSuppressed(
+                            failure);
+                }
+            }
+        }
+
         try {
             conductor.deactivate();
         } catch (RuntimeException | Error failure) {
@@ -622,24 +706,43 @@ public final class TimingApplicationRuntime {
      * Temporary Windows development fallback until explicit IF-11 antenna
      * configuration is composed by the normal runtime mapper.
      */
-    private static AntennaSet platformDefaultAntennaSet(
+    private static AntennaComposition platformDefaultAntennaComposition(
             PlatformEnvironment platform) {
-        AntennaSet antennas = new AntennaSet();
+        AntennaSet antennas =
+                new AntennaSet();
 
-        if (platform.operatingSystem() != OperatingSystem.WINDOWS) {
-            return antennas;
+        if (platform.operatingSystem()
+                != OperatingSystem.WINDOWS) {
+            return new AntennaComposition(
+                    antennas,
+                    null);
         }
 
         LOG.warn(
                 "Windows development platform default selected simulated antenna 1; no physical RFID reader is in use");
 
-        SimulatedAntenna antenna = new SimulatedAntenna();
+        SimulatedAntenna antenna =
+                new SimulatedAntenna();
         antennas.addPowered(
                 new AntennaId("1"),
                 antenna,
                 new SimulatedPowerDevice(antenna),
                 SIMULATED_ANTENNA_POWER_STABILIZATION);
-        return antennas;
+        return new AntennaComposition(
+                antennas,
+                antenna);
+    }
+
+    private static final class AntennaComposition {
+        private final AntennaSet antennaSet;
+        private final SimulatedAntenna simulatedAntenna;
+
+        private AntennaComposition(
+                AntennaSet antennaSet,
+                SimulatedAntenna simulatedAntenna) {
+            this.antennaSet = antennaSet;
+            this.simulatedAntenna = simulatedAntenna;
+        }
     }
 
     private static ConfigurationControl createConfigurationControl(
