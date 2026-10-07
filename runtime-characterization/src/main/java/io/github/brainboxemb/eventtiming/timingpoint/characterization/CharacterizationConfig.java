@@ -2,9 +2,18 @@ package io.github.brainboxemb.eventtiming.timingpoint.characterization;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 
 /** Immutable command-line workload definition for one characterization run. */
 final class CharacterizationConfig {
+    private static final DateTimeFormatter RUN_ID_FORMAT =
+            DateTimeFormatter.ofPattern(
+                    "yyyyMMdd-HHmmss-SSS")
+                    .withZone(
+                            ZoneOffset.UTC);
+
     enum Workload {
         STEADY,
         BURST,
@@ -21,6 +30,7 @@ final class CharacterizationConfig {
         }
     }
 
+    private final String runId;
     private final Workload workload;
     private final Path workDirectory;
     private final Path output;
@@ -31,6 +41,7 @@ final class CharacterizationConfig {
     private final int queryLimit;
 
     private CharacterizationConfig(
+            String runId,
             Workload workload,
             Path workDirectory,
             Path output,
@@ -39,6 +50,7 @@ final class CharacterizationConfig {
             int registrationsPerSecond,
             int preloadCount,
             int queryLimit) {
+        this.runId = runId;
         this.workload = workload;
         this.workDirectory = workDirectory;
         this.output = output;
@@ -50,11 +62,22 @@ final class CharacterizationConfig {
     }
 
     static CharacterizationConfig parse(String[] args) {
+        String runId =
+                RUN_ID_FORMAT.format(
+                        Instant.now());
         Workload workload = Workload.STEADY;
         Path workDirectory =
-                Paths.get("target", "runtime-characterization", "work");
+                Paths.get(
+                        "runtime-characterization",
+                        "target",
+                        "work",
+                        runId);
         Path output =
-                Paths.get("target", "runtime-characterization", "evidence.json");
+                Paths.get(
+                        "runtime-characterization",
+                        "target",
+                        "evidence",
+                        runId + ".json");
         int warmupCount = 20;
         int measuredCount = 100;
         int registrationsPerSecond = 20;
@@ -92,6 +115,7 @@ final class CharacterizationConfig {
         }
 
         return new CharacterizationConfig(
+                runId,
                 workload,
                 workDirectory,
                 output,
@@ -141,6 +165,7 @@ final class CharacterizationConfig {
         }
     }
 
+    String runId() { return runId; }
     Workload workload() { return workload; }
     Path workDirectory() { return workDirectory; }
     Path output() { return output; }
