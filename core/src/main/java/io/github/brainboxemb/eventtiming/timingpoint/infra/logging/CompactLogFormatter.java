@@ -16,20 +16,41 @@ final class CompactLogFormatter extends Formatter {
             DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
 
     private final ZoneId zoneId;
+    private final ConsolePromptCoordinator promptCoordinator;
 
     CompactLogFormatter() {
-        this(ZoneId.systemDefault());
+        this(ZoneId.systemDefault(), null);
+    }
+
+    CompactLogFormatter(
+            ConsolePromptCoordinator promptCoordinator) {
+        this(
+                ZoneId.systemDefault(),
+                promptCoordinator);
     }
 
     CompactLogFormatter(ZoneId zoneId) {
+        this(
+                zoneId,
+                null);
+    }
+
+    private CompactLogFormatter(
+            ZoneId zoneId,
+            ConsolePromptCoordinator promptCoordinator) {
         if (zoneId == null) {
             throw new IllegalArgumentException("zoneId must not be null");
         }
         this.zoneId = zoneId;
+        this.promptCoordinator = promptCoordinator;
     }
 
     @Override
     public String format(LogRecord record) {
+        if (promptCoordinator != null) {
+            promptCoordinator.beforeConsoleLog();
+        }
+
         StringBuilder line = new StringBuilder(160);
         line.append(TIME_FORMAT.format(
                         Instant.ofEpochMilli(record.getMillis()).atZone(zoneId)))
@@ -49,6 +70,9 @@ final class CompactLogFormatter extends Formatter {
             if (!stack.toString().endsWith(System.lineSeparator())) {
                 line.append(System.lineSeparator());
             }
+        }
+        if (promptCoordinator != null) {
+            promptCoordinator.afterConsoleLog();
         }
         return line.toString();
     }
