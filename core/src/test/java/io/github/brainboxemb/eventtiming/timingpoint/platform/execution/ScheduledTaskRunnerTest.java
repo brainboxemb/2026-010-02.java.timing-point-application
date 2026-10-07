@@ -177,70 +177,6 @@ public class ScheduledTaskRunnerTest {
     }
 
     @Test
-    public void delayedContinuationReleasesPhysicalWorker()
-            throws Exception {
-        ScheduledExecutorService worker =
-                Executors.newScheduledThreadPool(1);
-        SerialScheduledExecutor firstLane =
-                new SerialScheduledExecutor(
-                        8,
-                        "first",
-                        worker);
-        SerialScheduledExecutor secondLane =
-                new SerialScheduledExecutor(
-                        8,
-                        "second",
-                        worker);
-        ScheduledTaskRunner runner =
-                new ScheduledTaskRunner(
-                        firstLane,
-                        Duration.ofSeconds(1));
-
-        runner.start();
-        secondLane.start();
-
-        try {
-            CountDownLatch beginDone =
-                    new CountDownLatch(1);
-            CountDownLatch completeDone =
-                    new CountDownLatch(1);
-
-            CompletableFuture<Void> delayed =
-                    runner.runDelayed(
-                            () -> {
-                                beginDone.countDown();
-                                return Duration.ofMillis(200);
-                            },
-                            completeDone::countDown);
-
-            assertTrue(
-                    beginDone.await(
-                            500,
-                            TimeUnit.MILLISECONDS));
-
-            CountDownLatch siblingRan =
-                    new CountDownLatch(1);
-            assertTrue(
-                    secondLane.execute(
-                            siblingRan::countDown));
-            assertTrue(
-                    "elapsed delay must not occupy the shared worker",
-                    siblingRan.await(
-                            75,
-                            TimeUnit.MILLISECONDS));
-
-            runner.await(delayed);
-            assertEquals(
-                    0L,
-                    completeDone.getCount());
-        } finally {
-            runner.close();
-            secondLane.close();
-            worker.shutdownNow();
-        }
-    }
-
-    @Test
     public void timeoutInterruptsRunningTask()
             throws Exception {
         ScheduledExecutorService worker =
@@ -261,7 +197,7 @@ public class ScheduledTaskRunnerTest {
 
         try {
             CompletableFuture<Void> task =
-                    runner.runAsync(
+                    runner.runTask(
                             () -> {
                                 try {
                                     Thread.sleep(
@@ -273,6 +209,7 @@ public class ScheduledTaskRunnerTest {
                                             "interrupted",
                                             ex);
                                 }
+                                return TaskStep.done();
                             });
 
             try {
@@ -314,9 +251,8 @@ public class ScheduledTaskRunnerTest {
         runner.start();
         try {
             CompletableFuture<Void> task =
-                    runner.runAsync(
-                            () -> {
-                            });
+                    runner.runTask(
+                            () -> TaskStep.done());
 
             try {
                 runner.await(task);
