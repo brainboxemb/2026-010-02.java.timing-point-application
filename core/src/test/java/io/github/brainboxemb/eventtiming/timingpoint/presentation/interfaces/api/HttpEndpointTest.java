@@ -206,6 +206,68 @@ public class HttpEndpointTest {
     }
 
     @Test
+    public void commitsManualRegistrationThroughNormalHttp() throws Exception {
+        Fixture fixture = new Fixture();
+        fixture.start();
+        HttpEndpoint server =
+                new HttpEndpoint(
+                        "127.0.0.1",
+                        0,
+                        fixture.handler);
+        server.start();
+
+        try {
+            Response open = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/A/open",
+                    "{\"locationId\":24}");
+            assertEquals(200, open.status);
+
+            Response automaticTime = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/A/registration/manual",
+                    "{"
+                            + "\"regId\":\"N0002\","
+                            + "\"time\":\"2026-10-01T12:00:01.25Z\","
+                            + "\"timeSource\":\"AUTO\""
+                            + "}");
+            assertEquals(200, automaticTime.status);
+            assertEquals("{\"seq\":2}", automaticTime.body);
+
+            Response enteredTime = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/A/registration/manual",
+                    "{"
+                            + "\"regId\":\"N0003\","
+                            + "\"time\":\"2026-10-01T11:59:58.75Z\","
+                            + "\"timeSource\":\"MAN\""
+                            + "}");
+            assertEquals(200, enteredTime.status);
+            assertEquals("{\"seq\":3}", enteredTime.body);
+
+            Response history = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/A/logbook?from=2&limit=2",
+                    null);
+            assertEquals(200, history.status);
+            assertTrue(history.body.contains("\"recType\":\"MAN_REG\""));
+            assertTrue(history.body.contains("\"regId\":\"N0002\""));
+            assertTrue(history.body.contains("\"code\":[\"ADD\",\"AUTO\"]"));
+            assertTrue(history.body.contains(
+                    "\"time\":\"2026-10-01T12:00:01.25Z\""));
+            assertTrue(history.body.contains("\"regId\":\"N0003\""));
+            assertTrue(history.body.contains("\"code\":[\"ADD\",\"MAN\"]"));
+        } finally {
+            server.close();
+            fixture.close();
+        }
+    }
+
+    @Test
     public void queriesSetsAndClearsRuntimeConfigurationThroughPublicHttp()
             throws Exception {
         PresentationGatewayFixture fixture =

@@ -157,7 +157,7 @@ public class TimingNodeRegistrationTest {
             TimingNodeTypes.RegistrationResult second = node.invoke(TimingNodeCommands.commitManualRegistration(
                     new RegistrationId("1002"),
                     EFFECTIVE_TIME,
-                    ManualTimeSource.SYSTEM_ASSIGNED));
+                    ManualTimeSource.AUTOMATIC));
 
             assertEquals(2L, first.timingData().sequenceNumber());
             assertEquals(3L, second.timingData().sequenceNumber());
@@ -329,7 +329,7 @@ public class TimingNodeRegistrationTest {
             TimingNodeTypes.RegistrationResult committed = node.invoke(TimingNodeCommands.commitManualRegistration(
                     new RegistrationId("1001"),
                     EFFECTIVE_TIME,
-                    ManualTimeSource.SYSTEM_ASSIGNED));
+                    ManualTimeSource.AUTOMATIC));
 
             assertTrue(committed.committed());
             assertEquals(2, store.appended.size());
@@ -438,7 +438,7 @@ public class TimingNodeRegistrationTest {
             TimingNodeTypes.RegistrationResult committed = node.invoke(TimingNodeCommands.commitManualRegistration(
                     new RegistrationId("1003"),
                     EFFECTIVE_TIME,
-                    ManualTimeSource.SYSTEM_ASSIGNED));
+                    ManualTimeSource.AUTOMATIC));
 
             assertEquals(4L, committed.timingData().sequenceNumber());
         } finally {
@@ -523,7 +523,7 @@ public class TimingNodeRegistrationTest {
                         EFFECTIVE_TIME,
                         RECORDED_AT),
                 new RegistrationId("recovered-" + sequence),
-                ManualTimeSource.SYSTEM_ASSIGNED);
+                ManualTimeSource.AUTOMATIC);
     }
 
     private static TimingNode node(RecordingStore store) {
