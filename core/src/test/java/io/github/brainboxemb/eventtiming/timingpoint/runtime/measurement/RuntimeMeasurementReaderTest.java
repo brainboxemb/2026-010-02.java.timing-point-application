@@ -134,7 +134,7 @@ public class RuntimeMeasurementReaderTest {
                     2L,
                     nodeSnapshot.timingDataCommitCount());
             assertEquals(
-                    1L,
+                    2L,
                     nodeSnapshot.timingDataEventDeliveries());
 
             TagProcessingMetrics.Snapshot tagSnapshot =
