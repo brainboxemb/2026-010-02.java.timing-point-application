@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.application.logic;
+package io.github.brainboxemb.eventtiming.timingpoint.application.framework;
 
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 
