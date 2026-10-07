@@ -166,7 +166,8 @@ final class TimingNodeLogic {
         ensureTimingDataCommitAvailable();
 
         TimingData data = timingDataFactory.createAutomaticRegistration(
-                nextRegistrationContext(time),
+                nextRegistrationContext(
+                        normalizeRegistrationTime(time)),
                 registrationId);
         return commitRegistration(data);
     }
@@ -183,7 +184,8 @@ final class TimingNodeLogic {
         ensureTimingDataCommitAvailable();
 
         TimingData data = timingDataFactory.createManualRegistration(
-                nextRegistrationContext(effectiveTime),
+                nextRegistrationContext(
+                        normalizeRegistrationTime(effectiveTime)),
                 registrationId,
                 registrationTimeSource);
         return commitRegistration(data);
@@ -321,13 +323,32 @@ final class TimingNodeLogic {
      * transition is never moved forward in time.</p>
      */
     private TimingTimestamp currentLifecycleTime() {
-        Instant now = timeSource.now();
+        return atCentisecond(
+                timeSource.now());
+    }
+
+    /**
+     * Normalizes an accepted registration effective time to the IF-05 v1
+     * centisecond boundary. Truncation never moves the observation forward.
+     */
+    private static TimingTimestamp normalizeRegistrationTime(
+            TimingTimestamp time) {
+        if (time == null) {
+            throw new IllegalArgumentException(
+                    "registration time must not be null");
+        }
+        return atCentisecond(
+                time.instant());
+    }
+
+    private static TimingTimestamp atCentisecond(
+            Instant instant) {
         long nanos =
-                (now.getNano() / 10_000_000L)
+                (instant.getNano() / 10_000_000L)
                         * 10_000_000L;
         return new TimingTimestamp(
                 Instant.ofEpochSecond(
-                        now.getEpochSecond(),
+                        instant.getEpochSecond(),
                         nanos));
     }
 
