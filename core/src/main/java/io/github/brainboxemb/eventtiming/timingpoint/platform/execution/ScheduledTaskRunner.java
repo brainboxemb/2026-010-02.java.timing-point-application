@@ -24,7 +24,7 @@ import java.util.concurrent.TimeoutException;
  * <p>Domain/I/O components map {@link OperationException} to their own failure
  * semantics instead of putting component-specific policy in this platform type.</p>
  */
-public final class ScheduledTaskRunner {
+public final class ScheduledTaskRunner implements CooperativeTaskRunner {
 
     public enum FailureReason {
         OVERLOADED,
@@ -96,6 +96,7 @@ public final class ScheduledTaskRunner {
      * releases the physical worker and re-admits the task when the delay
      * expires.</p>
      */
+    @Override
     public CompletableFuture<Void> runTask(
             CooperativeTask task) {
         if (task == null) {

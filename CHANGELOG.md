@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Generalize cooperative state-machine execution beyond scheduled I/O: add a serial-lane task runner and reusable wake/coalescing controller, use the same controller in AntennaManager, and make Conductor own one self-scheduled current-state reconciliation task instead of cross-component decisions in event handlers.
+
 - Use compact one-character TimingNodeIds (`A`..`Z` or `1`..`9`) and one-digit AntennaIds (`1`..`9`); simplify lifecycle INFO logs; add shared local/remote terminal `log` commands for temporary TRACE/DEBUG/INFO/WARN/ERROR changes.
 
 - Add cooperative reusable task execution with `AbstractTask`; refactor antenna control around `AntennaSet`, manager-owned self-test/inventory/shutdown state machines, diagnostic-only self-test PASS/FAIL, and explicit retryable inventory attempts after earlier device failure without requiring process restart.
@@ -30,7 +32,7 @@
 
 - Add immutable `EventData` and semantic `TagId`; resolve RFID observations through EventData before RegistrationId-keyed duplicate/passsage filtering; retain compact per-tag passage diagnostics; remove `TagRegistrationMapper`/`DecryptedTagId` and the loose mapper runtime-composition path.
 
-- Move generic bounded result waiting, cancellation propagation and delayed scheduled task handling out of `AntennaControlLane` into platform `ScheduledTaskRunner`; AntennaManager keeps only antenna-specific failure semantics. TimingNode, TagProcessor and Conductor continue to use their execution primitives directly.
+- Move generic bounded result waiting, cancellation propagation and delayed scheduled task handling out of `AntennaControlLane` into platform `ScheduledTaskRunner`; AntennaManager keeps only antenna-specific failure semantics. TimingNode and TagProcessor continue to use their execution primitives directly.
 
 - Rename the concrete top-level composition/lifecycle type from `TimingApplication` to `TimingApplicationRuntime` so it is symmetric with its owned `PresentationRuntime`; the external SI-01 Timing Application concept is unchanged.
 

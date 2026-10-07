@@ -16,18 +16,18 @@ import java.util.concurrent.CompletableFuture;
  */
 public abstract class AbstractTask implements CooperativeTask {
 
-    /** Future returned by ScheduledTaskRunner for the currently active run. */
+    /** Completion returned by the runner for the currently active run. */
     private CompletableFuture<Void> currentRunFuture;
 
     /**
      * Starts this task when no earlier run is still active.
      *
      * <p>{@link #resetForRun()} resets only the concrete task state. The
-     * ScheduledTaskRunner owns how individual runStep() calls are scheduled.</p>
+     * The supplied runner owns how individual runStep() calls are scheduled.</p>
      *
      * @return false when this task already has a current run
      */
-    public final synchronized boolean start(ScheduledTaskRunner taskRunner) {
+    public final synchronized boolean start(CooperativeTaskRunner taskRunner) {
         if (taskRunner == null) {
             throw new IllegalArgumentException("taskRunner must not be null");
         }
