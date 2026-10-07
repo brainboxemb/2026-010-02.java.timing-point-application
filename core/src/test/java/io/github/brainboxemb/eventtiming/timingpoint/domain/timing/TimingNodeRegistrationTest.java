@@ -129,7 +129,7 @@ public class TimingNodeRegistrationTest {
             ManualRegistration data =
                     (ManualRegistration) result.timingData();
             assertEquals(new NodeId("A"), data.timingNodeId());
-            assertEquals(1L, data.sequenceNumber());
+            assertEquals(2L, data.sequenceNumber());
             assertEquals(new LocationId(24), data.locationId());
             assertEquals(EFFECTIVE_TIME, data.effectiveTime());
             assertEquals(RECORDED_AT, data.recordedAt());
@@ -191,7 +191,7 @@ public class TimingNodeRegistrationTest {
                     new RegistrationId("1002"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.OPERATOR_ENTERED));
-            assertEquals(1L, committed.timingData().sequenceNumber());
+            assertEquals(2L, committed.timingData().sequenceNumber());
         } finally {
             node.deactivate();
         }
