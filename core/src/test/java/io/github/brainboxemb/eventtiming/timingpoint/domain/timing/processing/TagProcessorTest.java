@@ -549,7 +549,7 @@ public class TagProcessorTest {
     }
 
     private TimingNode node(RecordingStore store) {
-        TimeSource timeSource = () -> RECORDED_AT;
+        TimeSource timeSource = () -> RECORDED_AT.instant();
         return new TimingNode(
                 new NodeId("A"),
                 store,
