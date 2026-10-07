@@ -92,6 +92,12 @@ public class TimingApplicationRuntimeTest {
         assertTrue(
                 "Windows normal composition should include AntennaManager",
                 application.antennaManager() != null);
+        assertFalse(
+                "reference EventData must not enable engineering tag scenarios",
+                application
+                        .presentationGateway()
+                        .capabilities()
+                        .tagScenarioSimulationEnabled());
 
         application.activate();
         try {
@@ -134,6 +140,44 @@ public class TimingApplicationRuntimeTest {
                             .operation()
                             == AntennaOperation.INACTIVE,
                     1000L);
+        } finally {
+            application.deactivate();
+        }
+    }
+
+    @Test
+    public void windowsSimulationProfileEnablesTagScenarioCapability() {
+        Path file =
+                temporaryFolder
+                        .getRoot()
+                        .toPath()
+                        .resolve(
+                                "windows-simulation-profile.jsonl");
+        PlatformEnvironment windows =
+                new PlatformEnvironment(
+                        Clock.fixed(
+                                Instant.parse(
+                                        "2026-10-06T10:00:00Z"),
+                                ZoneOffset.UTC),
+                        System::nanoTime,
+                        PlatformEnvironment.OperatingSystem.WINDOWS);
+
+        TimingApplicationRuntime application =
+                TimingApplicationRuntime.create(
+                        identity(),
+                        config(
+                                file,
+                                TagProcessingPolicy.defaults(),
+                                "simulation",
+                                "reference"),
+                        windows);
+
+        try {
+            assertTrue(
+                    application
+                            .presentationGateway()
+                            .capabilities()
+                            .tagScenarioSimulationEnabled());
         } finally {
             application.deactivate();
         }
