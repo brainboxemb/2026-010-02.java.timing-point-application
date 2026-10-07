@@ -9,6 +9,8 @@ on:
       - 'core/src/main/java/**/TagProcessingMetrics.java'
       - 'pom.xml'
       - '.github/workflows/runtime-characterization-verify.yml'
+      - 'tools/run_runtime_characterization_baseline.sh'
+      - 'tools/stage_runtime_characterization_evidence.sh'
   push:
     branches:
       - main
@@ -19,6 +21,8 @@ on:
       - 'core/src/main/java/**/TagProcessingMetrics.java'
       - 'pom.xml'
       - '.github/workflows/runtime-characterization-verify.yml'
+      - 'tools/run_runtime_characterization_baseline.sh'
+      - 'tools/stage_runtime_characterization_evidence.sh'
   workflow_dispatch:
 
 permissions:
@@ -71,3 +75,91 @@ jobs:
           path: runtime-characterization/target/evidence/ci-smoke.json
           if-no-files-found: warn
           retention-days: 7
+
+
+  v01-baseline:
+    name: V01 development-host baseline
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact source revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up exact Java 8 baseline
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: temurin
+          java-version: '8.0.504+1'
+          check-latest: false
+          verify-signature: true
+          cache: maven
+
+      - name: Run V01 repeatable development-host baseline
+        shell: bash
+        run: bash tools/run_runtime_characterization_baseline.sh
+
+      - name: Upload V01 evidence for publication
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: runtime-characterization-v01-evidence
+          path: runtime-characterization/target/evidence/v01-development-host/*.json
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-v01-baseline:
+    name: Publish V01 development-host evidence
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
+    needs:
+      - v01-baseline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Checkout exact source revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout generated characterization evidence
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: prod/characterization
+          path: publication
+          fetch-depth: 1
+
+      - name: Download V01 evidence
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: runtime-characterization-v01-evidence
+          path: runtime-characterization-evidence
+
+      - name: Stage V01 evidence
+        shell: bash
+        run: bash tools/stage_runtime_characterization_evidence.sh
+
+      - name: Publish generated characterization evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C publication config user.name "github-actions[bot]"
+          git -C publication config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C publication add -A
+
+          if git -C publication diff --cached --quiet; then
+            echo "Characterization evidence already contains this source revision."
+            exit 0
+          fi
+
+          git -C publication commit -m "Publish V01 characterization for ${GITHUB_SHA:0:12}"
+          git -C publication push origin HEAD:prod/characterization
