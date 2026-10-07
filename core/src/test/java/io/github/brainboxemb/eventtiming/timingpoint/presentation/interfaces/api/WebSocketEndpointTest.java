@@ -110,6 +110,13 @@ public class WebSocketEndpointTest {
                     "null");
 
             fixture.handler.timingNode().open(new LocationId(24));
+            String openCommitted = client.awaitMessage();
+            assertTrue(openCommitted.contains(
+                    "\"eventType\":\"TIMING_DATA_COMMITTED\""));
+            assertTrue(openCommitted.contains("\"seqNr\":1"));
+            assertTrue(openCommitted.contains("\"recType\":\"NODE_INFO\""));
+            assertTrue(openCommitted.contains("\"code\":[\"OPEN\"]"));
+
             String opened = client.awaitMessage();
             assertTrue(opened.contains("\"eventType\":\"STATUS_CHANGED\""));
             assertTrue(opened.contains("\"locationId\":24"));
@@ -122,7 +129,7 @@ public class WebSocketEndpointTest {
             String committed = client.awaitMessage();
             assertTrue(committed.contains(
                     "\"eventType\":\"TIMING_DATA_COMMITTED\""));
-            assertTrue(committed.contains("\"seqNr\":1"));
+            assertTrue(committed.contains("\"seqNr\":2"));
             assertTrue(committed.contains("\"locId\":24"));
             assertTrue(committed.contains("\"recType\":\"AUTO_REG\""));
             assertTrue(committed.contains(
