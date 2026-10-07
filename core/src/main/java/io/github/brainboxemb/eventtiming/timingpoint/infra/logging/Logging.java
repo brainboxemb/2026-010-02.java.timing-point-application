@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.infra.logging;
 
 import java.io.IOException;
+import java.io.Writer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.IdentityHashMap;
@@ -12,7 +13,8 @@ import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
 /** Reusable runtime logging infrastructure; the executable selects the SLF4J provider. */
-public final class Logging implements AutoCloseable, LoggingLevelControl {
+public final class Logging
+        implements AutoCloseable, LoggingLevelControl, ConsolePromptControl {
     private final Logger rootLogger;
     private final java.util.logging.Level previousRootLevel;
     private final Map<Handler, java.util.logging.Level> previousHandlerLevels;
@@ -20,6 +22,7 @@ public final class Logging implements AutoCloseable, LoggingLevelControl {
     private final TimestampedFileLogHandler fileHandler;
     private final CompactLogFormatter liveFormatter;
     private final LoggingControl control;
+    private final ConsolePromptCoordinator promptCoordinator;
 
     private Logging(
             Logger rootLogger,
@@ -28,7 +31,8 @@ public final class Logging implements AutoCloseable, LoggingLevelControl {
             Map<Handler, Formatter> previousHandlerFormatters,
             TimestampedFileLogHandler fileHandler,
             CompactLogFormatter liveFormatter,
-            LoggingControl control) {
+            LoggingControl control,
+            ConsolePromptCoordinator promptCoordinator) {
         this.rootLogger = rootLogger;
         this.previousRootLevel = previousRootLevel;
         this.previousHandlerLevels = previousHandlerLevels;
@@ -36,6 +40,7 @@ public final class Logging implements AutoCloseable, LoggingLevelControl {
         this.fileHandler = fileHandler;
         this.liveFormatter = liveFormatter;
         this.control = control;
+        this.promptCoordinator = promptCoordinator;
     }
 
     public static Logging start(LoggingConfig config) throws IOException {
@@ -49,7 +54,13 @@ public final class Logging implements AutoCloseable, LoggingLevelControl {
                 new IdentityHashMap<Handler, java.util.logging.Level>();
         Map<Handler, Formatter> previousFormatters =
                 new IdentityHashMap<Handler, Formatter>();
-        CompactLogFormatter consoleFormatter = new CompactLogFormatter();
+        ConsolePromptCoordinator promptCoordinator =
+                new ConsolePromptCoordinator();
+        CompactLogFormatter consoleFormatter =
+                new CompactLogFormatter(
+                        promptCoordinator);
+        CompactLogFormatter liveFormatter =
+                new CompactLogFormatter();
         for (Handler handler : root.getHandlers()) {
             previousHandlers.put(handler, handler.getLevel());
             handler.setLevel(java.util.logging.Level.ALL);
@@ -77,13 +88,15 @@ public final class Logging implements AutoCloseable, LoggingLevelControl {
                     previousHandlers,
                     previousFormatters,
                     fileHandler,
-                    consoleFormatter,
-                    control);
+                    liveFormatter,
+                    control,
+                    promptCoordinator);
         } catch (IOException | RuntimeException ex) {
             if (fileHandler != null) {
                 root.removeHandler(fileHandler);
                 fileHandler.close();
             }
+            promptCoordinator.close();
             restore(root, previousRoot, previousHandlers, previousFormatters);
             throw ex;
         }
@@ -104,9 +117,24 @@ public final class Logging implements AutoCloseable, LoggingLevelControl {
     }
 
     @Override
+    public void promptDisplayed(
+            Writer output,
+            String prompt) {
+        promptCoordinator.promptDisplayed(
+                output,
+                prompt);
+    }
+
+    @Override
+    public void promptConsumed() {
+        promptCoordinator.promptConsumed();
+    }
+
+    @Override
     public void close() {
         rootLogger.removeHandler(fileHandler);
         fileHandler.close();
+        promptCoordinator.close();
         restore(
                 rootLogger,
                 previousRootLevel,
