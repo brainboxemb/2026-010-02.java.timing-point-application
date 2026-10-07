@@ -67,6 +67,10 @@ final class WorkbenchLogPane extends TabPane {
                         + "-fx-font-size: 11px;");
         log.textProperty().bind(
                 source);
+        log.textProperty().addListener(
+                (ignored, previous, current) ->
+                        log.positionCaret(
+                                log.getLength()));
         return log;
     }
 }
