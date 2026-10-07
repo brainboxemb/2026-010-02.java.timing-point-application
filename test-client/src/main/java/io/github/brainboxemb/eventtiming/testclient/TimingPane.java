@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
-import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
@@ -21,7 +20,6 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
-import javafx.util.Duration;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -78,38 +76,7 @@ final class TimingPane extends VBox {
     private boolean updatingRegistrationTime;
     private String manualTimeSource = "AUTO";
 
-    private final Label simulationCapability =
-            new Label("Capability not loaded");
-    private final ComboBox<String> simulationProfile =
-            new ComboBox<>();
-    private final TextField simulationCount =
-            new TextField("100");
-    private final TextField simulationFrom =
-            new TextField("1");
-    private final TextField simulationTo =
-            new TextField("2000");
-    private final ComboBox<String> simulationOrder =
-            new ComboBox<>();
-    private final TextField simulationSeed =
-            new TextField("1");
-    private final TextField simulationInterval =
-            new TextField("500");
-    private final Button simulationStart =
-            new Button("Start");
-    private final Button simulationStop =
-            new Button("Stop");
-    private final Label simulationProgress =
-            new Label("-");
-    private final PauseTransition simulationDelay =
-            new PauseTransition();
-
-    private List<String> simulationBatch =
-            List.of();
-    private int simulationBatchIndex;
-    private long simulationIntervalMillis;
-    private long simulationRequestStartedNanos;
-    private boolean simulationBatchRunning;
-    private String simulationBatchProfile;
+    private final SimulatedTagsPane simulationPane;
 
     private final TableView<TimingViewModel.InterpretedRegistration> registrations =
             new TableView<>();
@@ -226,99 +193,17 @@ final class TimingPane extends VBox {
                 new TitledPane("Registration input", registrationBox);
         registrationPane.setCollapsible(false);
 
-        simulationProfile.setItems(
-                FXCollections.observableArrayList(
-                        "simple",
-                        "normal",
-                        "edge"));
-        simulationProfile.setValue(
-                "normal");
-        simulationOrder.setItems(
-                FXCollections.observableArrayList(
-                        "Ascending",
-                        "Random"));
-        simulationOrder.setValue(
-                "Ascending");
-        simulationCount.setPrefColumnCount(6);
-        simulationFrom.setPrefColumnCount(6);
-        simulationTo.setPrefColumnCount(6);
-        simulationSeed.setPrefColumnCount(8);
-        simulationInterval.setPrefColumnCount(8);
-        simulationInterval.setTooltip(
-                new Tooltip(
-                        "Milliseconds between registration scenario starts. "
-                                + "The selected profile owns observation timing inside each passage."));
-
-        GridPane simulationGrid =
-                new GridPane();
-        simulationGrid.setHgap(10);
-        simulationGrid.setVgap(8);
-        add(
-                simulationGrid,
-                0,
-                "Profile",
-                simulationProfile);
-        add(
-                simulationGrid,
-                1,
-                "Count",
-                simulationCount);
-        simulationGrid.add(
-                new Label("Number range"),
-                0,
-                2);
-        simulationGrid.add(
-                new HBox(
-                        8,
-                        simulationFrom,
-                        new Label("to"),
-                        simulationTo),
-                1,
-                2);
-        simulationGrid.add(
-                new Label("Order"),
-                0,
-                3);
-        simulationGrid.add(
-                new HBox(
-                        8,
-                        simulationOrder,
-                        new Label("Seed"),
-                        simulationSeed),
-                1,
-                3);
-        add(
-                simulationGrid,
-                4,
-                "Interval ms",
-                simulationInterval);
-        simulationGrid.add(
-                new HBox(
-                        8,
-                        simulationStart,
-                        simulationStop),
-                1,
-                5);
-        simulationGrid.add(
-                new HBox(
-                        8,
-                        new Label("Progress"),
-                        simulationProgress),
-                1,
-                6);
-
-        VBox simulationBox =
-                new VBox(
-                        8,
-                        simulationCapability,
-                        simulationGrid);
-        simulationBox.setPadding(
-                new Insets(10));
-        TitledPane simulationPane =
-                new TitledPane(
-                        "Simulated tags",
-                        simulationBox);
-        simulationPane.setCollapsible(true);
+        simulationPane =
+                new SimulatedTagsPane(
+                        clientSupplier,
+                        requests,
+                        model::selectedNodeId,
+                        rawSink,
+                        feedback,
+                        apiState,
+                        this::handleCommandError,
+                        this::refreshControls,
+                        clientLog);
 
         configureRegistrationView();
         registrationScope.setItems(
@@ -407,12 +292,6 @@ final class TimingPane extends VBox {
         now.setOnAction(event -> updateNow());
         manualReg.setOnAction(event -> manualReg());
         autoReg.setOnAction(event -> autoReg());
-        simulationStart.setOnAction(
-                event -> startSimulationBatch());
-        simulationStop.setOnAction(
-                event -> stopSimulationBatch());
-        simulationOrder.setOnAction(
-                event -> refreshControls());
 
         refresh();
     }
@@ -428,9 +307,7 @@ final class TimingPane extends VBox {
 
     void disconnected(boolean stale) {
         eventsConnected = false;
-        if (simulationBatchRunning) {
-            stopSimulationBatch();
-        }
+        simulationPane.stopBatch();
         bufferedEvents.clear();
         model.viewState(stale
                 ? TimingViewModel.ViewState.STALE
@@ -911,272 +788,6 @@ final class TimingPane extends VBox {
                 }));
     }
 
-    private void startSimulationBatch() {
-        if (!model.controls().simulation()) {
-            simulationProgress.setText(
-                    "Simulation capability unavailable");
-            return;
-        }
-
-        SimulationBatchPlan.Order order =
-                "Random".equals(
-                        simulationOrder.getValue())
-                        ? SimulationBatchPlan.Order.RANDOM
-                        : SimulationBatchPlan.Order.ASCENDING;
-
-        final int count;
-        final int from;
-        final int to;
-        final long seed;
-        final long intervalMillis;
-        try {
-            count =
-                    positiveInteger(
-                            simulationCount,
-                            "Count");
-            from =
-                    positiveInteger(
-                            simulationFrom,
-                            "Range start");
-            to =
-                    positiveInteger(
-                            simulationTo,
-                            "Range end");
-            seed =
-                    order == SimulationBatchPlan.Order.RANDOM
-                            ? Long.parseLong(
-                                    simulationSeed
-                                            .getText()
-                                            .trim())
-                            : 0L;
-            intervalMillis =
-                    positiveLong(
-                            simulationInterval,
-                            "Interval");
-        } catch (IllegalArgumentException ex) {
-            simulationProgress.setText(
-                    ex.getMessage());
-            return;
-        }
-
-        final List<String> registrations;
-        try {
-            registrations =
-                    SimulationBatchPlan.registrationIds(
-                            count,
-                            from,
-                            to,
-                            order,
-                            seed);
-        } catch (IllegalArgumentException ex) {
-            simulationProgress.setText(
-                    ex.getMessage());
-            return;
-        }
-
-        simulationBatch =
-                registrations;
-        simulationBatchIndex = 0;
-        simulationIntervalMillis =
-                intervalMillis;
-        simulationBatchProfile =
-                simulationProfile.getValue();
-        simulationBatchRunning = true;
-        simulationProgress.setText(
-                "0 / "
-                        + simulationBatch.size());
-        clientLog.info(
-                "Starting simulated-tag batch profile="
-                        + simulationBatchProfile
-                        + " count="
-                        + simulationBatch.size()
-                        + " order="
-                        + order
-                        + " intervalMs="
-                        + simulationIntervalMillis);
-        feedback.accept(
-                "Starting simulated-tag batch...");
-        refreshControls();
-        sendNextSimulation();
-    }
-
-    private void sendNextSimulation() {
-        if (!simulationBatchRunning) {
-            return;
-        }
-        if (simulationBatchIndex
-                >= simulationBatch.size()) {
-            finishSimulationBatch();
-            return;
-        }
-
-        final String selected =
-                requireSelectedNode();
-        final String registrationId =
-                simulationBatch.get(
-                        simulationBatchIndex);
-        final int requestNumber =
-                simulationBatchIndex + 1;
-
-        simulationProgress.setText(
-                requestNumber
-                        + " / "
-                        + simulationBatch.size()
-                        + " — "
-                        + registrationId);
-        simulationRequestStartedNanos =
-                System.nanoTime();
-
-        CompletableFuture
-                .supplyAsync(
-                        () -> {
-                            try {
-                                return clientSupplier
-                                        .get()
-                                        .simulateRegistration(
-                                                selected,
-                                                registrationId,
-                                                simulationBatchProfile);
-                            } catch (Exception ex) {
-                                throw new CompletionException(
-                                        ex);
-                            }
-                        },
-                        requests)
-                .whenComplete(
-                        (result, error) ->
-                                Platform.runLater(
-                                        () -> {
-                                            if (error != null) {
-                                                simulationBatchRunning = false;
-                                                simulationDelay.stop();
-                                                simulationProgress.setText(
-                                                        "Stopped at "
-                                                                + simulationBatchIndex
-                                                                + " / "
-                                                                + simulationBatch.size());
-                                                handleCommandError(
-                                                        error);
-                                                refreshControls();
-                                                return;
-                                            }
-
-                                            apiState.accept(
-                                                    "READY");
-                                            rawSink.accept(
-                                                    result.rawJson());
-                                            simulationBatchIndex++;
-                                            simulationProgress.setText(
-                                                    simulationBatchIndex
-                                                            + " / "
-                                                            + simulationBatch.size()
-                                                            + " accepted");
-
-                                            if (!simulationBatchRunning) {
-                                                refreshControls();
-                                                return;
-                                            }
-                                            if (simulationBatchIndex
-                                                    >= simulationBatch.size()) {
-                                                finishSimulationBatch();
-                                                return;
-                                            }
-
-                                            long elapsedNanos =
-                                                    Math.max(
-                                                            0L,
-                                                            System.nanoTime()
-                                                                    - simulationRequestStartedNanos);
-                                            double remainingMillis =
-                                                    Math.max(
-                                                            0.0,
-                                                            simulationIntervalMillis
-                                                                    - elapsedNanos
-                                                                    / 1_000_000.0);
-                                            simulationDelay.stop();
-                                            simulationDelay.setDuration(
-                                                    Duration.millis(
-                                                            remainingMillis));
-                                            simulationDelay.setOnFinished(
-                                                    event ->
-                                                            sendNextSimulation());
-                                            simulationDelay.playFromStart();
-                                        }));
-    }
-
-    private void stopSimulationBatch() {
-        if (!simulationBatchRunning) {
-            return;
-        }
-        simulationBatchRunning = false;
-        simulationDelay.stop();
-        simulationProgress.setText(
-                "Stopped at "
-                        + simulationBatchIndex
-                        + " / "
-                        + simulationBatch.size());
-        feedback.accept(
-                "Simulated-tag batch stopped");
-        clientLog.info(
-                "Stopped simulated-tag batch at "
-                        + simulationBatchIndex
-                        + " of "
-                        + simulationBatch.size());
-        refreshControls();
-    }
-
-    private void finishSimulationBatch() {
-        simulationBatchRunning = false;
-        simulationDelay.stop();
-        simulationProgress.setText(
-                "Complete "
-                        + simulationBatch.size()
-                        + " / "
-                        + simulationBatch.size());
-        feedback.accept(
-                "Simulated-tag batch complete");
-        clientLog.info(
-                "Completed simulated-tag batch count="
-                        + simulationBatch.size());
-        refreshControls();
-    }
-
-    private static int positiveInteger(
-            TextField field,
-            String name) {
-        try {
-            int value =
-                    Integer.parseInt(
-                            field.getText()
-                                    .trim());
-            if (value < 1) {
-                throw new NumberFormatException();
-            }
-            return value;
-        } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException(
-                    name + " must be a positive integer");
-        }
-    }
-
-    private static long positiveLong(
-            TextField field,
-            String name) {
-        try {
-            long value =
-                    Long.parseLong(
-                            field.getText()
-                                    .trim());
-            if (value < 1L) {
-                throw new NumberFormatException();
-            }
-            return value;
-        } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException(
-                    name + " must be a positive integer");
-        }
-    }
-
     private void handleCommandError(Throwable error) {
         Throwable root = rootCause(error);
         if (root instanceof ApiClient.ApiException apiError) {
@@ -1256,22 +867,19 @@ final class TimingPane extends VBox {
         if (!live) {
             autoRegCapability.setText(
                     "Capability state cached/not synchronised");
-            simulationCapability.setText(
-                    "Capability state cached/not synchronised");
         } else {
             autoRegCapability.setText(
                     model.autoRegEnabled()
                             ? "DIRECT_REGISTRATION_SIMULATION enabled"
                             : "DIRECT_REGISTRATION_SIMULATION unavailable");
-            simulationCapability.setText(
-                    model.simulationEnabled()
-                            ? "TAG_SCENARIO_SIMULATION enabled"
-                            : "TAG_SCENARIO_SIMULATION unavailable");
         }
+        simulationPane.refresh(
+                live,
+                controls.simulation());
         node.setDisable(
                 !live
                         || model.nodes().size() <= 1
-                        || simulationBatchRunning);
+                        || simulationPane.running());
         locationInput.setDisable(!live || !controls.open());
         open.setDisable(!live || !controls.open());
         close.setDisable(!live || !controls.close());
@@ -1288,34 +896,6 @@ final class TimingPane extends VBox {
         autoReg.setDisable(!live || !controls.autoReg());
         registrationScope.setDisable(!live);
         registrations.setDisable(!live);
-
-        boolean simulationEnabled =
-                live
-                        && controls.simulation();
-        boolean simulationFieldsDisabled =
-                !simulationEnabled
-                        || simulationBatchRunning;
-        simulationProfile.setDisable(
-                simulationFieldsDisabled);
-        simulationCount.setDisable(
-                simulationFieldsDisabled);
-        simulationFrom.setDisable(
-                simulationFieldsDisabled);
-        simulationTo.setDisable(
-                simulationFieldsDisabled);
-        simulationOrder.setDisable(
-                simulationFieldsDisabled);
-        simulationSeed.setDisable(
-                simulationFieldsDisabled
-                        || !"Random".equals(
-                                simulationOrder.getValue()));
-        simulationInterval.setDisable(
-                simulationFieldsDisabled);
-        simulationStart.setDisable(
-                !simulationEnabled
-                        || simulationBatchRunning);
-        simulationStop.setDisable(
-                !simulationBatchRunning);
 
         syncViewButton.setDisable(
                 !eventsConnected || model.viewState() == TimingViewModel.ViewState.SYNCING);
