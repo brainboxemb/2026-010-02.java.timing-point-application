@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimeSource;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.RuntimeMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 
@@ -26,7 +26,7 @@ public class TimingNodeRuntimeMetricsTest {
     @Test
     public void reportsQueuePersistenceCommitAndEventMetricsWithoutPerEventSamples() {
         RecordingPersistence persistence = new RecordingPersistence();
-        TimeSource timeSource = () -> RECORDED_AT;
+        TimeSource timeSource = () -> RECORDED_AT.instant();
         TimingNode node = new TimingNode(
                 new NodeId("A"),
                 persistence,

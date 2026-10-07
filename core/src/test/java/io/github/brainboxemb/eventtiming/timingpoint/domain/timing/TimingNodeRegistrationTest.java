@@ -10,7 +10,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory.Context;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimeSource;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 
 import java.util.ArrayList;
@@ -466,7 +466,7 @@ public class TimingNodeRegistrationTest {
     }
 
     private static TimingNode node(RecordingStore store) {
-        TimeSource timeSource = () -> RECORDED_AT;
+        TimeSource timeSource = () -> RECORDED_AT.instant();
         return new TimingNode(
                 new NodeId("A"),
                 store,

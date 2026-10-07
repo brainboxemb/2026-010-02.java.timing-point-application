@@ -13,8 +13,10 @@ import java.util.Locale;
  * <p>The two clocks have different semantics:</p>
  *
  * <ul>
- *   <li>{@link #clock()} is absolute wall-clock time. I/O adapters use it when
- *       an external fact must receive an event timestamp.</li>
+ *   <li>{@link #clock()} is the process/platform absolute wall-clock basis.
+ *       Runtime may use it to compose the shared timing TimeSource; timing
+ *       components should not bypass that composed source when correction may
+ *       apply.</li>
  *   <li>{@link #monotonicClock()} is process-local elapsed time. It is used for
  *       durations, filtering windows, metrics and timeout measurement only.</li>
  * </ul>
@@ -87,7 +89,7 @@ public final class PlatformEnvironment {
                                 "")));
     }
 
-    /** Absolute wall clock for externally meaningful timestamps. */
+    /** Raw process/platform absolute wall-clock basis. */
     public Clock clock() {
         return clock;
     }

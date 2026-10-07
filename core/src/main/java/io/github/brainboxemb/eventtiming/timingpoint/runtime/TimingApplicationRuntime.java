@@ -6,7 +6,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.Conductor;
@@ -26,6 +25,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment.OperatingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
@@ -346,13 +346,25 @@ public final class TimingApplicationRuntime {
                             config.timingNodeId(),
                             timingDataCodec);
 
+            RuntimeTimeSources runtimeTimeSources =
+                    new RuntimeTimeSources(
+                            platform);
+
+            /*
+             * One TimeSource is created for the current timing context and may
+             * be shared by every Domain/I/O component that must use the same
+             * timing basis. Future multi-system composition may create another
+             * source for another context.
+             */
+            TimeSource timeSource =
+                    runtimeTimeSources.createTimeSource();
+
             TimingNode timingNode =
                     new TimingNode(
                             config.timingNodeId(),
                             persistence,
                             timingDataFactory,
-                            () -> new TimingTimestamp(
-                                    platform.clock().instant()),
+                            timeSource,
                             applicationConfiguration
                                     .timingNode(
                                             config.timingNodeId())

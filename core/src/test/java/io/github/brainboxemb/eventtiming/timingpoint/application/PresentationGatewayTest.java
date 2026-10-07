@@ -185,7 +185,7 @@ public class PresentationGatewayTest {
         return TimingNodeFixture.create(
                 new NodeId("A"),
                 store,
-                () -> RECORDED_AT);
+                () -> RECORDED_AT.instant());
     }
 
     private static BuildIdentity identity() {

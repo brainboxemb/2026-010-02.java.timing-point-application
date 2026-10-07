@@ -324,7 +324,7 @@ public class HttpEndpointTest {
         TimingNode node = TimingNodeFixture.create(
                 new NodeId("A"),
                 new FailingRecoveryStore(),
-                () -> RECORDED_AT);
+                () -> RECORDED_AT.instant());
         PresentationGateway handler =
                 new PresentationGateway(
                         identity(),
@@ -471,7 +471,7 @@ public class HttpEndpointTest {
             node = TimingNodeFixture.create(
                     new NodeId("A"),
                     new MemoryStore(),
-                    () -> RECORDED_AT);
+                    () -> RECORDED_AT.instant());
             handler =
                     new PresentationGateway(
                             identity(),
