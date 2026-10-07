@@ -227,7 +227,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
             JsonGenerator generator,
             TimingData data,
             String code)
-            throws IOException {
+            throws IOException, CodecException {
         generator.writeStringField("recType", RECORD_TYPE_NODE_INFO);
         generator.writeStringField(
                 "time",
