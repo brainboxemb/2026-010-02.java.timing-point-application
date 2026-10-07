@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the optional `runtime-characterization` engineering module/profile with deterministic steady/burst/history workloads, the real simulated antenna-to-TimingNode input path, pull-based RuntimeMeasurementReader snapshots, retained JSON evidence and a dedicated Java-8 CI check.
+
 - Move Step-5 runtime characterization out of the public TimingNode Domain contract: remove `TimingNode.runtimeMetrics()` / `TimingNodeTypes.RuntimeMetrics`, keep component-owned counters, and add the engineering-only `runtime.measurement.RuntimeMeasurementReader` with TimingNode, tag-processing and JVM snapshots.
 
 - Keep asynchronous console logging readable while the local terminal prompt is waiting: the first log in a burst moves to a fresh line and one prompt is redrawn after 150 ms of quiet instead of after every log record.
