@@ -34,8 +34,10 @@ import org.slf4j.LoggerFactory;
  * <p>The endpoint subscribes only to the transport-independent
  * {@link PresentationGateway}. It sends one complete STATUS_SNAPSHOT when a client
  * connects, then broadcasts authoritative STATUS_CHANGED and
- * TIMING_DATA_COMMITTED notifications. Historical TimingData is deliberately
- * not replayed here; reconnect recovery uses the HTTP history resource.</p>
+ * TIMING_DATA_COMMITTED notifications. Slow clients are disconnected before
+ * their transport backlog can grow without bound. Historical TimingData is
+ * deliberately not replayed here; reconnect recovery uses the HTTP history
+ * resource.</p>
  */
 public final class WebSocketEndpoint implements AutoCloseable {
     public static final String EVENTS_PATH = "/api/v1/events";
@@ -159,7 +161,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
             TimingNodeStatus status) {
         Server current = currentServer();
         if (current != null) {
-            current.broadcast(
+            current.broadcastEvent(
                     MessageWriter.statusEvent(
                             "STATUS_CHANGED",
                             clock.instant(),
@@ -177,7 +179,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
             return;
         }
         try {
-            current.broadcast(
+            current.broadcastEvent(
                     MessageWriter.timingDataEvent(
                             clock.instant(),
                             data,
@@ -199,7 +201,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
             ConfigurationControl.Change change) {
         Server current = currentServer();
         if (current != null) {
-            current.broadcast(
+            current.broadcastEvent(
                     MessageWriter.configurationChangedEvent(
                             clock.instant(),
                             change));
