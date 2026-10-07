@@ -9,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDat
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 
+import java.time.Instant;
 import java.util.Collections;
 
 import java.util.ArrayList;
@@ -337,8 +338,8 @@ public class TimingNodeTest {
         return new TimingNode(logic, executor, timeoutMillis);
     }
 
-    private static TimingTimestamp now() {
-        return TimingTimestamp.parse("2026-10-02T08:00:00.000000000Z");
+    private static Instant now() {
+        return Instant.parse("2026-10-02T08:00:00Z");
     }
 
     private static final class NoOpPersistence implements TimingDataPersistence {
