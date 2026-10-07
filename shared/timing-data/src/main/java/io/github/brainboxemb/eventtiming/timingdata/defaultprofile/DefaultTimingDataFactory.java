@@ -30,6 +30,16 @@ public final class DefaultTimingDataFactory implements TimingDataFactory {
         return new ManualRegistration(context, registrationId, timeSource);
     }
 
+    @Override
+    public TimingData.NodeOpen createNodeOpen(Context context) {
+        return new NodeOpen(context);
+    }
+
+    @Override
+    public TimingData.NodeClose createNodeClose(Context context) {
+        return new NodeClose(context);
+    }
+
     /**
      * Shared immutable implementation of the registration-shaped TimingData
      * envelope used by the default profile.
@@ -87,6 +97,50 @@ public final class DefaultTimingDataFactory implements TimingDataFactory {
             super(
                     context,
                     registrationId);
+        }
+    }
+
+    private abstract static class Lifecycle implements TimingData {
+        private final Context context;
+
+        private Lifecycle(Context context) {
+            this.context = requireContext(context);
+        }
+
+        public final NodeId timingNodeId() {
+            return context.timingNodeId();
+        }
+
+        public final long sequenceNumber() {
+            return context.sequenceNumber();
+        }
+
+        public final LocationId locationId() {
+            return context.locationId();
+        }
+
+        public final TimingTimestamp effectiveTime() {
+            return context.effectiveTime();
+        }
+
+        public final TimingTimestamp recordedAt() {
+            return context.recordedAt();
+        }
+    }
+
+    private static final class NodeOpen
+            extends Lifecycle
+            implements TimingData.NodeOpen {
+        private NodeOpen(Context context) {
+            super(context);
+        }
+    }
+
+    private static final class NodeClose
+            extends Lifecycle
+            implements TimingData.NodeClose {
+        private NodeClose(Context context) {
+            super(context);
         }
     }
 
