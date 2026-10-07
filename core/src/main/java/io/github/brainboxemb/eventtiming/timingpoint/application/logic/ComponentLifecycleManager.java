@@ -101,7 +101,7 @@ final class ComponentLifecycleManager {
                 component.activate.run();
                 activatedCount++;
                 LOG.info(
-                        "Activated  {}",
+                        "{} activated",
                         component.name);
             }
             state = State.ACTIVE;
@@ -144,7 +144,7 @@ final class ComponentLifecycleManager {
                         component.name);
                 component.deactivate.run();
                 LOG.info(
-                        "Deactivated  {}",
+                        "{} deactivated",
                         component.name);
             } catch (RuntimeException ex) {
                 firstFailure =
