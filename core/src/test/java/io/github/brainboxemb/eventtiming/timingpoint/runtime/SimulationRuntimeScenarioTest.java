@@ -32,6 +32,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class SimulationRuntimeScenarioTest {
@@ -300,9 +301,9 @@ public class SimulationRuntimeScenarioTest {
             assertTrue(
                     "normal profile must exercise the second mapped tag",
                     normalTagBObserved);
-            assertTrue(
+            assertFalse(
                     "N0002 edge variant must remain a single-tag scenario",
-                    !edgeTagBObserved);
+                    edgeTagBObserved);
 
             List<TimingData> history =
                     new ArrayList<TimingData>();
