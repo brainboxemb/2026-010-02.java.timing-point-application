@@ -1,8 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.time;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-
 import java.time.Clock;
+import java.time.Instant;
 
 /**
  * TimeSource backed directly by an absolute Java wall clock.
@@ -25,8 +24,7 @@ public final class ClockTimeSource implements TimeSource {
     }
 
     @Override
-    public TimingTimestamp now() {
-        return new TimingTimestamp(
-                clock.instant());
+    public Instant now() {
+        return clock.instant();
     }
 }
