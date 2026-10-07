@@ -77,6 +77,102 @@ final class CharacterizationEvidenceWriter {
         return file;
     }
 
+    Path writeFailure(
+            CharacterizationOptions options,
+            HarnessBuildIdentity build,
+            int repetition,
+            java.time.Instant startedAt,
+            Throwable failure)
+            throws IOException {
+        Files.createDirectories(
+                options.evidenceDirectory());
+
+        Path file =
+                options.evidenceDirectory()
+                        .resolve(
+                                startedAt.toString()
+                                        .replace(':', '-')
+                                        + "-"
+                                        + options.workload()
+                                                .name()
+                                                .toLowerCase()
+                                        + "-r"
+                                        + repetition
+                                        + "-failed.json");
+
+        try (JsonGenerator json =
+                jsonFactory.createGenerator(
+                        Files.newOutputStream(file))) {
+            json.useDefaultPrettyPrinter();
+            json.writeStartObject();
+
+            json.writeObjectFieldStart(
+                    "build");
+            json.writeStringField(
+                    "version",
+                    build.version());
+            json.writeStringField(
+                    "revision",
+                    build.revision());
+            json.writeStringField(
+                    "sourceRef",
+                    build.sourceRef());
+            json.writeStringField(
+                    "origin",
+                    build.origin());
+            json.writeBooleanField(
+                    "dirty",
+                    build.dirty());
+            json.writeEndObject();
+
+            json.writeObjectFieldStart(
+                    "workload");
+            json.writeStringField(
+                    "name",
+                    options.workload()
+                            .name()
+                            .toLowerCase()
+                            + "-v1");
+            json.writeNumberField(
+                    "observations",
+                    options.observations());
+            json.writeNumberField(
+                    "aggregateRatePerSecond",
+                    options.ratePerSecond());
+            json.writeNumberField(
+                    "warmupObservations",
+                    options.warmupObservations());
+            json.writeNumberField(
+                    "preloadedHistory",
+                    options.preloadedHistory());
+            json.writeNumberField(
+                    "repetition",
+                    repetition);
+            json.writeEndObject();
+
+            json.writeStringField(
+                    "startedAt",
+                    startedAt.toString());
+            json.writeStringField(
+                    "finishedAt",
+                    java.time.Instant.now().toString());
+            json.writeStringField(
+                    "outcome",
+                    "FAIL");
+            json.writeStringField(
+                    "failureType",
+                    failure.getClass().getName());
+            json.writeStringField(
+                    "failureMessage",
+                    String.valueOf(
+                            failure.getMessage()));
+
+            json.writeEndObject();
+        }
+
+        return file;
+    }
+
     private static void writeIdentity(
             JsonGenerator json,
             CharacterizationRunResult result)
