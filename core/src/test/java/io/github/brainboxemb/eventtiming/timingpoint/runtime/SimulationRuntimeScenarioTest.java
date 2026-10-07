@@ -168,6 +168,171 @@ public class SimulationRuntimeScenarioTest {
         }
     }
 
+    @Test
+    public void allBuiltInProfilesCommitThroughTheFullSimulationPath()
+            throws Exception {
+        RegistrationId simpleRegistration =
+                new RegistrationId("N0003");
+        RegistrationId normalRegistration =
+                new RegistrationId("N0004");
+        RegistrationId edgeRegistration =
+                new RegistrationId("N0002");
+
+        Map<TagId, RegistrationId> mapping =
+                new LinkedHashMap<TagId, RegistrationId>();
+        addTwoTags(
+                mapping,
+                simpleRegistration);
+        addTwoTags(
+                mapping,
+                normalRegistration);
+        addTwoTags(
+                mapping,
+                edgeRegistration);
+
+        SimulatedAntenna antenna =
+                new SimulatedAntenna();
+        TimingApplicationRuntime application =
+                SimulationRuntime.create(
+                        identity(),
+                        config(),
+                        antenna,
+                        new EventData(mapping));
+
+        List<TagObservation> observations =
+                Collections.synchronizedList(
+                        new ArrayList<TagObservation>());
+        antenna.tagObservedEvent()
+                .subscribe(
+                        observations::add);
+
+        List<RegistrationId> committedRegistrations =
+                Collections.synchronizedList(
+                        new ArrayList<RegistrationId>());
+        CountDownLatch threeCommitted =
+                new CountDownLatch(3);
+        application
+                .presentationGateway()
+                .timingNode()
+                .timingDataCommittedEvent()
+                .subscribe(
+                        data -> {
+                            if (data instanceof AutomaticRegistration) {
+                                AutomaticRegistration registration =
+                                        (AutomaticRegistration) data;
+                                committedRegistrations.add(
+                                        registration.registrationId());
+                                threeCommitted.countDown();
+                            }
+                        });
+
+        application.activate();
+        try {
+            await(
+                    application.antennaManager()::isReady,
+                    2000L);
+            TimingNodeProxy node =
+                    application
+                            .presentationGateway()
+                            .timingNode();
+            node.open(
+                    new LocationId(24));
+            await(
+                    antenna::inventoryRunning,
+                    2000L);
+
+            SimulationControl simulation =
+                    application
+                            .presentationGateway()
+                            .simulation();
+
+            assertEquals(
+                    SimulationControl.StartResult.ACCEPTED,
+                    simulation.startRegistration(
+                            simpleRegistration,
+                            "simple"));
+            assertEquals(
+                    SimulationControl.StartResult.ACCEPTED,
+                    simulation.startRegistration(
+                            normalRegistration,
+                            "normal"));
+            assertEquals(
+                    SimulationControl.StartResult.ACCEPTED,
+                    simulation.startRegistration(
+                            edgeRegistration,
+                            "edge"));
+
+            assertTrue(
+                    threeCommitted.await(
+                            3L,
+                            TimeUnit.SECONDS));
+            assertEquals(
+                    3,
+                    committedRegistrations.size());
+            assertTrue(
+                    committedRegistrations.contains(
+                            simpleRegistration));
+            assertTrue(
+                    committedRegistrations.contains(
+                            normalRegistration));
+            assertTrue(
+                    committedRegistrations.contains(
+                            edgeRegistration));
+
+            boolean normalTagAObserved = false;
+            boolean normalTagBObserved = false;
+            boolean edgeTagBObserved = false;
+            for (TagObservation observation : observations) {
+                String tag =
+                        observation.tagId()
+                                .value();
+                if ("N0004-A".equals(tag)) {
+                    normalTagAObserved = true;
+                } else if ("N0004-B".equals(tag)) {
+                    normalTagBObserved = true;
+                } else if ("N0002-B".equals(tag)) {
+                    edgeTagBObserved = true;
+                }
+            }
+            assertTrue(
+                    "normal profile must exercise the first mapped tag",
+                    normalTagAObserved);
+            assertTrue(
+                    "normal profile must exercise the second mapped tag",
+                    normalTagBObserved);
+            assertTrue(
+                    "N0002 edge variant must remain a single-tag scenario",
+                    !edgeTagBObserved);
+
+            List<TimingData> history =
+                    new ArrayList<TimingData>();
+            assertEquals(
+                    4,
+                    node.visitLogBookFrom(
+                            1L,
+                            10,
+                            history::add));
+            assertEquals(
+                    4,
+                    history.size());
+        } finally {
+            application.deactivate();
+        }
+    }
+
+    private static void addTwoTags(
+            Map<TagId, RegistrationId> mapping,
+            RegistrationId registrationId) {
+        String id =
+                registrationId.value();
+        mapping.put(
+                new TagId(id + "-A"),
+                registrationId);
+        mapping.put(
+                new TagId(id + "-B"),
+                registrationId);
+    }
+
     private Config config() {
         Path timingData =
                 temporaryFolder
