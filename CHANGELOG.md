@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add Step-5 TimingData lifecycle and revoke support: successful OPEN/CLOSE transitions commit as `NODE_INFO` with `OPEN`/`CLOSE` code before the corresponding status change; registration revoke appends `AUTO_REG [REV]` or `MAN_REG [REV,AUTO|MAN]` through the same sequence/persistence/LogBook/event path without rewriting ADD history.
+
+- Expose registration revoke as normal node-scoped IF-03 behaviour and enable the Development Client trash action: the client supplies the original registration semantics, SI-01 performs bookkeeping commit only, and the interpreted row remains visible as DELETED while the technical LogBook retains both ADD and REV.
+
+
 - Let unpaced runtime-characterization bursts settle on their bounded processing/admission outcome instead of incorrectly requiring every emitted observation to commit; queue rejection remains measurable V01 evidence.
 
 - Add the repeatable V01 development-host runtime-characterization baseline: three repetitions of steady, burst, 1,000-record history and 9,999-record history workloads, with durable generated evidence published separately on `prod/characterization`.
