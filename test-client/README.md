@@ -128,8 +128,8 @@ view above the technical LogBook. TeamID is an interpreted
 reference-data value, not a renamed RegistrationId. Until reference/RaceData mapping is
 available, the normal view shows TeamID as unresolved while the technical LogBook keeps
 the actual RegistrationId. A manual registration with manually entered time therefore deliberately shows
-`Type = MAN` and `Code = MAN`; a manual registration using system-assigned time shows
-`Type = MAN` and `Code = AUTO`. An automatic registration already carries all needed
+`Type = MAN` and `Code = MAN`; a manual registration whose time was captured
+automatically by the client shows `Type = MAN` and `Code = AUTO`. An automatic registration already carries all needed
 meaning in `Type = AUTO`, so its Code cell is empty. A REV record keeps the interpreted row present and replaces the icon-only trash action
 with a visible **DELETED** marker. The trash action has no text header. When selected,
 the client sends the original registration family, LocationId, RegistrationId, time and,
@@ -138,10 +138,11 @@ node-scoped revoke operation. SI-01 appends the REV record; it does not delete o
 the ADD record. The immutable LogBook therefore continues to show both ADD and REV.
 
 Registration input uses a separate prefix and numeric field plus readable local civil
-date and whole-second clock time. The UI shows the interpreted client time zone next to
-the field (for example `Europe/Amsterdam`) and converts that explicit local value to the
-canonical UTC API timestamp when sending. **Now** fills the current date/time in that same
-displayed zone.
+date and hundredth-second clock time. The UI shows the interpreted client time zone next
+to the field (for example `Europe/Amsterdam`) and converts that explicit local value to
+the canonical UTC API timestamp when sending. **Now** captures the current client
+date/time and marks the manual-registration time source as `AUTO`; editing the date or
+time marks it as `MAN`.
 
 ### Events
 
@@ -181,9 +182,12 @@ The API workbench uses the following LogBook/live-event synchronisation behaviou
 - sends node-addressed IF-03 Open/Close controls without local lifecycle-state
   permission rules; OPEN carries the entered LocationId as one request;
 - discovers `DIRECT_REGISTRATION_SIMULATION` before enabling dev `auto-reg`;
+- exposes normal manual-registration ADD independently from that engineering simulation;
 - composes RegistrationId from the presentation prefix + numeric field, shows the
   interpreted client time zone explicitly and converts the entered local civil time to
-  the canonical UTC API timestamp;
+  a hundredth-second canonical UTC API timestamp;
+- defaults the interpreted Registrations view to the currently OPEN LocationId and
+  provides **All** for synchronized history across locations;
 - shows the returned source `seq` as the operation result;
 - shows committed TimingData **Type** and **Code** in separate LogBook columns;
 - projects ADD/REV registration history in the client and uses the original ADD values
@@ -223,6 +227,7 @@ GET  /api/v1/capabilities
 
 POST /api/v1/node/{id}/open             {"locationId": <positive integer>}
 POST /api/v1/node/{id}/close
+POST /api/v1/node/{id}/registration/manual
 POST /api/v1/node/{id}/registration/revoke
 
 GET  /api/v1/node/{id}/logbook

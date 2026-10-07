@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add normal IF-03 manual-registration ADD with client-selected AUTO/MAN time semantics; normalize SI-01-generated lifecycle time to centiseconds and record-creation time to milliseconds while preserving registration effective-time precision.
+
+- Refine the Development Client registration workbench: hundredth-second input/display, automatic AUTO/MAN classification from **Now** versus edited time, normal manual registration, and current-open-location filtering with an explicit **All** history view.
+
 - Add Step-5 TimingData lifecycle and revoke support: successful OPEN/CLOSE transitions commit as `NODE_INFO` with `OPEN`/`CLOSE` code before the corresponding status change; registration revoke appends `AUTO_REG [REV]` or `MAN_REG [REV,AUTO|MAN]` through the same sequence/persistence/LogBook/event path without rewriting ADD history.
 
 - Expose registration revoke as normal node-scoped IF-03 behaviour and enable the Development Client trash action: the client supplies the original registration semantics, SI-01 performs bookkeeping commit only, and the interpreted row remains visible as DELETED while the technical LogBook retains both ADD and REV.
