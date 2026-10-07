@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Let unpaced runtime-characterization bursts settle on their bounded processing/admission outcome instead of incorrectly requiring every emitted observation to commit; queue rejection remains measurable V01 evidence.
+
 - Add the repeatable V01 development-host runtime-characterization baseline: three repetitions of steady, burst, 1,000-record history and 9,999-record history workloads, with durable generated evidence published separately on `prod/characterization`.
 
 - Add the optional `runtime-characterization` Maven profile/module for SIP Step-5 engineering workloads, using the normal SimulatedAntenna -> TagProcessor -> TimingNode -> file persistence path and retained JSON evidence from `RuntimeMeasurementReader`.
