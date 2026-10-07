@@ -36,7 +36,7 @@ public class ExtensionRegistryTest {
             new TemporaryFolder();
 
     @Test
-    public void builtInsExposeReferenceProviders() {
+    public void builtInsExposeReferenceAndSimulationProviders() {
         ExtensionRegistry registry =
                 ExtensionRegistry.builtIns();
 
