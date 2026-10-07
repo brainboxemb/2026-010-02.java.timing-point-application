@@ -121,12 +121,14 @@ public final class TestClientFxApplication extends Application {
         MenuBar menuBar = new MenuBar(help);
 
         VBox top = new VBox(menuBar, targetBar());
+        top.getStyleClass().add("application-top");
 
         BorderPane root = new BorderPane();
         root.getStyleClass().add(JMetroStyleClass.BACKGROUND);
         tabs.getStyleClass().add(JMetroStyleClass.UNDERLINE_TAB_PANE);
         root.setTop(top);
         root.setCenter(tabs);
+        feedback.getStyleClass().add("feedback-bar");
         root.setBottom(feedback);
         BorderPane.setMargin(feedback, new Insets(0, 12, 12, 12));
 
@@ -175,7 +177,8 @@ public final class TestClientFxApplication extends Application {
                 deviceLogBoundary,
                 clientLogBoundary);
         HBox.setHgrow(targetHost, Priority.NEVER);
-        bar.setPadding(new Insets(10, 12, 10, 12));
+        bar.getStyleClass().add("target-bar");
+        bar.setPadding(new Insets(7, 10, 7, 10));
         return bar;
     }
 
