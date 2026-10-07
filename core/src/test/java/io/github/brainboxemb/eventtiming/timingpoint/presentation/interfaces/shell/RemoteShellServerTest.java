@@ -80,7 +80,7 @@ public class RemoteShellServerTest {
                 assertTrue(response.contains("Version      : test-version"));
                 assertTrue(response.contains("Open: OPENED"));
                 assertTrue(response.contains(
-                        "Automatic registration: COMMITTED seq=1"));
+                        "Automatic registration: COMMITTED seq=2"));
                 assertTrue(response.contains(
                         "Tag processing update: APPLIED"));
                 assertTrue(response.contains("Close: CLOSED"));
