@@ -80,6 +80,34 @@ jobs:
           ! grep -F '<artifactId>timing-point-core</artifactId>' system-test/pom.xml
           ! grep -F '<artifactId>timing-point-app</artifactId>' system-test/pom.xml
 
+  runtime-characterization-tooling:
+    name: Runtime characterization tooling
+    if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact source revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up exact Java 8 baseline
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: temurin
+          java-version: '8.0.504+1'
+          check-latest: false
+          verify-signature: true
+          cache: maven
+
+      - name: Verify optional characterization module
+        shell: bash
+        run: ./mvnw --batch-mode --no-transfer-progress verify -Pruntime-characterization -pl runtime-characterization -am
+
   # Normal development lifecycle. Pull requests use affected auto-selection;
   # protected main publication deliberately does not allocate Windows again.
   java-production:
