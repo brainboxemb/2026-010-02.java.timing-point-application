@@ -63,10 +63,11 @@ start SI-01 with:
 java -jar app\target\timing-point-app-<version>.jar config\development-simulation.yml
 ```
 
-That configuration selects the public `simulation` EventData profile
-(`N0001` through `N2000`, each with `-A` and `-B` tags) while keeping
-simulation TimingData in a dedicated file. The normal `config/application.yml`
-continues to use the empty/reference EventData profile.
+That configuration selects the public `simulation` EventData profile for
+`RT-A-0001` through `RT-A-2000`, using physical tag pairs
+`TT-A-NNNN-1` and `TT-A-NNNN-2`, while keeping simulation TimingData in a
+dedicated file. The normal `config/application.yml` uses the algorithmic
+`reference` EventData profile.
 
 For the formal `VC-ST1-003` running-system check, follow
 [VC-ST1-003.md](VC-ST1-003.md); it uses dedicated verification storage so normal
@@ -98,7 +99,7 @@ the client's own build identity and selected client-config path.
 The reviewed tab order is:
 
 ```text
-API | Events | Device Log | Terminal | Client Log
+API | Events | Device Log | Client Log
 ```
 
 The top target bar starts from the configured host but exposes the host/IP as an editable
@@ -133,13 +134,14 @@ The Timing workbench uses two complementary views of committed data:
   every committed source record, sequence, Type, Code, UTC-effective time and recorded
   time.
 
-The workbench is laid out as two top-aligned columns. The left column starts with
-API/application identity and continues with TimingNode/control and registration input.
-The right column starts at the same vertical position with the interpreted Registrations
-view above the technical LogBook. TeamID is an interpreted
-reference-data value, not a renamed RegistrationId. Until reference/RaceData mapping is
-available, the normal view shows TeamID as unresolved while the technical LogBook keeps
-the actual RegistrationId. A manual registration with manually entered time therefore deliberately shows
+The workbench uses two columns and two working rows. The upper-left contains
+TimingNode / Registration / Simulation / Terminal tabs. API/application identity sits
+above Registrations in the upper-right. Device Log and Client Log remain visible
+together in the lower-left, while the technical LogBook occupies the lower-right.
+TeamID is an interpreted reference-data value, not a renamed RegistrationId. In the
+default/reference profile, `RT-A-NNNN` projects directly to TeamID `NNNN`;
+`RT-R-NNNN` remains unresolved until reserve assignment data is available. The
+technical LogBook always keeps the actual RegistrationId. A manual registration with manually entered time therefore deliberately shows
 `Type = MAN` and `Code = MAN`; a manual registration whose time was captured
 automatically by the client shows `Type = MAN` and `Code = AUTO`. An automatic registration already carries all needed
 meaning in `Type = AUTO`, so its Code cell is empty. A REV record keeps the interpreted row present and replaces the icon-only trash action
@@ -178,8 +180,9 @@ future event types remain visible as raw diagnostics.
 
 ### Terminal
 
-The **Terminal** tab remains the line-oriented Remote Shell client with its connection
-controlled from the target bar. It is raw UTF-8 TCP, not an SSH/Telnet emulator.
+The **Terminal** workbench tab is the line-oriented Remote Shell client with its
+connection controlled from the target bar. It is raw UTF-8 TCP, not an SSH/Telnet
+emulator.
 
 ### Client Log
 
