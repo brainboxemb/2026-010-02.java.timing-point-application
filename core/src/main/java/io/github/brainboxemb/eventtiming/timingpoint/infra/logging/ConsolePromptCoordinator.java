@@ -23,15 +23,32 @@ final class ConsolePromptCoordinator
         implements ConsolePromptControl, AutoCloseable {
     private static final long PROMPT_REDRAW_DELAY_MILLIS = 150L;
 
-    private final ScheduledExecutorService scheduler =
-            Executors.newSingleThreadScheduledExecutor(
-                    new DaemonThreadFactory());
+    private final ScheduledExecutorService scheduler;
+    private final long redrawDelayMillis;
 
     private Writer output;
     private String prompt;
     private boolean promptVisible;
     private boolean burstActive;
     private ScheduledFuture<?> redrawFuture;
+
+    ConsolePromptCoordinator() {
+        this(
+                PROMPT_REDRAW_DELAY_MILLIS);
+    }
+
+    ConsolePromptCoordinator(
+            long redrawDelayMillis) {
+        if (redrawDelayMillis < 0L) {
+            throw new IllegalArgumentException(
+                    "redrawDelayMillis must not be negative");
+        }
+
+        this.redrawDelayMillis = redrawDelayMillis;
+        scheduler =
+                Executors.newSingleThreadScheduledExecutor(
+                        new DaemonThreadFactory());
+    }
 
     @Override
     public synchronized void promptDisplayed(
@@ -80,7 +97,7 @@ final class ConsolePromptCoordinator
         redrawFuture =
                 scheduler.schedule(
                         this::redrawPromptAfterQuietPeriod,
-                        PROMPT_REDRAW_DELAY_MILLIS,
+                        redrawDelayMillis,
                         TimeUnit.MILLISECONDS);
     }
 
