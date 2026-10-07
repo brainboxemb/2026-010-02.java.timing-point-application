@@ -1,8 +1,20 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
+
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.Collections;
 
 import org.java_websocket.WebSocket;
 import org.junit.Test;
@@ -97,6 +109,88 @@ public class WebSocketOutboundDeliveryTest {
         assertEquals(
                 0,
                 testConnection.closeCount);
+    }
+
+    @Test
+    public void overloadedClientDoesNotStopTimingNodeCommitProgress() {
+        TestConnection testConnection =
+                new TestConnection();
+        WebSocket connection =
+                testConnection.proxy();
+        WebSocketOutboundDelivery delivery =
+                new WebSocketOutboundDelivery(
+                        3);
+        delivery.connected(
+                connection);
+
+        TimingNode node =
+                TimingNodeFixture.create(
+                        new NodeId("A"),
+                        new MemoryStore(),
+                        () -> TimingTimestamp
+                                .parse("2026-10-07T10:00:00Z")
+                                .instant());
+        node.activate();
+        try {
+            node.timingDataCommittedEvent()
+                    .subscribe(
+                            data -> {
+                                delivery.send(
+                                        connection,
+                                        "seq-" + data.sequenceNumber());
+                            });
+
+            node.invoke(
+                    TimingNodeCommands.open(
+                            new LocationId(24)));
+
+            for (int index = 1; index <= 10; index++) {
+                node.invoke(
+                        TimingNodeCommands.addAutomaticRegistration(
+                                new RegistrationId(
+                                        String.format(
+                                                "N%04d",
+                                                index)),
+                                TimingTimestamp.parse(
+                                        String.format(
+                                                "2026-10-07T10:00:%02dZ",
+                                                index))));
+            }
+
+            assertEquals(
+                    "all TimingNode commits must complete even after the slow client is disconnected",
+                    11,
+                    node.query(
+                            TimingNodeQueries.timingDataCount()));
+            assertEquals(
+                    "the transport must not send beyond its bounded backlog budget",
+                    3,
+                    testConnection.sendCount);
+            assertEquals(
+                    "the stalled client must be disconnected exactly once",
+                    1,
+                    testConnection.closeCount);
+            assertEquals(
+                    WebSocketOutboundDelivery.TRY_AGAIN_LATER_CLOSE_CODE,
+                    testConnection.closeCode);
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    private static final class MemoryStore
+            implements TimingDataPersistence {
+        @Override
+        public LoadResult load() {
+            return new LoadResult(
+                    Collections.<TimingData>emptyList(),
+                    false);
+        }
+
+        @Override
+        public void append(
+                TimingData data) {
+        }
     }
 
     private static final class TestConnection
