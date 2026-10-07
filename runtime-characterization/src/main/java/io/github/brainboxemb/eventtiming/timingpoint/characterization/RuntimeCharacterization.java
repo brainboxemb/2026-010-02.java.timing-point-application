@@ -429,14 +429,33 @@ final class RuntimeCharacterization {
                                             * count
                                             / options.ratePerSecond())
                             : 0L;
+            long timeoutMillis =
+                    Math.max(
+                            5000L,
+                            workloadMillis + 5000L);
             await(
                     () ->
                             committedCount.get()
                                     >= expectedCommits,
-                    Math.max(
-                            5000L,
-                            workloadMillis + 5000L),
+                    timeoutMillis,
                     "TimingData commits");
+
+            /*
+             * TimingDataCommitted is emitted inside the TimingNode task. Wait
+             * until SerialExecutor has also accounted that task as completed
+             * before taking the phase-end measurement snapshot.
+             */
+            await(
+                    () -> {
+                        io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutorMetrics.Snapshot lane =
+                                nodeLane.metrics()
+                                        .snapshot();
+                        return lane.queueDepth() == 0
+                                && lane.completedCount()
+                                        == lane.acceptedCount();
+                    },
+                    timeoutMillis,
+                    "TimingNode lane completion");
         }
 
         @Override
