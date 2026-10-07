@@ -229,7 +229,7 @@ public final class AntennaManager implements CooperativeTask {
      * the task and is read from that task when WAIT_INVENTORY is processed.
      */
     private void onInventoryCompleted(AntennaTaskResult ignored) {
-        requestStateMachineRun();
+        stateMachine.wake();
     }
 
     /**
