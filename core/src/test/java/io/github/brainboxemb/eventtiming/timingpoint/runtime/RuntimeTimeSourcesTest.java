@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
@@ -37,7 +36,7 @@ public class RuntimeTimeSourcesTest {
                 first,
                 second);
         assertEquals(
-                TimingTimestamp.parse(
+                Instant.parse(
                         "2026-10-07T06:00:00Z"),
                 first.now());
         assertEquals(
