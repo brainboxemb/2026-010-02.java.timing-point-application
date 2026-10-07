@@ -320,12 +320,21 @@ final class SimulatedTagScenarioRunner
                         step(second, -43, 5L));
                 break;
             case 1:
+                /*
+                 * Keep the observation gap below the reference quiet timeout
+                 * so this represents one deliberately long passage rather
+                 * than several unrelated short passages.
+                 */
                 steps.add(
                         step(first, -60, 0L));
                 steps.add(
-                        step(second, -54, 400L));
+                        step(second, -56, 200L));
                 steps.add(
-                        step(first, -46, 800L));
+                        step(first, -52, 400L));
+                steps.add(
+                        step(second, -48, 600L));
+                steps.add(
+                        step(first, -44, 800L));
                 break;
             default:
                 steps.add(
