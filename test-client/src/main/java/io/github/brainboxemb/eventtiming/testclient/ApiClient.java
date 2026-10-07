@@ -86,6 +86,58 @@ public final class ApiClient {
         return new AutoRegResult(requiredLong(root, "seq"), rawJson);
     }
 
+    public CommitResult revokeRegistration(
+            String nodeId,
+            TimingDataInfo original)
+            throws IOException, InterruptedException {
+        if (original == null) {
+            throw new IllegalArgumentException(
+                    "original registration must not be null");
+        }
+        if (!"AUTO_REG".equals(original.recordType())
+                && !"MAN_REG".equals(original.recordType())) {
+            throw new IllegalArgumentException(
+                    "Only registration records can be revoked");
+        }
+        if (original.registrationId() == null
+                || original.registrationId().trim().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "original registrationId must not be blank");
+        }
+        if (!original.codes().contains("ADD")) {
+            throw new IllegalArgumentException(
+                    "revoke source must be an ADD registration record");
+        }
+
+        ObjectNode body = JSON.createObjectNode();
+        body.put("recordType", original.recordType());
+        body.put("locationId", original.locationId());
+        body.put("regId", original.registrationId());
+        body.put("time", original.effectiveTime());
+
+        if ("MAN_REG".equals(original.recordType())) {
+            if (original.codes().contains("MAN")) {
+                body.put("timeSource", "MAN");
+            } else if (original.codes().contains("AUTO")) {
+                body.put("timeSource", "AUTO");
+            } else {
+                throw new IllegalArgumentException(
+                        "MAN_REG source must carry AUTO or MAN code");
+            }
+        }
+
+        String rawJson = request(
+                "POST",
+                nodePath(
+                        nodeId,
+                        "/registration/revoke"),
+                JSON.writeValueAsString(body));
+        JsonNode root = JSON.readTree(rawJson);
+        return new CommitResult(
+                requiredLong(root, "seq"),
+                rawJson);
+    }
+
     public LogBookInfo getLogBookInfo(String nodeId)
             throws IOException, InterruptedException {
         String rawJson = request("GET", nodePath(nodeId, "/logbook"), null);
@@ -164,7 +216,7 @@ public final class ApiClient {
                 requiredInt(root, "locId"),
                 requiredText(root, "recType"),
                 requiredText(root, "time"),
-                requiredText(root, "regId"),
+                optionalText(root, "regId"),
                 requiredTextArray(root, "code"),
                 requiredText(root, "recTime"),
                 root.toString());
@@ -417,6 +469,9 @@ public final class ApiClient {
     }
 
     public record AutoRegResult(long seq, String rawJson) {
+    }
+
+    public record CommitResult(long seq, String rawJson) {
     }
 
     public record LogBookInfo(long count, Long first, Long last, String rawJson) {
