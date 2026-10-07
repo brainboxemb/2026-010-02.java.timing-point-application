@@ -13,10 +13,53 @@ public interface TimingDataFactory {
             Context context,
             TimingDataTypes.RegistrationId registrationId);
 
+    /**
+     * Creates an automatic registration record for the requested append-only
+     * action.
+     *
+     * <p>The default keeps existing profile implementations source-compatible:
+     * ADD delegates to the original factory method; REV must be explicitly
+     * supported by the selected profile.</p>
+     */
+    default TimingData.AutomaticRegistration createAutomaticRegistration(
+            Context context,
+            TimingDataTypes.RegistrationId registrationId,
+            TimingData.RegistrationAction action) {
+        if (action == null) {
+            throw new IllegalArgumentException("action must not be null");
+        }
+        if (action == TimingData.RegistrationAction.ADD) {
+            return createAutomaticRegistration(
+                    context,
+                    registrationId);
+        }
+        throw new UnsupportedOperationException(
+                "TimingData profile does not support automatic REV records");
+    }
+
     TimingData.ManualRegistration createManualRegistration(
             Context context,
             TimingDataTypes.RegistrationId registrationId,
             TimingData.ManualTimeSource timeSource);
+
+    /** See the automatic-registration overload for compatibility semantics. */
+    default TimingData.ManualRegistration createManualRegistration(
+            Context context,
+            TimingDataTypes.RegistrationId registrationId,
+            TimingData.ManualTimeSource timeSource,
+            TimingData.RegistrationAction action) {
+        if (action == null) {
+            throw new IllegalArgumentException("action must not be null");
+        }
+        if (action == TimingData.RegistrationAction.ADD) {
+            return createManualRegistration(
+                    context,
+                    registrationId,
+                    timeSource);
+        }
+        throw new UnsupportedOperationException(
+                "TimingData profile does not support manual REV records");
+    }
 
     TimingData.NodeOpen createNodeOpen(Context context);
 
