@@ -38,6 +38,8 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
 
     private static final String RECORD_TYPE_AUTO_REG = "AUTO_REG";
     private static final String RECORD_TYPE_MAN_REG = "MAN_REG";
+    private static final String RECORD_TYPE_NODE_OPEN = "NODE_OPEN";
+    private static final String RECORD_TYPE_NODE_CLOSE = "NODE_CLOSE";
 
     private static final String CODE_ADD = "ADD";
     private static final String CODE_AUTO = "AUTO";
@@ -86,6 +88,16 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                     writeManual(
                             generator,
                             (TimingData.ManualRegistration) data);
+                } else if (data instanceof TimingData.NodeOpen) {
+                    writeLifecycle(
+                            generator,
+                            RECORD_TYPE_NODE_OPEN,
+                            data);
+                } else if (data instanceof TimingData.NodeClose) {
+                    writeLifecycle(
+                            generator,
+                            RECORD_TYPE_NODE_CLOSE,
+                            data);
                 } else {
                     throw new CodecException(
                             CodecException.Reason.ENCODE_FAILURE,
@@ -166,6 +178,15 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         generator.writeStringField("time", data.effectiveTime().toString());
         generator.writeStringField("regId", registrationId.value());
         writeCodes(generator, CODE_ADD, timeCode);
+    }
+
+    private static void writeLifecycle(
+            JsonGenerator generator,
+            String recordType,
+            TimingData data)
+            throws IOException {
+        generator.writeStringField("recType", recordType);
+        generator.writeStringField("time", data.effectiveTime().toString());
     }
 
     private static void writeCodes(JsonGenerator generator, String... codes)
@@ -307,7 +328,9 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
 
         require(fields.recordTypeSeen, "recType");
         if (!RECORD_TYPE_AUTO_REG.equals(fields.recordType)
-                && !RECORD_TYPE_MAN_REG.equals(fields.recordType)) {
+                && !RECORD_TYPE_MAN_REG.equals(fields.recordType)
+                && !RECORD_TYPE_NODE_OPEN.equals(fields.recordType)
+                && !RECORD_TYPE_NODE_CLOSE.equals(fields.recordType)) {
             throw CodecException.unsupportedRecordType(
                     VERSION,
                     key,
@@ -316,6 +339,15 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                     context.effectiveTime(),
                     context.recordedAt(),
                     "unsupported IF-05 development-v1 recType " + fields.recordType);
+        }
+
+        if (RECORD_TYPE_NODE_OPEN.equals(fields.recordType)
+                || RECORD_TYPE_NODE_CLOSE.equals(fields.recordType)) {
+            rejectLifecycleRegistrationFields(fields);
+            if (RECORD_TYPE_NODE_OPEN.equals(fields.recordType)) {
+                return timingDataFactory.createNodeOpen(context);
+            }
+            return timingDataFactory.createNodeClose(context);
         }
 
         require(fields.registrationIdSeen, "regId");
@@ -344,6 +376,16 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
 
         throw invalid(
                 "MAN_REG code must contain ADD and exactly one of AUTO or MAN");
+    }
+
+    private static void rejectLifecycleRegistrationFields(DecodedFields fields)
+            throws CodecException {
+        if (fields.registrationIdSeen) {
+            throw invalid(fields.recordType + " must not contain regId");
+        }
+        if (fields.codesSeen) {
+            throw invalid(fields.recordType + " must not contain code");
+        }
     }
 
     private static RegistrationId registrationId(String value) throws CodecException {
