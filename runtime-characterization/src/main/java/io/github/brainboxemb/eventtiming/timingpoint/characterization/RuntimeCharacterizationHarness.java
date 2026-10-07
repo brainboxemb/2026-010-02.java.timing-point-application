@@ -231,7 +231,8 @@ final class RuntimeCharacterizationHarness
         runInput(
                 0,
                 config.warmupCount(),
-                false);
+                config.workload()
+                        != CharacterizationConfig.Workload.BURST);
         awaitCommitted(
                 config.preloadCount()
                         + config.warmupCount());
