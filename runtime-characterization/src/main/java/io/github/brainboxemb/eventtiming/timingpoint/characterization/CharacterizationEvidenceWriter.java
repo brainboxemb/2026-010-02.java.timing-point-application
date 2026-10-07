@@ -225,6 +225,11 @@ final class CharacterizationEvidenceWriter {
         json.writeStringField(
                 "inputPattern",
                 "sequential-known-tags-v1");
+        json.writeStringField(
+                "deliveryShape",
+                config.workload() == CharacterizationConfig.Workload.BURST
+                        ? "unpaced-burst"
+                        : "paced");
         json.writeNumberField(
                 "timingNodeCount",
                 1);
