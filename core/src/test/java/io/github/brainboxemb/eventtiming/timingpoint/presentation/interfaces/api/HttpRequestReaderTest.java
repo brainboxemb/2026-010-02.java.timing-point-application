@@ -50,6 +50,34 @@ public class HttpRequestReaderTest {
     }
 
     @Test
+    public void parsesSimulatedTagPassageRequest() {
+        HttpRequestReader.SimulationRegistrationRequest request =
+                reader.parseSimulationRegistrationBody(
+                        bytes(
+                                "{"
+                                        + "\"regId\":\"N0042\","
+                                        + "\"profile\":\"normal\""
+                                        + "}"));
+
+        assertEquals(
+                "N0042",
+                request.registrationId);
+        assertEquals(
+                "normal",
+                request.profile);
+
+        assertFailure(
+                "INVALID_VALUE",
+                "Missing or blank required field: profile",
+                () -> reader.parseSimulationRegistrationBody(
+                        bytes(
+                                "{"
+                                        + "\"regId\":\"N0042\","
+                                        + "\"profile\":\"\""
+                                        + "}")));
+    }
+
+    @Test
     public void parsesManualRegistrationAddRequest() {
         HttpRequestReader.ManualRegistrationRequest request =
                 reader.parseManualRegistrationBody(bytes(
