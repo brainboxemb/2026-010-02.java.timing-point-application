@@ -918,6 +918,12 @@ final class TimingPane extends VBox {
             return;
         }
 
+        SimulationBatchPlan.Order order =
+                "Random".equals(
+                        simulationOrder.getValue())
+                        ? SimulationBatchPlan.Order.RANDOM
+                        : SimulationBatchPlan.Order.ASCENDING;
+
         final int count;
         final int from;
         final int to;
@@ -937,10 +943,12 @@ final class TimingPane extends VBox {
                             simulationTo,
                             "Range end");
             seed =
-                    Long.parseLong(
-                            simulationSeed
-                                    .getText()
-                                    .trim());
+                    order == SimulationBatchPlan.Order.RANDOM
+                            ? Long.parseLong(
+                                    simulationSeed
+                                            .getText()
+                                            .trim())
+                            : 0L;
             intervalMillis =
                     positiveLong(
                             simulationInterval,
@@ -950,12 +958,6 @@ final class TimingPane extends VBox {
                     ex.getMessage());
             return;
         }
-
-        SimulationBatchPlan.Order order =
-                "Random".equals(
-                        simulationOrder.getValue())
-                        ? SimulationBatchPlan.Order.RANDOM
-                        : SimulationBatchPlan.Order.ASCENDING;
 
         final List<String> registrations;
         try {
