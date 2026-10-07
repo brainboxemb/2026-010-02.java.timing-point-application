@@ -131,9 +131,11 @@ the actual RegistrationId. A manual registration with manually entered time ther
 `Type = MAN` and `Code = MAN`; a manual registration using system-assigned time shows
 `Type = MAN` and `Code = AUTO`. An automatic registration already carries all needed
 meaning in `Type = AUTO`, so its Code cell is empty. A REV record keeps the interpreted row present and replaces the icon-only trash action
-with a visible **DELETED** marker. The trash action has no text header and remains
-disabled when SI-01 does not expose the public revoke capability.
-The immutable LogBook continues to show all ADD/REV records.
+with a visible **DELETED** marker. The trash action has no text header. When selected,
+the client sends the original registration family, LocationId, RegistrationId, time and,
+for manual records, the original AUTO/MAN time-source classification to the normal
+node-scoped revoke operation. SI-01 appends the REV record; it does not delete or rewrite
+the ADD record. The immutable LogBook therefore continues to show both ADD and REV.
 
 Registration input uses a separate prefix and numeric field plus readable local civil
 date and whole-second clock time. The UI shows the interpreted client time zone next to
@@ -184,6 +186,10 @@ The API workbench uses the following LogBook/live-event synchronisation behaviou
   the canonical UTC API timestamp;
 - shows the returned source `seq` as the operation result;
 - shows committed TimingData **Type** and **Code** in separate LogBook columns;
+- projects ADD/REV registration history in the client and uses the original ADD values
+  when the trash action requests an append-only revoke;
+- keeps node lifecycle `NODE_INFO` records in the technical LogBook while excluding
+  them from the interpreted Registrations projection;
 - queries LogBook metadata without downloading the full LogBook;
 - loads bounded LogBook pages and merges live committed TimingData by stable
   `TimingNodeId + sequenceNumber` key;
@@ -217,6 +223,7 @@ GET  /api/v1/capabilities
 
 POST /api/v1/node/{id}/open             {"locationId": <positive integer>}
 POST /api/v1/node/{id}/close
+POST /api/v1/node/{id}/registration/revoke
 
 GET  /api/v1/node/{id}/logbook
 GET  /api/v1/node/{id}/logbook?from=...&limit=...
