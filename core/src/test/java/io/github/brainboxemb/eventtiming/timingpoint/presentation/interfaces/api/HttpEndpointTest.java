@@ -159,7 +159,7 @@ public class HttpEndpointTest {
             assertTrue(history.body.contains("\"regId\":\"N0001\""));
             assertTrue(history.body.contains("\"code\":[\"ADD\"]"));
             assertTrue(history.body.contains(
-                    "\"time\":\"2026-10-01T12:00:00Z\""));
+                    "\"time\":\"2026-10-01T12:00:00.00Z\""));
 
             Response latest = request(
                     server.boundPort(),

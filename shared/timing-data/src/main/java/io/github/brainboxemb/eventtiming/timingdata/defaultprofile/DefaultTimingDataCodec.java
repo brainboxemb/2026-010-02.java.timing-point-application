@@ -14,16 +14,18 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Canonical IF-05 development-v1 JSON codec for the built-in default/reference
- * profile.
+ * Canonical IF-05 v1 JSON codec for the built-in default/reference profile.
  *
- * <p>IF-05 uses integer format versions. Odd versions are development/unstable
- * and even versions are released/stable. Version 1 is therefore deliberately a
- * development contract and may still change before the first stable version 2.</p>
+ * <p>The v1 interchange representation uses fixed timestamp text precision:
+ * effective {@code time} is written at centisecond precision and
+ * {@code recTime} at millisecond precision. The generic TimingTimestamp value
+ * remains capable of representing finer precision outside this profile.</p>
  *
  * <p>The codec owns one JSON object only. It deliberately does not add or remove
  * JSON Lines terminators: file framing, incomplete-tail handling and recovery
@@ -35,6 +37,13 @@ import java.util.List;
  */
 public final class DefaultTimingDataCodec implements TimingDataCodec {
     private static final int VERSION = 1;
+
+    private static final DateTimeFormatter EFFECTIVE_TIME_FORMAT =
+            DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SS'Z'")
+                    .withZone(ZoneOffset.UTC);
+    private static final DateTimeFormatter RECORDED_TIME_FORMAT =
+            DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'")
+                    .withZone(ZoneOffset.UTC);
 
     private static final String RECORD_TYPE_AUTO_REG = "AUTO_REG";
     private static final String RECORD_TYPE_MAN_REG = "MAN_REG";
@@ -108,7 +117,9 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                                     + data.getClass().getName());
                 }
 
-                generator.writeStringField("recTime", data.recordedAt().toString());
+                generator.writeStringField(
+                        "recTime",
+                        formatRecordedTime(data.recordedAt()));
                 generator.writeEndObject();
             } finally {
                 generator.close();
@@ -119,7 +130,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         } catch (IOException | RuntimeException ex) {
             throw new CodecException(
                     CodecException.Reason.ENCODE_FAILURE,
-                    "Could not encode TimingData as IF-05 development-v1 JSON",
+                    "Could not encode TimingData as IF-05 v1 JSON",
                     ex);
         }
     }
@@ -146,7 +157,9 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
             throws IOException, CodecException {
         RegistrationId registrationId = requireRegistrationId(data.registrationId());
         generator.writeStringField("recType", RECORD_TYPE_AUTO_REG);
-        generator.writeStringField("time", data.effectiveTime().toString());
+        generator.writeStringField(
+                "time",
+                formatEffectiveTime(data.effectiveTime()));
         generator.writeStringField("regId", registrationId.value());
         writeCodes(
                 generator,
@@ -180,7 +193,9 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         }
 
         generator.writeStringField("recType", RECORD_TYPE_MAN_REG);
-        generator.writeStringField("time", data.effectiveTime().toString());
+        generator.writeStringField(
+                "time",
+                formatEffectiveTime(data.effectiveTime()));
         generator.writeStringField("regId", registrationId.value());
         writeCodes(
                 generator,
@@ -212,9 +227,11 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
             JsonGenerator generator,
             TimingData data,
             String code)
-            throws IOException {
+            throws IOException, CodecException {
         generator.writeStringField("recType", RECORD_TYPE_NODE_INFO);
-        generator.writeStringField("time", data.effectiveTime().toString());
+        generator.writeStringField(
+                "time",
+                formatEffectiveTime(data.effectiveTime()));
         writeCodes(generator, code);
     }
 
@@ -225,6 +242,47 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
             generator.writeString(code);
         }
         generator.writeEndArray();
+    }
+
+    private static String formatEffectiveTime(
+            TimingTimestamp timestamp)
+            throws CodecException {
+        requirePrecision(
+                timestamp,
+                10_000_000L,
+                "time",
+                "centisecond");
+        return EFFECTIVE_TIME_FORMAT.format(
+                timestamp.instant());
+    }
+
+    private static String formatRecordedTime(
+            TimingTimestamp timestamp)
+            throws CodecException {
+        requirePrecision(
+                timestamp,
+                1_000_000L,
+                "recTime",
+                "millisecond");
+        return RECORDED_TIME_FORMAT.format(
+                timestamp.instant());
+    }
+
+    private static void requirePrecision(
+            TimingTimestamp timestamp,
+            long quantumNanos,
+            String field,
+            String precision)
+            throws CodecException {
+        if (timestamp.instant().getNano()
+                % quantumNanos != 0L) {
+            throw new CodecException(
+                    CodecException.Reason.ENCODE_FAILURE,
+                    field
+                            + " must be aligned to "
+                            + precision
+                            + " precision for IF-05 v1");
+        }
     }
 
     private static RegistrationId requireRegistrationId(RegistrationId registrationId)
@@ -254,7 +312,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         } catch (IOException | RuntimeException ex) {
             throw new CodecException(
                     CodecException.Reason.INVALID_DATA,
-                    "Could not decode IF-05 development-v1 JSON record",
+                    "Could not decode IF-05 v1 JSON record",
                     ex);
         }
     }
