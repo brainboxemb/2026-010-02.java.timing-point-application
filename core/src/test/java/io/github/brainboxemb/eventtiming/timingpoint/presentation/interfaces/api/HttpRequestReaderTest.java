@@ -50,6 +50,35 @@ public class HttpRequestReaderTest {
     }
 
     @Test
+    public void parsesAutomaticAndManualRegistrationRevokeRequests() {
+        HttpRequestReader.RegistrationRevokeRequest automatic =
+                reader.parseRegistrationRevokeBody(bytes(
+                        "{"
+                                + "\"recordType\":\"AUTO_REG\","
+                                + "\"locationId\":24,"
+                                + "\"regId\":\"N0001\","
+                                + "\"time\":\"2026-10-01T12:00:00Z\""
+                                + "}"));
+        assertEquals("AUTO_REG", automatic.recordType);
+        assertEquals(24, automatic.locationId);
+        assertEquals("N0001", automatic.registrationId);
+        assertEquals("2026-10-01T12:00:00Z", automatic.time);
+        assertNull(automatic.timeSource);
+
+        HttpRequestReader.RegistrationRevokeRequest manual =
+                reader.parseRegistrationRevokeBody(bytes(
+                        "{"
+                                + "\"recordType\":\"MAN_REG\","
+                                + "\"locationId\":24,"
+                                + "\"regId\":\"N0002\","
+                                + "\"time\":\"2026-10-01T12:00:01Z\","
+                                + "\"timeSource\":\"MAN\""
+                                + "}"));
+        assertEquals("MAN_REG", manual.recordType);
+        assertEquals("MAN", manual.timeSource);
+    }
+
+    @Test
     public void parsesTagProcessingSetAndClearRequests() {
         HttpRequestReader.TagProcessingUpdateRequest set =
                 reader.parseTagProcessingUpdateBody(bytes(
@@ -102,6 +131,27 @@ public class HttpRequestReaderTest {
                 "MALFORMED_REQUEST",
                 "Malformed JSON request",
                 () -> reader.parseAutoRegistrationBody(bytes("{not-json}")));
+        assertFailure(
+                "INVALID_VALUE",
+                "AUTO_REG revoke must not contain timeSource",
+                () -> reader.parseRegistrationRevokeBody(bytes(
+                        "{"
+                                + "\"recordType\":\"AUTO_REG\","
+                                + "\"locationId\":24,"
+                                + "\"regId\":\"N0001\","
+                                + "\"time\":\"2026-10-01T12:00:00Z\","
+                                + "\"timeSource\":\"AUTO\""
+                                + "}")));
+        assertFailure(
+                "INVALID_VALUE",
+                "MAN_REG revoke requires timeSource AUTO or MAN",
+                () -> reader.parseRegistrationRevokeBody(bytes(
+                        "{"
+                                + "\"recordType\":\"MAN_REG\","
+                                + "\"locationId\":24,"
+                                + "\"regId\":\"N0001\","
+                                + "\"time\":\"2026-10-01T12:00:00Z\""
+                                + "}")));
         assertFailure(
                 "INVALID_VALUE",
                 "SET requires value",
