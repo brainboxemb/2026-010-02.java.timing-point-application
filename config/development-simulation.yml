@@ -1,0 +1,47 @@
+# Development configuration for the built-in simulated-tag scenario path.
+#
+# On Windows the current development platform fallback composes SimulatedAntenna 1.
+# Selecting the public "simulation" EventData provider enables the capability-gated
+# TAG_SCENARIO_SIMULATION IF-03 operation used by the Development Client.
+timingSystems:
+  timing-system-01:
+    eventDataProvider: simulation
+    timingDataProvider: reference
+
+    timingNodes:
+      timing-node-01:
+        timingNodeId: A
+
+        tagProcessing:
+          quietTimeoutMillis: 250
+          maxBurstDurationMillis: 1000
+          duplicateWindowMillis: 15000
+          sweepCadenceMillis: 50
+          observationQueueCapacity: 256
+
+io:
+  storage:
+    timingData:
+      path: data/development-simulation-timing-data.jsonl
+
+presentation:
+  remoteShell:
+    bindAddress: 127.0.0.1
+    port: 8023
+  api:
+    http:
+      bindAddress: 127.0.0.1
+      port: 8081
+    webSocket:
+      bindAddress: 127.0.0.1
+      port: 8082
+
+logging:
+  level: INFO
+  file:
+    path: logs
+    rotateBytes: 1048576
+    retainedFiles: 5
+  live:
+    bindAddress: 127.0.0.1
+    port: 8030
