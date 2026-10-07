@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.testclient;
 
 import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyStringWrapper;
+import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.VPos;
@@ -22,6 +23,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.RowConstraints;
 import javafx.scene.layout.VBox;
 
 import java.time.LocalDate;
@@ -94,12 +96,19 @@ final class TimingPane extends VBox {
             Supplier<ApiClient> clientSupplier,
             ExecutorService requests,
             String initialPrefix,
+            javafx.scene.Node rightHeader,
+            javafx.scene.Node terminalContent,
+            ObservableValue<String> deviceLogText,
+            ObservableValue<String> clientLogText,
             Consumer<String> rawSink,
             Consumer<String> feedback,
             Consumer<String> apiState,
             ClientLog clientLog) {
-        if (clientSupplier == null || requests == null || rawSink == null
-                || feedback == null || apiState == null || clientLog == null) {
+        if (clientSupplier == null || requests == null
+                || rightHeader == null || terminalContent == null
+                || deviceLogText == null || clientLogText == null
+                || rawSink == null || feedback == null
+                || apiState == null || clientLog == null) {
             throw new IllegalArgumentException("TimingPane dependencies must not be null");
         }
         this.clientSupplier = clientSupplier;
@@ -254,20 +263,28 @@ final class TimingPane extends VBox {
                                 registrationBox),
                         tab(
                                 "Simulation",
-                                simulationPane));
+                                simulationPane),
+                        tab(
+                                "Terminal",
+                                terminalContent));
         inputTabs.setTabClosingPolicy(
                 TabPane.TabClosingPolicy.UNAVAILABLE);
-        inputTabs.setPrefHeight(
-                270);
-        inputTabs.setMinHeight(
-                220);
+        inputTabs.setPrefHeight(260);
+        inputTabs.setMinHeight(210);
 
-        VBox left =
+        VBox upperRight =
                 new VBox(
-                        inputTabs);
-        VBox right = new VBox(10, interpretedPane, historyPane);
-        VBox.setVgrow(interpretedPane, Priority.SOMETIMES);
-        VBox.setVgrow(historyPane, Priority.ALWAYS);
+                        10,
+                        rightHeader,
+                        interpretedPane);
+        VBox.setVgrow(
+                interpretedPane,
+                Priority.ALWAYS);
+
+        WorkbenchLogPane workbenchLogs =
+                new WorkbenchLogPane(
+                        deviceLogText,
+                        clientLogText);
 
         ColumnConstraints leftColumn = new ColumnConstraints();
         leftColumn.setPercentWidth(50.0);
@@ -276,17 +293,37 @@ final class TimingPane extends VBox {
         rightColumn.setPercentWidth(50.0);
         rightColumn.setHgrow(Priority.ALWAYS);
 
+        RowConstraints upperRow = new RowConstraints();
+        upperRow.setPercentHeight(43.0);
+        upperRow.setVgrow(Priority.ALWAYS);
+        RowConstraints lowerRow = new RowConstraints();
+        lowerRow.setPercentHeight(57.0);
+        lowerRow.setVgrow(Priority.ALWAYS);
+
         GridPane workbench = new GridPane();
         workbench.setHgap(12);
-        workbench.getColumnConstraints().setAll(leftColumn, rightColumn);
-        workbench.add(left, 0, 0);
-        workbench.add(right, 1, 0);
-        GridPane.setHgrow(left, Priority.ALWAYS);
-        GridPane.setHgrow(right, Priority.ALWAYS);
-        GridPane.setVgrow(left, Priority.ALWAYS);
-        GridPane.setVgrow(right, Priority.ALWAYS);
-        GridPane.setValignment(left, VPos.TOP);
-        GridPane.setValignment(right, VPos.TOP);
+        workbench.setVgap(10);
+        workbench.getColumnConstraints().setAll(
+                leftColumn,
+                rightColumn);
+        workbench.getRowConstraints().setAll(
+                upperRow,
+                lowerRow);
+        workbench.add(inputTabs, 0, 0);
+        workbench.add(upperRight, 1, 0);
+        workbench.add(workbenchLogs, 0, 1);
+        workbench.add(historyPane, 1, 1);
+
+        GridPane.setHgrow(inputTabs, Priority.ALWAYS);
+        GridPane.setVgrow(inputTabs, Priority.ALWAYS);
+        GridPane.setHgrow(upperRight, Priority.ALWAYS);
+        GridPane.setVgrow(upperRight, Priority.ALWAYS);
+        GridPane.setHgrow(workbenchLogs, Priority.ALWAYS);
+        GridPane.setVgrow(workbenchLogs, Priority.ALWAYS);
+        GridPane.setHgrow(historyPane, Priority.ALWAYS);
+        GridPane.setVgrow(historyPane, Priority.ALWAYS);
+        GridPane.setValignment(inputTabs, VPos.TOP);
+        GridPane.setValignment(upperRight, VPos.TOP);
 
         getChildren().add(workbench);
         VBox.setVgrow(workbench, Priority.ALWAYS);
