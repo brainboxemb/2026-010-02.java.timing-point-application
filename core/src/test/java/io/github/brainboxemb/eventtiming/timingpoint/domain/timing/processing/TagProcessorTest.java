@@ -133,7 +133,11 @@ public class TagProcessorTest {
                 metrics,
                 executor);
         CountDownLatch committed = new CountDownLatch(1);
-        node.timingDataCommittedEvent().subscribe(data -> committed.countDown());
+        node.timingDataCommittedEvent().subscribe(data -> {
+            if (data instanceof AutomaticRegistration) {
+                committed.countDown();
+            }
+        });
 
         node.activate();
         node.invoke(TimingNodeCommands.open(new LocationId(24)));
@@ -160,9 +164,9 @@ public class TagProcessorTest {
 
             assertTrue(committed.await(1, TimeUnit.SECONDS));
             awaitLane(executor);
-            assertEquals(1, store.appended.size());
+            assertEquals(2, store.appended.size());
             AutomaticRegistration registration =
-                    (AutomaticRegistration) store.appended.get(0);
+                    (AutomaticRegistration) store.appended.get(1);
             assertEquals(
                     new RegistrationId("N-001"),
                     registration.registrationId());
@@ -201,7 +205,11 @@ public class TagProcessorTest {
                 metrics,
                 executor);
         CountDownLatch committed = new CountDownLatch(1);
-        node.timingDataCommittedEvent().subscribe(data -> committed.countDown());
+        node.timingDataCommittedEvent().subscribe(data -> {
+            if (data instanceof AutomaticRegistration) {
+                committed.countDown();
+            }
+        });
 
         node.activate();
         node.invoke(TimingNodeCommands.open(new LocationId(24)));
@@ -233,7 +241,7 @@ public class TagProcessorTest {
             assertEquals(1L, snapshot.closedBursts());
             assertEquals(1L, snapshot.admitted());
             assertEquals(1L, snapshot.duplicates());
-            assertEquals(1, store.appended.size());
+            assertEquals(2, store.appended.size());
         } finally {
             processor.deactivate();
             node.deactivate();
@@ -314,7 +322,11 @@ public class TagProcessorTest {
                 .changes()
                 .subscribe(processor::onPolicyConfigurationChanged);
         CountDownLatch committed = new CountDownLatch(1);
-        node.timingDataCommittedEvent().subscribe(data -> committed.countDown());
+        node.timingDataCommittedEvent().subscribe(data -> {
+            if (data instanceof AutomaticRegistration) {
+                committed.countDown();
+            }
+        });
 
         node.activate();
         node.invoke(TimingNodeCommands.open(new LocationId(24)));
