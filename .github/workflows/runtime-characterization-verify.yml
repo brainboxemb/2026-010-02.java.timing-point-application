@@ -59,15 +59,15 @@ jobs:
             exec:java \
             -Dexec.args="--workload burst --warmup-count 1 --measured-count 3 --rate 20 --query-limit 10 --work-dir target/runtime-characterization/ci-work --output target/runtime-characterization/ci-evidence.json"
 
-          test -s runtime-characterization/target/runtime-characterization/ci-evidence.json
-          grep -F '"outcome" : "PASS"' runtime-characterization/target/runtime-characterization/ci-evidence.json
-          grep -F '"measuredCount" : 3' runtime-characterization/target/runtime-characterization/ci-evidence.json
+          test -s target/runtime-characterization/ci-evidence.json
+          grep -F '"outcome" : "PASS"' target/runtime-characterization/ci-evidence.json
+          grep -F '"measuredCount" : 3' target/runtime-characterization/ci-evidence.json
 
       - name: Upload harness smoke evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: runtime-characterization-smoke-evidence
-          path: runtime-characterization/target/runtime-characterization/ci-evidence.json
+          path: target/runtime-characterization/ci-evidence.json
           if-no-files-found: warn
           retention-days: 7
