@@ -49,15 +49,6 @@ public final class Conductor extends AbstractConductor
     private final CooperativeTaskController taskController;
 
     /**
-     * TimingNode state for which the inventory rule was last accepted.
-     *
-     * <p>This is remembered input from TimingNode, not Conductor state. It only
-     * prevents a coalesced control pass from repeating the same inventory
-     * request.</p>
-     */
-    private volatile TimingNodeTypes.State lastHandledTimingNodeState;
-
-    /**
      * Creates the SI-01 coordinator and declares the components/properties it
      * coordinates.
      *
@@ -124,15 +115,12 @@ public final class Conductor extends AbstractConductor
          * task used for later changes.
          */
         if (antennaManager == null) {
-            lastHandledTimingNodeState = initialState;
             return;
         }
 
         if (initialState == TimingNodeTypes.State.OPEN) {
-            lastHandledTimingNodeState = null;
             taskController.wake();
         } else {
-            lastHandledTimingNodeState = initialState;
             LOG.info(
                     "TimingNode {} initial state {} -> inventory disabled",
                     timingNode.timingNodeId().value(),
@@ -163,65 +151,45 @@ public final class Conductor extends AbstractConductor
             return TaskStep.done();
         }
 
-        TimingNodeTypes.State timingNodeState =
-                timingNodeStateProperty.currentValue();
-
-        if (timingNodeState == lastHandledTimingNodeState) {
-            return TaskStep.done();
-        }
-
-        if (applyTimingNodeState(timingNodeState)) {
-            lastHandledTimingNodeState = timingNodeState;
-        }
+        applyTimingNodeState(
+                timingNodeStateProperty.currentValue());
 
         return TaskStep.done();
     }
 
     /**
-     * Applies the current application rule for TimingNode state.
-     *
-     * @return true when the antenna manager accepted the requested state
+     * Applies the current application rule as idempotent desired inventory
+     * state. AntennaManager owns requested/applied inventory state through its
+     * Setting; Conductor does not mirror TimingNode state or handling progress.
      */
-    private boolean applyTimingNodeState(
+    private void applyTimingNodeState(
             TimingNodeTypes.State timingNodeState) {
+        final boolean inventoryEnabled;
+
         switch (timingNodeState) {
             case OPEN:
-                LOG.info(
-                        "TimingNode {} OPEN -> enable inventory",
-                        timingNode.timingNodeId().value());
-
-                if (antennaManager.requestEnableInventory()) {
-                    return true;
-                }
-
-                LOG.warn(
-                        "AntennaManager rejected enable-inventory request for TimingNode {} state OPEN managerState={}",
-                        timingNode.timingNodeId().value(),
-                        antennaManager.state());
-                return false;
+                inventoryEnabled = true;
+                break;
 
             case CLOSED:
             case ERROR:
-                LOG.info(
-                        "TimingNode {} {} -> disable inventory",
-                        timingNode.timingNodeId().value(),
-                        timingNodeState);
-
-                if (antennaManager.requestDisableInventory()) {
-                    return true;
-                }
-
-                LOG.warn(
-                        "AntennaManager rejected disable-inventory request for TimingNode {} state {} managerState={}",
-                        timingNode.timingNodeId().value(),
-                        timingNodeState,
-                        antennaManager.state());
-                return false;
+                inventoryEnabled = false;
+                break;
 
             default:
                 throw new IllegalStateException(
                         "Unsupported TimingNode state "
                                 + timingNodeState);
+        }
+
+        if (!antennaManager.setInventoryEnabled(
+                inventoryEnabled)) {
+            LOG.warn(
+                    "AntennaManager rejected inventory state {} for TimingNode {} state {} managerState={}",
+                    inventoryEnabled,
+                    timingNode.timingNodeId().value(),
+                    timingNodeState,
+                    antennaManager.state());
         }
     }
 
