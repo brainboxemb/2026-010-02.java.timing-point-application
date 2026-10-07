@@ -431,7 +431,16 @@ public final class TimingNode {
 
     private <R> R applyCommand(TimingNodeCommand<R> command) throws Exception {
         Status before = logic.status();
+        int committedBefore = logic.committedTimingDataCount();
+
         R result = command.apply(logic);
+
+        int committedAfter = logic.committedTimingDataCount();
+        if (committedAfter > committedBefore) {
+            publishTimingDataCommitted(
+                    logic.latestCommittedTimingData());
+        }
+
         Status after = logic.status();
         publishStatusChanged(before, after);
         return command.complete(this, result);
@@ -498,12 +507,7 @@ public final class TimingNode {
                 && left.locationId().equals(right.locationId());
     }
 
-    RegistrationResult publishCommitted(RegistrationResult result) {
-        if (!result.committed()) {
-            return result;
-        }
-
-        TimingData data = result.timingData();
+    private void publishTimingDataCommitted(TimingData data) {
         long eventStartedNanos = monotonicClock.nowNanos();
         Event.DeliveryReport delivery = timingDataCommittedEvent.emit(data);
         metrics.recordEventDelivery(
@@ -519,7 +523,6 @@ public final class TimingNode {
                             + data.sequenceNumber(),
                     delivery.failures().get(0));
         }
-        return result;
     }
 
     private <R> R runSerialized(Callable<R> work, String operation) {
