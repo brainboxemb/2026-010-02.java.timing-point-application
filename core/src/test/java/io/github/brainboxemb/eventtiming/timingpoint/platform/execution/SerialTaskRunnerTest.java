@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -89,7 +90,7 @@ public class SerialTaskRunnerTest {
                     TimeUnit.SECONDS);
 
             assertEquals(
-                    List.of(
+                    Arrays.asList(
                             "task-1",
                             "sibling",
                             "task-2"),
