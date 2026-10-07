@@ -79,6 +79,7 @@ shared/timing-data/   shared IF-05 TimingData Java library
 core/                 reusable SI-01 application core
 app/                  runnable Timing Point Application
 system-test/          black-box packaged-process verification
+runtime-characterization/ engineering-only runtime measurement harness (optional profile)
 test-client/          standalone JavaFX Development Client
 docs/                 focused repository support documentation
 ```

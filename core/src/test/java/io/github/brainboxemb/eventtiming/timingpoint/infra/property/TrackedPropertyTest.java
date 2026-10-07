@@ -108,11 +108,18 @@ public class TrackedPropertyTest {
             source.set("B");
             assertTrue(
                     property.signalChanged());
+            /*
+             * currentValue is updated before changedEvent is emitted. Wait for
+             * the observable contract being asserted instead of racing that
+             * internal ordering from the test thread.
+             */
             await(
-                    () -> "B".equals(
-                            property.currentValue()),
+                    () -> changes.get() == 1,
                     1000L);
 
+            assertEquals(
+                    "B",
+                    property.currentValue());
             assertEquals(
                     1,
                     changes.get());
