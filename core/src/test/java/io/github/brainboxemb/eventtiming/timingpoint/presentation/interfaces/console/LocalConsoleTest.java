@@ -65,7 +65,7 @@ public class LocalConsoleTest {
         assertTrue(text.contains("State     : CLOSED"));
         assertTrue(text.contains("Open: OPENED"));
         assertTrue(text.contains("Location  : 24"));
-        assertTrue(text.contains("Automatic registration: COMMITTED seq=1"));
+        assertTrue(text.contains("Automatic registration: COMMITTED seq=2"));
         assertTrue(text.contains("Configuration"));
         assertTrue(text.contains("quietTimeoutMillis : current=250 startup=250 runtimeMutable=true"));
         assertTrue(text.contains("Tag processing update: APPLIED"));
