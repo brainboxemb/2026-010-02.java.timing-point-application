@@ -4,7 +4,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.RejectedExecutionException;
 
 /**
- * Runs cooperative state-machine tasks on an existing {@link SerialExecutor}.
+ * Runs cooperative tasks on an existing {@link SerialExecutor}.
  *
  * <p>This runner is for short application/domain control steps that need serial
  * ordering and cooperative yielding but no elapsed-time scheduling. Each

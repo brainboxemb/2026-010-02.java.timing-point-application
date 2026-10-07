@@ -5,7 +5,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 /**
- * Coalescing wake-up controller for one long-lived cooperative state machine.
+ * Coalescing wake-up controller for one long-lived cooperative control task.
  *
  * <p>External events call {@link #wake()}; they do not execute transition
  * logic. At most one run is active at a time. Any number of wake-ups arriving
@@ -47,7 +47,7 @@ public final class CooperativeTaskController {
     }
 
     /**
-     * Requests one current-state pass of the controlled state machine.
+     * Requests one current-state pass of the controlled task.
      *
      * <p>Repeated calls while a run is active are coalesced into one follow-up
      * run rather than one queued run per event.</p>
