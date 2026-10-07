@@ -22,13 +22,50 @@ public final class EventStream extends WebSocketClient {
     }
 
     public static EventStream connect(int port) throws Exception {
-        EventStream stream = new EventStream(
-                URI.create("ws://" + LOOPBACK + ":" + port + "/api/v1/events"));
-        if (!stream.connectBlocking(5L, TimeUnit.SECONDS)) {
-            throw new AssertionError("Timed out opening IF-03 WebSocket");
+        URI uri = URI.create(
+                "ws://" + LOOPBACK + ":" + port + "/api/v1/events");
+        long deadline = System.currentTimeMillis() + 5000L;
+        Exception lastFailure = null;
+
+        /*
+         * HTTP and WebSocket listeners are started independently. A black-box
+         * test may observe HTTP readiness a few milliseconds before the
+         * WebSocket listener is accepting connections, especially after a
+         * restart. Retry fresh clients within one bounded deadline rather than
+         * adding timing sleeps to individual verification cases.
+         */
+        while (System.currentTimeMillis() < deadline) {
+            EventStream stream = new EventStream(uri);
+            long remaining =
+                    Math.max(
+                            1L,
+                            deadline - System.currentTimeMillis());
+            try {
+                if (stream.connectBlocking(
+                        Math.min(500L, remaining),
+                        TimeUnit.MILLISECONDS)) {
+                    stream.throwFailure();
+                    return stream;
+                }
+                if (stream.failure.get() != null) {
+                    lastFailure = stream.failure.get();
+                }
+            } catch (Exception ex) {
+                lastFailure = ex;
+            }
+
+            stream.close();
+            if (System.currentTimeMillis() < deadline) {
+                Thread.sleep(50L);
+            }
         }
-        stream.throwFailure();
-        return stream;
+
+        AssertionError timeout =
+                new AssertionError("Timed out opening IF-03 WebSocket");
+        if (lastFailure != null) {
+            timeout.initCause(lastFailure);
+        }
+        throw timeout;
     }
 
     public String awaitEvent(String eventType) throws Exception {
