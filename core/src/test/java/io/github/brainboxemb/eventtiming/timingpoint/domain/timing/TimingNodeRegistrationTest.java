@@ -67,6 +67,44 @@ public class TimingNodeRegistrationTest {
     }
 
     @Test
+    public void registrationAddsNormalizeEffectiveTimeToCentisecond() {
+        RecordingStore store = new RecordingStore();
+        TimingNode node = node(store);
+
+        node.activate();
+        try {
+            node.invoke(
+                    TimingNodeCommands.open(
+                            new LocationId(24)));
+
+            TimingNodeTypes.RegistrationResult automatic =
+                    node.invoke(
+                            TimingNodeCommands.addAutomaticRegistration(
+                                    new RegistrationId("1001"),
+                                    TimingTimestamp.parse(
+                                            "2026-10-01T12:00:00.129876543Z")));
+            TimingNodeTypes.RegistrationResult manual =
+                    node.invoke(
+                            TimingNodeCommands.commitManualRegistration(
+                                    new RegistrationId("1002"),
+                                    TimingTimestamp.parse(
+                                            "2026-10-01T12:00:01.987654321Z"),
+                                    ManualTimeSource.OPERATOR_ENTERED));
+
+            assertEquals(
+                    TimingTimestamp.parse(
+                            "2026-10-01T12:00:00.12Z"),
+                    automatic.timingData().effectiveTime());
+            assertEquals(
+                    TimingTimestamp.parse(
+                            "2026-10-01T12:00:01.98Z"),
+                    manual.timingData().effectiveTime());
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
     public void acceptedRegistrationWhileClosedIsRejectedWithoutCommit() {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
