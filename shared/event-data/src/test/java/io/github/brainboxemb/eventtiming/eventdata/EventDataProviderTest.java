@@ -7,27 +7,76 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class EventDataProviderTest {
 
     @Test
-    public void referenceProviderHasStableIdAndCreatesEmptyProfile() {
+    public void referenceProviderUsesDefaultIdentityConvention() {
         EventDataProvider provider =
                 new DefaultEventDataProvider();
+        EventData eventData =
+                provider.createEventData();
 
         assertEquals(
                 "reference",
                 provider.id());
+        assertFalse(
+                eventData.isEmpty());
+
+        RegistrationId normal =
+                new RegistrationId("RT-A-0001");
         assertEquals(
-                DefaultEventDataProvider.ID,
-                provider.id());
+                normal,
+                eventData.registrationIdFor(
+                        new TagId("TT-A-0001-1")));
+        assertEquals(
+                normal,
+                eventData.registrationIdFor(
+                        new TagId("TT-A-0001-2")));
+        assertEquals(
+                2,
+                eventData.tagIdsFor(normal).size());
+        assertEquals(
+                "0001",
+                eventData.teamIdFor(normal).value());
+        assertEquals(
+                normal,
+                eventData.registrationIdFor(
+                        new TeamId("0001")));
+
+        RegistrationId reserve =
+                new RegistrationId("RT-R-0001");
+        assertEquals(
+                reserve,
+                eventData.registrationIdFor(
+                        new TagId("TT-R-0001-1")));
+        assertEquals(
+                reserve,
+                eventData.registrationIdFor(
+                        new TagId("TT-R-0001-2")));
+        assertEquals(
+                2,
+                eventData.tagIdsFor(reserve).size());
+        assertNull(
+                eventData.teamIdFor(reserve));
+
+        assertNull(
+                eventData.registrationIdFor(
+                        new TagId("TT-A-0000-1")));
         assertTrue(
-                provider.createEventData().isEmpty());
+                eventData.tagIdsFor(
+                        new RegistrationId("RT-A-0000"))
+                        .isEmpty());
+        assertNull(
+                eventData.registrationIdFor(
+                        new TeamId("0000")));
     }
 
     @Test
-    public void simulationProviderCreatesTwoTagsPerRegistration() {
+    public void simulationProviderUsesReferenceGrammarWithinFixtureRange() {
         EventDataProvider provider =
                 new SimulationEventDataProvider();
         EventData eventData =
@@ -39,28 +88,28 @@ public class EventDataProviderTest {
         assertEquals(
                 2,
                 eventData.tagIdsFor(
-                        new RegistrationId("N0001"))
+                        new RegistrationId("RT-A-0001"))
                         .size());
         assertEquals(
-                "N0001-A",
+                "TT-A-0001-1",
                 eventData.tagIdsFor(
-                        new RegistrationId("N0001"))
+                        new RegistrationId("RT-A-0001"))
                         .get(0)
                         .value());
         assertEquals(
-                "N0001-B",
+                "TT-A-0001-2",
                 eventData.tagIdsFor(
-                        new RegistrationId("N0001"))
+                        new RegistrationId("RT-A-0001"))
                         .get(1)
                         .value());
         assertEquals(
                 2,
                 eventData.tagIdsFor(
-                        new RegistrationId("N2000"))
+                        new RegistrationId("RT-A-2000"))
                         .size());
         assertTrue(
                 eventData.tagIdsFor(
-                        new RegistrationId("N2001"))
+                        new RegistrationId("RT-A-2001"))
                         .isEmpty());
     }
 }
