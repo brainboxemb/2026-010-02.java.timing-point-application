@@ -26,7 +26,7 @@ public class TimingNodeRuntimeMetricsTest {
     @Test
     public void reportsQueuePersistenceCommitAndEventMetricsWithoutPerEventSamples() {
         RecordingPersistence persistence = new RecordingPersistence();
-        TimeSource timeSource = () -> RECORDED_AT;
+        TimeSource timeSource = () -> RECORDED_AT.instant();
         TimingNode node = new TimingNode(
                 new NodeId("A"),
                 persistence,
