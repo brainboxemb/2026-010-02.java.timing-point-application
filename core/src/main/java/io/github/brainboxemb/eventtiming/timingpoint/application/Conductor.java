@@ -22,7 +22,8 @@ import org.slf4j.LoggerFactory;
  * {@link AbstractConductor}.</p>
  *
  * <p>Cross-component events only wake this coordinator. Application decisions
- * are made from current authoritative state in {@link #runStep()}, so future
+ * are made from the current authoritative TimingNode state in {@link #runStep()},
+ * so future
  * coordination rules remain in one readable control-task boundary rather than
  * being spread over event handlers.</p>
  *
@@ -92,7 +93,7 @@ public final class Conductor extends AbstractConductor
 
         timingNodeStateProperty.changedEvent()
                 .subscribe(
-                        ignored -> stateMachine.wake());
+                        ignored -> taskController.wake());
 
         registerComponent(
                 "TimingNode " + timingNode.timingNodeId().value(),
@@ -129,7 +130,7 @@ public final class Conductor extends AbstractConductor
 
         if (initialState == TimingNodeTypes.State.OPEN) {
             lastHandledTimingNodeState = null;
-            stateMachine.wake();
+            taskController.wake();
         } else {
             lastHandledTimingNodeState = initialState;
             LOG.info(
