@@ -90,6 +90,67 @@ public class DefaultTimingDataCodecTest {
     }
 
     @Test
+    public void encodesAndDecodesNodeOpenLifecycleRecord() throws Exception {
+        TimingData.NodeOpen original =
+                factory.createNodeOpen(
+                        context(3L));
+
+        String json = new String(codec.encode(original), StandardCharsets.UTF_8);
+
+        assertEquals(
+                "{\"v\":1,"
+                        + "\"nodeId\":\"A\","
+                        + "\"seqNr\":3,"
+                        + "\"locId\":7,"
+                        + "\"recType\":\"NODE_OPEN\","
+                        + "\"time\":\"2026-09-30T20:01:39.123Z\","
+                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\"}",
+                json);
+
+        TimingData decoded = codec.decode(codec.encode(original));
+        assertTrue(decoded instanceof TimingData.NodeOpen);
+        assertCommon(decoded, 3L);
+    }
+
+    @Test
+    public void encodesAndDecodesNodeCloseLifecycleRecord() throws Exception {
+        TimingData.NodeClose original =
+                factory.createNodeClose(
+                        context(4L));
+
+        TimingData decoded = codec.decode(codec.encode(original));
+
+        assertTrue(decoded instanceof TimingData.NodeClose);
+        assertCommon(decoded, 4L);
+    }
+
+    @Test
+    public void lifecycleRecordRejectsRegistrationOnlyMembers() throws Exception {
+        assertInvalid(json(
+                "{"
+                        + "\"v\":1,"
+                        + "\"nodeId\":\"A\","
+                        + "\"seqNr\":3,"
+                        + "\"locId\":7,"
+                        + "\"recType\":\"NODE_OPEN\","
+                        + "\"time\":\"2026-09-30T20:01:39.123Z\","
+                        + "\"regId\":\"registration-0042\","
+                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
+                        + "}"));
+        assertInvalid(json(
+                "{"
+                        + "\"v\":1,"
+                        + "\"nodeId\":\"A\","
+                        + "\"seqNr\":4,"
+                        + "\"locId\":7,"
+                        + "\"recType\":\"NODE_CLOSE\","
+                        + "\"time\":\"2026-09-30T20:01:39.123Z\","
+                        + "\"code\":[\"ADD\"],"
+                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
+                        + "}"));
+    }
+
+    @Test
     public void decodesAutomaticRegistration() throws Exception {
         TimingData decoded = codec.decode(json(
                 "{"
