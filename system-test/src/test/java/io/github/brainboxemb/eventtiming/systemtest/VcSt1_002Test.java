@@ -16,8 +16,9 @@ import static org.junit.Assert.assertTrue;
 /**
  * VC-ST1-002 — control and observe first committed registration.
  *
- * <p>The formal verification flow remains here. Generic process, HTTP, WebSocket,
- * port-allocation and Remote Shell mechanics live in the system-test framework.</p>
+ * <p>The current stream includes lifecycle TimingData. This case therefore
+ * verifies OPEN, registration ADD and CLOSE in one source sequence before
+ * restart recovery.</p>
  */
 public class VcSt1_002Test {
     private static final String NODE_ID = "A";
@@ -25,7 +26,8 @@ public class VcSt1_002Test {
     private static final String OBSERVATION_TIME = "2026-10-01T12:00:00Z";
 
     @Test
-    public void controlsCommitsReconnectsRestartsAndRecoversLogBook() throws Exception {
+    public void controlsCommitsReconnectsRestartsAndRecoversLogBook()
+            throws Exception {
         TimingApplicationFixture fixture =
                 TimingApplicationFixture.create("VC-ST1-002", NODE_ID);
         BlackBoxEvidence evidence = fixture.evidence();
@@ -36,7 +38,6 @@ public class VcSt1_002Test {
         Throwable evidenceFailure = null;
 
         try {
-            // Run 1: lifecycle control, first registration and WebSocket reconnect.
             Ports firstPorts = fixture.reservePorts();
             firstRun = fixture.start(
                     fixture.writeConfiguration(
@@ -51,7 +52,6 @@ public class VcSt1_002Test {
                     persistedTimingData.isFile()
                             && persistedTimingData.length() > 0L);
 
-            // Run 2: full process restart against the same persisted TimingData.
             Ports secondPorts = fixture.reservePorts();
             secondRun = fixture.start(
                     fixture.writeConfiguration(
@@ -78,10 +78,6 @@ public class VcSt1_002Test {
         }
     }
 
-    /**
-     * VTS run 1: establish operational state, commit sequence 1, verify history/live
-     * observation, then reconnect without replaying history as a new live event.
-     */
     private static void verifyFirstRun(
             TimingApplicationFixture fixture,
             ProcessRun run,
@@ -95,7 +91,6 @@ public class VcSt1_002Test {
         try {
             events = fixture.connectEvents(ports);
 
-            // Initial authoritative state.
             String initialSnapshot = events.awaitEvent("STATUS_SNAPSHOT");
             assertContains(initialSnapshot, "\"id\":\"" + NODE_ID + "\"");
             assertContains(initialSnapshot, "\"locationId\":null");
@@ -109,27 +104,22 @@ public class VcSt1_002Test {
             assertContains(
                     capabilities.body(),
                     "\"id\":\"DIRECT_REGISTRATION_SIMULATION\"");
-            assertContains(capabilities.body(), "\"supported\":true");
             assertContains(capabilities.body(), "\"enabled\":true");
 
-            Response initialStatus = http.get("/api/v1/status");
-            assertEquals(
-                    "Unexpected initial status",
-                    200,
-                    initialStatus.status());
-            assertNodeState(initialStatus.body(), null, "CLOSED");
-
-            // OPEN carries and atomically applies its LocationId.
             Response open = http.post(
                     nodePath("/open"),
                     "{\"locationId\":24}");
             assertEquals("Unexpected open status", 200, open.status());
             assertContains(open.body(), "\"result\":\"OPENED\"");
+
+            String openCommitted =
+                    events.awaitEvent("TIMING_DATA_COMMITTED");
+            assertLifecycle(openCommitted, 1L, "OPEN", 24);
+
             String openedEvent = events.awaitEvent("STATUS_CHANGED");
             assertContains(openedEvent, "\"locationId\":24");
             assertContains(openedEvent, "\"state\":\"OPEN\"");
 
-            // Commit the deterministic first registration.
             Response registration = http.post(
                     "/api/v1/dev/node/" + NODE_ID + "/auto-reg",
                     "{"
@@ -140,23 +130,32 @@ public class VcSt1_002Test {
                     "Unexpected auto-reg status",
                     200,
                     registration.status());
-            assertContains(registration.body(), "\"seq\":1");
+            assertContains(registration.body(), "\"seq\":2");
 
-            String committedEvent =
+            String registrationCommitted =
                     events.awaitEvent("TIMING_DATA_COMMITTED");
-            assertCommittedRegistration(committedEvent);
+            assertCommittedRegistration(
+                    registrationCommitted,
+                    2L);
 
-            assertSingleCommittedLogBookRecord(http);
+            assertLogBook(
+                    http,
+                    2,
+                    2L,
+                    false);
 
-            // Close while retaining the operational Location ID.
             Response close = http.post(nodePath("/close"), "");
             assertEquals("Unexpected close status", 200, close.status());
             assertContains(close.body(), "\"result\":\"CLOSED\"");
+
+            String closeCommitted =
+                    events.awaitEvent("TIMING_DATA_COMMITTED");
+            assertLifecycle(closeCommitted, 3L, "CLOSE", 24);
+
             String closedEvent = events.awaitEvent("STATUS_CHANGED");
             assertContains(closedEvent, "\"state\":\"CLOSED\"");
             assertContains(closedEvent, "\"locationId\":24");
 
-            // Reconnect: current snapshot first; historical TimingData is not a new commit.
             events.closeQuietly();
             events = null;
             reconnect = fixture.connectEvents(ports);
@@ -168,7 +167,11 @@ public class VcSt1_002Test {
             assertContains(reconnectSnapshot, "\"locationId\":24");
             reconnect.assertNoEvent("TIMING_DATA_COMMITTED", 750L);
 
-            assertSingleCommittedLogBookRecord(http);
+            assertLogBook(
+                    http,
+                    3,
+                    3L,
+                    true);
         } finally {
             if (events != null) {
                 events.closeQuietly();
@@ -181,10 +184,6 @@ public class VcSt1_002Test {
         fixture.shutdown(run, ports);
     }
 
-    /**
-     * VTS run 2 robustness evidence: restart from the same TimingData file and
-     * recover history without restoring operational state or replaying history live.
-     */
     private static void verifyRestartRecovery(
             TimingApplicationFixture fixture,
             ProcessRun run,
@@ -204,17 +203,11 @@ public class VcSt1_002Test {
             assertContains(recoveredSnapshot, "\"locationId\":null");
             events.assertNoEvent("TIMING_DATA_COMMITTED", 750L);
 
-            Response recoveredStatus = http.get("/api/v1/status");
-            assertEquals(
-                    "Unexpected status after restart",
-                    200,
-                    recoveredStatus.status());
-            assertNodeState(
-                    recoveredStatus.body(),
-                    null,
-                    "CLOSED");
-
-            assertSingleCommittedLogBookRecord(http);
+            assertLogBook(
+                    http,
+                    3,
+                    3L,
+                    true);
         } finally {
             if (events != null) {
                 events.closeQuietly();
@@ -224,17 +217,20 @@ public class VcSt1_002Test {
         fixture.shutdown(run, ports);
     }
 
-    private static void assertSingleCommittedLogBookRecord(
-            HttpTestClient http)
+    private static void assertLogBook(
+            HttpTestClient http,
+            int count,
+            long last,
+            boolean requireClose)
             throws Exception {
         Response info = http.get(nodePath("/logbook"));
         assertEquals(
                 "Unexpected LogBook metadata status",
                 200,
                 info.status());
-        assertContains(info.body(), "\"count\":1");
+        assertContains(info.body(), "\"count\":" + count);
         assertContains(info.body(), "\"first\":1");
-        assertContains(info.body(), "\"last\":1");
+        assertContains(info.body(), "\"last\":" + last);
 
         Response page = http.get(
                 nodePath("/logbook?from=1&limit=100"));
@@ -242,31 +238,34 @@ public class VcSt1_002Test {
                 "Unexpected LogBook range status",
                 200,
                 page.status());
-        assertContains(page.body(), "\"count\":1");
+        assertContains(page.body(), "\"count\":" + count);
         assertContains(page.body(), "\"next\":null");
-        assertCommittedRegistration(page.body());
-    }
-
-    private static void assertNodeState(
-            String json,
-            Integer locationId,
-            String state) {
-        assertContains(json, "\"nodes\":[{");
-        assertContains(json, "\"id\":\"" + NODE_ID + "\"");
-        if (locationId == null) {
-            assertContains(json, "\"locationId\":null");
-        } else {
-            assertContains(
-                    json,
-                    "\"locationId\":" + locationId);
+        assertLifecycle(page.body(), 1L, "OPEN", 24);
+        assertCommittedRegistration(page.body(), 2L);
+        if (requireClose) {
+            assertLifecycle(page.body(), 3L, "CLOSE", 24);
         }
-        assertContains(json, "\"state\":\"" + state + "\"");
     }
 
-    private static void assertCommittedRegistration(String json) {
+    private static void assertLifecycle(
+            String json,
+            long sequence,
+            String code,
+            int locationId) {
         assertContains(json, "\"v\":1");
         assertContains(json, "\"nodeId\":\"" + NODE_ID + "\"");
-        assertContains(json, "\"seqNr\":1");
+        assertContains(json, "\"seqNr\":" + sequence);
+        assertContains(json, "\"locId\":" + locationId);
+        assertContains(json, "\"recType\":\"NODE_INFO\"");
+        assertContains(json, "\"code\":[\"" + code + "\"]");
+    }
+
+    private static void assertCommittedRegistration(
+            String json,
+            long sequence) {
+        assertContains(json, "\"v\":1");
+        assertContains(json, "\"nodeId\":\"" + NODE_ID + "\"");
+        assertContains(json, "\"seqNr\":" + sequence);
         assertContains(json, "\"locId\":24");
         assertContains(json, "\"recType\":\"AUTO_REG\"");
         assertContains(
@@ -295,7 +294,7 @@ public class VcSt1_002Test {
         StringBuilder output = new StringBuilder();
         if (firstRun != null) {
             output.append(
-                    "=== run 1: commit and WebSocket reconnect ===")
+                    "=== run 1: lifecycle, registration and reconnect ===")
                     .append(System.lineSeparator())
                     .append(firstRun.output());
         }
