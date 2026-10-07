@@ -7,6 +7,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTask;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTaskController;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.TaskStep;
@@ -59,22 +60,13 @@ public final class AntennaManager implements CooperativeTask {
     private volatile Phase phase = Phase.STOPPED;
     private volatile Throwable failure;
 
-    /*
-     * The manager state machine is started only when there is new input.
+    /**
+     * Generic wake/coalescing controller for this manager state machine.
      *
-     * stateMachineRunning prevents two runs of this same state machine from
-     * being admitted concurrently.
-     *
-     * stateMachineWakePending remembers an input that arrives while a run is
-     * still active. The completion callback starts one new run afterwards.
-     * Multiple inputs may therefore coalesce into one run without losing the
-     * fact that the state machine must look at its current state again.
-     *
-     * No Future is stored here: the Future belongs only to the execution
-     * mechanism. The manager needs these two state facts, not the Future itself.
+     * <p>The manager owns antenna state and transitions. The controller owns
+     * only whether one cooperative run is active or another wake is pending.</p>
      */
-    private boolean stateMachineRunning;
-    private boolean stateMachineWakePending;
+    private final CooperativeTaskController stateMachine;
 
     public AntennaManager(
             AntennaSet antennaSet,
@@ -86,6 +78,10 @@ public final class AntennaManager implements CooperativeTask {
         antennaSet.seal();
         this.antennaSet = antennaSet;
         taskRunner = new ScheduledTaskRunner(controlLane, controlTimeout);
+        stateMachine = new CooperativeTaskController(
+                taskRunner,
+                this,
+                this::onStateMachineFailure);
         selfTestTask = new SelfTestTask(antennaSet.antennas());
         inventoryTask = new InventoryTask(
                 antennaSet.antennas(),
@@ -109,7 +105,7 @@ public final class AntennaManager implements CooperativeTask {
         state = State.ACTIVE;
         phase = Phase.START_SELF_TEST;
         failure = null;
-        requestStateMachineRun();
+        stateMachine.wake();
     }
 
     public boolean isBusy() {
@@ -169,7 +165,7 @@ public final class AntennaManager implements CooperativeTask {
         }
 
         inventoryEnabledSetting.request(Boolean.FALSE);
-        cancelStateMachine();
+        stateMachine.clearPendingWake();
         selfTestTask.cancel();
         inventoryTask.cancel();
 
@@ -194,9 +190,6 @@ public final class AntennaManager implements CooperativeTask {
         }
 
         synchronized (this) {
-            stateMachineRunning = false;
-            stateMachineWakePending = false;
-
             if (shutdownFailure == null) {
                 inventoryEnabledSetting.markApplied(Boolean.FALSE);
                 phase = Phase.STOPPED;
@@ -219,7 +212,7 @@ public final class AntennaManager implements CooperativeTask {
         }
 
         inventoryEnabledSetting.request(Boolean.valueOf(enabled));
-        requestStateMachineRun();
+        stateMachine.wake();
         return true;
     }
 
@@ -228,7 +221,7 @@ public final class AntennaManager implements CooperativeTask {
      * the task and is read from that task when WAIT_SELF_TEST is processed.
      */
     private void onSelfTestCompleted(AntennaTaskResult ignored) {
-        requestStateMachineRun();
+        stateMachine.wake();
     }
 
     /**
@@ -329,60 +322,19 @@ public final class AntennaManager implements CooperativeTask {
     }
 
     /**
-     * Wakes the manager state machine.
+     * Handles execution failure of the manager state machine.
      *
-     * <p>Only one run may be active at a time. If input arrives during that run,
-     * wakePending remains true. When the run completes, one new run is admitted.
-     * The state machine always reads current manager state, so ten wake-ups while
-     * running do not require ten queued executions.</p>
+     * <p>Wake/coalescing bookkeeping belongs to CooperativeTaskController;
+     * this method contains only AntennaManager failure semantics.</p>
      */
-    private synchronized void requestStateMachineRun() {
-        stateMachineWakePending = true;
-
-        if (state != State.ACTIVE || stateMachineRunning) {
-            return;
-        }
-
-        stateMachineWakePending = false;
-        stateMachineRunning = true;
-
-        /*
-         * The Future is deliberately not stored. It is used only here to learn
-         * when this particular run has finished, so we can clear the running
-         * flag and honour a wake-up that arrived in the meantime.
-         */
-        taskRunner.runTask(this).whenComplete(this::onStateMachineRunCompleted);
-    }
-
-    /**
-     * Execution callback for one completed manager-task run.
-     *
-     * <p>This does not contain manager transition logic; it only maintains the
-     * scheduling state of the manager task and starts a pending wake-up.</p>
-     */
-    private synchronized void onStateMachineRunCompleted(Void ignored, Throwable taskFailure) {
-        stateMachineRunning = false;
-
-        if (taskFailure != null && !(taskFailure instanceof CancellationException)) {
-            recordFailure(taskFailure);
-            state = State.FAILED;
-            LOG.warn("AntennaManager state machine failed", taskFailure);
-            return;
-        }
-
-        if (stateMachineWakePending && state == State.ACTIVE) {
-            requestStateMachineRun();
-        }
-    }
-
-    /**
-     * Prevents a pending wake-up from starting another manager run during
-     * deactivation. An already admitted run is intentionally not cancelled:
-     * its next short step observes DEACTIVATING and returns DONE before the
-     * shutdown task can run on the same serial lane.
-     */
-    private synchronized void cancelStateMachine() {
-        stateMachineWakePending = false;
+    private synchronized void onStateMachineFailure(
+            Throwable taskFailure) {
+        recordFailure(
+                taskFailure);
+        state = State.FAILED;
+        LOG.warn(
+                "AntennaManager state machine failed",
+                taskFailure);
     }
 
     private void recordFailure(Throwable cause) {
