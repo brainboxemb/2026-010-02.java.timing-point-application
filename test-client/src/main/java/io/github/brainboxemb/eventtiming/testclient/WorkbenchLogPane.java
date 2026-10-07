@@ -1,8 +1,9 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
 import javafx.beans.value.ObservableValue;
-import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
+import javafx.scene.control.TitledPane;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.VBox;
 import javafx.scene.control.TextArea;
 
 /**
@@ -12,7 +13,7 @@ import javafx.scene.control.TextArea;
  * mirrors their text so timing work and recent diagnostics can stay visible at
  * the same time.</p>
  */
-final class WorkbenchLogPane extends TabPane {
+final class WorkbenchLogPane extends VBox {
 
     WorkbenchLogPane(
             ObservableValue<String> deviceLogText,
@@ -22,34 +23,30 @@ final class WorkbenchLogPane extends TabPane {
                     "log text sources must not be null");
         }
 
-        setTabClosingPolicy(
-                TabClosingPolicy.UNAVAILABLE);
-        setPrefHeight(
-                180);
-        setMinHeight(
-                120);
+        setSpacing(10);
 
-        getTabs().setAll(
-                tab(
+        TitledPane device =
+                titledLog(
                         "Device Log",
-                        mirroredLog(
-                                deviceLogText)),
-                tab(
+                        mirroredLog(deviceLogText));
+        TitledPane client =
+                titledLog(
                         "Client Log",
-                        mirroredLog(
-                                clientLogText)));
+                        mirroredLog(clientLogText));
+
+        getChildren().setAll(device, client);
+        VBox.setVgrow(device, Priority.ALWAYS);
+        VBox.setVgrow(client, Priority.ALWAYS);
     }
 
-    private static Tab tab(
+    private static TitledPane titledLog(
             String title,
             TextArea log) {
-        Tab tab =
-                new Tab(
-                        title,
-                        log);
-        tab.setClosable(
-                false);
-        return tab;
+        TitledPane pane =
+                new TitledPane(title, log);
+        pane.setCollapsible(false);
+        pane.setMinHeight(120);
+        return pane;
     }
 
     private static TextArea mirroredLog(

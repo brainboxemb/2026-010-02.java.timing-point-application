@@ -37,12 +37,14 @@ final class ApiPane extends VBox {
             Supplier<ApiClient> clientSupplier,
             ExecutorService requests,
             String initialPrefix,
+            javafx.scene.Node terminalContent,
             ObservableValue<String> deviceLogText,
             ObservableValue<String> clientLogText,
             Consumer<String> feedback,
             Consumer<String> apiState,
             ClientLog clientLog) {
         if (clientSupplier == null || requests == null
+                || terminalContent == null
                 || deviceLogText == null || clientLogText == null
                 || feedback == null || apiState == null || clientLog == null) {
             throw new IllegalArgumentException("API pane dependencies must not be null");
@@ -72,6 +74,10 @@ final class ApiPane extends VBox {
                 clientSupplier,
                 requests,
                 initialPrefix,
+                identityBar,
+                terminalContent,
+                deviceLogText,
+                clientLogText,
                 this::showRaw,
                 feedback,
                 apiState,
@@ -86,16 +92,9 @@ final class ApiPane extends VBox {
         rawPane.setCollapsible(true);
         rawPane.setExpanded(false);
 
-        WorkbenchLogPane workbenchLogs =
-                new WorkbenchLogPane(
-                        deviceLogText,
-                        clientLogText);
-
         getChildren().addAll(
-                identityBar,
                 timingPane.syncStateBar(),
                 timingPane,
-                workbenchLogs,
                 rawPane);
         VBox.setVgrow(timingPane, Priority.ALWAYS);
 
