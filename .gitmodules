@@ -1,7 +1,0 @@
-[submodule "tools/tool.git-project"]
-	path = tools/tool.git-project
-	url = https://github.com/brainboxemb/tool.git-project.git
-
-[submodule "tools/tool.java-project"]
-	path = tools/tool.java-project
-	url = https://github.com/brainboxemb/tool.java-project.git
