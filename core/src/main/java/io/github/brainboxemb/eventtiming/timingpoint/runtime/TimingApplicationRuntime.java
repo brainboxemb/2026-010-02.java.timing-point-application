@@ -477,6 +477,7 @@ public final class TimingApplicationRuntime {
 
             SimulatedTagScenarioRunner simulationRunner =
                     simulatedAntenna == null
+                                    || eventData.isEmpty()
                             ? null
                             : new SimulatedTagScenarioRunner(
                                     simulatedAntenna,
