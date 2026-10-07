@@ -354,7 +354,7 @@ public class TagProcessorTest {
                             .override(shorterQuietWindow));
 
             assertTrue(committed.await(1, TimeUnit.SECONDS));
-            assertEquals(1, store.appended.size());
+            assertEquals(2, store.appended.size());
         } finally {
             processor.deactivate();
             node.deactivate();
