@@ -24,7 +24,7 @@ public final class SimulationEventDataProvider
 
     @Override
     public EventData createEventData() {
-        return new DefaultEventData(
+        return DefaultEventData.normalOnly(
                 FIRST_REGISTRATION,
                 LAST_REGISTRATION);
     }
