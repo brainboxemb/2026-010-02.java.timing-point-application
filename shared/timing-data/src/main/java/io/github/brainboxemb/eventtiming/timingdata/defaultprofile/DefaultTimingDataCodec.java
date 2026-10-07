@@ -38,8 +38,10 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
 
     private static final String RECORD_TYPE_AUTO_REG = "AUTO_REG";
     private static final String RECORD_TYPE_MAN_REG = "MAN_REG";
-    private static final String RECORD_TYPE_NODE_OPEN = "NODE_OPEN";
-    private static final String RECORD_TYPE_NODE_CLOSE = "NODE_CLOSE";
+    private static final String RECORD_TYPE_NODE_REG = "NODE_REG";
+
+    private static final String CODE_OPEN = "OPEN";
+    private static final String CODE_CLOSE = "CLOSE";
 
     private static final String CODE_ADD = "ADD";
     private static final String CODE_AUTO = "AUTO";
@@ -91,13 +93,13 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                 } else if (data instanceof TimingData.NodeOpen) {
                     writeLifecycle(
                             generator,
-                            RECORD_TYPE_NODE_OPEN,
-                            data);
+                            data,
+                            CODE_OPEN);
                 } else if (data instanceof TimingData.NodeClose) {
                     writeLifecycle(
                             generator,
-                            RECORD_TYPE_NODE_CLOSE,
-                            data);
+                            data,
+                            CODE_CLOSE);
                 } else {
                     throw new CodecException(
                             CodecException.Reason.ENCODE_FAILURE,
@@ -182,11 +184,12 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
 
     private static void writeLifecycle(
             JsonGenerator generator,
-            String recordType,
-            TimingData data)
+            TimingData data,
+            String code)
             throws IOException {
-        generator.writeStringField("recType", recordType);
+        generator.writeStringField("recType", RECORD_TYPE_NODE_REG);
         generator.writeStringField("time", data.effectiveTime().toString());
+        writeCodes(generator, code);
     }
 
     private static void writeCodes(JsonGenerator generator, String... codes)
@@ -329,8 +332,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         require(fields.recordTypeSeen, "recType");
         if (!RECORD_TYPE_AUTO_REG.equals(fields.recordType)
                 && !RECORD_TYPE_MAN_REG.equals(fields.recordType)
-                && !RECORD_TYPE_NODE_OPEN.equals(fields.recordType)
-                && !RECORD_TYPE_NODE_CLOSE.equals(fields.recordType)) {
+                && !RECORD_TYPE_NODE_REG.equals(fields.recordType)) {
             throw CodecException.unsupportedRecordType(
                     VERSION,
                     key,
@@ -341,13 +343,17 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                     "unsupported IF-05 development-v1 recType " + fields.recordType);
         }
 
-        if (RECORD_TYPE_NODE_OPEN.equals(fields.recordType)
-                || RECORD_TYPE_NODE_CLOSE.equals(fields.recordType)) {
+        if (RECORD_TYPE_NODE_REG.equals(fields.recordType)) {
             rejectLifecycleRegistrationFields(fields);
-            if (RECORD_TYPE_NODE_OPEN.equals(fields.recordType)) {
+            require(fields.codesSeen, "code");
+            if (hasExactCodes(fields.codes, CODE_OPEN)) {
                 return timingDataFactory.createNodeOpen(context);
             }
-            return timingDataFactory.createNodeClose(context);
+            if (hasExactCodes(fields.codes, CODE_CLOSE)) {
+                return timingDataFactory.createNodeClose(context);
+            }
+            throw invalid(
+                    "NODE_REG code must be exactly OPEN or CLOSE");
         }
 
         require(fields.registrationIdSeen, "regId");
@@ -383,9 +389,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         if (fields.registrationIdSeen) {
             throw invalid(fields.recordType + " must not contain regId");
         }
-        if (fields.codesSeen) {
-            throw invalid(fields.recordType + " must not contain code");
-        }
+
     }
 
     private static RegistrationId registrationId(String value) throws CodecException {
