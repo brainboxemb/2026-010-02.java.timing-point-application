@@ -67,6 +67,14 @@ final class RuntimeCharacterizationHarness
     private static final Instant INPUT_TIME_BASE =
             Instant.parse("2026-01-01T00:00:00Z");
 
+    static int timingNodeQueueCapacity() {
+        return TIMING_NODE_QUEUE_CAPACITY;
+    }
+
+    static int tagProcessorQueueCapacity() {
+        return TAG_PROCESSOR_QUEUE_CAPACITY;
+    }
+
     private final CharacterizationConfig config;
     private final ExecutorService nodeWorker;
     private final ScheduledThreadPoolExecutor tagWorker;
