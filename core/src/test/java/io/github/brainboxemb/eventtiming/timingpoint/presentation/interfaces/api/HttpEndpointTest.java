@@ -126,7 +126,7 @@ public class HttpEndpointTest {
                             + "\"2026-10-01T12:00:00.000000000Z\""
                             + "}");
             assertEquals(200, registration.status);
-            assertEquals("{\"seq\":1}", registration.body);
+            assertEquals("{\"seq\":2}", registration.body);
 
             Response logBookInfo = request(
                     server.boundPort(),
@@ -134,7 +134,7 @@ public class HttpEndpointTest {
                     "/api/v1/node/A/logbook",
                     null);
             assertEquals(200, logBookInfo.status);
-            assertEquals("{\"count\":1,\"first\":1,\"last\":1}", logBookInfo.body);
+            assertEquals("{\"count\":2,\"first\":1,\"last\":2}", logBookInfo.body);
 
             Response history = request(
                     server.boundPort(),
@@ -142,9 +142,12 @@ public class HttpEndpointTest {
                     "/api/v1/node/A/logbook?from=1&limit=100",
                     null);
             assertEquals(200, history.status);
-            assertTrue(history.body.contains("\"count\":1"));
+            assertTrue(history.body.contains("\"count\":2"));
             assertTrue(history.body.contains("\"next\":null"));
             assertTrue(history.body.contains("\"seqNr\":1"));
+            assertTrue(history.body.contains("\"recType\":\"NODE_INFO\""));
+            assertTrue(history.body.contains("\"code\":[\"OPEN\"]"));
+            assertTrue(history.body.contains("\"seqNr\":2"));
             assertTrue(history.body.contains("\"locId\":24"));
             assertTrue(history.body.contains("\"recType\":\"AUTO_REG\""));
             assertTrue(history.body.contains("\"regId\":\"N0001\""));
@@ -158,7 +161,31 @@ public class HttpEndpointTest {
                     "/api/v1/node/A/logbook?last=1",
                     null);
             assertEquals(200, latest.status);
-            assertTrue(latest.body.contains("\"seqNr\":1"));
+            assertTrue(latest.body.contains("\"seqNr\":2"));
+
+            Response revoked = request(
+                    server.boundPort(),
+                    "POST",
+                    "/api/v1/node/A/registration/revoke",
+                    "{"
+                            + "\"recordType\":\"AUTO_REG\","
+                            + "\"locationId\":24,"
+                            + "\"regId\":\"N0001\","
+                            + "\"time\":\"2026-10-01T12:00:00.000000000Z\""
+                            + "}");
+            assertEquals(200, revoked.status);
+            assertEquals("{\"seq\":3}", revoked.body);
+
+            Response revokedRecord = request(
+                    server.boundPort(),
+                    "GET",
+                    "/api/v1/node/A/logbook?last=1",
+                    null);
+            assertEquals(200, revokedRecord.status);
+            assertTrue(revokedRecord.body.contains("\"seqNr\":3"));
+            assertTrue(revokedRecord.body.contains("\"recType\":\"AUTO_REG\""));
+            assertTrue(revokedRecord.body.contains("\"regId\":\"N0001\""));
+            assertTrue(revokedRecord.body.contains("\"code\":[\"REV\"]"));
 
             Response wrongNode = request(
                     server.boundPort(),
