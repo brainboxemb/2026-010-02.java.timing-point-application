@@ -59,7 +59,7 @@ public class RuntimeCharacterizationHarnessTest {
                 result.tagAfter().queueFull()
                         - result.tagBefore().queueFull());
         assertEquals(
-                4,
+                5,
                 result.query().totalHistory());
         assertTrue(
                 Files.exists(
