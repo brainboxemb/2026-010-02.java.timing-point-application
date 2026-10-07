@@ -18,6 +18,47 @@ import static org.junit.Assert.assertTrue;
 public class TrackedPropertyTest {
 
     @Test
+    public void constructionDoesNotReadSource()
+            throws Exception {
+        ExecutorService worker =
+                Executors.newSingleThreadExecutor();
+        SerialExecutor lane =
+                new SerialExecutor(
+                        4,
+                        "tracked-property-test",
+                        worker);
+        AtomicInteger reads =
+                new AtomicInteger();
+
+        TrackedProperty<String> property =
+                new TrackedProperty<String>(
+                        "test.value",
+                        lane,
+                        () -> {
+                            reads.incrementAndGet();
+                            return "A";
+                        });
+
+        try {
+            assertEquals(
+                    "construction must only store the deferred reader",
+                    0,
+                    reads.get());
+
+            lane.start();
+            assertEquals(
+                    "A",
+                    property.initialize());
+            assertEquals(
+                    1,
+                    reads.get());
+        } finally {
+            lane.close();
+            worker.shutdownNow();
+        }
+    }
+
+    @Test
     public void initializesTracksChangesAndIgnoresUnchangedValues()
             throws Exception {
         ExecutorService worker =
