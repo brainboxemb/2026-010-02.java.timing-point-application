@@ -16,6 +16,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTi
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.DynamicConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.ConsolePromptControl;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevelControl;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.extension.ExtensionRegistry;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
@@ -113,6 +114,7 @@ public final class TimingApplicationRuntime {
                         .getContextClassLoader(),
                 null,
                 null,
+                null,
                 null);
     }
 
@@ -132,6 +134,7 @@ public final class TimingApplicationRuntime {
                 config,
                 PlatformEnvironment.system(),
                 extensionClassLoader,
+                null,
                 null,
                 null,
                 null);
@@ -170,6 +173,7 @@ public final class TimingApplicationRuntime {
                 Thread.currentThread()
                         .getContextClassLoader(),
                 null,
+                null,
                 consoleInput,
                 consoleOutput);
     }
@@ -184,6 +188,26 @@ public final class TimingApplicationRuntime {
             LoggingLevelControl loggingLevelControl,
             Reader consoleInput,
             Writer consoleOutput) {
+        return create(
+                buildIdentity,
+                config,
+                loggingLevelControl,
+                null,
+                consoleInput,
+                consoleOutput);
+    }
+
+    /**
+     * Constructs the normal executable composition with explicit local-console
+     * prompt coordination for asynchronous console logging.
+     */
+    public static TimingApplicationRuntime create(
+            BuildIdentity buildIdentity,
+            Config config,
+            LoggingLevelControl loggingLevelControl,
+            ConsolePromptControl consolePromptControl,
+            Reader consoleInput,
+            Writer consoleOutput) {
         return createNormal(
                 buildIdentity,
                 config,
@@ -191,6 +215,7 @@ public final class TimingApplicationRuntime {
                 Thread.currentThread()
                         .getContextClassLoader(),
                 loggingLevelControl,
+                consolePromptControl,
                 consoleInput,
                 consoleOutput);
     }
@@ -202,6 +227,7 @@ public final class TimingApplicationRuntime {
             PlatformEnvironment platform,
             ClassLoader extensionClassLoader,
             LoggingLevelControl loggingLevelControl,
+            ConsolePromptControl consolePromptControl,
             Reader consoleInput,
             Writer consoleOutput) {
         if (platform == null) {
@@ -225,6 +251,7 @@ public final class TimingApplicationRuntime {
                 extensions,
                 platform,
                 loggingLevelControl,
+                consolePromptControl,
                 consoleInput,
                 consoleOutput);
     }
@@ -251,6 +278,7 @@ public final class TimingApplicationRuntime {
                 PlatformEnvironment.system(),
                 null,
                 null,
+                null,
                 null);
     }
 
@@ -264,6 +292,7 @@ public final class TimingApplicationRuntime {
             ExtensionRegistry extensions,
             PlatformEnvironment platform,
             LoggingLevelControl loggingLevelControl,
+            ConsolePromptControl consolePromptControl,
             Reader consoleInput,
             Writer consoleOutput) {
         if (config == null) {
@@ -300,6 +329,7 @@ public final class TimingApplicationRuntime {
                 timingDataProvider.createCodec(),
                 platform,
                 loggingLevelControl,
+                consolePromptControl,
                 consoleInput,
                 consoleOutput);
     }
@@ -316,6 +346,7 @@ public final class TimingApplicationRuntime {
             TimingDataCodec timingDataCodec,
             PlatformEnvironment platform,
             LoggingLevelControl loggingLevelControl,
+            ConsolePromptControl consolePromptControl,
             Reader consoleInput,
             Writer consoleOutput) {
         requireCompositionInput(
@@ -409,6 +440,7 @@ public final class TimingApplicationRuntime {
                             config.presentation(),
                             presentationGateway,
                             loggingLevelControl,
+                            consolePromptControl,
                             shutdownSignal::request,
                             consoleInput,
                             consoleOutput);
