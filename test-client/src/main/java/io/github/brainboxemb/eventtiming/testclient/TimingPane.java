@@ -1268,7 +1268,10 @@ final class TimingPane extends VBox {
                             ? "TAG_SCENARIO_SIMULATION enabled"
                             : "TAG_SCENARIO_SIMULATION unavailable");
         }
-        node.setDisable(!live || model.nodes().size() <= 1);
+        node.setDisable(
+                !live
+                        || model.nodes().size() <= 1
+                        || simulationBatchRunning);
         locationInput.setDisable(!live || !controls.open());
         open.setDisable(!live || !controls.open());
         close.setDisable(!live || !controls.close());
