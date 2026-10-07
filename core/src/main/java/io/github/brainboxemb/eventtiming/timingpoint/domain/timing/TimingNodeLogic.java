@@ -52,6 +52,21 @@ final class TimingNodeLogic {
             TimingDataPersistence timingDataPersistence,
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
+            MonotonicClock monotonicClock) {
+        this(
+                timingNodeId,
+                timingDataPersistence,
+                timingDataFactory,
+                timeSource,
+                monotonicClock,
+                new TimingNodeMetrics());
+    }
+
+    TimingNodeLogic(
+            NodeId timingNodeId,
+            TimingDataPersistence timingDataPersistence,
+            TimingDataFactory timingDataFactory,
+            TimeSource timeSource,
             MonotonicClock monotonicClock,
             TimingNodeMetrics metrics) {
         if (timingNodeId == null) {
