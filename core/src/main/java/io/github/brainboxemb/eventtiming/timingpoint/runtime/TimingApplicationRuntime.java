@@ -25,7 +25,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.time.ClockTimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment.OperatingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
@@ -347,16 +346,18 @@ public final class TimingApplicationRuntime {
                             config.timingNodeId(),
                             timingDataCodec);
 
+            RuntimeTimeSources runtimeTimeSources =
+                    new RuntimeTimeSources(
+                            platform);
+
             /*
-             * One timing TimeSource is composed separately from the raw platform
-             * Clock. Components that belong to the same timing context can share
-             * this instance; the current single-node composition passes it to the
-             * TimingNode and later device/provider composition can use the same
-             * source where it must attach event timestamps.
+             * One TimeSource is created for the current timing context and may
+             * be shared by every Domain/I/O component that must use the same
+             * timing basis. Future multi-system composition may create another
+             * source for another context.
              */
             TimeSource timeSource =
-                    new ClockTimeSource(
-                            platform.clock());
+                    runtimeTimeSources.createTimeSource();
 
             TimingNode timingNode =
                     new TimingNode(
