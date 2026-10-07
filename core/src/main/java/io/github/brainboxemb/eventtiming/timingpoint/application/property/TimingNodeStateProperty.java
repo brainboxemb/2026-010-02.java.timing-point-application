@@ -16,6 +16,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialEx
  * TimingNodeQueries.status() on the Application lane.</p>
  */
 public final class TimingNodeStateProperty {
+    private final TimingNode timingNode;
     private final TrackedProperty<State> property;
 
     public TimingNodeStateProperty(
@@ -26,14 +27,33 @@ public final class TimingNodeStateProperty {
                     "timingNode must not be null");
         }
 
+        this.timingNode = timingNode;
+
+        /*
+         * Construction only wires the deferred reader. The TimingNode query is
+         * performed later by TrackedProperty.initialize()/refresh on the
+         * Application lane.
+         */
         property =
                 new TrackedProperty<State>(
                         "TimingNode.state",
                         applicationLane,
-                        () -> timingNode
-                                .query(
-                                        TimingNodeQueries.status())
-                                .state());
+                        this::readTimingNodeState);
+    }
+
+    /**
+     * Reads current state through the TimingNode serialized query boundary.
+     *
+     * <p>The underlying status read is a small in-memory snapshot. The query
+     * itself still enters the TimingNode serial lane and waits for its turn, so
+     * this method must remain an explicit runtime read rather than constructor
+     * work.</p>
+     */
+    private State readTimingNodeState() {
+        return timingNode
+                .query(
+                        TimingNodeQueries.status())
+                .state();
     }
 
     /**
