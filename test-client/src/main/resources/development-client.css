@@ -1,0 +1,80 @@
+.root {
+    -fx-font-size: 12px;
+}
+
+.target-bar,
+.workbench-status-bar,
+.identity-bar,
+.feedback-bar {
+    -fx-alignment: center-left;
+}
+
+.target-bar {
+    -fx-background-color: #f5f6f7;
+    -fx-border-color: #d7d9dc;
+    -fx-border-width: 0 0 1 0;
+}
+
+.workbench-status-bar {
+    -fx-padding: 6 8 6 8;
+    -fx-background-color: #f5f6f7;
+    -fx-border-color: #d7d9dc;
+    -fx-border-width: 0 0 1 0;
+}
+
+.identity-bar {
+    -fx-padding: 6 8 6 8;
+    -fx-background-color: #f7f8f9;
+    -fx-border-color: #dfe1e4;
+    -fx-border-width: 1;
+}
+
+.feedback-bar {
+    -fx-padding: 5 8 5 8;
+    -fx-background-color: #f5f6f7;
+    -fx-border-color: #d7d9dc;
+    -fx-border-width: 1 0 0 0;
+}
+
+.workbench-tabs > .tab-header-area {
+    -fx-padding: 0 0 0 0;
+}
+
+.workbench-upper-right,
+.workbench-logs {
+    -fx-padding: 0;
+}
+
+.log-pane {
+    -fx-padding: 0;
+}
+
+.log-pane > .title {
+    -fx-padding: 5 8 5 8;
+}
+
+.log-pane > .content {
+    -fx-padding: 0;
+}
+
+.workbench-log {
+    -fx-font-family: "Consolas";
+    -fx-font-size: 11px;
+    -fx-control-inner-background: #111418;
+    -fx-text-fill: #e8e8e8;
+    -fx-highlight-fill: #355b7d;
+    -fx-highlight-text-fill: white;
+    -fx-padding: 0;
+}
+
+.secondary-pane > .title {
+    -fx-padding: 5 8 5 8;
+}
+
+.table-view {
+    -fx-table-cell-border-color: transparent;
+}
+
+.button {
+    -fx-cursor: hand;
+}
