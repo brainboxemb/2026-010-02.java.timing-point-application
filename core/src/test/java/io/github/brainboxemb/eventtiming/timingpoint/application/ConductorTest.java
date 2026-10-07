@@ -19,6 +19,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialEx
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -233,9 +234,9 @@ public class ConductorTest {
         }
     }
 
-    private static TimingTimestamp now() {
-        return TimingTimestamp.parse(
-                "2026-10-06T09:00:00.000000000Z");
+    private static Instant now() {
+        return Instant.parse(
+                "2026-10-06T09:00:00Z");
     }
 
     private static final class NoOpPersistence
