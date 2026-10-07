@@ -49,6 +49,12 @@ jobs:
           verify-signature: true
           cache: maven
 
+      - name: Validate V01 baseline scripts
+        shell: bash
+        run: |
+          bash -n tools/run_runtime_characterization_baseline.sh
+          bash -n tools/stage_runtime_characterization_evidence.sh
+
       - name: Verify optional runtime-characterization module
         shell: bash
         run: ./mvnw --batch-mode --no-transfer-progress install -Pruntime-characterization -pl runtime-characterization -am
