@@ -76,28 +76,44 @@ final class RuntimeCharacterizationHarness
     }
 
     private final CharacterizationConfig config;
-    private final ExecutorService nodeWorker;
-    private final ScheduledThreadPoolExecutor tagWorker;
-    private final ScheduledThreadPoolExecutor ioWorker;
-    private final SerialExecutor nodeLane;
-    private final SerialScheduledExecutor tagLane;
-    private final SerialScheduledExecutor antennaLane;
-    private final SimulatedAntenna antenna;
-    private final AntennaManager antennaManager;
-    private final TimingNode node;
-    private final RuntimeMeasurementReader measurements;
     private final AtomicLong committedCount = new AtomicLong();
 
-    private boolean active;
+    private ExecutorService nodeWorker;
+    private ScheduledThreadPoolExecutor tagWorker;
+    private ScheduledThreadPoolExecutor ioWorker;
+    private SerialExecutor nodeLane;
+    private SerialScheduledExecutor tagLane;
+    private SerialScheduledExecutor antennaLane;
+    private SimulatedAntenna antenna;
+    private AntennaManager antennaManager;
+    private TimingNode node;
+    private RuntimeMeasurementReader measurements;
+
+    private boolean composed;
+    private boolean nodeActive;
+    private boolean antennaManagerActive;
 
     RuntimeCharacterizationHarness(
-            CharacterizationConfig config)
-            throws IOException {
+            CharacterizationConfig config) {
         if (config == null) {
             throw new IllegalArgumentException(
                     "config must not be null");
         }
         this.config = config;
+    }
+
+    /**
+     * Composes the engineering runtime explicitly.
+     *
+     * <p>The constructor deliberately performs no filesystem, executor or
+     * component work. Composition starts only when {@link #run()} is invoked.</p>
+     */
+    private void compose()
+            throws IOException {
+        if (composed) {
+            throw new IllegalStateException(
+                    "characterization harness is already composed");
+        }
 
         prepareWorkDirectory(
                 config.workDirectory());
@@ -199,15 +215,18 @@ final class RuntimeCharacterizationHarness
                         tagMetrics);
 
         enableThreadCpuTimeWhenSupported();
+        composed = true;
     }
 
     Result run()
             throws Exception {
+        compose();
+
         Instant startedAt =
                 Instant.now();
 
         node.activate();
-        active = true;
+        nodeActive = true;
         node.invoke(
                 TimingNodeCommands.open(
                         LOCATION_ID));
@@ -216,6 +235,7 @@ final class RuntimeCharacterizationHarness
                 config.preloadCount());
 
         antennaManager.activate();
+        antennaManagerActive = true;
         await(
                 antennaManager::isReady,
                 "AntennaManager ready");
@@ -491,18 +511,54 @@ final class RuntimeCharacterizationHarness
 
     @Override
     public void close() {
-        if (active) {
+        Throwable firstFailure = null;
+
+        if (antennaManagerActive) {
             try {
                 antennaManager.deactivate();
+            } catch (RuntimeException | Error failure) {
+                firstFailure = failure;
             } finally {
-                node.deactivate();
+                antennaManagerActive = false;
             }
-            active = false;
         }
 
-        ioWorker.shutdownNow();
-        tagWorker.shutdownNow();
-        nodeWorker.shutdownNow();
+        if (nodeActive) {
+            try {
+                node.deactivate();
+            } catch (RuntimeException | Error failure) {
+                if (firstFailure == null) {
+                    firstFailure = failure;
+                } else {
+                    firstFailure.addSuppressed(
+                            failure);
+                }
+            } finally {
+                nodeActive = false;
+            }
+        }
+
+        shutdownNow(
+                ioWorker);
+        shutdownNow(
+                tagWorker);
+        shutdownNow(
+                nodeWorker);
+        composed = false;
+
+        if (firstFailure instanceof RuntimeException) {
+            throw (RuntimeException) firstFailure;
+        }
+        if (firstFailure instanceof Error) {
+            throw (Error) firstFailure;
+        }
+    }
+
+    private static void shutdownNow(
+            ExecutorService executor) {
+        if (executor != null) {
+            executor.shutdownNow();
+        }
     }
 
     interface Condition {
