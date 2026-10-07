@@ -161,7 +161,8 @@ public class WebSocketOutboundDeliveryTest {
                     "all TimingNode commits must complete even after the slow client is disconnected",
                     11,
                     node.query(
-                            TimingNodeQueries.timingDataCount()));
+                            TimingNodeQueries.timingDataCount())
+                            .intValue());
             assertEquals(
                     "the transport must not send beyond its bounded backlog budget",
                     3,
