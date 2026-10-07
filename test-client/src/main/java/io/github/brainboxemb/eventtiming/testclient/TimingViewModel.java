@@ -298,6 +298,27 @@ public final class TimingViewModel {
         }
     }
 
+    /**
+     * Returns the original committed ADD record behind one interpreted row.
+     *
+     * <p>The Development Client owns this projection/business interpretation;
+     * SI-01 TimingNode bookkeeping does not search ADD/REV history.</p>
+     */
+    public ApiClient.TimingDataInfo registrationSource(
+            InterpretedRegistration registration) {
+        if (registration == null) {
+            throw new IllegalArgumentException(
+                    "registration must not be null");
+        }
+        if (selectedNodeId == null) {
+            return null;
+        }
+        return records.get(
+                new ApiClient.TimingDataKey(
+                        selectedNodeId,
+                        registration.firstSequence()));
+    }
+
     public Long latestSequence() {
         Long latest = null;
         for (ApiClient.TimingDataInfo record : records.values()) {
