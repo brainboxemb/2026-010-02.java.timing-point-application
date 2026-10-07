@@ -23,7 +23,8 @@ final class WorkbenchLogPane extends VBox {
                     "log text sources must not be null");
         }
 
-        setSpacing(10);
+        getStyleClass().add("workbench-logs");
+        setSpacing(6);
 
         TitledPane device =
                 titledLog(
@@ -42,8 +43,12 @@ final class WorkbenchLogPane extends VBox {
     private static TitledPane titledLog(
             String title,
             TextArea log) {
+        log.getStyleClass().add(
+                "workbench-log");
         TitledPane pane =
                 new TitledPane(title, log);
+        pane.getStyleClass().add(
+                "log-pane");
         pane.setCollapsible(false);
         pane.setMinHeight(120);
         return pane;
