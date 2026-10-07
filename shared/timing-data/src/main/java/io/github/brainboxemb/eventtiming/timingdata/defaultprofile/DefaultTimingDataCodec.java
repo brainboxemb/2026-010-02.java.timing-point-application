@@ -38,7 +38,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
 
     private static final String RECORD_TYPE_AUTO_REG = "AUTO_REG";
     private static final String RECORD_TYPE_MAN_REG = "MAN_REG";
-    private static final String RECORD_TYPE_NODE_REG = "NODE_REG";
+    private static final String RECORD_TYPE_NODE_INFO = "NODE_INFO";
 
     private static final String CODE_OPEN = "OPEN";
     private static final String CODE_CLOSE = "CLOSE";
@@ -187,7 +187,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
             TimingData data,
             String code)
             throws IOException {
-        generator.writeStringField("recType", RECORD_TYPE_NODE_REG);
+        generator.writeStringField("recType", RECORD_TYPE_NODE_INFO);
         generator.writeStringField("time", data.effectiveTime().toString());
         writeCodes(generator, code);
     }
@@ -332,7 +332,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         require(fields.recordTypeSeen, "recType");
         if (!RECORD_TYPE_AUTO_REG.equals(fields.recordType)
                 && !RECORD_TYPE_MAN_REG.equals(fields.recordType)
-                && !RECORD_TYPE_NODE_REG.equals(fields.recordType)) {
+                && !RECORD_TYPE_NODE_INFO.equals(fields.recordType)) {
             throw CodecException.unsupportedRecordType(
                     VERSION,
                     key,
@@ -343,7 +343,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                     "unsupported IF-05 development-v1 recType " + fields.recordType);
         }
 
-        if (RECORD_TYPE_NODE_REG.equals(fields.recordType)) {
+        if (RECORD_TYPE_NODE_INFO.equals(fields.recordType)) {
             rejectLifecycleRegistrationFields(fields);
             require(fields.codesSeen, "code");
             if (hasExactCodes(fields.codes, CODE_OPEN)) {
@@ -353,7 +353,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                 return timingDataFactory.createNodeClose(context);
             }
             throw invalid(
-                    "NODE_REG code must be exactly OPEN or CLOSE");
+                    "NODE_INFO code must be exactly OPEN or CLOSE");
         }
 
         require(fields.registrationIdSeen, "regId");
