@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
 /**
- * One cooperative multi-step operation executed by {@link ScheduledTaskRunner}.
+ * One cooperative multi-step operation executed by a {@link CooperativeTaskRunner}.
  *
  * <p>Each invocation performs exactly one logical state-machine step and
  * returns what the runner should do next. The task owns operation-specific
