@@ -6,7 +6,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.Conductor;
@@ -26,6 +25,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.time.ClockTimeSource;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment.OperatingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
@@ -346,13 +347,23 @@ public final class TimingApplicationRuntime {
                             config.timingNodeId(),
                             timingDataCodec);
 
+            /*
+             * One timing TimeSource is composed separately from the raw platform
+             * Clock. Components that belong to the same timing context can share
+             * this instance; the current single-node composition passes it to the
+             * TimingNode and later device/provider composition can use the same
+             * source where it must attach event timestamps.
+             */
+            TimeSource timeSource =
+                    new ClockTimeSource(
+                            platform.clock());
+
             TimingNode timingNode =
                     new TimingNode(
                             config.timingNodeId(),
                             persistence,
                             timingDataFactory,
-                            () -> new TimingTimestamp(
-                                    platform.clock().instant()),
+                            timeSource,
                             applicationConfiguration
                                     .timingNode(
                                             config.timingNodeId())
