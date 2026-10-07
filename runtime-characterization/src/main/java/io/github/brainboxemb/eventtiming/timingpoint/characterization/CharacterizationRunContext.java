@@ -13,7 +13,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.Conductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeMetrics;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTimingDataPersistence;
@@ -30,9 +29,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialEx
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.ClockTimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
-import io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement.JvmRuntimeSnapshot;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement.RuntimeMeasurementReader;
-import io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement.TimingNodeRuntimeSnapshot;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -58,21 +55,21 @@ import java.util.function.BooleanSupplier;
  * TagProcessor and TimingNode components.</p>
  */
 final class CharacterizationRunContext implements AutoCloseable {
-private static final NodeId NODE_ID =
-        new NodeId("A");
-private static final AntennaId ANTENNA_ID =
-        new AntennaId("1");
-private static final LocationId LOCATION_ID =
-        new LocationId(24);
-private static final int TIMING_NODE_QUEUE_CAPACITY = 32;
-private static final int TAG_PROCESSOR_QUEUE_CAPACITY = 32;
-private static final int APPLICATION_QUEUE_CAPACITY = 8;
-private static final int ANTENNA_QUEUE_CAPACITY = 8;
-private static final Duration ANTENNA_CONTROL_TIMEOUT =
-        Duration.ofSeconds(2);
-private static final Instant OBSERVATION_BASE =
-        Instant.parse("2026-10-07T00:00:00Z");
-
+    private static final NodeId NODE_ID =
+            new NodeId("A");
+    private static final AntennaId ANTENNA_ID =
+            new AntennaId("1");
+    private static final LocationId LOCATION_ID =
+            new LocationId(24);
+    private static final int TIMING_NODE_QUEUE_CAPACITY = 32;
+    private static final int TAG_PROCESSOR_QUEUE_CAPACITY = 32;
+    private static final int APPLICATION_QUEUE_CAPACITY = 8;
+    private static final int ANTENNA_QUEUE_CAPACITY = 8;
+    private static final Duration ANTENNA_CONTROL_TIMEOUT =
+            Duration.ofSeconds(2);
+    private static final Instant OBSERVATION_BASE =
+            Instant.parse("2026-10-07T00:00:00Z");
+    
 
     private final CharacterizationOptions options;
     private final int repetition;
