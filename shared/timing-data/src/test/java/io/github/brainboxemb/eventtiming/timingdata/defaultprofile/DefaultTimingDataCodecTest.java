@@ -153,6 +153,64 @@ public class DefaultTimingDataCodecTest {
     }
 
     @Test
+    public void automaticRevocationUsesRevCodeAndRoundTrips() throws Exception {
+        TimingData.AutomaticRegistration original =
+                factory.createAutomaticRegistration(
+                        context(5L),
+                        new RegistrationId("registration-0042"),
+                        TimingData.RegistrationAction.REV);
+
+        String json =
+                new String(
+                        codec.encode(original),
+                        StandardCharsets.UTF_8);
+        assertTrue(
+                json.contains(
+                        "\"code\":[\"REV\"]"));
+
+        TimingData.AutomaticRegistration decoded =
+                (TimingData.AutomaticRegistration) codec.decode(
+                        codec.encode(original));
+        assertSame(
+                TimingData.RegistrationAction.REV,
+                decoded.action());
+        assertCommon(
+                decoded,
+                5L);
+    }
+
+    @Test
+    public void manualRevocationRepeatsTimeSourceSubcode() throws Exception {
+        TimingData.ManualRegistration original =
+                factory.createManualRegistration(
+                        context(6L),
+                        new RegistrationId("registration-0042"),
+                        TimingData.ManualTimeSource.OPERATOR_ENTERED,
+                        TimingData.RegistrationAction.REV);
+
+        String json =
+                new String(
+                        codec.encode(original),
+                        StandardCharsets.UTF_8);
+        assertTrue(
+                json.contains(
+                        "\"code\":[\"REV\",\"MAN\"]"));
+
+        TimingData.ManualRegistration decoded =
+                (TimingData.ManualRegistration) codec.decode(
+                        codec.encode(original));
+        assertSame(
+                TimingData.RegistrationAction.REV,
+                decoded.action());
+        assertSame(
+                TimingData.ManualTimeSource.OPERATOR_ENTERED,
+                decoded.timeSource());
+        assertCommon(
+                decoded,
+                6L);
+    }
+
+    @Test
     public void decodesAutomaticRegistration() throws Exception {
         TimingData decoded = codec.decode(json(
                 "{"
@@ -251,7 +309,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"recType\":\"AUTO_REG\","
                         + "\"time\":\"2026-09-30T20:01:39.123Z\","
                         + "\"regId\":\"registration-0042\","
-                        + "\"code\":[\"REV\"],"
+                        + "\"code\":[\"REV\",\"AUTO\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
                         + "}"));
         assertInvalid(json(
