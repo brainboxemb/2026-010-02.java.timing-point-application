@@ -31,7 +31,8 @@ public final class TimingViewModel {
             boolean open,
             boolean close,
             boolean autoReg,
-            boolean manualReg) {
+            boolean manualReg,
+            boolean simulation) {
     }
 
     /** One user-facing registration projected from immutable committed TimingData. */
@@ -59,6 +60,7 @@ public final class TimingViewModel {
     private List<ApiClient.ProblemInfo> problems = List.of();
     private String selectedNodeId;
     private boolean autoRegEnabled;
+    private boolean simulationEnabled;
     private long logBookCount;
     private final Map<ApiClient.TimingDataKey, ApiClient.TimingDataInfo> records =
             new LinkedHashMap<>();
@@ -114,11 +116,20 @@ public final class TimingViewModel {
         if (capabilities == null) {
             throw new IllegalArgumentException("capabilities must not be null");
         }
-        autoRegEnabled = capabilities.enabled("DIRECT_REGISTRATION_SIMULATION");
+        autoRegEnabled =
+                capabilities.enabled(
+                        "DIRECT_REGISTRATION_SIMULATION");
+        simulationEnabled =
+                capabilities.enabled(
+                        "TAG_SCENARIO_SIMULATION");
     }
 
     public boolean autoRegEnabled() {
         return autoRegEnabled;
+    }
+
+    public boolean simulationEnabled() {
+        return simulationEnabled;
     }
 
     public List<ApiClient.ProblemInfo> selectedProblems() {
@@ -136,7 +147,7 @@ public final class TimingViewModel {
 
     public Controls controls() {
         if (selectedNode() == null) {
-            return new Controls(false, false, false, false);
+            return new Controls(false, false, false, false, false);
         }
 
         /*
@@ -144,7 +155,12 @@ public final class TimingViewModel {
          * acceptance rules. Supported requests remain available so developers
          * can exercise and inspect negative-path domain results from SI-01.
          */
-        return new Controls(true, true, autoRegEnabled, true);
+        return new Controls(
+                true,
+                true,
+                autoRegEnabled,
+                true,
+                simulationEnabled);
     }
 
     public void applyLogBookInfo(ApiClient.LogBookInfo info) {
