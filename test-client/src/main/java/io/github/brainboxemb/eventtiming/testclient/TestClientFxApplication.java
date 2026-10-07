@@ -23,6 +23,9 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import jfxtras.styles.jmetro.JMetro;
+import jfxtras.styles.jmetro.JMetroStyleClass;
+import jfxtras.styles.jmetro.Style;
 
 import java.net.URI;
 import java.nio.file.Path;
@@ -120,13 +123,22 @@ public final class TestClientFxApplication extends Application {
         VBox top = new VBox(menuBar, targetBar());
 
         BorderPane root = new BorderPane();
+        root.getStyleClass().add(JMetroStyleClass.BACKGROUND);
+        tabs.getStyleClass().add(JMetroStyleClass.UNDERLINE_TAB_PANE);
         root.setTop(top);
         root.setCenter(tabs);
         root.setBottom(feedback);
         BorderPane.setMargin(feedback, new Insets(0, 12, 12, 12));
 
+        Scene scene = new Scene(root, 1240, 820);
+        new JMetro(Style.LIGHT).setScene(scene);
+        scene.getStylesheets().add(
+                TestClientFxApplication.class
+                        .getResource("/development-client.css")
+                        .toExternalForm());
+
         stage.setTitle(clientBuild.application() + " — " + clientBuild.version());
-        stage.setScene(new Scene(root, 1240, 820));
+        stage.setScene(scene);
         stage.show();
         clientLog.info("Development Client UI ready");
     }
