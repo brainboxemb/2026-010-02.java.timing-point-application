@@ -44,6 +44,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
     private static final String CODE_CLOSE = "CLOSE";
 
     private static final String CODE_ADD = "ADD";
+    private static final String CODE_REV = "REV";
     private static final String CODE_AUTO = "AUTO";
     private static final String CODE_MAN = "MAN";
 
@@ -147,7 +148,9 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         generator.writeStringField("recType", RECORD_TYPE_AUTO_REG);
         generator.writeStringField("time", data.effectiveTime().toString());
         generator.writeStringField("regId", registrationId.value());
-        writeCodes(generator, CODE_ADD);
+        writeCodes(
+                generator,
+                actionCode(data.action()));
     }
 
     private static void writeManual(
@@ -179,7 +182,30 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         generator.writeStringField("recType", RECORD_TYPE_MAN_REG);
         generator.writeStringField("time", data.effectiveTime().toString());
         generator.writeStringField("regId", registrationId.value());
-        writeCodes(generator, CODE_ADD, timeCode);
+        writeCodes(
+                generator,
+                actionCode(data.action()),
+                timeCode);
+    }
+
+    private static String actionCode(
+            TimingData.RegistrationAction action)
+            throws CodecException {
+        if (action == null) {
+            throw new CodecException(
+                    CodecException.Reason.ENCODE_FAILURE,
+                    "registration action must not be null");
+        }
+        switch (action) {
+            case ADD:
+                return CODE_ADD;
+            case REV:
+                return CODE_REV;
+            default:
+                throw new CodecException(
+                        CodecException.Reason.ENCODE_FAILURE,
+                        "unsupported registration action " + action);
+        }
     }
 
     private static void writeLifecycle(
@@ -361,27 +387,59 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         RegistrationId registrationId = registrationId(fields.registrationId);
 
         if (RECORD_TYPE_AUTO_REG.equals(fields.recordType)) {
-            requireExactCodes(fields.codes, CODE_ADD);
-            return timingDataFactory.createAutomaticRegistration(
-                    context,
-                    registrationId);
+            if (hasExactCodes(fields.codes, CODE_ADD)) {
+                return timingDataFactory.createAutomaticRegistration(
+                        context,
+                        registrationId,
+                        TimingData.RegistrationAction.ADD);
+            }
+            if (hasExactCodes(fields.codes, CODE_REV)) {
+                return timingDataFactory.createAutomaticRegistration(
+                        context,
+                        registrationId,
+                        TimingData.RegistrationAction.REV);
+            }
+            throw invalid(
+                    "AUTO_REG code must be exactly ADD or REV");
         }
 
-        if (hasExactCodes(fields.codes, CODE_ADD, CODE_AUTO)) {
-            return timingDataFactory.createManualRegistration(
-                    context,
-                    registrationId,
-                    TimingData.ManualTimeSource.SYSTEM_ASSIGNED);
-        }
-        if (hasExactCodes(fields.codes, CODE_ADD, CODE_MAN)) {
-            return timingDataFactory.createManualRegistration(
-                    context,
-                    registrationId,
-                    TimingData.ManualTimeSource.OPERATOR_ENTERED);
-        }
+        TimingData.RegistrationAction action =
+                registrationAction(fields.codes);
+        TimingData.ManualTimeSource timeSource =
+                manualTimeSource(fields.codes);
+        return timingDataFactory.createManualRegistration(
+                context,
+                registrationId,
+                timeSource,
+                action);
+    }
 
-        throw invalid(
-                "MAN_REG code must contain ADD and exactly one of AUTO or MAN");
+    private static TimingData.RegistrationAction registrationAction(
+            List<String> codes)
+            throws CodecException {
+        boolean add = codes != null && codes.contains(CODE_ADD);
+        boolean rev = codes != null && codes.contains(CODE_REV);
+        if (add == rev) {
+            throw invalid(
+                    "MAN_REG code must contain exactly one of ADD or REV");
+        }
+        return add
+                ? TimingData.RegistrationAction.ADD
+                : TimingData.RegistrationAction.REV;
+    }
+
+    private static TimingData.ManualTimeSource manualTimeSource(
+            List<String> codes)
+            throws CodecException {
+        boolean auto = codes != null && codes.contains(CODE_AUTO);
+        boolean man = codes != null && codes.contains(CODE_MAN);
+        if (auto == man || codes.size() != 2) {
+            throw invalid(
+                    "MAN_REG code must contain exactly one action and exactly one of AUTO or MAN");
+        }
+        return auto
+                ? TimingData.ManualTimeSource.SYSTEM_ASSIGNED
+                : TimingData.ManualTimeSource.OPERATOR_ENTERED;
     }
 
     private static void rejectLifecycleRegistrationFields(DecodedFields fields)
