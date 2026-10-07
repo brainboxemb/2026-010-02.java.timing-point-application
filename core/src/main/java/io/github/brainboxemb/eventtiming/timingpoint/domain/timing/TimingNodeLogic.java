@@ -106,7 +106,8 @@ final class TimingNodeLogic {
         return metrics;
     }
 
-    OpenResult open(LocationId newLocationId) {
+    OpenResult open(LocationId newLocationId)
+            throws TimingDataPersistence.PersistenceException {
         if (newLocationId == null) {
             throw new IllegalArgumentException("locationId must not be null");
         }
@@ -131,7 +132,8 @@ final class TimingNodeLogic {
         return OpenResult.OPENED;
     }
 
-    CloseResult close() {
+    CloseResult close()
+            throws TimingDataPersistence.PersistenceException {
         ensureOperational();
         if (state == State.CLOSED) {
             return CloseResult.ALREADY_CLOSED;
