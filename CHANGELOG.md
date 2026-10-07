@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep asynchronous console logging readable while the local terminal prompt is waiting: the first log in a burst moves to a fresh line and one prompt is redrawn after 150 ms of quiet instead of after every log record.
+
 - Remove Conductor's mirrored `lastHandledTimingNodeState`: `TimingNodeStateProperty` remains the sole TimingNode-state holder, while AntennaManager reuses its existing `Setting<Boolean>` through an idempotent desired-inventory update; explicit repeated requests still remain available for retry.
 
 - Bound IF-03 WebSocket outbound delivery: track only a small per-client buffered-send budget, disconnect a slow client with close code 1013 before another event is queued after the limit, and recover through the existing reconnect snapshot + LogBook flow instead of adding an application event queue.
