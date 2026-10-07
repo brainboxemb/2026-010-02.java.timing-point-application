@@ -13,6 +13,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl.TagProcessingPatch;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.application.SimulationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy.AutomaticRegistrationAction;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy.RegistrationRecordType;
@@ -232,6 +233,12 @@ public final class HttpEndpoint implements AutoCloseable {
             handleAutoRegistration(exchange);
             return;
         }
+        if ("/simulation/registration".equals(
+                route.resource)) {
+            requireMethod(exchange, "POST");
+            handleSimulationRegistration(exchange);
+            return;
+        }
 
         sendJson(
                 exchange,
@@ -268,6 +275,89 @@ public final class HttpEndpoint implements AutoCloseable {
             return new LocationId(value);
         } catch (IllegalArgumentException ex) {
             throw HttpRequestReader.invalidValue(ex.getMessage());
+        }
+    }
+
+    private void handleSimulationRegistration(
+            HttpExchange exchange)
+            throws IOException {
+        if (!presentationGateway
+                .capabilities()
+                .tagScenarioSimulationEnabled()) {
+            sendJson(
+                    exchange,
+                    403,
+                    MessageWriter.error(
+                            "CAPABILITY_NOT_ENABLED",
+                            "Tag scenario simulation is not enabled"));
+            return;
+        }
+
+        HttpRequestReader.SimulationRegistrationRequest request =
+                requestReader.readSimulationRegistrationRequest(
+                        exchange);
+
+        final RegistrationId registrationId;
+        try {
+            registrationId =
+                    new RegistrationId(
+                            request.registrationId);
+        } catch (IllegalArgumentException ex) {
+            throw HttpRequestReader.invalidValue(
+                    ex.getMessage());
+        }
+
+        SimulationControl.StartResult result =
+                presentationGateway
+                        .simulation()
+                        .startRegistration(
+                                registrationId,
+                                request.profile);
+
+        switch (result) {
+            case ACCEPTED:
+                sendJson(
+                        exchange,
+                        200,
+                        MessageWriter.result(
+                                result.name()));
+                return;
+            case UNKNOWN_REGISTRATION:
+                sendJson(
+                        exchange,
+                        400,
+                        MessageWriter.error(
+                                "UNKNOWN_REGISTRATION",
+                                "RegistrationId is not present in EventData"));
+                return;
+            case UNKNOWN_PROFILE:
+                sendJson(
+                        exchange,
+                        400,
+                        MessageWriter.error(
+                                "UNKNOWN_SIMULATION_PROFILE",
+                                "Unknown simulated tag profile"));
+                return;
+            case UNAVAILABLE:
+                sendJson(
+                        exchange,
+                        409,
+                        MessageWriter.error(
+                                "SIMULATION_UNAVAILABLE",
+                                "Simulated antenna is not ready for inventory observations"));
+                return;
+            case BUSY:
+                sendJson(
+                        exchange,
+                        503,
+                        MessageWriter.error(
+                                "SIMULATION_BUSY",
+                                "Simulated tag scenario capacity is busy"));
+                return;
+            default:
+                throw new IllegalStateException(
+                        "Unhandled simulation result "
+                                + result);
         }
     }
 
