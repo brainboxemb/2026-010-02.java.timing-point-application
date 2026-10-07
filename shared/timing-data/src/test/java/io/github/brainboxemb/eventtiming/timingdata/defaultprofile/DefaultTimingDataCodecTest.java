@@ -90,6 +90,127 @@ public class DefaultTimingDataCodecTest {
     }
 
     @Test
+    public void encodesAndDecodesNodeOpenLifecycleRecord() throws Exception {
+        TimingData.NodeOpen original =
+                factory.createNodeOpen(
+                        context(3L));
+
+        String json = new String(codec.encode(original), StandardCharsets.UTF_8);
+
+        assertEquals(
+                "{\"v\":1,"
+                        + "\"nodeId\":\"A\","
+                        + "\"seqNr\":3,"
+                        + "\"locId\":7,"
+                        + "\"recType\":\"NODE_INFO\","
+                        + "\"time\":\"2026-09-30T20:01:39.123Z\","
+                        + "\"code\":[\"OPEN\"],"
+                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\"}",
+                json);
+
+        TimingData decoded = codec.decode(codec.encode(original));
+        assertTrue(decoded instanceof TimingData.NodeOpen);
+        assertCommon(decoded, 3L);
+    }
+
+    @Test
+    public void encodesAndDecodesNodeCloseLifecycleRecord() throws Exception {
+        TimingData.NodeClose original =
+                factory.createNodeClose(
+                        context(4L));
+
+        TimingData decoded = codec.decode(codec.encode(original));
+
+        assertTrue(decoded instanceof TimingData.NodeClose);
+        assertCommon(decoded, 4L);
+    }
+
+    @Test
+    public void lifecycleRecordRejectsRegistrationOnlyMembersAndInvalidCodes() throws Exception {
+        assertInvalid(json(
+                "{"
+                        + "\"v\":1,"
+                        + "\"nodeId\":\"A\","
+                        + "\"seqNr\":3,"
+                        + "\"locId\":7,"
+                        + "\"recType\":\"NODE_INFO\","
+                        + "\"time\":\"2026-09-30T20:01:39.123Z\","
+                        + "\"regId\":\"registration-0042\","
+                        + "\"code\":[\"OPEN\"],"
+                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
+                        + "}"));
+        assertInvalid(json(
+                "{"
+                        + "\"v\":1,"
+                        + "\"nodeId\":\"A\","
+                        + "\"seqNr\":4,"
+                        + "\"locId\":7,"
+                        + "\"recType\":\"NODE_INFO\","
+                        + "\"time\":\"2026-09-30T20:01:39.123Z\","
+                        + "\"code\":[\"ADD\"],"
+                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
+                        + "}"));
+    }
+
+    @Test
+    public void automaticRevocationUsesRevCodeAndRoundTrips() throws Exception {
+        TimingData.AutomaticRegistration original =
+                factory.createAutomaticRegistration(
+                        context(5L),
+                        new RegistrationId("registration-0042"),
+                        TimingData.RegistrationAction.REV);
+
+        String json =
+                new String(
+                        codec.encode(original),
+                        StandardCharsets.UTF_8);
+        assertTrue(
+                json.contains(
+                        "\"code\":[\"REV\"]"));
+
+        TimingData.AutomaticRegistration decoded =
+                (TimingData.AutomaticRegistration) codec.decode(
+                        codec.encode(original));
+        assertSame(
+                TimingData.RegistrationAction.REV,
+                decoded.action());
+        assertCommon(
+                decoded,
+                5L);
+    }
+
+    @Test
+    public void manualRevocationRepeatsTimeSourceSubcode() throws Exception {
+        TimingData.ManualRegistration original =
+                factory.createManualRegistration(
+                        context(6L),
+                        new RegistrationId("registration-0042"),
+                        TimingData.ManualTimeSource.OPERATOR_ENTERED,
+                        TimingData.RegistrationAction.REV);
+
+        String json =
+                new String(
+                        codec.encode(original),
+                        StandardCharsets.UTF_8);
+        assertTrue(
+                json.contains(
+                        "\"code\":[\"REV\",\"MAN\"]"));
+
+        TimingData.ManualRegistration decoded =
+                (TimingData.ManualRegistration) codec.decode(
+                        codec.encode(original));
+        assertSame(
+                TimingData.RegistrationAction.REV,
+                decoded.action());
+        assertSame(
+                TimingData.ManualTimeSource.OPERATOR_ENTERED,
+                decoded.timeSource());
+        assertCommon(
+                decoded,
+                6L);
+    }
+
+    @Test
     public void decodesAutomaticRegistration() throws Exception {
         TimingData decoded = codec.decode(json(
                 "{"
@@ -188,7 +309,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"recType\":\"AUTO_REG\","
                         + "\"time\":\"2026-09-30T20:01:39.123Z\","
                         + "\"regId\":\"registration-0042\","
-                        + "\"code\":[\"REV\"],"
+                        + "\"code\":[\"REV\",\"AUTO\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
                         + "}"));
         assertInvalid(json(

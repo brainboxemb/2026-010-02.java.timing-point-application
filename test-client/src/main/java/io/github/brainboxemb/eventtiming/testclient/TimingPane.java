@@ -541,6 +541,72 @@ final class TimingPane extends VBox {
                 }));
     }
 
+    private void revokeRegistration(
+            TimingViewModel.InterpretedRegistration registration) {
+        ApiClient.TimingDataInfo source =
+                model.registrationSource(
+                        registration);
+        if (source == null) {
+            lastOperation.setText(
+                    "Original ADD record is not available in the local view");
+            return;
+        }
+
+        final String selected =
+                requireSelectedNode();
+        setOperationBusy(true);
+        lastOperation.setText("Revoking...");
+        feedback.accept("Submitting registration revoke...");
+
+        CompletableFuture
+                .supplyAsync(() -> {
+                    try {
+                        ApiClient api =
+                                clientSupplier.get();
+                        ApiClient.CommitResult result =
+                                api.revokeRegistration(
+                                        selected,
+                                        source);
+                        ApiClient.LogBookPage page =
+                                api.getLogBookFrom(
+                                        selected,
+                                        result.seq(),
+                                        1);
+                        ApiClient.StatusResult status =
+                                api.getStatus();
+                        return new RevokeCommand(
+                                result,
+                                page,
+                                status);
+                    } catch (Exception ex) {
+                        throw new CompletionException(ex);
+                    }
+                }, requests)
+                .whenComplete((result, error) -> Platform.runLater(() -> {
+                    setOperationBusy(false);
+                    if (error != null) {
+                        handleCommandError(error);
+                        return;
+                    }
+                    apiState.accept("READY");
+                    rawSink.accept(
+                            result.result().rawJson());
+                    clientLog.info(
+                            "API registration revoke committed as seq "
+                                    + result.result().seq());
+                    lastOperation.setText(
+                            "REV seq "
+                                    + result.result().seq());
+                    model.applyStatus(
+                            result.status());
+                    model.mergeLogBookPage(
+                            result.page());
+                    syncNodeChoice();
+                    feedback.accept("OK");
+                    refresh();
+                }));
+    }
+
     private void runStateCommand(StateCommand command) {
         setOperationBusy(true);
         lastOperation.setText("Requesting...");
@@ -617,6 +683,7 @@ final class TimingPane extends VBox {
             open.setDisable(true);
             close.setDisable(true);
             autoReg.setDisable(true);
+            registrations.setDisable(true);
         } else {
             refreshControls();
         }
@@ -665,6 +732,7 @@ final class TimingPane extends VBox {
         registrationTime.setDisable(!live || !controls.autoReg());
         now.setDisable(!live || !controls.autoReg());
         autoReg.setDisable(!live || !controls.autoReg());
+        registrations.setDisable(!live);
         syncViewButton.setDisable(
                 !eventsConnected || model.viewState() == TimingViewModel.ViewState.SYNCING);
     }
@@ -723,11 +791,10 @@ final class TimingPane extends VBox {
             private final Button button = new Button("🗑");
             private final Label deleted = new Label("DELETED");
             {
-                button.setDisable(true);
                 button.setAccessibleText("Delete registration");
                 button.setTooltip(new Tooltip(
-                        "Delete appends a REV record; the public REV operation "
-                                + "is not available yet."));
+                        "Delete appends a REV record; the original ADD remains "
+                                + "in the technical LogBook."));
             }
 
             @Override
@@ -739,7 +806,15 @@ final class TimingPane extends VBox {
                 }
                 TimingViewModel.InterpretedRegistration registration =
                         (TimingViewModel.InterpretedRegistration) getTableRow().getItem();
-                setGraphic(registration.deleted() ? deleted : button);
+                if (!registration.deleted()) {
+                    button.setOnAction(
+                            event -> revokeRegistration(
+                                    registration));
+                }
+                setGraphic(
+                        registration.deleted()
+                                ? deleted
+                                : button);
             }
         });
 
@@ -894,6 +969,12 @@ final class TimingPane extends VBox {
 
     private record AutoRegCommand(
             ApiClient.AutoRegResult result,
+            ApiClient.LogBookPage page,
+            ApiClient.StatusResult status) {
+    }
+
+    private record RevokeCommand(
+            ApiClient.CommitResult result,
             ApiClient.LogBookPage page,
             ApiClient.StatusResult status) {
     }

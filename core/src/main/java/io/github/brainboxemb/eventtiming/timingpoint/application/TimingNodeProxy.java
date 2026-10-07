@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.application;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
@@ -31,6 +32,12 @@ public final class TimingNodeProxy {
     /** Automatic-registration actions currently supported by this application boundary. */
     public enum AutomaticRegistrationAction {
         ADD
+    }
+
+    /** Registration record family supplied by a higher interpreting layer. */
+    public enum RegistrationRecordType {
+        AUTO_REG,
+        MAN_REG
     }
 
     private final TimingNode timingNode;
@@ -83,6 +90,65 @@ public final class TimingNodeProxy {
             default:
                 throw new IllegalArgumentException(
                         "Unsupported automatic registration action " + action);
+        }
+    }
+
+    /**
+     * Appends one registration REV record using caller-supplied original
+     * registration semantics.
+     *
+     * <p>This boundary deliberately does not search or fold LogBook history.
+     * Higher application/business logic selects the record family and original
+     * values; TimingNode owns only ordered commit bookkeeping.</p>
+     */
+    public RegistrationResult revokeRegistration(
+            RegistrationRecordType recordType,
+            LocationId originalLocationId,
+            RegistrationId registrationId,
+            TimingTimestamp originalTime,
+            ManualTimeSource originalTimeSource) {
+        if (recordType == null) {
+            throw new IllegalArgumentException(
+                    "recordType must not be null");
+        }
+        if (originalLocationId == null) {
+            throw new IllegalArgumentException(
+                    "originalLocationId must not be null");
+        }
+        if (registrationId == null) {
+            throw new IllegalArgumentException(
+                    "registrationId must not be null");
+        }
+        if (originalTime == null) {
+            throw new IllegalArgumentException(
+                    "originalTime must not be null");
+        }
+
+        switch (recordType) {
+            case AUTO_REG:
+                if (originalTimeSource != null) {
+                    throw new IllegalArgumentException(
+                            "AUTO_REG revoke must not carry originalTimeSource");
+                }
+                return timingNode.invoke(
+                        TimingNodeCommands.revokeAutomaticRegistration(
+                                originalLocationId,
+                                registrationId,
+                                originalTime));
+            case MAN_REG:
+                if (originalTimeSource == null) {
+                    throw new IllegalArgumentException(
+                            "MAN_REG revoke requires originalTimeSource");
+                }
+                return timingNode.invoke(
+                        TimingNodeCommands.revokeManualRegistration(
+                                originalLocationId,
+                                registrationId,
+                                originalTime,
+                                originalTimeSource));
+            default:
+                throw new IllegalArgumentException(
+                        "Unsupported registration record type " + recordType);
         }
     }
 

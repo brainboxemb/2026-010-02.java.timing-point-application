@@ -46,7 +46,7 @@ public final class TimingNodeCommands {
             throw new IllegalArgumentException("time must not be null");
         }
 
-        return registrationCommand(
+        return simple(
                 "addAutomaticRegistration",
                 logic -> logic.addAutomaticRegistration(
                         registrationId,
@@ -69,12 +69,70 @@ public final class TimingNodeCommands {
                     "registrationTimeSource must not be null");
         }
 
-        return registrationCommand(
+        return simple(
                 "commitManualRegistration",
                 logic -> logic.commitManualRegistration(
                         registrationId,
                         effectiveTime,
                         registrationTimeSource));
+    }
+
+    public static TimingNodeCommand<RegistrationResult>
+            revokeAutomaticRegistration(
+                    LocationId originalLocationId,
+                    RegistrationId registrationId,
+                    TimingTimestamp originalTime) {
+        requireRevokeInput(
+                originalLocationId,
+                registrationId,
+                originalTime);
+        return simple(
+                "revokeAutomaticRegistration",
+                logic -> logic.revokeAutomaticRegistration(
+                        originalLocationId,
+                        registrationId,
+                        originalTime));
+    }
+
+    public static TimingNodeCommand<RegistrationResult>
+            revokeManualRegistration(
+                    LocationId originalLocationId,
+                    RegistrationId registrationId,
+                    TimingTimestamp originalTime,
+                    ManualTimeSource originalTimeSource) {
+        requireRevokeInput(
+                originalLocationId,
+                registrationId,
+                originalTime);
+        if (originalTimeSource == null) {
+            throw new IllegalArgumentException(
+                    "originalTimeSource must not be null");
+        }
+        return simple(
+                "revokeManualRegistration",
+                logic -> logic.revokeManualRegistration(
+                        originalLocationId,
+                        registrationId,
+                        originalTime,
+                        originalTimeSource));
+    }
+
+    private static void requireRevokeInput(
+            LocationId originalLocationId,
+            RegistrationId registrationId,
+            TimingTimestamp originalTime) {
+        if (originalLocationId == null) {
+            throw new IllegalArgumentException(
+                    "originalLocationId must not be null");
+        }
+        if (registrationId == null) {
+            throw new IllegalArgumentException(
+                    "registrationId must not be null");
+        }
+        if (originalTime == null) {
+            throw new IllegalArgumentException(
+                    "originalTime must not be null");
+        }
     }
 
     private static <R> TimingNodeCommand<R> simple(
@@ -86,13 +144,4 @@ public final class TimingNodeCommands {
                 (node, result) -> result);
     }
 
-    private static TimingNodeCommand<RegistrationResult>
-            registrationCommand(
-                    String name,
-                    TimingNodeCommand.Action<RegistrationResult> action) {
-        return new TimingNodeCommand<>(
-                name,
-                action,
-                TimingNode::publishCommitted);
-    }
 }

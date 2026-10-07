@@ -19,7 +19,21 @@ public final class DefaultTimingDataFactory implements TimingDataFactory {
     public TimingData.AutomaticRegistration createAutomaticRegistration(
             Context context,
             RegistrationId registrationId) {
-        return new AutomaticRegistration(context, registrationId);
+        return createAutomaticRegistration(
+                context,
+                registrationId,
+                TimingData.RegistrationAction.ADD);
+    }
+
+    @Override
+    public TimingData.AutomaticRegistration createAutomaticRegistration(
+            Context context,
+            RegistrationId registrationId,
+            TimingData.RegistrationAction action) {
+        return new AutomaticRegistration(
+                context,
+                registrationId,
+                requireAction(action));
     }
 
     @Override
@@ -27,7 +41,34 @@ public final class DefaultTimingDataFactory implements TimingDataFactory {
             Context context,
             RegistrationId registrationId,
             TimingData.ManualTimeSource timeSource) {
-        return new ManualRegistration(context, registrationId, timeSource);
+        return createManualRegistration(
+                context,
+                registrationId,
+                timeSource,
+                TimingData.RegistrationAction.ADD);
+    }
+
+    @Override
+    public TimingData.ManualRegistration createManualRegistration(
+            Context context,
+            RegistrationId registrationId,
+            TimingData.ManualTimeSource timeSource,
+            TimingData.RegistrationAction action) {
+        return new ManualRegistration(
+                context,
+                registrationId,
+                timeSource,
+                requireAction(action));
+    }
+
+    @Override
+    public TimingData.NodeOpen createNodeOpen(Context context) {
+        return new NodeOpen(context);
+    }
+
+    @Override
+    public TimingData.NodeClose createNodeClose(Context context) {
+        return new NodeClose(context);
     }
 
     /**
@@ -40,16 +81,21 @@ public final class DefaultTimingDataFactory implements TimingDataFactory {
     private abstract static class Registration {
         private final Context context;
         private final RegistrationId registrationId;
+        private final TimingData.RegistrationAction action;
 
         private Registration(
                 Context context,
-                RegistrationId registrationId) {
+                RegistrationId registrationId,
+                TimingData.RegistrationAction action) {
             this.context =
                     requireContext(
                             context);
             this.registrationId =
                     requireRegistrationId(
                             registrationId);
+            this.action =
+                    requireAction(
+                            action);
         }
 
         public final NodeId timingNodeId() {
@@ -75,6 +121,10 @@ public final class DefaultTimingDataFactory implements TimingDataFactory {
         public final RegistrationId registrationId() {
             return registrationId;
         }
+
+        public final TimingData.RegistrationAction action() {
+            return action;
+        }
     }
 
     private static final class AutomaticRegistration
@@ -83,10 +133,56 @@ public final class DefaultTimingDataFactory implements TimingDataFactory {
 
         private AutomaticRegistration(
                 Context context,
-                RegistrationId registrationId) {
+                RegistrationId registrationId,
+                TimingData.RegistrationAction action) {
             super(
                     context,
-                    registrationId);
+                    registrationId,
+                    action);
+        }
+    }
+
+    private abstract static class Lifecycle implements TimingData {
+        private final Context context;
+
+        private Lifecycle(Context context) {
+            this.context = requireContext(context);
+        }
+
+        public final NodeId timingNodeId() {
+            return context.timingNodeId();
+        }
+
+        public final long sequenceNumber() {
+            return context.sequenceNumber();
+        }
+
+        public final LocationId locationId() {
+            return context.locationId();
+        }
+
+        public final TimingTimestamp effectiveTime() {
+            return context.effectiveTime();
+        }
+
+        public final TimingTimestamp recordedAt() {
+            return context.recordedAt();
+        }
+    }
+
+    private static final class NodeOpen
+            extends Lifecycle
+            implements TimingData.NodeOpen {
+        private NodeOpen(Context context) {
+            super(context);
+        }
+    }
+
+    private static final class NodeClose
+            extends Lifecycle
+            implements TimingData.NodeClose {
+        private NodeClose(Context context) {
+            super(context);
         }
     }
 
@@ -99,10 +195,12 @@ public final class DefaultTimingDataFactory implements TimingDataFactory {
         private ManualRegistration(
                 Context context,
                 RegistrationId registrationId,
-                TimingData.ManualTimeSource timeSource) {
+                TimingData.ManualTimeSource timeSource,
+                TimingData.RegistrationAction action) {
             super(
                     context,
-                    registrationId);
+                    registrationId,
+                    action);
 
             if (timeSource == null) {
                 throw new IllegalArgumentException(
@@ -129,5 +227,13 @@ public final class DefaultTimingDataFactory implements TimingDataFactory {
             throw new IllegalArgumentException("registrationId must not be null");
         }
         return registrationId;
+    }
+
+    private static TimingData.RegistrationAction requireAction(
+            TimingData.RegistrationAction action) {
+        if (action == null) {
+            throw new IllegalArgumentException("action must not be null");
+        }
+        return action;
     }
 }

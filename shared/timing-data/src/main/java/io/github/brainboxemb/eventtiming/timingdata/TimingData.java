@@ -45,6 +45,25 @@ public interface TimingData {
      */
     interface AutomaticRegistration extends TimingData {
         TimingDataTypes.RegistrationId registrationId();
+
+        /**
+         * Registration action represented by this record.
+         *
+         * <p>ADD remains the compatibility default for existing profile
+         * implementations. Profiles that support append-only revoke override
+         * this value for REV records.</p>
+         */
+        default RegistrationAction action() {
+            return RegistrationAction.ADD;
+        }
+    }
+
+    /** Type-safe semantic contract for one successful CLOSED -> OPEN transition. */
+    interface NodeOpen extends TimingData {
+    }
+
+    /** Type-safe semantic contract for one successful OPEN -> CLOSED transition. */
+    interface NodeClose extends TimingData {
     }
 
     /** Type-safe semantic contract for one manual registration. */
@@ -52,6 +71,17 @@ public interface TimingData {
         TimingDataTypes.RegistrationId registrationId();
 
         ManualTimeSource timeSource();
+
+        /** See {@link AutomaticRegistration#action()}. */
+        default RegistrationAction action() {
+            return RegistrationAction.ADD;
+        }
+    }
+
+    /** Append-only registration action represented by a registration record. */
+    enum RegistrationAction {
+        ADD,
+        REV
     }
 
     /** Source of the effective time selected for a manual registration. */

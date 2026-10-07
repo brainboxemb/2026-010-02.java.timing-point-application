@@ -106,7 +106,8 @@ final class TimingNodeLogic {
         return metrics;
     }
 
-    OpenResult open(LocationId newLocationId) {
+    OpenResult open(LocationId newLocationId)
+            throws TimingDataPersistence.PersistenceException {
         if (newLocationId == null) {
             throw new IllegalArgumentException("locationId must not be null");
         }
@@ -114,16 +115,42 @@ final class TimingNodeLogic {
         if (state == State.OPEN) {
             return OpenResult.ALREADY_OPEN;
         }
+        ensureTimingDataCommitAvailable();
+
+        TimingTimestamp transitionTime =
+                new TimingTimestamp(
+                        timeSource.now());
+        TimingData data =
+                timingDataFactory.createNodeOpen(
+                        nextLifecycleContext(
+                                newLocationId,
+                                transitionTime));
+        commitTimingData(data);
+
         locationId = newLocationId;
         state = State.OPEN;
         return OpenResult.OPENED;
     }
 
-    CloseResult close() {
+    CloseResult close()
+            throws TimingDataPersistence.PersistenceException {
         ensureOperational();
         if (state == State.CLOSED) {
             return CloseResult.ALREADY_CLOSED;
         }
+        ensureTimingDataCommitAvailable();
+
+        LocationId closingLocation = locationId;
+        TimingTimestamp transitionTime =
+                new TimingTimestamp(
+                        timeSource.now());
+        TimingData data =
+                timingDataFactory.createNodeClose(
+                        nextLifecycleContext(
+                                closingLocation,
+                                transitionTime));
+        commitTimingData(data);
+
         state = State.CLOSED;
         return CloseResult.CLOSED;
     }
@@ -159,6 +186,44 @@ final class TimingNodeLogic {
                 nextRegistrationContext(effectiveTime),
                 registrationId,
                 registrationTimeSource);
+        return commitRegistration(data);
+    }
+
+    RegistrationResult revokeAutomaticRegistration(
+            LocationId originalLocationId,
+            RegistrationId registrationId,
+            TimingTimestamp originalTime)
+            throws TimingDataPersistence.PersistenceException {
+        ensureOperational();
+        ensureTimingDataCommitAvailable();
+
+        TimingData data =
+                timingDataFactory.createAutomaticRegistration(
+                        nextRegistrationContext(
+                                originalLocationId,
+                                originalTime),
+                        registrationId,
+                        TimingData.RegistrationAction.REV);
+        return commitRegistration(data);
+    }
+
+    RegistrationResult revokeManualRegistration(
+            LocationId originalLocationId,
+            RegistrationId registrationId,
+            TimingTimestamp originalTime,
+            ManualTimeSource originalTimeSource)
+            throws TimingDataPersistence.PersistenceException {
+        ensureOperational();
+        ensureTimingDataCommitAvailable();
+
+        TimingData data =
+                timingDataFactory.createManualRegistration(
+                        nextRegistrationContext(
+                                originalLocationId,
+                                originalTime),
+                        registrationId,
+                        originalTimeSource,
+                        TimingData.RegistrationAction.REV);
         return commitRegistration(data);
     }
 
@@ -222,13 +287,49 @@ final class TimingNodeLogic {
     }
 
     private Context nextRegistrationContext(TimingTimestamp effectiveTime) {
+        return nextRegistrationContext(
+                locationId,
+                effectiveTime);
+    }
+
+    private Context nextRegistrationContext(
+            LocationId recordLocationId,
+            TimingTimestamp effectiveTime) {
         return new Context(
                 timingNodeId,
                 logBook.nextSequence(),
-                locationId,
+                recordLocationId,
                 effectiveTime,
                 new TimingTimestamp(
                         timeSource.now()));
+    }
+
+    private Context nextLifecycleContext(
+            LocationId lifecycleLocation,
+            TimingTimestamp effectiveTime) {
+        return new Context(
+                timingNodeId,
+                logBook.nextSequence(),
+                lifecycleLocation,
+                effectiveTime,
+                new TimingTimestamp(
+                        timeSource.now()));
+    }
+
+    int committedTimingDataCount() {
+        return logBook.size();
+    }
+
+    TimingData latestCommittedTimingData() {
+        final TimingData[] latest = new TimingData[1];
+        logBook.visitLatest(
+                1,
+                data -> latest[0] = data);
+        if (latest[0] == null) {
+            throw new IllegalStateException(
+                    "no committed TimingData is available");
+        }
+        return latest[0];
     }
 
     private void ensureOperational() {
@@ -250,6 +351,12 @@ final class TimingNodeLogic {
     }
 
     private RegistrationResult commitRegistration(TimingData data)
+            throws TimingDataPersistence.PersistenceException {
+        commitTimingData(data);
+        return RegistrationResult.committed(data);
+    }
+
+    private void commitTimingData(TimingData data)
             throws TimingDataPersistence.PersistenceException {
         if (data == null) {
             throw new IllegalStateException("timingDataFactory returned null");
@@ -277,6 +384,5 @@ final class TimingNodeLogic {
         }
 
         metrics.recordCommit();
-        return RegistrationResult.committed(data);
     }
 }

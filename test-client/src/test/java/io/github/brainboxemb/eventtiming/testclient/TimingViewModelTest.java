@@ -216,6 +216,37 @@ class TimingViewModelTest {
         assertEquals(1L, values.get(0).firstSequence());
         assertEquals(2L, values.get(0).revokeSequence());
         assertEquals(2, model.records().size());
+        assertEquals(
+                List.of("ADD"),
+                model.registrationSource(values.get(0)).codes());
+    }
+
+    @Test
+    void nodeInfoRemainsInLogBookButNotInRegistrationProjection() {
+        TimingViewModel model = new TimingViewModel();
+        model.applyStatus(status(node("node-01", 24, "OPEN")));
+
+        model.mergeCommitted(new ApiClient.TimingDataInfo(
+                "node-01",
+                1L,
+                24,
+                "NODE_INFO",
+                "2026-10-01T09:59:59Z",
+                null,
+                List.of("OPEN"),
+                "2026-10-01T09:59:59.1Z",
+                "{}"));
+        model.mergeCommitted(record(
+                "node-01",
+                2L,
+                "N0001"));
+
+        assertEquals(2, model.records().size());
+        assertEquals(
+                1,
+                model.interpretedRegistrations(
+                        ZoneId.of("Europe/Amsterdam"))
+                        .size());
     }
 
     @Test

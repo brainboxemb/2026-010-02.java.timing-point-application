@@ -112,7 +112,7 @@ public class RuntimeMeasurementReaderTest {
              * the pull snapshot is created.
              */
             assertEquals(
-                    1,
+                    2,
                     node.query(
                                     TimingNodeQueries.timingDataCount())
                             .intValue());
@@ -125,16 +125,16 @@ public class RuntimeMeasurementReaderTest {
                     0L,
                     nodeSnapshot.queueFullCount());
             assertEquals(
-                    1L,
+                    2L,
                     nodeSnapshot.timingDataAppendAttempts());
             assertEquals(
                     0L,
                     nodeSnapshot.timingDataAppendFailures());
             assertEquals(
-                    1L,
+                    2L,
                     nodeSnapshot.timingDataCommitCount());
             assertEquals(
-                    1L,
+                    2L,
                     nodeSnapshot.timingDataEventDeliveries());
 
             TagProcessingMetrics.Snapshot tagSnapshot =

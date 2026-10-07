@@ -120,12 +120,14 @@ public class ApiClientTest {
                 respond(exchange, 200, "{\"result\":\"CLOSED\"}");
             } else if (path.endsWith("/auto-reg")) {
                 respond(exchange, 200, "{\"seq\":2}");
+            } else if (path.endsWith("/registration/revoke")) {
+                respond(exchange, 200, "{\"seq\":3}");
             } else if (path.endsWith("/logbook") && query == null) {
                 respond(exchange, 200, "{\"count\":2,\"first\":1,\"last\":2}");
             } else if (path.endsWith("/logbook") && "from=1&limit=100".equals(query)) {
                 respond(exchange, 200,
                         "{\"count\":2,\"next\":null,\"records\":["
-                                + timingData(1, "N0001")
+                                + nodeInfo(1, "OPEN")
                                 + ","
                                 + timingData(2, "N0002")
                                 + "]}");
@@ -157,10 +159,11 @@ public class ApiClientTest {
         assertEquals(2L, page.count());
         assertNull(page.next());
         assertEquals(2, page.records().size());
-        assertEquals("N0001", page.records().get(0).registrationId());
-        assertEquals("AUTO_REG", page.records().get(0).recordType());
-        assertEquals(List.of("ADD"), page.records().get(0).codes());
+        assertNull(page.records().get(0).registrationId());
+        assertEquals("NODE_INFO", page.records().get(0).recordType());
+        assertEquals(List.of("OPEN"), page.records().get(0).codes());
         assertTrue(page.records().get(0).rawJson().contains("\"seqNr\":1"));
+        assertEquals("N0002", page.records().get(1).registrationId());
         assertEquals(
                 new ApiClient.TimingDataKey("TN-01", 2L),
                 page.records().get(1).key());
@@ -168,6 +171,13 @@ public class ApiClientTest {
         var latest = client.getLogBookLast("TN-01", 1);
         assertEquals(1, latest.records().size());
         assertEquals(2L, latest.records().get(0).sequenceNumber());
+
+        assertEquals(
+                3L,
+                client.revokeRegistration(
+                        "TN-01",
+                        page.records().get(1))
+                        .seq());
 
         assertEquals("CLOSED", client.close("TN-01").result());
 
@@ -182,6 +192,17 @@ public class ApiClientTest {
         assertTrue(requests.get(1).body().contains("\"id\":\"N0002\""));
         assertTrue(requests.get(1).body().contains(
                 "\"time\":\"2026-10-01T12:00:04.000000000Z\""));
+
+        Request revoke = requests.stream()
+                .filter(request -> request.uri().endsWith("/registration/revoke"))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("POST", revoke.method());
+        assertTrue(revoke.body().contains("\"recordType\":\"AUTO_REG\""));
+        assertTrue(revoke.body().contains("\"locationId\":24"));
+        assertTrue(revoke.body().contains("\"regId\":\"N0002\""));
+        assertTrue(revoke.body().contains(
+                "\"time\":\"2026-10-01T12:00:00Z\""));
     }
 
     @Test
@@ -222,6 +243,19 @@ public class ApiClientTest {
     private ApiClient client() {
         return new ApiClient(
                 URI.create("http://127.0.0.1:" + server.getAddress().getPort()));
+    }
+
+    private static String nodeInfo(long sequence, String code) {
+        return "{"
+                + "\"v\":1,"
+                + "\"nodeId\":\"TN-01\","
+                + "\"seqNr\":" + sequence + ","
+                + "\"locId\":24,"
+                + "\"recType\":\"NODE_INFO\","
+                + "\"time\":\"2026-10-01T11:59:59Z\","
+                + "\"code\":[\"" + code + "\"],"
+                + "\"recTime\":\"2026-10-01T11:59:59.125Z\""
+                + "}";
     }
 
     private static String timingData(long sequence, String registrationId) {

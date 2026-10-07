@@ -146,6 +146,130 @@ final class HttpRequestReader {
         }
     }
 
+    RegistrationRevokeRequest readRegistrationRevokeRequest(
+            HttpExchange exchange)
+            throws IOException {
+        return parseRegistrationRevokeBody(
+                readBody(exchange));
+    }
+
+    RegistrationRevokeRequest parseRegistrationRevokeBody(
+            byte[] body) {
+        try (JsonParser parser = jsonFactory.createParser(body)) {
+            if (parser.nextToken() != JsonToken.START_OBJECT) {
+                throw malformed("Request must be one JSON object");
+            }
+
+            String recordType = null;
+            Integer locationId = null;
+            String registrationId = null;
+            String time = null;
+            String timeSource = null;
+            Set<String> seen = new HashSet<String>();
+
+            while (parser.nextToken() != JsonToken.END_OBJECT) {
+                if (parser.currentToken() != JsonToken.FIELD_NAME) {
+                    throw malformed("Expected JSON member name");
+                }
+                String name = parser.currentName();
+                if (!seen.add(name)) {
+                    throw invalidValue(
+                            "Duplicate registration revoke field: " + name);
+                }
+                JsonToken value = parser.nextToken();
+
+                switch (name) {
+                    case "recordType":
+                        if (value != JsonToken.VALUE_STRING) {
+                            throw invalidValue(
+                                    "recordType must be one JSON string");
+                        }
+                        recordType = parser.getText();
+                        break;
+                    case "locationId":
+                        if (value != JsonToken.VALUE_NUMBER_INT) {
+                            throw invalidValue(
+                                    "locationId must be one JSON integer");
+                        }
+                        locationId = Integer.valueOf(parser.getIntValue());
+                        break;
+                    case "regId":
+                        if (value != JsonToken.VALUE_STRING) {
+                            throw invalidValue(
+                                    "regId must be one JSON string");
+                        }
+                        registrationId = parser.getText();
+                        break;
+                    case "time":
+                        if (value != JsonToken.VALUE_STRING) {
+                            throw invalidValue(
+                                    "time must be one JSON string");
+                        }
+                        time = parser.getText();
+                        break;
+                    case "timeSource":
+                        if (value != JsonToken.VALUE_STRING) {
+                            throw invalidValue(
+                                    "timeSource must be one JSON string");
+                        }
+                        timeSource = parser.getText();
+                        break;
+                    default:
+                        throw invalidValue(
+                                "Unsupported request field: " + name);
+                }
+            }
+
+            if (parser.nextToken() != null) {
+                throw malformed(
+                        "Unexpected data after request object");
+            }
+            if (recordType == null) {
+                throw invalidValue(
+                        "Missing required field: recordType");
+            }
+            if (locationId == null) {
+                throw invalidValue(
+                        "Missing required field: locationId");
+            }
+            if (registrationId == null) {
+                throw invalidValue(
+                        "Missing required field: regId");
+            }
+            if (time == null) {
+                throw invalidValue(
+                        "Missing required field: time");
+            }
+
+            if ("AUTO_REG".equals(recordType)) {
+                if (timeSource != null) {
+                    throw invalidValue(
+                            "AUTO_REG revoke must not contain timeSource");
+                }
+            } else if ("MAN_REG".equals(recordType)) {
+                if (!"AUTO".equals(timeSource)
+                        && !"MAN".equals(timeSource)) {
+                    throw invalidValue(
+                            "MAN_REG revoke requires timeSource AUTO or MAN");
+                }
+            } else {
+                throw invalidValue(
+                        "recordType must be AUTO_REG or MAN_REG");
+            }
+
+            return new RegistrationRevokeRequest(
+                    recordType,
+                    locationId.intValue(),
+                    registrationId,
+                    time,
+                    timeSource);
+        } catch (RequestException ex) {
+            throw ex;
+        } catch (IOException | RuntimeException ex) {
+            throw malformed("Malformed JSON request", ex);
+        }
+    }
+
     TagProcessingUpdateRequest readTagProcessingUpdateRequest(
             HttpExchange exchange)
             throws IOException {
@@ -457,6 +581,27 @@ final class HttpRequestReader {
                 String time) {
             this.id = id;
             this.time = time;
+        }
+    }
+
+    static final class RegistrationRevokeRequest {
+        final String recordType;
+        final int locationId;
+        final String registrationId;
+        final String time;
+        final String timeSource;
+
+        private RegistrationRevokeRequest(
+                String recordType,
+                int locationId,
+                String registrationId,
+                String time,
+                String timeSource) {
+            this.recordType = recordType;
+            this.locationId = locationId;
+            this.registrationId = registrationId;
+            this.time = time;
+            this.timeSource = timeSource;
         }
     }
 

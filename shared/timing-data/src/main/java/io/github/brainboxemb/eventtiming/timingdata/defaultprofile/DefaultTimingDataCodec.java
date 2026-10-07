@@ -38,8 +38,13 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
 
     private static final String RECORD_TYPE_AUTO_REG = "AUTO_REG";
     private static final String RECORD_TYPE_MAN_REG = "MAN_REG";
+    private static final String RECORD_TYPE_NODE_INFO = "NODE_INFO";
+
+    private static final String CODE_OPEN = "OPEN";
+    private static final String CODE_CLOSE = "CLOSE";
 
     private static final String CODE_ADD = "ADD";
+    private static final String CODE_REV = "REV";
     private static final String CODE_AUTO = "AUTO";
     private static final String CODE_MAN = "MAN";
 
@@ -86,6 +91,16 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                     writeManual(
                             generator,
                             (TimingData.ManualRegistration) data);
+                } else if (data instanceof TimingData.NodeOpen) {
+                    writeLifecycle(
+                            generator,
+                            data,
+                            CODE_OPEN);
+                } else if (data instanceof TimingData.NodeClose) {
+                    writeLifecycle(
+                            generator,
+                            data,
+                            CODE_CLOSE);
                 } else {
                     throw new CodecException(
                             CodecException.Reason.ENCODE_FAILURE,
@@ -133,7 +148,9 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         generator.writeStringField("recType", RECORD_TYPE_AUTO_REG);
         generator.writeStringField("time", data.effectiveTime().toString());
         generator.writeStringField("regId", registrationId.value());
-        writeCodes(generator, CODE_ADD);
+        writeCodes(
+                generator,
+                actionCode(data.action()));
     }
 
     private static void writeManual(
@@ -165,7 +182,40 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         generator.writeStringField("recType", RECORD_TYPE_MAN_REG);
         generator.writeStringField("time", data.effectiveTime().toString());
         generator.writeStringField("regId", registrationId.value());
-        writeCodes(generator, CODE_ADD, timeCode);
+        writeCodes(
+                generator,
+                actionCode(data.action()),
+                timeCode);
+    }
+
+    private static String actionCode(
+            TimingData.RegistrationAction action)
+            throws CodecException {
+        if (action == null) {
+            throw new CodecException(
+                    CodecException.Reason.ENCODE_FAILURE,
+                    "registration action must not be null");
+        }
+        switch (action) {
+            case ADD:
+                return CODE_ADD;
+            case REV:
+                return CODE_REV;
+            default:
+                throw new CodecException(
+                        CodecException.Reason.ENCODE_FAILURE,
+                        "unsupported registration action " + action);
+        }
+    }
+
+    private static void writeLifecycle(
+            JsonGenerator generator,
+            TimingData data,
+            String code)
+            throws IOException {
+        generator.writeStringField("recType", RECORD_TYPE_NODE_INFO);
+        generator.writeStringField("time", data.effectiveTime().toString());
+        writeCodes(generator, code);
     }
 
     private static void writeCodes(JsonGenerator generator, String... codes)
@@ -307,7 +357,8 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
 
         require(fields.recordTypeSeen, "recType");
         if (!RECORD_TYPE_AUTO_REG.equals(fields.recordType)
-                && !RECORD_TYPE_MAN_REG.equals(fields.recordType)) {
+                && !RECORD_TYPE_MAN_REG.equals(fields.recordType)
+                && !RECORD_TYPE_NODE_INFO.equals(fields.recordType)) {
             throw CodecException.unsupportedRecordType(
                     VERSION,
                     key,
@@ -318,32 +369,85 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                     "unsupported IF-05 development-v1 recType " + fields.recordType);
         }
 
+        if (RECORD_TYPE_NODE_INFO.equals(fields.recordType)) {
+            rejectLifecycleRegistrationFields(fields);
+            require(fields.codesSeen, "code");
+            if (hasExactCodes(fields.codes, CODE_OPEN)) {
+                return timingDataFactory.createNodeOpen(context);
+            }
+            if (hasExactCodes(fields.codes, CODE_CLOSE)) {
+                return timingDataFactory.createNodeClose(context);
+            }
+            throw invalid(
+                    "NODE_INFO code must be exactly OPEN or CLOSE");
+        }
+
         require(fields.registrationIdSeen, "regId");
         require(fields.codesSeen, "code");
         RegistrationId registrationId = registrationId(fields.registrationId);
 
         if (RECORD_TYPE_AUTO_REG.equals(fields.recordType)) {
-            requireExactCodes(fields.codes, CODE_ADD);
-            return timingDataFactory.createAutomaticRegistration(
-                    context,
-                    registrationId);
+            if (hasExactCodes(fields.codes, CODE_ADD)) {
+                return timingDataFactory.createAutomaticRegistration(
+                        context,
+                        registrationId,
+                        TimingData.RegistrationAction.ADD);
+            }
+            if (hasExactCodes(fields.codes, CODE_REV)) {
+                return timingDataFactory.createAutomaticRegistration(
+                        context,
+                        registrationId,
+                        TimingData.RegistrationAction.REV);
+            }
+            throw invalid(
+                    "AUTO_REG code must be exactly ADD or REV");
         }
 
-        if (hasExactCodes(fields.codes, CODE_ADD, CODE_AUTO)) {
-            return timingDataFactory.createManualRegistration(
-                    context,
-                    registrationId,
-                    TimingData.ManualTimeSource.SYSTEM_ASSIGNED);
+        TimingData.RegistrationAction action =
+                registrationAction(fields.codes);
+        TimingData.ManualTimeSource timeSource =
+                manualTimeSource(fields.codes);
+        return timingDataFactory.createManualRegistration(
+                context,
+                registrationId,
+                timeSource,
+                action);
+    }
+
+    private static TimingData.RegistrationAction registrationAction(
+            List<String> codes)
+            throws CodecException {
+        boolean add = codes != null && codes.contains(CODE_ADD);
+        boolean rev = codes != null && codes.contains(CODE_REV);
+        if (add == rev) {
+            throw invalid(
+                    "MAN_REG code must contain exactly one of ADD or REV");
         }
-        if (hasExactCodes(fields.codes, CODE_ADD, CODE_MAN)) {
-            return timingDataFactory.createManualRegistration(
-                    context,
-                    registrationId,
-                    TimingData.ManualTimeSource.OPERATOR_ENTERED);
+        return add
+                ? TimingData.RegistrationAction.ADD
+                : TimingData.RegistrationAction.REV;
+    }
+
+    private static TimingData.ManualTimeSource manualTimeSource(
+            List<String> codes)
+            throws CodecException {
+        boolean auto = codes != null && codes.contains(CODE_AUTO);
+        boolean man = codes != null && codes.contains(CODE_MAN);
+        if (auto == man || codes.size() != 2) {
+            throw invalid(
+                    "MAN_REG code must contain exactly one action and exactly one of AUTO or MAN");
+        }
+        return auto
+                ? TimingData.ManualTimeSource.SYSTEM_ASSIGNED
+                : TimingData.ManualTimeSource.OPERATOR_ENTERED;
+    }
+
+    private static void rejectLifecycleRegistrationFields(DecodedFields fields)
+            throws CodecException {
+        if (fields.registrationIdSeen) {
+            throw invalid(fields.recordType + " must not contain regId");
         }
 
-        throw invalid(
-                "MAN_REG code must contain ADD and exactly one of AUTO or MAN");
     }
 
     private static RegistrationId registrationId(String value) throws CodecException {

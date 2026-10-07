@@ -94,6 +94,104 @@ public class TimingNodeTest {
     }
 
     @Test
+    public void openAndCloseCommitLifecycleTimingDataInSourceOrder() {
+        NodeId id = new NodeId("A");
+        RecordingPersistence persistence = new RecordingPersistence();
+        TimingNode node = new TimingNode(
+                id,
+                persistence,
+                new DefaultTimingDataFactory(),
+                TimingNodeTest::now);
+        List<TimingData> committedEvents = new ArrayList<TimingData>();
+        node.timingDataCommittedEvent().subscribe(committedEvents::add);
+
+        node.activate();
+        try {
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.invoke(TimingNodeCommands.open(new LocationId(24))));
+            assertEquals(
+                    TimingNodeTypes.CloseResult.CLOSED,
+                    node.invoke(TimingNodeCommands.close()));
+
+            assertEquals(2, persistence.records.size());
+            assertTrue(persistence.records.get(0) instanceof TimingData.NodeOpen);
+            assertTrue(persistence.records.get(1) instanceof TimingData.NodeClose);
+            assertEquals(1L, persistence.records.get(0).sequenceNumber());
+            assertEquals(2L, persistence.records.get(1).sequenceNumber());
+            assertEquals(new LocationId(24), persistence.records.get(0).locationId());
+            assertEquals(new LocationId(24), persistence.records.get(1).locationId());
+            assertEquals(2, committedEvents.size());
+            assertSame(persistence.records.get(0), committedEvents.get(0));
+            assertSame(persistence.records.get(1), committedEvents.get(1));
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
+    public void repeatedLifecycleCommandsDoNotCreateAdditionalTimingData() {
+        RecordingPersistence persistence = new RecordingPersistence();
+        TimingNode node = new TimingNode(
+                new NodeId("A"),
+                persistence,
+                new DefaultTimingDataFactory(),
+                TimingNodeTest::now);
+
+        node.activate();
+        try {
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.invoke(TimingNodeCommands.open(new LocationId(24))));
+            assertEquals(
+                    TimingNodeTypes.OpenResult.ALREADY_OPEN,
+                    node.invoke(TimingNodeCommands.open(new LocationId(25))));
+            assertEquals(
+                    TimingNodeTypes.CloseResult.CLOSED,
+                    node.invoke(TimingNodeCommands.close()));
+            assertEquals(
+                    TimingNodeTypes.CloseResult.ALREADY_CLOSED,
+                    node.invoke(TimingNodeCommands.close()));
+
+            assertEquals(2, persistence.records.size());
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
+    public void failedOpenCommitLeavesNodeClosedAndPublishesNoSuccess() {
+        FailingPersistence persistence = new FailingPersistence();
+        TimingNode node = new TimingNode(
+                new NodeId("A"),
+                persistence,
+                new DefaultTimingDataFactory(),
+                TimingNodeTest::now);
+        List<TimingData> committedEvents = new ArrayList<TimingData>();
+        node.timingDataCommittedEvent().subscribe(committedEvents::add);
+
+        node.activate();
+        try {
+            try {
+                node.invoke(TimingNodeCommands.open(new LocationId(24)));
+                fail("expected persistence failure");
+            } catch (TimingNodeTypes.OperationException expected) {
+                assertEquals(
+                        TimingNodeTypes.OperationException.Reason.FAILED,
+                        expected.reason());
+            }
+
+            TimingNodeTypes.Status status =
+                    node.query(TimingNodeQueries.status());
+            assertEquals(TimingNodeTypes.State.CLOSED, status.state());
+            assertFalse(status.hasLocation());
+            assertTrue(committedEvents.isEmpty());
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
     public void openCommandRequiresLocation() {
         try {
             TimingNodeCommands.open(null);
@@ -340,6 +438,38 @@ public class TimingNodeTest {
 
     private static Instant now() {
         return Instant.parse("2026-10-02T08:00:00Z");
+    }
+
+    private static final class RecordingPersistence implements TimingDataPersistence {
+        private final List<TimingData> records =
+                new ArrayList<TimingData>();
+
+        @Override
+        public LoadResult load() {
+            return new LoadResult(
+                    Collections.<TimingData>emptyList(),
+                    false);
+        }
+
+        @Override
+        public void append(TimingData data) {
+            records.add(data);
+        }
+    }
+
+    private static final class FailingPersistence implements TimingDataPersistence {
+        @Override
+        public LoadResult load() {
+            return new LoadResult(
+                    Collections.<TimingData>emptyList(),
+                    false);
+        }
+
+        @Override
+        public void append(TimingData data)
+                throws PersistenceException {
+            throw new PersistenceException("test append failure");
+        }
     }
 
     private static final class NoOpPersistence implements TimingDataPersistence {
