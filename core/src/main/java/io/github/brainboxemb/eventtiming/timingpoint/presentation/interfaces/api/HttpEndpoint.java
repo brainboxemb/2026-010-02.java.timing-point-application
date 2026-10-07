@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.ap
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
@@ -14,6 +15,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationCo
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy.AutomaticRegistrationAction;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy.RegistrationRecordType;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.OperationException;
@@ -186,6 +188,11 @@ public final class HttpEndpoint implements AutoCloseable {
                     MessageWriter.result(timingNode.close().name()));
             return;
         }
+        if ("/registration/revoke".equals(route.resource)) {
+            requireMethod(exchange, "POST");
+            handleRegistrationRevoke(exchange);
+            return;
+        }
         if ("/logbook".equals(route.resource)) {
             requireMethod(exchange, "GET");
             handleLogBook(exchange);
@@ -296,6 +303,62 @@ public final class HttpEndpoint implements AutoCloseable {
                             "Accepted registration requires an OPEN TimingNode"));
             return;
         }
+        sendJson(
+                exchange,
+                200,
+                MessageWriter.committedRegistration(
+                        result.timingData()));
+    }
+
+    private void handleRegistrationRevoke(
+            HttpExchange exchange)
+            throws IOException {
+        HttpRequestReader.RegistrationRevokeRequest request =
+                requestReader.readRegistrationRevokeRequest(
+                        exchange);
+
+        final RegistrationRecordType recordType;
+        final LocationId locationId;
+        final RegistrationId registrationId;
+        final TimingTimestamp time;
+        final ManualTimeSource timeSource;
+        try {
+            recordType =
+                    RegistrationRecordType.valueOf(
+                            request.recordType);
+            locationId =
+                    new LocationId(
+                            request.locationId);
+            registrationId =
+                    new RegistrationId(
+                            request.registrationId);
+            time =
+                    TimingTimestamp.parse(
+                            request.time);
+            if (request.timeSource == null) {
+                timeSource = null;
+            } else if ("AUTO".equals(request.timeSource)) {
+                timeSource =
+                        ManualTimeSource.SYSTEM_ASSIGNED;
+            } else if ("MAN".equals(request.timeSource)) {
+                timeSource =
+                        ManualTimeSource.OPERATOR_ENTERED;
+            } else {
+                throw new IllegalArgumentException(
+                        "timeSource must be AUTO or MAN");
+            }
+        } catch (IllegalArgumentException ex) {
+            throw HttpRequestReader.invalidValue(
+                    ex.getMessage());
+        }
+
+        RegistrationResult result =
+                timingNode.revokeRegistration(
+                        recordType,
+                        locationId,
+                        registrationId,
+                        time,
+                        timeSource);
         sendJson(
                 exchange,
                 200,
