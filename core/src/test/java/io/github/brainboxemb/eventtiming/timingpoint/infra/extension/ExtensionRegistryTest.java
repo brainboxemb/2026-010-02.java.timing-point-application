@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.infra.extension;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventDataProvider;
 import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventDataProvider;
+import io.github.brainboxemb.eventtiming.eventdata.simulation.SimulationEventDataProvider;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider;
 
@@ -35,7 +36,7 @@ public class ExtensionRegistryTest {
             new TemporaryFolder();
 
     @Test
-    public void builtInsExposeReferenceProviders() {
+    public void builtInsExposeReferenceAndSimulationProviders() {
         ExtensionRegistry registry =
                 ExtensionRegistry.builtIns();
 
@@ -46,6 +47,10 @@ public class ExtensionRegistryTest {
         assertEquals(
                 DefaultTimingDataProvider.class,
                 registry.timingDataProvider("reference")
+                        .getClass());
+        assertEquals(
+                SimulationEventDataProvider.class,
+                registry.eventDataProvider("simulation")
                         .getClass());
     }
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add capability-gated simulated-tag scenarios through the real `SimulatedAntenna -> AntennaManager -> TagProcessor -> TimingNode` path, with public `simulation` EventData (`N0001..N2000`, `-A/-B` tags), deterministic `simple`/`normal`/`edge` profiles, and a Development Client batch driver for count/range/ascending-or-seeded-random selection and scenario interval.
+
 - Add normal IF-03 manual-registration ADD with client-selected AUTO/MAN time semantics; normalize SI-01-generated lifecycle time to centiseconds and record-creation time to milliseconds while preserving registration effective-time precision.
 
 - Refine the Development Client registration workbench: hundredth-second input/display, automatic AUTO/MAN classification from **Now** versus edited time, normal manual registration, and current-open-location filtering with an explicit **All** history view.

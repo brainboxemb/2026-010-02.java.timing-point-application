@@ -2,9 +2,11 @@ package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.ap
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.application.SimulationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
@@ -19,6 +21,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Test;
 
@@ -73,8 +76,11 @@ public class HttpEndpointTest {
             assertEquals(200, capabilities.status);
             assertTrue(capabilities.body.contains(
                     "\"id\":\"DIRECT_REGISTRATION_SIMULATION\""));
+            assertTrue(capabilities.body.contains(
+                    "\"id\":\"TAG_SCENARIO_SIMULATION\""));
             assertTrue(capabilities.body.contains("\"supported\":true"));
-            assertTrue(capabilities.body.contains("\"enabled\":true"));
+            assertTrue(capabilities.body.contains(
+                    "\"id\":\"TAG_SCENARIO_SIMULATION\",\"supported\":true,\"enabled\":false"));
 
             Response openWithoutLocation =
                     request(server.boundPort(), "POST", "/api/v1/node/A/open", null);
@@ -199,6 +205,74 @@ public class HttpEndpointTest {
                     request(server.boundPort(), "POST", "/api/v1/node/A/close", null);
             assertEquals(200, closed.status);
             assertTrue(closed.body.contains("\"result\":\"CLOSED\""));
+        } finally {
+            server.close();
+            fixture.close();
+        }
+    }
+
+    @Test
+    public void startsSimulatedTagPassageThroughCapabilityGatedControl()
+            throws Exception {
+        AtomicReference<RegistrationId> registration =
+                new AtomicReference<RegistrationId>();
+        AtomicReference<String> profile =
+                new AtomicReference<String>();
+        SimulationControl simulation =
+                (registrationId, profileId) -> {
+                    registration.set(
+                            registrationId);
+                    profile.set(
+                            profileId);
+                    return SimulationControl.StartResult.ACCEPTED;
+                };
+
+        Fixture fixture =
+                new Fixture(
+                        simulation);
+        fixture.start();
+        HttpEndpoint server =
+                new HttpEndpoint(
+                        "127.0.0.1",
+                        0,
+                        fixture.handler);
+        server.start();
+
+        try {
+            Response capabilities =
+                    request(
+                            server.boundPort(),
+                            "GET",
+                            "/api/v1/capabilities",
+                            null);
+            assertEquals(
+                    200,
+                    capabilities.status);
+            assertTrue(
+                    capabilities.body.contains(
+                            "\"id\":\"TAG_SCENARIO_SIMULATION\",\"supported\":true,\"enabled\":true"));
+
+            Response accepted =
+                    request(
+                            server.boundPort(),
+                            "POST",
+                            "/api/v1/dev/node/A/simulation/registration",
+                            "{"
+                                    + "\"regId\":\"N0042\","
+                                    + "\"profile\":\"normal\""
+                                    + "}");
+            assertEquals(
+                    200,
+                    accepted.status);
+            assertEquals(
+                    "{\"result\":\"ACCEPTED\"}",
+                    accepted.body);
+            assertEquals(
+                    new RegistrationId("N0042"),
+                    registration.get());
+            assertEquals(
+                    "normal",
+                    profile.get());
         } finally {
             server.close();
             fixture.close();
@@ -557,6 +631,12 @@ public class HttpEndpointTest {
         private final PresentationGateway handler;
 
         private Fixture() {
+            this(
+                    null);
+        }
+
+        private Fixture(
+                SimulationControl simulation) {
             node = TimingNodeFixture.create(
                     new NodeId("A"),
                     new MemoryStore(),
@@ -566,7 +646,8 @@ public class HttpEndpointTest {
                             identity(),
                             node,
                             PresentationGatewayFixture.configurationControl(
-                                    new NodeId("A")));
+                                    new NodeId("A")),
+                            simulation);
         }
 
         private void start() {

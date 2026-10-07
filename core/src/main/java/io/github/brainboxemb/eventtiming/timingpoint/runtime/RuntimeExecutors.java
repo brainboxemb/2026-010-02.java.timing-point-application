@@ -28,6 +28,7 @@ final class RuntimeExecutors implements AutoCloseable {
     static final int TIMING_NODE_QUEUE_CAPACITY = 32;
     static final int TAG_PROCESSOR_LANE_QUEUE_CAPACITY = 32;
     static final int ANTENNA_CONTROL_QUEUE_CAPACITY = 8;
+    static final int SIMULATION_QUEUE_CAPACITY = 32;
     static final int CONDUCTOR_QUEUE_CAPACITY = 8;
 
     /*
@@ -202,6 +203,21 @@ final class RuntimeExecutors implements AutoCloseable {
                         sharedIoWorker);
         serialLanes.add(antennaControl);
         return antennaControl;
+    }
+
+    /**
+     * Creates the engineering simulated-tag lane on the shared scheduled I/O
+     * worker. Scenario delays therefore release the physical worker while still
+     * keeping a bounded logical execution lane.
+     */
+    synchronized SerialScheduledExecutor createSimulationExecutor() {
+        SerialScheduledExecutor simulation =
+                new SerialScheduledExecutor(
+                        SIMULATION_QUEUE_CAPACITY,
+                        "SimulatedTagScenario",
+                        sharedIoWorker);
+        serialLanes.add(simulation);
+        return simulation;
     }
 
     @Override

@@ -56,6 +56,18 @@ With `JAVA_HOME` pointing to a JDK 17 installation:
 ```
 
 Start SI-01 separately from the normal Java-8 project/NetBeans run configuration.
+To exercise the built-in simulated-tag profiles on the Windows development fallback,
+start SI-01 with:
+
+```powershell
+java -jar app\target\timing-point-app-<version>.jar config\development-simulation.yml
+```
+
+That configuration selects the public `simulation` EventData profile
+(`N0001` through `N2000`, each with `-A` and `-B` tags) while keeping
+simulation TimingData in a dedicated file. The normal `config/application.yml`
+continues to use the empty/reference EventData profile.
+
 For the formal `VC-ST1-003` running-system check, follow
 [VC-ST1-003.md](VC-ST1-003.md); it uses dedicated verification storage so normal
 development TimingData is not modified.
@@ -144,6 +156,14 @@ the canonical UTC API timestamp when sending. **Now** captures the current clien
 date/time and marks the manual-registration time source as `AUTO`; editing the date or
 time marks it as `MAN`.
 
+The **Simulated tags** pane is separate from direct `auto-reg`. It uses
+`TAG_SCENARIO_SIMULATION` to start one `simple`, `normal` or `edge` profile
+through the real SimulatedAntenna -> AntennaManager -> TagProcessor path. A batch selects
+a count and numeric RegistrationId range, uses ascending or seedable pseudo-random order,
+and starts scenarios at the configured interval. **Stop** prevents later scenario starts;
+an HTTP request already accepted by SI-01 is not undone. The selected profile owns the
+TagObservation pattern inside each passage.
+
 ### Events
 
 The **Events** tab uses Java 17's built-in WebSocket client and keeps raw events visible.
@@ -181,8 +201,13 @@ The API workbench uses the following LogBook/live-event synchronisation behaviou
 - shows current node state and LocationId;
 - sends node-addressed IF-03 Open/Close controls without local lifecycle-state
   permission rules; OPEN carries the entered LocationId as one request;
-- discovers `DIRECT_REGISTRATION_SIMULATION` before enabling dev `auto-reg`;
-- exposes normal manual-registration ADD independently from that engineering simulation;
+- discovers `DIRECT_REGISTRATION_SIMULATION` before enabling direct dev `auto-reg`;
+- discovers `TAG_SCENARIO_SIMULATION` independently and enables the simulated-tag
+  batch controls only when the server composition advertises it;
+- exposes normal manual-registration ADD independently from both engineering simulations;
+- composes simulated-tag batches client-side from repeated single-scenario API calls;
+  count/range/order/interval belong to the client while profile observation timing remains
+  server-side simulation behaviour;
 - composes RegistrationId from the presentation prefix + numeric field, shows the
   interpreted client time zone explicitly and converts the entered local civil time to
   a hundredth-second canonical UTC API timestamp;
@@ -213,10 +238,11 @@ The current SI-01 runtime may compose one TimingNode, but the client model does 
 hard-code that limitation. With one node selection is implicit; with multiple reported
 nodes the same API workbench addresses the selected node.
 
-The Development Client does not expose RFID/tag/filter controls,
-StageStartTimes/NextUpTeams/RaceData editors or Upstream/DebugConnector simulation UI.
-Those capabilities require their own public engineering/client use case before they are
-added here.
+The simulated-tag pane is an engineering scenario driver, not a raw RFID/tag/filter
+editor. The Development Client still does not expose arbitrary TagObservation injection,
+TagProcessor/filter mutation, StageStartTimes/NextUpTeams/RaceData editors or
+Upstream/DebugConnector simulation UI. Those capabilities require their own public
+engineering/client use case before they are added here.
 
 ### Current IF-03 resources used
 
@@ -235,6 +261,7 @@ GET  /api/v1/node/{id}/logbook?from=...&limit=...
 GET  /api/v1/node/{id}/logbook?last=...
 
 POST /api/v1/dev/node/{id}/auto-reg
+POST /api/v1/dev/node/{id}/simulation/registration
 
 WS   /api/v1/events
 ```

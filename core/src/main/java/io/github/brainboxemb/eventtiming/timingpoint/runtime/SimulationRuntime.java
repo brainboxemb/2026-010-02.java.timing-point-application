@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 
 
@@ -27,6 +28,22 @@ public final class SimulationRuntime {
                 buildIdentity,
                 config,
                 antennaSet,
+                eventData);
+    }
+
+    /**
+     * Creates one simulator composition whose antenna is also available to the
+     * capability-gated simulated-tag scenario control.
+     */
+    public static TimingApplicationRuntime create(
+            BuildIdentity buildIdentity,
+            Config config,
+            SimulatedAntenna antenna,
+            EventData eventData) {
+        return TimingApplicationRuntime.createSimulation(
+                buildIdentity,
+                config,
+                antenna,
                 eventData);
     }
 }

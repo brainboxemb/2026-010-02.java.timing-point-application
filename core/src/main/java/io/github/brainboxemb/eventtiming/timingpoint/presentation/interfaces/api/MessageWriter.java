@@ -77,6 +77,12 @@ public final class MessageWriter {
                 + capabilities.directRegistrationSimulationSupported() + ","
                 + "\"enabled\":"
                 + capabilities.directRegistrationSimulationEnabled()
+                + "},{"
+                + "\"id\":\"TAG_SCENARIO_SIMULATION\","
+                + "\"supported\":"
+                + capabilities.tagScenarioSimulationSupported() + ","
+                + "\"enabled\":"
+                + capabilities.tagScenarioSimulationEnabled()
                 + "}]}";
     }
 

@@ -97,6 +97,8 @@ public class PresentationGatewayTest {
             PresentationGateway.Capabilities capabilities = gateway.capabilities();
             assertTrue(capabilities.directRegistrationSimulationSupported());
             assertTrue(capabilities.directRegistrationSimulationEnabled());
+            assertTrue(capabilities.tagScenarioSimulationSupported());
+            assertFalse(capabilities.tagScenarioSimulationEnabled());
 
             assertFalse(proxy.status().hasLocation());
 
@@ -151,6 +153,42 @@ public class PresentationGatewayTest {
         } finally {
             node.deactivate();
         }
+    }
+
+    @Test
+    public void exposesOptionalSimulatedTagControlWhenComposed() {
+        TimingNode node =
+                node(
+                        new RecordingStore());
+        SimulationControl simulation =
+                (registrationId, profileId) ->
+                        SimulationControl.StartResult.ACCEPTED;
+        PresentationGateway gateway =
+                new PresentationGateway(
+                        identity(),
+                        node,
+                        configuration(),
+                        simulation);
+
+        assertTrue(
+                gateway.capabilities()
+                        .tagScenarioSimulationSupported());
+        assertTrue(
+                gateway.capabilities()
+                        .tagScenarioSimulationEnabled());
+        assertSame(
+                simulation,
+                gateway.simulation());
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void rejectsSimulationAccessWhenCapabilityIsDisabled() {
+        PresentationGateway gateway =
+                new PresentationGateway(
+                        identity(),
+                        node(new RecordingStore()),
+                        configuration());
+        gateway.simulation();
     }
 
     @Test(expected = IllegalArgumentException.class)

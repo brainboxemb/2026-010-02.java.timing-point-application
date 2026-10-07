@@ -76,6 +76,8 @@ final class TimingPane extends VBox {
     private boolean updatingRegistrationTime;
     private String manualTimeSource = "AUTO";
 
+    private final SimulatedTagsPane simulationPane;
+
     private final TableView<TimingViewModel.InterpretedRegistration> registrations =
             new TableView<>();
     private final Label logBookCount = new Label("0");
@@ -191,6 +193,18 @@ final class TimingPane extends VBox {
                 new TitledPane("Registration input", registrationBox);
         registrationPane.setCollapsible(false);
 
+        simulationPane =
+                new SimulatedTagsPane(
+                        clientSupplier,
+                        requests,
+                        model::selectedNodeId,
+                        rawSink,
+                        feedback,
+                        apiState,
+                        this::handleCommandError,
+                        this::refreshControls,
+                        clientLog);
+
         configureRegistrationView();
         registrationScope.setItems(
                 FXCollections.observableArrayList(
@@ -223,7 +237,13 @@ final class TimingPane extends VBox {
                 new TitledPane("LogBook / committed TimingData", historyBox);
         historyPane.setCollapsible(false);
 
-        VBox left = new VBox(10, leftHeader, nodePane, registrationPane);
+        VBox left =
+                new VBox(
+                        10,
+                        leftHeader,
+                        nodePane,
+                        registrationPane,
+                        simulationPane);
         VBox right = new VBox(10, interpretedPane, historyPane);
         VBox.setVgrow(interpretedPane, Priority.SOMETIMES);
         VBox.setVgrow(historyPane, Priority.ALWAYS);
@@ -287,6 +307,7 @@ final class TimingPane extends VBox {
 
     void disconnected(boolean stale) {
         eventsConnected = false;
+        simulationPane.stopBatch();
         bufferedEvents.clear();
         model.viewState(stale
                 ? TimingViewModel.ViewState.STALE
@@ -844,13 +865,21 @@ final class TimingPane extends VBox {
         TimingViewModel.Controls controls = model.controls();
         boolean live = model.viewState() == TimingViewModel.ViewState.LIVE;
         if (!live) {
-            autoRegCapability.setText("Capability state cached/not synchronised");
-        } else if (model.autoRegEnabled()) {
-            autoRegCapability.setText("DIRECT_REGISTRATION_SIMULATION enabled");
+            autoRegCapability.setText(
+                    "Capability state cached/not synchronised");
         } else {
-            autoRegCapability.setText("DIRECT_REGISTRATION_SIMULATION unavailable");
+            autoRegCapability.setText(
+                    model.autoRegEnabled()
+                            ? "DIRECT_REGISTRATION_SIMULATION enabled"
+                            : "DIRECT_REGISTRATION_SIMULATION unavailable");
         }
-        node.setDisable(!live || model.nodes().size() <= 1);
+        simulationPane.refresh(
+                live,
+                controls.simulation());
+        node.setDisable(
+                !live
+                        || model.nodes().size() <= 1
+                        || simulationPane.running());
         locationInput.setDisable(!live || !controls.open());
         open.setDisable(!live || !controls.open());
         close.setDisable(!live || !controls.close());
@@ -867,6 +896,7 @@ final class TimingPane extends VBox {
         autoReg.setDisable(!live || !controls.autoReg());
         registrationScope.setDisable(!live);
         registrations.setDisable(!live);
+
         syncViewButton.setDisable(
                 !eventsConnected || model.viewState() == TimingViewModel.ViewState.SYNCING);
     }

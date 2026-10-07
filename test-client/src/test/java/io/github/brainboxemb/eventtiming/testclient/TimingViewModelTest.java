@@ -19,13 +19,14 @@ class TimingViewModelTest {
         TimingViewModel model = new TimingViewModel();
         model.applyStatus(status(
                 node("node-01", null, "CLOSED")));
-        model.applyCapabilities(capabilities(true));
+        model.applyCapabilities(capabilities(true, true));
 
         assertEquals("node-01", model.selectedNodeId());
         assertTrue(model.controls().open());
         assertTrue(model.controls().close());
         assertTrue(model.controls().autoReg());
         assertTrue(model.controls().manualReg());
+        assertTrue(model.controls().simulation());
 
         model.applyStatus(status(
                 node("node-01", 24, "OPEN")));
@@ -35,10 +36,12 @@ class TimingViewModelTest {
         assertTrue(model.controls().close());
         assertTrue(model.controls().autoReg());
         assertTrue(model.controls().manualReg());
+        assertTrue(model.controls().simulation());
 
-        model.applyCapabilities(capabilities(false));
+        model.applyCapabilities(capabilities(false, false));
         assertFalse(model.controls().autoReg());
         assertTrue(model.controls().manualReg());
+        assertFalse(model.controls().simulation());
     }
 
     @Test
@@ -330,12 +333,19 @@ class TimingViewModelTest {
         return new ApiClient.TimingNodeInfo(id, locationId, state);
     }
 
-    private static ApiClient.CapabilitiesResult capabilities(boolean enabled) {
+    private static ApiClient.CapabilitiesResult capabilities(
+            boolean directEnabled,
+            boolean simulationEnabled) {
         return new ApiClient.CapabilitiesResult(
-                List.of(new ApiClient.CapabilityInfo(
-                        "DIRECT_REGISTRATION_SIMULATION",
-                        true,
-                        enabled)),
+                List.of(
+                        new ApiClient.CapabilityInfo(
+                                "DIRECT_REGISTRATION_SIMULATION",
+                                true,
+                                directEnabled),
+                        new ApiClient.CapabilityInfo(
+                                "TAG_SCENARIO_SIMULATION",
+                                true,
+                                simulationEnabled)),
                 "{}");
     }
 
