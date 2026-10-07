@@ -1,0 +1,50 @@
+name: Runtime characterization harness verification
+
+on:
+  pull_request:
+    paths:
+      - 'runtime-characterization/**'
+      - 'core/src/main/java/**/runtime/measurement/**'
+      - 'core/src/main/java/**/TimingNodeMetrics.java'
+      - 'core/src/main/java/**/TagProcessingMetrics.java'
+      - 'pom.xml'
+      - '.github/workflows/runtime-characterization-verify.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'runtime-characterization/**'
+      - 'core/src/main/java/**/runtime/measurement/**'
+      - 'core/src/main/java/**/TimingNodeMetrics.java'
+      - 'core/src/main/java/**/TagProcessingMetrics.java'
+      - 'pom.xml'
+      - '.github/workflows/runtime-characterization-verify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact source revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up exact Java 8 baseline
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: temurin
+          java-version: '8.0.504+1'
+          check-latest: false
+          verify-signature: true
+          cache: maven
+
+      - name: Verify optional runtime-characterization module
+        shell: bash
+        run: ./mvnw --batch-mode --no-transfer-progress verify -Pruntime-characterization
