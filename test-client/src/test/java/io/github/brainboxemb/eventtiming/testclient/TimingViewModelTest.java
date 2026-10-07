@@ -25,6 +25,7 @@ class TimingViewModelTest {
         assertTrue(model.controls().open());
         assertTrue(model.controls().close());
         assertTrue(model.controls().autoReg());
+        assertTrue(model.controls().manualReg());
 
         model.applyStatus(status(
                 node("node-01", 24, "OPEN")));
@@ -33,9 +34,11 @@ class TimingViewModelTest {
         assertTrue(model.controls().open());
         assertTrue(model.controls().close());
         assertTrue(model.controls().autoReg());
+        assertTrue(model.controls().manualReg());
 
         model.applyCapabilities(capabilities(false));
         assertFalse(model.controls().autoReg());
+        assertTrue(model.controls().manualReg());
     }
 
     @Test
@@ -149,11 +152,11 @@ class TimingViewModelTest {
                 model.interpretedRegistrations(ZoneId.of("Europe/Amsterdam"));
 
         assertEquals(2, values.size());
-        assertEquals("12:00:00", values.get(0).displayTime());
+        assertEquals("12:00:00.00", values.get(0).displayTime());
         assertEquals("AUTO", values.get(0).type());
         assertNull(values.get(0).teamId());
         assertEquals("", values.get(0).code());
-        assertEquals("12:00:05", values.get(1).displayTime());
+        assertEquals("12:00:05.00", values.get(1).displayTime());
         assertEquals("MAN", values.get(1).type());
         assertEquals("MAN", values.get(1).code());
     }
@@ -222,6 +225,55 @@ class TimingViewModelTest {
     }
 
     @Test
+    void currentLocationProjectionRequiresOpenNodeAndCanShowAllHistory() {
+        TimingViewModel model = new TimingViewModel();
+        model.applyStatus(status(node("node-01", 24, "OPEN")));
+
+        model.mergeCommitted(new ApiClient.TimingDataInfo(
+                "node-01",
+                1L,
+                23,
+                "AUTO_REG",
+                "2026-10-01T10:00:00Z",
+                "N0001",
+                List.of("ADD"),
+                "2026-10-01T10:00:00.100Z",
+                "{}"));
+        model.mergeCommitted(new ApiClient.TimingDataInfo(
+                "node-01",
+                2L,
+                24,
+                "AUTO_REG",
+                "2026-10-01T10:00:01Z",
+                "N0002",
+                List.of("ADD"),
+                "2026-10-01T10:00:01.100Z",
+                "{}"));
+
+        assertEquals(
+                List.of("N0002"),
+                model.interpretedRegistrations(
+                                ZoneId.of("Europe/Amsterdam"),
+                                false)
+                        .stream()
+                        .map(TimingViewModel.InterpretedRegistration::registrationId)
+                        .toList());
+        assertEquals(
+                2,
+                model.interpretedRegistrations(
+                                ZoneId.of("Europe/Amsterdam"),
+                                true)
+                        .size());
+
+        model.applyStatus(status(node("node-01", 24, "CLOSED")));
+        assertTrue(
+                model.interpretedRegistrations(
+                                ZoneId.of("Europe/Amsterdam"),
+                                false)
+                        .isEmpty());
+    }
+
+    @Test
     void nodeInfoRemainsInLogBookButNotInRegistrationProjection() {
         TimingViewModel model = new TimingViewModel();
         model.applyStatus(status(node("node-01", 24, "OPEN")));
@@ -250,9 +302,9 @@ class TimingViewModelTest {
     }
 
     @Test
-    void formatsCanonicalNineDigitUtcTime() {
+    void formatsCanonicalCentisecondUtcTime() {
         assertEquals(
-                "2026-10-01T12:00:00.123000000Z",
+                "2026-10-01T12:00:00.12Z",
                 TimingViewModel.canonicalTime(
                         Instant.parse("2026-10-01T12:00:00.123Z")));
     }
@@ -260,7 +312,7 @@ class TimingViewModelTest {
     @Test
     void convertsExplicitLocalCivilTimeUsingTheSuppliedZone() {
         assertEquals(
-                "2026-10-01T10:00:00.000000000Z",
+                "2026-10-01T10:00:00.00Z",
                 TimingViewModel.canonicalTime(
                         LocalDate.parse("2026-10-01"),
                         LocalTime.parse("12:00:00"),

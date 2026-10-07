@@ -21,6 +21,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTyp
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
@@ -118,8 +120,7 @@ final class TimingNodeLogic {
         ensureTimingDataCommitAvailable();
 
         TimingTimestamp transitionTime =
-                new TimingTimestamp(
-                        timeSource.now());
+                currentLifecycleTime();
         TimingData data =
                 timingDataFactory.createNodeOpen(
                         nextLifecycleContext(
@@ -142,8 +143,7 @@ final class TimingNodeLogic {
 
         LocationId closingLocation = locationId;
         TimingTimestamp transitionTime =
-                new TimingTimestamp(
-                        timeSource.now());
+                currentLifecycleTime();
         TimingData data =
                 timingDataFactory.createNodeClose(
                         nextLifecycleContext(
@@ -300,8 +300,7 @@ final class TimingNodeLogic {
                 logBook.nextSequence(),
                 recordLocationId,
                 effectiveTime,
-                new TimingTimestamp(
-                        timeSource.now()));
+                currentRecordedTime());
     }
 
     private Context nextLifecycleContext(
@@ -312,8 +311,31 @@ final class TimingNodeLogic {
                 logBook.nextSequence(),
                 lifecycleLocation,
                 effectiveTime,
-                new TimingTimestamp(
-                        timeSource.now()));
+                currentRecordedTime());
+    }
+
+    /**
+     * Captures reference lifecycle time at centisecond resolution.
+     *
+     * <p>Precision reduction truncates instead of rounding so the represented
+     * transition is never moved forward in time.</p>
+     */
+    private TimingTimestamp currentLifecycleTime() {
+        Instant now = timeSource.now();
+        long nanos =
+                (now.getNano() / 10_000_000L)
+                        * 10_000_000L;
+        return new TimingTimestamp(
+                Instant.ofEpochSecond(
+                        now.getEpochSecond(),
+                        nanos));
+    }
+
+    /** Captures record-creation bookkeeping at millisecond resolution. */
+    private TimingTimestamp currentRecordedTime() {
+        return new TimingTimestamp(
+                timeSource.now().truncatedTo(
+                        ChronoUnit.MILLIS));
     }
 
     int committedTimingDataCount() {

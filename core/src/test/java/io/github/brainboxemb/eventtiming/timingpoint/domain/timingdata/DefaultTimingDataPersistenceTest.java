@@ -168,7 +168,7 @@ public class DefaultTimingDataPersistenceTest {
                         EFFECTIVE,
                         RECORDED),
                 new RegistrationId("registration-" + sequence),
-                TimingData.ManualTimeSource.SYSTEM_ASSIGNED);
+                TimingData.ManualTimeSource.AUTOMATIC);
     }
 
     private void assertLoadFails(Path file, String expectedMessage) throws Exception {

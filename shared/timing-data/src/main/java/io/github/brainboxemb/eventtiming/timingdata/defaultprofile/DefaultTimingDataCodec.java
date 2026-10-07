@@ -167,7 +167,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
 
         final String timeCode;
         switch (timeSource) {
-            case SYSTEM_ASSIGNED:
+            case AUTOMATIC:
                 timeCode = CODE_AUTO;
                 break;
             case OPERATOR_ENTERED:
@@ -438,7 +438,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                     "MAN_REG code must contain exactly one action and exactly one of AUTO or MAN");
         }
         return auto
-                ? TimingData.ManualTimeSource.SYSTEM_ASSIGNED
+                ? TimingData.ManualTimeSource.AUTOMATIC
                 : TimingData.ManualTimeSource.OPERATOR_ENTERED;
     }
 

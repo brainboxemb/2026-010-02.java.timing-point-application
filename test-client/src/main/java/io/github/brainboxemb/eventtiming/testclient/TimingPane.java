@@ -37,7 +37,7 @@ import java.util.function.Supplier;
 final class TimingPane extends VBox {
     private static final int INITIAL_LOGBOOK_ROWS = 100;
     private static final DateTimeFormatter CLOCK_TIME =
-            DateTimeFormatter.ofPattern("HH:mm:ss");
+            DateTimeFormatter.ofPattern("HH:mm:ss[.SS]");
     private static final ZoneId INPUT_ZONE = ZoneId.systemDefault();
 
     private final Supplier<ApiClient> clientSupplier;
@@ -67,8 +67,14 @@ final class TimingPane extends VBox {
     private final TextField registrationNumber = new TextField("0001");
     private final TextField registrationDate = new TextField();
     private final TextField registrationTime = new TextField();
+    private final Label registrationTimeSource = new Label("AUTO");
     private final Button now = new Button("Now");
+    private final Button manualReg = new Button("Add manual");
     private final Button autoReg = new Button("Send auto-reg");
+    private final ComboBox<String> registrationScope = new ComboBox<>();
+
+    private boolean updatingRegistrationTime;
+    private String manualTimeSource = "AUTO";
 
     private final TableView<TimingViewModel.InterpretedRegistration> registrations =
             new TableView<>();
@@ -143,6 +149,12 @@ final class TimingPane extends VBox {
                 "Local civil time in " + INPUT_ZONE.getId()
                         + "; sent to IF-03 as canonical UTC."));
         updateNow();
+        registrationDate.textProperty().addListener(
+                (ignored, previous, value) ->
+                        markRegistrationTimeManual());
+        registrationTime.textProperty().addListener(
+                (ignored, previous, value) ->
+                        markRegistrationTimeManual());
 
         GridPane registrationGrid = new GridPane();
         registrationGrid.setHgap(10);
@@ -158,7 +170,20 @@ final class TimingPane extends VBox {
                 new HBox(8, registrationTime, now),
                 1,
                 3);
-        registrationGrid.add(autoReg, 1, 4);
+        registrationGrid.add(
+                new HBox(
+                        8,
+                        new Label("Time source"),
+                        registrationTimeSource),
+                1,
+                4);
+        registrationGrid.add(
+                new HBox(
+                        8,
+                        manualReg,
+                        autoReg),
+                1,
+                5);
 
         VBox registrationBox = new VBox(8, autoRegCapability, registrationGrid);
         registrationBox.setPadding(new Insets(10));
@@ -167,9 +192,21 @@ final class TimingPane extends VBox {
         registrationPane.setCollapsible(false);
 
         configureRegistrationView();
+        registrationScope.setItems(
+                FXCollections.observableArrayList(
+                        "Current location",
+                        "All"));
+        registrationScope.setValue(
+                "Current location");
+        registrationScope.setOnAction(
+                event -> refreshLogBook());
         VBox interpretedBox = new VBox(
                 6,
-                new Label("Times shown in " + INPUT_ZONE.getId()),
+                new HBox(
+                        8,
+                        new Label("Show"),
+                        registrationScope,
+                        new Label("Times shown in " + INPUT_ZONE.getId())),
                 registrations);
         VBox.setVgrow(registrations, Priority.ALWAYS);
         TitledPane interpretedPane =
@@ -233,6 +270,7 @@ final class TimingPane extends VBox {
         close.setOnAction(event -> runStateCommand(
                 api -> api.close(requireSelectedNode())));
         now.setOnAction(event -> updateNow());
+        manualReg.setOnAction(event -> manualReg());
         autoReg.setOnAction(event -> autoReg());
 
         refresh();
@@ -489,20 +527,8 @@ final class TimingPane extends VBox {
 
     private void autoReg() {
         final String selected = requireSelectedNode();
-        final String number = registrationNumber.getText().trim();
-        if (!number.matches("[0-9]+")) {
-            lastOperation.setText("Registration number must contain digits only");
-            return;
-        }
-        final String id = registrationPrefix.getText().trim() + number;
-        final String time;
-        try {
-            time = TimingViewModel.canonicalTime(
-                    LocalDate.parse(registrationDate.getText().trim()),
-                    LocalTime.parse(registrationTime.getText().trim(), CLOCK_TIME),
-                    INPUT_ZONE);
-        } catch (RuntimeException ex) {
-            lastOperation.setText("Date/time must use YYYY-MM-DD and HH:mm:ss");
+        RegistrationInput input = registrationInput();
+        if (input == null) {
             return;
         }
 
@@ -513,7 +539,11 @@ final class TimingPane extends VBox {
                 .supplyAsync(() -> {
                     try {
                         ApiClient api = clientSupplier.get();
-                        ApiClient.AutoRegResult result = api.autoReg(selected, id, time);
+                        ApiClient.AutoRegResult result =
+                                api.autoReg(
+                                        selected,
+                                        input.registrationId(),
+                                        input.time());
                         ApiClient.LogBookPage page =
                                 api.getLogBookFrom(selected, result.seq(), 1);
                         ApiClient.StatusResult status = api.getStatus();
@@ -539,6 +569,103 @@ final class TimingPane extends VBox {
                     feedback.accept("OK");
                     refresh();
                 }));
+    }
+
+    private void manualReg() {
+        final String selected = requireSelectedNode();
+        RegistrationInput input = registrationInput();
+        if (input == null) {
+            return;
+        }
+        final String timeSource =
+                manualTimeSource;
+
+        setOperationBusy(true);
+        lastOperation.setText("Submitting...");
+        feedback.accept("Submitting manual registration...");
+        CompletableFuture
+                .supplyAsync(() -> {
+                    try {
+                        ApiClient api = clientSupplier.get();
+                        ApiClient.CommitResult result =
+                                api.manualRegistration(
+                                        selected,
+                                        input.registrationId(),
+                                        input.time(),
+                                        timeSource);
+                        ApiClient.LogBookPage page =
+                                api.getLogBookFrom(
+                                        selected,
+                                        result.seq(),
+                                        1);
+                        ApiClient.StatusResult status =
+                                api.getStatus();
+                        return new ManualRegCommand(
+                                result,
+                                page,
+                                status);
+                    } catch (Exception ex) {
+                        throw new CompletionException(ex);
+                    }
+                }, requests)
+                .whenComplete((result, error) -> Platform.runLater(() -> {
+                    setOperationBusy(false);
+                    if (error != null) {
+                        handleCommandError(error);
+                        return;
+                    }
+                    apiState.accept("READY");
+                    rawSink.accept(
+                            result.result().rawJson());
+                    clientLog.info(
+                            "API manual registration committed as seq "
+                                    + result.result().seq());
+                    lastOperation.setText(
+                            "seq "
+                                    + result.result().seq());
+                    model.applyStatus(
+                            result.status());
+                    model.mergeLogBookPage(
+                            result.page());
+                    syncNodeChoice();
+                    feedback.accept("OK");
+                    refresh();
+                }));
+    }
+
+    private RegistrationInput registrationInput() {
+        String number =
+                registrationNumber.getText()
+                        .trim();
+        if (!number.matches("[0-9]+")) {
+            lastOperation.setText(
+                    "Registration number must contain digits only");
+            return null;
+        }
+
+        String id =
+                registrationPrefix.getText()
+                        .trim()
+                        + number;
+        try {
+            String time =
+                    TimingViewModel.canonicalTime(
+                            LocalDate.parse(
+                                    registrationDate.getText()
+                                            .trim()),
+                            LocalTime.parse(
+                                    registrationTime.getText()
+                                            .trim(),
+                                    CLOCK_TIME),
+                            INPUT_ZONE);
+            return new RegistrationInput(
+                    id,
+                    time);
+        } catch (RuntimeException ex) {
+            lastOperation.setText(
+                    "Date/time must use YYYY-MM-DD and HH:mm:ss.SS");
+            return null;
+        }
     }
 
     private void revokeRegistration(
@@ -682,6 +809,7 @@ final class TimingPane extends VBox {
         if (busy) {
             open.setDisable(true);
             close.setDisable(true);
+            manualReg.setDisable(true);
             autoReg.setDisable(true);
             registrations.setDisable(true);
         } else {
@@ -726,12 +854,18 @@ final class TimingPane extends VBox {
         locationInput.setDisable(!live || !controls.open());
         open.setDisable(!live || !controls.open());
         close.setDisable(!live || !controls.close());
-        registrationPrefix.setDisable(!live || !controls.autoReg());
-        registrationNumber.setDisable(!live || !controls.autoReg());
-        registrationDate.setDisable(!live || !controls.autoReg());
-        registrationTime.setDisable(!live || !controls.autoReg());
-        now.setDisable(!live || !controls.autoReg());
+        boolean registrationInputEnabled =
+                live
+                        && (controls.manualReg()
+                                || controls.autoReg());
+        registrationPrefix.setDisable(!registrationInputEnabled);
+        registrationNumber.setDisable(!registrationInputEnabled);
+        registrationDate.setDisable(!registrationInputEnabled);
+        registrationTime.setDisable(!registrationInputEnabled);
+        now.setDisable(!registrationInputEnabled);
+        manualReg.setDisable(!live || !controls.manualReg());
         autoReg.setDisable(!live || !controls.autoReg());
+        registrationScope.setDisable(!live);
         registrations.setDisable(!live);
         syncViewButton.setDisable(
                 !eventsConnected || model.viewState() == TimingViewModel.ViewState.SYNCING);
@@ -739,7 +873,10 @@ final class TimingPane extends VBox {
 
     private void refreshLogBook() {
         registrations.setItems(FXCollections.observableArrayList(
-                model.interpretedRegistrations(INPUT_ZONE)));
+                model.interpretedRegistrations(
+                        INPUT_ZONE,
+                        "All".equals(
+                                registrationScope.getValue()))));
         logBookCount.setText(Long.toString(model.logBookCount()));
         logBook.setItems(FXCollections.observableArrayList(model.records()));
     }
@@ -896,8 +1033,32 @@ final class TimingPane extends VBox {
     }
 
     private void updateNow() {
-        registrationDate.setText(LocalDate.now(INPUT_ZONE).toString());
-        registrationTime.setText(CLOCK_TIME.format(LocalTime.now(INPUT_ZONE)));
+        updatingRegistrationTime = true;
+        try {
+            registrationDate.setText(
+                    LocalDate.now(INPUT_ZONE)
+                            .toString());
+            registrationTime.setText(
+                    DateTimeFormatter.ofPattern(
+                            "HH:mm:ss.SS")
+                            .format(
+                                    LocalTime.now(
+                                            INPUT_ZONE)));
+        } finally {
+            updatingRegistrationTime = false;
+        }
+        manualTimeSource = "AUTO";
+        registrationTimeSource.setText(
+                manualTimeSource);
+    }
+
+    private void markRegistrationTimeManual() {
+        if (updatingRegistrationTime) {
+            return;
+        }
+        manualTimeSource = "MAN";
+        registrationTimeSource.setText(
+                manualTimeSource);
     }
 
     private static TableColumn<ApiClient.TimingDataInfo, String> column(
@@ -964,6 +1125,17 @@ final class TimingPane extends VBox {
 
     private record StateCommandResult(
             ApiClient.OperationResult result,
+            ApiClient.StatusResult status) {
+    }
+
+    private record RegistrationInput(
+            String registrationId,
+            String time) {
+    }
+
+    private record ManualRegCommand(
+            ApiClient.CommitResult result,
+            ApiClient.LogBookPage page,
             ApiClient.StatusResult status) {
     }
 

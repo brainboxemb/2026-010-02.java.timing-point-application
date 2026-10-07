@@ -94,6 +94,33 @@ public final class TimingNodeProxy {
     }
 
     /**
+     * Commits one normal manual registration with client-supplied effective
+     * time and client-side time-selection classification.
+     */
+    public RegistrationResult addManualRegistration(
+            RegistrationId registrationId,
+            TimingTimestamp effectiveTime,
+            ManualTimeSource timeSource) {
+        if (registrationId == null) {
+            throw new IllegalArgumentException(
+                    "registrationId must not be null");
+        }
+        if (effectiveTime == null) {
+            throw new IllegalArgumentException(
+                    "effectiveTime must not be null");
+        }
+        if (timeSource == null) {
+            throw new IllegalArgumentException(
+                    "timeSource must not be null");
+        }
+        return timingNode.invoke(
+                TimingNodeCommands.commitManualRegistration(
+                        registrationId,
+                        effectiveTime,
+                        timeSource));
+    }
+
+    /**
      * Appends one registration REV record using caller-supplied original
      * registration semantics.
      *

@@ -81,7 +81,7 @@ public class DefaultTimingDataCodecTest {
                 factory.createManualRegistration(
                         context(2L),
                         new RegistrationId("registration-0042"),
-                        TimingData.ManualTimeSource.SYSTEM_ASSIGNED);
+                        TimingData.ManualTimeSource.AUTOMATIC);
 
         String json = new String(codec.encode(original), StandardCharsets.UTF_8);
 
@@ -252,7 +252,7 @@ public class DefaultTimingDataCodecTest {
 
         assertTrue(decoded instanceof TimingData.ManualRegistration);
         assertSame(
-                TimingData.ManualTimeSource.SYSTEM_ASSIGNED,
+                TimingData.ManualTimeSource.AUTOMATIC,
                 ((TimingData.ManualRegistration) decoded).timeSource());
     }
 

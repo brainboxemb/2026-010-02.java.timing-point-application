@@ -130,6 +130,40 @@ public class TimingNodeTest {
     }
 
     @Test
+    public void generatedLifecycleAndRecordedTimesUseConfiguredPrecision() {
+        RecordingPersistence persistence = new RecordingPersistence();
+        final int[] call = {0};
+        final Instant[] times = {
+            Instant.parse("2026-10-02T08:00:00.129876543Z"),
+            Instant.parse("2026-10-02T08:00:00.134876543Z")
+        };
+        TimingNode node = new TimingNode(
+                new NodeId("A"),
+                persistence,
+                new DefaultTimingDataFactory(),
+                () -> times[Math.min(call[0]++, times.length - 1)]);
+
+        node.activate();
+        try {
+            node.invoke(
+                    TimingNodeCommands.open(
+                            new LocationId(24)));
+
+            TimingData open = persistence.records.get(0);
+            assertEquals(
+                    TimingTimestamp.parse(
+                            "2026-10-02T08:00:00.12Z"),
+                    open.effectiveTime());
+            assertEquals(
+                    TimingTimestamp.parse(
+                            "2026-10-02T08:00:00.134Z"),
+                    open.recordedAt());
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
     public void repeatedLifecycleCommandsDoNotCreateAdditionalTimingData() {
         RecordingPersistence persistence = new RecordingPersistence();
         TimingNode node = new TimingNode(

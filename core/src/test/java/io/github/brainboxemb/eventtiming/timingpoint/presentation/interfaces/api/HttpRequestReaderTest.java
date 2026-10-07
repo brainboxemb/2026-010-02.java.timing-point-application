@@ -50,6 +50,31 @@ public class HttpRequestReaderTest {
     }
 
     @Test
+    public void parsesManualRegistrationAddRequest() {
+        HttpRequestReader.ManualRegistrationRequest request =
+                reader.parseManualRegistrationBody(bytes(
+                        "{"
+                                + "\"regId\":\"N0002\","
+                                + "\"time\":\"2026-10-01T12:00:01.25Z\","
+                                + "\"timeSource\":\"AUTO\""
+                                + "}"));
+
+        assertEquals("N0002", request.registrationId);
+        assertEquals("2026-10-01T12:00:01.25Z", request.time);
+        assertEquals("AUTO", request.timeSource);
+
+        assertFailure(
+                "INVALID_VALUE",
+                "timeSource must be AUTO or MAN",
+                () -> reader.parseManualRegistrationBody(bytes(
+                        "{"
+                                + "\"regId\":\"N0002\","
+                                + "\"time\":\"2026-10-01T12:00:01.25Z\","
+                                + "\"timeSource\":\"SERVER\""
+                                + "}")));
+    }
+
+    @Test
     public void parsesAutomaticAndManualRegistrationRevokeRequests() {
         HttpRequestReader.RegistrationRevokeRequest automatic =
                 reader.parseRegistrationRevokeBody(bytes(

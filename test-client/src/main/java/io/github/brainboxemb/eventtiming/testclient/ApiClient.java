@@ -86,6 +86,44 @@ public final class ApiClient {
         return new AutoRegResult(requiredLong(root, "seq"), rawJson);
     }
 
+    public CommitResult manualRegistration(
+            String nodeId,
+            String registrationId,
+            String time,
+            String timeSource)
+            throws IOException, InterruptedException {
+        if (registrationId == null
+                || registrationId.trim().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "registrationId must not be blank");
+        }
+        if (time == null || time.trim().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "time must not be blank");
+        }
+        if (!"AUTO".equals(timeSource)
+                && !"MAN".equals(timeSource)) {
+            throw new IllegalArgumentException(
+                    "timeSource must be AUTO or MAN");
+        }
+
+        ObjectNode body = JSON.createObjectNode();
+        body.put("regId", registrationId);
+        body.put("time", time);
+        body.put("timeSource", timeSource);
+
+        String rawJson = request(
+                "POST",
+                nodePath(
+                        nodeId,
+                        "/registration/manual"),
+                JSON.writeValueAsString(body));
+        JsonNode root = JSON.readTree(rawJson);
+        return new CommitResult(
+                requiredLong(root, "seq"),
+                rawJson);
+    }
+
     public CommitResult revokeRegistration(
             String nodeId,
             TimingDataInfo original)
