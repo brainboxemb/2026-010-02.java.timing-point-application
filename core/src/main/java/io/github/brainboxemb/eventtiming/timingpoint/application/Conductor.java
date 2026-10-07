@@ -3,7 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.application;
 import io.github.brainboxemb.eventtiming.timingpoint.application.logic.AbstractConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.property.TimingNodeStateProperty;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.State;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTaskController;
@@ -22,8 +22,9 @@ import org.slf4j.LoggerFactory;
  * {@link AbstractConductor}.</p>
  *
  * <p>Cross-component events only wake this coordinator. Application decisions
- * are made from current authoritative state in {@link #runStep()}, so future
- * coordination rules remain in one readable state-machine boundary rather than
+ * are made from the current authoritative TimingNode state in {@link #runStep()},
+ * so future
+ * coordination rules remain in one readable control-task boundary rather than
  * being spread over event handlers.</p>
  *
  * <p>The current TimingNode-to-antenna rule is deliberately explicit:</p>
@@ -45,15 +46,16 @@ public final class Conductor extends AbstractConductor
     private final TimingNode timingNode;
     private final AntennaManager antennaManager;
     private final TimingNodeStateProperty timingNodeStateProperty;
-    private final CooperativeTaskController stateMachine;
+    private final CooperativeTaskController taskController;
 
     /**
-     * Last TimingNode state reconciled by this Conductor.
+     * TimingNode state for which the inventory rule was last accepted.
      *
-     * <p>This is application state, not scheduling state. Repeated wake-ups may
-     * therefore safely coalesce without repeating an already applied rule.</p>
+     * <p>This is remembered input from TimingNode, not Conductor state. It only
+     * prevents a coalesced control pass from repeating the same inventory
+     * request.</p>
      */
-    private volatile State reconciledTimingNodeState;
+    private volatile TimingNodeTypes.State lastHandledTimingNodeState;
 
     /**
      * Creates the SI-01 coordinator and declares the components/properties it
@@ -82,16 +84,16 @@ public final class Conductor extends AbstractConductor
                 new TimingNodeStateProperty(
                         timingNode,
                         applicationLane());
-        stateMachine =
+        taskController =
                 new CooperativeTaskController(
                         new SerialTaskRunner(
                                 applicationLane()),
                         this,
-                        this::onStateMachineFailure);
+                        this::onControlTaskFailure);
 
         timingNodeStateProperty.changedEvent()
                 .subscribe(
-                        ignored -> stateMachine.wake());
+                        ignored -> taskController.wake());
 
         registerComponent(
                 "TimingNode " + timingNode.timingNodeId().value(),
@@ -112,25 +114,25 @@ public final class Conductor extends AbstractConductor
      */
     @Override
     protected void onActivated() {
-        State initialState =
+        TimingNodeTypes.State initialState =
                 timingNodeStateProperty.initialize();
 
         /*
          * AntennaManager starts with inventory disabled. CLOSED/ERROR therefore
          * already match the physical requested state and need no control action.
-         * Initial OPEN is different and wakes the same state machine used for
-         * later changes.
+         * Initial OPEN is different and wakes the same cooperative control
+         * task used for later changes.
          */
         if (antennaManager == null) {
-            reconciledTimingNodeState = initialState;
+            lastHandledTimingNodeState = initialState;
             return;
         }
 
-        if (initialState == State.OPEN) {
-            reconciledTimingNodeState = null;
-            stateMachine.wake();
+        if (initialState == TimingNodeTypes.State.OPEN) {
+            lastHandledTimingNodeState = null;
+            taskController.wake();
         } else {
-            reconciledTimingNodeState = initialState;
+            lastHandledTimingNodeState = initialState;
             LOG.info(
                     "TimingNode {} initial state {} -> inventory disabled",
                     timingNode.timingNodeId().value(),
@@ -147,12 +149,12 @@ public final class Conductor extends AbstractConductor
     }
 
     /**
-     * Runs one application-coordination transition.
+     * Runs one application-coordination control pass.
      *
-     * <p>The changed-event payload is deliberately not used here. The state
-     * machine reads the latest authoritative tracked value, so several source
-     * events may collapse into one reconciliation without replaying stale
-     * intermediate callback decisions.</p>
+     * <p>The changed-event payload is deliberately not used here. This task
+     * reads the latest authoritative TimingNode state, so several source events
+     * may collapse into one control pass without replaying stale intermediate
+     * callback decisions.</p>
      */
     @Override
     public TaskStep runStep() {
@@ -161,15 +163,15 @@ public final class Conductor extends AbstractConductor
             return TaskStep.done();
         }
 
-        State state =
+        TimingNodeTypes.State timingNodeState =
                 timingNodeStateProperty.currentValue();
 
-        if (state == reconciledTimingNodeState) {
+        if (timingNodeState == lastHandledTimingNodeState) {
             return TaskStep.done();
         }
 
-        if (applyTimingNodeState(state)) {
-            reconciledTimingNodeState = state;
+        if (applyTimingNodeState(timingNodeState)) {
+            lastHandledTimingNodeState = timingNodeState;
         }
 
         return TaskStep.done();
@@ -181,8 +183,8 @@ public final class Conductor extends AbstractConductor
      * @return true when the antenna manager accepted the requested state
      */
     private boolean applyTimingNodeState(
-            State state) {
-        switch (state) {
+            TimingNodeTypes.State timingNodeState) {
+        switch (timingNodeState) {
             case OPEN:
                 LOG.info(
                         "TimingNode {} OPEN -> enable inventory",
@@ -203,7 +205,7 @@ public final class Conductor extends AbstractConductor
                 LOG.info(
                         "TimingNode {} {} -> disable inventory",
                         timingNode.timingNodeId().value(),
-                        state);
+                        timingNodeState);
 
                 if (antennaManager.requestDisableInventory()) {
                     return true;
@@ -212,14 +214,14 @@ public final class Conductor extends AbstractConductor
                 LOG.warn(
                         "AntennaManager rejected disable-inventory request for TimingNode {} state {} managerState={}",
                         timingNode.timingNodeId().value(),
-                        state,
+                        timingNodeState,
                         antennaManager.state());
                 return false;
 
             default:
                 throw new IllegalStateException(
                         "Unsupported TimingNode state "
-                                + state);
+                                + timingNodeState);
         }
     }
 
@@ -227,10 +229,10 @@ public final class Conductor extends AbstractConductor
      * Cooperative-runner failures are execution failures of the coordinator,
      * not separate application transitions.
      */
-    private void onStateMachineFailure(
+    private void onControlTaskFailure(
             Throwable failure) {
         LOG.error(
-                "Conductor state machine failed",
+                "Conductor control task failed",
                 failure);
     }
 }
