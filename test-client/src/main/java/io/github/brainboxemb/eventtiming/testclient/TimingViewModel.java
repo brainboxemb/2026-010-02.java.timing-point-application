@@ -30,7 +30,8 @@ public final class TimingViewModel {
     public record Controls(
             boolean open,
             boolean close,
-            boolean autoReg) {
+            boolean autoReg,
+            boolean manualReg) {
     }
 
     /** One user-facing registration projected from immutable committed TimingData. */
@@ -40,6 +41,7 @@ public final class TimingViewModel {
             String displayTime,
             String type,
             String code,
+            int locationId,
             boolean deleted,
             long firstSequence,
             Long revokeSequence) {
@@ -49,7 +51,7 @@ public final class TimingViewModel {
     }
 
     private static final DateTimeFormatter CANONICAL_TIME =
-            DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSSSSSSSS'Z'")
+            DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SS'Z'")
                     .withZone(ZoneOffset.UTC);
 
     private ViewState viewState = ViewState.DISCONNECTED;
@@ -134,7 +136,7 @@ public final class TimingViewModel {
 
     public Controls controls() {
         if (selectedNode() == null) {
-            return new Controls(false, false, false);
+            return new Controls(false, false, false, false);
         }
 
         /*
@@ -142,7 +144,7 @@ public final class TimingViewModel {
          * acceptance rules. Supported requests remain available so developers
          * can exercise and inspect negative-path domain results from SI-01.
          */
-        return new Controls(true, true, autoRegEnabled);
+        return new Controls(true, true, autoRegEnabled, true);
     }
 
     public void applyLogBookInfo(ApiClient.LogBookInfo info) {
@@ -196,6 +198,14 @@ public final class TimingViewModel {
      * mapping.</p>
      */
     public List<InterpretedRegistration> interpretedRegistrations(ZoneId zone) {
+        return interpretedRegistrations(
+                zone,
+                true);
+    }
+
+    public List<InterpretedRegistration> interpretedRegistrations(
+            ZoneId zone,
+            boolean allLocations) {
         if (zone == null) {
             throw new IllegalArgumentException("zone must not be null");
         }
@@ -212,7 +222,8 @@ public final class TimingViewModel {
             RegistrationProjectionKey key = new RegistrationProjectionKey(
                     record.recordType(),
                     record.registrationId(),
-                    record.effectiveTime());
+                    record.effectiveTime(),
+                    record.locationId());
             boolean revoke = record.codes().contains("REV");
             InterpretedRegistration previous = projected.get(key);
             String code = registrationCode(record, previous);
@@ -226,6 +237,7 @@ public final class TimingViewModel {
                                 displayTime(record.effectiveTime(), zone),
                                 type,
                                 code,
+                                record.locationId(),
                                 revoke,
                                 record.sequenceNumber(),
                                 revoke ? Long.valueOf(record.sequenceNumber()) : null));
@@ -240,6 +252,7 @@ public final class TimingViewModel {
                             previous.displayTime(),
                             previous.type(),
                             previous.code(),
+                            previous.locationId(),
                             previous.deleted() || revoke,
                             previous.firstSequence(),
                             revoke
@@ -247,7 +260,33 @@ public final class TimingViewModel {
                                     : previous.revokeSequence()));
         }
 
-        return List.copyOf(projected.values());
+        List<InterpretedRegistration> values =
+                List.copyOf(
+                        projected.values());
+        if (allLocations) {
+            return values;
+        }
+
+        ApiClient.TimingNodeInfo selected =
+                selectedNode();
+        if (selected == null
+                || !"OPEN".equals(selected.state())
+                || selected.locationId() == null) {
+            return List.of();
+        }
+
+        List<InterpretedRegistration> current =
+                new ArrayList<>();
+        int currentLocation =
+                selected.locationId().intValue();
+        for (InterpretedRegistration registration : values) {
+            if (registration.locationId()
+                    == currentLocation) {
+                current.add(
+                        registration);
+            }
+        }
+        return List.copyOf(current);
     }
 
     private static String registrationType(ApiClient.TimingDataInfo record) {
@@ -280,7 +319,7 @@ public final class TimingViewModel {
 
     private static String displayTime(String value, ZoneId zone) {
         try {
-            return DateTimeFormatter.ofPattern("HH:mm:ss")
+            return DateTimeFormatter.ofPattern("HH:mm:ss.SS")
                     .format(Instant.parse(value).atZone(zone));
         } catch (DateTimeParseException ex) {
             return value;
@@ -290,7 +329,8 @@ public final class TimingViewModel {
     private record RegistrationProjectionKey(
             String recordType,
             String registrationId,
-            String effectiveTime) {
+            String effectiveTime,
+            int locationId) {
         private RegistrationProjectionKey {
             Objects.requireNonNull(recordType, "recordType");
             Objects.requireNonNull(registrationId, "registrationId");
