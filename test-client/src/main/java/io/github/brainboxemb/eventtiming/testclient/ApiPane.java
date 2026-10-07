@@ -1,12 +1,12 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
 import javafx.application.Platform;
+import javafx.beans.value.ObservableValue;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TitledPane;
-import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -37,11 +37,14 @@ final class ApiPane extends VBox {
             Supplier<ApiClient> clientSupplier,
             ExecutorService requests,
             String initialPrefix,
+            ObservableValue<String> deviceLogText,
+            ObservableValue<String> clientLogText,
             Consumer<String> feedback,
             Consumer<String> apiState,
             ClientLog clientLog) {
-        if (clientSupplier == null || requests == null || feedback == null
-                || apiState == null || clientLog == null) {
+        if (clientSupplier == null || requests == null
+                || deviceLogText == null || clientLogText == null
+                || feedback == null || apiState == null || clientLog == null) {
             throw new IllegalArgumentException("API pane dependencies must not be null");
         }
         this.clientSupplier = clientSupplier;
@@ -53,24 +56,22 @@ final class ApiPane extends VBox {
         setSpacing(10);
         setPadding(new Insets(12));
 
-        HBox actions = new HBox(8, versionButton, statusButton);
-        GridPane identity = new GridPane();
-        identity.setHgap(12);
-        identity.setVgap(6);
-        addRow(identity, 0, "Application", application);
-        addRow(identity, 1, "Version", version);
-        addRow(identity, 2, "API version", apiVersion);
-
-        TitledPane identityPane = new TitledPane(
-                "API / application identity",
-                new VBox(8, actions, identity));
-        identityPane.setCollapsible(false);
+        HBox identityBar =
+                new HBox(
+                        10,
+                        new Label("Application"),
+                        application,
+                        new Label("Version"),
+                        version,
+                        new Label("API"),
+                        apiVersion,
+                        versionButton,
+                        statusButton);
 
         timingPane = new TimingPane(
                 clientSupplier,
                 requests,
                 initialPrefix,
-                identityPane,
                 this::showRaw,
                 feedback,
                 apiState,
@@ -82,9 +83,20 @@ final class ApiPane extends VBox {
         TitledPane rawPane = new TitledPane(
                 "Raw response / selected record",
                 rawResponse);
-        rawPane.setCollapsible(false);
+        rawPane.setCollapsible(true);
+        rawPane.setExpanded(false);
 
-        getChildren().addAll(timingPane.syncStateBar(), timingPane, rawPane);
+        WorkbenchLogPane workbenchLogs =
+                new WorkbenchLogPane(
+                        deviceLogText,
+                        clientLogText);
+
+        getChildren().addAll(
+                identityBar,
+                timingPane.syncStateBar(),
+                timingPane,
+                workbenchLogs,
+                rawPane);
         VBox.setVgrow(timingPane, Priority.ALWAYS);
 
         versionButton.setOnAction(event -> loadVersion());
@@ -173,11 +185,6 @@ final class ApiPane extends VBox {
     private void setBusy(boolean busy) {
         versionButton.setDisable(busy);
         statusButton.setDisable(busy);
-    }
-
-    private static void addRow(GridPane grid, int row, String name, Label value) {
-        grid.add(new Label(name), 0, row);
-        grid.add(value, 1, row);
     }
 
     private static Label valueLabel() {
