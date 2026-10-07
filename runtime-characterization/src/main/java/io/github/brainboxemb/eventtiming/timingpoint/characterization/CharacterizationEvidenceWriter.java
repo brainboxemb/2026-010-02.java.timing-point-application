@@ -228,6 +228,15 @@ final class CharacterizationEvidenceWriter {
         json.writeStringField(
                 "inputPattern",
                 "sequential-known-tags-v1");
+        json.writeBooleanField(
+                "deterministicInput",
+                true);
+        json.writeNumberField(
+                "knownTagPercent",
+                100);
+        json.writeNumberField(
+                "unknownTagPercent",
+                0);
         json.writeStringField(
                 "deliveryShape",
                 config.workload() == CharacterizationConfig.Workload.BURST
