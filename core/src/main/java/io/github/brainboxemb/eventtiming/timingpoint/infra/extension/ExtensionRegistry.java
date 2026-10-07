@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.infra.extension;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventDataProvider;
 import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventDataProvider;
+import io.github.brainboxemb.eventtiming.eventdata.simulation.SimulationEventDataProvider;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider;
 
@@ -58,6 +59,9 @@ public final class ExtensionRegistry {
         registerEventDataProvider(
                 eventData,
                 new DefaultEventDataProvider());
+        registerEventDataProvider(
+                eventData,
+                new SimulationEventDataProvider());
         registerTimingDataProvider(
                 timingData,
                 new DefaultTimingDataProvider());
@@ -89,6 +93,9 @@ public final class ExtensionRegistry {
         registerEventDataProvider(
                 eventData,
                 new DefaultEventDataProvider());
+        registerEventDataProvider(
+                eventData,
+                new SimulationEventDataProvider());
         registerTimingDataProvider(
                 timingData,
                 new DefaultTimingDataProvider());
