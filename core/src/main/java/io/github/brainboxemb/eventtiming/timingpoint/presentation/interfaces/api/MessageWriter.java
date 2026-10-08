@@ -12,7 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTyp
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 
 import java.nio.charset.StandardCharsets;
-import Instant;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
