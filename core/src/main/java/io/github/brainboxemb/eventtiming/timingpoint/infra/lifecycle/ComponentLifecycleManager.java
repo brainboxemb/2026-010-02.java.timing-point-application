@@ -7,11 +7,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Executes the mechanical lifecycle of application components registered by
- * {@link AbstractConductor}.
+ * Executes ordered activation, rollback and reverse deactivation for components
+ * registered by an owning coordinator.
  *
- * <p>This helper owns no application startup policy. The concrete Conductor decides which
- * components participate and when lifecycle execution is requested. This class
+ * <p>This helper owns no startup policy. The owning Application or TimingSystem
+ * coordinator decides which components participate and when lifecycle execution is requested. This class
  * only preserves activation order, rolls back components that already activated
  * when a later activation fails, and deactivates active components in reverse
  * order.</p>
