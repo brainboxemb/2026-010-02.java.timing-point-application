@@ -45,7 +45,6 @@ public final class HttpEndpoint implements AutoCloseable {
     private final String bindAddress;
     private final int port;
     private final PresentationGateway presentationGateway;
-    private final TimingNodeProxy timingNode;
     private final ConfigurationControl configuration;
     private final TimingDataCodec timingDataCodec;
     private final HttpRequestReader requestReader = new HttpRequestReader();
@@ -66,7 +65,6 @@ public final class HttpEndpoint implements AutoCloseable {
         this.bindAddress = bindAddress.trim();
         this.port = port;
         this.presentationGateway = presentationGateway;
-        this.timingNode = presentationGateway.timingNode();
         this.configuration = presentationGateway.configuration();
         this.timingDataCodec = new DefaultTimingDataCodec();
     }
@@ -129,7 +127,12 @@ public final class HttpEndpoint implements AutoCloseable {
         }
         if ("/api/v1/status".equals(path)) {
             requireMethod(exchange, "GET");
-            sendJson(exchange, 200, MessageWriter.status(timingNode.status()));
+            sendJson(
+                    exchange,
+                    200,
+                    MessageWriter.status(
+                            presentationGateway
+                                    .timingNodeStatuses()));
             return;
         }
         if ("/api/v1/configuration".equals(path)) {
@@ -173,11 +176,14 @@ public final class HttpEndpoint implements AutoCloseable {
                     MessageWriter.error("NOT_FOUND", "Unknown TimingNode resource"));
             return;
         }
-        requireCurrentNode(exchange, route.nodeId);
+        TimingNodeProxy timingNode =
+                requireNode(
+                        exchange,
+                        route.nodeId);
 
         if ("/open".equals(route.resource)) {
             requireMethod(exchange, "POST");
-            handleOpen(exchange);
+            handleOpen(exchange, timingNode);
             return;
         }
         if ("/close".equals(route.resource)) {
@@ -191,23 +197,23 @@ public final class HttpEndpoint implements AutoCloseable {
         }
         if ("/registration/manual".equals(route.resource)) {
             requireMethod(exchange, "POST");
-            handleManualRegistration(exchange);
+            handleManualRegistration(exchange, timingNode);
             return;
         }
         if ("/registration/revoke".equals(route.resource)) {
             requireMethod(exchange, "POST");
-            handleRegistrationRevoke(exchange);
+            handleRegistrationRevoke(exchange, timingNode);
             return;
         }
         if ("/logbook".equals(route.resource)) {
             requireMethod(exchange, "GET");
-            handleLogBook(exchange);
+            handleLogBook(exchange, timingNode);
             return;
         }
         if ("/configuration/tag-processing".equals(
                 route.resource)) {
             requireMethod(exchange, "POST");
-            handleTagProcessingConfiguration(exchange);
+            handleTagProcessingConfiguration(exchange, timingNode);
             return;
         }
 
@@ -226,11 +232,14 @@ public final class HttpEndpoint implements AutoCloseable {
                     MessageWriter.error("NOT_FOUND", "Unknown IF-03 dev resource"));
             return;
         }
-        requireCurrentNode(exchange, route.nodeId);
+        TimingNodeProxy timingNode =
+                requireNode(
+                        exchange,
+                        route.nodeId);
 
         if ("/auto-reg".equals(route.resource)) {
             requireMethod(exchange, "POST");
-            handleAutoRegistration(exchange);
+            handleAutoRegistration(exchange, timingNode);
             return;
         }
         if ("/simulation/registration".equals(
@@ -246,21 +255,28 @@ public final class HttpEndpoint implements AutoCloseable {
                 MessageWriter.error("NOT_FOUND", "Unknown IF-03 dev resource"));
     }
 
-    private void requireCurrentNode(HttpExchange exchange, String nodeId)
+    private TimingNodeProxy requireNode(
+            HttpExchange exchange,
+            String nodeId)
             throws IOException {
-        if (timingNode.status().timingNodeId().value().equals(nodeId)) {
-            return;
+        try {
+            return presentationGateway.timingNode(
+                    new NodeId(nodeId));
+        } catch (IllegalArgumentException ex) {
+            sendJson(
+                    exchange,
+                    404,
+                    MessageWriter.error(
+                            "NODE_NOT_FOUND",
+                            "Unknown TimingNode id"));
+            throw ResponseAlreadySent.INSTANCE;
         }
-        sendJson(
-                exchange,
-                404,
-                MessageWriter.error(
-                        "NODE_NOT_FOUND",
-                        "Unknown TimingNode id"));
-        throw ResponseAlreadySent.INSTANCE;
     }
 
-    private void handleOpen(HttpExchange exchange) throws IOException {
+    private void handleOpen(
+            HttpExchange exchange,
+            TimingNodeProxy timingNode)
+            throws IOException {
         LocationId locationId = readLocationId(exchange);
         OpenResult result = timingNode.open(locationId);
         sendJson(
@@ -361,7 +377,10 @@ public final class HttpEndpoint implements AutoCloseable {
         }
     }
 
-    private void handleAutoRegistration(HttpExchange exchange) throws IOException {
+    private void handleAutoRegistration(
+            HttpExchange exchange,
+            TimingNodeProxy timingNode)
+            throws IOException {
         HttpRequestReader.AutoRegistrationRequest request =
                 requestReader.readAutoRegistrationRequest(exchange);
 
@@ -406,7 +425,8 @@ public final class HttpEndpoint implements AutoCloseable {
     }
 
     private void handleManualRegistration(
-            HttpExchange exchange)
+            HttpExchange exchange,
+            TimingNodeProxy timingNode)
             throws IOException {
         HttpRequestReader.ManualRegistrationRequest request =
                 requestReader.readManualRegistrationRequest(
@@ -454,7 +474,8 @@ public final class HttpEndpoint implements AutoCloseable {
     }
 
     private void handleRegistrationRevoke(
-            HttpExchange exchange)
+            HttpExchange exchange,
+            TimingNodeProxy timingNode)
             throws IOException {
         HttpRequestReader.RegistrationRevokeRequest request =
                 requestReader.readRegistrationRevokeRequest(
@@ -510,14 +531,15 @@ public final class HttpEndpoint implements AutoCloseable {
     }
 
     private void handleTagProcessingConfiguration(
-            HttpExchange exchange)
+            HttpExchange exchange,
+            TimingNodeProxy timingNode)
             throws IOException {
         HttpRequestReader.TagProcessingUpdateRequest request =
                 requestReader.readTagProcessingUpdateRequest(
                         exchange);
 
         NodeId nodeId =
-                timingNode.status().timingNodeId();
+                timingNode.timingNodeId();
         ConfigurationControl.Update update;
 
         if (request.action
@@ -564,7 +586,10 @@ public final class HttpEndpoint implements AutoCloseable {
                 MessageWriter.configurationUpdate(update));
     }
 
-    private void handleLogBook(HttpExchange exchange) throws IOException {
+    private void handleLogBook(
+            HttpExchange exchange,
+            TimingNodeProxy timingNode)
+            throws IOException {
         String query = exchange.getRequestURI().getRawQuery();
         if (query == null || query.isEmpty()) {
             sendJson(
