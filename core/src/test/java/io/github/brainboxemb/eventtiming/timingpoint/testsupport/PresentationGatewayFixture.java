@@ -61,20 +61,30 @@ public final class PresentationGatewayFixture implements AutoCloseable {
     }
 
     public static ConfigurationControl configurationControl(
-            NodeId nodeId) {
-        DynamicConfiguration<TagProcessingPolicy> value =
-                DynamicConfiguration.create(
-                        TagProcessingPolicy.defaults(),
-                        candidate -> candidate != null,
-                        (startup, candidate) ->
-                                startup.observationQueueCapacity()
-                                        == candidate.observationQueueCapacity());
+            NodeId... nodeIds) {
+        if (nodeIds == null || nodeIds.length == 0) {
+            throw new IllegalArgumentException(
+                    "nodeIds must not be empty");
+        }
 
         Map<NodeId, DynamicConfiguration<TagProcessingPolicy>> values =
                 new LinkedHashMap<
                         NodeId,
                         DynamicConfiguration<TagProcessingPolicy>>();
-        values.put(nodeId, value);
+        for (NodeId nodeId : nodeIds) {
+            if (nodeId == null) {
+                throw new IllegalArgumentException(
+                        "nodeIds must not contain null");
+            }
+            DynamicConfiguration<TagProcessingPolicy> value =
+                    DynamicConfiguration.create(
+                            TagProcessingPolicy.defaults(),
+                            candidate -> candidate != null,
+                            (startup, candidate) ->
+                                    startup.observationQueueCapacity()
+                                            == candidate.observationQueueCapacity());
+            values.put(nodeId, value);
+        }
         return new ConfigurationControl(values);
     }
 
