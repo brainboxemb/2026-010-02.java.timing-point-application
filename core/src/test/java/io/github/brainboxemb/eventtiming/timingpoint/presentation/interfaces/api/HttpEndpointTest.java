@@ -716,7 +716,7 @@ public class HttpEndpointTest {
             handler =
                     new PresentationGateway(
                             identity(),
-                            node,
+                            nodes(node),
                             PresentationGatewayFixture.configurationControl(
                                     new NodeId("A")),
                             simulation);
