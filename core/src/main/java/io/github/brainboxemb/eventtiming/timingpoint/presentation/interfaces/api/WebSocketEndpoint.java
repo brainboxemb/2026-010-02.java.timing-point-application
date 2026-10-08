@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
@@ -15,6 +16,10 @@ import java.nio.ByteBuffer;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -49,10 +54,11 @@ public final class WebSocketEndpoint implements AutoCloseable {
     private final String bindAddress;
     private final int port;
     private final PresentationGateway presentationGateway;
-    private final TimingNodeProxy timingNode;
     private final Clock clock;
     private final TimingDataCodec timingDataCodec;
     private final WebSocketOutboundDelivery outboundDelivery;
+    private final Map<NodeId, TimingNodeStatus> statusByNode =
+            new LinkedHashMap<NodeId, TimingNodeStatus>();
 
     private Server server;
 
@@ -88,7 +94,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
         this.bindAddress = bindAddress.trim();
         this.port = port;
         this.presentationGateway = presentationGateway;
-        this.timingNode = presentationGateway.timingNode();
         this.clock = clock;
         this.timingDataCodec = new DefaultTimingDataCodec();
         this.outboundDelivery =
@@ -105,6 +110,8 @@ public final class WebSocketEndpoint implements AutoCloseable {
         if (server != null) {
             throw new IllegalStateException("WebSocket IF-03 server is already started");
         }
+
+        refreshStatusSnapshot();
 
         InetSocketAddress address =
                 new InetSocketAddress(InetAddress.getByName(bindAddress), port);
@@ -151,7 +158,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
      * published automatically from the PresentationGateway subscription.</p>
      */
     public void publishStatusChanged() {
-        onTimingNodeStatusChanged(timingNode.status());
+        broadcastStatus("STATUS_CHANGED");
     }
 
     /**
@@ -159,14 +166,16 @@ public final class WebSocketEndpoint implements AutoCloseable {
      */
     public void onTimingNodeStatusChanged(
             TimingNodeStatus status) {
-        Server current = currentServer();
-        if (current != null) {
-            current.broadcastEvent(
-                    MessageWriter.statusEvent(
-                            "STATUS_CHANGED",
-                            clock.instant(),
-                            status));
+        if (status == null) {
+            throw new IllegalArgumentException(
+                    "status must not be null");
         }
+        synchronized (statusByNode) {
+            statusByNode.put(
+                    status.timingNodeId(),
+                    status);
+        }
+        broadcastStatus("STATUS_CHANGED");
     }
 
     /**
@@ -212,11 +221,53 @@ public final class WebSocketEndpoint implements AutoCloseable {
         return server;
     }
 
+    private void refreshStatusSnapshot() {
+        List<TimingNodeStatus> statuses =
+                presentationGateway.timingNodeStatuses();
+        synchronized (statusByNode) {
+            statusByNode.clear();
+            for (TimingNodeStatus status : statuses) {
+                statusByNode.put(
+                        status.timingNodeId(),
+                        status);
+            }
+        }
+    }
+
+    private List<TimingNodeStatus> currentStatuses() {
+        List<TimingNodeStatus> statuses =
+                new ArrayList<TimingNodeStatus>();
+        synchronized (statusByNode) {
+            for (TimingNodeProxy timingNode
+                    : presentationGateway.timingNodes()) {
+                TimingNodeStatus status =
+                        statusByNode.get(
+                                timingNode.timingNodeId());
+                if (status != null) {
+                    statuses.add(status);
+                }
+            }
+        }
+        return statuses;
+    }
+
+    private void broadcastStatus(
+            String eventType) {
+        Server current = currentServer();
+        if (current != null) {
+            current.broadcastEvent(
+                    MessageWriter.statusEvent(
+                            eventType,
+                            clock.instant(),
+                            currentStatuses()));
+        }
+    }
+
     private String snapshotJson() {
         return MessageWriter.statusEvent(
                 "STATUS_SNAPSHOT",
                 clock.instant(),
-                timingNode.status());
+                currentStatuses());
     }
 
     @Override

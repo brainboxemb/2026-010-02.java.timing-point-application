@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.ConsolePromptControl;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevelControl;
 import io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api.HttpEndpoint;
@@ -91,14 +92,14 @@ final class PresentationRuntime {
              * Presentation event wiring is fixed during composition. Endpoint
              * start/close changes transport lifecycle, not the application graph.
              */
-            gateway.timingNode()
-                    .statusChangedEvent()
-                    .subscribe(
-                            webSocket::onTimingNodeStatusChanged);
-            gateway.timingNode()
-                    .timingDataCommittedEvent()
-                    .subscribe(
-                            webSocket::onTimingDataCommitted);
+            for (TimingNodeProxy timingNode : gateway.timingNodes()) {
+                timingNode.statusChangedEvent()
+                        .subscribe(
+                                webSocket::onTimingNodeStatusChanged);
+                timingNode.timingDataCommittedEvent()
+                        .subscribe(
+                                webSocket::onTimingDataCommitted);
+            }
             gateway.configuration()
                     .changes()
                     .subscribe(

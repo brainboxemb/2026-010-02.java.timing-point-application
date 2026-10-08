@@ -9,8 +9,9 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
-import io.github.brainboxemb.eventtiming.timingpoint.application.Conductor;
+import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.Conductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTimingDataPersistence;
@@ -74,7 +75,7 @@ public final class TimingApplicationRuntime {
     private final RuntimeExecutors runtimeExecutors;
     private final AntennaManager antennaManager;
     private final SimulatedTagScenarioRunner simulationRunner;
-    private final Conductor conductor;
+    private final ApplicationConductor applicationConductor;
     private final PresentationRuntime presentationRuntime;
     private final ShutdownSignal shutdownSignal;
 
@@ -88,7 +89,7 @@ public final class TimingApplicationRuntime {
             RuntimeExecutors runtimeExecutors,
             AntennaManager antennaManager,
             SimulatedTagScenarioRunner simulationRunner,
-            Conductor conductor,
+            ApplicationConductor applicationConductor,
             PresentationRuntime presentationRuntime,
             ShutdownSignal shutdownSignal) {
         this.buildIdentity = buildIdentity;
@@ -98,7 +99,7 @@ public final class TimingApplicationRuntime {
         this.runtimeExecutors = runtimeExecutors;
         this.antennaManager = antennaManager;
         this.simulationRunner = simulationRunner;
-        this.conductor = conductor;
+        this.applicationConductor = applicationConductor;
         this.presentationRuntime = presentationRuntime;
         this.shutdownSignal = shutdownSignal;
     }
@@ -470,18 +471,22 @@ public final class TimingApplicationRuntime {
                                 ANTENNA_CONTROL_TIMEOUT);
             }
 
-            io.github.brainboxemb.eventtiming.timingpoint.domain.system.Conductor
-                    systemConductor =
-                            new io.github.brainboxemb.eventtiming.timingpoint.domain.system.Conductor(
-                                    Collections.singletonList(timingNode),
-                                    antennaManager,
-                                    executors
-                                            .createSystemConductorExecutor());
+            List<TimingNode> timingNodes =
+                    new ArrayList<TimingNode>();
+            timingNodes.add(timingNode);
 
-            Conductor conductor =
+            Conductor systemConductor =
                     new Conductor(
+                            timingNodes,
                             antennaManager,
-                            systemConductor);
+                            executors
+                                    .createSystemConductorExecutor());
+
+            ApplicationConductor applicationConductor =
+                    new ApplicationConductor();
+            applicationConductor.registerTimingSystem(
+                    antennaManager,
+                    systemConductor);
 
             ConfigurationControl configurationControl =
                     createConfigurationControl(
@@ -502,7 +507,7 @@ public final class TimingApplicationRuntime {
             PresentationGateway presentationGateway =
                     new PresentationGateway(
                             buildIdentity,
-                            timingNode,
+                            timingNodes,
                             configurationControl,
                             simulationRunner);
 
@@ -542,7 +547,7 @@ public final class TimingApplicationRuntime {
                     executors,
                     antennaManager,
                     simulationRunner,
-                    conductor,
+                    applicationConductor,
                     presentation,
                     shutdownSignal);
         } catch (RuntimeException | Error failure) {
@@ -563,7 +568,7 @@ public final class TimingApplicationRuntime {
 
         try {
             runtimeExecutors.start();
-            conductor.activate();
+            applicationConductor.activate();
             if (simulationRunner != null) {
                 simulationRunner.activate();
             }
@@ -585,7 +590,7 @@ public final class TimingApplicationRuntime {
                 }
             }
             try {
-                conductor.deactivate();
+                applicationConductor.deactivate();
             } catch (RuntimeException | Error deactivateFailure) {
                 failure.addSuppressed(
                         deactivateFailure);
@@ -666,7 +671,7 @@ public final class TimingApplicationRuntime {
         }
 
         try {
-            conductor.deactivate();
+            applicationConductor.deactivate();
         } catch (RuntimeException | Error failure) {
             if (firstFailure == null) {
                 firstFailure = failure;

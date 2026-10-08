@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.application;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
@@ -49,6 +50,11 @@ public final class TimingNodeProxy {
         }
         this.timingNode = timingNode;
         timingNode.statusChangedEvent().subscribe(this::updateStatus);
+    }
+
+    /** Returns the stable identity of the proxied TimingNode. */
+    public NodeId timingNodeId() {
+        return timingNode.timingNodeId();
     }
 
     /** Returns the current authoritative node status. */

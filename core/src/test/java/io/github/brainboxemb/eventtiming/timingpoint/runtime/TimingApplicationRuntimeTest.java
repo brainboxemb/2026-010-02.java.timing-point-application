@@ -59,7 +59,7 @@ public class TimingApplicationRuntimeTest {
         try {
             assertEquals(
                     "A",
-                    application.presentationGateway().timingNode().status().timingNodeId().value());
+                    application.presentationGateway().timingNode(new NodeId("A")).status().timingNodeId().value());
         } finally {
             application.deactivate();
         }
@@ -285,15 +285,15 @@ public class TimingApplicationRuntimeTest {
             assertEquals(TimingApplicationRuntime.State.ACTIVE, application.state());
             assertEquals(
                     TimingNodeTypes.State.ERROR,
-                    application.presentationGateway().timingNode().status().state());
+                    application.presentationGateway().timingNode(new NodeId("A")).status().state());
             assertEquals(
                     1,
-                    application.presentationGateway().timingNode().status().problems().size());
+                    application.presentationGateway().timingNode(new NodeId("A")).status().problems().size());
             assertEquals(
                     TimingNodeTypes.ProblemCode.TIMING_DATA_RECOVERY_FAILED,
-                    application.presentationGateway().timingNode().status().problems().get(0).code());
+                    application.presentationGateway().timingNode(new NodeId("A")).status().problems().get(0).code());
             assertTrue(
-                    application.presentationGateway().timingNode().status().problems().get(0).message()
+                    application.presentationGateway().timingNode(new NodeId("A")).status().problems().get(0).message()
                             .contains("TimingData recovery failed"));
         } finally {
             application.deactivate();

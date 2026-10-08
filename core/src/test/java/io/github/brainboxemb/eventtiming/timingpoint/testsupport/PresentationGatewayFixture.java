@@ -12,7 +12,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -35,9 +37,12 @@ public final class PresentationGatewayFixture implements AutoCloseable {
                 new MemoryPersistence(),
                 () -> RECORDED_AT.instant());
         configuration = configurationControl(new NodeId("A"));
+        List<TimingNode> timingNodes =
+                new ArrayList<TimingNode>();
+        timingNodes.add(node);
         handler = new PresentationGateway(
                 identity,
-                node,
+                timingNodes,
                 configuration);
         node.activate();
     }
@@ -56,20 +61,30 @@ public final class PresentationGatewayFixture implements AutoCloseable {
     }
 
     public static ConfigurationControl configurationControl(
-            NodeId nodeId) {
-        DynamicConfiguration<TagProcessingPolicy> value =
-                DynamicConfiguration.create(
-                        TagProcessingPolicy.defaults(),
-                        candidate -> candidate != null,
-                        (startup, candidate) ->
-                                startup.observationQueueCapacity()
-                                        == candidate.observationQueueCapacity());
+            NodeId... nodeIds) {
+        if (nodeIds == null || nodeIds.length == 0) {
+            throw new IllegalArgumentException(
+                    "nodeIds must not be empty");
+        }
 
         Map<NodeId, DynamicConfiguration<TagProcessingPolicy>> values =
                 new LinkedHashMap<
                         NodeId,
                         DynamicConfiguration<TagProcessingPolicy>>();
-        values.put(nodeId, value);
+        for (NodeId nodeId : nodeIds) {
+            if (nodeId == null) {
+                throw new IllegalArgumentException(
+                        "nodeIds must not contain null");
+            }
+            DynamicConfiguration<TagProcessingPolicy> value =
+                    DynamicConfiguration.create(
+                            TagProcessingPolicy.defaults(),
+                            candidate -> candidate != null,
+                            (startup, candidate) ->
+                                    startup.observationQueueCapacity()
+                                            == candidate.observationQueueCapacity());
+            values.put(nodeId, value);
+        }
         return new ConfigurationControl(values);
     }
 

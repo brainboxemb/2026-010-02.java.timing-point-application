@@ -20,7 +20,9 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Test;
@@ -60,6 +62,66 @@ public class HttpEndpointTest {
         } finally {
             server.close();
             fixture.close();
+        }
+    }
+
+    @Test
+    public void routesNodeCommandsAndStatusAcrossMultipleTimingNodes()
+            throws Exception {
+        TimingNode first =
+                TimingNodeFixture.create(
+                        new NodeId("A"),
+                        new MemoryStore(),
+                        () -> RECORDED_AT.instant());
+        TimingNode second =
+                TimingNodeFixture.create(
+                        new NodeId("B"),
+                        new MemoryStore(),
+                        () -> RECORDED_AT.instant());
+        PresentationGateway gateway =
+                new PresentationGateway(
+                        identity(),
+                        nodes(first, second),
+                        PresentationGatewayFixture.configurationControl(
+                                new NodeId("A"),
+                                new NodeId("B")));
+
+        first.activate();
+        second.activate();
+        HttpEndpoint server =
+                new HttpEndpoint(
+                        "127.0.0.1",
+                        0,
+                        gateway);
+        server.start();
+
+        try {
+            Response opened =
+                    request(
+                            server.boundPort(),
+                            "POST",
+                            "/api/v1/node/B/open",
+                            "{\"locationId\":24}");
+            assertEquals(200, opened.status);
+            assertTrue(
+                    opened.body.contains(
+                            "\"result\":\"OPENED\""));
+
+            Response status =
+                    request(
+                            server.boundPort(),
+                            "GET",
+                            "/api/v1/status",
+                            null);
+            assertEquals(200, status.status);
+            assertTrue(status.body.contains(
+                    "{\"id\":\"A\",\"locationId\":null,\"state\":\"CLOSED\"}"));
+            assertTrue(status.body.contains(
+                    "{\"id\":\"B\",\"locationId\":24,\"state\":\"OPEN\"}"));
+        } finally {
+            server.close();
+            second.deactivate();
+            first.deactivate();
         }
     }
 
@@ -491,7 +553,7 @@ public class HttpEndpointTest {
         PresentationGateway handler =
                 new PresentationGateway(
                         identity(),
-                        node,
+                        nodes(node),
                         PresentationGatewayFixture.configurationControl(
                                 new NodeId("A")));
         node.activate();
@@ -626,6 +688,16 @@ public class HttpEndpointTest {
         return result.toString();
     }
 
+    private static List<TimingNode> nodes(
+            TimingNode... timingNodes) {
+        List<TimingNode> result =
+                new ArrayList<TimingNode>();
+        Collections.addAll(
+                result,
+                timingNodes);
+        return result;
+    }
+
     private static final class Fixture implements AutoCloseable {
         private final TimingNode node;
         private final PresentationGateway handler;
@@ -644,7 +716,7 @@ public class HttpEndpointTest {
             handler =
                     new PresentationGateway(
                             identity(),
-                            node,
+                            nodes(node),
                             PresentationGatewayFixture.configurationControl(
                                     new NodeId("A")),
                             simulation);

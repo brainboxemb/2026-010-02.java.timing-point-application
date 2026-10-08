@@ -19,7 +19,9 @@ import java.net.URI;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -46,8 +48,8 @@ public class WebSocketEndpointTest {
         fixture.start();
 
         // Commit history before the WebSocket endpoint/client exists.
-        fixture.handler.timingNode().open(new LocationId(24));
-        fixture.handler.timingNode().applyAutomaticRegistration(
+        fixture.handler.timingNode(new NodeId("A")).open(new LocationId(24));
+        fixture.handler.timingNode(new NodeId("A")).applyAutomaticRegistration(
                 TimingNodeProxy.AutomaticRegistrationAction.ADD,
                 new RegistrationId("N0000"),
                 TIME);
@@ -109,7 +111,7 @@ public class WebSocketEndpointTest {
                     "CLOSED",
                     "null");
 
-            fixture.handler.timingNode().open(new LocationId(24));
+            fixture.handler.timingNode(new NodeId("A")).open(new LocationId(24));
             String openCommitted = client.awaitMessage();
             assertTrue(openCommitted.contains(
                     "\"eventType\":\"TIMING_DATA_COMMITTED\""));
@@ -122,7 +124,7 @@ public class WebSocketEndpointTest {
             assertTrue(opened.contains("\"locationId\":24"));
             assertTrue(opened.contains("\"state\":\"OPEN\""));
 
-            fixture.handler.timingNode().applyAutomaticRegistration(
+            fixture.handler.timingNode(new NodeId("A")).applyAutomaticRegistration(
                     TimingNodeProxy.AutomaticRegistrationAction.ADD,
                     new RegistrationId("N0001"),
                     TIME);
@@ -265,6 +267,62 @@ public class WebSocketEndpointTest {
     }
 
     @Test
+    public void snapshotContainsEveryComposedTimingNode()
+            throws Exception {
+        TimingNode first =
+                TimingNodeFixture.create(
+                        new NodeId("A"),
+                        new MemoryStore(),
+                        () -> RECORDED_AT.instant());
+        TimingNode second =
+                TimingNodeFixture.create(
+                        new NodeId("B"),
+                        new MemoryStore(),
+                        () -> RECORDED_AT.instant());
+        PresentationGateway gateway =
+                new PresentationGateway(
+                        identity(),
+                        nodes(first, second),
+                        PresentationGatewayFixture.configurationControl(
+                                new NodeId("A"),
+                                new NodeId("B")));
+
+        first.activate();
+        second.activate();
+        gateway.timingNode(new NodeId("B"))
+                .open(new LocationId(24));
+
+        WebSocketEndpoint server =
+                new WebSocketEndpoint(
+                        "127.0.0.1",
+                        0,
+                        gateway,
+                        EVENT_CLOCK);
+        wireApplicationEvents(
+                server,
+                gateway);
+        server.start();
+
+        TestClient client = connect(server.boundPort());
+        try {
+            String snapshot =
+                    client.awaitMessage();
+            assertNotNull(snapshot);
+            assertTrue(snapshot.contains(
+                    "\"eventType\":\"STATUS_SNAPSHOT\""));
+            assertTrue(snapshot.contains(
+                    "{\"id\":\"A\",\"locationId\":null,\"state\":\"CLOSED\"}"));
+            assertTrue(snapshot.contains(
+                    "{\"id\":\"B\",\"locationId\":24,\"state\":\"OPEN\"}"));
+        } finally {
+            client.closeBlocking();
+            server.close();
+            second.deactivate();
+            first.deactivate();
+        }
+    }
+
+    @Test
     public void snapshotExposesContainedTimingDataRecoveryFailure()
             throws Exception {
         TimingNode node = TimingNodeFixture.create(
@@ -274,7 +332,7 @@ public class WebSocketEndpointTest {
         PresentationGateway handler =
                 new PresentationGateway(
                         identity(),
-                        node,
+                        nodes(node),
                         PresentationGatewayFixture.configurationControl(
                                 new NodeId("A")));
         node.activate();
@@ -314,14 +372,14 @@ public class WebSocketEndpointTest {
     private static void wireApplicationEvents(
             WebSocketEndpoint endpoint,
             PresentationGateway gateway) {
-        gateway.timingNode()
-                .statusChangedEvent()
-                .subscribe(
-                        endpoint::onTimingNodeStatusChanged);
-        gateway.timingNode()
-                .timingDataCommittedEvent()
-                .subscribe(
-                        endpoint::onTimingDataCommitted);
+        for (TimingNodeProxy timingNode : gateway.timingNodes()) {
+            timingNode.statusChangedEvent()
+                    .subscribe(
+                            endpoint::onTimingNodeStatusChanged);
+            timingNode.timingDataCommittedEvent()
+                    .subscribe(
+                            endpoint::onTimingDataCommitted);
+        }
         gateway.configuration()
                 .changes()
                 .subscribe(
@@ -359,6 +417,16 @@ public class WebSocketEndpointTest {
                 false);
     }
 
+    private static List<TimingNode> nodes(
+            TimingNode... timingNodes) {
+        List<TimingNode> result =
+                new ArrayList<TimingNode>();
+        Collections.addAll(
+                result,
+                timingNodes);
+        return result;
+    }
+
     private static final class Fixture implements AutoCloseable {
         private final TimingNode node;
         private final PresentationGateway handler;
@@ -371,7 +439,7 @@ public class WebSocketEndpointTest {
             handler =
                     new PresentationGateway(
                             identity(),
-                            node,
+                            nodes(node),
                             PresentationGatewayFixture.configurationControl(
                                     new NodeId("A")));
         }

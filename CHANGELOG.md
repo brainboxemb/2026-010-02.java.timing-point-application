@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Rename the application lifecycle coordinator to `ApplicationConductor`, keep `domain.system.Conductor` for TimingSystem coordination, and allow Runtime to register 1..N systems without fully qualified type names.
+
 - Restore separate Application and TimingSystem Conductor responsibilities: Application orders AntennaManager/system lifecycle; each system Conductor owns its TimingNodes and directly drives AntennaManager inventory; remove the temporary InventoryControl interface.
 
 - Shorten the system-local Domain coordinator name to `domain.system.Conductor`; update its tests and Runtime composition without changing behavior.

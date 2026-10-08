@@ -12,6 +12,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTyp
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Explicit JSON mapping for the IF-03 v1 contract. */
 public final class MessageWriter {
@@ -30,43 +33,87 @@ public final class MessageWriter {
                 + "}";
     }
 
-    public static String status(TimingNodeStatus status) {
-        String location = status.hasLocation()
-                ? Integer.toString(status.locationId().value())
-                : "null";
+    public static String status(
+            Iterable<TimingNodeStatus> statuses) {
+        if (statuses == null) {
+            throw new IllegalArgumentException(
+                    "statuses must not be null");
+        }
+
+        StringBuilder nodes = new StringBuilder();
+        StringBuilder problems = new StringBuilder();
+        nodes.append('[');
+        problems.append('[');
+
+        boolean firstNode = true;
+        boolean firstProblem = true;
+        for (TimingNodeStatus status : statuses) {
+            if (status == null) {
+                throw new IllegalArgumentException(
+                        "statuses must not contain null");
+            }
+            if (!firstNode) {
+                nodes.append(',');
+            }
+            firstNode = false;
+
+            String location = status.hasLocation()
+                    ? Integer.toString(
+                            status.locationId().value())
+                    : "null";
+            nodes.append('{')
+                    .append("\"id\":")
+                    .append(quote(
+                            status.timingNodeId().value()))
+                    .append(',')
+                    .append("\"locationId\":")
+                    .append(location)
+                    .append(',')
+                    .append("\"state\":")
+                    .append(quote(
+                            status.state().name()))
+                    .append('}');
+
+            for (Problem problem : status.problems()) {
+                if (!firstProblem) {
+                    problems.append(',');
+                }
+                firstProblem = false;
+                problems.append('{')
+                        .append("\"code\":")
+                        .append(quote(
+                                problem.code().name()))
+                        .append(',')
+                        .append("\"severity\":")
+                        .append(quote(
+                                problem.severity().name()))
+                        .append(',')
+                        .append("\"nodeId\":")
+                        .append(quote(
+                                status.timingNodeId()
+                                        .value()))
+                        .append(',')
+                        .append("\"message\":")
+                        .append(quote(
+                                problem.message()))
+                        .append('}');
+            }
+        }
+
+        nodes.append(']');
+        problems.append(']');
         return "{"
-                + "\"nodes\":[{"
-                + "\"id\":" + quote(status.timingNodeId().value()) + ","
-                + "\"locationId\":" + location + ","
-                + "\"state\":" + quote(status.state().name())
-                + "}],"
-                + "\"problems\":" + problems(status)
+                + "\"nodes\":" + nodes + ","
+                + "\"problems\":" + problems
                 + "}";
     }
 
-    private static String problems(TimingNodeStatus status) {
-        StringBuilder json = new StringBuilder();
-        json.append('[');
-        for (Problem problem : status.problems()) {
-            if (json.length() > 1) {
-                json.append(',');
-            }
-            json.append('{')
-                    .append("\"code\":")
-                    .append(quote(problem.code().name()))
-                    .append(',')
-                    .append("\"severity\":")
-                    .append(quote(problem.severity().name()))
-                    .append(',')
-                    .append("\"nodeId\":")
-                    .append(quote(status.timingNodeId().value()))
-                    .append(',')
-                    .append("\"message\":")
-                    .append(quote(problem.message()))
-                    .append('}');
-        }
-        json.append(']');
-        return json.toString();
+    public static String status(
+            TimingNodeStatus status) {
+        List<TimingNodeStatus> statuses =
+                new ArrayList<TimingNodeStatus>();
+        statuses.add(status);
+        return status(statuses);
     }
 
     public static String capabilities(PresentationGateway.Capabilities capabilities) {
@@ -136,26 +183,42 @@ public final class MessageWriter {
 
     public static String statusEvent(
             String eventType,
-            java.time.Instant occurredAt,
-            TimingNodeStatus status) {
+            Instant occurredAt,
+            Iterable<TimingNodeStatus> statuses) {
         if (eventType == null || eventType.trim().isEmpty()) {
-            throw new IllegalArgumentException("eventType must not be blank");
+            throw new IllegalArgumentException(
+                    "eventType must not be blank");
         }
         if (occurredAt == null) {
-            throw new IllegalArgumentException("occurredAt must not be null");
+            throw new IllegalArgumentException(
+                    "occurredAt must not be null");
         }
-        if (status == null) {
-            throw new IllegalArgumentException("status must not be null");
+        if (statuses == null) {
+            throw new IllegalArgumentException(
+                    "statuses must not be null");
         }
         return "{"
                 + "\"eventType\":" + quote(eventType) + ","
                 + "\"occurredAt\":" + quote(occurredAt.toString()) + ","
-                + "\"payload\":" + status(status)
+                + "\"payload\":" + status(statuses)
                 + "}";
     }
 
+    public static String statusEvent(
+            String eventType,
+            Instant occurredAt,
+            TimingNodeStatus status) {
+        List<TimingNodeStatus> statuses =
+                new ArrayList<TimingNodeStatus>();
+        statuses.add(status);
+        return statusEvent(
+                eventType,
+                occurredAt,
+                statuses);
+    }
+
     public static String timingDataEvent(
-            java.time.Instant occurredAt,
+            Instant occurredAt,
             TimingData data,
             TimingDataCodec codec)
             throws TimingDataCodec.CodecException {
@@ -201,7 +264,7 @@ public final class MessageWriter {
     }
 
     public static String configurationChangedEvent(
-            java.time.Instant occurredAt,
+            Instant occurredAt,
             ConfigurationControl.Change change) {
         if (occurredAt == null) {
             throw new IllegalArgumentException(

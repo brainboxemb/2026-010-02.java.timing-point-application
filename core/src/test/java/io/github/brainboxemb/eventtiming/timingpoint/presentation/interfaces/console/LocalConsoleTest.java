@@ -28,6 +28,8 @@ public class LocalConsoleTest {
                             "help\n"
                                     + "version\n"
                                     + "status\n"
+                                    + "node\n"
+                                    + "node A\n"
                                     + "open 24\n"
                                     + "status\n"
                                     + "auto-reg N0001 2026-10-01T12:00:00Z\n"
@@ -47,9 +49,10 @@ public class LocalConsoleTest {
         String text = output.toString();
         assertTrue(text.contains("help                         Show available commands"));
         assertTrue(text.contains("version                      Show application version"));
-        assertTrue(text.contains("status                       Show TimingNode status"));
-        assertTrue(text.contains("open <locationId>            Open TimingNode at location"));
-        assertTrue(text.contains("close                        Close TimingNode"));
+        assertTrue(text.contains("status                       Show selected TimingNode status"));
+        assertTrue(text.contains("node [id]                    Show/select TimingNode"));
+        assertTrue(text.contains("open <locationId>            Open selected TimingNode at location"));
+        assertTrue(text.contains("close                        Close selected TimingNode"));
         assertTrue(text.contains("auto-reg <id> <time>"));
         assertTrue(text.contains("config                       Show current configuration"));
         assertTrue(text.contains("quit                         Stop the application"));
@@ -63,6 +66,8 @@ public class LocalConsoleTest {
         assertTrue(text.contains("Timing node"));
         assertTrue(text.contains("Id        : A"));
         assertTrue(text.contains("State     : CLOSED"));
+        assertTrue(text.contains("TimingNode: A"));
+        assertTrue(text.contains("Available: A"));
         assertTrue(text.contains("Open: OPENED"));
         assertTrue(text.contains("Location  : 24"));
         assertTrue(text.contains("Automatic registration: COMMITTED seq=2"));

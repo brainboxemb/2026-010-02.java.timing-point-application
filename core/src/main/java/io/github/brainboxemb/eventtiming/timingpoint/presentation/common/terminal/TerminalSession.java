@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.common.terminal;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
@@ -35,6 +36,7 @@ public final class TerminalSession {
     private final LoggingLevelControl loggingLevelControl;
     private final ConsolePromptControl consolePromptControl;
     private final Runnable shutdown;
+    private NodeId currentNodeId;
 
     public TerminalSession(
             PresentationGateway presentationGateway,
@@ -86,6 +88,11 @@ public final class TerminalSession {
 
         BufferedReader reader = new BufferedReader(input);
         PrintWriter writer = new PrintWriter(output, true);
+        currentNodeId =
+                presentationGateway
+                        .timingNodes()
+                        .get(0)
+                        .timingNodeId();
         writer.println(readyMessage);
 
         String line;
@@ -138,6 +145,9 @@ public final class TerminalSession {
                 case "status":
                     requireArgumentCount(arguments, 1, "status", output);
                     showStatus(output);
+                    return false;
+                case "node":
+                    node(arguments, output);
                     return false;
                 case "open":
                     open(arguments, output);
@@ -200,8 +210,7 @@ public final class TerminalSession {
 
         output.println(
                 "Open: "
-                        + presentationGateway
-                                .timingNode()
+                        + currentTimingNode()
                                 .open(new LocationId(locationId))
                                 .name());
     }
@@ -219,8 +228,7 @@ public final class TerminalSession {
 
         output.println(
                 "Close: "
-                        + presentationGateway
-                                .timingNode()
+                        + currentTimingNode()
                                 .close()
                                 .name());
     }
@@ -235,8 +243,7 @@ public final class TerminalSession {
         }
 
         RegistrationResult result =
-                presentationGateway
-                        .timingNode()
+                currentTimingNode()
                         .applyAutomaticRegistration(
                                 TimingNodeProxy
                                         .AutomaticRegistrationAction
@@ -441,12 +448,49 @@ public final class TerminalSession {
                 update.tagProcessing());
     }
 
-    private io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId
-            currentNodeId() {
-        return presentationGateway
-                .timingNode()
-                .status()
-                .timingNodeId();
+    private NodeId currentNodeId() {
+        return currentNodeId;
+    }
+
+    private TimingNodeProxy currentTimingNode() {
+        return presentationGateway.timingNode(
+                currentNodeId);
+    }
+
+    private void node(
+            String[] arguments,
+            PrintWriter output) {
+        if (arguments.length == 1) {
+            output.println(
+                    "TimingNode: "
+                            + currentNodeId.value());
+            output.print("Available:");
+            for (TimingNodeProxy timingNode
+                    : presentationGateway.timingNodes()) {
+                output.print(
+                        " "
+                                + timingNode
+                                        .timingNodeId()
+                                        .value());
+            }
+            output.println();
+            return;
+        }
+        if (arguments.length != 2) {
+            output.println("Usage: node [id]");
+            return;
+        }
+
+        NodeId requested =
+                new NodeId(arguments[1]);
+        TimingNodeProxy timingNode =
+                presentationGateway.timingNode(
+                        requested);
+        currentNodeId =
+                timingNode.timingNodeId();
+        output.println(
+                "TimingNode: "
+                        + currentNodeId.value());
     }
 
     private void showConfiguration(PrintWriter output) {
@@ -537,9 +581,10 @@ public final class TerminalSession {
         output.println("Commands:");
         output.println("  help                         Show available commands");
         output.println("  version                      Show application version");
-        output.println("  status                       Show TimingNode status");
-        output.println("  open <locationId>            Open TimingNode at location");
-        output.println("  close                        Close TimingNode");
+        output.println("  status                       Show selected TimingNode status");
+        output.println("  node [id]                    Show/select TimingNode");
+        output.println("  open <locationId>            Open selected TimingNode at location");
+        output.println("  close                        Close selected TimingNode");
         output.println(
                 "  auto-reg <id> <time>         "
                         + "Create automatic registration");
@@ -587,7 +632,7 @@ public final class TerminalSession {
 
     private void showStatus(PrintWriter output) {
         TimingNodeStatus status =
-                presentationGateway.timingNode().status();
+                currentTimingNode().status();
         output.println("Timing node");
         output.println(
                 "  Id        : "

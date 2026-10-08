@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.application;
 
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.Conductor;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 
@@ -7,32 +8,30 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Application lifecycle coordinator.
+ * Coordinates application component lifecycle.
  *
- * <p>The Application Conductor owns activation order, rollback and reverse
- * deactivation of the major application components. TimingSystem behaviour
- * remains inside the Domain system Conductor.</p>
+ * <p>Runtime registers each TimingSystem before activation. The application
+ * Conductor activates the system's AntennaManager first and then the Domain
+ * Conductor. Deactivation is handled in reverse order.</p>
  */
-public final class Conductor {
+public final class ApplicationConductor {
     private static final Logger LOG =
-            LoggerFactory.getLogger(Conductor.class);
+            LoggerFactory.getLogger(ApplicationConductor.class);
 
     private final ComponentLifecycleManager componentLifecycle =
             new ComponentLifecycleManager();
 
-    public Conductor(
+    /**
+     * Registers one TimingSystem in application activation order.
+     */
+    public void registerTimingSystem(
             AntennaManager antennaManager,
-            io.github.brainboxemb.eventtiming.timingpoint.domain.system.Conductor
-                    systemConductor) {
+            Conductor systemConductor) {
         if (systemConductor == null) {
             throw new IllegalArgumentException(
                     "systemConductor must not be null");
         }
 
-        /*
-         * AntennaManager must be active before the TimingSystem Conductor
-         * performs its initial inventory reconciliation.
-         */
         if (antennaManager != null) {
             componentLifecycle.register(
                     "AntennaManager",
