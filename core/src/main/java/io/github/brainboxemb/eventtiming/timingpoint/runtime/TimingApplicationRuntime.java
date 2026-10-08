@@ -37,6 +37,7 @@ import java.io.Reader;
 import java.io.Writer;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -93,7 +94,7 @@ public final class TimingApplicationRuntime {
             ShutdownSignal shutdownSignal) {
         this.buildIdentity = buildIdentity;
         this.timingNodes =
-                java.util.Collections.unmodifiableList(
+                Collections.unmodifiableList(
                         new ArrayList<TimingNode>(
                                 timingNodes));
         this.configuration = configuration;
