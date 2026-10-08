@@ -34,84 +34,137 @@ public class ApplicationConductorTest {
 
     @Test
     public void ownsManagerAndSystemLifecycle() {
-        ExecutorService nodeWorker =
-                Executors.newSingleThreadExecutor();
-        ExecutorService systemWorker =
-                Executors.newSingleThreadExecutor();
-        ScheduledExecutorService tagWorker =
-                Executors.newSingleThreadScheduledExecutor();
-        ScheduledExecutorService ioWorker =
-                Executors.newSingleThreadScheduledExecutor();
-
-        TimingNode node =
-                new TimingNode(
-                        new NodeId("A"),
-                        new NoOpPersistence(),
-                        new DefaultTimingDataFactory(),
-                        ApplicationConductorTest::now,
-                        ReadOnlyConfiguration.fixed(
-                                TagProcessingPolicy.defaults()),
-                        EventData.empty(),
-                        new SerialExecutor(
-                                8,
-                                "application-conductor-node-test",
-                                nodeWorker),
-                        new SerialScheduledExecutor(
-                                8,
-                                "application-conductor-tag-test",
-                                tagWorker));
-
-        AntennaManager manager =
-                new AntennaManager(
-                        new AntennaSet().add(
-                                new AntennaId("1"),
-                                new SimulatedAntenna()),
-                        new SerialScheduledExecutor(
-                                8,
-                                "application-conductor-antenna-test",
-                                ioWorker),
-                        Duration.ofSeconds(1));
-
-        List<TimingNode> timingNodes =
-                new ArrayList<TimingNode>();
-        timingNodes.add(node);
-
-        Conductor systemConductor =
-                new Conductor(
-                        timingNodes,
-                        manager,
-                                new SerialExecutor(
-                                        8,
-                                        "application-conductor-system-test",
-                                        systemWorker));
-
+        SystemFixture system =
+                new SystemFixture("A", "one");
         ApplicationConductor conductor =
                 new ApplicationConductor();
         conductor.registerTimingSystem(
-                manager,
-                systemConductor);
+                system.manager,
+                system.conductor);
 
         try {
             conductor.activate();
             assertEquals(
                     State.ACTIVE,
-                    manager.state());
+                    system.manager.state());
 
             conductor.deactivate();
             assertEquals(
                     State.INACTIVE,
-                    manager.state());
+                    system.manager.state());
         } finally {
-            nodeWorker.shutdownNow();
-            systemWorker.shutdownNow();
-            tagWorker.shutdownNow();
-            ioWorker.shutdownNow();
+            system.close();
+        }
+    }
+
+    @Test
+    public void activatesEveryRegisteredTimingSystem() {
+        SystemFixture first =
+                new SystemFixture("A", "one");
+        SystemFixture second =
+                new SystemFixture("B", "two");
+        ApplicationConductor conductor =
+                new ApplicationConductor();
+        conductor.registerTimingSystem(
+                first.manager,
+                first.conductor);
+        conductor.registerTimingSystem(
+                second.manager,
+                second.conductor);
+
+        try {
+            conductor.activate();
+            assertEquals(
+                    State.ACTIVE,
+                    first.manager.state());
+            assertEquals(
+                    State.ACTIVE,
+                    second.manager.state());
+
+            conductor.deactivate();
+            assertEquals(
+                    State.INACTIVE,
+                    first.manager.state());
+            assertEquals(
+                    State.INACTIVE,
+                    second.manager.state());
+        } finally {
+            first.close();
+            second.close();
         }
     }
 
     private static Instant now() {
         return Instant.parse(
                 "2026-10-08T12:00:00Z");
+    }
+
+    private static final class SystemFixture
+            implements AutoCloseable {
+        private final ExecutorService nodeWorker =
+                Executors.newSingleThreadExecutor();
+        private final ExecutorService systemWorker =
+                Executors.newSingleThreadExecutor();
+        private final ScheduledExecutorService tagWorker =
+                Executors.newSingleThreadScheduledExecutor();
+        private final ScheduledExecutorService ioWorker =
+                Executors.newSingleThreadScheduledExecutor();
+
+        private final AntennaManager manager;
+        private final Conductor conductor;
+
+        private SystemFixture(
+                String nodeId,
+                String label) {
+            TimingNode node =
+                    new TimingNode(
+                            new NodeId(nodeId),
+                            new NoOpPersistence(),
+                            new DefaultTimingDataFactory(),
+                            ApplicationConductorTest::now,
+                            ReadOnlyConfiguration.fixed(
+                                    TagProcessingPolicy.defaults()),
+                            EventData.empty(),
+                            new SerialExecutor(
+                                    8,
+                                    "app-node-" + label,
+                                    nodeWorker),
+                            new SerialScheduledExecutor(
+                                    8,
+                                    "app-tag-" + label,
+                                    tagWorker));
+
+            manager =
+                    new AntennaManager(
+                            new AntennaSet().add(
+                                    new AntennaId("1"),
+                                    new SimulatedAntenna()),
+                            new SerialScheduledExecutor(
+                                    8,
+                                    "app-antenna-" + label,
+                                    ioWorker),
+                            Duration.ofSeconds(1));
+
+            List<TimingNode> timingNodes =
+                    new ArrayList<TimingNode>();
+            timingNodes.add(node);
+            conductor =
+                    new Conductor(
+                            timingNodes,
+                            manager,
+                            new SerialExecutor(
+                                    8,
+                                    "app-system-" + label,
+                                    systemWorker));
+        }
+
+        @Override
+        public void close() {
+            nodeWorker.shutdownNow();
+            systemWorker.shutdownNow();
+            tagWorker.shutdownNow();
+            ioWorker.shutdownNow();
+        }
     }
 
     private static final class NoOpPersistence
