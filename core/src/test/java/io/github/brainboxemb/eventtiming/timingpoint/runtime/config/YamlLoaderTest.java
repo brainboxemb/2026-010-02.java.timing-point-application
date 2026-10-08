@@ -33,7 +33,7 @@ public class YamlLoaderTest {
         assertNull(config.logging());
         assertNull(config.loggingServer());
         assertEquals(
-                Paths.get("data", "timing-data.jsonl"),
+                Paths.get("data", "node_A_logbook.jsonl"),
                 config.timingDataPath());
         assertEquals(
                 TagProcessingPolicy.defaults(),
@@ -535,7 +535,7 @@ public class YamlLoaderTest {
         return "io:\n"
                 + "  storage:\n"
                 + "    timingData:\n"
-                + "      path: data/timing-data.jsonl\n";
+                + "      path: data/node_A_logbook.jsonl\n";
     }
 
     private Config load(String yaml) throws Exception {
