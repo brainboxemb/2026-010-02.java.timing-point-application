@@ -477,10 +477,10 @@ public final class TimingApplicationRuntime {
 
             Conductor systemConductor =
                     new Conductor(
-                                    timingNodes,
-                                    antennaManager,
-                                    executors
-                                            .createSystemConductorExecutor());
+                            timingNodes,
+                            antennaManager,
+                            executors
+                                    .createSystemConductorExecutor());
 
             ApplicationConductor applicationConductor =
                     new ApplicationConductor();
@@ -507,7 +507,7 @@ public final class TimingApplicationRuntime {
             PresentationGateway presentationGateway =
                     new PresentationGateway(
                             buildIdentity,
-                            timingNode,
+                            timingNodes,
                             configurationControl,
                             simulationRunner);
 
