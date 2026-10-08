@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime.config;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 
 import java.io.File;
@@ -276,18 +277,87 @@ public class YamlLoaderTest {
                         + timingDataStorage());
     }
 
+    @Test
+    public void loadsMultipleTimingNodesWithPerNodeStorage()
+            throws Exception {
+        Config config =
+                load(
+                        twoTimingNodes()
+                                + timingDataStorageNodes());
+
+        assertEquals(
+                2,
+                config.timingNodes().size());
+        assertEquals(
+                Paths.get(
+                        "data",
+                        "node_A_logbook.jsonl"),
+                config.timingNode(
+                                new NodeId("A"))
+                        .timingDataPath());
+        assertEquals(
+                Paths.get(
+                        "data",
+                        "node_B_logbook.jsonl"),
+                config.timingNode(
+                                new NodeId("B"))
+                        .timingDataPath());
+    }
+
     @Test(expected = IllegalArgumentException.class)
-    public void rejectsMultipleTimingNodesInCurrentExecutable()
+    public void rejectsSingleStoragePathForMultipleTimingNodes()
             throws Exception {
         load(
-                "timingSystems:\n"
-                        + "  timing-system-01:\n"
-                        + "    timingNodes:\n"
-                        + "      timing-node-01:\n"
-                        + "        timingNodeId: A\n"
-                        + "      timing-node-02:\n"
-                        + "        timingNodeId: B\n"
+                twoTimingNodes()
                         + timingDataStorage());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsMissingPerNodeStorageBinding()
+            throws Exception {
+        load(
+                twoTimingNodes()
+                        + "io:\n"
+                        + "  storage:\n"
+                        + "    timingData:\n"
+                        + "      nodes:\n"
+                        + "        node-a:\n"
+                        + "          timingNodeId: A\n"
+                        + "          path: data/node_A_logbook.jsonl\n");
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsUnknownPerNodeStorageBinding()
+            throws Exception {
+        load(
+                twoTimingNodes()
+                        + "io:\n"
+                        + "  storage:\n"
+                        + "    timingData:\n"
+                        + "      nodes:\n"
+                        + "        node-a:\n"
+                        + "          timingNodeId: A\n"
+                        + "          path: data/node_A_logbook.jsonl\n"
+                        + "        node-c:\n"
+                        + "          timingNodeId: C\n"
+                        + "          path: data/node_C_logbook.jsonl\n");
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsDuplicatePerNodeStoragePath()
+            throws Exception {
+        load(
+                twoTimingNodes()
+                        + "io:\n"
+                        + "  storage:\n"
+                        + "    timingData:\n"
+                        + "      nodes:\n"
+                        + "        node-a:\n"
+                        + "          timingNodeId: A\n"
+                        + "          path: data/shared-logbook.jsonl\n"
+                        + "        node-b:\n"
+                        + "          timingNodeId: B\n"
+                        + "          path: data/shared-logbook.jsonl\n");
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -415,6 +485,29 @@ public class YamlLoaderTest {
                         + timingDataStorage()
                         + "presentation:\n"
                         + "  api: {}\n");
+    }
+
+    private static String twoTimingNodes() {
+        return "timingSystems:\n"
+                + "  timing-system-01:\n"
+                + "    timingNodes:\n"
+                + "      timing-node-01:\n"
+                + "        timingNodeId: A\n"
+                + "      timing-node-02:\n"
+                + "        timingNodeId: B\n";
+    }
+
+    private static String timingDataStorageNodes() {
+        return "io:\n"
+                + "  storage:\n"
+                + "    timingData:\n"
+                + "      nodes:\n"
+                + "        node-a:\n"
+                + "          timingNodeId: A\n"
+                + "          path: data/node_A_logbook.jsonl\n"
+                + "        node-b:\n"
+                + "          timingNodeId: B\n"
+                + "          path: data/node_B_logbook.jsonl\n";
     }
 
     private static String timingNode(String nodeId) {
