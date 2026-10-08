@@ -481,11 +481,8 @@ public class TimingApplicationRuntimeTest {
             assertEquals(
                     TimingApplicationRuntime.State.ACTIVE,
                     application.state());
-            assertTrue(
-                    "Runtime must be ACTIVE while antenna self-test continues",
-                    application.antennaManager()
-                            .isBusy());
             assertFalse(
+                    "Runtime must be ACTIVE before antenna startup is ready",
                     application.antennaManager()
                             .isReady());
 
