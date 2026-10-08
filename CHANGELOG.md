@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Shorten the system-local Domain coordinator name to `domain.system.Conductor`; update its tests and Runtime composition without changing behavior.
+
 - Move operational antenna inventory coordination into a Domain TimingSystemConductor supporting 1..N TimingNodes, retaining a single manager-wide inventory control port and direct observation wiring.
 
 - Add the default/reference EventData identity convention: `TT-A/R-NNNN-{1|2}` physical tags resolve to `RT-A/R-NNNN`; normal registrations resolve directly to TeamId `NNNN`; reserve TeamId remains lookup-driven; `0000` is invalid; the Development Client and simulation fixture use the same identity grammar.

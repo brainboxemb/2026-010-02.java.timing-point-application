@@ -9,7 +9,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystemConductor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.Conductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
@@ -74,7 +74,7 @@ public final class TimingApplicationRuntime {
     private final RuntimeExecutors runtimeExecutors;
     private final AntennaManager antennaManager;
     private final SimulatedTagScenarioRunner simulationRunner;
-    private final TimingSystemConductor conductor;
+    private final Conductor conductor;
     private final PresentationRuntime presentationRuntime;
     private final ShutdownSignal shutdownSignal;
 
@@ -88,7 +88,7 @@ public final class TimingApplicationRuntime {
             RuntimeExecutors runtimeExecutors,
             AntennaManager antennaManager,
             SimulatedTagScenarioRunner simulationRunner,
-            TimingSystemConductor conductor,
+            Conductor conductor,
             PresentationRuntime presentationRuntime,
             ShutdownSignal shutdownSignal) {
         this.buildIdentity = buildIdentity;
@@ -470,12 +470,12 @@ public final class TimingApplicationRuntime {
                                 ANTENNA_CONTROL_TIMEOUT);
             }
 
-            TimingSystemConductor conductor =
-                    new TimingSystemConductor(
+            Conductor conductor =
+                    new Conductor(
                             Collections.singletonList(timingNode),
                             antennaManager,
                             executors
-                                    .createTimingSystemConductorExecutor());
+                                    .createConductorExecutor());
 
             ConfigurationControl configurationControl =
                     createConfigurationControl(

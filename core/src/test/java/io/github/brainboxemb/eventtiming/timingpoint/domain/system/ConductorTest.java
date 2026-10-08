@@ -37,7 +37,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class TimingSystemConductorTest {
+public class ConductorTest {
     private final List<ExecutorService> workers =
             new ArrayList<ExecutorService>();
 
@@ -63,8 +63,8 @@ public class TimingSystemConductorTest {
                         1,
                         "conductor-test",
                         conductorWorker);
-        TimingSystemConductor conductor =
-                new TimingSystemConductor(
+        Conductor conductor =
+                new Conductor(
                         Collections.singletonList(node),
                         manager,
                         lane);
@@ -136,8 +136,8 @@ public class TimingSystemConductorTest {
                         "conductor-test",
                         newWorker(
                                 "conductor-test-worker"));
-        TimingSystemConductor conductor =
-                new TimingSystemConductor(
+        Conductor conductor =
+                new Conductor(
                         Collections.singletonList(node),
                         manager,
                         lane);
@@ -178,8 +178,8 @@ public class TimingSystemConductorTest {
                         8,
                         "system-conductor-test",
                         newWorker("system-conductor-worker"));
-        TimingSystemConductor conductor =
-                new TimingSystemConductor(
+        Conductor conductor =
+                new Conductor(
                         Arrays.asList(first, second),
                         manager,
                         lane);
@@ -215,7 +215,7 @@ public class TimingSystemConductorTest {
                 new NodeId(id),
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),
-                TimingSystemConductorTest::now,
+                ConductorTest::now,
                 ReadOnlyConfiguration.fixed(
                         TagProcessingPolicy.defaults()),
                 EventData.empty(),

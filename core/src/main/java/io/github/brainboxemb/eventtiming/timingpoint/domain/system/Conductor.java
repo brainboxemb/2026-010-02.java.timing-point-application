@@ -30,10 +30,10 @@ import org.slf4j.LoggerFactory;
  * <p>TagObservation routing is configured separately by Runtime. Individual
  * antenna control, power, initialization and multiplexing do not belong here.</p>
  */
-public final class TimingSystemConductor extends AbstractConductor
+public final class Conductor extends AbstractConductor
         implements CooperativeTask {
     private static final Logger LOG =
-            LoggerFactory.getLogger(TimingSystemConductor.class);
+            LoggerFactory.getLogger(Conductor.class);
 
     private final List<TimingNode> timingNodes;
     private final List<TimingNodeStateProperty> stateProperties;
@@ -46,7 +46,7 @@ public final class TimingSystemConductor extends AbstractConductor
      * @param inventoryControl optional manager-wide inventory and lifecycle port
      * @param coordinationLane Runtime-owned logical serial lane for this system
      */
-    public TimingSystemConductor(
+    public Conductor(
             List<TimingNode> timingNodes,
             InventoryControl inventoryControl,
             SerialExecutor coordinationLane) {
@@ -148,6 +148,6 @@ public final class TimingSystemConductor extends AbstractConductor
     }
 
     private void onControlTaskFailure(Throwable failure) {
-        LOG.error("TimingSystemConductor control task failed", failure);
+        LOG.error("Conductor control task failed", failure);
     }
 }
