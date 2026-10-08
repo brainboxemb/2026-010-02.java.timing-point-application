@@ -12,7 +12,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -35,9 +37,12 @@ public final class PresentationGatewayFixture implements AutoCloseable {
                 new MemoryPersistence(),
                 () -> RECORDED_AT.instant());
         configuration = configurationControl(new NodeId("A"));
+        List<TimingNode> timingNodes =
+                new ArrayList<TimingNode>();
+        timingNodes.add(node);
         handler = new PresentationGateway(
                 identity,
-                node,
+                timingNodes,
                 configuration);
         node.activate();
     }
