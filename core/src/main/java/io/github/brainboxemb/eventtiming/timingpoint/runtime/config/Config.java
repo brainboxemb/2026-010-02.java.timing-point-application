@@ -153,11 +153,10 @@ public final class Config {
             String eventDataProviderId,
             String timingDataProviderId) {
         this(
-                Collections.singletonList(
-                        new TimingNodeConfig(
-                                timingNodeId,
-                                timingDataPath,
-                                tagProcessingPolicy)),
+                singleTimingNode(
+                        timingNodeId,
+                        timingDataPath,
+                        tagProcessingPolicy),
                 presentation,
                 logging,
                 loggingServer,
@@ -286,6 +285,20 @@ public final class Config {
 
     public String timingDataProviderId() {
         return timingDataProviderId;
+    }
+
+    private static List<TimingNodeConfig> singleTimingNode(
+            NodeId timingNodeId,
+            Path timingDataPath,
+            TagProcessingPolicy tagProcessingPolicy) {
+        List<TimingNodeConfig> result =
+                new ArrayList<TimingNodeConfig>();
+        result.add(
+                new TimingNodeConfig(
+                        timingNodeId,
+                        timingDataPath,
+                        tagProcessingPolicy));
+        return result;
     }
 
     private TimingNodeConfig singleTimingNode() {
