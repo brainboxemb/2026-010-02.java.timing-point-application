@@ -73,7 +73,7 @@ public final class TimingApplicationRuntime {
     private final ApplicationConfiguration configuration;
     private final PresentationGateway presentationGateway;
     private final RuntimeExecutors runtimeExecutors;
-    private final AntennaManager antennaManager;
+    private final List<AntennaManager> antennaManagers;
     private final SimulatedTagScenarioRunner simulationRunner;
     private final ApplicationConductor applicationConductor;
     private final PresentationRuntime presentationRuntime;
@@ -87,7 +87,7 @@ public final class TimingApplicationRuntime {
             ApplicationConfiguration configuration,
             PresentationGateway presentationGateway,
             RuntimeExecutors runtimeExecutors,
-            AntennaManager antennaManager,
+            List<AntennaManager> antennaManagers,
             SimulatedTagScenarioRunner simulationRunner,
             ApplicationConductor applicationConductor,
             PresentationRuntime presentationRuntime,
@@ -100,7 +100,10 @@ public final class TimingApplicationRuntime {
         this.configuration = configuration;
         this.presentationGateway = presentationGateway;
         this.runtimeExecutors = runtimeExecutors;
-        this.antennaManager = antennaManager;
+        this.antennaManagers =
+                Collections.unmodifiableList(
+                        new ArrayList<AntennaManager>(
+                                antennaManagers));
         this.simulationRunner = simulationRunner;
         this.applicationConductor = applicationConductor;
         this.presentationRuntime = presentationRuntime;
@@ -255,6 +258,7 @@ public final class TimingApplicationRuntime {
         AntennaComposition antennas =
                 platformDefaultAntennaComposition(
                         platform,
+                        config.timingSystems().size(),
                         config.timingNodes().size());
 
         return createConfigured(
