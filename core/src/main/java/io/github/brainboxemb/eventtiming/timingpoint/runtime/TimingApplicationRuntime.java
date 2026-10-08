@@ -9,7 +9,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.system.Conductor;
+import io.github.brainboxemb.eventtiming.timingpoint.application.Conductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
@@ -49,7 +49,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>This is the visible composition root and owner of process-level Runtime
  * resources. Provider discovery is resolved before normal object composition;
- * the system Conductor then owns lifecycle coordination of the composed system
+ * the Application Conductor owns application lifecycle and each system Conductor owns its TimingNodes
  * components. Runtime owns shared workers and the outer Presentation lifecycle.</p>
  */
 public final class TimingApplicationRuntime {
@@ -470,12 +470,18 @@ public final class TimingApplicationRuntime {
                                 ANTENNA_CONTROL_TIMEOUT);
             }
 
+            io.github.brainboxemb.eventtiming.timingpoint.domain.system.Conductor
+                    systemConductor =
+                            new io.github.brainboxemb.eventtiming.timingpoint.domain.system.Conductor(
+                                    Collections.singletonList(timingNode),
+                                    antennaManager,
+                                    executors
+                                            .createSystemConductorExecutor());
+
             Conductor conductor =
                     new Conductor(
-                            Collections.singletonList(timingNode),
                             antennaManager,
-                            executors
-                                    .createConductorExecutor());
+                            systemConductor);
 
             ConfigurationControl configurationControl =
                     createConfigurationControl(
@@ -519,7 +525,7 @@ public final class TimingApplicationRuntime {
             timingNode.statusChangedEvent()
                     .subscribe(
                             ignored ->
-                                    conductor.signalTimingNodeStateChanged(timingNode));
+                                    systemConductor.signalTimingNodeStateChanged(timingNode));
 
             if (antennaManager != null) {
                 for (AntennaId antennaId : antennaSet.antennaIds()) {
