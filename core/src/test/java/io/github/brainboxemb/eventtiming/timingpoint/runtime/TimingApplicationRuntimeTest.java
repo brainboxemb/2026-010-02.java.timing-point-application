@@ -157,6 +157,118 @@ public class TimingApplicationRuntimeTest {
     }
 
     @Test
+    public void composesMultipleTimingSystemsIntoOneApplication() {
+        Path root =
+                temporaryFolder
+                        .getRoot()
+                        .toPath();
+
+        List<Config.TimingNodeConfig> firstNodes =
+                new ArrayList<Config.TimingNodeConfig>();
+        firstNodes.add(
+                new Config.TimingNodeConfig(
+                        new NodeId("A"),
+                        root.resolve(
+                                "node_A_logbook.jsonl"),
+                        TagProcessingPolicy.defaults()));
+
+        List<Config.TimingNodeConfig> secondNodes =
+                new ArrayList<Config.TimingNodeConfig>();
+        secondNodes.add(
+                new Config.TimingNodeConfig(
+                        new NodeId("B"),
+                        root.resolve(
+                                "node_B_logbook.jsonl"),
+                        TagProcessingPolicy.defaults()));
+
+        List<Config.TimingSystemConfig> timingSystems =
+                new ArrayList<Config.TimingSystemConfig>();
+        timingSystems.add(
+                new Config.TimingSystemConfig(
+                        "system-one",
+                        firstNodes,
+                        Config.REFERENCE_PROVIDER_ID,
+                        Config.REFERENCE_PROVIDER_ID));
+        timingSystems.add(
+                new Config.TimingSystemConfig(
+                        "system-two",
+                        secondNodes,
+                        Config.REFERENCE_PROVIDER_ID,
+                        Config.REFERENCE_PROVIDER_ID));
+
+        Config config =
+                new Config(
+                        timingSystems,
+                        new Presentation(null, null),
+                        null,
+                        null);
+
+        PlatformEnvironment linux =
+                new PlatformEnvironment(
+                        Clock.fixed(
+                                Instant.parse(
+                                        "2026-10-08T12:00:00Z"),
+                                ZoneOffset.UTC),
+                        System::nanoTime,
+                        PlatformEnvironment.OperatingSystem.LINUX);
+
+        TimingApplicationRuntime application =
+                TimingApplicationRuntime.create(
+                        identity(),
+                        config,
+                        linux);
+
+        assertEquals(
+                2,
+                application.timingNodes().size());
+        assertEquals(
+                0,
+                application.antennaManagers().size());
+
+        application.activate();
+        try {
+            assertEquals(
+                    2,
+                    application
+                            .presentationGateway()
+                            .timingNodes()
+                            .size());
+
+            application
+                    .presentationGateway()
+                    .timingNode(
+                            new NodeId("A"))
+                    .open(
+                            new LocationId(24));
+            application
+                    .presentationGateway()
+                    .timingNode(
+                            new NodeId("B"))
+                    .open(
+                            new LocationId(25));
+
+            assertEquals(
+                    TimingNodeTypes.State.OPEN,
+                    application
+                            .presentationGateway()
+                            .timingNode(
+                                    new NodeId("A"))
+                            .status()
+                            .state());
+            assertEquals(
+                    TimingNodeTypes.State.OPEN,
+                    application
+                            .presentationGateway()
+                            .timingNode(
+                                    new NodeId("B"))
+                            .status()
+                            .state());
+        } finally {
+            application.deactivate();
+        }
+    }
+
+    @Test
     public void windowsNormalStartupComposesSimulatedAntennaManager()
             throws Exception {
         Path file =
