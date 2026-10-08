@@ -267,6 +267,62 @@ public class WebSocketEndpointTest {
     }
 
     @Test
+    public void snapshotContainsEveryComposedTimingNode()
+            throws Exception {
+        TimingNode first =
+                TimingNodeFixture.create(
+                        new NodeId("A"),
+                        new MemoryStore(),
+                        () -> RECORDED_AT.instant());
+        TimingNode second =
+                TimingNodeFixture.create(
+                        new NodeId("B"),
+                        new MemoryStore(),
+                        () -> RECORDED_AT.instant());
+        PresentationGateway gateway =
+                new PresentationGateway(
+                        identity(),
+                        nodes(first, second),
+                        PresentationGatewayFixture.configurationControl(
+                                new NodeId("A"),
+                                new NodeId("B")));
+
+        first.activate();
+        second.activate();
+        gateway.timingNode(new NodeId("B"))
+                .open(new LocationId(24));
+
+        WebSocketEndpoint server =
+                new WebSocketEndpoint(
+                        "127.0.0.1",
+                        0,
+                        gateway,
+                        EVENT_CLOCK);
+        wireApplicationEvents(
+                server,
+                gateway);
+        server.start();
+
+        TestClient client = connect(server.boundPort());
+        try {
+            String snapshot =
+                    client.awaitMessage();
+            assertNotNull(snapshot);
+            assertTrue(snapshot.contains(
+                    "\"eventType\":\"STATUS_SNAPSHOT\""));
+            assertTrue(snapshot.contains(
+                    "{\"id\":\"A\",\"locationId\":null,\"state\":\"CLOSED\"}"));
+            assertTrue(snapshot.contains(
+                    "{\"id\":\"B\",\"locationId\":24,\"state\":\"OPEN\"}"));
+        } finally {
+            client.closeBlocking();
+            server.close();
+            second.deactivate();
+            first.deactivate();
+        }
+    }
+
+    @Test
     public void snapshotExposesContainedTimingDataRecoveryFailure()
             throws Exception {
         TimingNode node = TimingNodeFixture.create(
