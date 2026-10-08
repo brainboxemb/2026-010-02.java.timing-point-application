@@ -11,6 +11,7 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.Conductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTimingDataPersistence;
@@ -474,9 +475,8 @@ public final class TimingApplicationRuntime {
                     new ArrayList<TimingNode>();
             timingNodes.add(timingNode);
 
-            io.github.brainboxemb.eventtiming.timingpoint.domain.system.Conductor
-                    systemConductor =
-                            new io.github.brainboxemb.eventtiming.timingpoint.domain.system.Conductor(
+            Conductor systemConductor =
+                    new Conductor(
                                     timingNodes,
                                     antennaManager,
                                     executors
