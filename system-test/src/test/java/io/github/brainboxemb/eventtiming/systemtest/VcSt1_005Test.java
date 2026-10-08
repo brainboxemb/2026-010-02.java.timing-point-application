@@ -18,6 +18,7 @@ public class VcSt1_005Test {
     private static final String NODE_ID = "A";
     private static final String REGISTRATION_ID = "N0005";
     private static final String REGISTRATION_TIME = "2026-10-01T12:05:00Z";
+    private static final String EXPECTED_WIRE_TIME = "2026-10-01T12:05:00.00Z";
 
     @Test
     public void verifiesLifecycleOrderingIdempotenceAndSequenceContinuity()
@@ -309,7 +310,7 @@ public class VcSt1_005Test {
                 "\"regId\":\"" + REGISTRATION_ID + "\"");
         assertContains(
                 json,
-                "\"time\":\"" + REGISTRATION_TIME + "\"");
+                "\"time\":\"" + EXPECTED_WIRE_TIME + "\"");
         assertContains(
                 json,
                 "\"code\":[\"ADD\"]");
