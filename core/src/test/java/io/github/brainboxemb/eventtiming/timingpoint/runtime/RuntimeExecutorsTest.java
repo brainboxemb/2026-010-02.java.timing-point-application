@@ -76,11 +76,11 @@ public class RuntimeExecutorsTest {
     }
 
     @Test
-    public void conductorUsesSharedSystemCoordinationWorker()
+    public void systemConductorUsesSharedSystemCoordinationWorker()
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
         SerialExecutor conductor =
-                runtime.createConductorExecutor();
+                runtime.createSystemConductorExecutor();
         runtime.start();
 
         AtomicReference<String> threadName =
