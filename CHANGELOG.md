@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Restore separate Application and TimingSystem Conductor responsibilities: Application orders AntennaManager/system lifecycle; each system Conductor owns its TimingNodes and directly drives AntennaManager inventory; remove the temporary InventoryControl interface.\n\n- Shorten the system-local Domain coordinator name to `domain.system.Conductor`; update its tests and Runtime composition without changing behavior.
+- Restore separate Application and TimingSystem Conductor responsibilities: Application orders AntennaManager/system lifecycle; each system Conductor owns its TimingNodes and directly drives AntennaManager inventory; remove the temporary InventoryControl interface.
+
+- Shorten the system-local Domain coordinator name to `domain.system.Conductor`; update its tests and Runtime composition without changing behavior.
 
 - Move operational antenna inventory coordination into a Domain TimingSystemConductor supporting 1..N TimingNodes, retaining a single manager-wide inventory control port and direct observation wiring.
 
