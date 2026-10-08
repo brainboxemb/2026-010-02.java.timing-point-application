@@ -78,7 +78,7 @@ public class SimulationRuntimeScenarioTest {
                 new CountDownLatch(1);
         application
                 .presentationGateway()
-                .timingNode()
+                .timingNode(new NodeId("A"))
                 .timingDataCommittedEvent()
                 .subscribe(
                         data -> {
@@ -98,7 +98,7 @@ public class SimulationRuntimeScenarioTest {
             TimingNodeProxy node =
                     application
                             .presentationGateway()
-                            .timingNode();
+                            .timingNode(new NodeId("A"));
             node.open(
                     new LocationId(24));
             await(
@@ -211,7 +211,7 @@ public class SimulationRuntimeScenarioTest {
                 new CountDownLatch(3);
         application
                 .presentationGateway()
-                .timingNode()
+                .timingNode(new NodeId("A"))
                 .timingDataCommittedEvent()
                 .subscribe(
                         data -> {
@@ -232,7 +232,7 @@ public class SimulationRuntimeScenarioTest {
             TimingNodeProxy node =
                     application
                             .presentationGateway()
-                            .timingNode();
+                            .timingNode(new NodeId("A"));
             node.open(
                     new LocationId(24));
             await(
