@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.application.framework;
+package io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle;
 
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 
@@ -6,7 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Reusable lifecycle base for an application Conductor.
+ * Reusable lifecycle base for an system Conductor.
  *
  * <p>The base owns only generic lifecycle mechanics:</p>
  *
@@ -26,21 +26,21 @@ public abstract class AbstractConductor {
     private static final Logger LOG =
             LoggerFactory.getLogger(AbstractConductor.class);
 
-    private final SerialExecutor applicationLane;
+    private final SerialExecutor coordinationLane;
     private final ComponentLifecycleManager componentLifecycle =
             new ComponentLifecycleManager();
 
     protected AbstractConductor(
-            SerialExecutor applicationLane) {
-        if (applicationLane == null) {
+            SerialExecutor coordinationLane) {
+        if (coordinationLane == null) {
             throw new IllegalArgumentException(
-                    "applicationLane must not be null");
+                    "coordinationLane must not be null");
         }
-        this.applicationLane = applicationLane;
+        this.coordinationLane = coordinationLane;
     }
 
     /**
-     * Registers one application component in activation order.
+     * Registers one component in activation order.
      *
      * <p>Concrete conductors use this only while they are being constructed.
      * Normal deactivation and activation rollback use the reverse order.</p>
@@ -56,17 +56,17 @@ public abstract class AbstractConductor {
     }
 
     /**
-     * Gives concrete application properties access to the one Application lane.
+     * Gives concrete application properties access to the one coordination lane.
      *
      * <p>The returned lane is still owned by this base lifecycle. Concrete code
      * may schedule work on it but must not start or close it.</p>
      */
-    protected final SerialExecutor applicationLane() {
-        return applicationLane;
+    protected final SerialExecutor coordinationLane() {
+        return coordinationLane;
     }
 
     /**
-     * Activates registered components, starts the Application lane and then
+     * Activates registered components, starts the coordination lane and then
      * invokes the concrete startup hook.
      *
      * <p>If any phase fails, this method closes the lane and deactivates already
@@ -75,15 +75,15 @@ public abstract class AbstractConductor {
      */
     public final void activate() {
         LOG.info(
-                "Starting application");
+                "Starting coordinator");
 
         try {
             componentLifecycle.activateAll();
-            applicationLane.start();
+            coordinationLane.start();
             onActivated();
 
             LOG.info(
-                    "Application started");
+                    "Coordinator started");
         } catch (RuntimeException ex) {
             cleanupAfterActivationFailure(ex);
             throw ex;
@@ -94,7 +94,7 @@ public abstract class AbstractConductor {
     }
 
     /**
-     * Stops Application-lane work and then deactivates components in reverse
+     * Stops coordination-lane work and then deactivates components in reverse
      * activation order.
      *
      * <p>Both cleanup phases are attempted. When more than one phase fails, the
@@ -102,12 +102,12 @@ public abstract class AbstractConductor {
      */
     public final void deactivate() {
         LOG.info(
-                "Stopping application");
+                "Stopping coordinator");
 
         Throwable firstFailure = null;
 
         try {
-            applicationLane.close();
+            coordinationLane.close();
         } catch (RuntimeException ex) {
             firstFailure = ex;
         } catch (Error error) {
@@ -131,12 +131,12 @@ public abstract class AbstractConductor {
         rethrow(firstFailure);
 
         LOG.info(
-                "Application stopped");
+                "Coordinator stopped");
     }
 
     /**
      * Concrete startup hook called after all registered components are active
-     * and the Application lane is running.
+     * and the coordination lane is running.
      *
      * <p>SI-01-specific startup actions such as initial tracked-property
      * reads belong here. Long-running device startup work belongs to the
@@ -152,7 +152,7 @@ public abstract class AbstractConductor {
                 originalFailure);
 
         try {
-            applicationLane.close();
+            coordinationLane.close();
         } catch (RuntimeException ex) {
             originalFailure.addSuppressed(ex);
         } catch (Error error) {

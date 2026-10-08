@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.application.framework;
+package io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle;
 
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 
@@ -122,7 +122,7 @@ public class AbstractConductorTest {
         protected void onActivated() {
             assertEquals(
                     SerialExecutor.State.RUNNING,
-                    applicationLane().state());
+                    coordinationLane().state());
 
             calls.add(
                     "hook");

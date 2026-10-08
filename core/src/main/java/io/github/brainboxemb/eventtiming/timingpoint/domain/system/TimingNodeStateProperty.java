@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.application.property;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.system;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeQueries;
@@ -13,7 +13,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialEx
  *
  * <p>TimingNode status events are only change signals. The event's Status value
  * is deliberately ignored; the underlying TrackedProperty rereads
- * TimingNodeQueries.status() on the Application lane.</p>
+ * TimingNodeQueries.status() on the system coordination lane.</p>
  */
 public final class TimingNodeStateProperty {
     private final TimingNode timingNode;
@@ -21,7 +21,7 @@ public final class TimingNodeStateProperty {
 
     public TimingNodeStateProperty(
             TimingNode timingNode,
-            SerialExecutor applicationLane) {
+            SerialExecutor coordinationLane) {
         if (timingNode == null) {
             throw new IllegalArgumentException(
                     "timingNode must not be null");
@@ -32,12 +32,12 @@ public final class TimingNodeStateProperty {
         /*
          * Construction only wires the deferred reader. The TimingNode query is
          * performed later by TrackedProperty.initialize()/refresh on the
-         * Application lane.
+         * system coordination lane.
          */
         property =
                 new TrackedProperty<State>(
                         "TimingNode.state",
-                        applicationLane,
+                        coordinationLane,
                         this::readTimingNodeState);
     }
 

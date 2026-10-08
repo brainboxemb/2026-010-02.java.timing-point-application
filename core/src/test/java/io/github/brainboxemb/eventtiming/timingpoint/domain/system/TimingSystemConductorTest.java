@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.application;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.system;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
@@ -8,6 +8,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
@@ -21,6 +22,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialSc
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -35,7 +37,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class ConductorTest {
+public class TimingSystemConductorTest {
     private final List<ExecutorService> workers =
             new ArrayList<ExecutorService>();
 
@@ -49,7 +51,7 @@ public class ConductorTest {
     @Test
     public void statePropertyCoalescesSignalsWhileRefreshIsPending()
             throws Exception {
-        TimingNode node = newTimingNode();
+        TimingNode node = newTimingNode("A");
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
 
@@ -61,9 +63,9 @@ public class ConductorTest {
                         1,
                         "conductor-test",
                         conductorWorker);
-        Conductor conductor =
-                new Conductor(
-                        node,
+        TimingSystemConductor conductor =
+                new TimingSystemConductor(
+                        Collections.singletonList(node),
                         manager,
                         lane);
 
@@ -94,8 +96,7 @@ public class ConductorTest {
             for (int index = 0;
                     index < 20;
                     index++) {
-                conductor.timingNodeStateProperty()
-                        .signalChanged();
+                conductor.signalTimingNodeStateChanged(node);
             }
 
             assertEquals(
@@ -117,7 +118,7 @@ public class ConductorTest {
     @Test
     public void statePropertyReadsAuthoritativeCurrentState()
             throws Exception {
-        TimingNode node = newTimingNode();
+        TimingNode node = newTimingNode("A");
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
         SerialExecutor lane =
@@ -126,9 +127,9 @@ public class ConductorTest {
                         "conductor-test",
                         newWorker(
                                 "conductor-test-worker"));
-        Conductor conductor =
-                new Conductor(
-                        node,
+        TimingSystemConductor conductor =
+                new TimingSystemConductor(
+                        Collections.singletonList(node),
                         manager,
                         lane);
 
@@ -144,8 +145,7 @@ public class ConductorTest {
              * rereads the authoritative current OPEN state and emits its own
              * changedEvent, which makes Conductor enable inventory.
              */
-            conductor.timingNodeStateProperty()
-                    .signalChanged();
+            conductor.signalTimingNodeStateChanged(node);
 
             await(
                     antenna::inventoryRunning,
@@ -157,12 +157,56 @@ public class ConductorTest {
         }
     }
 
-    private TimingNode newTimingNode() {
+    @Test
+    public void oneOpenNodeKeepsSharedInventoryEnabled()
+            throws Exception {
+        TimingNode first = newTimingNode("A");
+        TimingNode second = newTimingNode("B");
+        SimulatedAntenna antenna = new SimulatedAntenna();
+        AntennaManager manager = newAntennaManager(antenna);
+        SerialExecutor lane =
+                new SerialExecutor(
+                        8,
+                        "system-conductor-test",
+                        newWorker("system-conductor-worker"));
+        TimingSystemConductor conductor =
+                new TimingSystemConductor(
+                        Arrays.asList(first, second),
+                        manager,
+                        lane);
+
+        conductor.activate();
+        try {
+            first.invoke(TimingNodeCommands.open(new LocationId(24)));
+            conductor.signalTimingNodeStateChanged(first);
+            await(antenna::inventoryRunning, 1000L);
+
+            second.invoke(TimingNodeCommands.open(new LocationId(25)));
+            conductor.signalTimingNodeStateChanged(second);
+            await(() -> conductor.nodeStateProperty(second).currentValue()
+                    == State.OPEN, 1000L);
+
+            first.invoke(TimingNodeCommands.close());
+            conductor.signalTimingNodeStateChanged(first);
+            await(() -> conductor.nodeStateProperty(first).currentValue()
+                    == State.CLOSED, 1000L);
+            // Inventory remains required by the second OPEN node.
+            assertTrue(antenna.inventoryRunning());
+
+            second.invoke(TimingNodeCommands.close());
+            conductor.signalTimingNodeStateChanged(second);
+            await(() -> !antenna.inventoryRunning(), 1000L);
+        } finally {
+            conductor.deactivate();
+        }
+    }
+
+    private TimingNode newTimingNode(String id) {
         return new TimingNode(
-                new NodeId("A"),
+                new NodeId(id),
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),
-                ConductorTest::now,
+                TimingSystemConductorTest::now,
                 ReadOnlyConfiguration.fixed(
                         TagProcessingPolicy.defaults()),
                 EventData.empty(),

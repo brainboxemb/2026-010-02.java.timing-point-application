@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager
 
 import io.github.brainboxemb.eventtiming.timingpoint.infra.setting.Setting;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.InventoryControl;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
@@ -29,7 +30,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Task results remain owned by the tasks that produced them; manager transitions
  * read that authoritative task state in {@link #runStep()}.</p>
  */
-public final class AntennaManager implements CooperativeTask {
+public final class AntennaManager implements CooperativeTask, InventoryControl {
     private static final Logger LOG = LoggerFactory.getLogger(AntennaManager.class);
 
     /**
