@@ -8,7 +8,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.Cooperat
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.TaskStep;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.lifecycle.AbstractConductor;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
 
 import java.util.ArrayList;
 import java.util.Collections;

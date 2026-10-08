@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.platform.lifecycle;
+package io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle;
 
 import java.util.ArrayList;
 import java.util.Arrays;
