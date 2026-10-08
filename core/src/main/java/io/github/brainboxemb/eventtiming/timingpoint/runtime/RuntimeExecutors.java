@@ -174,16 +174,16 @@ final class RuntimeExecutors implements AutoCloseable {
     }
 
     /**
-     * Creates a logical coordination lane for one Conductor.
+     * Creates a logical coordination lane for one Domain system Conductor.
      *
-     * <p>The lane is logically owned by that Conductor. Runtime owns the physical
+     * <p>The lane is logically owned by that system Conductor. Runtime owns the physical
      * application worker underneath it.</p>
      */
-    synchronized SerialExecutor createConductorExecutor() {
+    synchronized SerialExecutor createSystemConductorExecutor() {
         SerialExecutor conductor =
                 new SerialExecutor(
                         CONDUCTOR_QUEUE_CAPACITY,
-                        "Conductor",
+                        "SystemConductor",
                         coordinationWorker);
         serialLanes.add(conductor);
         return conductor;
