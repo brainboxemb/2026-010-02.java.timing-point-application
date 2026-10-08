@@ -59,7 +59,7 @@ public class TimingApplicationRuntimeTest {
         try {
             assertEquals(
                     "A",
-                    application.presentationGateway().timingNode().status().timingNodeId().value());
+                    application.presentationGateway().timingNode(new NodeId("A")).status().timingNodeId().value());
         } finally {
             application.deactivate();
         }
@@ -116,7 +116,7 @@ public class TimingApplicationRuntimeTest {
                                     new AntennaId("1"))
                             .operation());
 
-            application.timingNode().invoke(
+            application.timingNode(new NodeId("A")).invoke(
                     TimingNodeCommands.open(
                             new LocationId(24)));
 
@@ -129,7 +129,7 @@ public class TimingApplicationRuntimeTest {
                             == AntennaOperation.INVENTORY,
                     1000L);
 
-            application.timingNode().invoke(
+            application.timingNode(new NodeId("A")).invoke(
                     TimingNodeCommands.close());
 
             await(
@@ -285,15 +285,15 @@ public class TimingApplicationRuntimeTest {
             assertEquals(TimingApplicationRuntime.State.ACTIVE, application.state());
             assertEquals(
                     TimingNodeTypes.State.ERROR,
-                    application.presentationGateway().timingNode().status().state());
+                    application.presentationGateway().timingNode(new NodeId("A")).status().state());
             assertEquals(
                     1,
-                    application.presentationGateway().timingNode().status().problems().size());
+                    application.presentationGateway().timingNode(new NodeId("A")).status().problems().size());
             assertEquals(
                     TimingNodeTypes.ProblemCode.TIMING_DATA_RECOVERY_FAILED,
-                    application.presentationGateway().timingNode().status().problems().get(0).code());
+                    application.presentationGateway().timingNode(new NodeId("A")).status().problems().get(0).code());
             assertTrue(
-                    application.presentationGateway().timingNode().status().problems().get(0).message()
+                    application.presentationGateway().timingNode(new NodeId("A")).status().problems().get(0).message()
                             .contains("TimingData recovery failed"));
         } finally {
             application.deactivate();
@@ -334,14 +334,14 @@ public class TimingApplicationRuntimeTest {
         try {
             assertFalse(antenna.inventoryRunning());
 
-            application.timingNode().invoke(
+            application.timingNode(new NodeId("A")).invoke(
                     TimingNodeCommands.open(new LocationId(24)));
             await(antenna::inventoryRunning, 1000L);
 
             CountDownLatch committed = new CountDownLatch(1);
             AtomicReference<AutomaticRegistration> automatic =
                     new AtomicReference<>();
-            application.timingNode().timingDataCommittedEvent().subscribe(data -> {
+            application.timingNode(new NodeId("A")).timingDataCommittedEvent().subscribe(data -> {
                 if (data instanceof AutomaticRegistration) {
                     automatic.set((AutomaticRegistration) data);
                     committed.countDown();
@@ -363,7 +363,7 @@ public class TimingApplicationRuntimeTest {
                     automatic.get().registrationId());
             assertEquals(observedAt, automatic.get().effectiveTime());
 
-            application.timingNode().invoke(
+            application.timingNode(new NodeId("A")).invoke(
                     TimingNodeCommands.close());
             await(() -> !antenna.inventoryRunning(), 1000L);
         } finally {
