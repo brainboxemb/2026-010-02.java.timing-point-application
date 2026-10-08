@@ -73,7 +73,7 @@ public final class TimingApplicationRuntime {
     private final ApplicationConfiguration configuration;
     private final PresentationGateway presentationGateway;
     private final RuntimeExecutors runtimeExecutors;
-    private final AntennaManager antennaManager;
+    private final List<AntennaManager> antennaManagers;
     private final SimulatedTagScenarioRunner simulationRunner;
     private final ApplicationConductor applicationConductor;
     private final PresentationRuntime presentationRuntime;
@@ -87,7 +87,7 @@ public final class TimingApplicationRuntime {
             ApplicationConfiguration configuration,
             PresentationGateway presentationGateway,
             RuntimeExecutors runtimeExecutors,
-            AntennaManager antennaManager,
+            List<AntennaManager> antennaManagers,
             SimulatedTagScenarioRunner simulationRunner,
             ApplicationConductor applicationConductor,
             PresentationRuntime presentationRuntime,
@@ -100,7 +100,10 @@ public final class TimingApplicationRuntime {
         this.configuration = configuration;
         this.presentationGateway = presentationGateway;
         this.runtimeExecutors = runtimeExecutors;
-        this.antennaManager = antennaManager;
+        this.antennaManagers =
+                Collections.unmodifiableList(
+                        new ArrayList<AntennaManager>(
+                                antennaManagers));
         this.simulationRunner = simulationRunner;
         this.applicationConductor = applicationConductor;
         this.presentationRuntime = presentationRuntime;
@@ -255,6 +258,7 @@ public final class TimingApplicationRuntime {
         AntennaComposition antennas =
                 platformDefaultAntennaComposition(
                         platform,
+                        config.timingSystems().size(),
                         config.timingNodes().size());
 
         return createConfigured(
@@ -287,10 +291,11 @@ public final class TimingApplicationRuntime {
                 config,
                 antennaSet,
                 null,
-                false,
-                eventData,
-                timingDataProvider.createFactory(),
-                timingDataProvider.createCodec(),
+                oneResolvedSystem(
+                        config,
+                        false,
+                        eventData,
+                        timingDataProvider),
                 PlatformEnvironment.system(),
                 null,
                 null,
@@ -325,10 +330,11 @@ public final class TimingApplicationRuntime {
                 config,
                 antennaSet,
                 antenna,
-                true,
-                eventData,
-                timingDataProvider.createFactory(),
-                timingDataProvider.createCodec(),
+                oneResolvedSystem(
+                        config,
+                        true,
+                        eventData,
+                        timingDataProvider),
                 PlatformEnvironment.system(),
                 null,
                 null,
@@ -359,32 +365,48 @@ public final class TimingApplicationRuntime {
                     "extensions must not be null");
         }
 
-        EventDataProvider eventDataProvider =
-                extensions.eventDataProvider(
-                        config.eventDataProviderId());
-        TimingDataProvider timingDataProvider =
-                extensions.timingDataProvider(
-                        config.timingDataProviderId());
+        List<ResolvedTimingSystem> resolvedSystems =
+                new ArrayList<ResolvedTimingSystem>(
+                        config.timingSystems().size());
 
-        LOG.info(
-                "Selected EventDataProvider id={} implementation={}",
-                eventDataProvider.id(),
-                eventDataProvider.getClass().getName());
-        LOG.info(
-                "Selected TimingDataProvider id={} implementation={}",
-                timingDataProvider.id(),
-                timingDataProvider.getClass().getName());
+        for (Config.TimingSystemConfig timingSystem
+                : config.timingSystems()) {
+            EventDataProvider eventDataProvider =
+                    extensions.eventDataProvider(
+                            timingSystem
+                                    .eventDataProviderId());
+            TimingDataProvider timingDataProvider =
+                    extensions.timingDataProvider(
+                            timingSystem
+                                    .timingDataProviderId());
+
+            LOG.info(
+                    "TimingSystem {} selected EventDataProvider id={} implementation={}",
+                    timingSystem.timingSystemId(),
+                    eventDataProvider.id(),
+                    eventDataProvider.getClass().getName());
+            LOG.info(
+                    "TimingSystem {} selected TimingDataProvider id={} implementation={}",
+                    timingSystem.timingSystemId(),
+                    timingDataProvider.id(),
+                    timingDataProvider.getClass().getName());
+
+            resolvedSystems.add(
+                    new ResolvedTimingSystem(
+                            timingSystem,
+                            SimulationEventDataProvider.ID.equals(
+                                    eventDataProvider.id()),
+                            eventDataProvider.createEventData(),
+                            timingDataProvider.createFactory(),
+                            timingDataProvider.createCodec()));
+        }
 
         return createResolved(
                 buildIdentity,
                 config,
                 antennaSet,
                 simulatedAntenna,
-                SimulationEventDataProvider.ID.equals(
-                        eventDataProvider.id()),
-                eventDataProvider.createEventData(),
-                timingDataProvider.createFactory(),
-                timingDataProvider.createCodec(),
+                resolvedSystems,
                 platform,
                 loggingLevelControl,
                 consolePromptControl,
@@ -400,10 +422,7 @@ public final class TimingApplicationRuntime {
             Config config,
             AntennaSet antennaSet,
             SimulatedAntenna simulatedAntenna,
-            boolean tagScenarioSimulationEnabled,
-            EventData eventData,
-            TimingDataFactory timingDataFactory,
-            TimingDataCodec timingDataCodec,
+            List<ResolvedTimingSystem> resolvedSystems,
             PlatformEnvironment platform,
             LoggingLevelControl loggingLevelControl,
             ConsolePromptControl consolePromptControl,
@@ -413,9 +432,7 @@ public final class TimingApplicationRuntime {
                 buildIdentity,
                 config,
                 antennaSet,
-                eventData,
-                timingDataFactory,
-                timingDataCodec,
+                resolvedSystems,
                 platform);
 
         ApplicationConfiguration applicationConfiguration =
@@ -429,93 +446,130 @@ public final class TimingApplicationRuntime {
             RuntimeTimeSources runtimeTimeSources =
                     new RuntimeTimeSources(
                             platform);
-
-            /*
-             * All TimingNodes in one TimingSystem share the same timing basis.
-             * A later multi-TimingSystem composition may create another source
-             * for another system context.
-             */
-            TimeSource timeSource =
-                    runtimeTimeSources.createTimeSource();
-
             List<TimingNode> timingNodes =
                     new ArrayList<TimingNode>(
                             config.timingNodes().size());
-
-            for (Config.TimingNodeConfig nodeConfig
-                    : config.timingNodes()) {
-                RuntimeExecutors.TimingNodeExecutors nodeExecutors =
-                        executors.createTimingNodeExecutors();
-
-                TimingDataPersistence persistence =
-                        new DefaultTimingDataPersistence(
-                                new FileAppendOnlyRecordStore(
-                                        nodeConfig.timingDataPath()),
-                                nodeConfig.timingNodeId(),
-                                timingDataCodec);
-
-                TimingNode timingNode =
-                        new TimingNode(
-                                nodeConfig.timingNodeId(),
-                                persistence,
-                                timingDataFactory,
-                                timeSource,
-                                applicationConfiguration
-                                        .timingNode(
-                                                nodeConfig
-                                                        .timingNodeId())
-                                        .tagProcessing(),
-                                eventData,
-                                nodeExecutors.timingNode(),
-                                nodeExecutors.tagProcessor(),
-                                platform.monotonicClock());
-                timingNodes.add(
-                        timingNode);
-            }
-
-            AntennaManager antennaManager = null;
-            if (!antennaSet.isEmpty()) {
-                if (timingNodes.size() != 1) {
-                    throw new IllegalArgumentException(
-                            "Multi-node antenna routing must be explicitly configured");
-                }
-                antennaManager =
-                        new AntennaManager(
-                                antennaSet,
-                                executors
-                                        .createAntennaControlExecutor(),
-                                ANTENNA_CONTROL_TIMEOUT);
-            }
-
-            Conductor systemConductor =
-                    new Conductor(
-                            timingNodes,
-                            antennaManager,
-                            executors
-                                    .createSystemConductorExecutor());
-
+            List<AntennaManager> antennaManagers =
+                    new ArrayList<AntennaManager>();
             ApplicationConductor applicationConductor =
                     new ApplicationConductor();
-            applicationConductor.registerTimingSystem(
-                    antennaManager,
-                    systemConductor);
+            SimulatedTagScenarioRunner simulationRunner = null;
+
+            for (ResolvedTimingSystem resolvedSystem
+                    : resolvedSystems) {
+                TimeSource timeSource =
+                        runtimeTimeSources.createTimeSource();
+                List<TimingNode> systemNodes =
+                        new ArrayList<TimingNode>(
+                                resolvedSystem
+                                        .configuration
+                                        .timingNodes()
+                                        .size());
+
+                for (Config.TimingNodeConfig nodeConfig
+                        : resolvedSystem
+                                .configuration
+                                .timingNodes()) {
+                    RuntimeExecutors.TimingNodeExecutors nodeExecutors =
+                            executors.createTimingNodeExecutors();
+
+                    TimingDataPersistence persistence =
+                            new DefaultTimingDataPersistence(
+                                    new FileAppendOnlyRecordStore(
+                                            nodeConfig.timingDataPath()),
+                                    nodeConfig.timingNodeId(),
+                                    resolvedSystem.timingDataCodec);
+
+                    TimingNode timingNode =
+                            new TimingNode(
+                                    nodeConfig.timingNodeId(),
+                                    persistence,
+                                    resolvedSystem.timingDataFactory,
+                                    timeSource,
+                                    applicationConfiguration
+                                            .timingNode(
+                                                    nodeConfig
+                                                            .timingNodeId())
+                                            .tagProcessing(),
+                                    resolvedSystem.eventData,
+                                    nodeExecutors.timingNode(),
+                                    nodeExecutors.tagProcessor(),
+                                    platform.monotonicClock());
+                    systemNodes.add(
+                            timingNode);
+                    timingNodes.add(
+                            timingNode);
+                }
+
+                AntennaManager antennaManager = null;
+                if (!antennaSet.isEmpty()) {
+                    if (resolvedSystems.size() != 1
+                            || systemNodes.size() != 1) {
+                        throw new IllegalArgumentException(
+                                "Implicit antenna composition requires exactly one TimingSystem with one TimingNode");
+                    }
+                    antennaManager =
+                            new AntennaManager(
+                                    antennaSet,
+                                    executors
+                                            .createAntennaControlExecutor(),
+                                    ANTENNA_CONTROL_TIMEOUT);
+                    antennaManagers.add(
+                            antennaManager);
+                }
+
+                Conductor systemConductor =
+                        new Conductor(
+                                systemNodes,
+                                antennaManager,
+                                executors
+                                        .createSystemConductorExecutor());
+
+                applicationConductor.registerTimingSystem(
+                        antennaManager,
+                        systemConductor);
+
+                for (TimingNode timingNode : systemNodes) {
+                    timingNode.statusChangedEvent()
+                            .subscribe(
+                                    ignored ->
+                                            systemConductor
+                                                    .signalTimingNodeStateChanged(
+                                                            timingNode));
+                }
+
+                if (antennaManager != null) {
+                    TimingNode timingNode =
+                            systemNodes.get(0);
+                    for (AntennaId antennaId
+                            : antennaSet.antennaIds()) {
+                        antennaManager.tagObservedEvent(
+                                        antennaId)
+                                .subscribe(
+                                        timingNode
+                                                .tagProcessor()
+                                                ::onTagObserved);
+                    }
+                }
+
+                if (resolvedSystems.size() == 1
+                        && systemNodes.size() == 1
+                        && resolvedSystem.tagScenarioSimulationEnabled
+                        && simulatedAntenna != null
+                        && !resolvedSystem.eventData.isEmpty()) {
+                    simulationRunner =
+                            new SimulatedTagScenarioRunner(
+                                    simulatedAntenna,
+                                    resolvedSystem.eventData,
+                                    timeSource,
+                                    executors
+                                            .createSimulationExecutor());
+                }
+            }
 
             ConfigurationControl configurationControl =
                     createConfigurationControl(
                             applicationConfiguration);
-
-            SimulatedTagScenarioRunner simulationRunner =
-                    timingNodes.size() != 1
-                                    || !tagScenarioSimulationEnabled
-                                    || simulatedAntenna == null
-                                    || eventData.isEmpty()
-                            ? null
-                            : new SimulatedTagScenarioRunner(
-                                    simulatedAntenna,
-                                    eventData,
-                                    timeSource,
-                                    executors
-                                            .createSimulationExecutor());
 
             PresentationGateway presentationGateway =
                     new PresentationGateway(
@@ -537,37 +591,13 @@ public final class TimingApplicationRuntime {
                             consoleInput,
                             consoleOutput);
 
-            /*
-             * Cross-component relationships stay visible at composition.
-             */
-            for (TimingNode timingNode : timingNodes) {
-                timingNode.statusChangedEvent()
-                        .subscribe(
-                                ignored ->
-                                        systemConductor
-                                                .signalTimingNodeStateChanged(
-                                                        timingNode));
-            }
-
-            if (antennaManager != null) {
-                TimingNode timingNode =
-                        timingNodes.get(0);
-                for (AntennaId antennaId : antennaSet.antennaIds()) {
-                    antennaManager.tagObservedEvent(antennaId)
-                            .subscribe(
-                                    timingNode
-                                            .tagProcessor()
-                                            ::onTagObserved);
-                }
-            }
-
             return new TimingApplicationRuntime(
                     buildIdentity,
                     timingNodes,
                     applicationConfiguration,
                     presentationGateway,
                     executors,
-                    antennaManager,
+                    antennaManagers,
                     simulationRunner,
                     applicationConductor,
                     presentation,
@@ -651,7 +681,19 @@ public final class TimingApplicationRuntime {
     }
 
     AntennaManager antennaManager() {
-        return antennaManager;
+        if (antennaManagers.isEmpty()) {
+            return null;
+        }
+        if (antennaManagers.size() != 1) {
+            throw new IllegalStateException(
+                    "Operation requires at most one AntennaManager; composed="
+                            + antennaManagers.size());
+        }
+        return antennaManagers.get(0);
+    }
+
+    List<AntennaManager> antennaManagers() {
+        return antennaManagers;
     }
 
     public synchronized State state() {
@@ -756,12 +798,14 @@ public final class TimingApplicationRuntime {
      */
     private static AntennaComposition platformDefaultAntennaComposition(
             PlatformEnvironment platform,
+            int timingSystemCount,
             int timingNodeCount) {
         AntennaSet antennas =
                 new AntennaSet();
 
         if (platform.operatingSystem()
                         != OperatingSystem.WINDOWS
+                || timingSystemCount != 1
                 || timingNodeCount != 1) {
             return new AntennaComposition(
                     antennas,
@@ -793,6 +837,40 @@ public final class TimingApplicationRuntime {
             this.antennaSet = antennaSet;
             this.simulatedAntenna = simulatedAntenna;
         }
+    }
+
+    private static List<ResolvedTimingSystem> oneResolvedSystem(
+            Config config,
+            boolean tagScenarioSimulationEnabled,
+            EventData eventData,
+            TimingDataProvider timingDataProvider) {
+        if (config == null) {
+            throw new IllegalArgumentException(
+                    "config must not be null");
+        }
+        if (config.timingSystems().size() != 1) {
+            throw new IllegalArgumentException(
+                    "Simulation composition requires exactly one TimingSystem");
+        }
+        if (eventData == null) {
+            throw new IllegalArgumentException(
+                    "eventData must not be null");
+        }
+        if (timingDataProvider == null) {
+            throw new IllegalArgumentException(
+                    "timingDataProvider must not be null");
+        }
+
+        List<ResolvedTimingSystem> result =
+                new ArrayList<ResolvedTimingSystem>();
+        result.add(
+                new ResolvedTimingSystem(
+                        config.timingSystems().get(0),
+                        tagScenarioSimulationEnabled,
+                        eventData,
+                        timingDataProvider.createFactory(),
+                        timingDataProvider.createCodec()));
+        return result;
     }
 
     private static ApplicationConfiguration createApplicationConfiguration(
@@ -833,9 +911,7 @@ public final class TimingApplicationRuntime {
             BuildIdentity buildIdentity,
             Config config,
             AntennaSet antennaSet,
-            EventData eventData,
-            TimingDataFactory timingDataFactory,
-            TimingDataCodec timingDataCodec,
+            List<ResolvedTimingSystem> resolvedSystems,
             PlatformEnvironment platform) {
         if (buildIdentity == null) {
             throw new IllegalArgumentException(
@@ -854,23 +930,61 @@ public final class TimingApplicationRuntime {
             }
         }
         if (antennaSet == null) {
-            throw new IllegalArgumentException("antennaSet must not be null");
-        }
-        if (eventData == null) {
             throw new IllegalArgumentException(
-                    "eventData must not be null");
+                    "antennaSet must not be null");
         }
-        if (timingDataFactory == null) {
+        if (resolvedSystems == null
+                || resolvedSystems.isEmpty()) {
             throw new IllegalArgumentException(
-                    "timingDataFactory must not be null");
+                    "resolvedSystems must contain at least one TimingSystem");
         }
-        if (timingDataCodec == null) {
+        if (resolvedSystems.size()
+                != config.timingSystems().size()) {
             throw new IllegalArgumentException(
-                    "timingDataCodec must not be null");
+                    "Resolved TimingSystem count does not match configuration");
         }
         if (platform == null) {
             throw new IllegalArgumentException(
                     "platform must not be null");
+        }
+    }
+
+    private static final class ResolvedTimingSystem {
+        private final Config.TimingSystemConfig configuration;
+        private final boolean tagScenarioSimulationEnabled;
+        private final EventData eventData;
+        private final TimingDataFactory timingDataFactory;
+        private final TimingDataCodec timingDataCodec;
+
+        private ResolvedTimingSystem(
+                Config.TimingSystemConfig configuration,
+                boolean tagScenarioSimulationEnabled,
+                EventData eventData,
+                TimingDataFactory timingDataFactory,
+                TimingDataCodec timingDataCodec) {
+            if (configuration == null) {
+                throw new IllegalArgumentException(
+                        "configuration must not be null");
+            }
+            if (eventData == null) {
+                throw new IllegalArgumentException(
+                        "eventData must not be null");
+            }
+            if (timingDataFactory == null) {
+                throw new IllegalArgumentException(
+                        "timingDataFactory must not be null");
+            }
+            if (timingDataCodec == null) {
+                throw new IllegalArgumentException(
+                        "timingDataCodec must not be null");
+            }
+
+            this.configuration = configuration;
+            this.tagScenarioSimulationEnabled =
+                    tagScenarioSimulationEnabled;
+            this.eventData = eventData;
+            this.timingDataFactory = timingDataFactory;
+            this.timingDataCodec = timingDataCodec;
         }
     }
 }
