@@ -37,6 +37,7 @@ import org.yaml.snakeyaml.error.YAMLException;
  */
 public final class YamlLoader {
     private static final String TIMING_SYSTEMS = "timingSystems";
+    private static final String TIMING_SYSTEM_ID = "timingSystemId";
     private static final String EVENT_DATA_PROVIDER = "eventDataProvider";
     private static final String TIMING_DATA_PROVIDER = "timingDataProvider";
     private static final String TIMING_NODES = "timingNodes";
@@ -94,41 +95,57 @@ public final class YamlLoader {
                 LOGGING,
                 IO);
 
-        TimingSystemStartup timingSystem =
-                mapSingleTimingSystem(
+        List<TimingSystemStartup> timingSystems =
+                mapTimingSystems(
                         root.get(TIMING_SYSTEMS));
+
+        List<TimingNodeStartup> allTimingNodes =
+                new ArrayList<TimingNodeStartup>();
+        for (TimingSystemStartup timingSystem
+                : timingSystems) {
+            allTimingNodes.addAll(
+                    timingSystem.timingNodes);
+        }
+
         Map<NodeId, Path> timingDataPaths =
                 mapTimingDataPaths(
                         root.get(IO),
-                        timingSystem.timingNodes);
+                        allTimingNodes);
 
-        List<Config.TimingNodeConfig> timingNodes =
-                new ArrayList<Config.TimingNodeConfig>(
-                        timingSystem.timingNodes.size());
-        for (TimingNodeStartup timingNode
-                : timingSystem.timingNodes) {
-            timingNodes.add(
-                    new Config.TimingNodeConfig(
-                            timingNode.timingNodeId,
-                            timingDataPaths.get(
-                                    timingNode.timingNodeId),
-                            timingNode.tagProcessingPolicy));
+        List<Config.TimingSystemConfig> configuredSystems =
+                new ArrayList<Config.TimingSystemConfig>(
+                        timingSystems.size());
+        for (TimingSystemStartup timingSystem
+                : timingSystems) {
+            List<Config.TimingNodeConfig> configuredNodes =
+                    new ArrayList<Config.TimingNodeConfig>(
+                            timingSystem.timingNodes.size());
+            for (TimingNodeStartup timingNode
+                    : timingSystem.timingNodes) {
+                configuredNodes.add(
+                        new Config.TimingNodeConfig(
+                                timingNode.timingNodeId,
+                                timingDataPaths.get(
+                                        timingNode.timingNodeId),
+                                timingNode.tagProcessingPolicy));
+            }
+
+            configuredSystems.add(
+                    new Config.TimingSystemConfig(
+                            timingSystem.timingSystemId,
+                            configuredNodes,
+                            timingSystem.eventDataProviderId,
+                            timingSystem.timingDataProviderId));
         }
 
         return new Config(
-                timingNodes,
+                configuredSystems,
                 mapPresentation(root.get(PRESENTATION)),
                 mapLogging(root.get(LOGGING)),
-                mapLoggingLive(root.get(LOGGING)),
-                timingSystem.eventDataProviderId,
-                timingSystem.timingDataProviderId);
+                mapLoggingLive(root.get(LOGGING)));
     }
 
-    /**
-     * Maps the current single-TimingSystem executable subset from the canonical
-     * IF-11 ownership hierarchy. One TimingSystem may contain 1..N TimingNodes.
-     */
-    private static TimingSystemStartup mapSingleTimingSystem(
+    private static List<TimingSystemStartup> mapTimingSystems(
             Object rawTimingSystems) {
         if (rawTimingSystems == null) {
             throw new IllegalArgumentException(
@@ -140,113 +157,166 @@ public final class YamlLoader {
                 requireMapping(
                         rawTimingSystems,
                         TIMING_SYSTEMS);
-        String timingSystemKey =
-                requireSingleMappingKey(
-                        timingSystems,
-                        TIMING_SYSTEMS);
-        String timingSystemField =
-                TIMING_SYSTEMS + "." + timingSystemKey;
-        Map<?, ?> timingSystem =
-                requireMapping(
-                        timingSystems.get(
-                                timingSystemKey),
-                        timingSystemField);
-        rejectUnknownFields(
-                timingSystem,
-                timingSystemField,
-                EVENT_DATA_PROVIDER,
-                TIMING_DATA_PROVIDER,
-                TIMING_NODES);
-
-        if (!timingSystem.containsKey(TIMING_NODES)) {
+        if (timingSystems.isEmpty()) {
             throw new IllegalArgumentException(
-                    "Missing required configuration field: "
-                            + timingSystemField
-                            + "."
-                            + TIMING_NODES);
+                    TIMING_SYSTEMS
+                            + " must contain at least one TimingSystem");
         }
 
-        String timingNodesField =
-                timingSystemField
-                        + "."
-                        + TIMING_NODES;
-        Map<?, ?> timingNodes =
-                requireMapping(
-                        timingSystem.get(
-                                TIMING_NODES),
-                        timingNodesField);
-        if (timingNodes.isEmpty()) {
-            throw new IllegalArgumentException(
-                    timingNodesField
-                            + " must contain at least one TimingNode");
-        }
-
-        List<TimingNodeStartup> nodes =
-                new ArrayList<TimingNodeStartup>(
-                        timingNodes.size());
+        List<TimingSystemStartup> systems =
+                new ArrayList<TimingSystemStartup>(
+                        timingSystems.size());
+        Set<String> systemIds =
+                new LinkedHashSet<String>();
         Set<NodeId> nodeIds =
                 new LinkedHashSet<NodeId>();
 
-        for (Map.Entry<?, ?> entry
-                : timingNodes.entrySet()) {
-            String timingNodeKey =
+        for (Map.Entry<?, ?> systemEntry
+                : timingSystems.entrySet()) {
+            String timingSystemKey =
                     requireMappingEntryName(
-                            entry.getKey(),
-                            timingNodesField);
-            String timingNodeField =
-                    timingNodesField
-                            + "."
-                            + timingNodeKey;
-            Map<?, ?> timingNode =
+                            systemEntry.getKey(),
+                            TIMING_SYSTEMS);
+            String timingSystemField =
+                    TIMING_SYSTEMS + "." + timingSystemKey;
+            Map<?, ?> timingSystem =
                     requireMapping(
-                            entry.getValue(),
-                            timingNodeField);
+                            systemEntry.getValue(),
+                            timingSystemField);
             rejectUnknownFields(
-                    timingNode,
-                    timingNodeField,
-                    TIMING_NODE_ID,
-                    TAG_PROCESSING);
+                    timingSystem,
+                    timingSystemField,
+                    TIMING_SYSTEM_ID,
+                    EVENT_DATA_PROVIDER,
+                    TIMING_DATA_PROVIDER,
+                    TIMING_NODES);
 
-            if (!timingNode.containsKey(TIMING_NODE_ID)) {
+            if (!timingSystem.containsKey(
+                    TIMING_SYSTEM_ID)) {
                 throw new IllegalArgumentException(
                         "Missing required configuration field: "
-                                + timingNodeField
+                                + timingSystemField
                                 + "."
-                                + TIMING_NODE_ID);
+                                + TIMING_SYSTEM_ID);
             }
 
-            NodeId timingNodeId =
-                    new NodeId(
-                            requireString(
-                                    timingNode.get(
-                                            TIMING_NODE_ID),
-                                    timingNodeField
-                                            + "."
-                                            + TIMING_NODE_ID));
-            if (!nodeIds.add(timingNodeId)) {
+            String timingSystemId =
+                    requireString(
+                            timingSystem.get(
+                                    TIMING_SYSTEM_ID),
+                            timingSystemField
+                                    + "."
+                                    + TIMING_SYSTEM_ID)
+                            .trim();
+            if (timingSystemId.isEmpty()) {
                 throw new IllegalArgumentException(
-                        "Duplicate application-wide TimingNodeId "
-                                + timingNodeId.value());
+                        timingSystemField
+                                + "."
+                                + TIMING_SYSTEM_ID
+                                + " must not be blank");
+            }
+            if (!systemIds.add(
+                    timingSystemId)) {
+                throw new IllegalArgumentException(
+                        "Duplicate TimingSystemId "
+                                + timingSystemId);
             }
 
-            nodes.add(
-                    new TimingNodeStartup(
-                            timingNodeId,
-                            mapTagProcessing(
-                                    timingNode,
-                                    timingNodeField)));
+            if (!timingSystem.containsKey(
+                    TIMING_NODES)) {
+                throw new IllegalArgumentException(
+                        "Missing required configuration field: "
+                                + timingSystemField
+                                + "."
+                                + TIMING_NODES);
+            }
+
+            String timingNodesField =
+                    timingSystemField
+                            + "."
+                            + TIMING_NODES;
+            Map<?, ?> timingNodes =
+                    requireMapping(
+                            timingSystem.get(
+                                    TIMING_NODES),
+                            timingNodesField);
+            if (timingNodes.isEmpty()) {
+                throw new IllegalArgumentException(
+                        timingNodesField
+                                + " must contain at least one TimingNode");
+            }
+
+            List<TimingNodeStartup> nodes =
+                    new ArrayList<TimingNodeStartup>(
+                            timingNodes.size());
+
+            for (Map.Entry<?, ?> nodeEntry
+                    : timingNodes.entrySet()) {
+                String timingNodeKey =
+                        requireMappingEntryName(
+                                nodeEntry.getKey(),
+                                timingNodesField);
+                String timingNodeField =
+                        timingNodesField
+                                + "."
+                                + timingNodeKey;
+                Map<?, ?> timingNode =
+                        requireMapping(
+                                nodeEntry.getValue(),
+                                timingNodeField);
+                rejectUnknownFields(
+                        timingNode,
+                        timingNodeField,
+                        TIMING_NODE_ID,
+                        TAG_PROCESSING);
+
+                if (!timingNode.containsKey(
+                        TIMING_NODE_ID)) {
+                    throw new IllegalArgumentException(
+                            "Missing required configuration field: "
+                                    + timingNodeField
+                                    + "."
+                                    + TIMING_NODE_ID);
+                }
+
+                NodeId timingNodeId =
+                        new NodeId(
+                                requireString(
+                                        timingNode.get(
+                                                TIMING_NODE_ID),
+                                        timingNodeField
+                                                + "."
+                                                + TIMING_NODE_ID));
+                if (!nodeIds.add(
+                        timingNodeId)) {
+                    throw new IllegalArgumentException(
+                            "Duplicate application-wide TimingNodeId "
+                                    + timingNodeId.value());
+                }
+
+                nodes.add(
+                        new TimingNodeStartup(
+                                timingNodeId,
+                                mapTagProcessing(
+                                        timingNode,
+                                        timingNodeField)));
+            }
+
+            systems.add(
+                    new TimingSystemStartup(
+                            timingSystemId,
+                            nodes,
+                            providerId(
+                                    timingSystem,
+                                    timingSystemField,
+                                    EVENT_DATA_PROVIDER),
+                            providerId(
+                                    timingSystem,
+                                    timingSystemField,
+                                    TIMING_DATA_PROVIDER)));
         }
 
-        return new TimingSystemStartup(
-                nodes,
-                providerId(
-                        timingSystem,
-                        timingSystemField,
-                        EVENT_DATA_PROVIDER),
-                providerId(
-                        timingSystem,
-                        timingSystemField,
-                        TIMING_DATA_PROVIDER));
+        return systems;
     }
 
     private static TagProcessingPolicy mapTagProcessing(
@@ -359,20 +429,6 @@ public final class YamlLoader {
         }
         throw new IllegalArgumentException(
                 field + " must be a YAML integer");
-    }
-
-    private static String requireSingleMappingKey(
-            Map<?, ?> values,
-            String field) {
-        if (values.size() != 1) {
-            throw new IllegalArgumentException(
-                    field
-                            + " must contain exactly one entry in the current executable");
-        }
-
-        return requireMappingEntryName(
-                values.keySet().iterator().next(),
-                field);
     }
 
     private static String requireMappingEntryName(
@@ -779,14 +835,17 @@ public final class YamlLoader {
     }
 
     private static final class TimingSystemStartup {
+        private final String timingSystemId;
         private final List<TimingNodeStartup> timingNodes;
         private final String eventDataProviderId;
         private final String timingDataProviderId;
 
         private TimingSystemStartup(
+                String timingSystemId,
                 List<TimingNodeStartup> timingNodes,
                 String eventDataProviderId,
                 String timingDataProviderId) {
+            this.timingSystemId = timingSystemId;
             this.timingNodes =
                     Collections.unmodifiableList(
                             new ArrayList<TimingNodeStartup>(
