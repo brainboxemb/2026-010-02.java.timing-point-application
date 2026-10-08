@@ -7,6 +7,7 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -237,8 +238,8 @@ public final class WebSocketEndpoint implements AutoCloseable {
         List<TimingNodeStatus> statuses =
                 new ArrayList<TimingNodeStatus>();
         synchronized (statusByNode) {
-            for (io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy
-                    timingNode : presentationGateway.timingNodes()) {
+            for (TimingNodeProxy timingNode
+                    : presentationGateway.timingNodes()) {
                 TimingNodeStatus status =
                         statusByNode.get(
                                 timingNode.timingNodeId());
