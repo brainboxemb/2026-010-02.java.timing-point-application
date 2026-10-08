@@ -4,6 +4,7 @@ import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.Conductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
@@ -18,7 +19,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialSc
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -69,11 +72,14 @@ public class ApplicationConductorTest {
                                 ioWorker),
                         Duration.ofSeconds(1));
 
-        io.github.brainboxemb.eventtiming.timingpoint.domain.system.Conductor
-                systemConductor =
-                        new io.github.brainboxemb.eventtiming.timingpoint.domain.system.Conductor(
-                                Collections.singletonList(node),
-                                manager,
+        List<TimingNode> timingNodes =
+                new ArrayList<TimingNode>();
+        timingNodes.add(node);
+
+        Conductor systemConductor =
+                new Conductor(
+                        timingNodes,
+                        manager,
                                 new SerialExecutor(
                                         8,
                                         "application-conductor-system-test",
