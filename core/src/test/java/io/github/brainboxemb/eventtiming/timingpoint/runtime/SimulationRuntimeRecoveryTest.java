@@ -89,7 +89,7 @@ public class SimulationRuntimeRecoveryTest {
         firstRun.activate();
         try {
             TimingNodeProxy node =
-                    firstRun.presentationGateway().timingNode();
+                    firstRun.presentationGateway().timingNode(new NodeId("A"));
 
             openAndWaitForInventory(
                     firstRun,
@@ -130,7 +130,7 @@ public class SimulationRuntimeRecoveryTest {
                         policy,
                         secondAntenna);
         TimingNodeProxy recoveredNode =
-                secondRun.presentationGateway().timingNode();
+                secondRun.presentationGateway().timingNode(new NodeId("A"));
         AtomicInteger recoveryCommitEvents =
                 new AtomicInteger();
         recoveredNode
