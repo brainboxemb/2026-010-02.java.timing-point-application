@@ -634,8 +634,8 @@ public final class TimingApplicationRuntime {
     }
 
     /**
-     * Stops outer Presentation first, then system Conductor/components,
-     * then Runtime-owned physical workers.
+     * Stops outer Presentation first, then the Application Conductor (which
+     * stops system components in reverse order), then Runtime-owned workers.
      */
     public synchronized void deactivate() {
         shutdownSignal.request();
