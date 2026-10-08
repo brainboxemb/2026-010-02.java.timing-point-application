@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Move operational antenna inventory coordination into a Domain TimingSystemConductor supporting 1..N TimingNodes, retaining a single manager-wide inventory control port and direct observation wiring.
+
 - Add the default/reference EventData identity convention: `TT-A/R-NNNN-{1|2}` physical tags resolve to `RT-A/R-NNNN`; normal registrations resolve directly to TeamId `NNNN`; reserve TeamId remains lookup-driven; `0000` is invalid; the Development Client and simulation fixture use the same identity grammar.
 
 - Add capability-gated simulated-tag scenarios through the real `SimulatedAntenna -> AntennaManager -> TagProcessor -> TimingNode` path, with public `simulation` EventData using `RT-A-0001..RT-A-2000` and physical tag pairs `TT-A-NNNN-1/-2`, deterministic `simple`/`normal`/`edge` profiles, and a Development Client batch driver for count/range/ascending-or-seeded-random selection and scenario interval.
