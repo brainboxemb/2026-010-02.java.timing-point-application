@@ -77,6 +77,15 @@ public class TimingSystemConductorTest {
                 new CountDownLatch(1);
 
         try {
+            /*
+             * Activation schedules an initial control task. Drain that startup
+             * task before filling the capacity-one lane deliberately; otherwise
+             * the blocker may race its pending admission and be rejected FULL.
+             */
+            await(
+                    () -> lane.metrics().snapshot().queueDepth() == 0,
+                    1000L);
+
             assertEquals(
                     SerialExecutor.AdmissionResult.ACCEPTED,
                     lane.offer(
