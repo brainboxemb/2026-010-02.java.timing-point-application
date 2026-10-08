@@ -681,7 +681,19 @@ public final class TimingApplicationRuntime {
     }
 
     AntennaManager antennaManager() {
-        return antennaManager;
+        if (antennaManagers.isEmpty()) {
+            return null;
+        }
+        if (antennaManagers.size() != 1) {
+            throw new IllegalStateException(
+                    "Operation requires at most one AntennaManager; composed="
+                            + antennaManagers.size());
+        }
+        return antennaManagers.get(0);
+    }
+
+    List<AntennaManager> antennaManagers() {
+        return antennaManagers;
     }
 
     public synchronized State state() {
@@ -786,12 +798,14 @@ public final class TimingApplicationRuntime {
      */
     private static AntennaComposition platformDefaultAntennaComposition(
             PlatformEnvironment platform,
+            int timingSystemCount,
             int timingNodeCount) {
         AntennaSet antennas =
                 new AntennaSet();
 
         if (platform.operatingSystem()
                         != OperatingSystem.WINDOWS
+                || timingSystemCount != 1
                 || timingNodeCount != 1) {
             return new AntennaComposition(
                     antennas,
@@ -823,6 +837,40 @@ public final class TimingApplicationRuntime {
             this.antennaSet = antennaSet;
             this.simulatedAntenna = simulatedAntenna;
         }
+    }
+
+    private static List<ResolvedTimingSystem> oneResolvedSystem(
+            Config config,
+            boolean tagScenarioSimulationEnabled,
+            EventData eventData,
+            TimingDataProvider timingDataProvider) {
+        if (config == null) {
+            throw new IllegalArgumentException(
+                    "config must not be null");
+        }
+        if (config.timingSystems().size() != 1) {
+            throw new IllegalArgumentException(
+                    "Simulation composition requires exactly one TimingSystem");
+        }
+        if (eventData == null) {
+            throw new IllegalArgumentException(
+                    "eventData must not be null");
+        }
+        if (timingDataProvider == null) {
+            throw new IllegalArgumentException(
+                    "timingDataProvider must not be null");
+        }
+
+        List<ResolvedTimingSystem> result =
+                new ArrayList<ResolvedTimingSystem>();
+        result.add(
+                new ResolvedTimingSystem(
+                        config.timingSystems().get(0),
+                        tagScenarioSimulationEnabled,
+                        eventData,
+                        timingDataProvider.createFactory(),
+                        timingDataProvider.createCodec()));
+        return result;
     }
 
     private static ApplicationConfiguration createApplicationConfiguration(
@@ -863,9 +911,7 @@ public final class TimingApplicationRuntime {
             BuildIdentity buildIdentity,
             Config config,
             AntennaSet antennaSet,
-            EventData eventData,
-            TimingDataFactory timingDataFactory,
-            TimingDataCodec timingDataCodec,
+            List<ResolvedTimingSystem> resolvedSystems,
             PlatformEnvironment platform) {
         if (buildIdentity == null) {
             throw new IllegalArgumentException(
@@ -884,23 +930,61 @@ public final class TimingApplicationRuntime {
             }
         }
         if (antennaSet == null) {
-            throw new IllegalArgumentException("antennaSet must not be null");
-        }
-        if (eventData == null) {
             throw new IllegalArgumentException(
-                    "eventData must not be null");
+                    "antennaSet must not be null");
         }
-        if (timingDataFactory == null) {
+        if (resolvedSystems == null
+                || resolvedSystems.isEmpty()) {
             throw new IllegalArgumentException(
-                    "timingDataFactory must not be null");
+                    "resolvedSystems must contain at least one TimingSystem");
         }
-        if (timingDataCodec == null) {
+        if (resolvedSystems.size()
+                != config.timingSystems().size()) {
             throw new IllegalArgumentException(
-                    "timingDataCodec must not be null");
+                    "Resolved TimingSystem count does not match configuration");
         }
         if (platform == null) {
             throw new IllegalArgumentException(
                     "platform must not be null");
+        }
+    }
+
+    private static final class ResolvedTimingSystem {
+        private final Config.TimingSystemConfig configuration;
+        private final boolean tagScenarioSimulationEnabled;
+        private final EventData eventData;
+        private final TimingDataFactory timingDataFactory;
+        private final TimingDataCodec timingDataCodec;
+
+        private ResolvedTimingSystem(
+                Config.TimingSystemConfig configuration,
+                boolean tagScenarioSimulationEnabled,
+                EventData eventData,
+                TimingDataFactory timingDataFactory,
+                TimingDataCodec timingDataCodec) {
+            if (configuration == null) {
+                throw new IllegalArgumentException(
+                        "configuration must not be null");
+            }
+            if (eventData == null) {
+                throw new IllegalArgumentException(
+                        "eventData must not be null");
+            }
+            if (timingDataFactory == null) {
+                throw new IllegalArgumentException(
+                        "timingDataFactory must not be null");
+            }
+            if (timingDataCodec == null) {
+                throw new IllegalArgumentException(
+                        "timingDataCodec must not be null");
+            }
+
+            this.configuration = configuration;
+            this.tagScenarioSimulationEnabled =
+                    tagScenarioSimulationEnabled;
+            this.eventData = eventData;
+            this.timingDataFactory = timingDataFactory;
+            this.timingDataCodec = timingDataCodec;
         }
     }
 }
