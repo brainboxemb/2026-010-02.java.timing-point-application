@@ -269,6 +269,67 @@ public class TimingApplicationRuntimeTest {
     }
 
     @Test
+    public void resolvesProvidersPerTimingSystem() {
+        Path root =
+                temporaryFolder
+                        .getRoot()
+                        .toPath();
+
+        List<Config.TimingNodeConfig> firstNodes =
+                new ArrayList<Config.TimingNodeConfig>();
+        firstNodes.add(
+                new Config.TimingNodeConfig(
+                        new NodeId("A"),
+                        root.resolve(
+                                "node_A_logbook.jsonl"),
+                        TagProcessingPolicy.defaults()));
+
+        List<Config.TimingNodeConfig> secondNodes =
+                new ArrayList<Config.TimingNodeConfig>();
+        secondNodes.add(
+                new Config.TimingNodeConfig(
+                        new NodeId("B"),
+                        root.resolve(
+                                "node_B_logbook.jsonl"),
+                        TagProcessingPolicy.defaults()));
+
+        List<Config.TimingSystemConfig> timingSystems =
+                new ArrayList<Config.TimingSystemConfig>();
+        timingSystems.add(
+                new Config.TimingSystemConfig(
+                        "system-one",
+                        firstNodes,
+                        Config.REFERENCE_PROVIDER_ID,
+                        Config.REFERENCE_PROVIDER_ID));
+        timingSystems.add(
+                new Config.TimingSystemConfig(
+                        "system-two",
+                        secondNodes,
+                        "missing-event",
+                        Config.REFERENCE_PROVIDER_ID));
+
+        Config config =
+                new Config(
+                        timingSystems,
+                        new Presentation(null, null),
+                        null,
+                        null);
+
+        try {
+            TimingApplicationRuntime.create(
+                    identity(),
+                    config,
+                    getClass().getClassLoader());
+            fail("expected unknown second-system EventDataProvider rejection");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(
+                    expected.getMessage()
+                            .contains(
+                                    "Unknown EventDataProvider id missing-event"));
+        }
+    }
+
+    @Test
     public void windowsNormalStartupComposesSimulatedAntennaManager()
             throws Exception {
         Path file =
