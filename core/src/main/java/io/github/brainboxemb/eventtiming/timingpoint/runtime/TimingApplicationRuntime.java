@@ -49,8 +49,8 @@ import org.slf4j.LoggerFactory;
  *
  * <p>This is the visible composition root and owner of process-level Runtime
  * resources. Provider discovery is resolved before normal object composition;
- * the Application Conductor owns application lifecycle and each system Conductor owns its TimingNodes
- * components. Runtime owns shared workers and the outer Presentation lifecycle.</p>
+ * the Application Conductor owns application lifecycle and each system Conductor owns its TimingNodes.
+ * Runtime owns shared workers and the outer Presentation lifecycle.</p>
  */
 public final class TimingApplicationRuntime {
     private static final Logger LOG =
