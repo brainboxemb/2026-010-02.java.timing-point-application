@@ -153,7 +153,7 @@ public final class Config {
             String eventDataProviderId,
             String timingDataProviderId) {
         this(
-                singleTimingNode(
+                oneTimingNodeConfig(
                         timingNodeId,
                         timingDataPath,
                         tagProcessingPolicy),
@@ -254,7 +254,7 @@ public final class Config {
      * {@link #timingNode(NodeId)}.</p>
      */
     public NodeId timingNodeId() {
-        return singleTimingNode().timingNodeId();
+        return requireSingleTimingNode().timingNodeId();
     }
 
     public Presentation presentation() {
@@ -271,12 +271,12 @@ public final class Config {
 
     /** Single-node compatibility accessor. */
     public Path timingDataPath() {
-        return singleTimingNode().timingDataPath();
+        return requireSingleTimingNode().timingDataPath();
     }
 
     /** Single-node compatibility accessor. */
     public TagProcessingPolicy tagProcessingPolicy() {
-        return singleTimingNode().tagProcessingPolicy();
+        return requireSingleTimingNode().tagProcessingPolicy();
     }
 
     public String eventDataProviderId() {
@@ -287,7 +287,7 @@ public final class Config {
         return timingDataProviderId;
     }
 
-    private static List<TimingNodeConfig> singleTimingNode(
+    private static List<TimingNodeConfig> oneTimingNodeConfig(
             NodeId timingNodeId,
             Path timingDataPath,
             TagProcessingPolicy tagProcessingPolicy) {
@@ -301,7 +301,7 @@ public final class Config {
         return result;
     }
 
-    private TimingNodeConfig singleTimingNode() {
+    private TimingNodeConfig requireSingleTimingNode() {
         if (timingNodes.size() != 1) {
             throw new IllegalStateException(
                     "Operation requires exactly one TimingNode; configured="
