@@ -72,10 +72,10 @@ final class RuntimeExecutors implements AutoCloseable {
     private final ScheduledThreadPoolExecutor tagProcessorWorker;
 
     /**
-     * Shared worker for application-level coordination lanes.
+     * Shared worker for TimingSystem coordination lanes.
      *
-     * <p>Application coordination must not run synchronously on the emitting
-     * Domain or I/O component thread. Logical application lanes therefore use
+     * <p>TimingSystem coordination must not run synchronously on the emitting
+     * Domain or I/O component thread. Logical system-Conductor lanes therefore use
      * this separate worker.</p>
      */
     private final ThreadPoolExecutor coordinationWorker;
@@ -177,7 +177,7 @@ final class RuntimeExecutors implements AutoCloseable {
      * Creates a logical coordination lane for one Domain system Conductor.
      *
      * <p>The lane is logically owned by that system Conductor. Runtime owns the physical
-     * application worker underneath it.</p>
+     * coordination worker underneath it.</p>
      */
     synchronized SerialExecutor createSystemConductorExecutor() {
         SerialExecutor conductor =
