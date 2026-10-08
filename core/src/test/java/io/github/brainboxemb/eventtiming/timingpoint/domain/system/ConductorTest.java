@@ -69,6 +69,7 @@ public class ConductorTest {
                         manager,
                         lane);
 
+        manager.activate();
         conductor.activate();
 
         CountDownLatch blockerStarted =
@@ -121,6 +122,7 @@ public class ConductorTest {
         } finally {
             releaseBlocker.countDown();
             conductor.deactivate();
+            manager.deactivate();
         }
     }
 
@@ -142,6 +144,7 @@ public class ConductorTest {
                         manager,
                         lane);
 
+        manager.activate();
         conductor.activate();
 
         try {
@@ -163,6 +166,7 @@ public class ConductorTest {
                     antenna.inventoryRunning());
         } finally {
             conductor.deactivate();
+            manager.deactivate();
         }
     }
 
@@ -184,6 +188,7 @@ public class ConductorTest {
                         manager,
                         lane);
 
+        manager.activate();
         conductor.activate();
         try {
             first.invoke(TimingNodeCommands.open(new LocationId(24)));
@@ -207,6 +212,7 @@ public class ConductorTest {
             await(() -> !antenna.inventoryRunning(), 1000L);
         } finally {
             conductor.deactivate();
+            manager.deactivate();
         }
     }
 
