@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
@@ -14,6 +15,10 @@ import java.nio.ByteBuffer;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -51,6 +56,8 @@ public final class WebSocketEndpoint implements AutoCloseable {
     private final Clock clock;
     private final TimingDataCodec timingDataCodec;
     private final WebSocketOutboundDelivery outboundDelivery;
+    private final Map<NodeId, TimingNodeStatus> statusByNode =
+            new LinkedHashMap<NodeId, TimingNodeStatus>();
 
     private Server server;
 
@@ -102,6 +109,8 @@ public final class WebSocketEndpoint implements AutoCloseable {
         if (server != null) {
             throw new IllegalStateException("WebSocket IF-03 server is already started");
         }
+
+        refreshStatusSnapshot();
 
         InetSocketAddress address =
                 new InetSocketAddress(InetAddress.getByName(bindAddress), port);
@@ -155,7 +164,16 @@ public final class WebSocketEndpoint implements AutoCloseable {
      * Composition-wired application event callback.
      */
     public void onTimingNodeStatusChanged(
-            TimingNodeStatus ignored) {
+            TimingNodeStatus status) {
+        if (status == null) {
+            throw new IllegalArgumentException(
+                    "status must not be null");
+        }
+        synchronized (statusByNode) {
+            statusByNode.put(
+                    status.timingNodeId(),
+                    status);
+        }
         broadcastStatus("STATUS_CHANGED");
     }
 
@@ -202,6 +220,36 @@ public final class WebSocketEndpoint implements AutoCloseable {
         return server;
     }
 
+    private void refreshStatusSnapshot() {
+        List<TimingNodeStatus> statuses =
+                presentationGateway.timingNodeStatuses();
+        synchronized (statusByNode) {
+            statusByNode.clear();
+            for (TimingNodeStatus status : statuses) {
+                statusByNode.put(
+                        status.timingNodeId(),
+                        status);
+            }
+        }
+    }
+
+    private List<TimingNodeStatus> currentStatuses() {
+        List<TimingNodeStatus> statuses =
+                new ArrayList<TimingNodeStatus>();
+        synchronized (statusByNode) {
+            for (io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy
+                    timingNode : presentationGateway.timingNodes()) {
+                TimingNodeStatus status =
+                        statusByNode.get(
+                                timingNode.timingNodeId());
+                if (status != null) {
+                    statuses.add(status);
+                }
+            }
+        }
+        return statuses;
+    }
+
     private void broadcastStatus(
             String eventType) {
         Server current = currentServer();
@@ -210,8 +258,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
                     MessageWriter.statusEvent(
                             eventType,
                             clock.instant(),
-                            presentationGateway
-                                    .timingNodeStatuses()));
+                            currentStatuses()));
         }
     }
 
@@ -219,8 +266,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
         return MessageWriter.statusEvent(
                 "STATUS_SNAPSHOT",
                 clock.instant(),
-                presentationGateway
-                        .timingNodeStatuses());
+                currentStatuses());
     }
 
     @Override
