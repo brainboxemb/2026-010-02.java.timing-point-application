@@ -20,7 +20,9 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Test;
@@ -491,7 +493,7 @@ public class HttpEndpointTest {
         PresentationGateway handler =
                 new PresentationGateway(
                         identity(),
-                        node,
+                        nodes(node),
                         PresentationGatewayFixture.configurationControl(
                                 new NodeId("A")));
         node.activate();
@@ -624,6 +626,16 @@ public class HttpEndpointTest {
             }
         }
         return result.toString();
+    }
+
+    private static List<TimingNode> nodes(
+            TimingNode... timingNodes) {
+        List<TimingNode> result =
+                new ArrayList<TimingNode>();
+        Collections.addAll(
+                result,
+                timingNodes);
+        return result;
     }
 
     private static final class Fixture implements AutoCloseable {
