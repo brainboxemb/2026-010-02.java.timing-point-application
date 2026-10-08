@@ -6,7 +6,6 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
-import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -49,7 +48,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
     private final String bindAddress;
     private final int port;
     private final PresentationGateway presentationGateway;
-    private final TimingNodeProxy timingNode;
     private final Clock clock;
     private final TimingDataCodec timingDataCodec;
     private final WebSocketOutboundDelivery outboundDelivery;
@@ -88,7 +86,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
         this.bindAddress = bindAddress.trim();
         this.port = port;
         this.presentationGateway = presentationGateway;
-        this.timingNode = presentationGateway.timingNode();
         this.clock = clock;
         this.timingDataCodec = new DefaultTimingDataCodec();
         this.outboundDelivery =
@@ -151,22 +148,15 @@ public final class WebSocketEndpoint implements AutoCloseable {
      * published automatically from the PresentationGateway subscription.</p>
      */
     public void publishStatusChanged() {
-        onTimingNodeStatusChanged(timingNode.status());
+        broadcastStatus("STATUS_CHANGED");
     }
 
     /**
      * Composition-wired application event callback.
      */
     public void onTimingNodeStatusChanged(
-            TimingNodeStatus status) {
-        Server current = currentServer();
-        if (current != null) {
-            current.broadcastEvent(
-                    MessageWriter.statusEvent(
-                            "STATUS_CHANGED",
-                            clock.instant(),
-                            status));
-        }
+            TimingNodeStatus ignored) {
+        broadcastStatus("STATUS_CHANGED");
     }
 
     /**
@@ -212,11 +202,25 @@ public final class WebSocketEndpoint implements AutoCloseable {
         return server;
     }
 
+    private void broadcastStatus(
+            String eventType) {
+        Server current = currentServer();
+        if (current != null) {
+            current.broadcastEvent(
+                    MessageWriter.statusEvent(
+                            eventType,
+                            clock.instant(),
+                            presentationGateway
+                                    .timingNodeStatuses()));
+        }
+    }
+
     private String snapshotJson() {
         return MessageWriter.statusEvent(
                 "STATUS_SNAPSHOT",
                 clock.instant(),
-                timingNode.status());
+                presentationGateway
+                        .timingNodeStatuses());
     }
 
     @Override
