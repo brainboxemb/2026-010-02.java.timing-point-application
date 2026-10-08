@@ -39,7 +39,7 @@ public class VcSt1_004Test {
         Throwable evidenceFailure = null;
 
         try {
-            writeMismatchedTimingData(evidence);
+            writeMismatchedTimingData(fixture);
 
             run = fixture.start(
                     fixture.writeConfiguration("application.yml", ports),
@@ -111,7 +111,7 @@ public class VcSt1_004Test {
     }
 
     private static void writeMismatchedTimingData(
-            BlackBoxEvidence evidence)
+            TimingApplicationFixture fixture)
             throws Exception {
         String record = "{"
                 + "\"v\":1,"
@@ -125,7 +125,7 @@ public class VcSt1_004Test {
                 + "\"recTime\":\"2026-10-01T12:00:01Z\""
                 + "}\n";
         Files.write(
-                evidence.file("timing-data.jsonl").toPath(),
+                fixture.logBookFile().toPath(),
                 record.getBytes(StandardCharsets.UTF_8));
     }
 
