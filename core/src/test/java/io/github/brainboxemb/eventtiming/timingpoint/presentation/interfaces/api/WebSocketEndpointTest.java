@@ -439,7 +439,7 @@ public class WebSocketEndpointTest {
             handler =
                     new PresentationGateway(
                             identity(),
-                            node,
+                            nodes(node),
                             PresentationGatewayFixture.configurationControl(
                                     new NodeId("A")));
         }
