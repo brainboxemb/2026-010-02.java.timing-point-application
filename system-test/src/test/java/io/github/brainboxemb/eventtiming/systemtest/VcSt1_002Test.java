@@ -24,6 +24,7 @@ public class VcSt1_002Test {
     private static final String NODE_ID = "A";
     private static final String REGISTRATION_ID = "N0001";
     private static final String OBSERVATION_TIME = "2026-10-01T12:00:00Z";
+    private static final String EXPECTED_WIRE_TIME = "2026-10-01T12:00:00.00Z";
 
     @Test
     public void controlsCommitsReconnectsRestartsAndRecoversLogBook()
@@ -270,7 +271,7 @@ public class VcSt1_002Test {
         assertContains(json, "\"recType\":\"AUTO_REG\"");
         assertContains(
                 json,
-                "\"time\":\"" + OBSERVATION_TIME + "\"");
+                "\"time\":\"" + EXPECTED_WIRE_TIME + "\"");
         assertContains(
                 json,
                 "\"regId\":\"" + REGISTRATION_ID + "\"");
