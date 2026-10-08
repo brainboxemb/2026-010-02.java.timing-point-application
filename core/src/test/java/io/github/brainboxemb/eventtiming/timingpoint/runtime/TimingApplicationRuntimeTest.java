@@ -116,7 +116,7 @@ public class TimingApplicationRuntimeTest {
                                     new AntennaId("1"))
                             .operation());
 
-            application.timingNode(new NodeId("A")).invoke(
+            application.timingNode().invoke(
                     TimingNodeCommands.open(
                             new LocationId(24)));
 
@@ -129,7 +129,7 @@ public class TimingApplicationRuntimeTest {
                             == AntennaOperation.INVENTORY,
                     1000L);
 
-            application.timingNode(new NodeId("A")).invoke(
+            application.timingNode().invoke(
                     TimingNodeCommands.close());
 
             await(
@@ -334,14 +334,14 @@ public class TimingApplicationRuntimeTest {
         try {
             assertFalse(antenna.inventoryRunning());
 
-            application.timingNode(new NodeId("A")).invoke(
+            application.timingNode().invoke(
                     TimingNodeCommands.open(new LocationId(24)));
             await(antenna::inventoryRunning, 1000L);
 
             CountDownLatch committed = new CountDownLatch(1);
             AtomicReference<AutomaticRegistration> automatic =
                     new AtomicReference<>();
-            application.timingNode(new NodeId("A")).timingDataCommittedEvent().subscribe(data -> {
+            application.timingNode().timingDataCommittedEvent().subscribe(data -> {
                 if (data instanceof AutomaticRegistration) {
                     automatic.set((AutomaticRegistration) data);
                     committed.countDown();
@@ -363,7 +363,7 @@ public class TimingApplicationRuntimeTest {
                     automatic.get().registrationId());
             assertEquals(observedAt, automatic.get().effectiveTime());
 
-            application.timingNode(new NodeId("A")).invoke(
+            application.timingNode().invoke(
                     TimingNodeCommands.close());
             await(() -> !antenna.inventoryRunning(), 1000L);
         } finally {
