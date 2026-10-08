@@ -51,6 +51,12 @@ public final class TimingNodeProxy {
         timingNode.statusChangedEvent().subscribe(this::updateStatus);
     }
 
+    /** Returns the stable identity of the proxied TimingNode. */
+    public io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId
+            timingNodeId() {
+        return timingNode.timingNodeId();
+    }
+
     /** Returns the current authoritative node status. */
     public TimingNodeStatus status() {
         return timingNodeStatus(
