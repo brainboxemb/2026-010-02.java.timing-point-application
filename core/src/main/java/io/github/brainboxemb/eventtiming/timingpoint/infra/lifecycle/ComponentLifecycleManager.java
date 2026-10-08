@@ -16,7 +16,7 @@ import org.slf4j.LoggerFactory;
  * when a later activation fails, and deactivates active components in reverse
  * order.</p>
  */
-final class ComponentLifecycleManager {
+public final class ComponentLifecycleManager {
     private static final Logger LOG =
             LoggerFactory.getLogger(ComponentLifecycleManager.class);
 
@@ -52,7 +52,7 @@ final class ComponentLifecycleManager {
      * <p>Registration is intentionally available only before activation. The
      * reverse of this order is used for rollback and normal deactivation.</p>
      */
-    synchronized void register(
+    public synchronized void register(
             String name,
             Runnable activate,
             Runnable deactivate) {
@@ -87,7 +87,7 @@ final class ComponentLifecycleManager {
      * deactivated, in reverse order. The original failure remains primary and
      * rollback failures are attached as suppressed failures.</p>
      */
-    synchronized void activateAll() {
+    public synchronized void activateAll() {
         if (state == State.ACTIVE) {
             throw new IllegalStateException("Components are already active");
         }
@@ -123,7 +123,7 @@ final class ComponentLifecycleManager {
     /**
      * Deactivates active components in reverse activation order.
      */
-    synchronized void deactivateAll() {
+    public synchronized void deactivateAll() {
         if (state == State.INACTIVE) {
             return;
         }
