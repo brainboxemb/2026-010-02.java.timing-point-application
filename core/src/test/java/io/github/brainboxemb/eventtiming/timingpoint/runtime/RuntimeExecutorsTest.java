@@ -80,7 +80,7 @@ public class RuntimeExecutorsTest {
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
         SerialExecutor conductor =
-                runtime.createTimingSystemConductorExecutor();
+                runtime.createConductorExecutor();
         runtime.start();
 
         AtomicReference<String> threadName =
