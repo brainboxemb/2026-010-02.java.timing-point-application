@@ -78,7 +78,7 @@ final class RuntimeExecutors implements AutoCloseable {
      * Domain or I/O component thread. Logical application lanes therefore use
      * this separate worker.</p>
      */
-    private final ThreadPoolExecutor applicationWorker;
+    private final ThreadPoolExecutor coordinationWorker;
 
     /**
      * Shared physical I/O worker. It is scheduled-capable because AntennaManager
@@ -104,13 +104,13 @@ final class RuntimeExecutors implements AutoCloseable {
                 threadFactory("tp-dml-tagproc-worker"));
         tagProcessorWorker.setRemoveOnCancelPolicy(true);
 
-        applicationWorker = new ThreadPoolExecutor(
+        coordinationWorker = new ThreadPoolExecutor(
                 1,
                 1,
                 0L,
                 TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>(),
-                threadFactory("tp-apl-worker"),
+                threadFactory("tp-system-coord-worker"),
                 new ThreadPoolExecutor.AbortPolicy());
 
         sharedIoWorker = new ScheduledThreadPoolExecutor(
@@ -137,7 +137,7 @@ final class RuntimeExecutors implements AutoCloseable {
 
         timingNodeWorker.prestartAllCoreThreads();
         tagProcessorWorker.prestartAllCoreThreads();
-        applicationWorker.prestartAllCoreThreads();
+        coordinationWorker.prestartAllCoreThreads();
         sharedIoWorker.prestartAllCoreThreads();
         started = true;
     }
@@ -184,7 +184,7 @@ final class RuntimeExecutors implements AutoCloseable {
                 new SerialExecutor(
                         CONDUCTOR_QUEUE_CAPACITY,
                         "TimingSystemConductor",
-                        applicationWorker);
+                        coordinationWorker);
         serialLanes.add(conductor);
         return conductor;
     }
@@ -244,12 +244,12 @@ final class RuntimeExecutors implements AutoCloseable {
 
         tagProcessorWorker.shutdownNow();
         timingNodeWorker.shutdownNow();
-        applicationWorker.shutdownNow();
+        coordinationWorker.shutdownNow();
         sharedIoWorker.shutdownNow();
 
         awaitTermination(tagProcessorWorker);
         awaitTermination(timingNodeWorker);
-        awaitTermination(applicationWorker);
+        awaitTermination(coordinationWorker);
         awaitTermination(sharedIoWorker);
     }
 

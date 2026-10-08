@@ -145,8 +145,7 @@ public class TimingSystemConductorTest {
              * rereads the authoritative current OPEN state and emits its own
              * changedEvent, which makes Conductor enable inventory.
              */
-            conductor.timingNodeStateProperty()
-                    .signalChanged();
+            conductor.signalTimingNodeStateChanged(node);
 
             await(
                     antenna::inventoryRunning,

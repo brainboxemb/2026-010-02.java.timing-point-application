@@ -76,11 +76,11 @@ public class RuntimeExecutorsTest {
     }
 
     @Test
-    public void conductorUsesSeparateApplicationWorker()
+    public void conductorUsesSharedSystemCoordinationWorker()
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
         SerialExecutor conductor =
-                runtime.createConductorExecutor();
+                runtime.createTimingSystemConductorExecutor();
         runtime.start();
 
         AtomicReference<String> threadName =
@@ -103,7 +103,7 @@ public class RuntimeExecutorsTest {
                             1,
                             TimeUnit.SECONDS));
             assertEquals(
-                    "tp-apl-worker",
+                    "tp-system-coord-worker",
                     threadName.get());
         } finally {
             conductor.close();
