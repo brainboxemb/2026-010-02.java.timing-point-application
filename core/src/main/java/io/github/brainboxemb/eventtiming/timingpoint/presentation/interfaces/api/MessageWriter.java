@@ -12,6 +12,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTyp
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 
 import java.nio.charset.StandardCharsets;
+import Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Explicit JSON mapping for the IF-03 v1 contract. */
 public final class MessageWriter {
@@ -107,8 +110,8 @@ public final class MessageWriter {
 
     public static String status(
             TimingNodeStatus status) {
-        java.util.List<TimingNodeStatus> statuses =
-                new java.util.ArrayList<TimingNodeStatus>();
+        List<TimingNodeStatus> statuses =
+                new ArrayList<TimingNodeStatus>();
         statuses.add(status);
         return status(statuses);
     }
@@ -180,7 +183,7 @@ public final class MessageWriter {
 
     public static String statusEvent(
             String eventType,
-            java.time.Instant occurredAt,
+            Instant occurredAt,
             Iterable<TimingNodeStatus> statuses) {
         if (eventType == null || eventType.trim().isEmpty()) {
             throw new IllegalArgumentException(
@@ -203,10 +206,10 @@ public final class MessageWriter {
 
     public static String statusEvent(
             String eventType,
-            java.time.Instant occurredAt,
+            Instant occurredAt,
             TimingNodeStatus status) {
-        java.util.List<TimingNodeStatus> statuses =
-                new java.util.ArrayList<TimingNodeStatus>();
+        List<TimingNodeStatus> statuses =
+                new ArrayList<TimingNodeStatus>();
         statuses.add(status);
         return statusEvent(
                 eventType,
@@ -215,7 +218,7 @@ public final class MessageWriter {
     }
 
     public static String timingDataEvent(
-            java.time.Instant occurredAt,
+            Instant occurredAt,
             TimingData data,
             TimingDataCodec codec)
             throws TimingDataCodec.CodecException {
@@ -261,7 +264,7 @@ public final class MessageWriter {
     }
 
     public static String configurationChangedEvent(
-            java.time.Instant occurredAt,
+            Instant occurredAt,
             ConfigurationControl.Change change) {
         if (occurredAt == null) {
             throw new IllegalArgumentException(
