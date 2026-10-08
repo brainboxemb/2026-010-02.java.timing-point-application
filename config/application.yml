@@ -22,7 +22,7 @@ io:
   storage:
     timingData:
       # Reference persistence for the configured TimingNode.
-      path: data/timing-data.jsonl
+      path: data/node_A_logbook.jsonl
 
 presentation:
   remoteShell:

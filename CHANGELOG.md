@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Compose 1..N TimingNodes inside the current single TimingSystem: load all configured nodes, resolve a unique per-node LogBook file such as `node_A_logbook.jsonl`, create node-local persistence/execution lanes, coordinate the full node list with one system Conductor, and expose all nodes through Presentation. Multi-node composition does not use the temporary implicit Windows antenna fallback.
+
 - Rename the application lifecycle coordinator to `ApplicationConductor`, keep `domain.system.Conductor` for TimingSystem coordination, and allow Runtime to register 1..N systems without fully qualified type names.
 
 - Restore separate Application and TimingSystem Conductor responsibilities: Application orders AntennaManager/system lifecycle; each system Conductor owns its TimingNodes and directly drives AntennaManager inventory; remove the temporary InventoryControl interface.

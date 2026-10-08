@@ -69,7 +69,7 @@ public final class TimingApplicationRuntime {
             Duration.ofMillis(200);
 
     private final BuildIdentity buildIdentity;
-    private final TimingNode timingNode;
+    private final List<TimingNode> timingNodes;
     private final ApplicationConfiguration configuration;
     private final PresentationGateway presentationGateway;
     private final RuntimeExecutors runtimeExecutors;
@@ -83,7 +83,7 @@ public final class TimingApplicationRuntime {
 
     private TimingApplicationRuntime(
             BuildIdentity buildIdentity,
-            TimingNode timingNode,
+            List<TimingNode> timingNodes,
             ApplicationConfiguration configuration,
             PresentationGateway presentationGateway,
             RuntimeExecutors runtimeExecutors,
@@ -93,7 +93,10 @@ public final class TimingApplicationRuntime {
             PresentationRuntime presentationRuntime,
             ShutdownSignal shutdownSignal) {
         this.buildIdentity = buildIdentity;
-        this.timingNode = timingNode;
+        this.timingNodes =
+                Collections.unmodifiableList(
+                        new ArrayList<TimingNode>(
+                                timingNodes));
         this.configuration = configuration;
         this.presentationGateway = presentationGateway;
         this.runtimeExecutors = runtimeExecutors;
@@ -251,7 +254,8 @@ public final class TimingApplicationRuntime {
 
         AntennaComposition antennas =
                 platformDefaultAntennaComposition(
-                        platform);
+                        platform,
+                        config.timingNodes().size());
 
         return createConfigured(
                 buildIdentity,
@@ -415,54 +419,66 @@ public final class TimingApplicationRuntime {
                 platform);
 
         ApplicationConfiguration applicationConfiguration =
-                ApplicationConfiguration.singleTimingNode(
-                        config.timingNodeId(),
-                        config.tagProcessingPolicy());
+                createApplicationConfiguration(
+                        config);
 
         RuntimeExecutors executors =
                 new RuntimeExecutors();
 
         try {
-            RuntimeExecutors.TimingNodeExecutors nodeExecutors =
-                    executors.createTimingNodeExecutors();
-
-            TimingDataPersistence persistence =
-                    new DefaultTimingDataPersistence(
-                            new FileAppendOnlyRecordStore(
-                                    config.timingDataPath()),
-                            config.timingNodeId(),
-                            timingDataCodec);
-
             RuntimeTimeSources runtimeTimeSources =
                     new RuntimeTimeSources(
                             platform);
 
             /*
-             * One TimeSource is created for the current timing context and may
-             * be shared by every Domain/I/O component that must use the same
-             * timing basis. Future multi-system composition may create another
-             * source for another context.
+             * All TimingNodes in one TimingSystem share the same timing basis.
+             * A later multi-TimingSystem composition may create another source
+             * for another system context.
              */
             TimeSource timeSource =
                     runtimeTimeSources.createTimeSource();
 
-            TimingNode timingNode =
-                    new TimingNode(
-                            config.timingNodeId(),
-                            persistence,
-                            timingDataFactory,
-                            timeSource,
-                            applicationConfiguration
-                                    .timingNode(
-                                            config.timingNodeId())
-                                    .tagProcessing(),
-                            eventData,
-                            nodeExecutors.timingNode(),
-                            nodeExecutors.tagProcessor(),
-                            platform.monotonicClock());
+            List<TimingNode> timingNodes =
+                    new ArrayList<TimingNode>(
+                            config.timingNodes().size());
+
+            for (Config.TimingNodeConfig nodeConfig
+                    : config.timingNodes()) {
+                RuntimeExecutors.TimingNodeExecutors nodeExecutors =
+                        executors.createTimingNodeExecutors();
+
+                TimingDataPersistence persistence =
+                        new DefaultTimingDataPersistence(
+                                new FileAppendOnlyRecordStore(
+                                        nodeConfig.timingDataPath()),
+                                nodeConfig.timingNodeId(),
+                                timingDataCodec);
+
+                TimingNode timingNode =
+                        new TimingNode(
+                                nodeConfig.timingNodeId(),
+                                persistence,
+                                timingDataFactory,
+                                timeSource,
+                                applicationConfiguration
+                                        .timingNode(
+                                                nodeConfig
+                                                        .timingNodeId())
+                                        .tagProcessing(),
+                                eventData,
+                                nodeExecutors.timingNode(),
+                                nodeExecutors.tagProcessor(),
+                                platform.monotonicClock());
+                timingNodes.add(
+                        timingNode);
+            }
 
             AntennaManager antennaManager = null;
             if (!antennaSet.isEmpty()) {
+                if (timingNodes.size() != 1) {
+                    throw new IllegalArgumentException(
+                            "Multi-node antenna routing must be explicitly configured");
+                }
                 antennaManager =
                         new AntennaManager(
                                 antennaSet,
@@ -470,10 +486,6 @@ public final class TimingApplicationRuntime {
                                         .createAntennaControlExecutor(),
                                 ANTENNA_CONTROL_TIMEOUT);
             }
-
-            List<TimingNode> timingNodes =
-                    new ArrayList<TimingNode>();
-            timingNodes.add(timingNode);
 
             Conductor systemConductor =
                     new Conductor(
@@ -493,7 +505,8 @@ public final class TimingApplicationRuntime {
                             applicationConfiguration);
 
             SimulatedTagScenarioRunner simulationRunner =
-                    !tagScenarioSimulationEnabled
+                    timingNodes.size() != 1
+                                    || !tagScenarioSimulationEnabled
                                     || simulatedAntenna == null
                                     || eventData.isEmpty()
                             ? null
@@ -527,21 +540,30 @@ public final class TimingApplicationRuntime {
             /*
              * Cross-component relationships stay visible at composition.
              */
-            timingNode.statusChangedEvent()
-                    .subscribe(
-                            ignored ->
-                                    systemConductor.signalTimingNodeStateChanged(timingNode));
+            for (TimingNode timingNode : timingNodes) {
+                timingNode.statusChangedEvent()
+                        .subscribe(
+                                ignored ->
+                                        systemConductor
+                                                .signalTimingNodeStateChanged(
+                                                        timingNode));
+            }
 
             if (antennaManager != null) {
+                TimingNode timingNode =
+                        timingNodes.get(0);
                 for (AntennaId antennaId : antennaSet.antennaIds()) {
                     antennaManager.tagObservedEvent(antennaId)
-                            .subscribe(timingNode.tagProcessor()::onTagObserved);
+                            .subscribe(
+                                    timingNode
+                                            .tagProcessor()
+                                            ::onTagObserved);
                 }
             }
 
             return new TimingApplicationRuntime(
                     buildIdentity,
-                    timingNode,
+                    timingNodes,
                     applicationConfiguration,
                     presentationGateway,
                     executors,
@@ -616,7 +638,16 @@ public final class TimingApplicationRuntime {
     }
 
     TimingNode timingNode() {
-        return timingNode;
+        if (timingNodes.size() != 1) {
+            throw new IllegalStateException(
+                    "Operation requires exactly one TimingNode; composed="
+                            + timingNodes.size());
+        }
+        return timingNodes.get(0);
+    }
+
+    List<TimingNode> timingNodes() {
+        return timingNodes;
     }
 
     AntennaManager antennaManager() {
@@ -724,12 +755,14 @@ public final class TimingApplicationRuntime {
      * configuration is composed by the normal runtime mapper.
      */
     private static AntennaComposition platformDefaultAntennaComposition(
-            PlatformEnvironment platform) {
+            PlatformEnvironment platform,
+            int timingNodeCount) {
         AntennaSet antennas =
                 new AntennaSet();
 
         if (platform.operatingSystem()
-                != OperatingSystem.WINDOWS) {
+                        != OperatingSystem.WINDOWS
+                || timingNodeCount != 1) {
             return new AntennaComposition(
                     antennas,
                     null);
@@ -760,6 +793,20 @@ public final class TimingApplicationRuntime {
             this.antennaSet = antennaSet;
             this.simulatedAntenna = simulatedAntenna;
         }
+    }
+
+    private static ApplicationConfiguration createApplicationConfiguration(
+            Config config) {
+        Map<NodeId, TagProcessingPolicy> startupPolicies =
+                new LinkedHashMap<NodeId, TagProcessingPolicy>();
+        for (Config.TimingNodeConfig timingNode
+                : config.timingNodes()) {
+            startupPolicies.put(
+                    timingNode.timingNodeId(),
+                    timingNode.tagProcessingPolicy());
+        }
+        return new ApplicationConfiguration(
+                startupPolicies);
     }
 
     private static ConfigurationControl createConfigurationControl(
@@ -798,9 +845,13 @@ public final class TimingApplicationRuntime {
             throw new IllegalArgumentException(
                     "config must not be null");
         }
-        if (config.timingDataPath() == null) {
-            throw new IllegalArgumentException(
-                    "TimingData storage path must be configured before composition");
+        for (Config.TimingNodeConfig timingNode
+                : config.timingNodes()) {
+            if (timingNode.timingDataPath() == null) {
+                throw new IllegalArgumentException(
+                        "TimingData storage path must be configured for TimingNode "
+                                + timingNode.timingNodeId().value());
+            }
         }
         if (antennaSet == null) {
             throw new IllegalArgumentException("antennaSet must not be null");
