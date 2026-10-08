@@ -547,7 +547,7 @@ public final class TimingApplicationRuntime {
                     executors,
                     antennaManager,
                     simulationRunner,
-                    conductor,
+                    applicationConductor,
                     presentation,
                     shutdownSignal);
         } catch (RuntimeException | Error failure) {
