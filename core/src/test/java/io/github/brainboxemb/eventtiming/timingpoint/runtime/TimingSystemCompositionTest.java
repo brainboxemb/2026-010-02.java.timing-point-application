@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
@@ -87,6 +88,44 @@ public class TimingSystemCompositionTest {
                     first.status(new AntennaId("1")).operation());
         } finally {
             application.deactivate();
+        }
+    }
+
+    @Test
+    public void resolvedSystemListRejectsDuplicateTimingSystemId() {
+        DefaultTimingDataProvider timingData =
+                new DefaultTimingDataProvider();
+        TimingSystemResolvedDataList systems =
+                new TimingSystemResolvedDataList();
+
+        systems.add(
+                new TimingSystemResolvedData(
+                        new Config.TimingSystemConfig(
+                                "system-A",
+                                Collections.singletonList(node("A")),
+                                Config.REFERENCE_PROVIDER_ID,
+                                Config.REFERENCE_PROVIDER_ID),
+                        false,
+                        EventData.empty(),
+                        timingData.createFactory(),
+                        timingData.createCodec()));
+
+        try {
+            systems.add(
+                    new TimingSystemResolvedData(
+                            new Config.TimingSystemConfig(
+                                    "system-A",
+                                    Collections.singletonList(node("B")),
+                                    Config.REFERENCE_PROVIDER_ID,
+                                    Config.REFERENCE_PROVIDER_ID),
+                            false,
+                            EventData.empty(),
+                            timingData.createFactory(),
+                            timingData.createCodec()));
+            fail("Expected duplicate TimingSystem id to be rejected");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains(
+                    "Duplicate TimingSystem id system-A"));
         }
     }
 

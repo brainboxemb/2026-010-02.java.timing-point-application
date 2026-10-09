@@ -30,6 +30,14 @@ public final class TimingNodeList implements Iterable<TimingNode> {
         return this;
     }
 
+    public TimingNodeList copy() {
+        TimingNodeList copy = new TimingNodeList();
+        for (TimingNode node : nodes) {
+            copy.add(node);
+        }
+        return copy;
+    }
+
     public boolean isEmpty() {
         return nodes.isEmpty();
     }
