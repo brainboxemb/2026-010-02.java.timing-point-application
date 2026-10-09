@@ -35,7 +35,12 @@ $OutputDir = if ([string]::IsNullOrWhiteSpace($Destination)) {
 
 Push-Location $RepoRoot
 try {
-    & $Maven -f "test-client\pom.xml" -DeventTiming.buildOrigin=local clean package
+    $packageArgs = @(
+        "-f", "test-client\pom.xml",
+        "-DeventTiming.buildOrigin=local",
+        "clean", "package"
+    )
+    & $Maven @packageArgs
     if ($LASTEXITCODE -ne 0) {
         throw "Engineering Client Maven package failed."
     }
