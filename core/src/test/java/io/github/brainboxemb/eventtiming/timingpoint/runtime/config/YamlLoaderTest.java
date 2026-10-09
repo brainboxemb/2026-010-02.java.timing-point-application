@@ -47,6 +47,152 @@ public class YamlLoaderTest {
     }
 
     @Test
+    public void resolvesParametersAndContextualStoragePath()
+            throws Exception {
+        Config config =
+                load(
+                        "parameters:\n"
+                                + "  ID: A\n"
+                                + "timingSystems:\n"
+                                + "  primary:\n"
+                                + "    timingSystemId: SID-{ID}\n"
+                                + "    timingNodes:\n"
+                                + "      primary:\n"
+                                + "        timingNodeId: \"{ID}\"\n"
+                                + "io:\n"
+                                + "  storage:\n"
+                                + "    timingData:\n"
+                                + "      path: data/node-{NodeId}-logbook.jsonl\n");
+
+        assertEquals(
+                "SID-A",
+                config.timingSystems()
+                        .get(0)
+                        .timingSystemId());
+        assertEquals(
+                "A",
+                config.timingNodeId().value());
+        assertEquals(
+                Paths.get(
+                        "data",
+                        "node-A-logbook.jsonl"),
+                config.timingDataPath());
+    }
+
+    @Test
+    public void expandsContextualStoragePathForMultipleTimingNodes()
+            throws Exception {
+        Config config =
+                load(
+                        twoTimingNodes()
+                                + "io:\n"
+                                + "  storage:\n"
+                                + "    timingData:\n"
+                                + "      path: data/node-{NodeId}-logbook.jsonl\n");
+
+        assertEquals(
+                Paths.get(
+                        "data",
+                        "node-A-logbook.jsonl"),
+                config.timingNode(
+                                new NodeId("A"))
+                        .timingDataPath());
+        assertEquals(
+                Paths.get(
+                        "data",
+                        "node-B-logbook.jsonl"),
+                config.timingNode(
+                                new NodeId("B"))
+                        .timingDataPath());
+    }
+
+    @Test
+    public void expandsSystemIdInContextualStoragePath()
+            throws Exception {
+        Config config =
+                load(
+                        "timingSystems:\n"
+                                + "  first:\n"
+                                + "    timingSystemId: SID-A\n"
+                                + "    timingNodes:\n"
+                                + "      node-a:\n"
+                                + "        timingNodeId: A\n"
+                                + "  second:\n"
+                                + "    timingSystemId: SID-B\n"
+                                + "    timingNodes:\n"
+                                + "      node-b:\n"
+                                + "        timingNodeId: B\n"
+                                + "io:\n"
+                                + "  storage:\n"
+                                + "    timingData:\n"
+                                + "      path: data/{SystemId}/node-{NodeId}.jsonl\n");
+
+        assertEquals(
+                Paths.get(
+                        "data",
+                        "SID-A",
+                        "node-A.jsonl"),
+                config.timingNode(
+                                new NodeId("A"))
+                        .timingDataPath());
+        assertEquals(
+                Paths.get(
+                        "data",
+                        "SID-B",
+                        "node-B.jsonl"),
+                config.timingNode(
+                                new NodeId("B"))
+                        .timingDataPath());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsUnknownConfigurationParameter()
+            throws Exception {
+        load(
+                "timingSystems:\n"
+                        + "  primary:\n"
+                        + "    timingSystemId: SID-{UNKNOWN}\n"
+                        + "    timingNodes:\n"
+                        + "      primary:\n"
+                        + "        timingNodeId: A\n"
+                        + timingDataStorage());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsNonStringConfigurationParameter()
+            throws Exception {
+        load(
+                "parameters:\n"
+                        + "  ID: 1\n"
+                        + timingNode("A")
+                        + timingDataStorage());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsContextParameterOutsideStoragePath()
+            throws Exception {
+        load(
+                "timingSystems:\n"
+                        + "  primary:\n"
+                        + "    timingSystemId: SID-{NodeId}\n"
+                        + "    timingNodes:\n"
+                        + "      primary:\n"
+                        + "        timingNodeId: A\n"
+                        + timingDataStorage());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsNonUniqueExpandedStoragePath()
+            throws Exception {
+        load(
+                twoTimingNodes()
+                        + "io:\n"
+                        + "  storage:\n"
+                        + "    timingData:\n"
+                        + "      path: data/{SystemId}.jsonl\n");
+    }
+
+    @Test
     public void loadsExplicitTimingSystemProviderSelections()
             throws Exception {
         Config config = load(

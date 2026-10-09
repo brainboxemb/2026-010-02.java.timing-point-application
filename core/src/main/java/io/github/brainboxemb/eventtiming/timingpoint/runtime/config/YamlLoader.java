@@ -96,6 +96,8 @@ public final class YamlLoader {
             throw new IllegalArgumentException("Invalid YAML configuration: " + path, ex);
         }
 
+        document = YamlTemplateResolver.resolve(document);
+
         Map<?, ?> root = requireMapping(document, "configuration root");
         rejectUnknownFields(
                 root,
@@ -307,6 +309,7 @@ public final class YamlLoader {
 
                 nodes.add(
                         new TimingNodeStartup(
+                                timingSystemId,
                                 timingNodeId,
                                 mapTagProcessing(
                                         timingNode,
@@ -587,19 +590,35 @@ public final class YamlLoader {
         }
 
         if (hasPath) {
-            if (timingNodes.size() != 1) {
+            String field =
+                    timingDataField + "." + PATH;
+            String template =
+                    mapPathTemplate(
+                            timingData.get(PATH),
+                            field);
+            if (timingNodes.size() != 1
+                    && !YamlTemplateResolver
+                            .hasContextPlaceholder(template)) {
                 throw new IllegalArgumentException(
-                        timingDataField
-                                + ".path is only valid for exactly one TimingNode");
+                        field
+                                + " without {NodeId} or {SystemId} is only valid for exactly one TimingNode");
             }
 
             Map<NodeId, Path> result =
                     new LinkedHashMap<NodeId, Path>();
-            result.put(
-                    timingNodes.get(0).timingNodeId,
-                    mapPath(
-                            timingData.get(PATH),
-                            timingDataField + "." + PATH));
+            Set<Path> normalizedPaths =
+                    new LinkedHashSet<Path>();
+            for (TimingNodeStartup timingNode
+                    : timingNodes) {
+                addTimingDataPath(
+                        result,
+                        normalizedPaths,
+                        timingNode.timingNodeId,
+                        mapPath(
+                                template,
+                                field,
+                                timingNode));
+            }
             return result;
         }
 
@@ -615,12 +634,13 @@ public final class YamlLoader {
                             + " must contain at least one storage binding");
         }
 
-        Set<NodeId> configuredNodeIds =
-                new LinkedHashSet<NodeId>();
+        Map<NodeId, TimingNodeStartup> configuredNodes =
+                new LinkedHashMap<NodeId, TimingNodeStartup>();
         for (TimingNodeStartup timingNode
                 : timingNodes) {
-            configuredNodeIds.add(
-                    timingNode.timingNodeId);
+            configuredNodes.put(
+                    timingNode.timingNodeId,
+                    timingNode);
         }
 
         Map<NodeId, Path> result =
@@ -653,7 +673,9 @@ public final class YamlLoader {
                                     bindingField
                                             + "."
                                             + TIMING_NODE_ID));
-            if (!configuredNodeIds.contains(nodeId)) {
+            TimingNodeStartup configuredNode =
+                    configuredNodes.get(nodeId);
+            if (configuredNode == null) {
                 throw new IllegalArgumentException(
                         bindingField
                                 + "."
@@ -667,25 +689,23 @@ public final class YamlLoader {
                                 + nodeId.value());
             }
 
-            Path path =
-                    mapPath(
-                            binding.get(PATH),
-                            bindingField + "." + PATH);
-            Path normalized =
-                    path.toAbsolutePath().normalize();
-            if (!normalizedPaths.add(normalized)) {
-                throw new IllegalArgumentException(
-                        "Duplicate TimingData storage path "
-                                + path);
-            }
-
-            result.put(
+            String field =
+                    bindingField + "." + PATH;
+            addTimingDataPath(
+                    result,
+                    normalizedPaths,
                     nodeId,
-                    path);
+                    mapPath(
+                            mapPathTemplate(
+                                    binding.get(PATH),
+                                    field),
+                            field,
+                            configuredNode));
         }
 
-        if (result.size() != configuredNodeIds.size()) {
-            for (NodeId nodeId : configuredNodeIds) {
+        if (result.size() != configuredNodes.size()) {
+            for (NodeId nodeId
+                    : configuredNodes.keySet()) {
                 if (!result.containsKey(nodeId)) {
                     throw new IllegalArgumentException(
                             "Missing TimingData storage binding for TimingNode "
@@ -697,11 +717,11 @@ public final class YamlLoader {
         return result;
     }
 
-    private static Path mapPath(
+    private static String mapPathTemplate(
             Object rawPath,
             String field) {
         String value =
-                requireString(
+                requireTemplateString(
                         rawPath,
                         field)
                         .trim();
@@ -709,6 +729,19 @@ public final class YamlLoader {
             throw new IllegalArgumentException(
                     field + " must not be blank");
         }
+        return value;
+    }
+
+    private static Path mapPath(
+            String template,
+            String field,
+            TimingNodeStartup timingNode) {
+        String value =
+                YamlTemplateResolver.resolveContext(
+                        template,
+                        field,
+                        timingNode.timingNodeId.value(),
+                        timingNode.timingSystemId);
 
         try {
             return Paths.get(value);
@@ -717,6 +750,23 @@ public final class YamlLoader {
                     field + " is not a valid filesystem path",
                     ex);
         }
+    }
+
+    private static void addTimingDataPath(
+            Map<NodeId, Path> result,
+            Set<Path> normalizedPaths,
+            NodeId nodeId,
+            Path path) {
+        Path normalized =
+                path.toAbsolutePath().normalize();
+        if (!normalizedPaths.add(normalized)) {
+            throw new IllegalArgumentException(
+                    "Duplicate TimingData storage path "
+                            + path);
+        }
+        result.put(
+                nodeId,
+                path);
     }
 
     private static LoggingConfig mapLogging(Object rawLogging) {
@@ -869,8 +919,22 @@ public final class YamlLoader {
     }
 
     private static String requireString(Object value, String field) {
+        String result =
+                requireTemplateString(
+                        value,
+                        field);
+        YamlTemplateResolver.rejectContextPlaceholders(
+                result,
+                field);
+        return result;
+    }
+
+    private static String requireTemplateString(
+            Object value,
+            String field) {
         if (!(value instanceof String)) {
-            throw new IllegalArgumentException(field + " must be a YAML string");
+            throw new IllegalArgumentException(
+                    field + " must be a YAML string");
         }
         return (String) value;
     }
@@ -911,12 +975,15 @@ public final class YamlLoader {
         }
     }
     private static final class TimingNodeStartup {
+        private final String timingSystemId;
         private final NodeId timingNodeId;
         private final TagProcessingPolicy tagProcessingPolicy;
 
         private TimingNodeStartup(
+                String timingSystemId,
                 NodeId timingNodeId,
                 TagProcessingPolicy tagProcessingPolicy) {
+            this.timingSystemId = timingSystemId;
             this.timingNodeId = timingNodeId;
             this.tagProcessingPolicy = tagProcessingPolicy;
         }
