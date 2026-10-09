@@ -7,16 +7,19 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.property.SourceProperty;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
 
@@ -35,14 +38,14 @@ import org.junit.After;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class SystemConductorTest {
-    private final List<ExecutorService> workers =
-            new ArrayList<ExecutorService>();
+    private final List<ExecutorService> workers = new ArrayList<ExecutorService>();
 
     @After
     public void stopWorkers() {
@@ -52,76 +55,116 @@ public class SystemConductorTest {
     }
 
     @Test
-    public void statePropertyCoalescesSignalsWhileRefreshIsPending()
-            throws Exception {
+    public void activationStartsFirstControlRunWithoutWaitingForSourceRead() throws Exception {
+        TimingNode node = newTimingNode("A");
+        ExecutorService conductorWorker = newWorker("conductor-blocked-startup");
+        CountDownLatch blockerStarted = new CountDownLatch(1);
+        CountDownLatch releaseBlocker = new CountDownLatch(1);
+
+        conductorWorker.submit(() -> {
+            blockerStarted.countDown();
+            try {
+                releaseBlocker.await();
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        assertTrue(blockerStarted.await(1L, TimeUnit.SECONDS));
+
+        SerialExecutor lane = new SerialExecutor(4, "conductor-test", conductorWorker);
+        SystemConductor conductor = new SystemConductor(new TimingNodeList().add(node), null, lane);
+
+        try {
+            conductor.activate();
+
+            assertFalse(
+                    "activate must not hide the initial TimingNode query",
+                    conductor.nodeStateProperty(node).initialized());
+
+            releaseBlocker.countDown();
+            await(() -> conductor.nodeStateProperty(node).initialized(), 1000L);
+            assertEquals(State.CLOSED, conductor.nodeStateProperty(node).currentValue());
+        } finally {
+            releaseBlocker.countDown();
+            conductor.deactivate();
+        }
+    }
+
+    @Test
+    public void statusEventUpdatesSourcePropertyBeforeControlRun() throws Exception {
         TimingNode node = newTimingNode("A");
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
+        SerialExecutor lane = new SerialExecutor(4, "conductor-test", newWorker("conductor-test-worker"));
+        SystemConductor conductor = new SystemConductor(new TimingNodeList().add(node), manager, lane);
 
-        ExecutorService conductorWorker =
-                newWorker(
-                        "conductor-blocked-test");
-        SerialExecutor lane =
-                new SerialExecutor(
-                        1,
-                        "conductor-test",
-                        conductorWorker);
-        SystemConductor conductor =
-                new SystemConductor(
-                        new TimingNodeList().add(node),
-                        manager,
-                        lane);
+        manager.activate();
+        conductor.activate();
+        try {
+            await(() -> conductor.nodeStateProperty(node).initialized(), 1000L);
+
+            node.invoke(TimingNodeCommands.open(new LocationId(24)));
+            Status openStatus = node.query(TimingNodeQueries.status());
+
+            conductor.onTimingNodeStatusChanged(node, openStatus);
+
+            assertEquals(
+                    "authoritative event payload must update source state synchronously",
+                    State.OPEN,
+                    conductor.nodeStateProperty(node).currentValue());
+            await(antenna::inventoryRunning, 1000L);
+        } finally {
+            conductor.deactivate();
+            manager.deactivate();
+        }
+    }
+
+    @Test
+    public void rapidStateEventsCoalesceInExistingController() throws Exception {
+        TimingNode node = newTimingNode("A");
+        SimulatedAntenna antenna = new SimulatedAntenna();
+        AntennaManager manager = newAntennaManager(antenna);
+        ExecutorService conductorWorker = newWorker("conductor-blocked-test");
+        SerialExecutor lane = new SerialExecutor(1, "conductor-test", conductorWorker);
+        SystemConductor conductor = new SystemConductor(new TimingNodeList().add(node), manager, lane);
 
         manager.activate();
         conductor.activate();
 
-        CountDownLatch blockerStarted =
-                new CountDownLatch(1);
-        CountDownLatch releaseBlocker =
-                new CountDownLatch(1);
+        CountDownLatch blockerStarted = new CountDownLatch(1);
+        CountDownLatch releaseBlocker = new CountDownLatch(1);
 
         try {
-            /*
-             * Activation schedules an initial control task. Drain that startup
-             * task before filling the capacity-one lane deliberately; otherwise
-             * the blocker may race its pending admission and be rejected FULL.
-             */
-            await(
-                    () -> lane.metrics().snapshot().queueDepth() == 0,
-                    1000L);
+            await(() -> conductor.nodeStateProperty(node).initialized(), 1000L);
+            await(() -> lane.metrics().snapshot().queueDepth() == 0, 1000L);
 
             assertEquals(
                     SerialExecutor.AdmissionResult.ACCEPTED,
-                    lane.offer(
-                            () -> {
-                                blockerStarted.countDown();
-                                try {
-                                    releaseBlocker.await();
-                                } catch (InterruptedException ex) {
-                                    Thread.currentThread().interrupt();
-                                }
-                            }));
-            assertTrue(
-                    blockerStarted.await(
-                            1L,
-                            TimeUnit.SECONDS));
+                    lane.offer(() -> {
+                        blockerStarted.countDown();
+                        try {
+                            releaseBlocker.await();
+                        } catch (InterruptedException ex) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }));
+            assertTrue(blockerStarted.await(1L, TimeUnit.SECONDS));
 
-            for (int index = 0;
-                    index < 20;
-                    index++) {
-                conductor.signalTimingNodeStateChanged(node);
-            }
+            node.invoke(TimingNodeCommands.open(new LocationId(24)));
+            conductor.onTimingNodeStatusChanged(node, node.query(TimingNodeQueries.status()));
 
-            assertEquals(
-                    1,
-                    lane.metrics()
-                            .snapshot()
-                            .queueDepth());
-            assertEquals(
-                    0L,
-                    lane.metrics()
-                            .snapshot()
-                            .fullCount());
+            node.invoke(TimingNodeCommands.close());
+            conductor.onTimingNodeStatusChanged(node, node.query(TimingNodeQueries.status()));
+
+            node.invoke(TimingNodeCommands.open(new LocationId(25)));
+            conductor.onTimingNodeStatusChanged(node, node.query(TimingNodeQueries.status()));
+
+            assertEquals(1, lane.metrics().snapshot().queueDepth());
+            assertEquals(0L, lane.metrics().snapshot().fullCount());
+            assertEquals(State.OPEN, conductor.nodeStateProperty(node).currentValue());
+
+            releaseBlocker.countDown();
+            await(antenna::inventoryRunning, 1000L);
         } finally {
             releaseBlocker.countDown();
             conductor.deactivate();
@@ -130,88 +173,34 @@ public class SystemConductorTest {
     }
 
     @Test
-    public void statePropertyReadsAuthoritativeCurrentState()
-            throws Exception {
-        TimingNode node = newTimingNode("A");
-        SimulatedAntenna antenna = new SimulatedAntenna();
-        AntennaManager manager = newAntennaManager(antenna);
-        SerialExecutor lane =
-                new SerialExecutor(
-                        4,
-                        "conductor-test",
-                        newWorker(
-                                "conductor-test-worker"));
-        SystemConductor conductor =
-                new SystemConductor(
-                        new TimingNodeList().add(node),
-                        manager,
-                        lane);
-
-        manager.activate();
-        conductor.activate();
-
-        try {
-            node.invoke(
-                    TimingNodeCommands.open(
-                            new LocationId(24)));
-
-            /*
-             * A source event only invalidates the property. The property then
-             * rereads the authoritative current OPEN state and emits its own
-             * changedEvent, which makes SystemConductor enable inventory.
-             */
-            conductor.signalTimingNodeStateChanged(node);
-
-            await(
-                    antenna::inventoryRunning,
-                    1000L);
-            assertTrue(
-                    antenna.inventoryRunning());
-        } finally {
-            conductor.deactivate();
-            manager.deactivate();
-        }
-    }
-
-    @Test
-    public void oneOpenNodeKeepsSharedInventoryEnabled()
-            throws Exception {
+    public void oneOpenNodeKeepsSharedInventoryEnabled() throws Exception {
         TimingNode first = newTimingNode("A");
         TimingNode second = newTimingNode("B");
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
-        SerialExecutor lane =
-                new SerialExecutor(
-                        8,
-                        "system-conductor-test",
-                        newWorker("system-conductor-worker"));
+        SerialExecutor lane = new SerialExecutor(8, "system-conductor-test", newWorker("system-conductor-worker"));
         SystemConductor conductor =
-                new SystemConductor(
-                        new TimingNodeList().add(first).add(second),
-                        manager,
-                        lane);
+                new SystemConductor(new TimingNodeList().add(first).add(second), manager, lane);
 
         manager.activate();
         conductor.activate();
         try {
+            await(() -> conductor.nodeStateProperty(first).initialized(), 1000L);
+            await(() -> conductor.nodeStateProperty(second).initialized(), 1000L);
+
             first.invoke(TimingNodeCommands.open(new LocationId(24)));
-            conductor.signalTimingNodeStateChanged(first);
+            conductor.onTimingNodeStatusChanged(first, first.query(TimingNodeQueries.status()));
             await(antenna::inventoryRunning, 1000L);
 
             second.invoke(TimingNodeCommands.open(new LocationId(25)));
-            conductor.signalTimingNodeStateChanged(second);
-            await(() -> conductor.nodeStateProperty(second).currentValue()
-                    == State.OPEN, 1000L);
+            conductor.onTimingNodeStatusChanged(second, second.query(TimingNodeQueries.status()));
 
             first.invoke(TimingNodeCommands.close());
-            conductor.signalTimingNodeStateChanged(first);
-            await(() -> conductor.nodeStateProperty(first).currentValue()
-                    == State.CLOSED, 1000L);
-            // Inventory remains required by the second OPEN node.
+            conductor.onTimingNodeStatusChanged(first, first.query(TimingNodeQueries.status()));
             assertTrue(antenna.inventoryRunning());
 
             second.invoke(TimingNodeCommands.close());
-            conductor.signalTimingNodeStateChanged(second);
+            conductor.onTimingNodeStatusChanged(second, second.query(TimingNodeQueries.status()));
             await(() -> !antenna.inventoryRunning(), 1000L);
         } finally {
             conductor.deactivate();
@@ -220,12 +209,38 @@ public class SystemConductorTest {
     }
 
     @Test
+    public void reactivationExplicitlyReestablishesSourceState() throws Exception {
+        TimingNode node = newTimingNode("A");
+        SerialExecutor lane = new SerialExecutor(4, "conductor-test", newWorker("reactivation-worker"));
+        SystemConductor conductor = new SystemConductor(new TimingNodeList().add(node), null, lane);
+
+        conductor.activate();
+        await(() -> conductor.nodeStateProperty(node).initialized(), 1000L);
+
+        node.invoke(TimingNodeCommands.open(new LocationId(24)));
+        Status openStatus = node.query(TimingNodeQueries.status());
+        conductor.onTimingNodeStatusChanged(node, openStatus);
+        assertEquals(State.OPEN, conductor.nodeStateProperty(node).currentValue());
+
+        conductor.deactivate();
+
+        conductor.nodeStateProperty(node).update(State.CLOSED);
+        assertEquals(State.CLOSED, conductor.nodeStateProperty(node).currentValue());
+
+        conductor.activate();
+        try {
+            await(() -> conductor.nodeStateProperty(node).currentValue() == State.OPEN, 1000L);
+        } finally {
+            conductor.deactivate();
+        }
+    }
+
+    @Test
     public void timingNodeListPreservesRegistrationOrder() {
         TimingNode first = newTimingNode("A");
         TimingNode second = newTimingNode("B");
 
-        TimingNodeList nodes =
-                new TimingNodeList().add(first).add(second);
+        TimingNodeList nodes = new TimingNodeList().add(first).add(second);
 
         assertEquals(2, nodes.size());
         assertSame(first, nodes.get(0));
@@ -249,15 +264,10 @@ public class SystemConductorTest {
     public void propertyRegistryRetainsOrderAndLookup() {
         TimingNode first = newTimingNode("A");
         TimingNode second = newTimingNode("B");
-        SerialExecutor lane =
-                new SerialExecutor(
-                        8,
-                        "property-registry-test",
-                        newWorker("property-registry-worker"));
-        TimingNodeStateProperty firstProperty =
-                new TimingNodeStateProperty(first, lane);
-        TimingNodeStateProperty secondProperty =
-                new TimingNodeStateProperty(second, lane);
+        SourceProperty<TimingNode, State> firstProperty =
+                new SourceProperty<TimingNode, State>(first);
+        SourceProperty<TimingNode, State> secondProperty =
+                new SourceProperty<TimingNode, State>(second);
 
         PropertyRegistry properties = new PropertyRegistry();
         properties.register(firstProperty);
@@ -272,19 +282,14 @@ public class SystemConductorTest {
     @Test
     public void propertyRegistryRejectsDuplicateNode() {
         TimingNode node = newTimingNode("A");
-        SerialExecutor lane =
-                new SerialExecutor(
-                        8,
-                        "property-duplicate-test",
-                        newWorker("property-duplicate-worker"));
         PropertyRegistry properties = new PropertyRegistry();
-        properties.register(new TimingNodeStateProperty(node, lane));
+        properties.register(new SourceProperty<TimingNode, State>(node));
 
         try {
-            properties.register(new TimingNodeStateProperty(node, lane));
+            properties.register(new SourceProperty<TimingNode, State>(node));
             fail("Duplicate TimingNode property accepted");
         } catch (IllegalArgumentException expected) {
-            assertSame(node, properties.iterator().next().timingNode());
+            assertSame(node, properties.iterator().next().source());
         }
     }
 
@@ -294,94 +299,56 @@ public class SystemConductorTest {
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),
                 SystemConductorTest::now,
-                ReadOnlyConfiguration.fixed(
-                        TagProcessingPolicy.defaults()),
+                ReadOnlyConfiguration.fixed(TagProcessingPolicy.defaults()),
                 EventData.empty(),
-                new SerialExecutor(
-                        8,
-                        "conductor-node-test",
-                        newWorker(
-                                "conductor-node-test")),
-                new SerialScheduledExecutor(
-                        8,
-                        "conductor-tag-test",
-                        newScheduledWorker(
-                                "conductor-tag-test")));
+                new SerialExecutor(8, "conductor-node-test", newWorker("conductor-node-test")),
+                new SerialScheduledExecutor(8, "conductor-tag-test", newScheduledWorker("conductor-tag-test")));
     }
 
-    private AntennaManager newAntennaManager(
-            SimulatedAntenna antenna) {
+    private AntennaManager newAntennaManager(SimulatedAntenna antenna) {
         return new AntennaManager(
                 new AntennaSet().add(new AntennaId("1"), antenna),
-                new SerialScheduledExecutor(
-                        8,
-                        "conductor-antenna-test",
-                        newScheduledWorker(
-                                "conductor-antenna-test")),
+                new SerialScheduledExecutor(8, "conductor-antenna-test", newScheduledWorker("conductor-antenna-test")),
                 Duration.ofSeconds(1));
     }
 
-    private ExecutorService newWorker(
-            String name) {
+    private ExecutorService newWorker(String name) {
         ExecutorService worker =
-                Executors.newSingleThreadExecutor(
-                        runnable ->
-                                new Thread(
-                                        runnable,
-                                        name));
-        workers.add(
-                worker);
+                Executors.newSingleThreadExecutor(runnable -> new Thread(runnable, name));
+        workers.add(worker);
         return worker;
     }
 
-    private ScheduledExecutorService newScheduledWorker(
-            String name) {
+    private ScheduledExecutorService newScheduledWorker(String name) {
         ScheduledExecutorService worker =
-                Executors.newSingleThreadScheduledExecutor(
-                        runnable ->
-                                new Thread(
-                                        runnable,
-                                        name));
-        workers.add(
-                worker);
+                Executors.newSingleThreadScheduledExecutor(runnable -> new Thread(runnable, name));
+        workers.add(worker);
         return worker;
     }
 
-    private static void await(
-            java.util.function.BooleanSupplier condition,
-            long timeoutMillis)
-            throws Exception {
-        long deadline =
-                System.nanoTime()
-                        + TimeUnit.MILLISECONDS.toNanos(
-                                timeoutMillis);
+    private static void await(java.util.function.BooleanSupplier condition, long timeoutMillis) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
 
         while (!condition.getAsBoolean()) {
             if (System.nanoTime() >= deadline) {
-                throw new AssertionError(
-                        "condition did not become true before timeout");
+                throw new AssertionError("condition did not become true before timeout");
             }
             Thread.sleep(2L);
         }
     }
 
     private static Instant now() {
-        return Instant.parse(
-                "2026-10-06T09:00:00Z");
+        return Instant.parse("2026-10-06T09:00:00Z");
     }
 
-    private static final class NoOpPersistence
-            implements TimingDataPersistence {
+    private static final class NoOpPersistence implements TimingDataPersistence {
         @Override
         public LoadResult load() {
-            return new LoadResult(
-                    Collections.<TimingData>emptyList(),
-                    false);
+            return new LoadResult(Collections.<TimingData>emptyList(), false);
         }
 
         @Override
-        public void append(
-                TimingData data) {
+        public void append(TimingData data) {
             // SystemConductor tests exercise coordination, not persistence.
         }
     }

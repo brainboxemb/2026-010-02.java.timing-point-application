@@ -76,7 +76,7 @@ final class TimingSystemComposer {
         applicationConductor.registerTimingSystem(antennaManager, conductor);
         for (TimingNode node : nodes) {
             node.statusChangedEvent().subscribe(
-                    ignored -> conductor.signalTimingNodeStateChanged(node));
+                    status -> conductor.onTimingNodeStatusChanged(node, status));
         }
         if (antennaManager != null) {
             routeObservations(antennaManager, antennaSet, managerBinding, nodes);
