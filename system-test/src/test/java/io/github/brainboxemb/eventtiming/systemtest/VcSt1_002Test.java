@@ -47,9 +47,9 @@ public class VcSt1_002Test {
                     "vc-st1-002-run-1-output");
             verifyFirstRun(fixture, firstRun, firstPorts);
 
-            File persistedTimingData = evidence.file("timing-data.jsonl");
+            File persistedTimingData = fixture.logBookFile();
             assertTrue(
-                    "First run did not retain timing-data.jsonl",
+                    "First run did not retain " + persistedTimingData.getName(),
                     persistedTimingData.isFile()
                             && persistedTimingData.length() > 0L);
 
