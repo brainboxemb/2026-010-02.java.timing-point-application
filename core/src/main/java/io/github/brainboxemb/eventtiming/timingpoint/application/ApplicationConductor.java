@@ -11,8 +11,8 @@ import org.slf4j.LoggerFactory;
  * Coordinates application component lifecycle.
  *
  * <p>Runtime registers each TimingSystem before activation. The application
- * SystemConductor activates the system's AntennaManager first and then the Domain
- * SystemConductor. Deactivation is handled in reverse order.</p>
+ * The application conductor activates the system's AntennaManager first and then
+ * the Domain SystemConductor. Deactivation is handled in reverse order.</p>
  */
 public final class ApplicationConductor {
     private static final Logger LOG =
@@ -40,7 +40,7 @@ public final class ApplicationConductor {
         }
 
         componentLifecycle.register(
-                "TimingSystem SystemConductor",
+                "TimingSystem Conductor",
                 systemConductor::activate,
                 systemConductor::deactivate);
     }

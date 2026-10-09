@@ -155,7 +155,7 @@ public final class SystemConductor extends AbstractConductor
     private void onControlTaskFailure(
             Throwable failure) {
         LOG.error(
-                "TimingSystem SystemConductor control task failed",
+                "TimingSystem Conductor control task failed",
                 failure);
     }
 }
