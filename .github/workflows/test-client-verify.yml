@@ -1,4 +1,4 @@
-name: Development client verification
+name: Engineering client verification
 
 on:
   pull_request:
@@ -29,13 +29,13 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Set up Development Client Java 17
+      - name: Set up Engineering Client Java 21
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
           cache: maven
 
-      - name: Verify standalone JavaFX Development Client
+      - name: Verify standalone SI-02 Engineering Client
         shell: bash
         run: ./mvnw -f test-client/pom.xml -DeventTiming.buildOrigin=github-actions verify
