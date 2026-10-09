@@ -37,7 +37,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class ConductorTest {
+public class SystemConductorTest {
     private final List<ExecutorService> workers =
             new ArrayList<ExecutorService>();
 
@@ -221,7 +221,7 @@ public class ConductorTest {
                 new NodeId(id),
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),
-                ConductorTest::now,
+                SystemConductorTest::now,
                 ReadOnlyConfiguration.fixed(
                         TagProcessingPolicy.defaults()),
                 EventData.empty(),
