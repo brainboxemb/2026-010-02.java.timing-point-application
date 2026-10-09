@@ -7,6 +7,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
@@ -22,7 +23,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialSc
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -35,7 +35,10 @@ import org.junit.After;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class SystemConductorTest {
     private final List<ExecutorService> workers =
@@ -65,7 +68,7 @@ public class SystemConductorTest {
                         conductorWorker);
         SystemConductor conductor =
                 new SystemConductor(
-                        Collections.singletonList(node),
+                        new TimingNodeList().add(node),
                         manager,
                         lane);
 
@@ -140,7 +143,7 @@ public class SystemConductorTest {
                                 "conductor-test-worker"));
         SystemConductor conductor =
                 new SystemConductor(
-                        Collections.singletonList(node),
+                        new TimingNodeList().add(node),
                         manager,
                         lane);
 
@@ -184,7 +187,7 @@ public class SystemConductorTest {
                         newWorker("system-conductor-worker"));
         SystemConductor conductor =
                 new SystemConductor(
-                        Arrays.asList(first, second),
+                        new TimingNodeList().add(first).add(second),
                         manager,
                         lane);
 
@@ -213,6 +216,75 @@ public class SystemConductorTest {
         } finally {
             conductor.deactivate();
             manager.deactivate();
+        }
+    }
+
+    @Test
+    public void timingNodeListPreservesRegistrationOrder() {
+        TimingNode first = newTimingNode("A");
+        TimingNode second = newTimingNode("B");
+
+        TimingNodeList nodes =
+                new TimingNodeList().add(first).add(second);
+
+        assertEquals(2, nodes.size());
+        assertSame(first, nodes.get(0));
+        assertSame(second, nodes.get(1));
+    }
+
+    @Test
+    public void timingNodeListRejectsDuplicateInstance() {
+        TimingNode node = newTimingNode("A");
+        TimingNodeList nodes = new TimingNodeList().add(node);
+
+        try {
+            nodes.add(node);
+            fail("Duplicate TimingNode accepted");
+        } catch (IllegalArgumentException expected) {
+            assertEquals(1, nodes.size());
+        }
+    }
+
+    @Test
+    public void propertyRegistryRetainsOrderAndLookup() {
+        TimingNode first = newTimingNode("A");
+        TimingNode second = newTimingNode("B");
+        SerialExecutor lane =
+                new SerialExecutor(
+                        8,
+                        "property-registry-test",
+                        newWorker("property-registry-worker"));
+        TimingNodeStateProperty firstProperty =
+                new TimingNodeStateProperty(first, lane);
+        TimingNodeStateProperty secondProperty =
+                new TimingNodeStateProperty(second, lane);
+
+        PropertyRegistry properties = new PropertyRegistry();
+        properties.register(firstProperty);
+        properties.register(secondProperty);
+
+        assertSame(firstProperty, properties.get(first));
+        assertSame(secondProperty, properties.get(second));
+        assertSame(firstProperty, properties.iterator().next());
+        assertNull(properties.get(newTimingNode("C")));
+    }
+
+    @Test
+    public void propertyRegistryRejectsDuplicateNode() {
+        TimingNode node = newTimingNode("A");
+        SerialExecutor lane =
+                new SerialExecutor(
+                        8,
+                        "property-duplicate-test",
+                        newWorker("property-duplicate-worker"));
+        PropertyRegistry properties = new PropertyRegistry();
+        properties.register(new TimingNodeStateProperty(node, lane));
+
+        try {
+            properties.register(new TimingNodeStateProperty(node, lane));
+            fail("Duplicate TimingNode property accepted");
+        } catch (IllegalArgumentException expected) {
+            assertSame(node, properties.iterator().next().timingNode());
         }
     }
 

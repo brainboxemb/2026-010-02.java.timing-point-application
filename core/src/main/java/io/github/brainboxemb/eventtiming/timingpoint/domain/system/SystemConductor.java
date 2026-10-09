@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.system;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
@@ -9,11 +10,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.Cooperat
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.TaskStep;
-
-import java.util.ArrayList;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,15 +30,13 @@ public final class SystemConductor extends AbstractConductor
     private static final Logger LOG =
             LoggerFactory.getLogger(SystemConductor.class);
 
-    private final List<TimingNodeStateProperty> stateProperties =
-            new ArrayList<TimingNodeStateProperty>();
-    private final Map<TimingNode, TimingNodeStateProperty> propertiesByNode =
-            new IdentityHashMap<TimingNode, TimingNodeStateProperty>();
+    private final PropertyRegistry properties =
+            new PropertyRegistry();
     private final AntennaManager antennaManager;
     private final CooperativeTaskController taskController;
 
     public SystemConductor(
-            List<TimingNode> timingNodes,
+            TimingNodeList timingNodes,
             AntennaManager antennaManager,
             SerialExecutor coordinationLane) {
         super(coordinationLane);
@@ -61,20 +55,11 @@ public final class SystemConductor extends AbstractConductor
                         this::onControlTaskFailure);
 
         for (TimingNode node : timingNodes) {
-            if (node == null
-                    || propertiesByNode.containsKey(node)) {
-                throw new IllegalArgumentException(
-                        "timingNodes must contain distinct non-null nodes");
-            }
-
             TimingNodeStateProperty property =
                     new TimingNodeStateProperty(
                             node,
                             coordinationLane());
-            stateProperties.add(property);
-            propertiesByNode.put(
-                    node,
-                    property);
+            properties.register(property);
 
             property.changedEvent()
                     .subscribe(
@@ -92,7 +77,7 @@ public final class SystemConductor extends AbstractConductor
     public boolean signalTimingNodeStateChanged(
             TimingNode node) {
         TimingNodeStateProperty property =
-                propertiesByNode.get(node);
+                properties.get(node);
         if (property == null) {
             throw new IllegalArgumentException(
                     "TimingNode does not belong to this TimingSystem");
@@ -103,7 +88,7 @@ public final class SystemConductor extends AbstractConductor
     TimingNodeStateProperty nodeStateProperty(
             TimingNode node) {
         TimingNodeStateProperty property =
-                propertiesByNode.get(node);
+                properties.get(node);
         if (property == null) {
             throw new IllegalArgumentException(
                     "Unknown TimingNode");
@@ -114,7 +99,7 @@ public final class SystemConductor extends AbstractConductor
     @Override
     protected void onActivated() {
         for (TimingNodeStateProperty property
-                : stateProperties) {
+                : properties) {
             property.initialize();
         }
 
@@ -131,7 +116,7 @@ public final class SystemConductor extends AbstractConductor
 
         boolean anyOpen = false;
         for (TimingNodeStateProperty property
-                : stateProperties) {
+                : properties) {
             if (!property.initialized()) {
                 return TaskStep.done();
             }

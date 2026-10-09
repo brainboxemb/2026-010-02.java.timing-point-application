@@ -13,6 +13,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationCond
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.SystemConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
@@ -459,12 +460,8 @@ public final class TimingApplicationRuntime {
                     : resolvedSystems) {
                 TimeSource timeSource =
                         runtimeTimeSources.createTimeSource();
-                List<TimingNode> systemNodes =
-                        new ArrayList<TimingNode>(
-                                resolvedSystem
-                                        .configuration
-                                        .timingNodes()
-                                        .size());
+                TimingNodeList systemNodes =
+                        new TimingNodeList();
 
                 for (Config.TimingNodeConfig nodeConfig
                         : resolvedSystem
