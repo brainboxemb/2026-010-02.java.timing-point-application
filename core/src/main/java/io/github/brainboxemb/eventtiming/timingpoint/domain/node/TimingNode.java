@@ -20,6 +20,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeQuery.ReadConsistency;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
@@ -57,6 +58,9 @@ public final class TimingNode {
     private final TimingNodeMetrics metrics;
     private final Event<Status> statusChangedEvent = new Event<>();
     private final Event<TimingData> timingDataCommittedEvent = new Event<>();
+
+    /** Latest activation-complete immutable Status visible to CURRENT queries. */
+    private volatile Status publishedStatus;
 
     /**
      * Test-only convenience construction for tests in the TimingNode package.
@@ -292,6 +296,9 @@ public final class TimingNode {
         if (executorState != SerialExecutor.State.NEW && executorState != SerialExecutor.State.STOPPED) {
             throw new IllegalStateException("TimingNode cannot activate with executor state=" + executorState);
         }
+
+        publishedStatus = null;
+
         try {
             logic.recoverTimingData();
         } catch (TimingDataPersistence.PersistenceException | RuntimeException ex) {
@@ -317,6 +324,8 @@ public final class TimingNode {
                 throw ex;
             }
         }
+
+        publishCurrentStatus(logic.status());
     }
 
     public void deactivate() {
@@ -342,6 +351,8 @@ public final class TimingNode {
                 firstFailure = ex;
             }
         }
+
+        publishedStatus = null;
 
         if (firstFailure != null) {
             throw firstFailure;
@@ -435,13 +446,15 @@ public final class TimingNode {
 
         R result = command.apply(logic);
 
+        Status after = logic.status();
+        publishCurrentStatus(after);
+
         int committedAfter = logic.committedTimingDataCount();
         if (committedAfter > committedBefore) {
             publishTimingDataCommitted(
                     logic.latestCommittedTimingData());
         }
 
-        Status after = logic.status();
         publishStatusChanged(before, after);
         return command.complete(this, result);
     }
@@ -474,17 +487,75 @@ public final class TimingNode {
 
 
     /**
-     * Executes a typed read against the same serial lane as state-changing commands.
+     * Executes an ORDERED typed read after work already accepted by this node.
      *
-     * <p>Queries carry the read operation instead of requiring a forwarding method
-     * on TimingNode for every value exposed by TimingNodeLogic. This keeps reads
-     * ordered with commands while the visible TimingNode API stays compact.</p>
+     * <p>This one-argument form preserves the original query semantics.</p>
      */
     public <R> R query(TimingNodeQuery<R> query) {
+        return query(query, ReadConsistency.ORDERED);
+    }
+
+    /**
+     * Executes one typed read with the requested consistency.
+     *
+     * <p>CURRENT reads use only a safely published immutable read model and never
+     * enter the serial lane. ORDERED reads execute on the node lane after work
+     * accepted earlier.</p>
+     */
+    public <R> R query(
+            TimingNodeQuery<R> query,
+            ReadConsistency consistency) {
         if (query == null) {
             throw new IllegalArgumentException("query must not be null");
         }
-        return runSerialized(() -> query.read(logic), query.name());
+        if (consistency == null) {
+            throw new IllegalArgumentException("consistency must not be null");
+        }
+
+        switch (consistency) {
+            case CURRENT:
+                return query.readCurrent(this);
+            case ORDERED:
+                return runSerialized(
+                        () -> query.readOrdered(logic),
+                        query.name());
+            default:
+                throw new IllegalStateException(
+                        "Unsupported read consistency " + consistency);
+        }
+    }
+
+    /**
+     * Returns the activation-complete immutable Status used by CURRENT status queries.
+     */
+    Status publishedStatus() {
+        SerialExecutor.State executorState = serialExecutor.state();
+        if (executorState == SerialExecutor.State.FAILED) {
+            throw new OperationException(
+                    OperationException.Reason.FAILED,
+                    "status CURRENT result is unavailable because the TimingNode serial executor failed",
+                    serialExecutor.failure());
+        }
+        if (executorState != SerialExecutor.State.RUNNING) {
+            throw new OperationException(
+                    OperationException.Reason.UNAVAILABLE,
+                    "status CURRENT result is unavailable because the TimingNode is not active and ready");
+        }
+
+        Status status = publishedStatus;
+        if (status == null) {
+            throw new OperationException(
+                    OperationException.Reason.UNAVAILABLE,
+                    "status CURRENT result is unavailable because TimingNode activation is not complete");
+        }
+        return status;
+    }
+
+    private void publishCurrentStatus(Status status) {
+        if (status == null) {
+            throw new IllegalArgumentException("status must not be null");
+        }
+        publishedStatus = status;
     }
 
     private static boolean sameStatus(Status left, Status right) {
@@ -526,6 +597,13 @@ public final class TimingNode {
     }
 
     private <R> R runSerialized(Callable<R> work, String operation) {
+        if (serialExecutor.isExecutingOnCurrentThread()) {
+            throw new IllegalStateException(
+                    "Reentrant ORDERED TimingNode operation "
+                            + operation
+                            + " cannot wait for the same serial lane");
+        }
+
         SerialExecutor.SubmitResult<R> submitResult = serialExecutor.submit(work);
         switch (submitResult.admission()) {
             case FULL:

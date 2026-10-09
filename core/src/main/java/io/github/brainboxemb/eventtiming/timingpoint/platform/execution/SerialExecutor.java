@@ -28,6 +28,15 @@ public final class SerialExecutor implements AutoCloseable {
     private static final Logger LOG =
             LoggerFactory.getLogger(SerialExecutor.class);
 
+    /**
+     * Logical lane currently executing on this Java thread, if any.
+     *
+     * <p>Used only to detect blocking same-lane reentrancy. The previous value
+     * is restored for nested execution of another logical lane.</p>
+     */
+    private static final ThreadLocal<SerialExecutor> CURRENT_LANE =
+            new ThreadLocal<SerialExecutor>();
+
     /** Lifecycle of this logical lane, independent of any shared worker lifecycle. */
     public enum State {
         NEW,
@@ -252,9 +261,17 @@ public final class SerialExecutor implements AutoCloseable {
             taskRunning = true;
         }
 
+        SerialExecutor previousLane = CURRENT_LANE.get();
+        CURRENT_LANE.set(this);
         try {
             task.run();
         } finally {
+            if (previousLane == null) {
+                CURRENT_LANE.remove();
+            } else {
+                CURRENT_LANE.set(previousLane);
+            }
+
             synchronized (this) {
                 taskRunning = false;
 
@@ -284,6 +301,11 @@ public final class SerialExecutor implements AutoCloseable {
 
     public synchronized Throwable failure() {
         return failure;
+    }
+
+    /** True only while this Java thread is executing work for this logical lane. */
+    public boolean isExecutingOnCurrentThread() {
+        return CURRENT_LANE.get() == this;
     }
 
     /** Returns the separate pull-based metrics owner for this lane. */

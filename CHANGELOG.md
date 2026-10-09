@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Replace the heavyweight TrackedProperty refresh scheduler with passive SourceProperty/DerivedProperty state. SystemConductor now acquires initial TimingNode state explicitly in its first control run, consumes later authoritative Status events directly, and leaves coalescing to CooperativeTaskController.
+- Add explicit CURRENT versus ORDERED TimingNode query consistency. Status can use a safely published current snapshot without queueing, ordered reads preserve command sequencing, SystemConductor reconciles from CURRENT state, and same-lane ordered reentrancy fails immediately.
+
+- Replace the heavyweight TrackedProperty refresh scheduler with passive SourceProperty/DerivedProperty state. SystemConductor owns explicit source-state reconciliation and derived behaviour, while CooperativeTaskController remains the sole coalescing scheduler.
 
 - Allow command-shell node commands to target a specific TimingNode per invocation using `command:NodeId` (for example `open:A 1`), without changing the selected default node. Multi-node sessions show the selection in the prompt and default to strict explicit addressing; `node-mode selected` can opt into implicit selected-node targeting. Applies to local and remote terminals.
 
