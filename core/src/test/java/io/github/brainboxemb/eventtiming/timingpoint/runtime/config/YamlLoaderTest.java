@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime.config;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -564,6 +564,46 @@ public class YamlLoaderTest {
                         + timingDataStorage()
                         + "presentation:\n"
                         + "  api: {}\n");
+    }
+
+    @Test
+    public void loadsAntennaRoutingAndInventoryGroup() throws Exception {
+        Config config = load(twoTimingNodes()
+                + timingDataStorageNodes()
+                + "  devices:\n"
+                + "    antennaManagers:\n"
+                + "      primary:\n"
+                + "        timingSystemId: timing-system-01\n"
+                + "        antennas:\n"
+                + "          1:\n"
+                + "            provider: simulated\n"
+                + "            type: rfid\n"
+                + "            timingNodes: [A, B]\n"
+                + "          2:\n"
+                + "            provider: simulated\n"
+                + "            type: rfid\n"
+                + "            timingNodes: [B]\n"
+                + "        inventoryGroup:\n"
+                + "          members: [1, 2]\n"
+                + "          intervalMillis: 500\n");
+        assertEquals(1, config.antennaManagers().size());
+        assertEquals(2, config.antennaManagers().get(0).antennas().size());
+        assertEquals(2, config.antennaManagers().get(0).antennas().get(0).timingNodes().size());
+        assertEquals(500L, config.antennaManagers().get(0).inventoryInterval().toMillis());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsCrossSystemAntennaRoute() throws Exception {
+        load(timingNode("A") + timingDataStorage()
+                + "  devices:\n"
+                + "    antennaManagers:\n"
+                + "      primary:\n"
+                + "        timingSystemId: timing-system-01\n"
+                + "        antennas:\n"
+                + "          1:\n"
+                + "            provider: simulated\n"
+                + "            type: rfid\n"
+                + "            timingNodes: [B]\n");
     }
 
     private static String twoTimingNodes() {

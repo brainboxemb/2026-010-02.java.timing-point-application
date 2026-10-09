@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.application;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 
 import org.junit.Test;

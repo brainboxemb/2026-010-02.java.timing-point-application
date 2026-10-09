@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime.config;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingConfig;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.loggingserver.LoggingServerConfig;
 
@@ -140,8 +140,8 @@ public final class Config {
         }
     }
 
-    private final List<TimingSystemConfig> timingSystems;
-    private final List<TimingNodeConfig> timingNodes;
+    private final TimingSystemConfigRegistry timingSystems;
+    private final AntennaManagerConfigRegistry antennaManagers;
     private final Presentation presentation;
     private final LoggingConfig logging;
     private final LoggingServerConfig loggingServer;
@@ -273,126 +273,64 @@ public final class Config {
             Presentation presentation,
             LoggingConfig logging,
             LoggingServerConfig loggingServer) {
-        if (timingSystems == null
-                || timingSystems.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "timingSystems must contain at least one TimingSystem");
-        }
+        this(timingSystems, Collections.<AntennaManagerConfig>emptyList(),
+                presentation, logging, loggingServer);
+    }
+
+    public Config(
+            List<TimingSystemConfig> timingSystems,
+            List<AntennaManagerConfig> antennaManagers,
+            Presentation presentation,
+            LoggingConfig logging,
+            LoggingServerConfig loggingServer) {
         if (presentation == null) {
             throw new IllegalArgumentException(
                     "presentation must not be null");
         }
 
-        List<TimingSystemConfig> systems =
-                new ArrayList<TimingSystemConfig>(
-                        timingSystems.size());
-        List<TimingNodeConfig> allNodes =
-                new ArrayList<TimingNodeConfig>();
-        Set<String> systemIds =
-                new LinkedHashSet<String>();
-        Set<NodeId> nodeIds =
-                new LinkedHashSet<NodeId>();
-        Set<Path> storagePaths =
-                new LinkedHashSet<Path>();
+        TimingSystemConfigRegistry systems =
+                new TimingSystemConfigRegistry(
+                        timingSystems);
+        AntennaManagerConfigRegistry antennaBindings =
+                new AntennaManagerConfigRegistry(
+                        antennaManagers,
+                        systems);
 
-        for (TimingSystemConfig timingSystem
-                : timingSystems) {
-            if (timingSystem == null) {
-                throw new IllegalArgumentException(
-                        "timingSystems must not contain null");
-            }
-            if (!systemIds.add(
-                    timingSystem.timingSystemId())) {
-                throw new IllegalArgumentException(
-                        "Duplicate TimingSystem id "
-                                + timingSystem
-                                        .timingSystemId());
-            }
-
-            for (TimingNodeConfig timingNode
-                    : timingSystem.timingNodes()) {
-                if (!nodeIds.add(
-                        timingNode.timingNodeId())) {
-                    throw new IllegalArgumentException(
-                            "Duplicate application-wide TimingNode id "
-                                    + timingNode
-                                            .timingNodeId()
-                                            .value());
-                }
-
-                Path storagePath =
-                        timingNode.timingDataPath();
-                if (storagePath != null) {
-                    Path normalized =
-                            storagePath
-                                    .toAbsolutePath()
-                                    .normalize();
-                    if (!storagePaths.add(
-                            normalized)) {
-                        throw new IllegalArgumentException(
-                                "Duplicate TimingData storage path "
-                                        + storagePath);
-                    }
-                }
-                allNodes.add(timingNode);
-            }
-
-            systems.add(timingSystem);
-        }
-
-        this.timingSystems =
-                Collections.unmodifiableList(systems);
-        this.timingNodes =
-                Collections.unmodifiableList(allNodes);
+        this.antennaManagers = antennaBindings;
+        this.timingSystems = systems;
         this.presentation = presentation;
         this.logging = logging;
         this.loggingServer = loggingServer;
     }
 
     public List<TimingSystemConfig> timingSystems() {
-        return timingSystems;
+        return timingSystems.systems();
+    }
+
+    public List<AntennaManagerConfig> antennaManagers() {
+        return antennaManagers.bindings();
+    }
+
+    /** An absent binding means this system has no configured AntennaManager. */
+    public AntennaManagerConfig antennaManager(String timingSystemId) {
+        return antennaManagers.binding(
+                timingSystemId);
     }
 
     public TimingSystemConfig timingSystem(
             String timingSystemId) {
-        if (timingSystemId == null) {
-            throw new IllegalArgumentException(
-                    "timingSystemId must not be null");
-        }
-        for (TimingSystemConfig timingSystem
-                : timingSystems) {
-            if (timingSystem
-                    .timingSystemId()
-                    .equals(timingSystemId)) {
-                return timingSystem;
-            }
-        }
-        throw new IllegalArgumentException(
-                "Unknown TimingSystem configuration "
-                        + timingSystemId);
+        return timingSystems.system(
+                timingSystemId);
     }
 
     public List<TimingNodeConfig> timingNodes() {
-        return timingNodes;
+        return timingSystems.timingNodes();
     }
 
     public TimingNodeConfig timingNode(
             NodeId nodeId) {
-        if (nodeId == null) {
-            throw new IllegalArgumentException(
-                    "nodeId must not be null");
-        }
-        for (TimingNodeConfig timingNode
-                : timingNodes) {
-            if (timingNode
-                    .timingNodeId()
-                    .equals(nodeId)) {
-                return timingNode;
-            }
-        }
-        throw new IllegalArgumentException(
-                "Unknown TimingNode configuration "
-                        + nodeId.value());
+        return timingSystems.timingNode(
+                nodeId);
     }
 
     /**
@@ -469,21 +407,25 @@ public final class Config {
     }
 
     private TimingNodeConfig requireSingleTimingNode() {
-        if (timingNodes.size() != 1) {
+        List<TimingNodeConfig> nodes =
+                timingSystems.timingNodes();
+        if (nodes.size() != 1) {
             throw new IllegalStateException(
                     "Operation requires exactly one TimingNode; configured="
-                            + timingNodes.size());
+                            + nodes.size());
         }
-        return timingNodes.get(0);
+        return nodes.get(0);
     }
 
     private TimingSystemConfig requireSingleTimingSystem() {
-        if (timingSystems.size() != 1) {
+        List<TimingSystemConfig> systems =
+                timingSystems.systems();
+        if (systems.size() != 1) {
             throw new IllegalStateException(
                     "Operation requires exactly one TimingSystem; configured="
-                            + timingSystems.size());
+                            + systems.size());
         }
-        return timingSystems.get(0);
+        return systems.get(0);
     }
 
     private static String requireProviderId(

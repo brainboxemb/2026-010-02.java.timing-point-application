@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- Move AntennaManager TimingSystem binding uniqueness, target validation and lookup into a typed `AntennaManagerConfigRegistry`; preserve the existing Config/YAML API and IF-11 behavior.
+
+- Move TimingSystem/TimingNode configuration identity, storage-path validation and lookup into a typed `TimingSystemConfigRegistry`; keep `Config` as the public effective configuration root and preserve its API.
+
+- Replace `PresentationGateway`'s parallel TimingNode proxy map/list bookkeeping with one ordered `TimingNodeProxyRegistry` that owns proxy creation, NodeId uniqueness and lookup while preserving the public Presentation API.
+
+- Group Runtime TimingSystem types by name and replace generic composition lists with typed collections: `TimingSystemResolvedData`, `TimingSystemResolvedDataList`, `TimingSystemComponentsList`, and end-to-end `TimingNodeList` use through Runtime and PresentationGateway.
+
+- Move simulation-specific Runtime code to `runtime.simulation`: `SimulationRuntime` and `SimulatedTagScenarioRunner` are grouped outside the default Runtime package without changing simulation behavior or the production processing path.
+
+- Support IF-11 antenna manager configuration and observation routing per TimingSystem; compose distinct I/O and node components per system without passing a generic I/O facade to Domain. Preserve Windows single-system fallback and reject unsupported providers/power settings explicitly.
+
+- Give SystemConductor a strongly typed `TimingNodeList` and a dedicated `PropertyRegistry` for ordered state property registration and identity-based lookup. Registry has no executor or queue responsibilities; no inventory behavior changes.
+
+- Rename the Java system-level coordinator class to `domain.system.SystemConductor` to distinguish it from `ApplicationConductor`; the architecture diagram still displays the role as `Conductor`. No behavior changes.
+
+- Align Domain source packages with the architectural system/node distinction: move `domain.timing` to `domain.node` (including `processing`), preserving runtime behaviour, while keeping `domain.timingdata` separate.
+
 - Compose 1..N configured TimingSystems in Runtime. Each system resolves its own EventData/TimingData providers, receives its own TimeSource and domain.system.Conductor, and contributes its TimingNodes to the application-wide PresentationGateway. The single ApplicationConductor registers every system; implicit Windows antenna composition remains limited to one system with one node.
 
 - Compose 1..N TimingNodes inside the current single TimingSystem: load all configured nodes, resolve a unique per-node LogBook file such as `node_A_logbook.jsonl`, create node-local persistence/execution lanes, coordinate the full node list with one system Conductor, and expose all nodes through Presentation. Multi-node composition does not use the temporary implicit Windows antenna fallback.

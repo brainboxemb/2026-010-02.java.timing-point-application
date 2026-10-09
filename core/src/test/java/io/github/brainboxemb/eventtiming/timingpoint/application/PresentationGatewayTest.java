@@ -6,8 +6,9 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGatewayFixture;
@@ -23,6 +24,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class PresentationGatewayTest {
     private static final TimingTimestamp TIME =
@@ -198,6 +200,32 @@ public class PresentationGatewayTest {
     }
 
     @Test
+    public void rejectsDuplicateApplicationWideTimingNodeId() {
+        TimingNode first =
+                TimingNodeFixture.create(
+                        new NodeId("A"),
+                        new RecordingStore(),
+                        () -> RECORDED_AT.instant());
+        TimingNode second =
+                TimingNodeFixture.create(
+                        new NodeId("A"),
+                        new RecordingStore(),
+                        () -> RECORDED_AT.instant());
+
+        try {
+            new PresentationGateway(
+                    identity(),
+                    nodes(first, second),
+                    configuration());
+            fail("Expected duplicate TimingNode id to be rejected");
+        } catch (IllegalArgumentException expected) {
+            assertEquals(
+                    "Duplicate TimingNode id A",
+                    expected.getMessage());
+        }
+    }
+
+    @Test
     public void exposesOptionalSimulatedTagControlWhenComposed() {
         TimingNode node =
                 node(
@@ -259,13 +287,13 @@ public class PresentationGatewayTest {
                 null);
     }
 
-    private static List<TimingNode> nodes(
+    private static TimingNodeList nodes(
             TimingNode... timingNodes) {
-        List<TimingNode> result =
-                new ArrayList<TimingNode>();
-        Collections.addAll(
-                result,
-                timingNodes);
+        TimingNodeList result =
+                new TimingNodeList();
+        for (TimingNode timingNode : timingNodes) {
+            result.add(timingNode);
+        }
         return result;
     }
 

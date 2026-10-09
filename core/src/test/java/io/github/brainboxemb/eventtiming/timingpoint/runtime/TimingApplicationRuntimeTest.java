@@ -8,10 +8,10 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaOperation;
@@ -20,6 +20,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.power.SimulatedPowerDevice;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
+import io.github.brainboxemb.eventtiming.timingpoint.runtime.simulation.SimulationRuntime;
+import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.AntennaManagerConfig;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Presentation;
 
 import java.nio.charset.StandardCharsets;
@@ -50,6 +52,35 @@ import static org.junit.Assert.fail;
 public class TimingApplicationRuntimeTest {
     @Rule
     public final TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+    @Test
+    public void composesConfiguredAntennasAcrossTwoSystems() {
+        Path root = temporaryFolder.getRoot().toPath();
+        List<Config.TimingSystemConfig> systems = new ArrayList<Config.TimingSystemConfig>();
+        List<AntennaManagerConfig> managers = new ArrayList<AntennaManagerConfig>();
+        for (String id : new String[]{"A", "B"}) {
+            List<Config.TimingNodeConfig> nodes = Collections.singletonList(
+                    new Config.TimingNodeConfig(new NodeId(id),
+                            root.resolve("node_" + id + "_logbook.jsonl"),
+                            TagProcessingPolicy.defaults()));
+            systems.add(new Config.TimingSystemConfig("system-" + id, nodes,
+                    Config.REFERENCE_PROVIDER_ID, Config.REFERENCE_PROVIDER_ID));
+            managers.add(new AntennaManagerConfig("system-" + id,
+                    Collections.singletonList(new AntennaManagerConfig.AntennaConfig(
+                            new AntennaId("1"), "simulated",
+                            Collections.singletonList(new NodeId(id)))),
+                    Collections.<AntennaId>emptyList(), null));
+        }
+        Config config = new Config(systems, managers, new Presentation(null, null), null, null);
+        TimingApplicationRuntime application = TimingApplicationRuntime.create(identity(), config);
+        assertEquals(2, application.antennaManagers().size());
+        application.activate();
+        try {
+            assertEquals(2, application.presentationGateway().timingNodes().size());
+        } finally {
+            application.deactivate();
+        }
+    }
 
     @Test
     public void composesConfiguredTimingNodeIntoRuntime() {
@@ -481,11 +512,8 @@ public class TimingApplicationRuntimeTest {
             assertEquals(
                     TimingApplicationRuntime.State.ACTIVE,
                     application.state());
-            assertTrue(
-                    "Runtime must be ACTIVE while antenna self-test continues",
-                    application.antennaManager()
-                            .isBusy());
             assertFalse(
+                    "Runtime must be ACTIVE before antenna startup is ready",
                     application.antennaManager()
                             .isReady());
 

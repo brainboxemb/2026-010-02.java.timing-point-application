@@ -9,7 +9,8 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGatewayFixture;
@@ -417,13 +418,13 @@ public class WebSocketEndpointTest {
                 false);
     }
 
-    private static List<TimingNode> nodes(
+    private static TimingNodeList nodes(
             TimingNode... timingNodes) {
-        List<TimingNode> result =
-                new ArrayList<TimingNode>();
-        Collections.addAll(
-                result,
-                timingNodes);
+        TimingNodeList result =
+                new TimingNodeList();
+        for (TimingNode timingNode : timingNodes) {
+            result.add(timingNode);
+        }
         return result;
     }
 
