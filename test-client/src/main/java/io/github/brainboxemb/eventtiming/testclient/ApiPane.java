@@ -17,8 +17,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** Primary API-first Development Client work surface. */
-final class ApiPane extends VBox {
+/** Coordinates API identity and timing workbench state without owning layout. */
+final class ApiPane {
     private final Supplier<ApiClient> clientSupplier;
     private final ExecutorService requests;
     private final Consumer<String> feedback;
