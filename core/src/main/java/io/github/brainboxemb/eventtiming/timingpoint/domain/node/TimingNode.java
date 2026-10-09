@@ -292,12 +292,13 @@ public final class TimingNode {
      * separate TimingNode operational-state policy.</p>
      */
     public void activate() {
-        publishedStatus = null;
-
         SerialExecutor.State executorState = serialExecutor.state();
         if (executorState != SerialExecutor.State.NEW && executorState != SerialExecutor.State.STOPPED) {
             throw new IllegalStateException("TimingNode cannot activate with executor state=" + executorState);
         }
+
+        publishedStatus = null;
+
         try {
             logic.recoverTimingData();
         } catch (TimingDataPersistence.PersistenceException | RuntimeException ex) {
