@@ -11,7 +11,7 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.system.Conductor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.SystemConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTimingDataPersistence;
@@ -50,7 +50,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>This is the visible composition root and owner of process-level Runtime
  * resources. Provider discovery is resolved before normal object composition;
- * the Application Conductor owns application lifecycle and each system Conductor owns its TimingNodes.
+ * the Application SystemConductor owns application lifecycle and each system SystemConductor owns its TimingNodes.
  * Runtime owns shared workers and the outer Presentation lifecycle.</p>
  */
 public final class TimingApplicationRuntime {
@@ -518,8 +518,8 @@ public final class TimingApplicationRuntime {
                             antennaManager);
                 }
 
-                Conductor systemConductor =
-                        new Conductor(
+                SystemConductor systemConductor =
+                        new SystemConductor(
                                 systemNodes,
                                 antennaManager,
                                 executors
@@ -712,7 +712,7 @@ public final class TimingApplicationRuntime {
     }
 
     /**
-     * Stops outer Presentation first, then the Application Conductor (which
+     * Stops outer Presentation first, then the Application SystemConductor (which
      * stops system components in reverse order), then Runtime-owned workers.
      */
     public synchronized void deactivate() {

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Rename the Java system-level coordinator class to `domain.system.SystemConductor` to distinguish it from `ApplicationConductor`; the architecture diagram still displays the role as `Conductor`. No behavior changes.
+
 - Align Domain source packages with the architectural system/node distinction: move `domain.timing` to `domain.node` (including `processing`), preserving runtime behaviour, while keeping `domain.timingdata` separate.
 
 - Compose 1..N configured TimingSystems in Runtime. Each system resolves its own EventData/TimingData providers, receives its own TimeSource and domain.system.Conductor, and contributes its TimingNodes to the application-wide PresentationGateway. The single ApplicationConductor registers every system; implicit Windows antenna composition remains limited to one system with one node.
