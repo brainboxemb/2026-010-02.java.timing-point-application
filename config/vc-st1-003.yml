@@ -1,4 +1,4 @@
-# VC-ST1-003 manual Development Client verification configuration.
+# VC-ST1-003 manual SI-02 Engineering Desktop Client verification configuration.
 # Uses dedicated TimingData storage so normal development history is untouched.
 parameters:
   ID: A
