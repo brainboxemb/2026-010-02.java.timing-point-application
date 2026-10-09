@@ -26,7 +26,7 @@ cp -a system-test-evidence/surefire-reports "$target/surefire-reports"
 
 grep -Fxq 'PASS' "$target/VC-ST1-001/result.txt"
 grep -Fxq 'PASS' "$target/VC-ST1-002/result.txt"
-test -s "$target/VC-ST1-002/timing-data.jsonl"
+test -s "$target/VC-ST1-002/node_A_logbook.jsonl"
 
 cat > "$target/README.md" <<EOF
 # Separate-process system verification
@@ -56,7 +56,7 @@ text += (
     "The canonical Maven summary above covers the ordinary module tests. "
     "The separately executed process-level VC-ST1 verification is retained "
     "under [system-test/](system-test/README.md), including the real "
-    "TimingData persistence file produced by VC-ST1-002.\n"
+    "per-node LogBook persistence file produced by VC-ST1-002.\n"
 )
 tests_readme.write_text(text, encoding="utf-8")
 
@@ -65,7 +65,7 @@ root = root_readme.read_text(encoding="utf-8")
 link = (
     "- [Separate-process system verification]"
     "(evidence/tests/system-test/README.md) — VC-ST1 black-box results, "
-    "runtime output and persisted TimingData evidence.\n"
+    "runtime output and persisted LogBook evidence.\n"
 )
 if link not in root:
     needle = (
