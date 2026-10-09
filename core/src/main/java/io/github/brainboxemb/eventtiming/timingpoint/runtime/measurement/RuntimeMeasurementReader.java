@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeMetrics;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutorMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.metrics.RuntimeObservation;
 

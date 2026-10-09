@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.timing;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData.AutomaticRegistration;

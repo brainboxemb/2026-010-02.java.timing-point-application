@@ -1,7 +1,7 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.timing;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Status;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 
 import java.util.function.Consumer;
 
