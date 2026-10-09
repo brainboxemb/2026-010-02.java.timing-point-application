@@ -38,8 +38,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** TimingNode controls/history inside the API-first workbench. */
-final class TimingPane extends VBox {
+/** Coordinates TimingNode controls/history and exposes framework-neutral JavaFX panes. */
+final class TimingPane {
     private static final int INITIAL_LOGBOOK_ROWS = 100;
     private static final DateTimeFormatter CLOCK_TIME =
             DateTimeFormatter.ofPattern("HH:mm:ss[.SS]");
@@ -118,7 +118,6 @@ final class TimingPane extends VBox {
         this.apiState = apiState;
         this.clientLog = clientLog;
 
-        setSpacing(10);
 
         Region syncSpacer =
                 new Region();
