@@ -140,9 +140,8 @@ public final class Config {
         }
     }
 
-    private final List<TimingSystemConfig> timingSystems;
+    private final TimingSystemConfigRegistry timingSystems;
     private final List<AntennaManagerConfig> antennaManagers;
-    private final List<TimingNodeConfig> timingNodes;
     private final Presentation presentation;
     private final LoggingConfig logging;
     private final LoggingServerConfig loggingServer;
@@ -287,92 +286,28 @@ public final class Config {
         if (antennaManagers == null) {
             throw new IllegalArgumentException("antennaManagers must not be null");
         }
-        if (timingSystems == null
-                || timingSystems.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "timingSystems must contain at least one TimingSystem");
-        }
         if (presentation == null) {
             throw new IllegalArgumentException(
                     "presentation must not be null");
         }
 
-        List<TimingSystemConfig> systems =
-                new ArrayList<TimingSystemConfig>(
-                        timingSystems.size());
-        List<TimingNodeConfig> allNodes =
-                new ArrayList<TimingNodeConfig>();
-        Set<String> systemIds =
-                new LinkedHashSet<String>();
-        Set<NodeId> nodeIds =
-                new LinkedHashSet<NodeId>();
-        Set<Path> storagePaths =
-                new LinkedHashSet<Path>();
-
-        for (TimingSystemConfig timingSystem
-                : timingSystems) {
-            if (timingSystem == null) {
-                throw new IllegalArgumentException(
-                        "timingSystems must not contain null");
-            }
-            if (!systemIds.add(
-                    timingSystem.timingSystemId())) {
-                throw new IllegalArgumentException(
-                        "Duplicate TimingSystem id "
-                                + timingSystem
-                                        .timingSystemId());
-            }
-
-            for (TimingNodeConfig timingNode
-                    : timingSystem.timingNodes()) {
-                if (!nodeIds.add(
-                        timingNode.timingNodeId())) {
-                    throw new IllegalArgumentException(
-                            "Duplicate application-wide TimingNode id "
-                                    + timingNode
-                                            .timingNodeId()
-                                            .value());
-                }
-
-                Path storagePath =
-                        timingNode.timingDataPath();
-                if (storagePath != null) {
-                    Path normalized =
-                            storagePath
-                                    .toAbsolutePath()
-                                    .normalize();
-                    if (!storagePaths.add(
-                            normalized)) {
-                        throw new IllegalArgumentException(
-                                "Duplicate TimingData storage path "
-                                        + storagePath);
-                    }
-                }
-                allNodes.add(timingNode);
-            }
-
-            systems.add(timingSystem);
-        }
+        TimingSystemConfigRegistry systems =
+                new TimingSystemConfigRegistry(
+                        timingSystems);
 
         List<AntennaManagerConfig> bindings =
                 new ArrayList<AntennaManagerConfig>();
         Set<String> boundSystems = new LinkedHashSet<String>();
         for (AntennaManagerConfig binding : antennaManagers) {
             if (binding == null
-                    || !systemIds.contains(binding.timingSystemId())
+                    || !systems.containsSystem(binding.timingSystemId())
                     || !boundSystems.add(binding.timingSystemId())) {
                 throw new IllegalArgumentException(
                         "Unknown or duplicate AntennaManager TimingSystem binding");
             }
-            Set<NodeId> systemNodes = new LinkedHashSet<NodeId>();
-            for (TimingSystemConfig system : systems) {
-                if (system.timingSystemId().equals(binding.timingSystemId())) {
-                    for (TimingNodeConfig node : system.timingNodes()) {
-                        systemNodes.add(node.timingNodeId());
-                    }
-                    break;
-                }
-            }
+            Set<NodeId> systemNodes =
+                    systems.timingNodeIds(
+                            binding.timingSystemId());
             for (AntennaManagerConfig.AntennaConfig antenna : binding.antennas()) {
                 for (NodeId nodeId : antenna.timingNodes()) {
                     if (!systemNodes.contains(nodeId)) {
@@ -387,17 +322,14 @@ public final class Config {
         }
 
         this.antennaManagers = Collections.unmodifiableList(bindings);
-        this.timingSystems =
-                Collections.unmodifiableList(systems);
-        this.timingNodes =
-                Collections.unmodifiableList(allNodes);
+        this.timingSystems = systems;
         this.presentation = presentation;
         this.logging = logging;
         this.loggingServer = loggingServer;
     }
 
     public List<TimingSystemConfig> timingSystems() {
-        return timingSystems;
+        return timingSystems.systems();
     }
 
     public List<AntennaManagerConfig> antennaManagers() {
@@ -416,52 +348,18 @@ public final class Config {
 
     public TimingSystemConfig timingSystem(
             String timingSystemId) {
-        if (timingSystemId == null) {
-            throw new IllegalArgumentException(
-                    "timingSystemId must not be null");
-        }
-        for (TimingSystemConfig timingSystem
-                : timingSystems) {
-            if (timingSystem
-                    .timingSystemId()
-                    .equals(timingSystemId)) {
-                return timingSystem;
-            }
-        }
-        throw new IllegalArgumentException(
-                "Unknown TimingSystem configuration "
-                        + timingSystemId);
+        return timingSystems.system(
+                timingSystemId);
     }
 
     public List<TimingNodeConfig> timingNodes() {
-        return timingNodes;
+        return timingSystems.timingNodes();
     }
 
     public TimingNodeConfig timingNode(
             NodeId nodeId) {
-        if (nodeId == null) {
-            throw new IllegalArgumentException(
-                    "nodeId must not be null");
-        }
-        for (TimingNodeConfig timingNode
-                : timingNodes) {
-            if (timingNode
-                    .timingNodeId()
-                    .equals(nodeId)) {
-                return timingNode;
-            }
-        }
-        throw new IllegalArgumentException(
-                "Unknown TimingNode configuration "
-                        + nodeId.value());
-    }
-
-    /**
-     * Single-node compatibility accessor.
-     */
-    public NodeId timingNodeId() {
-        return requireSingleTimingNode()
-                .timingNodeId();
+        return timingSystems.timingNode(
+                nodeId);
     }
 
     public Presentation presentation() {
