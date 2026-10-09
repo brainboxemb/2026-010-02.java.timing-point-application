@@ -74,7 +74,7 @@ public class RemoteShellServerTest {
                                 + "open 24\n"
                                 + "auto-reg:A N0002 2026-10-01T12:00:00Z\n"
                                 + "auto-reg N0003 2026-10-01T12:00:00Z\n"
-                                + "status:unknown\n"
+                                + "status:B\n"
                                 + "open: 25\n"
                                 + "quit:A\n"
                                 + "config tag-processing set "
@@ -88,7 +88,7 @@ public class RemoteShellServerTest {
                 assertTrue(response.contains("Version      : test-version"));
                 assertTrue(response.contains("Open: OPENED"));
                 assertTrue(response.contains("TimingNode: A"));
-                assertTrue(response.contains("Unknown TimingNode unknown"));
+                assertTrue(response.contains("Unknown TimingNode B"));
                 assertTrue(response.contains("Invalid NodeId: "));
                 assertTrue(response.contains("Command does not accept a NodeId: quit"));
                 assertTrue(response.contains(
