@@ -20,6 +20,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.power.SimulatedPowerDevice;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
+import io.github.brainboxemb.eventtiming.timingpoint.runtime.simulation.SimulationRuntime;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.AntennaManagerConfig;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Presentation;
 
