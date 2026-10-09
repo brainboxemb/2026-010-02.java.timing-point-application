@@ -56,6 +56,10 @@ public final class TimingNodeStateProperty {
                 .state();
     }
 
+    TimingNode timingNode() {
+        return timingNode;
+    }
+
     /**
      * Event emitted after initialization when the authoritative TimingNode state
      * really changes.

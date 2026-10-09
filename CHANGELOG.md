@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Give SystemConductor a strongly typed `TimingNodeList` and a dedicated `PropertyRegistry` for ordered state property registration and identity-based lookup. Registry has no executor or queue responsibilities; no inventory behavior changes.
+
 - Rename the Java system-level coordinator class to `domain.system.SystemConductor` to distinguish it from `ApplicationConductor`; the architecture diagram still displays the role as `Conductor`. No behavior changes.
 
 - Align Domain source packages with the architectural system/node distinction: move `domain.timing` to `domain.node` (including `processing`), preserving runtime behaviour, while keeping `domain.timingdata` separate.
