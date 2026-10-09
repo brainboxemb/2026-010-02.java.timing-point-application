@@ -562,7 +562,7 @@ public final class TimingApplicationRuntime {
                         for (AntennaManagerConfig.AntennaConfig antenna : managerConfig.antennas()) {
                             for (NodeId nodeId : antenna.timingNodes()) {
                                 for (TimingNode node : systemNodes) {
-                                    if (node.nodeId().equals(nodeId)) {
+                                    if (node.timingNodeId().equals(nodeId)) {
                                         antennaManager.tagObservedEvent(antenna.id())
                                                 .subscribe(node.tagProcessor()::onTagObserved);
                                     }
