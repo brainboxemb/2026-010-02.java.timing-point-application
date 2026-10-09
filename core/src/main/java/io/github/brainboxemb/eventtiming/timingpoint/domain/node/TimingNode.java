@@ -528,11 +528,24 @@ public final class TimingNode {
      * Returns the activation-complete immutable Status used by CURRENT status queries.
      */
     Status publishedStatus() {
+        SerialExecutor.State executorState = serialExecutor.state();
+        if (executorState == SerialExecutor.State.FAILED) {
+            throw new OperationException(
+                    OperationException.Reason.FAILED,
+                    "status CURRENT result is unavailable because the TimingNode serial executor failed",
+                    serialExecutor.failure());
+        }
+        if (executorState != SerialExecutor.State.RUNNING) {
+            throw new OperationException(
+                    OperationException.Reason.UNAVAILABLE,
+                    "status CURRENT result is unavailable because the TimingNode is not active and ready");
+        }
+
         Status status = publishedStatus;
         if (status == null) {
             throw new OperationException(
                     OperationException.Reason.UNAVAILABLE,
-                    "status CURRENT result is unavailable because the TimingNode is not active and ready");
+                    "status CURRENT result is unavailable because TimingNode activation is not complete");
         }
         return status;
     }
