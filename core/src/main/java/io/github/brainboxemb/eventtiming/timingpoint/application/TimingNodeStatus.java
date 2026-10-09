@@ -2,8 +2,8 @@ package io.github.brainboxemb.eventtiming.timingpoint.application;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.State;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.Problem;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Problem;
 
 import java.util.ArrayList;
 import java.util.Collections;

@@ -4,9 +4,10 @@ import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.system.Conductor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.SystemConductor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
@@ -111,7 +112,7 @@ public class ApplicationConductorTest {
                 Executors.newSingleThreadScheduledExecutor();
 
         private final AntennaManager manager;
-        private final Conductor conductor;
+        private final SystemConductor conductor;
 
         private SystemFixture(
                 String nodeId,
@@ -145,11 +146,10 @@ public class ApplicationConductorTest {
                                     ioWorker),
                             Duration.ofSeconds(1));
 
-            List<TimingNode> timingNodes =
-                    new ArrayList<TimingNode>();
-            timingNodes.add(node);
+            TimingNodeList timingNodes =
+                    new TimingNodeList().add(node);
             conductor =
-                    new Conductor(
+                    new SystemConductor(
                             timingNodes,
                             manager,
                             new SerialExecutor(

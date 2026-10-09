@@ -1,11 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * Runtime-only grouping of constructed components for one configured system.
@@ -13,12 +9,12 @@ import java.util.List;
  */
 final class TimingSystemComponents {
     private final String id;
-    private final List<TimingNode> nodes;
+    private final TimingNodeList nodes;
     private final AntennaManager antennaManager;
 
-    TimingSystemComponents(String id, List<TimingNode> nodes, AntennaManager antennaManager) {
+    TimingSystemComponents(String id, TimingNodeList nodes, AntennaManager antennaManager) {
         this.id = id;
-        this.nodes = Collections.unmodifiableList(new ArrayList<TimingNode>(nodes));
+        this.nodes = nodes;
         this.antennaManager = antennaManager;
     }
 
@@ -26,7 +22,7 @@ final class TimingSystemComponents {
         return id;
     }
 
-    List<TimingNode> nodes() {
+    TimingNodeList nodes() {
         return nodes;
     }
 

@@ -2,8 +2,9 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationConductor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.system.Conductor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.SystemConductor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
@@ -18,9 +19,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -56,7 +55,7 @@ final class TimingSystemComposer {
             AntennaManagerConfig managerBinding,
             AntennaSet implicitAntennas,
             TimeSource timeSource) {
-        List<TimingNode> nodes = createNodes(system, timeSource);
+        TimingNodeList nodes = createNodes(system, timeSource);
         if (managerBinding == null && !implicitAntennas.isEmpty() && nodes.size() != 1) {
             throw new IllegalArgumentException(
                     "Implicit antenna routing requires exactly one TimingNode");
@@ -69,7 +68,7 @@ final class TimingSystemComposer {
                         executors.createAntennaControlExecutor(),
                         ANTENNA_CONTROL_TIMEOUT);
 
-        Conductor conductor = new Conductor(
+        SystemConductor conductor = new SystemConductor(
                 nodes,
                 antennaManager,
                 executors.createSystemConductorExecutor());
@@ -87,10 +86,10 @@ final class TimingSystemComposer {
                 system.configuration.timingSystemId(), nodes, antennaManager);
     }
 
-    private List<TimingNode> createNodes(
+    private TimingNodeList createNodes(
             ResolvedTimingSystem system,
             TimeSource timeSource) {
-        List<TimingNode> nodes = new ArrayList<TimingNode>();
+        TimingNodeList nodes = new TimingNodeList();
         for (Config.TimingNodeConfig nodeConfig : system.configuration.timingNodes()) {
             RuntimeExecutors.TimingNodeExecutors nodeExecutors =
                     executors.createTimingNodeExecutors();
@@ -140,7 +139,7 @@ final class TimingSystemComposer {
             AntennaManager manager,
             AntennaSet antennas,
             AntennaManagerConfig binding,
-            List<TimingNode> nodes) {
+            TimingNodeList nodes) {
         Map<NodeId, TimingNode> byId = new LinkedHashMap<NodeId, TimingNode>();
         for (TimingNode node : nodes) {
             byId.put(node.timingNodeId(), node);
