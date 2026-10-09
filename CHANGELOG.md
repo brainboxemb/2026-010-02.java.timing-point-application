@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Move TimingSystem/TimingNode configuration identity, storage-path validation and lookup into a typed `TimingSystemConfigRegistry`; keep `Config` as the public effective configuration root and preserve its API.
+
 - Replace `PresentationGateway`'s parallel TimingNode proxy map/list bookkeeping with one ordered `TimingNodeProxyRegistry` that owns proxy creation, NodeId uniqueness and lookup while preserving the public Presentation API.
 
 - Group Runtime TimingSystem types by name and replace generic composition lists with typed collections: `TimingSystemResolvedData`, `TimingSystemResolvedDataList`, `TimingSystemComponentsList`, and end-to-end `TimingNodeList` use through Runtime and PresentationGateway.
