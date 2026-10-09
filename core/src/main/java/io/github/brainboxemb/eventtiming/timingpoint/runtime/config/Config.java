@@ -18,7 +18,7 @@ public final class Config {
     public static final String REFERENCE_PROVIDER_ID = "reference";
 
     private static final String DEFAULT_TIMING_SYSTEM_ID =
-            "timing-system-01";
+            "SID-A";
 
     /** Effective startup configuration for one TimingNode. */
     public static final class TimingNodeConfig {

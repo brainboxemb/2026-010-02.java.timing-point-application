@@ -1,15 +1,19 @@
 # Complete example configuration for one TimingNode and its external interfaces.
+parameters:
+  # Deployment-local source constant; resolved before effective configuration.
+  ID: A
+
 timingSystems:
-  timing-system-01:
-    timingSystemId: timing-system-01
+  primary:
+    timingSystemId: SID-{ID}
 
     # Built-in public/reference provider selections.
     eventDataProvider: reference
     timingDataProvider: reference
 
     timingNodes:
-      timing-node-01:
-        timingNodeId: A
+      primary:
+        timingNodeId: "{ID}"
 
         # Optional TimingNode-local TagProcessor startup policy.
         # These values match the compiled defaults and may be omitted individually.
@@ -23,8 +27,8 @@ timingSystems:
 io:
   storage:
     timingData:
-      # Reference persistence for the configured TimingNode.
-      path: data/node_A_logbook.jsonl
+      # Context placeholders resolve once per configured TimingNode.
+      path: data/node-{NodeId}-logbook.jsonl
 
 presentation:
   remoteShell:

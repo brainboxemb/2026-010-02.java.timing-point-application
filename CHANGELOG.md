@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add deterministic IF-11 YAML source parameters and contextual TimingData path templates. The compact single-system default is `SID-A`; examples use `SID-{ID}` and `node-{NodeId}-logbook.jsonl` while runtime configuration receives only resolved values.
+
 - Preserve Java 8 compatibility when building with newer JDKs by compiling against the Java 8 API via Maven `release=8` and disambiguating `SerialScheduledExecutor.State` from Java 19+ `Future.State`.
 
 - Add explicit CURRENT versus ORDERED TimingNode query consistency. Status can use a safely published current snapshot without queueing, ordered reads preserve command sequencing, SystemConductor reconciles from CURRENT state, and same-lane ordered reentrancy fails immediately.

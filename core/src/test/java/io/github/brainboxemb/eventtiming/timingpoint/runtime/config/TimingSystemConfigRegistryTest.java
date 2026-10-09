@@ -15,6 +15,22 @@ import static org.junit.Assert.fail;
 
 public class TimingSystemConfigRegistryTest {
     @Test
+    public void singleSystemCompatibilityConfigUsesCompactDefaultId() {
+        Config config =
+                new Config(
+                        new NodeId("A"),
+                        new Presentation(
+                                null,
+                                null));
+
+        assertEquals(
+                "SID-A",
+                config.timingSystems()
+                        .get(0)
+                        .timingSystemId());
+    }
+
+    @Test
     public void preservesSystemOrderAndProvidesTypedLookup() {
         Config.TimingSystemConfig first =
                 system(

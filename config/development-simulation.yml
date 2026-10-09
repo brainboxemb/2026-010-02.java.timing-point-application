@@ -3,14 +3,18 @@
 # On Windows the current development platform fallback composes SimulatedAntenna 1.
 # Selecting the public "simulation" EventData provider enables the capability-gated
 # TAG_SCENARIO_SIMULATION IF-03 operation used by the Development Client.
+parameters:
+  ID: A
+
 timingSystems:
-  timing-system-01:
+  primary:
+    timingSystemId: SID-{ID}
     eventDataProvider: simulation
     timingDataProvider: reference
 
     timingNodes:
-      timing-node-01:
-        timingNodeId: A
+      primary:
+        timingNodeId: "{ID}"
 
         tagProcessing:
           quietTimeoutMillis: 250
@@ -22,7 +26,7 @@ timingSystems:
 io:
   storage:
     timingData:
-      path: data/development-simulation-timing-data.jsonl
+      path: data/development-simulation-node-{NodeId}-logbook.jsonl
 
 presentation:
   remoteShell:

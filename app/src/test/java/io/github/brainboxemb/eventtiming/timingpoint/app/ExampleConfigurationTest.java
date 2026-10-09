@@ -9,6 +9,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -42,7 +43,16 @@ public class ExampleConfigurationTest {
         assertEquals(
                 "A",
                 config.timingNodeId().value());
-        assertNotNull(config.timingDataPath());
+        assertEquals(
+                "SID-A",
+                config.timingSystems()
+                        .get(0)
+                        .timingSystemId());
+        assertEquals(
+                Paths.get(
+                        "data",
+                        "node-A-logbook.jsonl"),
+                config.timingDataPath());
         assertNotNull(config.presentation().remoteShell());
         assertNotNull(config.presentation().api());
         assertNotNull(config.logging());

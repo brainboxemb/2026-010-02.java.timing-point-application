@@ -1,15 +1,19 @@
 # VC-ST1-003 manual Development Client verification configuration.
 # Uses dedicated TimingData storage so normal development history is untouched.
+parameters:
+  ID: A
+
 timingSystems:
-  timing-system-01:
+  primary:
+    timingSystemId: SID-{ID}
     timingNodes:
-      timing-node-01:
-        timingNodeId: A
+      primary:
+        timingNodeId: "{ID}"
 
 io:
   storage:
     timingData:
-      path: data/vc-st1-003-timing-data.jsonl
+      path: data/vc-st1-003-node-{NodeId}-logbook.jsonl
 
 presentation:
   remoteShell:
