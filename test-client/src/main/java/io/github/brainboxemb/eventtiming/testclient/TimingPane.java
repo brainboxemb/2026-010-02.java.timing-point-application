@@ -2,10 +2,8 @@ package io.github.brainboxemb.eventtiming.testclient;
 
 import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyStringWrapper;
-import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
-import javafx.geometry.VPos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
@@ -13,17 +11,12 @@ import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
-import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
-import javafx.scene.control.TitledPane;
 import javafx.scene.control.Tooltip;
-import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
-import javafx.scene.layout.RowConstraints;
 import javafx.scene.layout.VBox;
 
 import java.time.LocalDate;
@@ -1133,17 +1126,6 @@ final class TimingPane {
         return status.nodes().isEmpty() ? null : status.nodes().get(0).id();
     }
 
-    private static Tab tab(
-            String title,
-            javafx.scene.Node content) {
-        Tab tab =
-                new Tab(
-                        title,
-                        content);
-        tab.setClosable(
-                false);
-        return tab;
-    }
 
     private static void add(GridPane grid, int row, String label, javafx.scene.Node value) {
         grid.add(new Label(label), 0, row);
