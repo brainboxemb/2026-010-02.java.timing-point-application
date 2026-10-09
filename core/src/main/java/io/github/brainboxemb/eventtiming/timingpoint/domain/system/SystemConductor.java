@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Coordinates one TimingSystem.
  *
- * <p>The Conductor owns the lifecycle of the TimingNodes in this system and
+ * <p>The SystemConductor owns the lifecycle of the TimingNodes in this system and
  * reconciles their states into one inventory decision. Inventory is enabled
  * while at least one TimingNode is OPEN.</p>
  *
@@ -29,10 +29,10 @@ import org.slf4j.LoggerFactory;
  * inventory execution and multiplexing. TagObservation routing is wired
  * separately by Runtime.</p>
  */
-public final class Conductor extends AbstractConductor
+public final class SystemConductor extends AbstractConductor
         implements CooperativeTask {
     private static final Logger LOG =
-            LoggerFactory.getLogger(Conductor.class);
+            LoggerFactory.getLogger(SystemConductor.class);
 
     private final List<TimingNodeStateProperty> stateProperties =
             new ArrayList<TimingNodeStateProperty>();
@@ -41,7 +41,7 @@ public final class Conductor extends AbstractConductor
     private final AntennaManager antennaManager;
     private final CooperativeTaskController taskController;
 
-    public Conductor(
+    public SystemConductor(
             List<TimingNode> timingNodes,
             AntennaManager antennaManager,
             SerialExecutor coordinationLane) {

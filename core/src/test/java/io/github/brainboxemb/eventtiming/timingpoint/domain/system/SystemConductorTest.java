@@ -37,7 +37,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class ConductorTest {
+public class SystemConductorTest {
     private final List<ExecutorService> workers =
             new ArrayList<ExecutorService>();
 
@@ -63,8 +63,8 @@ public class ConductorTest {
                         1,
                         "conductor-test",
                         conductorWorker);
-        Conductor conductor =
-                new Conductor(
+        SystemConductor conductor =
+                new SystemConductor(
                         Collections.singletonList(node),
                         manager,
                         lane);
@@ -138,8 +138,8 @@ public class ConductorTest {
                         "conductor-test",
                         newWorker(
                                 "conductor-test-worker"));
-        Conductor conductor =
-                new Conductor(
+        SystemConductor conductor =
+                new SystemConductor(
                         Collections.singletonList(node),
                         manager,
                         lane);
@@ -155,7 +155,7 @@ public class ConductorTest {
             /*
              * A source event only invalidates the property. The property then
              * rereads the authoritative current OPEN state and emits its own
-             * changedEvent, which makes Conductor enable inventory.
+             * changedEvent, which makes SystemConductor enable inventory.
              */
             conductor.signalTimingNodeStateChanged(node);
 
@@ -182,8 +182,8 @@ public class ConductorTest {
                         8,
                         "system-conductor-test",
                         newWorker("system-conductor-worker"));
-        Conductor conductor =
-                new Conductor(
+        SystemConductor conductor =
+                new SystemConductor(
                         Arrays.asList(first, second),
                         manager,
                         lane);
@@ -221,7 +221,7 @@ public class ConductorTest {
                 new NodeId(id),
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),
-                ConductorTest::now,
+                SystemConductorTest::now,
                 ReadOnlyConfiguration.fixed(
                         TagProcessingPolicy.defaults()),
                 EventData.empty(),
@@ -310,7 +310,7 @@ public class ConductorTest {
         @Override
         public void append(
                 TimingData data) {
-            // Conductor tests exercise coordination, not persistence.
+            // SystemConductor tests exercise coordination, not persistence.
         }
     }
 }
