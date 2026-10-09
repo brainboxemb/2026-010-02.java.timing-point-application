@@ -67,8 +67,16 @@ public class RemoteShellServerTest {
                         new OutputStreamWriter(second.getOutputStream(), StandardCharsets.UTF_8);
                 writer.write(
                         "version\n"
+                                + "node\n"
+                                + "open:A 24\n"
+                                + "status:A\n"
+                                + "node\n"
                                 + "open 24\n"
-                                + "auto-reg N0002 2026-10-01T12:00:00Z\n"
+                                + "auto-reg:A N0002 2026-10-01T12:00:00Z\n"
+                                + "auto-reg N0003 2026-10-01T12:00:00Z\n"
+                                + "status:unknown\n"
+                                + "open: 25\n"
+                                + "quit:A\n"
                                 + "config tag-processing set "
                                 + "quietTimeoutMillis=300\n"
                                 + "close\n"
@@ -79,6 +87,10 @@ public class RemoteShellServerTest {
                 String response = readToEnd(second.getInputStream());
                 assertTrue(response.contains("Version      : test-version"));
                 assertTrue(response.contains("Open: OPENED"));
+                assertTrue(response.contains("TimingNode: A"));
+                assertTrue(response.contains("Unknown TimingNode unknown"));
+                assertTrue(response.contains("Invalid NodeId: "));
+                assertTrue(response.contains("Command does not accept a NodeId: quit"));
                 assertTrue(response.contains(
                         "Automatic registration: COMMITTED seq=2"));
                 assertTrue(response.contains(
