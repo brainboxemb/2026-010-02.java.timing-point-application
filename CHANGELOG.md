@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replace `PresentationGateway`'s parallel TimingNode proxy map/list bookkeeping with one ordered `TimingNodeProxyRegistry` that owns proxy creation, NodeId uniqueness and lookup while preserving the public Presentation API.
+
 - Group Runtime TimingSystem types by name and replace generic composition lists with typed collections: `TimingSystemResolvedData`, `TimingSystemResolvedDataList`, `TimingSystemComponentsList`, and end-to-end `TimingNodeList` use through Runtime and PresentationGateway.
 
 - Move simulation-specific Runtime code to `runtime.simulation`: `SimulationRuntime` and `SimulatedTagScenarioRunner` are grouped outside the default Runtime package without changing simulation behavior or the production processing path.
