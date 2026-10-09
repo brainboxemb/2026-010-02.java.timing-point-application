@@ -445,7 +445,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                 return;
             }
             synchronized (SerialScheduledExecutor.this) {
-                if (state != State.RUNNING) {
+                if (state != SerialScheduledExecutor.State.RUNNING) {
                     cancel(false);
                     return;
                 }
@@ -466,9 +466,9 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                 }
             } catch (RejectedExecutionException ex) {
                 synchronized (SerialScheduledExecutor.this) {
-                    if (state == State.RUNNING) {
+                    if (state == SerialScheduledExecutor.State.RUNNING) {
                         failure = ex;
-                        state = State.FAILED;
+                        state = SerialScheduledExecutor.State.FAILED;
                     }
                 }
                 completion.completeExceptionally(ex);
@@ -486,7 +486,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
 
             final SerialExecutor activeLane;
             synchronized (SerialScheduledExecutor.this) {
-                if (state != State.RUNNING) {
+                if (state != SerialScheduledExecutor.State.RUNNING) {
                     cancel(false);
                     return;
                 }

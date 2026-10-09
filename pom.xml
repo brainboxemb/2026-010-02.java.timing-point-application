@@ -21,8 +21,7 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.source>1.8</maven.compiler.source>
-    <maven.compiler.target>1.8</maven.compiler.target>
+    <maven.compiler.release>8</maven.compiler.release>
     <junit.version>4.13.2</junit.version>
     <slf4j.version>2.0.17</slf4j.version>
     <snakeyaml.version>2.7</snakeyaml.version>
@@ -108,8 +107,7 @@
           <artifactId>maven-compiler-plugin</artifactId>
           <version>${maven.compiler.plugin.version}</version>
           <configuration>
-            <source>${maven.compiler.source}</source>
-            <target>${maven.compiler.target}</target>
+            <release>${maven.compiler.release}</release>
             <encoding>${project.build.sourceEncoding}</encoding>
           </configuration>
         </plugin>
