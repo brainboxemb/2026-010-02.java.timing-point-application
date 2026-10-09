@@ -1,6 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.system;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.property.SourceProperty;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -10,35 +12,32 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * System-local node state properties, indexed by TimingNode instance.
+ * System-local TimingNode state properties indexed by TimingNode instance.
  *
- * <p>Preserves registration order without exposing mutable collections.
- * Executor selection and coordination remain outside this registry.</p>
+ * <p>Preserves registration order without exposing mutable collections. The
+ * registry owns no source reads, execution or lifecycle.</p>
  */
-final class PropertyRegistry
-        implements Iterable<TimingNodeStateProperty> {
-    private final List<TimingNodeStateProperty> properties =
-            new ArrayList<TimingNodeStateProperty>();
-    private final Map<TimingNode, TimingNodeStateProperty> byNode =
-            new IdentityHashMap<TimingNode, TimingNodeStateProperty>();
+final class PropertyRegistry implements Iterable<SourceProperty<TimingNode, State>> {
+    private final List<SourceProperty<TimingNode, State>> properties =
+            new ArrayList<SourceProperty<TimingNode, State>>();
+    private final Map<TimingNode, SourceProperty<TimingNode, State>> byNode =
+            new IdentityHashMap<TimingNode, SourceProperty<TimingNode, State>>();
 
-    void register(TimingNodeStateProperty property) {
-        if (property == null
-                || byNode.containsKey(property.timingNode())) {
-            throw new IllegalArgumentException(
-                    "Property requires a distinct non-null TimingNode");
+    void register(SourceProperty<TimingNode, State> property) {
+        if (property == null || byNode.containsKey(property.source())) {
+            throw new IllegalArgumentException("Property requires a distinct non-null TimingNode");
         }
 
         properties.add(property);
-        byNode.put(property.timingNode(), property);
+        byNode.put(property.source(), property);
     }
 
-    TimingNodeStateProperty get(TimingNode node) {
+    SourceProperty<TimingNode, State> get(TimingNode node) {
         return byNode.get(node);
     }
 
     @Override
-    public Iterator<TimingNodeStateProperty> iterator() {
+    public Iterator<SourceProperty<TimingNode, State>> iterator() {
         return Collections.unmodifiableList(properties).iterator();
     }
 }

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replace the heavyweight TrackedProperty refresh scheduler with passive SourceProperty/DerivedProperty state. SystemConductor now acquires initial TimingNode state explicitly in its first control run, consumes later authoritative Status events directly, and leaves coalescing to CooperativeTaskController.
+
 - Allow command-shell node commands to target a specific TimingNode per invocation using `command:NodeId` (for example `open:A 1`), without changing the selected default node. Multi-node sessions show the selection in the prompt and default to strict explicit addressing; `node-mode selected` can opt into implicit selected-node targeting. Applies to local and remote terminals.
 
 - Move AntennaManager TimingSystem binding uniqueness, target validation and lookup into a typed `AntennaManagerConfigRegistry`; preserve the existing Config/YAML API and IF-11 behavior.

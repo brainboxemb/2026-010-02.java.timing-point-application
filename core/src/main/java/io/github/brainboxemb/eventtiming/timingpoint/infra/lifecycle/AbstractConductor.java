@@ -56,7 +56,7 @@ public abstract class AbstractConductor {
     }
 
     /**
-     * Gives concrete application properties access to the one coordination lane.
+     * Gives the concrete Conductor access to its one coordination lane.
      *
      * <p>The returned lane is still owned by this base lifecycle. Concrete code
      * may schedule work on it but must not start or close it.</p>
@@ -138,9 +138,11 @@ public abstract class AbstractConductor {
      * Concrete startup hook called after all registered components are active
      * and the coordination lane is running.
      *
-     * <p>SI-01-specific startup actions such as initial tracked-property
-     * reads belong here. Long-running device startup work belongs to the
-     * component that owns that device.</p>
+     * <p>SI-01-specific startup actions such as waking the first control run
+     * belong here. Potentially blocking current-state acquisition belongs in
+     * that explicit control behaviour, not hidden inside this lifecycle hook.
+     * Long-running device startup work belongs to the component that owns that
+     * device.</p>
      */
     protected abstract void onActivated();
 

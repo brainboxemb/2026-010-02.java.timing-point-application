@@ -2,8 +2,12 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.property.DerivedProperty;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.property.SourceProperty;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTaskController;
@@ -17,23 +21,23 @@ import org.slf4j.LoggerFactory;
 /**
  * Coordinates one TimingSystem.
  *
- * <p>The SystemConductor owns the lifecycle of the TimingNodes in this system and
- * reconciles their states into one inventory decision. Inventory is enabled
- * while at least one TimingNode is OPEN.</p>
+ * <p>The SystemConductor owns TimingNode lifecycle and the system-wide inventory
+ * decision. SourceProperty and DerivedProperty only hold current state; all
+ * scheduling and coalescing remain in this Conductor's CooperativeTaskController.</p>
  *
- * <p>The AntennaManager owns antenna power, self-test, initialization,
- * inventory execution and multiplexing. TagObservation routing is wired
- * separately by Runtime.</p>
+ * <p>The first control run explicitly reads current state from every already-active
+ * TimingNode. Later TimingNode Status events update the corresponding SourceProperty
+ * directly and only wake this control task.</p>
  */
-public final class SystemConductor extends AbstractConductor
-        implements CooperativeTask {
-    private static final Logger LOG =
-            LoggerFactory.getLogger(SystemConductor.class);
+public final class SystemConductor extends AbstractConductor implements CooperativeTask {
+    private static final Logger LOG = LoggerFactory.getLogger(SystemConductor.class);
 
-    private final PropertyRegistry properties =
-            new PropertyRegistry();
+    private final PropertyRegistry properties = new PropertyRegistry();
     private final AntennaManager antennaManager;
     private final CooperativeTaskController taskController;
+    private final DerivedProperty<Boolean> inventoryRequired;
+
+    private volatile boolean sourcePropertiesInitialized;
 
     public SystemConductor(
             TimingNodeList timingNodes,
@@ -42,105 +46,105 @@ public final class SystemConductor extends AbstractConductor
         super(coordinationLane);
 
         if (timingNodes == null || timingNodes.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "timingNodes must not be empty");
+            throw new IllegalArgumentException("timingNodes must not be empty");
         }
 
         this.antennaManager = antennaManager;
-        this.taskController =
-                new CooperativeTaskController(
-                        new SerialTaskRunner(
-                                coordinationLane()),
-                        this,
-                        this::onControlTaskFailure);
+        taskController = new CooperativeTaskController(
+                new SerialTaskRunner(coordinationLane()),
+                this,
+                this::onControlTaskFailure);
 
         for (TimingNode node : timingNodes) {
-            TimingNodeStateProperty property =
-                    new TimingNodeStateProperty(
-                            node,
-                            coordinationLane());
-            properties.register(property);
-
-            property.changedEvent()
-                    .subscribe(
-                            ignored ->
-                                    taskController.wake());
-
+            properties.register(new SourceProperty<TimingNode, State>(node));
             registerComponent(
-                    "TimingNode "
-                            + node.timingNodeId().value(),
+                    "TimingNode " + node.timingNodeId().value(),
                     node::activate,
                     node::deactivate);
         }
+
+        inventoryRequired = new DerivedProperty<Boolean>(this::deriveInventoryRequired);
     }
 
-    public boolean signalTimingNodeStateChanged(
-            TimingNode node) {
-        TimingNodeStateProperty property =
-                properties.get(node);
-        if (property == null) {
-            throw new IllegalArgumentException(
-                    "TimingNode does not belong to this TimingSystem");
-        }
-        return property.signalChanged();
-    }
-
-    TimingNodeStateProperty nodeStateProperty(
-            TimingNode node) {
-        TimingNodeStateProperty property =
-                properties.get(node);
-        if (property == null) {
-            throw new IllegalArgumentException(
-                    "Unknown TimingNode");
-        }
-        return property;
-    }
-
-    @Override
-    protected void onActivated() {
-        for (TimingNodeStateProperty property
-                : properties) {
-            property.initialize();
+    /**
+     * Accepts one authoritative post-change TimingNode Status.
+     *
+     * <p>This callback performs only in-memory source-state update plus a control
+     * wake. It never queries the TimingNode or waits on another execution lane.</p>
+     */
+    public void onTimingNodeStatusChanged(TimingNode node, Status status) {
+        if (status == null) {
+            throw new IllegalArgumentException("status must not be null");
         }
 
-        if (antennaManager != null) {
+        SourceProperty<TimingNode, State> property = requireNodeProperty(node);
+        if (property.update(status.state())) {
             taskController.wake();
         }
     }
 
+    SourceProperty<TimingNode, State> nodeStateProperty(TimingNode node) {
+        return requireNodeProperty(node);
+    }
+
+    @Override
+    protected void onActivated() {
+        sourcePropertiesInitialized = false;
+        taskController.clearPendingWake();
+        taskController.wake();
+    }
+
     @Override
     public TaskStep runStep() {
-        if (antennaManager == null) {
-            return TaskStep.done();
+        if (!sourcePropertiesInitialized) {
+            initializeSourceProperties();
+            sourcePropertiesInitialized = true;
         }
 
-        boolean anyOpen = false;
-        for (TimingNodeStateProperty property
-                : properties) {
-            if (!property.initialized()) {
-                return TaskStep.done();
-            }
-            if (property.currentValue()
-                    == TimingNodeTypes.State.OPEN) {
-                anyOpen = true;
-            }
-        }
+        inventoryRequired.recalculate();
 
-        if (!antennaManager.setInventoryEnabled(
-                anyOpen)) {
+        if (antennaManager != null && !antennaManager.setInventoryEnabled(inventoryRequired.currentValue())) {
             LOG.warn(
                     "AntennaManager rejected inventory enabled={} managerState={}",
-                    anyOpen,
+                    inventoryRequired.currentValue(),
                     antennaManager.state());
         }
 
         return TaskStep.done();
     }
 
-    private void onControlTaskFailure(
-            Throwable failure) {
-        LOG.error(
-                "TimingSystem Conductor control task failed",
-                failure);
+    private void initializeSourceProperties() {
+        for (SourceProperty<TimingNode, State> property : properties) {
+            Status status = property.source().query(TimingNodeQueries.status());
+            property.update(status.state());
+        }
+    }
+
+    private Boolean deriveInventoryRequired() {
+        for (SourceProperty<TimingNode, State> property : properties) {
+            if (!property.initialized()) {
+                throw new IllegalStateException("TimingNode source property is not initialized");
+            }
+            if (property.currentValue() == State.OPEN) {
+                return Boolean.TRUE;
+            }
+        }
+        return Boolean.FALSE;
+    }
+
+    private SourceProperty<TimingNode, State> requireNodeProperty(TimingNode node) {
+        SourceProperty<TimingNode, State> property = properties.get(node);
+        if (property == null) {
+            throw new IllegalArgumentException("TimingNode does not belong to this TimingSystem");
+        }
+        return property;
+    }
+
+    private void onControlTaskFailure(Throwable failure) {
+        if (!sourcePropertiesInitialized) {
+            LOG.error("TimingSystem Conductor failed while initializing TimingNode source properties", failure);
+        } else {
+            LOG.error("TimingSystem Conductor control task failed", failure);
+        }
     }
 }
