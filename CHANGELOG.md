@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Align Step 6 V01 / VC-ST1-003 execution with the current SI-02 baseline: use node-specific `vc-st1-003-node-A-logbook.jsonl` storage, run the packaged Java 21 Engineering Desktop Client app-image, and rename the standard client configuration/log path to `engineering-client.properties` / `logs/engineering-client`.
+
 - Restructure the standalone desktop application as SI-02 Engineering Desktop Client on Java 21 / JavaFX 21 with BentoFX 0.16.0, instance-scoped connected-system context, dockable real workbench panes, and a CI-verified Windows jpackage app-image path.
 
 - Add deterministic IF-11 YAML source parameters and contextual TimingData path templates. The compact single-system default is `SID-A`; examples use `SID-{ID}` and `node-{NodeId}-logbook.jsonl` while runtime configuration receives only resolved values.

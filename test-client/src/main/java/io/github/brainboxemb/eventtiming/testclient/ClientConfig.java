@@ -10,7 +10,7 @@ import java.util.Properties;
 
 /** Engineering Client-local endpoint and presentation configuration. */
 final class ClientConfig {
-    private static final String CONFIG_FILE = "development-client.properties";
+    private static final String CONFIG_FILE = "engineering-client.properties";
 
     private final String host;
     private final int apiHttpPort;
