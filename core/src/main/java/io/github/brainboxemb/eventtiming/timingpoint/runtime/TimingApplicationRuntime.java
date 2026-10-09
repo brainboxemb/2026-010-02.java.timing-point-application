@@ -31,6 +31,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.Platfo
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment.OperatingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
+import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.AntennaManagerConfig;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
 
 import java.io.Reader;
@@ -256,10 +257,12 @@ public final class TimingApplicationRuntime {
                         extensionClassLoader);
 
         AntennaComposition antennas =
-                platformDefaultAntennaComposition(
-                        platform,
-                        config.timingSystems().size(),
-                        config.timingNodes().size());
+                config.antennaManagers().isEmpty()
+                        ? platformDefaultAntennaComposition(
+                                platform,
+                                config.timingSystems().size(),
+                                config.timingNodes().size())
+                        : new AntennaComposition(new AntennaSet(), null);
 
         return createConfigured(
                 buildIdentity,
@@ -501,21 +504,37 @@ public final class TimingApplicationRuntime {
                             timingNode);
                 }
 
-                AntennaManager antennaManager = null;
-                if (!antennaSet.isEmpty()) {
-                    if (resolvedSystems.size() != 1
-                            || systemNodes.size() != 1) {
+                AntennaManagerConfig managerConfig =
+                        config.antennaManager(resolvedSystem.configuration.timingSystemId());
+                AntennaSet systemAntennas = new AntennaSet();
+                if (managerConfig != null) {
+                    for (AntennaManagerConfig.AntennaConfig antenna : managerConfig.antennas()) {
+                        if (!"simulated".equals(antenna.providerId())) {
+                            throw new IllegalArgumentException(
+                                    "Unknown AntennaProvider id " + antenna.providerId());
+                        }
+                        systemAntennas.add(antenna.id(), new SimulatedAntenna());
+                    }
+                    if (!managerConfig.inventoryGroup().isEmpty()) {
+                        systemAntennas.inventoryGroup(
+                                managerConfig.inventoryInterval(),
+                                managerConfig.inventoryGroup().toArray(new AntennaId[0]));
+                    }
+                } else if (!antennaSet.isEmpty()) {
+                    if (resolvedSystems.size() != 1 || systemNodes.size() != 1) {
                         throw new IllegalArgumentException(
                                 "Implicit antenna composition requires exactly one TimingSystem with one TimingNode");
                     }
-                    antennaManager =
-                            new AntennaManager(
-                                    antennaSet,
-                                    executors
-                                            .createAntennaControlExecutor(),
-                                    ANTENNA_CONTROL_TIMEOUT);
-                    antennaManagers.add(
-                            antennaManager);
+                    systemAntennas = antennaSet;
+                }
+
+                AntennaManager antennaManager = null;
+                if (!systemAntennas.isEmpty()) {
+                    antennaManager = new AntennaManager(
+                            systemAntennas,
+                            executors.createAntennaControlExecutor(),
+                            ANTENNA_CONTROL_TIMEOUT);
+                    antennaManagers.add(antennaManager);
                 }
 
                 Conductor systemConductor =
@@ -539,16 +558,23 @@ public final class TimingApplicationRuntime {
                 }
 
                 if (antennaManager != null) {
-                    TimingNode timingNode =
-                            systemNodes.get(0);
-                    for (AntennaId antennaId
-                            : antennaSet.antennaIds()) {
-                        antennaManager.tagObservedEvent(
-                                        antennaId)
-                                .subscribe(
-                                        timingNode
-                                                .tagProcessor()
-                                                ::onTagObserved);
+                    if (managerConfig != null) {
+                        for (AntennaManagerConfig.AntennaConfig antenna : managerConfig.antennas()) {
+                            for (NodeId nodeId : antenna.timingNodes()) {
+                                for (TimingNode node : systemNodes) {
+                                    if (node.nodeId().equals(nodeId)) {
+                                        antennaManager.tagObservedEvent(antenna.id())
+                                                .subscribe(node.tagProcessor()::onTagObserved);
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        TimingNode timingNode = systemNodes.get(0);
+                        for (AntennaId antennaId : systemAntennas.antennaIds()) {
+                            antennaManager.tagObservedEvent(antennaId)
+                                    .subscribe(timingNode.tagProcessor()::onTagObserved);
+                        }
                     }
                 }
 
