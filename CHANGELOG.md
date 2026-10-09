@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restructure the standalone desktop application as SI-02 Engineering Desktop Client on Java 21 / JavaFX 21 with BentoFX 0.16.0, instance-scoped connected-system context, dockable real workbench panes, and a CI-verified Windows jpackage app-image path.
+
 - Add deterministic IF-11 YAML source parameters and contextual TimingData path templates. The compact single-system default is `SID-A`; examples use `SID-{ID}` and `node-{NodeId}-logbook.jsonl` while runtime configuration receives only resolved values.
 
 - Preserve Java 8 compatibility when building with newer JDKs by compiling against the Java 8 API via Maven `release=8` and disambiguating `SerialScheduledExecutor.State` from Java 19+ `Future.State`.
