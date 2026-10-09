@@ -55,19 +55,11 @@ import org.slf4j.LoggerFactory;
  * Runtime owns shared workers and the outer Presentation lifecycle.</p>
  */
 public final class TimingApplicationRuntime {
-    private static final Logger LOG =
-            LoggerFactory.getLogger(TimingApplicationRuntime.class);
-
     public enum State {
         NEW,
         ACTIVE,
         INACTIVE
     }
-
-    private static final Duration ANTENNA_CONTROL_TIMEOUT =
-            Duration.ofSeconds(2);
-    private static final Duration SIMULATED_ANTENNA_POWER_STABILIZATION =
-            Duration.ofMillis(200);
 
     private final BuildIdentity buildIdentity;
     private final List<TimingNode> timingNodes;
@@ -82,7 +74,7 @@ public final class TimingApplicationRuntime {
 
     private State state = State.NEW;
 
-    private TimingApplicationRuntime(
+    TimingApplicationRuntime(
             BuildIdentity buildIdentity,
             List<TimingNode> timingNodes,
             ApplicationConfiguration configuration,
@@ -116,7 +108,7 @@ public final class TimingApplicationRuntime {
     public static TimingApplicationRuntime create(
             BuildIdentity buildIdentity,
             Config config) {
-        return createNormal(
+        return TimingApplicationComposition.createNormal(
                 buildIdentity,
                 config,
                 PlatformEnvironment.system(),
@@ -139,7 +131,7 @@ public final class TimingApplicationRuntime {
             BuildIdentity buildIdentity,
             Config config,
             ClassLoader extensionClassLoader) {
-        return createNormal(
+        return TimingApplicationComposition.createNormal(
                 buildIdentity,
                 config,
                 PlatformEnvironment.system(),
@@ -157,7 +149,7 @@ public final class TimingApplicationRuntime {
             BuildIdentity buildIdentity,
             Config config,
             PlatformEnvironment platform) {
-        return createNormal(
+        return TimingApplicationComposition.createNormal(
                 buildIdentity,
                 config,
                 platform,
@@ -177,7 +169,7 @@ public final class TimingApplicationRuntime {
             Config config,
             Reader consoleInput,
             Writer consoleOutput) {
-        return createNormal(
+        return TimingApplicationComposition.createNormal(
                 buildIdentity,
                 config,
                 PlatformEnvironment.system(),
@@ -219,7 +211,7 @@ public final class TimingApplicationRuntime {
             ConsolePromptControl consolePromptControl,
             Reader consoleInput,
             Writer consoleOutput) {
-        return createNormal(
+        return TimingApplicationComposition.createNormal(
                 buildIdentity,
                 config,
                 PlatformEnvironment.system(),
@@ -232,295 +224,24 @@ public final class TimingApplicationRuntime {
     }
 
 
-    private static TimingApplicationRuntime createNormal(
-            BuildIdentity buildIdentity,
-            Config config,
-            PlatformEnvironment platform,
-            ClassLoader extensionClassLoader,
-            LoggingLevelControl loggingLevelControl,
-            ConsolePromptControl consolePromptControl,
-            Reader consoleInput,
-            Writer consoleOutput) {
-        if (platform == null) {
-            throw new IllegalArgumentException(
-                    "platform must not be null");
-        }
-        if (extensionClassLoader == null) {
-            throw new IllegalArgumentException(
-                    "extensionClassLoader must not be null");
-        }
-
-        ExtensionRegistry extensions =
-                ExtensionRegistry.discover(
-                        extensionClassLoader);
-
-        AntennaComposition antennas =
-                config.antennaManagers().isEmpty()
-                        ? platformDefaultAntennaComposition(
-                                platform,
-                                config.timingSystems().size(),
-                                config.timingNodes().size())
-                        : new AntennaComposition(new AntennaSet(), null);
-
-        return createConfigured(
-                buildIdentity,
-                config,
-                antennas.antennaSet,
-                antennas.simulatedAntenna,
-                extensions,
-                platform,
-                loggingLevelControl,
-                consolePromptControl,
-                consoleInput,
-                consoleOutput);
-    }
-
-    /**
-     * Package-local simulation seam that keeps explicit EventData injection out
-     * of the public Runtime API while reusing the same resolved composition.
-     */
+    /** Test seam for injected antenna devices and EventData. */
     static TimingApplicationRuntime createSimulation(
-            BuildIdentity buildIdentity,
+            BuildIdentity identity,
             Config config,
-            AntennaSet antennaSet,
+            AntennaSet antennas,
             EventData eventData) {
-        TimingDataProvider timingDataProvider =
-                new DefaultTimingDataProvider();
-
-        return createResolved(
-                buildIdentity,
-                config,
-                antennaSet,
-                null,
-                oneResolvedSystem(
-                        config,
-                        false,
-                        eventData,
-                        timingDataProvider),
-                PlatformEnvironment.system(),
-                null,
-                null,
-                null,
-                null);
+        return TimingApplicationComposition.createSimulation(
+                identity, config, antennas, eventData);
     }
 
-    /**
-     * Package-local simulator composition with one explicitly controllable
-     * SimulatedAntenna for the IF-03 tag-scenario capability.
-     */
+    /** Test seam for the controllable simulated antenna. */
     static TimingApplicationRuntime createSimulation(
-            BuildIdentity buildIdentity,
+            BuildIdentity identity,
             Config config,
             SimulatedAntenna antenna,
             EventData eventData) {
-        if (antenna == null) {
-            throw new IllegalArgumentException(
-                    "antenna must not be null");
-        }
-
-        AntennaSet antennaSet =
-                new AntennaSet()
-                        .add(
-                                new AntennaId("1"),
-                                antenna);
-        TimingDataProvider timingDataProvider =
-                new DefaultTimingDataProvider();
-
-        return createResolved(
-                buildIdentity,
-                config,
-                antennaSet,
-                antenna,
-                oneResolvedSystem(
-                        config,
-                        true,
-                        eventData,
-                        timingDataProvider),
-                PlatformEnvironment.system(),
-                null,
-                null,
-                null,
-                null);
-    }
-
-    /**
-     * Resolves configured provider IDs before normal application composition.
-     */
-    private static TimingApplicationRuntime createConfigured(
-            BuildIdentity buildIdentity,
-            Config config,
-            AntennaSet antennaSet,
-            SimulatedAntenna simulatedAntenna,
-            ExtensionRegistry extensions,
-            PlatformEnvironment platform,
-            LoggingLevelControl loggingLevelControl,
-            ConsolePromptControl consolePromptControl,
-            Reader consoleInput,
-            Writer consoleOutput) {
-        if (config == null) {
-            throw new IllegalArgumentException(
-                    "config must not be null");
-        }
-        if (extensions == null) {
-            throw new IllegalArgumentException(
-                    "extensions must not be null");
-        }
-
-        List<ResolvedTimingSystem> resolvedSystems =
-                new ArrayList<ResolvedTimingSystem>(
-                        config.timingSystems().size());
-
-        for (Config.TimingSystemConfig timingSystem
-                : config.timingSystems()) {
-            EventDataProvider eventDataProvider =
-                    extensions.eventDataProvider(
-                            timingSystem
-                                    .eventDataProviderId());
-            TimingDataProvider timingDataProvider =
-                    extensions.timingDataProvider(
-                            timingSystem
-                                    .timingDataProviderId());
-
-            LOG.info(
-                    "TimingSystem {} selected EventDataProvider id={} implementation={}",
-                    timingSystem.timingSystemId(),
-                    eventDataProvider.id(),
-                    eventDataProvider.getClass().getName());
-            LOG.info(
-                    "TimingSystem {} selected TimingDataProvider id={} implementation={}",
-                    timingSystem.timingSystemId(),
-                    timingDataProvider.id(),
-                    timingDataProvider.getClass().getName());
-
-            resolvedSystems.add(
-                    new ResolvedTimingSystem(
-                            timingSystem,
-                            SimulationEventDataProvider.ID.equals(
-                                    eventDataProvider.id()),
-                            eventDataProvider.createEventData(),
-                            timingDataProvider.createFactory(),
-                            timingDataProvider.createCodec()));
-        }
-
-        return createResolved(
-                buildIdentity,
-                config,
-                antennaSet,
-                simulatedAntenna,
-                resolvedSystems,
-                platform,
-                loggingLevelControl,
-                consolePromptControl,
-                consoleInput,
-                consoleOutput);
-    }
-
-    /**
-     * Composes the application after all implementation selections are resolved.
-     */
-    private static TimingApplicationRuntime createResolved(
-            BuildIdentity buildIdentity,
-            Config config,
-            AntennaSet antennaSet,
-            SimulatedAntenna simulatedAntenna,
-            List<ResolvedTimingSystem> resolvedSystems,
-            PlatformEnvironment platform,
-            LoggingLevelControl loggingLevelControl,
-            ConsolePromptControl consolePromptControl,
-            Reader consoleInput,
-            Writer consoleOutput) {
-        requireCompositionInput(
-                buildIdentity,
-                config,
-                antennaSet,
-                resolvedSystems,
-                platform);
-
-        ApplicationConfiguration applicationConfiguration =
-                createApplicationConfiguration(
-                        config);
-
-        RuntimeExecutors executors =
-                new RuntimeExecutors();
-
-        try {
-            RuntimeTimeSources runtimeTimeSources =
-                    new RuntimeTimeSources(
-                            platform);
-            List<TimingNode> timingNodes =
-                    new ArrayList<TimingNode>(
-                            config.timingNodes().size());
-            List<TimingSystemComponents> systems =
-                    new ArrayList<TimingSystemComponents>();
-            ApplicationConductor applicationConductor =
-                    new ApplicationConductor();
-            SimulatedTagScenarioRunner simulationRunner = null;
-
-            TimingSystemComposer systemComposer = new TimingSystemComposer(
-                    applicationConfiguration, executors, platform, applicationConductor);
-
-            for (ResolvedTimingSystem resolvedSystem : resolvedSystems) {
-                TimeSource timeSource = runtimeTimeSources.createTimeSource();
-                TimingSystemComponents system = systemComposer.compose(
-                        resolvedSystem,
-                        config.antennaManager(resolvedSystem.configuration.timingSystemId()),
-                        antennaSet,
-                        timeSource);
-                systems.add(system);
-                timingNodes.addAll(system.nodes());
-
-                if (resolvedSystems.size() == 1
-                        && system.nodes().size() == 1
-                        && resolvedSystem.tagScenarioSimulationEnabled
-                        && simulatedAntenna != null
-                        && !resolvedSystem.eventData.isEmpty()) {
-                    simulationRunner = new SimulatedTagScenarioRunner(
-                            simulatedAntenna,
-                            resolvedSystem.eventData,
-                            timeSource,
-                            executors.createSimulationExecutor());
-                }
-            }
-
-            ConfigurationControl configurationControl =
-                    createConfigurationControl(
-                            applicationConfiguration);
-
-            PresentationGateway presentationGateway =
-                    new PresentationGateway(
-                            buildIdentity,
-                            timingNodes,
-                            configurationControl,
-                            simulationRunner);
-
-            ShutdownSignal shutdownSignal =
-                    new ShutdownSignal();
-
-            PresentationRuntime presentation =
-                    new PresentationRuntime(
-                            config.presentation(),
-                            presentationGateway,
-                            loggingLevelControl,
-                            consolePromptControl,
-                            shutdownSignal::request,
-                            consoleInput,
-                            consoleOutput);
-
-            return new TimingApplicationRuntime(
-                    buildIdentity,
-                    timingNodes,
-                    applicationConfiguration,
-                    presentationGateway,
-                    executors,
-                    systems,
-                    simulationRunner,
-                    applicationConductor,
-                    presentation,
-                    shutdownSignal);
-        } catch (RuntimeException | Error failure) {
-            executors.close();
-            throw failure;
-        }
+        return TimingApplicationComposition.createSimulation(
+                identity, config, antenna, eventData);
     }
 
     /**
@@ -711,163 +432,6 @@ public final class TimingApplicationRuntime {
                 + buildIdentity.version()
                 + " state="
                 + state;
-    }
-
-    /**
-     * Temporary Windows development fallback until explicit IF-11 antenna
-     * configuration is composed by the normal runtime mapper.
-     */
-    private static AntennaComposition platformDefaultAntennaComposition(
-            PlatformEnvironment platform,
-            int timingSystemCount,
-            int timingNodeCount) {
-        AntennaSet antennas =
-                new AntennaSet();
-
-        if (platform.operatingSystem()
-                        != OperatingSystem.WINDOWS
-                || timingSystemCount != 1
-                || timingNodeCount != 1) {
-            return new AntennaComposition(
-                    antennas,
-                    null);
-        }
-
-        LOG.warn(
-                "Windows development platform default selected simulated antenna 1; no physical RFID reader is in use");
-
-        SimulatedAntenna antenna =
-                new SimulatedAntenna();
-        antennas.addPowered(
-                new AntennaId("1"),
-                antenna,
-                new SimulatedPowerDevice(antenna),
-                SIMULATED_ANTENNA_POWER_STABILIZATION);
-        return new AntennaComposition(
-                antennas,
-                antenna);
-    }
-
-    private static final class AntennaComposition {
-        private final AntennaSet antennaSet;
-        private final SimulatedAntenna simulatedAntenna;
-
-        private AntennaComposition(
-                AntennaSet antennaSet,
-                SimulatedAntenna simulatedAntenna) {
-            this.antennaSet = antennaSet;
-            this.simulatedAntenna = simulatedAntenna;
-        }
-    }
-
-    private static List<ResolvedTimingSystem> oneResolvedSystem(
-            Config config,
-            boolean tagScenarioSimulationEnabled,
-            EventData eventData,
-            TimingDataProvider timingDataProvider) {
-        if (config == null) {
-            throw new IllegalArgumentException(
-                    "config must not be null");
-        }
-        if (config.timingSystems().size() != 1) {
-            throw new IllegalArgumentException(
-                    "Simulation composition requires exactly one TimingSystem");
-        }
-        if (eventData == null) {
-            throw new IllegalArgumentException(
-                    "eventData must not be null");
-        }
-        if (timingDataProvider == null) {
-            throw new IllegalArgumentException(
-                    "timingDataProvider must not be null");
-        }
-
-        List<ResolvedTimingSystem> result =
-                new ArrayList<ResolvedTimingSystem>();
-        result.add(
-                new ResolvedTimingSystem(
-                        config.timingSystems().get(0),
-                        tagScenarioSimulationEnabled,
-                        eventData,
-                        timingDataProvider.createFactory(),
-                        timingDataProvider.createCodec()));
-        return result;
-    }
-
-    private static ApplicationConfiguration createApplicationConfiguration(
-            Config config) {
-        Map<NodeId, TagProcessingPolicy> startupPolicies =
-                new LinkedHashMap<NodeId, TagProcessingPolicy>();
-        for (Config.TimingNodeConfig timingNode
-                : config.timingNodes()) {
-            startupPolicies.put(
-                    timingNode.timingNodeId(),
-                    timingNode.tagProcessingPolicy());
-        }
-        return new ApplicationConfiguration(
-                startupPolicies);
-    }
-
-    private static ConfigurationControl createConfigurationControl(
-            ApplicationConfiguration configuration) {
-        Map<NodeId,
-                DynamicConfiguration<TagProcessingPolicy>> tagProcessing =
-                new LinkedHashMap<NodeId,
-                        DynamicConfiguration<TagProcessingPolicy>>();
-
-        for (NodeId nodeId
-                : configuration.timingNodeIds()) {
-            tagProcessing.put(
-                    nodeId,
-                    configuration
-                            .timingNode(nodeId)
-                            .tagProcessing());
-        }
-
-        return new ConfigurationControl(
-                tagProcessing);
-    }
-
-    private static void requireCompositionInput(
-            BuildIdentity buildIdentity,
-            Config config,
-            AntennaSet antennaSet,
-            List<ResolvedTimingSystem> resolvedSystems,
-            PlatformEnvironment platform) {
-        if (buildIdentity == null) {
-            throw new IllegalArgumentException(
-                    "buildIdentity must not be null");
-        }
-        if (config == null) {
-            throw new IllegalArgumentException(
-                    "config must not be null");
-        }
-        for (Config.TimingNodeConfig timingNode
-                : config.timingNodes()) {
-            if (timingNode.timingDataPath() == null) {
-                throw new IllegalArgumentException(
-                        "TimingData storage path must be configured for TimingNode "
-                                + timingNode.timingNodeId().value());
-            }
-        }
-        if (antennaSet == null) {
-            throw new IllegalArgumentException(
-                    "antennaSet must not be null");
-        }
-        if (resolvedSystems == null
-                || resolvedSystems.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "resolvedSystems must contain at least one TimingSystem");
-        }
-        if (resolvedSystems.size()
-                != config.timingSystems().size()) {
-            throw new IllegalArgumentException(
-                    "Resolved TimingSystem count does not match configuration");
-        }
-        if (platform == null) {
-            throw new IllegalArgumentException(
-                    "platform must not be null");
-        }
     }
 
 }
