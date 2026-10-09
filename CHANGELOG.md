@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Move AntennaManager TimingSystem binding uniqueness, target validation and lookup into a typed `AntennaManagerConfigRegistry`; preserve the existing Config/YAML API and IF-11 behavior.
+
 - Move TimingSystem/TimingNode configuration identity, storage-path validation and lookup into a typed `TimingSystemConfigRegistry`; keep `Config` as the public effective configuration root and preserve its API.
 
 - Replace `PresentationGateway`'s parallel TimingNode proxy map/list bookkeeping with one ordered `TimingNodeProxyRegistry` that owns proxy creation, NodeId uniqueness and lookup while preserving the public Presentation API.
