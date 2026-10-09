@@ -428,21 +428,25 @@ public final class Config {
     }
 
     private TimingNodeConfig requireSingleTimingNode() {
-        if (timingNodes.size() != 1) {
+        List<TimingNodeConfig> nodes =
+                timingSystems.timingNodes();
+        if (nodes.size() != 1) {
             throw new IllegalStateException(
                     "Operation requires exactly one TimingNode; configured="
-                            + timingNodes.size());
+                            + nodes.size());
         }
-        return timingNodes.get(0);
+        return nodes.get(0);
     }
 
     private TimingSystemConfig requireSingleTimingSystem() {
-        if (timingSystems.size() != 1) {
+        List<TimingSystemConfig> systems =
+                timingSystems.systems();
+        if (systems.size() != 1) {
             throw new IllegalStateException(
                     "Operation requires exactly one TimingSystem; configured="
-                            + timingSystems.size());
+                            + systems.size());
         }
-        return timingSystems.get(0);
+        return systems.get(0);
     }
 
     private static String requireProviderId(
