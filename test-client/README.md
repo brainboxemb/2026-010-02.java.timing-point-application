@@ -94,7 +94,7 @@ auto-update policy are separate later decisions.
 The Engineering Client reads its target and presentation defaults from one file:
 
 ```text
-config/development-client.properties
+config/engineering-client.properties
 ```
 
 The default file configures the startup target host, HTTP :8081, Events :8082,
