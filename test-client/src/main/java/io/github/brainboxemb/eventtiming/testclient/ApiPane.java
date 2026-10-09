@@ -31,21 +31,17 @@ final class ApiPane extends VBox {
     private final Label version = valueLabel();
     private final Label apiVersion = valueLabel();
     private final TextArea rawResponse = new TextArea();
+    private final javafx.scene.Node rawDataPane;
     private final TimingPane timingPane;
 
     ApiPane(
             Supplier<ApiClient> clientSupplier,
             ExecutorService requests,
             String initialPrefix,
-            javafx.scene.Node terminalContent,
-            ObservableValue<String> deviceLogText,
-            ObservableValue<String> clientLogText,
             Consumer<String> feedback,
             Consumer<String> apiState,
             ClientLog clientLog) {
         if (clientSupplier == null || requests == null
-                || terminalContent == null
-                || deviceLogText == null || clientLogText == null
                 || feedback == null || apiState == null || clientLog == null) {
             throw new IllegalArgumentException("API pane dependencies must not be null");
         }
@@ -54,9 +50,6 @@ final class ApiPane extends VBox {
         this.feedback = feedback;
         this.apiState = apiState;
         this.clientLog = clientLog;
-
-        setSpacing(10);
-        setPadding(new Insets(12));
 
         HBox identityBar =
                 new HBox(
@@ -75,9 +68,6 @@ final class ApiPane extends VBox {
                 requests,
                 initialPrefix,
                 identityBar,
-                terminalContent,
-                deviceLogText,
-                clientLogText,
                 this::showRaw,
                 feedback,
                 apiState,
@@ -86,20 +76,41 @@ final class ApiPane extends VBox {
         rawResponse.setEditable(false);
         rawResponse.setWrapText(false);
         rawResponse.setPrefRowCount(7);
-        TitledPane rawPane = new TitledPane(
-                "Raw response / selected record",
-                rawResponse);
-        rawPane.setCollapsible(true);
-        rawPane.setExpanded(false);
-
-        getChildren().addAll(
-                timingPane.syncStateBar(),
-                timingPane,
-                rawPane);
-        VBox.setVgrow(timingPane, Priority.ALWAYS);
+        VBox rawPane = new VBox(rawResponse);
+        rawPane.setPadding(new Insets(8));
+        VBox.setVgrow(rawResponse, Priority.ALWAYS);
+        rawDataPane = rawPane;
 
         versionButton.setOnAction(event -> loadVersion());
         statusButton.setOnAction(event -> loadStatus());
+    }
+
+    javafx.scene.Node syncStateBar() {
+        return timingPane.syncStateBar();
+    }
+
+    javafx.scene.Node timingNodePane() {
+        return timingPane.timingNodePane();
+    }
+
+    javafx.scene.Node registrationPane() {
+        return timingPane.registrationPane();
+    }
+
+    javafx.scene.Node simulationPane() {
+        return timingPane.simulationPane();
+    }
+
+    javafx.scene.Node registrationsPane() {
+        return timingPane.registrationsPane();
+    }
+
+    javafx.scene.Node logBookPane() {
+        return timingPane.logBookPane();
+    }
+
+    javafx.scene.Node rawDataPane() {
+        return rawDataPane;
     }
 
     void connected() {
