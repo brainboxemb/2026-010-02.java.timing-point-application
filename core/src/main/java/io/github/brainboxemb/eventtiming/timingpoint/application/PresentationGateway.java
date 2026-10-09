@@ -1,15 +1,12 @@
 package io.github.brainboxemb.eventtiming.timingpoint.application;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Shared transport-independent application gateway for Presentation.
@@ -60,8 +57,7 @@ public final class PresentationGateway {
     }
 
     private final BuildIdentity buildIdentity;
-    private final Map<NodeId, TimingNodeProxy> timingNodes;
-    private final List<TimingNodeProxy> timingNodeList;
+    private final TimingNodeProxyRegistry timingNodes;
     private final ConfigurationControl configuration;
     private final SimulationControl simulation;
     private final Capabilities capabilities;
@@ -97,33 +93,10 @@ public final class PresentationGateway {
                     "configuration must not be null");
         }
 
-        Map<NodeId, TimingNodeProxy> proxies =
-                new LinkedHashMap<NodeId, TimingNodeProxy>();
-        for (TimingNode timingNode : timingNodes) {
-            if (timingNode == null) {
-                throw new IllegalArgumentException(
-                        "timingNodes must not contain null");
-            }
-
-            NodeId nodeId = timingNode.timingNodeId();
-            TimingNodeProxy previous =
-                    proxies.put(
-                            nodeId,
-                            new TimingNodeProxy(timingNode));
-            if (previous != null) {
-                throw new IllegalArgumentException(
-                        "Duplicate TimingNode id "
-                                + nodeId.value());
-            }
-        }
-
         this.buildIdentity = buildIdentity;
         this.timingNodes =
-                Collections.unmodifiableMap(proxies);
-        this.timingNodeList =
-                Collections.unmodifiableList(
-                        new ArrayList<TimingNodeProxy>(
-                                proxies.values()));
+                new TimingNodeProxyRegistry(
+                        timingNodes);
         this.configuration = configuration;
         this.simulation = simulation;
         this.capabilities =
@@ -173,15 +146,15 @@ public final class PresentationGateway {
 
     /** Returns all node proxies in composition order. */
     public List<TimingNodeProxy> timingNodes() {
-        return timingNodeList;
+        return timingNodes.values();
     }
 
     /** Returns current status for every composed TimingNode. */
     public List<TimingNodeStatus> timingNodeStatuses() {
         List<TimingNodeStatus> statuses =
                 new ArrayList<TimingNodeStatus>(
-                        timingNodeList.size());
-        for (TimingNodeProxy timingNode : timingNodeList) {
+                        timingNodes.size());
+        for (TimingNodeProxy timingNode : timingNodes) {
             statuses.add(
                     timingNode.status());
         }

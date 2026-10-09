@@ -24,6 +24,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class PresentationGatewayTest {
     private static final TimingTimestamp TIME =
@@ -195,6 +196,32 @@ public class PresentationGatewayTest {
         } finally {
             second.deactivate();
             first.deactivate();
+        }
+    }
+
+    @Test
+    public void rejectsDuplicateApplicationWideTimingNodeId() {
+        TimingNode first =
+                TimingNodeFixture.create(
+                        new NodeId("A"),
+                        new RecordingStore(),
+                        () -> RECORDED_AT.instant());
+        TimingNode second =
+                TimingNodeFixture.create(
+                        new NodeId("A"),
+                        new RecordingStore(),
+                        () -> RECORDED_AT.instant());
+
+        try {
+            new PresentationGateway(
+                    identity(),
+                    nodes(first, second),
+                    configuration());
+            fail("Expected duplicate TimingNode id to be rejected");
+        } catch (IllegalArgumentException expected) {
+            assertEquals(
+                    "Duplicate TimingNode id A",
+                    expected.getMessage());
         }
     }
 
