@@ -143,32 +143,29 @@ UNREACHABLE instead of pretending that a long-lived HTTP session was opened. Eve
 Terminal and Device Log retain their explicit connect/disconnect controls. Client-local
 logging is always available independently from SI-01.
 
-### API
+### Timing, registration and data panes
 
-**API** is the primary work surface. It combines version/status inspection with the
-selected TimingNode controls, registration test input, LogBook/TimingData history and a
-raw response/selected-record pane.
+**TimingNode**, **Registration** and **Simulation** share the local control-tab area.
+Application/version identity is shown with the Registrations pane. The Engineering Client
+deliberately does not predict SI-01 domain acceptance from cached TimingNode state. Once a
+TimingNode is known, supported Open/Close requests remain available so processed results
+can be exercised and inspected. **Open** sends the LocationId currently entered in the
+same request; there is no separate Set Location operation. SI-01 remains authoritative.
 
-The Engineering Client deliberately does not predict SI-01 domain acceptance from cached
-TimingNode state. Once a TimingNode is known, supported Open/Close requests remain available so processed
-results can be exercised and inspected. **Open** sends the LocationId currently entered
-in the same request; there is no separate Set Location operation. SI-01 remains
-authoritative.
+The right-hand workbench column keeps two complementary views of committed data visible as
+separate dock areas:
 
-The Timing workbench uses two complementary views of committed data:
-
-- **Registrations** is the interpreted operator-oriented projection. Its compact columns
-  are **Time | Type | TeamID | Code | action**. Type is `AUTO` or `MAN` for the
+- **Registrations** is the interpreted user-facing projection. Its compact columns are
+  **Time | Type | TeamID | Code | action**. Type is `AUTO` or `MAN` for the
   registration origin. Code is only needed for manual registrations to show the
   effective-time origin (`AUTO` or `MAN`); automatic registrations leave Code blank;
 - **LogBook / committed TimingData** is the technical/audit view and continues to show
   every committed source record, sequence, Type, Code, UTC-effective time and recorded
   time.
 
-The workbench uses two columns and two working rows. The upper-left contains
-TimingNode / Registration / Simulation / Terminal tabs. API/application identity sits
-above Registrations in the upper-right. Device Log and Client Log remain visible
-together in the lower-left, while the technical LogBook occupies the lower-right.
+**Raw Data** and **Events** share the lower-right detail area as tabs. **Device Log**,
+**Terminal** and **Client Log** are independent dock areas in the left column, rather
+than application-level tabs.
 TeamID is an interpreted reference-data value, not a renamed RegistrationId. In the
 default/reference profile, `RT-A-NNNN` projects directly to TeamID `NNNN`;
 `RT-R-NNNN` remains unresolved until reserve assignment data is available. The
@@ -199,26 +196,26 @@ TagObservation pattern inside each passage.
 
 ### Events
 
-The **Events** tab uses Java 17's built-in WebSocket client and keeps raw events visible.
-Its connection is controlled from the target bar. `STATUS_SNAPSHOT` /
+The **Events** detail tab uses Java 21's built-in WebSocket client and keeps raw events
+visible. Its connection is controlled from the target bar. `STATUS_SNAPSHOT` /
 `STATUS_CHANGED` and `TIMING_DATA_COMMITTED` are parsed separately while unknown
 future event types remain visible as raw diagnostics.
 
 ### Device Log
 
-**Device Log** is a top-level tab. It shows live records from the connected SI-01
+**Device Log** is an independent dock area. It shows live records from the connected SI-01
 `LoggingServer` and has its own current-level display and temporary runtime level control.
 
 ### Terminal
 
-The **Terminal** workbench tab is the line-oriented Remote Shell client with its
-connection controlled from the target bar. It is raw UTF-8 TCP, not an SSH/Telnet
+**Terminal** is an independent dock area containing the line-oriented Remote Shell client.
+Its connection is controlled from the target bar. It is raw UTF-8 TCP, not an SSH/Telnet
 emulator.
 
 ### Client Log
 
-**Client Log** is the final top-level tab. It contains retained local Engineering Client
-startup/configuration/connection/request diagnostics and has an independent current-level
+**Client Log** is an independent dock area containing retained local Engineering Client
+startup/configuration/connection/request diagnostics and an independent current-level
 display and runtime threshold control. It remains available and controllable when SI-01 is
 offline. A client-level change is runtime-only; the configured startup level is restored
 on the next Engineering Client start.
