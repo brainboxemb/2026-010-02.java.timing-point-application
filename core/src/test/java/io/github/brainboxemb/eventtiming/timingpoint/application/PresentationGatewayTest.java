@@ -7,6 +7,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
@@ -259,13 +260,13 @@ public class PresentationGatewayTest {
                 null);
     }
 
-    private static List<TimingNode> nodes(
+    private static TimingNodeList nodes(
             TimingNode... timingNodes) {
-        List<TimingNode> result =
-                new ArrayList<TimingNode>();
-        Collections.addAll(
-                result,
-                timingNodes);
+        TimingNodeList result =
+                new TimingNodeList();
+        for (TimingNode timingNode : timingNodes) {
+            result.add(timingNode);
+        }
         return result;
     }
 

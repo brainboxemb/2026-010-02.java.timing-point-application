@@ -4,6 +4,7 @@ import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.ConsolePromptControl;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevelControl;
@@ -17,8 +18,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.Appli
 
 import java.io.Reader;
 import java.io.Writer;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 
@@ -38,11 +37,11 @@ public final class TimingApplicationRuntime {
     }
 
     private final BuildIdentity buildIdentity;
-    private final List<TimingNode> timingNodes;
+    private final TimingNodeList timingNodes;
     private final ApplicationConfiguration configuration;
     private final PresentationGateway presentationGateway;
     private final RuntimeExecutors runtimeExecutors;
-    private final List<TimingSystemComponents> systems;
+    private final TimingSystemComponentsList systems;
     private final SimulatedTagScenarioRunner simulationRunner;
     private final ApplicationConductor applicationConductor;
     private final PresentationRuntime presentationRuntime;
@@ -52,25 +51,21 @@ public final class TimingApplicationRuntime {
 
     TimingApplicationRuntime(
             BuildIdentity buildIdentity,
-            List<TimingNode> timingNodes,
+            TimingNodeList timingNodes,
             ApplicationConfiguration configuration,
             PresentationGateway presentationGateway,
             RuntimeExecutors runtimeExecutors,
-            List<TimingSystemComponents> systems,
+            TimingSystemComponentsList systems,
             SimulatedTagScenarioRunner simulationRunner,
             ApplicationConductor applicationConductor,
             PresentationRuntime presentationRuntime,
             ShutdownSignal shutdownSignal) {
         this.buildIdentity = buildIdentity;
-        this.timingNodes =
-                Collections.unmodifiableList(
-                        new ArrayList<TimingNode>(
-                                timingNodes));
+        this.timingNodes = timingNodes.copy();
         this.configuration = configuration;
         this.presentationGateway = presentationGateway;
         this.runtimeExecutors = runtimeExecutors;
-        this.systems = Collections.unmodifiableList(
-                new ArrayList<TimingSystemComponents>(systems));
+        this.systems = systems.copy();
         this.simulationRunner = simulationRunner;
         this.applicationConductor = applicationConductor;
         this.presentationRuntime = presentationRuntime;
@@ -288,8 +283,8 @@ public final class TimingApplicationRuntime {
         return timingNodes.get(0);
     }
 
-    List<TimingNode> timingNodes() {
-        return timingNodes;
+    TimingNodeList timingNodes() {
+        return timingNodes.copy();
     }
 
     AntennaManager antennaManager() {
@@ -305,13 +300,7 @@ public final class TimingApplicationRuntime {
     }
 
     List<AntennaManager> antennaManagers() {
-        List<AntennaManager> managers = new ArrayList<AntennaManager>();
-        for (TimingSystemComponents system : systems) {
-            if (system.antennaManager() != null) {
-                managers.add(system.antennaManager());
-            }
-        }
-        return Collections.unmodifiableList(managers);
+        return systems.antennaManagers();
     }
 
     public synchronized State state() {

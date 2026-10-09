@@ -10,6 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationCo
 import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.DynamicConfiguration;
@@ -30,9 +31,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.simulation.Simulate
 import java.io.Reader;
 import java.io.Writer;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -182,9 +181,8 @@ final class TimingApplicationComposition {
                     "extensions must not be null");
         }
 
-        List<ResolvedTimingSystem> resolvedSystems =
-                new ArrayList<ResolvedTimingSystem>(
-                        config.timingSystems().size());
+        TimingSystemResolvedDataList resolvedSystems =
+                new TimingSystemResolvedDataList();
 
         for (Config.TimingSystemConfig timingSystem
                 : config.timingSystems()) {
@@ -209,7 +207,7 @@ final class TimingApplicationComposition {
                     timingDataProvider.getClass().getName());
 
             resolvedSystems.add(
-                    new ResolvedTimingSystem(
+                    new TimingSystemResolvedData(
                             timingSystem,
                             SimulationEventDataProvider.ID.equals(
                                     eventDataProvider.id()),
@@ -278,7 +276,7 @@ final class TimingApplicationComposition {
         }
     }
 
-    private static List<ResolvedTimingSystem> oneResolvedSystem(
+    private static TimingSystemResolvedDataList oneResolvedSystem(
             Config config,
             boolean tagScenarioSimulationEnabled,
             EventData eventData,
@@ -300,10 +298,10 @@ final class TimingApplicationComposition {
                     "timingDataProvider must not be null");
         }
 
-        List<ResolvedTimingSystem> result =
-                new ArrayList<ResolvedTimingSystem>();
+        TimingSystemResolvedDataList result =
+                new TimingSystemResolvedDataList();
         result.add(
-                new ResolvedTimingSystem(
+                new TimingSystemResolvedData(
                         config.timingSystems().get(0),
                         tagScenarioSimulationEnabled,
                         eventData,
@@ -319,7 +317,7 @@ final class TimingApplicationComposition {
             Config config,
             AntennaSet antennaSet,
             SimulatedAntenna simulatedAntenna,
-            List<ResolvedTimingSystem> resolvedSystems,
+            TimingSystemResolvedDataList resolvedSystems,
             PlatformEnvironment platform,
             LoggingLevelControl loggingLevelControl,
             ConsolePromptControl consolePromptControl,
@@ -343,11 +341,10 @@ final class TimingApplicationComposition {
             RuntimeTimeSources runtimeTimeSources =
                     new RuntimeTimeSources(
                             platform);
-            List<TimingNode> timingNodes =
-                    new ArrayList<TimingNode>(
-                            config.timingNodes().size());
-            List<TimingSystemComponents> systems =
-                    new ArrayList<TimingSystemComponents>();
+            TimingNodeList timingNodes =
+                    new TimingNodeList();
+            TimingSystemComponentsList systems =
+                    new TimingSystemComponentsList();
             ApplicationConductor applicationConductor =
                     new ApplicationConductor();
             SimulatedTagScenarioRunner simulationRunner = null;
@@ -355,11 +352,11 @@ final class TimingApplicationComposition {
             TimingSystemComposer systemComposer = new TimingSystemComposer(
                     applicationConfiguration, executors, platform, applicationConductor);
 
-            for (ResolvedTimingSystem resolvedSystem : resolvedSystems) {
+            for (TimingSystemResolvedData resolvedSystem : resolvedSystems) {
                 TimeSource timeSource = runtimeTimeSources.createTimeSource();
                 TimingSystemComponents system = systemComposer.compose(
                         resolvedSystem,
-                        config.antennaManager(resolvedSystem.configuration.timingSystemId()),
+                        config.antennaManager(resolvedSystem.configuration().timingSystemId()),
                         antennaSet,
                         timeSource);
                 systems.add(system);
@@ -369,12 +366,12 @@ final class TimingApplicationComposition {
 
                 if (resolvedSystems.size() == 1
                         && system.nodes().size() == 1
-                        && resolvedSystem.tagScenarioSimulationEnabled
+                        && resolvedSystem.tagScenarioSimulationEnabled()
                         && simulatedAntenna != null
-                        && !resolvedSystem.eventData.isEmpty()) {
+                        && !resolvedSystem.eventData().isEmpty()) {
                     simulationRunner = new SimulatedTagScenarioRunner(
                             simulatedAntenna,
-                            resolvedSystem.eventData,
+                            resolvedSystem.eventData(),
                             timeSource,
                             executors.createSimulationExecutor());
                 }
@@ -459,7 +456,7 @@ final class TimingApplicationComposition {
             BuildIdentity buildIdentity,
             Config config,
             AntennaSet antennaSet,
-            List<ResolvedTimingSystem> resolvedSystems,
+            TimingSystemResolvedDataList resolvedSystems,
             PlatformEnvironment platform) {
         if (buildIdentity == null) {
             throw new IllegalArgumentException(

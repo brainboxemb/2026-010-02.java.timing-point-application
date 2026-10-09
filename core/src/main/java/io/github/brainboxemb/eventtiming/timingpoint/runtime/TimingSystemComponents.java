@@ -12,9 +12,20 @@ final class TimingSystemComponents {
     private final TimingNodeList nodes;
     private final AntennaManager antennaManager;
 
-    TimingSystemComponents(String id, TimingNodeList nodes, AntennaManager antennaManager) {
-        this.id = id;
-        this.nodes = nodes;
+    TimingSystemComponents(
+            String id,
+            TimingNodeList nodes,
+            AntennaManager antennaManager) {
+        if (id == null || id.trim().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "TimingSystem id must not be blank");
+        }
+        if (nodes == null || nodes.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "TimingSystem nodes must not be empty");
+        }
+        this.id = id.trim();
+        this.nodes = nodes.copy();
         this.antennaManager = antennaManager;
     }
 

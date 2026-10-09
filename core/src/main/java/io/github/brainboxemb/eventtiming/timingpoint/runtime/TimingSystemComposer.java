@@ -51,7 +51,7 @@ final class TimingSystemComposer {
     }
 
     TimingSystemComponents compose(
-            ResolvedTimingSystem system,
+            TimingSystemResolvedData system,
             AntennaManagerConfig managerBinding,
             AntennaSet implicitAntennas,
             TimeSource timeSource) {
@@ -83,27 +83,27 @@ final class TimingSystemComposer {
         }
 
         return new TimingSystemComponents(
-                system.configuration.timingSystemId(), nodes, antennaManager);
+                system.configuration().timingSystemId(), nodes, antennaManager);
     }
 
     private TimingNodeList createNodes(
-            ResolvedTimingSystem system,
+            TimingSystemResolvedData system,
             TimeSource timeSource) {
         TimingNodeList nodes = new TimingNodeList();
-        for (Config.TimingNodeConfig nodeConfig : system.configuration.timingNodes()) {
+        for (Config.TimingNodeConfig nodeConfig : system.configuration().timingNodes()) {
             RuntimeExecutors.TimingNodeExecutors nodeExecutors =
                     executors.createTimingNodeExecutors();
             TimingDataPersistence persistence = new DefaultTimingDataPersistence(
                     new FileAppendOnlyRecordStore(nodeConfig.timingDataPath()),
                     nodeConfig.timingNodeId(),
-                    system.timingDataCodec);
+                    system.timingDataCodec());
             TimingNode node = new TimingNode(
                     nodeConfig.timingNodeId(),
                     persistence,
-                    system.timingDataFactory,
+                    system.timingDataFactory(),
                     timeSource,
                     configuration.timingNode(nodeConfig.timingNodeId()).tagProcessing(),
-                    system.eventData,
+                    system.eventData(),
                     nodeExecutors.timingNode(),
                     nodeExecutors.tagProcessor(),
                     platform.monotonicClock());

@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.application;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 
 import java.util.ArrayList;
@@ -68,7 +69,7 @@ public final class PresentationGateway {
     /** Creates the presentation-facing gateway for all composed TimingNodes. */
     public PresentationGateway(
             BuildIdentity buildIdentity,
-            List<TimingNode> timingNodes,
+            TimingNodeList timingNodes,
             ConfigurationControl configuration) {
         this(
                 buildIdentity,
@@ -80,7 +81,7 @@ public final class PresentationGateway {
     /** Creates the gateway with optional engineering simulated-tag control. */
     public PresentationGateway(
             BuildIdentity buildIdentity,
-            List<TimingNode> timingNodes,
+            TimingNodeList timingNodes,
             ConfigurationControl configuration,
             SimulationControl simulation) {
         if (buildIdentity == null) {
