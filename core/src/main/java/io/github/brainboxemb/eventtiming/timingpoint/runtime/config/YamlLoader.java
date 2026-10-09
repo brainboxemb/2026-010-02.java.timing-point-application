@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime.config;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingConfig;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingFileConfig;
@@ -51,6 +52,15 @@ public final class YamlLoader {
     private static final String PRESENTATION = "presentation";
     private static final String IO = "io";
     private static final String STORAGE = "storage";
+    private static final String DEVICES = "devices";
+    private static final String ANTENNA_MANAGERS = "antennaManagers";
+    private static final String ANTENNAS = "antennas";
+    private static final String PROVIDER = "provider";
+    private static final String TYPE = "type";
+    private static final String INVENTORY_GROUP = "inventoryGroup";
+    private static final String MEMBERS = "members";
+    private static final String INTERVAL_MILLIS = "intervalMillis";
+    private static final String POWER = "power";
     private static final String TIMING_DATA = "timingData";
     private static final String LOGGING = "logging";
     private static final String LEVEL = "level";
@@ -140,6 +150,7 @@ public final class YamlLoader {
 
         return new Config(
                 configuredSystems,
+                mapAntennaManagers(root.get(IO)),
                 mapPresentation(root.get(PRESENTATION)),
                 mapLogging(root.get(LOGGING)),
                 mapLoggingLive(root.get(LOGGING)));
@@ -443,6 +454,83 @@ public final class YamlLoader {
         return ((String) rawKey).trim();
     }
 
+    private static List<AntennaManagerConfig> mapAntennaManagers(Object rawIo) {
+        if (rawIo == null) {
+            return Collections.emptyList();
+        }
+        Map<?, ?> io = requireMapping(rawIo, IO);
+        if (!io.containsKey(DEVICES)) {
+            return Collections.emptyList();
+        }
+        Map<?, ?> devices = requireMapping(io.get(DEVICES), IO + "." + DEVICES);
+        rejectUnknownFields(devices, IO + "." + DEVICES, ANTENNA_MANAGERS);
+        if (!devices.containsKey(ANTENNA_MANAGERS)) {
+            return Collections.emptyList();
+        }
+        String root = IO + "." + DEVICES + "." + ANTENNA_MANAGERS;
+        Map<?, ?> bindings = requireMapping(devices.get(ANTENNA_MANAGERS), root);
+        List<AntennaManagerConfig> result = new ArrayList<AntennaManagerConfig>();
+        for (Map.Entry<?, ?> entry : bindings.entrySet()) {
+            String field = root + "." + requireMappingEntryName(entry.getKey(), root);
+            Map<?, ?> binding = requireMapping(entry.getValue(), field);
+            rejectUnknownFields(binding, field, TIMING_SYSTEM_ID, ANTENNAS, INVENTORY_GROUP);
+            String systemId = requireString(binding.get(TIMING_SYSTEM_ID),
+                    field + "." + TIMING_SYSTEM_ID);
+            String antennasField = field + "." + ANTENNAS;
+            Map<?, ?> antennas = requireMapping(binding.get(ANTENNAS), antennasField);
+            List<AntennaManagerConfig.AntennaConfig> configured =
+                    new ArrayList<AntennaManagerConfig.AntennaConfig>();
+            for (Map.Entry<?, ?> antennaEntry : antennas.entrySet()) {
+                // SnakeYAML reads unquoted numeric keys as Integer; IDs remain 1..9.
+                String id = String.valueOf(antennaEntry.getKey());
+                AntennaId antennaId = new AntennaId(id);
+                String antennaField = antennasField + "." + id;
+                Map<?, ?> values = requireMapping(antennaEntry.getValue(), antennaField);
+                rejectUnknownFields(values, antennaField,
+                        PROVIDER, TYPE, TIMING_NODES, POWER);
+                String type = requireString(values.get(TYPE), antennaField + "." + TYPE);
+                if (!"rfid".equals(type)) {
+                    throw new IllegalArgumentException(antennaField + ".type must be rfid");
+                }
+                if (values.containsKey(POWER)) {
+                    throw new IllegalArgumentException(
+                            antennaField + ".power is not supported without an external power registry");
+                }
+                Object rawNodes = values.get(TIMING_NODES);
+                if (!(rawNodes instanceof List)) {
+                    throw new IllegalArgumentException(antennaField + ".timingNodes must be a YAML list");
+                }
+                List<NodeId> nodes = new ArrayList<NodeId>();
+                for (Object rawNode : (List<?>) rawNodes) {
+                    nodes.add(new NodeId(requireString(rawNode, antennaField + ".timingNodes")));
+                }
+                configured.add(new AntennaManagerConfig.AntennaConfig(
+                        antennaId,
+                        requireString(values.get(PROVIDER), antennaField + "." + PROVIDER),
+                        nodes));
+            }
+            List<AntennaId> members = new ArrayList<AntennaId>();
+            Duration interval = null;
+            if (binding.containsKey(INVENTORY_GROUP)) {
+                String groupField = field + "." + INVENTORY_GROUP;
+                Map<?, ?> group = requireMapping(binding.get(INVENTORY_GROUP), groupField);
+                rejectUnknownFields(group, groupField, MEMBERS, INTERVAL_MILLIS);
+                Object rawMembers = group.get(MEMBERS);
+                if (!(rawMembers instanceof List)) {
+                    throw new IllegalArgumentException(groupField + ".members must be a YAML list");
+                }
+                for (Object member : (List<?>) rawMembers) {
+                    members.add(new AntennaId(String.valueOf(member)));
+                }
+                long millis = requireYamlLong(group.get(INTERVAL_MILLIS),
+                        groupField + "." + INTERVAL_MILLIS);
+                interval = Duration.ofMillis(millis);
+            }
+            result.add(new AntennaManagerConfig(systemId, configured, members, interval));
+        }
+        return result;
+    }
+
     private static Map<NodeId, Path> mapTimingDataPaths(
             Object rawIo,
             List<TimingNodeStartup> timingNodes) {
@@ -452,7 +540,7 @@ public final class YamlLoader {
         }
 
         Map<?, ?> io = requireMapping(rawIo, IO);
-        rejectUnknownFields(io, IO, STORAGE);
+        rejectUnknownFields(io, IO, STORAGE, DEVICES);
         if (!io.containsKey(STORAGE)) {
             throw new IllegalArgumentException(
                     "Missing required configuration field: "
