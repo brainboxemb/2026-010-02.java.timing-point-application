@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.runtime;
+package io.github.brainboxemb.eventtiming.timingpoint.runtime.simulation;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
@@ -24,7 +24,7 @@ import org.slf4j.LoggerFactory;
  * observation is emitted through {@link SimulatedAntenna}, after which the
  * ordinary AntennaManager -> TagProcessor -> TimingNode path owns the result.</p>
  */
-final class SimulatedTagScenarioRunner
+public final class SimulatedTagScenarioRunner
         implements SimulationControl {
     static final String PROFILE_SIMPLE = "simple";
     static final String PROFILE_NORMAL = "normal";
@@ -44,7 +44,7 @@ final class SimulatedTagScenarioRunner
     private boolean active;
     private int activeScenarios;
 
-    SimulatedTagScenarioRunner(
+    public SimulatedTagScenarioRunner(
             SimulatedAntenna antenna,
             EventData eventData,
             TimeSource timeSource,
@@ -71,7 +71,7 @@ final class SimulatedTagScenarioRunner
         this.executor = executor;
     }
 
-    synchronized void activate() {
+    public synchronized void activate() {
         if (active) {
             throw new IllegalStateException(
                     "SimulatedTagScenarioRunner is already active");
@@ -80,7 +80,7 @@ final class SimulatedTagScenarioRunner
         active = true;
     }
 
-    synchronized void deactivate() {
+    public synchronized void deactivate() {
         if (!active) {
             return;
         }

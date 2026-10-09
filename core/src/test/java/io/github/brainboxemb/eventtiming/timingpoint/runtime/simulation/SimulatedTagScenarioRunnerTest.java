@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.runtime;
+package io.github.brainboxemb.eventtiming.timingpoint.runtime.simulation;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;

@@ -25,6 +25,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment.OperatingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.runtime.simulation.SimulatedTagScenarioRunner;
 
 import java.io.Reader;
 import java.io.Writer;

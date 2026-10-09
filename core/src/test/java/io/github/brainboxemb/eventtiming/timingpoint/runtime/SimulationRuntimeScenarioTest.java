@@ -15,6 +15,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
+import io.github.brainboxemb.eventtiming.timingpoint.runtime.simulation.SimulationRuntime;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Presentation;
 
 import java.nio.file.Path;

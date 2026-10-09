@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Move simulation-specific Runtime code to `runtime.simulation`: `SimulationRuntime` and `SimulatedTagScenarioRunner` are grouped outside the default Runtime package without changing simulation behavior or the production processing path.
+
 - Support IF-11 antenna manager configuration and observation routing per TimingSystem; compose distinct I/O and node components per system without passing a generic I/O facade to Domain. Preserve Windows single-system fallback and reject unsupported providers/power settings explicitly.
 
 - Give SystemConductor a strongly typed `TimingNodeList` and a dedicated `PropertyRegistry` for ordered state property registration and identity-based lookup. Registry has no executor or queue responsibilities; no inventory behavior changes.
