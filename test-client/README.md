@@ -72,6 +72,25 @@ For the formal `VC-ST1-003` running-system check, follow
 [VC-ST1-003.md](VC-ST1-003.md); it uses dedicated verification storage so normal
 development TimingData is not modified.
 
+## Windows app-image
+
+With `JAVA_HOME` pointing to a full JDK 21, build the self-contained Windows
+application image with:
+
+```powershell
+.\test-client\package-windows.ps1
+```
+
+The script verifies JDK 21, builds the client, collects its runtime Maven
+dependencies and invokes the JDK `jpackage` tool. The default output is:
+
+```text
+test-client\target\jpackage\EventTimingEngineeringClient\
+```
+
+This is deliberately an app-image rather than an MSI/installer. Installer and
+auto-update policy are separate later decisions.
+
 The Engineering Client reads its target and presentation defaults from one file:
 
 ```text
