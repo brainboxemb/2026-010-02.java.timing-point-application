@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve Java 8 compatibility when building with newer JDKs by compiling against the Java 8 API via Maven `release=8` and disambiguating `SerialScheduledExecutor.State` from Java 19+ `Future.State`.
+
 - Add explicit CURRENT versus ORDERED TimingNode query consistency. Status can use a safely published current snapshot without queueing, ordered reads preserve command sequencing, SystemConductor reconciles from CURRENT state, and same-lane ordered reentrancy fails immediately.
 
 - Replace the heavyweight TrackedProperty refresh scheduler with passive SourceProperty/DerivedProperty state. SystemConductor owns explicit source-state reconciliation and derived behaviour, while CooperativeTaskController remains the sole coalescing scheduler.
