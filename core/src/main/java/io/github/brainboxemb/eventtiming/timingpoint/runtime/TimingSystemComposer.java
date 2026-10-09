@@ -24,11 +24,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Composes the Domain and I/O components for exactly one TimingSystem.
+ * Constructs concrete Domain and I/O components for one configured system.
  *
  * <p>Only the physical worker pools and application coordination are shared.
  * Nodes, their persistence, logical lanes, antenna set and AntennaManager are
- * built independently for each system. This class has no lifecycle.</p>
+ * built independently for each system. Only the specific AntennaManager is
+ * passed to the Domain Conductor; no I/O container crosses that boundary.
+ * This class has no lifecycle.</p>
  */
 final class TimingSystemComposer {
     private static final Duration ANTENNA_CONTROL_TIMEOUT = Duration.ofSeconds(2);
@@ -55,6 +57,10 @@ final class TimingSystemComposer {
             AntennaSet implicitAntennas,
             TimeSource timeSource) {
         List<TimingNode> nodes = createNodes(system, timeSource);
+        if (managerBinding == null && !implicitAntennas.isEmpty() && nodes.size() != 1) {
+            throw new IllegalArgumentException(
+                    "Implicit antenna routing requires exactly one TimingNode");
+        }
         AntennaSet antennaSet = createAntennas(managerBinding, implicitAntennas);
 
         AntennaManager antennaManager = antennaSet.isEmpty()

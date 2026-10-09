@@ -21,7 +21,7 @@ final class ApplicationLauncher {
     /**
      * Executes one startup command and returns a process exit code.
      *
-     * <p>Keeping the decision logic separate from {@link #main(String[])} makes
+     * <p>Keeping the decision logic separate from {@link Main#main(String[])} makes
      * help/error behaviour testable without intercepting {@code System.exit}.</p>
      */
     static int run(

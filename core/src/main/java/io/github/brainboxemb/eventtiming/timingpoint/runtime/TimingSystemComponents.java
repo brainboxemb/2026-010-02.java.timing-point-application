@@ -7,7 +7,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Runtime-only ownership of the nodes and I/O in one configured TimingSystem. */
+/**
+ * Runtime-only grouping of constructed components for one configured system.
+ * This is neither a Domain TimingSystem nor an I/O facade passed into Domain.
+ */
 final class TimingSystemComponents {
     private final String id;
     private final List<TimingNode> nodes;
