@@ -494,7 +494,7 @@ public final class TestClientFxApplication extends Application {
             currentClientLogLevel.setText(clientLog.level());
             clientLogLevel.setValue(clientLog.level());
             feedback.setText("Client log level " + clientLog.level());
-            clientLog.info("Development Client log level changed to " + clientLog.level());
+            clientLog.info("Engineering Client log level changed to " + clientLog.level());
         } catch (RuntimeException ex) {
             feedback.setText("Client log error: " + ex.getMessage());
         }
@@ -581,56 +581,38 @@ public final class TestClientFxApplication extends Application {
     }
 
     private ApiClient client() {
-        return new ApiClient(apiEndpoint());
+        return system.apiClient();
     }
 
-    private URI apiEndpoint() {
-        return URI.create("http://" + uriHost(system.host()) + ":" + config.apiHttpPort());
+    private java.net.URI apiEndpoint() {
+        return system.apiEndpoint();
     }
 
-    private URI eventEndpoint() {
-        return URI.create(
-                "ws://" + uriHost(system.host()) + ":" + config.eventPort() + "/api/v1/events");
-    }
-
-    private static String uriHost(String host) {
-        return host.indexOf(':') >= 0 && !host.startsWith("[")
-                ? "[" + host + "]"
-                : host;
+    private java.net.URI eventEndpoint() {
+        return system.eventEndpoint();
     }
 
     private boolean applyTargetHost() {
-        String value = targetHost.getText() == null ? "" : targetHost.getText().trim();
-        if (value.isEmpty()) {
-            feedback.setText("Target host/IP must not be empty");
-            return false;
-        }
-        if (value.contains("://") || value.contains("/") || value.contains("\\")) {
-            feedback.setText("Target must be a host or IP address, not a URL");
-            return false;
-        }
-        if (value.equals(system.host())) {
+        try {
+            boolean changed = system.changeHost(targetHost.getText());
             targetHost.setText(system.host());
+            if (!changed) {
+                return true;
+            }
+
+            setEventConnected(false, "CONNECT");
+            setShellConnected(false, "CONNECT");
+            setLogConnected(false, "CONNECT");
+            setApiState("CHECK");
+            apiPane.disconnected(true);
+            feedback.setText("Target changed to " + system.host());
+            clientLog.info("Engineering Client target changed to " + system.host());
             return true;
+        } catch (IllegalArgumentException ex) {
+            targetHost.setText(system.host());
+            feedback.setText(ex.getMessage());
+            return false;
         }
-
-        if (system.eventClient().isConnected()) {
-            disconnectEvents();
-        }
-        if (system.shellClient().isConnected()) {
-            system.shellClient().disconnect();
-        }
-        if (system.liveLogClient().isConnected()) {
-            system.liveLogClient().disconnect();
-        }
-
-        system.host() = value;
-        targetHost.setText(system.host());
-        setApiState("CHECK");
-        apiPane.disconnected(true);
-        feedback.setText("Target changed to " + system.host());
-        clientLog.info("Development Client target changed to " + system.host());
-        return true;
     }
 
     private void checkApi() {
@@ -749,12 +731,12 @@ public final class TestClientFxApplication extends Application {
 
     @Override
     public void stop() {
-        system.eventClient().close();
-        system.shellClient().close();
-        system.liveLogClient().close();
+        if (system != null) {
+            system.close();
+        }
         requests.shutdownNow();
         if (clientLog != null) {
-            clientLog.info("Development Client stopped");
+            clientLog.info("Engineering Client stopped");
             clientLog.close();
         }
     }
