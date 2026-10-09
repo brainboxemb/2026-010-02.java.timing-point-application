@@ -13,8 +13,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -26,23 +28,44 @@ public final class PresentationGatewayFixture implements AutoCloseable {
     private static final TimingTimestamp RECORDED_AT =
             TimingTimestamp.parse("2026-10-01T12:00:01.000000000Z");
 
-    private final TimingNode node;
+    private final List<TimingNode> nodes;
     private final ConfigurationControl configuration;
     private final PresentationGateway handler;
 
     public PresentationGatewayFixture(BuildIdentity identity) {
-        node = TimingNodeFixture.create(
-                new NodeId("A"),
-                new MemoryPersistence(),
-                () -> RECORDED_AT.instant());
-        configuration = configurationControl(new NodeId("A"));
-        TimingNodeList timingNodes =
-                new TimingNodeList().add(node);
+        this(identity, "A");
+    }
+
+    public PresentationGatewayFixture(
+            BuildIdentity identity,
+            String... nodeIds) {
+        if (nodeIds == null || nodeIds.length == 0) {
+            throw new IllegalArgumentException(
+                    "nodeIds must not be empty");
+        }
+
+        nodes = new ArrayList<TimingNode>();
+        NodeId[] ids = new NodeId[nodeIds.length];
+        TimingNodeList timingNodes = new TimingNodeList();
+        for (int index = 0; index < nodeIds.length; index++) {
+            NodeId nodeId = new NodeId(nodeIds[index]);
+            ids[index] = nodeId;
+            TimingNode node = TimingNodeFixture.create(
+                    nodeId,
+                    new MemoryPersistence(),
+                    () -> RECORDED_AT.instant());
+            nodes.add(node);
+            timingNodes.add(node);
+        }
+
+        configuration = configurationControl(ids);
         handler = new PresentationGateway(
                 identity,
                 timingNodes,
                 configuration);
-        node.activate();
+        for (TimingNode node : nodes) {
+            node.activate();
+        }
     }
 
     public PresentationGateway handler() {
@@ -55,7 +78,9 @@ public final class PresentationGatewayFixture implements AutoCloseable {
 
     @Override
     public void close() {
-        node.deactivate();
+        for (TimingNode node : nodes) {
+            node.deactivate();
+        }
     }
 
     public static ConfigurationControl configurationControl(

@@ -30,13 +30,13 @@ import java.util.Set;
 
 /** Shared line-oriented command session used by local and remote terminal transports. */
 public final class TerminalSession {
-    private static final String PROMPT = "event-timing> ";
 
     private final PresentationGateway presentationGateway;
     private final LoggingLevelControl loggingLevelControl;
     private final ConsolePromptControl consolePromptControl;
     private final Runnable shutdown;
     private NodeId currentNodeId;
+    private boolean strictNodeAddressing;
 
     public TerminalSession(
             PresentationGateway presentationGateway,
@@ -93,16 +93,18 @@ public final class TerminalSession {
                         .timingNodes()
                         .get(0)
                         .timingNodeId();
+        strictNodeAddressing = isMultiNode();
         writer.println(readyMessage);
 
         String line;
         while (true) {
-            writer.print(PROMPT);
+            String prompt = prompt();
+            writer.print(prompt);
             writer.flush();
             if (consolePromptControl != null) {
                 consolePromptControl.promptDisplayed(
                         writer,
-                        PROMPT);
+                        prompt);
             }
 
             try {
@@ -153,6 +155,15 @@ public final class TerminalSession {
                         new NodeId(target)).timingNodeId();
             }
 
+            if (nodeId == null
+                    && strictNodeAddressing
+                    && requiresNodeTarget(command, arguments)) {
+                output.println(
+                        "Explicit NodeId required in multi-node strict mode. "
+                                + "Use " + command + ":<NodeId>.");
+                return false;
+            }
+
             switch (command) {
                 case "help":
                     requireArgumentCount(arguments, 1, "help", output);
@@ -168,6 +179,9 @@ public final class TerminalSession {
                     return false;
                 case "node":
                     node(arguments, output);
+                    return false;
+                case "node-mode":
+                    nodeMode(arguments, output);
                     return false;
                 case "open":
                     open(arguments, nodeId, output);
@@ -335,12 +349,12 @@ public final class TerminalSession {
             NodeId nodeId,
             PrintWriter output) {
         if (arguments.length == 1) {
-            showConfiguration(output);
+            showConfiguration(nodeId, output);
             return;
         }
         if (arguments.length == 2
                 && "tag-processing".equalsIgnoreCase(arguments[1])) {
-            showConfiguration(output);
+            showConfiguration(nodeId, output);
             return;
         }
         if (arguments.length >= 3
@@ -488,12 +502,78 @@ public final class TerminalSession {
         return presentationGateway.timingNode(effectiveNodeId(nodeId));
     }
 
+    private boolean isMultiNode() {
+        return presentationGateway.timingNodes().size() > 1;
+    }
+
+    private String prompt() {
+        if (!isMultiNode()) {
+            return "event-timing> ";
+        }
+        return "event-timing[" + currentNodeId.value() + "]> ";
+    }
+
     private static boolean isNodeCommand(String command) {
         return "open".equals(command)
                 || "close".equals(command)
                 || "status".equals(command)
                 || "auto-reg".equals(command)
                 || "config".equals(command);
+    }
+
+    private static boolean requiresNodeTarget(
+            String command,
+            String[] arguments) {
+        if ("open".equals(command)
+                || "close".equals(command)
+                || "status".equals(command)
+                || "auto-reg".equals(command)) {
+            return true;
+        }
+        if (!"config".equals(command)
+                || arguments.length < 3
+                || !"tag-processing".equalsIgnoreCase(arguments[1])) {
+            return false;
+        }
+        return "set".equalsIgnoreCase(arguments[2])
+                || "clear".equalsIgnoreCase(arguments[2]);
+    }
+
+    private void nodeMode(
+            String[] arguments,
+            PrintWriter output) {
+        if (!isMultiNode()) {
+            if (arguments.length != 1) {
+                output.println("Usage: node-mode [strict|selected]");
+                return;
+            }
+            output.println("Node addressing mode: SINGLE");
+            return;
+        }
+
+        if (arguments.length == 1) {
+            output.println(
+                    "Node addressing mode: "
+                            + (strictNodeAddressing ? "STRICT" : "SELECTED"));
+            return;
+        }
+        if (arguments.length != 2) {
+            output.println("Usage: node-mode [strict|selected]");
+            return;
+        }
+
+        if ("strict".equalsIgnoreCase(arguments[1])) {
+            strictNodeAddressing = true;
+        } else if ("selected".equalsIgnoreCase(arguments[1])) {
+            strictNodeAddressing = false;
+        } else {
+            output.println("Usage: node-mode [strict|selected]");
+            return;
+        }
+
+        output.println(
+                "Node addressing mode: "
+                        + (strictNodeAddressing ? "STRICT" : "SELECTED"));
     }
 
     private void node(
@@ -532,13 +612,18 @@ public final class TerminalSession {
                         + currentNodeId.value());
     }
 
-    private void showConfiguration(PrintWriter output) {
+    private void showConfiguration(
+            NodeId nodeId,
+            PrintWriter output) {
         output.println("Configuration");
         for (TimingNodeConfiguration node
                 : presentationGateway
                         .configuration()
                         .snapshot()
                         .timingNodes()) {
+            if (nodeId != null && !node.nodeId().equals(nodeId)) {
+                continue;
+            }
             showTagProcessing(
                     output,
                     node.nodeId().value(),
@@ -622,7 +707,9 @@ public final class TerminalSession {
         output.println("  version                      Show application version");
         output.println("  status                       Show selected TimingNode status");
         output.println("  node [id]                    Show/select default TimingNode");
+        output.println("  node-mode [strict|selected]  Show/set multi-node addressing mode");
         output.println("  <command>:<NodeId>            Target one command at a node");
+        output.println("                               Multi-node defaults to STRICT");
         output.println("  open:A 1                     Example: open node A at location 1");
         output.println("  status:B                     Example: show node B status");
         output.println("  open <locationId>            Open selected TimingNode at location");
