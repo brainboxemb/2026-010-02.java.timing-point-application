@@ -362,6 +362,14 @@ public final class Config {
                 nodeId);
     }
 
+    /**
+     * Single-node compatibility accessor.
+     */
+    public NodeId timingNodeId() {
+        return requireSingleTimingNode()
+                .timingNodeId();
+    }
+
     public Presentation presentation() {
         return presentation;
     }
