@@ -50,7 +50,7 @@ public class LocalConsoleTest {
         assertTrue(text.contains("help                         Show available commands"));
         assertTrue(text.contains("version                      Show application version"));
         assertTrue(text.contains("status                       Show selected TimingNode status"));
-        assertTrue(text.contains("node [id]                    Show/select TimingNode"));
+        assertTrue(text.contains("node [id]                    Show/select default TimingNode"));
         assertTrue(text.contains("open <locationId>            Open selected TimingNode at location"));
         assertTrue(text.contains("close                        Close selected TimingNode"));
         assertTrue(text.contains("auto-reg <id> <time>"));
