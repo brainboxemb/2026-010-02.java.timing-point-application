@@ -141,7 +141,7 @@ public final class Config {
     }
 
     private final TimingSystemConfigRegistry timingSystems;
-    private final List<AntennaManagerConfig> antennaManagers;
+    private final AntennaManagerConfigRegistry antennaManagers;
     private final Presentation presentation;
     private final LoggingConfig logging;
     private final LoggingServerConfig loggingServer;
@@ -283,9 +283,6 @@ public final class Config {
             Presentation presentation,
             LoggingConfig logging,
             LoggingServerConfig loggingServer) {
-        if (antennaManagers == null) {
-            throw new IllegalArgumentException("antennaManagers must not be null");
-        }
         if (presentation == null) {
             throw new IllegalArgumentException(
                     "presentation must not be null");
@@ -294,34 +291,12 @@ public final class Config {
         TimingSystemConfigRegistry systems =
                 new TimingSystemConfigRegistry(
                         timingSystems);
+        AntennaManagerConfigRegistry antennaBindings =
+                new AntennaManagerConfigRegistry(
+                        antennaManagers,
+                        systems);
 
-        List<AntennaManagerConfig> bindings =
-                new ArrayList<AntennaManagerConfig>();
-        Set<String> boundSystems = new LinkedHashSet<String>();
-        for (AntennaManagerConfig binding : antennaManagers) {
-            if (binding == null
-                    || !systems.containsSystem(binding.timingSystemId())
-                    || !boundSystems.add(binding.timingSystemId())) {
-                throw new IllegalArgumentException(
-                        "Unknown or duplicate AntennaManager TimingSystem binding");
-            }
-            Set<NodeId> systemNodes =
-                    systems.timingNodeIds(
-                            binding.timingSystemId());
-            for (AntennaManagerConfig.AntennaConfig antenna : binding.antennas()) {
-                for (NodeId nodeId : antenna.timingNodes()) {
-                    if (!systemNodes.contains(nodeId)) {
-                        throw new IllegalArgumentException(
-                                "Antenna " + antenna.id()
-                                        + " routes to a TimingNode outside TimingSystem "
-                                        + binding.timingSystemId() + ": " + nodeId.value());
-                    }
-                }
-            }
-            bindings.add(binding);
-        }
-
-        this.antennaManagers = Collections.unmodifiableList(bindings);
+        this.antennaManagers = antennaBindings;
         this.timingSystems = systems;
         this.presentation = presentation;
         this.logging = logging;
@@ -333,17 +308,13 @@ public final class Config {
     }
 
     public List<AntennaManagerConfig> antennaManagers() {
-        return antennaManagers;
+        return antennaManagers.bindings();
     }
 
     /** An absent binding means this system has no configured AntennaManager. */
     public AntennaManagerConfig antennaManager(String timingSystemId) {
-        for (AntennaManagerConfig binding : antennaManagers) {
-            if (binding.timingSystemId().equals(timingSystemId)) {
-                return binding;
-            }
-        }
-        return null;
+        return antennaManagers.binding(
+                timingSystemId);
     }
 
     public TimingSystemConfig timingSystem(
