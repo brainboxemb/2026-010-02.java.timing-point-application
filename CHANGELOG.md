@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Allow command-shell node commands to target a specific TimingNode per invocation using `command:NodeId` (for example `open:A 1`), without changing the selected default node. Multi-node sessions show the selection in the prompt and default to strict explicit addressing; `node-mode selected` can opt into implicit selected-node targeting. Applies to local and remote terminals.
+
 - Move AntennaManager TimingSystem binding uniqueness, target validation and lookup into a typed `AntennaManagerConfigRegistry`; preserve the existing Config/YAML API and IF-11 behavior.
 
 - Move TimingSystem/TimingNode configuration identity, storage-path validation and lookup into a typed `TimingSystemConfigRegistry`; keep `Config` as the public effective configuration root and preserve its API.
