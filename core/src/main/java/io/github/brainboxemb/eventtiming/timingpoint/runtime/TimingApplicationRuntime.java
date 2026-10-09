@@ -74,7 +74,7 @@ public final class TimingApplicationRuntime {
     private final ApplicationConfiguration configuration;
     private final PresentationGateway presentationGateway;
     private final RuntimeExecutors runtimeExecutors;
-    private final List<AntennaManager> antennaManagers;
+    private final List<TimingSystemComponents> systems;
     private final SimulatedTagScenarioRunner simulationRunner;
     private final ApplicationConductor applicationConductor;
     private final PresentationRuntime presentationRuntime;
@@ -88,7 +88,7 @@ public final class TimingApplicationRuntime {
             ApplicationConfiguration configuration,
             PresentationGateway presentationGateway,
             RuntimeExecutors runtimeExecutors,
-            List<AntennaManager> antennaManagers,
+            List<TimingSystemComponents> systems,
             SimulatedTagScenarioRunner simulationRunner,
             ApplicationConductor applicationConductor,
             PresentationRuntime presentationRuntime,
@@ -101,10 +101,8 @@ public final class TimingApplicationRuntime {
         this.configuration = configuration;
         this.presentationGateway = presentationGateway;
         this.runtimeExecutors = runtimeExecutors;
-        this.antennaManagers =
-                Collections.unmodifiableList(
-                        new ArrayList<AntennaManager>(
-                                antennaManagers));
+        this.systems = Collections.unmodifiableList(
+                new ArrayList<TimingSystemComponents>(systems));
         this.simulationRunner = simulationRunner;
         this.applicationConductor = applicationConductor;
         this.presentationRuntime = presentationRuntime;
@@ -452,8 +450,8 @@ public final class TimingApplicationRuntime {
             List<TimingNode> timingNodes =
                     new ArrayList<TimingNode>(
                             config.timingNodes().size());
-            List<AntennaManager> antennaManagers =
-                    new ArrayList<AntennaManager>();
+            List<TimingSystemComponents> systems =
+                    new ArrayList<TimingSystemComponents>();
             ApplicationConductor applicationConductor =
                     new ApplicationConductor();
             SimulatedTagScenarioRunner simulationRunner = null;
@@ -534,8 +532,11 @@ public final class TimingApplicationRuntime {
                             systemAntennas,
                             executors.createAntennaControlExecutor(),
                             ANTENNA_CONTROL_TIMEOUT);
-                    antennaManagers.add(antennaManager);
+                    // Each manager belongs to exactly one TimingSystem.
                 }
+
+                systems.add(new TimingSystemComponents(
+                        resolvedSystem.configuration.timingSystemId(), systemNodes, antennaManager));
 
                 Conductor systemConductor =
                         new Conductor(
@@ -623,7 +624,7 @@ public final class TimingApplicationRuntime {
                     applicationConfiguration,
                     presentationGateway,
                     executors,
-                    antennaManagers,
+                    systems,
                     simulationRunner,
                     applicationConductor,
                     presentation,
@@ -707,19 +708,25 @@ public final class TimingApplicationRuntime {
     }
 
     AntennaManager antennaManager() {
-        if (antennaManagers.isEmpty()) {
+        List<AntennaManager> managers = antennaManagers();
+        if (managers.isEmpty()) {
             return null;
         }
-        if (antennaManagers.size() != 1) {
+        if (managers.size() != 1) {
             throw new IllegalStateException(
-                    "Operation requires at most one AntennaManager; composed="
-                            + antennaManagers.size());
+                    "Operation requires at most one AntennaManager; composed=" + managers.size());
         }
-        return antennaManagers.get(0);
+        return managers.get(0);
     }
 
     List<AntennaManager> antennaManagers() {
-        return antennaManagers;
+        List<AntennaManager> managers = new ArrayList<AntennaManager>();
+        for (TimingSystemComponents system : systems) {
+            if (system.antennaManager() != null) {
+                managers.add(system.antennaManager());
+            }
+        }
+        return Collections.unmodifiableList(managers);
     }
 
     public synchronized State state() {
