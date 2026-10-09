@@ -1,6 +1,6 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.TimingNodeTypes.CommandAdmission;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandAdmission;
 
 import org.junit.Test;
 

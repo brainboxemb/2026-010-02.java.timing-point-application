@@ -3,7 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.characterization;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement.JvmRuntimeSnapshot;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement.TimingNodeRuntimeSnapshot;
 
@@ -282,7 +282,7 @@ final class CharacterizationEvidenceWriter {
                 RuntimeCharacterizationHarness.tagProcessorQueueCapacity());
         json.writeNumberField(
                 "tagObservationQueueCapacity",
-                io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing.TagProcessingPolicy
+                io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy
                         .defaults()
                         .observationQueueCapacity());
         json.writeStringField(

@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.timing.processing;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing;
 
 import java.time.Duration;
 
