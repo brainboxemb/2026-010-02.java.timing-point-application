@@ -13,6 +13,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
@@ -60,7 +61,9 @@ public final class TimingNodeProxy {
     /** Returns the current authoritative node status. */
     public TimingNodeStatus status() {
         return timingNodeStatus(
-                timingNode.query(TimingNodeQueries.status()));
+                timingNode.query(
+                        TimingNodeQueries.status(),
+                        ReadConsistency.CURRENT));
     }
 
     /** Opens the node at the requested LocationId. */

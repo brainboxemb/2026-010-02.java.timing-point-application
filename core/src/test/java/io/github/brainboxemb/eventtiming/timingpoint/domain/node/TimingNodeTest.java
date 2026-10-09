@@ -8,6 +8,7 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeQuery.ReadConsistency;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -419,6 +420,184 @@ public class TimingNodeTest {
         } finally {
             releaseBlocker.countDown();
             node.deactivate();
+        }
+    }
+
+
+    @Test
+    public void currentStatusDoesNotWaitBehindQueuedWork() throws Exception {
+        SerialExecutor executor = newSerialExecutor(3, "timing-node-current-test");
+        TimingNode node = node(new NodeId("A"), executor, 25L);
+        CountDownLatch blockerStarted = new CountDownLatch(1);
+        CountDownLatch releaseBlocker = new CountDownLatch(1);
+
+        node.activate();
+        try {
+            executor.submit(() -> {
+                blockerStarted.countDown();
+                releaseBlocker.await();
+                return null;
+            });
+            assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
+
+            assertEquals(
+                    TimingNodeTypes.CommandAdmission.ACCEPTED,
+                    node.offer(TimingNodeCommands.open(new LocationId(24))));
+
+            TimingNodeTypes.Status current =
+                    node.query(
+                            TimingNodeQueries.status(),
+                            ReadConsistency.CURRENT);
+            assertEquals(TimingNodeTypes.State.CLOSED, current.state());
+
+            try {
+                node.query(
+                        TimingNodeQueries.status(),
+                        ReadConsistency.ORDERED);
+                fail("expected ordered status timeout behind blocked lane");
+            } catch (TimingNodeTypes.OperationException expected) {
+                assertEquals(
+                        TimingNodeTypes.OperationException.Reason.TIMEOUT,
+                        expected.reason());
+            }
+
+            releaseBlocker.countDown();
+            CountDownLatch drained = new CountDownLatch(1);
+            assertEquals(
+                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    executor.offer(drained::countDown));
+            assertTrue(drained.await(1, TimeUnit.SECONDS));
+
+            assertEquals(
+                    TimingNodeTypes.State.OPEN,
+                    node.query(
+                            TimingNodeQueries.status(),
+                            ReadConsistency.CURRENT)
+                            .state());
+        } finally {
+            releaseBlocker.countDown();
+            node.deactivate();
+        }
+    }
+
+    @Test
+    public void currentStatusIsPublishedBeforeStatusEvent() {
+        TimingNode node = node(new NodeId("A"));
+        final TimingNodeTypes.Status[] observedCurrent =
+                new TimingNodeTypes.Status[1];
+
+        node.activate();
+        try {
+            node.statusChangedEvent().subscribe(
+                    ignored ->
+                            observedCurrent[0] =
+                                    node.query(
+                                            TimingNodeQueries.status(),
+                                            ReadConsistency.CURRENT));
+
+            node.invoke(TimingNodeCommands.open(new LocationId(24)));
+
+            assertEquals(
+                    TimingNodeTypes.State.OPEN,
+                    observedCurrent[0].state());
+            assertEquals(
+                    new LocationId(24),
+                    observedCurrent[0].locationId());
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
+    public void currentConsistencyRejectsOrderedOnlyLogBookQuery() {
+        TimingNode node = node(new NodeId("A"));
+
+        node.activate();
+        try {
+            try {
+                node.query(
+                        TimingNodeQueries.timingDataCount(),
+                        ReadConsistency.CURRENT);
+                fail("expected unsupported CURRENT query");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage().contains("CURRENT"));
+            }
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
+    public void orderedReentrantQueryFailsImmediatelyInsideLogBookVisitor() {
+        TimingNode node = node(new NodeId("A"));
+        final Throwable[] reentrantFailure = new Throwable[1];
+        final TimingNodeTypes.Status[] currentStatus =
+                new TimingNodeTypes.Status[1];
+
+        node.activate();
+        try {
+            node.invoke(TimingNodeCommands.open(new LocationId(24)));
+
+            node.query(
+                    TimingNodeQueries.visitTimingDataRange(
+                            1L,
+                            1,
+                            ignored -> {
+                                try {
+                                    node.query(
+                                            TimingNodeQueries.status(),
+                                            ReadConsistency.ORDERED);
+                                    fail("expected reentrant ORDERED query failure");
+                                } catch (IllegalStateException expected) {
+                                    reentrantFailure[0] = expected;
+                                }
+
+                                currentStatus[0] =
+                                        node.query(
+                                                TimingNodeQueries.status(),
+                                                ReadConsistency.CURRENT);
+                            }));
+
+            assertTrue(reentrantFailure[0].getMessage().contains("Reentrant ORDERED"));
+            assertEquals(TimingNodeTypes.State.OPEN, currentStatus[0].state());
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
+    public void currentStatusIsUnavailableOutsideActivation() {
+        TimingNode node = node(new NodeId("A"));
+
+        try {
+            node.query(
+                    TimingNodeQueries.status(),
+                    ReadConsistency.CURRENT);
+            fail("expected current status to be unavailable before activation");
+        } catch (TimingNodeTypes.OperationException expected) {
+            assertEquals(
+                    TimingNodeTypes.OperationException.Reason.UNAVAILABLE,
+                    expected.reason());
+        }
+
+        node.activate();
+        assertEquals(
+                TimingNodeTypes.State.CLOSED,
+                node.query(
+                        TimingNodeQueries.status(),
+                        ReadConsistency.CURRENT)
+                        .state());
+        node.deactivate();
+
+        try {
+            node.query(
+                    TimingNodeQueries.status(),
+                    ReadConsistency.CURRENT);
+            fail("expected current status to be unavailable after deactivation");
+        } catch (TimingNodeTypes.OperationException expected) {
+            assertEquals(
+                    TimingNodeTypes.OperationException.Reason.UNAVAILABLE,
+                    expected.reason());
         }
     }
 

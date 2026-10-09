@@ -8,13 +8,15 @@ import java.util.function.Consumer;
 /**
  * Standard read operations supported by TimingNode.
  *
- * <p>Queries are represented as typed values so a new read does not require
- * another forwarding method on the TimingNode component boundary. Commands use
- * the matching TimingNodeCommand/TimingNodeCommands path.</p>
+ * <p>Status supports both CURRENT published-state reads and ORDERED reads.
+ * Mutable LogBook reads remain ORDERED only.</p>
  */
 public final class TimingNodeQueries {
     private static final TimingNodeQuery<Status> STATUS =
-            new TimingNodeQuery<>("status", TimingNodeLogic::status);
+            new TimingNodeQuery<>(
+                    "status",
+                    TimingNodeLogic::status,
+                    TimingNode::publishedStatus);
     private static final TimingNodeQuery<Integer> TIMING_DATA_COUNT =
             new TimingNodeQuery<>(
                     "timingDataCount",
@@ -34,9 +36,8 @@ public final class TimingNodeQueries {
     /**
      * Visits a bounded LogBook range on the TimingNode serial lane.
      *
-     * <p>The visitor must be short/non-blocking and must not re-enter the same
-     * TimingNode. The returned value is the total committed LogBook count from
-     * the same ordered read.</p>
+     * <p>The visitor must be short/non-blocking and must not make a result-bearing
+     * ORDERED call back into the same TimingNode. CURRENT status reads are safe.</p>
      */
     public static TimingNodeQuery<Integer> visitTimingDataRange(
             long fromSequence,

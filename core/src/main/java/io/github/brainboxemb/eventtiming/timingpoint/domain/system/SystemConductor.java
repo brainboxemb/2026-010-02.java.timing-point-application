@@ -5,6 +5,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.property.DerivedProperty;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.property.SourceProperty;
@@ -36,8 +37,6 @@ public final class SystemConductor extends AbstractConductor implements Cooperat
     private final AntennaManager antennaManager;
     private final CooperativeTaskController taskController;
     private final DerivedProperty<Boolean> inventoryRequired;
-
-    private volatile boolean sourcePropertiesInitialized;
 
     public SystemConductor(
             TimingNodeList timingNodes,
@@ -77,10 +76,8 @@ public final class SystemConductor extends AbstractConductor implements Cooperat
             throw new IllegalArgumentException("status must not be null");
         }
 
-        SourceProperty<TimingNode, State> property = requireNodeProperty(node);
-        if (property.update(status.state())) {
-            taskController.wake();
-        }
+        requireNodeProperty(node);
+        taskController.wake();
     }
 
     SourceProperty<TimingNode, State> nodeStateProperty(TimingNode node) {
@@ -89,18 +86,13 @@ public final class SystemConductor extends AbstractConductor implements Cooperat
 
     @Override
     protected void onActivated() {
-        sourcePropertiesInitialized = false;
         taskController.clearPendingWake();
         taskController.wake();
     }
 
     @Override
     public TaskStep runStep() {
-        if (!sourcePropertiesInitialized) {
-            initializeSourceProperties();
-            sourcePropertiesInitialized = true;
-        }
-
+        refreshSourceProperties();
         inventoryRequired.recalculate();
 
         if (antennaManager != null && !antennaManager.setInventoryEnabled(inventoryRequired.currentValue())) {
@@ -113,9 +105,12 @@ public final class SystemConductor extends AbstractConductor implements Cooperat
         return TaskStep.done();
     }
 
-    private void initializeSourceProperties() {
+    private void refreshSourceProperties() {
         for (SourceProperty<TimingNode, State> property : properties) {
-            Status status = property.source().query(TimingNodeQueries.status());
+            Status status =
+                    property.source().query(
+                            TimingNodeQueries.status(),
+                            ReadConsistency.CURRENT);
             property.update(status.state());
         }
     }
@@ -141,10 +136,6 @@ public final class SystemConductor extends AbstractConductor implements Cooperat
     }
 
     private void onControlTaskFailure(Throwable failure) {
-        if (!sourcePropertiesInitialized) {
-            LOG.error("TimingSystem Conductor failed while initializing TimingNode source properties", failure);
-        } else {
-            LOG.error("TimingSystem Conductor control task failed", failure);
-        }
+        LOG.error("TimingSystem Conductor control task failed", failure);
     }
 }

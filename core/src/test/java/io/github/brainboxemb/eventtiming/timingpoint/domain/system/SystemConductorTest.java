@@ -78,7 +78,7 @@ public class SystemConductorTest {
             conductor.activate();
 
             assertFalse(
-                    "activate must not hide the initial TimingNode query",
+                    "source state belongs to the first control run, not activate()",
                     conductor.nodeStateProperty(node).initialized());
 
             releaseBlocker.countDown();
@@ -91,27 +91,45 @@ public class SystemConductorTest {
     }
 
     @Test
-    public void statusEventUpdatesSourcePropertyBeforeControlRun() throws Exception {
+    public void statusEventOnlyWakesThenControlRunRefreshesCurrentState() throws Exception {
         TimingNode node = newTimingNode("A");
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
-        SerialExecutor lane = new SerialExecutor(4, "conductor-test", newWorker("conductor-test-worker"));
+        ExecutorService conductorWorker = newWorker("conductor-event-worker");
+        SerialExecutor lane = new SerialExecutor(4, "conductor-test", conductorWorker);
         SystemConductor conductor = new SystemConductor(new TimingNodeList().add(node), manager, lane);
+        node.statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(node, status));
 
         manager.activate();
         conductor.activate();
         try {
             await(() -> conductor.nodeStateProperty(node).initialized(), 1000L);
 
-            node.invoke(TimingNodeCommands.open(new LocationId(24)));
-            Status openStatus = node.query(TimingNodeQueries.status());
+            CountDownLatch blockerStarted = new CountDownLatch(1);
+            CountDownLatch releaseBlocker = new CountDownLatch(1);
+            assertEquals(
+                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    lane.offer(() -> {
+                        blockerStarted.countDown();
+                        try {
+                            releaseBlocker.await();
+                        } catch (InterruptedException ex) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }));
+            assertTrue(blockerStarted.await(1L, TimeUnit.SECONDS));
 
-            conductor.onTimingNodeStatusChanged(node, openStatus);
+            node.invoke(TimingNodeCommands.open(new LocationId(24)));
 
             assertEquals(
-                    "authoritative event payload must update source state synchronously",
-                    State.OPEN,
+                    "event callback must not directly mutate the SourceProperty",
+                    State.CLOSED,
                     conductor.nodeStateProperty(node).currentValue());
+
+            releaseBlocker.countDown();
+            await(
+                    () -> conductor.nodeStateProperty(node).currentValue() == State.OPEN,
+                    1000L);
             await(antenna::inventoryRunning, 1000L);
         } finally {
             conductor.deactivate();
@@ -120,13 +138,14 @@ public class SystemConductorTest {
     }
 
     @Test
-    public void rapidStateEventsCoalesceInExistingController() throws Exception {
+    public void rapidStateEventsCoalesceAndRefreshLatestCurrentState() throws Exception {
         TimingNode node = newTimingNode("A");
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
         ExecutorService conductorWorker = newWorker("conductor-blocked-test");
         SerialExecutor lane = new SerialExecutor(1, "conductor-test", conductorWorker);
         SystemConductor conductor = new SystemConductor(new TimingNodeList().add(node), manager, lane);
+        node.statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(node, status));
 
         manager.activate();
         conductor.activate();
@@ -151,19 +170,20 @@ public class SystemConductorTest {
             assertTrue(blockerStarted.await(1L, TimeUnit.SECONDS));
 
             node.invoke(TimingNodeCommands.open(new LocationId(24)));
-            conductor.onTimingNodeStatusChanged(node, node.query(TimingNodeQueries.status()));
-
             node.invoke(TimingNodeCommands.close());
-            conductor.onTimingNodeStatusChanged(node, node.query(TimingNodeQueries.status()));
-
             node.invoke(TimingNodeCommands.open(new LocationId(25)));
-            conductor.onTimingNodeStatusChanged(node, node.query(TimingNodeQueries.status()));
 
             assertEquals(1, lane.metrics().snapshot().queueDepth());
             assertEquals(0L, lane.metrics().snapshot().fullCount());
-            assertEquals(State.OPEN, conductor.nodeStateProperty(node).currentValue());
+            assertEquals(
+                    "SourceProperty stays at the last reconciled value while the control lane is blocked",
+                    State.CLOSED,
+                    conductor.nodeStateProperty(node).currentValue());
 
             releaseBlocker.countDown();
+            await(
+                    () -> conductor.nodeStateProperty(node).currentValue() == State.OPEN,
+                    1000L);
             await(antenna::inventoryRunning, 1000L);
         } finally {
             releaseBlocker.countDown();
@@ -181,6 +201,8 @@ public class SystemConductorTest {
         SerialExecutor lane = new SerialExecutor(8, "system-conductor-test", newWorker("system-conductor-worker"));
         SystemConductor conductor =
                 new SystemConductor(new TimingNodeList().add(first).add(second), manager, lane);
+        first.statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(first, status));
+        second.statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(second, status));
 
         manager.activate();
         conductor.activate();
@@ -189,18 +211,16 @@ public class SystemConductorTest {
             await(() -> conductor.nodeStateProperty(second).initialized(), 1000L);
 
             first.invoke(TimingNodeCommands.open(new LocationId(24)));
-            conductor.onTimingNodeStatusChanged(first, first.query(TimingNodeQueries.status()));
             await(antenna::inventoryRunning, 1000L);
 
             second.invoke(TimingNodeCommands.open(new LocationId(25)));
-            conductor.onTimingNodeStatusChanged(second, second.query(TimingNodeQueries.status()));
+            await(() -> conductor.nodeStateProperty(second).currentValue() == State.OPEN, 1000L);
 
             first.invoke(TimingNodeCommands.close());
-            conductor.onTimingNodeStatusChanged(first, first.query(TimingNodeQueries.status()));
+            await(() -> conductor.nodeStateProperty(first).currentValue() == State.CLOSED, 1000L);
             assertTrue(antenna.inventoryRunning());
 
             second.invoke(TimingNodeCommands.close());
-            conductor.onTimingNodeStatusChanged(second, second.query(TimingNodeQueries.status()));
             await(() -> !antenna.inventoryRunning(), 1000L);
         } finally {
             conductor.deactivate();
@@ -213,14 +233,13 @@ public class SystemConductorTest {
         TimingNode node = newTimingNode("A");
         SerialExecutor lane = new SerialExecutor(4, "conductor-test", newWorker("reactivation-worker"));
         SystemConductor conductor = new SystemConductor(new TimingNodeList().add(node), null, lane);
+        node.statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(node, status));
 
         conductor.activate();
         await(() -> conductor.nodeStateProperty(node).initialized(), 1000L);
 
         node.invoke(TimingNodeCommands.open(new LocationId(24)));
-        Status openStatus = node.query(TimingNodeQueries.status());
-        conductor.onTimingNodeStatusChanged(node, openStatus);
-        assertEquals(State.OPEN, conductor.nodeStateProperty(node).currentValue());
+        await(() -> conductor.nodeStateProperty(node).currentValue() == State.OPEN, 1000L);
 
         conductor.deactivate();
 
