@@ -5,17 +5,18 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>io.github.brainboxemb.eventtiming</groupId>
-  <artifactId>event-timing-development-client</artifactId>
+  <artifactId>event-timing-engineering-client</artifactId>
   <version>0.1.0-SNAPSHOT</version>
 
-  <name>Event Timing Development Client</name>
-  <description>Independent JavaFX development client for the public Event Timing interfaces.</description>
+  <name>Event Timing Engineering Client</name>
+  <description>SI-02 Engineering Desktop Client for the public Event Timing interfaces.</description>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.release>17</maven.compiler.release>
+    <maven.compiler.release>21</maven.compiler.release>
     <javafx.version>21.0.10</javafx.version>
     <jackson.version>2.21.2</jackson.version>
+    <bentofx.version>0.16.0</bentofx.version>
     <junit.version>5.10.2</junit.version>
     <maven.compiler.plugin.version>3.13.0</maven.compiler.plugin.version>
     <maven.surefire.plugin.version>3.2.5</maven.surefire.plugin.version>
@@ -35,6 +36,33 @@
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
       <version>${jackson.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>software.coley.bento-fx</groupId>
+      <artifactId>core</artifactId>
+      <version>${bentofx.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.openjfx</groupId>
+          <artifactId>javafx-base</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.openjfx</groupId>
+          <artifactId>javafx-graphics</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.openjfx</groupId>
+          <artifactId>javafx-controls</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.openjfx</groupId>
+          <artifactId>javafx-media</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.openjfx</groupId>
+          <artifactId>javafx-web</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
