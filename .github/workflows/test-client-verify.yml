@@ -39,3 +39,32 @@ jobs:
       - name: Verify standalone SI-02 Engineering Client
         shell: bash
         run: ./mvnw -f test-client/pom.xml -DeventTiming.buildOrigin=github-actions verify
+
+  package-windows:
+    runs-on: windows-2025
+    steps:
+      - name: Checkout exact source revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Engineering Client Java 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build Windows Engineering Client app-image
+        shell: pwsh
+        run: .\test-client\package-windows.ps1
+
+      - name: Verify packaged launcher
+        shell: pwsh
+        run: |
+          $launcher = "test-client\target\jpackage\EventTimingEngineeringClient\EventTimingEngineeringClient.exe"
+          if (-not (Test-Path $launcher)) {
+            throw "Missing packaged Engineering Client launcher: $launcher"
+          }
