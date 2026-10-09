@@ -4,14 +4,14 @@ on:
   pull_request:
     paths:
       - 'test-client/**'
-      - 'config/development-client.properties'
+      - 'config/engineering-client.properties'
       - '.github/workflows/test-client-verify.yml'
   push:
     branches:
       - main
     paths:
       - 'test-client/**'
-      - 'config/development-client.properties'
+      - 'config/engineering-client.properties'
       - '.github/workflows/test-client-verify.yml'
   workflow_dispatch:
 
