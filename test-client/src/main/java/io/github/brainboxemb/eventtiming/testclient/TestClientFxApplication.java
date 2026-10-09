@@ -11,8 +11,6 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
-import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
@@ -690,11 +688,6 @@ public final class TestClientFxApplication extends Application {
         about.showAndWait();
     }
 
-    private static Tab tab(String title, javafx.scene.Node content) {
-        Tab tab = new Tab(title, content);
-        tab.setClosable(false);
-        return tab;
-    }
 
     private static GridPane grid() {
         GridPane grid = new GridPane();
