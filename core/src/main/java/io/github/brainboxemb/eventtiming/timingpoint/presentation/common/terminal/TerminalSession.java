@@ -129,10 +129,30 @@ public final class TerminalSession {
         }
 
         String[] arguments = trimmed.split("\\s+");
-        String command =
-                arguments[0].toLowerCase(Locale.ROOT);
+        String commandToken = arguments[0];
+        int separator = commandToken.indexOf(':');
+        String command = (separator >= 0
+                ? commandToken.substring(0, separator)
+                : commandToken).toLowerCase(Locale.ROOT);
+        String target = separator >= 0
+                ? commandToken.substring(separator + 1)
+                : null;
 
         try {
+            if (target != null && !isNodeCommand(command)) {
+                output.println("Command does not accept a NodeId: " + command);
+                return false;
+            }
+            NodeId nodeId = null;
+            if (target != null) {
+                if (target.isEmpty() || target.indexOf(':') >= 0) {
+                    output.println("Invalid NodeId: " + target);
+                    return false;
+                }
+                nodeId = presentationGateway.timingNode(
+                        new NodeId(target)).timingNodeId();
+            }
+
             switch (command) {
                 case "help":
                     requireArgumentCount(arguments, 1, "help", output);
@@ -144,22 +164,22 @@ public final class TerminalSession {
                     return false;
                 case "status":
                     requireArgumentCount(arguments, 1, "status", output);
-                    showStatus(output);
+                    showStatus(nodeId, output);
                     return false;
                 case "node":
                     node(arguments, output);
                     return false;
                 case "open":
-                    open(arguments, output);
+                    open(arguments, nodeId, output);
                     return false;
                 case "close":
-                    close(arguments, output);
+                    close(arguments, nodeId, output);
                     return false;
                 case "auto-reg":
-                    automaticRegistration(arguments, output);
+                    automaticRegistration(arguments, nodeId, output);
                     return false;
                 case "config":
-                    configuration(arguments, output);
+                    configuration(arguments, nodeId, output);
                     return false;
                 case "log":
                     logging(arguments, output);
@@ -194,6 +214,7 @@ public final class TerminalSession {
 
     private void open(
             String[] arguments,
+            NodeId nodeId,
             PrintWriter output) {
         if (arguments.length != 2) {
             output.println("Usage: open <locationId>");
@@ -210,13 +231,14 @@ public final class TerminalSession {
 
         output.println(
                 "Open: "
-                        + currentTimingNode()
+                        + timingNode(nodeId)
                                 .open(new LocationId(locationId))
                                 .name());
     }
 
     private void close(
             String[] arguments,
+            NodeId nodeId,
             PrintWriter output) {
         if (!requireArgumentCount(
                 arguments,
@@ -228,13 +250,14 @@ public final class TerminalSession {
 
         output.println(
                 "Close: "
-                        + currentTimingNode()
+                        + timingNode(nodeId)
                                 .close()
                                 .name());
     }
 
     private void automaticRegistration(
             String[] arguments,
+            NodeId nodeId,
             PrintWriter output) {
         if (arguments.length != 3) {
             output.println(
@@ -243,7 +266,7 @@ public final class TerminalSession {
         }
 
         RegistrationResult result =
-                currentTimingNode()
+                timingNode(nodeId)
                         .applyAutomaticRegistration(
                                 TimingNodeProxy
                                         .AutomaticRegistrationAction
@@ -309,6 +332,7 @@ public final class TerminalSession {
 
     private void configuration(
             String[] arguments,
+            NodeId nodeId,
             PrintWriter output) {
         if (arguments.length == 1) {
             showConfiguration(output);
@@ -332,12 +356,13 @@ public final class TerminalSession {
                 updateConfiguration(
                         presentationGateway
                                 .configuration()
-                                .clearTagProcessing(currentNodeId()),
+                                .clearTagProcessing(effectiveNodeId(nodeId)),
+                        effectiveNodeId(nodeId),
                         output);
                 return;
             }
             if ("set".equals(action)) {
-                setConfiguration(arguments, output);
+                setConfiguration(arguments, nodeId, output);
                 return;
             }
         }
@@ -349,6 +374,7 @@ public final class TerminalSession {
 
     private void setConfiguration(
             String[] arguments,
+            NodeId nodeId,
             PrintWriter output) {
         if (arguments.length < 4) {
             output.println(
@@ -426,25 +452,27 @@ public final class TerminalSession {
                 presentationGateway
                         .configuration()
                         .setTagProcessing(
-                                currentNodeId(),
+                                effectiveNodeId(nodeId),
                                 new TagProcessingPatch(
                                         quiet,
                                         maxBurst,
                                         duplicate,
                                         sweep,
                                         queue)),
+                effectiveNodeId(nodeId),
                 output);
     }
 
     private void updateConfiguration(
             ConfigurationControl.Update update,
+            NodeId nodeId,
             PrintWriter output) {
         output.println(
                 "Tag processing update: "
                         + update.result().name());
         showTagProcessing(
                 output,
-                currentNodeId().value(),
+                nodeId.value(),
                 update.tagProcessing());
     }
 
@@ -452,9 +480,20 @@ public final class TerminalSession {
         return currentNodeId;
     }
 
-    private TimingNodeProxy currentTimingNode() {
-        return presentationGateway.timingNode(
-                currentNodeId);
+    private NodeId effectiveNodeId(NodeId nodeId) {
+        return nodeId == null ? currentNodeId : nodeId;
+    }
+
+    private TimingNodeProxy timingNode(NodeId nodeId) {
+        return presentationGateway.timingNode(effectiveNodeId(nodeId));
+    }
+
+    private static boolean isNodeCommand(String command) {
+        return "open".equals(command)
+                || "close".equals(command)
+                || "status".equals(command)
+                || "auto-reg".equals(command)
+                || "config".equals(command);
     }
 
     private void node(
@@ -582,7 +621,10 @@ public final class TerminalSession {
         output.println("  help                         Show available commands");
         output.println("  version                      Show application version");
         output.println("  status                       Show selected TimingNode status");
-        output.println("  node [id]                    Show/select TimingNode");
+        output.println("  node [id]                    Show/select default TimingNode");
+        output.println("  <command>:<NodeId>            Target one command at a node");
+        output.println("  open:A 1                     Example: open node A at location 1");
+        output.println("  status:B                     Example: show node B status");
         output.println("  open <locationId>            Open selected TimingNode at location");
         output.println("  close                        Close selected TimingNode");
         output.println(
@@ -630,9 +672,9 @@ public final class TerminalSession {
                                 : "clean"));
     }
 
-    private void showStatus(PrintWriter output) {
+    private void showStatus(NodeId nodeId, PrintWriter output) {
         TimingNodeStatus status =
-                currentTimingNode().status();
+                timingNode(nodeId).status();
         output.println("Timing node");
         output.println(
                 "  Id        : "
