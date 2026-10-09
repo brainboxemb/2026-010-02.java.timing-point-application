@@ -12,6 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
+import io.github.brainboxemb.eventtiming.timingpoint.runtime.simulation.SimulatedTagScenarioRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
 
 import java.io.Reader;
@@ -199,8 +200,8 @@ public final class TimingApplicationRuntime {
     }
 
 
-    /** Test seam for injected antenna devices and EventData. */
-    static TimingApplicationRuntime createSimulation(
+    /** Internal simulation composition entry used by runtime.simulation.SimulationRuntime. */
+    public static TimingApplicationRuntime createSimulation(
             BuildIdentity identity,
             Config config,
             AntennaSet antennas,
@@ -209,8 +210,8 @@ public final class TimingApplicationRuntime {
                 identity, config, antennas, eventData);
     }
 
-    /** Test seam for the controllable simulated antenna. */
-    static TimingApplicationRuntime createSimulation(
+    /** Internal simulation composition entry used by runtime.simulation.SimulationRuntime. */
+    public static TimingApplicationRuntime createSimulation(
             BuildIdentity identity,
             Config config,
             SimulatedAntenna antenna,
