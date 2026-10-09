@@ -1,23 +1,22 @@
-# Event Timing Development Client
+# Event Timing Engineering Desktop Client
 
-The `test-client/` Maven project is the project's standalone **Development Client** for
-interactive development, integration and diagnostics against the public boundaries of the
-**Timing Point Application** (SI-01).
+The `test-client/` Maven project implements **SI-02 — Engineering Desktop Client** for
+development, integration, commissioning, diagnostics and system testing against the
+supported public boundaries of the **Timing Point Application** (SI-01).
 
-The directory/module name remains `test-client` for now. The development role and UI
-baseline are defined in the meta-repository SDE:
+The directory name remains `test-client` for repository continuity. The software-item
+requirements and architecture are defined by 41-02-SSD in the meta repository; SDE-03
+defines the Engineering Client development/UI baseline.
 
-- [50-SDE-03 — Development Client development and UI baseline](https://github.com/brainboxemb/2026-010-01.meta.event-timing-software/blob/main/docs/50-SDE-03-development-client.md)
-
-This application is **not SI-02** and is not part of the Java-8/Pi SI-01 runtime. It is a
-standalone desktop Maven project with no dependency on `timing-point-core` or
-`timing-point-app`. Repository co-location is intentional while SI-01 public interfaces
-and the Development Client evolve together.
+SI-02 is a standalone desktop Maven application with its own Java 21 runtime and no
+dependency on `timing-point-core` or `timing-point-app`. Repository co-location does
+not remove the software-item boundary.
 
 ## Baseline
 
-- Java 17
+- Java 21
 - JavaFX 21.0.10
+- BentoFX 0.16.0 workbench
 - Maven Wrapper from the repository root
 - Jackson 2.21.2 for independent JSON parsing
 - independent client services for IF-03, Remote Shell and live diagnostics
@@ -30,7 +29,7 @@ treating the selected main class as a special JavaFX launcher target.
 
 ## External boundaries
 
-The Development Client communicates with SI-01 only through supported external
+The Engineering Client communicates with SI-01 only through supported external
 interfaces.
 
 Current client services are:
@@ -49,7 +48,7 @@ directly.
 
 ## Run on Windows
 
-With `JAVA_HOME` pointing to a JDK 17 installation:
+With `JAVA_HOME` pointing to a JDK 21 installation:
 
 ```powershell
 .\mvnw.cmd -f test-client\pom.xml clean javafx:run
@@ -73,14 +72,14 @@ For the formal `VC-ST1-003` running-system check, follow
 [VC-ST1-003.md](VC-ST1-003.md); it uses dedicated verification storage so normal
 development TimingData is not modified.
 
-The Development Client reads its target and presentation defaults from one file:
+The Engineering Client reads its target and presentation defaults from one file:
 
 ```text
 config/development-client.properties
 ```
 
 The default file configures the startup target host, HTTP :8081, Events :8082,
-Remote Shell :8023 and LoggingServer :8030, plus the Development Client's own log
+Remote Shell :8023 and LoggingServer :8030, plus the Engineering Client's own log
 path/level and initial registration prefix. The target host/IP remains editable in the
 top target bar at runtime; **Apply target** changes the active host for all external
 boundaries without rewriting the config file. Changing the active host disconnects
@@ -91,20 +90,33 @@ The resolver accepts both the repository root and `test-client` as the working
 directory, so root-level Maven and NetBeans launches use the same file. Use
 `--config=<path>` to select another client configuration file.
 
-The window title includes the Development Client software version. **Help → About** shows
+The window title includes the Engineering Client software version. **Help → About** shows
 the client's own build identity and selected client-config path.
 
-## Current API-first UI
+## Current Engineering workbench
 
-The reviewed tab order is:
+The Engineering Client uses BentoFX for workbench composition. Functional panes remain
+ordinary JavaFX nodes and do not depend on BentoFX APIs.
+
+The default composition is:
 
 ```text
-API | Events | Device Log | Client Log
+left                            right
+---------------------------     ---------------------------
+TimingNode / Registration /     Registrations
+Simulation (tabs)               ---------------------------
+---------------------------     LogBook
+Device Log                      ---------------------------
+---------------------------     Raw Data / Events (tabs)
+Terminal
+---------------------------
+Client Log
 ```
 
 The top target bar starts from the configured host but exposes the host/IP as an editable
-field. **Apply target** makes the entered host active for IF-03 HTTP, Events, Remote
-Shell and Device Log while the per-boundary ports remain config-driven.
+field. **Apply target** changes the instance-scoped connected-system context used by
+IF-03 HTTP, Events, Remote Shell and Device Log while the per-boundary ports remain
+config-driven.
 
 The API control is deliberately clickable. IF-03 HTTP has no persistent connection, so
 the control performs an explicit availability **CHECK** and reports CHECKING, READY or
@@ -118,7 +130,7 @@ logging is always available independently from SI-01.
 selected TimingNode controls, registration test input, LogBook/TimingData history and a
 raw response/selected-record pane.
 
-The Development Client deliberately does not predict SI-01 domain acceptance from cached
+The Engineering Client deliberately does not predict SI-01 domain acceptance from cached
 TimingNode state. Once a TimingNode is known, supported Open/Close requests remain available so processed
 results can be exercised and inspected. **Open** sends the LocationId currently entered
 in the same request; there is no separate Set Location operation. SI-01 remains
@@ -186,19 +198,19 @@ emulator.
 
 ### Client Log
 
-**Client Log** is the final top-level tab. It contains retained local Development Client
+**Client Log** is the final top-level tab. It contains retained local Engineering Client
 startup/configuration/connection/request diagnostics and has an independent current-level
 display and runtime threshold control. It remains available and controllable when SI-01 is
 offline. A client-level change is runtime-only; the configured startup level is restored
-on the next Development Client start.
+on the next Engineering Client start.
 
 Device Log and Client Log remain independent. Both use the readable project log-line shape
-`HH:mm:ss.SSS - [LEVEL] - message - [sourceClass.sourceMethod]`; Development Client
+`HH:mm:ss.SSS - [LEVEL] - message - [sourceClass.sourceMethod]`; Engineering Client
 records use their actual caller source context rather than one generic client marker.
 
 ## Timing workbench behaviour
 
-The API workbench uses the following LogBook/live-event synchronisation behaviour:
+The SI-02 client/application state uses the following LogBook/live-event synchronisation behaviour:
 
 - reads the 1..N `nodes[]` status model and addresses one selected TimingNode;
 - shows current node state and LocationId;
@@ -237,12 +249,16 @@ The API workbench uses the following LogBook/live-event synchronisation behaviou
   then marks the Timing view LIVE;
 - keeps Open/Close/auto-reg controls disabled while the Timing view is not LIVE.
 
+One `EngineeringSystemContext` represents one connected SI-01 system instance. The current
+UI presents one primary context, while the client model and workbench avoid global target
+state so later multi-system/scripted workflows can create additional instances.
+
 The current SI-01 runtime may compose one TimingNode, but the client model does not
 hard-code that limitation. With one node selection is implicit; with multiple reported
 nodes the same API workbench addresses the selected node.
 
 The simulated-tag pane is an engineering scenario driver, not a raw RFID/tag/filter
-editor. The Development Client still does not expose arbitrary TagObservation injection,
+editor. The Engineering Client still does not expose arbitrary TagObservation injection,
 TagProcessor/filter mutation, StageStartTimes/NextUpTeams/RaceData editors or
 Upstream/DebugConnector simulation UI. Those capabilities require their own public
 engineering/client use case before they are added here.
@@ -271,14 +287,14 @@ WS   /api/v1/events
 
 ## Documentation screenshots
 
-Documentation screenshots use a deterministic Development Client
+Documentation screenshots use a deterministic Engineering Client
 **documentation/demo mode** with public synthetic fixture data.
 
 The documentation flow is:
 
 ```text
 GitHub Actions
-  +-- JDK 17 / pinned JavaFX
+  +-- JDK 21 / pinned JavaFX
   +-- virtual display when required
   +-- deterministic documentation fixture
   +-- render named JavaFX view
