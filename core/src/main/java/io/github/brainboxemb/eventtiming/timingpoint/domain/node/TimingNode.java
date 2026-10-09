@@ -446,14 +446,15 @@ public final class TimingNode {
 
         R result = command.apply(logic);
 
+        Status after = logic.status();
+        publishCurrentStatus(after);
+
         int committedAfter = logic.committedTimingDataCount();
         if (committedAfter > committedBefore) {
             publishTimingDataCommitted(
                     logic.latestCommittedTimingData());
         }
 
-        Status after = logic.status();
-        publishCurrentStatus(after);
         publishStatusChanged(before, after);
         return command.complete(this, result);
     }

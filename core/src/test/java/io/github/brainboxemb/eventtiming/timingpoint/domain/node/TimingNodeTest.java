@@ -482,16 +482,24 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void currentStatusIsPublishedBeforeStatusEvent() {
+    public void currentStatusIsPublishedBeforePostCommandEvents() {
         TimingNode node = node(new NodeId("A"));
-        final TimingNodeTypes.Status[] observedCurrent =
+        final TimingNodeTypes.Status[] statusEventCurrent =
+                new TimingNodeTypes.Status[1];
+        final TimingNodeTypes.Status[] timingDataEventCurrent =
                 new TimingNodeTypes.Status[1];
 
         node.activate();
         try {
             node.statusChangedEvent().subscribe(
                     ignored ->
-                            observedCurrent[0] =
+                            statusEventCurrent[0] =
+                                    node.query(
+                                            TimingNodeQueries.status(),
+                                            ReadConsistency.CURRENT));
+            node.timingDataCommittedEvent().subscribe(
+                    ignored ->
+                            timingDataEventCurrent[0] =
                                     node.query(
                                             TimingNodeQueries.status(),
                                             ReadConsistency.CURRENT));
@@ -500,10 +508,16 @@ public class TimingNodeTest {
 
             assertEquals(
                     TimingNodeTypes.State.OPEN,
-                    observedCurrent[0].state());
+                    timingDataEventCurrent[0].state());
             assertEquals(
                     new LocationId(24),
-                    observedCurrent[0].locationId());
+                    timingDataEventCurrent[0].locationId());
+            assertEquals(
+                    TimingNodeTypes.State.OPEN,
+                    statusEventCurrent[0].state());
+            assertEquals(
+                    new LocationId(24),
+                    statusEventCurrent[0].locationId());
         } finally {
             node.deactivate();
         }
