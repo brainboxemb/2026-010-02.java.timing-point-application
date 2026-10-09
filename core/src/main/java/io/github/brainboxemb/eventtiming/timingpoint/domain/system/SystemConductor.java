@@ -26,9 +26,9 @@ import org.slf4j.LoggerFactory;
  * decision. SourceProperty and DerivedProperty only hold current state; all
  * scheduling and coalescing remain in this Conductor's CooperativeTaskController.</p>
  *
- * <p>The first control run explicitly reads current state from every already-active
- * TimingNode. Later TimingNode Status events update the corresponding SourceProperty
- * directly and only wake this control task.</p>
+ * <p>Every control run refreshes current state from each TimingNode's CURRENT
+ * published Status before deriving inventory intent. TimingNode status events
+ * only wake this control task; they do not mutate SourceProperties directly.</p>
  */
 public final class SystemConductor extends AbstractConductor implements CooperativeTask {
     private static final Logger LOG = LoggerFactory.getLogger(SystemConductor.class);
@@ -68,8 +68,9 @@ public final class SystemConductor extends AbstractConductor implements Cooperat
     /**
      * Accepts one authoritative post-change TimingNode Status.
      *
-     * <p>This callback performs only in-memory source-state update plus a control
-     * wake. It never queries the TimingNode or waits on another execution lane.</p>
+     * <p>This callback validates node ownership and wakes the coalesced control
+     * task. The later control run reads CURRENT published state; this callback
+     * never waits on another execution lane.</p>
      */
     public void onTimingNodeStatusChanged(TimingNode node, Status status) {
         if (status == null) {
