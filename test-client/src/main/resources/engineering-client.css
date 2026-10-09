@@ -1,0 +1,97 @@
+.root {
+    -fx-font-family: "System";
+    -fx-font-size: 12px;
+    -bento-bg: #f7f7f7;
+    -bento-bg-raised: #eeeeee;
+    -bento-bg-hover: #e5e5e5;
+    -bento-border: #cfcfcf;
+    -bento-accent: #0078d7;
+    -bento-text: #202020;
+}
+
+.container-branch {
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.container-branch > .split-pane-divider {
+    -fx-background-color: -bento-border;
+    -fx-padding: 0 1px 0 1px;
+}
+
+.container-branch > .split-pane-divider:hover {
+    -fx-background-color: -bento-accent;
+}
+
+.header-pane {
+    -fx-background-color: -bento-border, -bento-bg;
+    -fx-background-insets: 0, 1px;
+}
+
+.header-region,
+.header {
+    -fx-background-color: -bento-bg-raised;
+}
+
+.header {
+    -fx-padding: 0;
+}
+
+.header:hover {
+    -fx-background-color: -bento-bg-hover;
+}
+
+.header-pane .header:selected {
+    -fx-background-color: -bento-bg;
+}
+
+.header-pane:active .header:selected {
+    -fx-border-color: transparent transparent -bento-accent transparent;
+    -fx-border-width: 0 0 2px 0;
+}
+
+.header Text {
+    -fx-font-family: "System";
+    -fx-font-size: 12px;
+    -fx-fill: -bento-text;
+}
+
+.header-pane .close-button,
+.header-pane .corner-button {
+    -fx-effect: none;
+    -fx-background-radius: 0;
+}
+
+.header-pane .close-button {
+    -fx-background-color: transparent;
+    -fx-padding: 1px 3px;
+}
+
+.header-pane .close-button:hover {
+    -fx-background-color: -bento-bg-hover;
+}
+
+.header-pane .corner-button {
+    -fx-background-color: -bento-border, -bento-bg-raised;
+}
+
+.button-bar {
+    -fx-spacing: -1px;
+    -fx-padding: 0;
+}
+
+.dock-insertion-indicator {
+    -fx-stroke: -bento-accent;
+    -fx-stroke-width: 2px;
+}
+
+.button,
+.toggle-button {
+    -fx-padding: 2px 7px;
+}
+
+.text-area.engineering-log,
+.text-area.engineering-raw-data {
+    -fx-font-family: "Consolas";
+    -fx-font-size: 11px;
+}

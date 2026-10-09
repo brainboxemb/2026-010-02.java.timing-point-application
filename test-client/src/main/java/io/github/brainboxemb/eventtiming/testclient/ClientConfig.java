@@ -8,7 +8,7 @@ import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Properties;
 
-/** Development Client-local endpoint and presentation configuration. */
+/** Engineering Client-local endpoint and presentation configuration. */
 final class ClientConfig {
     private static final String CONFIG_FILE = "development-client.properties";
 
@@ -156,7 +156,7 @@ final class ClientConfig {
     private static String required(Properties properties, String key) {
         String value = properties.getProperty(key);
         if (value == null || value.trim().isEmpty()) {
-            throw new IllegalArgumentException("Missing Development Client config value: " + key);
+            throw new IllegalArgumentException("Missing Engineering Client config value: " + key);
         }
         return value.trim();
     }

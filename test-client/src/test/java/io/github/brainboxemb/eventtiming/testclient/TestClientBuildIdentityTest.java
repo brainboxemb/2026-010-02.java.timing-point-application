@@ -11,7 +11,7 @@ class TestClientBuildIdentityTest {
     void loadsEmbeddedBuildIdentity() {
         TestClientBuildIdentity identity = TestClientBuildIdentity.embedded();
 
-        assertEquals("Event Timing Development Client", identity.application());
+        assertEquals("Event Timing Engineering Client", identity.application());
         assertFalse(identity.version().isBlank());
         assertFalse(identity.revision().isBlank());
         assertFalse(identity.sourceRef().isBlank());

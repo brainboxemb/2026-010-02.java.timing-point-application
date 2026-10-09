@@ -2,10 +2,8 @@ package io.github.brainboxemb.eventtiming.testclient;
 
 import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyStringWrapper;
-import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
-import javafx.geometry.VPos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
@@ -13,17 +11,12 @@ import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
 import javafx.scene.control.TableView;
-import javafx.scene.control.Tab;
-import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
-import javafx.scene.control.TitledPane;
 import javafx.scene.control.Tooltip;
-import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
-import javafx.scene.layout.RowConstraints;
 import javafx.scene.layout.VBox;
 
 import java.time.LocalDate;
@@ -38,8 +31,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** TimingNode controls/history inside the API-first workbench. */
-final class TimingPane extends VBox {
+/** Coordinates TimingNode controls/history and exposes framework-neutral JavaFX panes. */
+final class TimingPane {
     private static final int INITIAL_LOGBOOK_ROWS = 100;
     private static final DateTimeFormatter CLOCK_TIME =
             DateTimeFormatter.ofPattern("HH:mm:ss[.SS]");
@@ -83,6 +76,10 @@ final class TimingPane extends VBox {
     private String manualTimeSource = "AUTO";
 
     private final SimulatedTagsPane simulationPane;
+    private final javafx.scene.Node timingNodePane;
+    private final javafx.scene.Node registrationPane;
+    private final javafx.scene.Node registrationsPane;
+    private final javafx.scene.Node logBookPane;
 
     private final TableView<TimingViewModel.InterpretedRegistration> registrations =
             new TableView<>();
@@ -97,16 +94,12 @@ final class TimingPane extends VBox {
             ExecutorService requests,
             String initialPrefix,
             javafx.scene.Node rightHeader,
-            javafx.scene.Node terminalContent,
-            ObservableValue<String> deviceLogText,
-            ObservableValue<String> clientLogText,
             Consumer<String> rawSink,
             Consumer<String> feedback,
             Consumer<String> apiState,
             ClientLog clientLog) {
         if (clientSupplier == null || requests == null
-                || rightHeader == null || terminalContent == null
-                || deviceLogText == null || clientLogText == null
+                || rightHeader == null
                 || rawSink == null || feedback == null
                 || apiState == null || clientLog == null) {
             throw new IllegalArgumentException("TimingPane dependencies must not be null");
@@ -118,7 +111,6 @@ final class TimingPane extends VBox {
         this.apiState = apiState;
         this.clientLog = clientLog;
 
-        setSpacing(10);
 
         Region syncSpacer =
                 new Region();
@@ -160,6 +152,7 @@ final class TimingPane extends VBox {
                 3,
                 2,
                 1);
+        timingNodePane = nodeGrid;
 
         registrationPrefix.setText(initialPrefix == null ? "" : initialPrefix);
         registrationPrefix.setPrefColumnCount(6);
@@ -208,6 +201,7 @@ final class TimingPane extends VBox {
 
         VBox registrationBox = new VBox(8, autoRegCapability, registrationGrid);
         registrationBox.setPadding(new Insets(10));
+        registrationPane = registrationBox;
 
         simulationPane =
                 new SimulatedTagsPane(
@@ -239,9 +233,15 @@ final class TimingPane extends VBox {
                         new Label("Times shown in " + INPUT_ZONE.getId())),
                 registrations);
         VBox.setVgrow(registrations, Priority.ALWAYS);
-        TitledPane interpretedPane =
-                new TitledPane("Registrations", interpretedBox);
-        interpretedPane.setCollapsible(false);
+        VBox upperRight =
+                new VBox(
+                        10,
+                        rightHeader,
+                        interpretedBox);
+        VBox.setVgrow(
+                interpretedBox,
+                Priority.ALWAYS);
+        registrationsPane = upperRight;
 
         configureLogBook();
         VBox historyBox = new VBox(
@@ -249,84 +249,7 @@ final class TimingPane extends VBox {
                 new HBox(8, new Label("Count"), logBookCount),
                 logBook);
         VBox.setVgrow(logBook, Priority.ALWAYS);
-        TitledPane historyPane =
-                new TitledPane("LogBook / committed TimingData", historyBox);
-        historyPane.setCollapsible(false);
-
-        TabPane inputTabs =
-                new TabPane(
-                        tab(
-                                "TimingNode",
-                                nodeGrid),
-                        tab(
-                                "Registration",
-                                registrationBox),
-                        tab(
-                                "Simulation",
-                                simulationPane),
-                        tab(
-                                "Terminal",
-                                terminalContent));
-        inputTabs.setTabClosingPolicy(
-                TabPane.TabClosingPolicy.UNAVAILABLE);
-        inputTabs.setPrefHeight(260);
-        inputTabs.setMinHeight(210);
-
-        VBox upperRight =
-                new VBox(
-                        10,
-                        rightHeader,
-                        interpretedPane);
-        VBox.setVgrow(
-                interpretedPane,
-                Priority.ALWAYS);
-
-        WorkbenchLogPane workbenchLogs =
-                new WorkbenchLogPane(
-                        deviceLogText,
-                        clientLogText);
-
-        ColumnConstraints leftColumn = new ColumnConstraints();
-        leftColumn.setPercentWidth(50.0);
-        leftColumn.setHgrow(Priority.ALWAYS);
-        ColumnConstraints rightColumn = new ColumnConstraints();
-        rightColumn.setPercentWidth(50.0);
-        rightColumn.setHgrow(Priority.ALWAYS);
-
-        RowConstraints upperRow = new RowConstraints();
-        upperRow.setPercentHeight(43.0);
-        upperRow.setVgrow(Priority.ALWAYS);
-        RowConstraints lowerRow = new RowConstraints();
-        lowerRow.setPercentHeight(57.0);
-        lowerRow.setVgrow(Priority.ALWAYS);
-
-        GridPane workbench = new GridPane();
-        workbench.setHgap(12);
-        workbench.setVgap(10);
-        workbench.getColumnConstraints().setAll(
-                leftColumn,
-                rightColumn);
-        workbench.getRowConstraints().setAll(
-                upperRow,
-                lowerRow);
-        workbench.add(inputTabs, 0, 0);
-        workbench.add(upperRight, 1, 0);
-        workbench.add(workbenchLogs, 0, 1);
-        workbench.add(historyPane, 1, 1);
-
-        GridPane.setHgrow(inputTabs, Priority.ALWAYS);
-        GridPane.setVgrow(inputTabs, Priority.ALWAYS);
-        GridPane.setHgrow(upperRight, Priority.ALWAYS);
-        GridPane.setVgrow(upperRight, Priority.ALWAYS);
-        GridPane.setHgrow(workbenchLogs, Priority.ALWAYS);
-        GridPane.setVgrow(workbenchLogs, Priority.ALWAYS);
-        GridPane.setHgrow(historyPane, Priority.ALWAYS);
-        GridPane.setVgrow(historyPane, Priority.ALWAYS);
-        GridPane.setValignment(inputTabs, VPos.TOP);
-        GridPane.setValignment(upperRight, VPos.TOP);
-
-        getChildren().add(workbench);
-        VBox.setVgrow(workbench, Priority.ALWAYS);
+        logBookPane = historyBox;
 
         syncViewButton.setTooltip(new Tooltip(
                 "Reload current status, capabilities and LogBook history, "
@@ -356,6 +279,26 @@ final class TimingPane extends VBox {
 
     HBox syncStateBar() {
         return syncStateBar;
+    }
+
+    javafx.scene.Node timingNodePane() {
+        return timingNodePane;
+    }
+
+    javafx.scene.Node registrationPane() {
+        return registrationPane;
+    }
+
+    javafx.scene.Node simulationPane() {
+        return simulationPane;
+    }
+
+    javafx.scene.Node registrationsPane() {
+        return registrationsPane;
+    }
+
+    javafx.scene.Node logBookPane() {
+        return logBookPane;
     }
 
     void connected() {
@@ -1183,17 +1126,6 @@ final class TimingPane extends VBox {
         return status.nodes().isEmpty() ? null : status.nodes().get(0).id();
     }
 
-    private static Tab tab(
-            String title,
-            javafx.scene.Node content) {
-        Tab tab =
-                new Tab(
-                        title,
-                        content);
-        tab.setClosable(
-                false);
-        return tab;
-    }
 
     private static void add(GridPane grid, int row, String label, javafx.scene.Node value) {
         grid.add(new Label(label), 0, row);
