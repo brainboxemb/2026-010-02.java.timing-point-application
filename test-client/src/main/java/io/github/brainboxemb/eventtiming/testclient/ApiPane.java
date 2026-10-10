@@ -33,6 +33,8 @@ final class ApiPane {
     private final javafx.scene.Node rawDataPane;
     private final javafx.scene.Node apiInfoPane;
     private final TimingPane timingPane;
+    // Only the latest target-bound request may update API presentation.
+    private final ViewRequestEpoch apiRequests = new ViewRequestEpoch();
 
     ApiPane(
             Supplier<ApiClient> clientSupplier,
@@ -54,15 +56,15 @@ final class ApiPane {
         // API metadata and explicit diagnostics belong in their own
         // engineering tab, not above the interpreted registrations table.
         GridPane identity = new GridPane();
-        identity.setHgap(14);
-        identity.setVgap(10);
+        identity.setHgap(8);
+        identity.setVgap(8);
         identity.addRow(0, new Label("Application"), application);
         identity.addRow(1, new Label("Version"), version);
         identity.addRow(2, new Label("API version"), apiVersion);
         versionButton.setText("Refresh version");
         statusButton.setText("Refresh status");
-        VBox apiInfo = new VBox(14, identity, new HBox(8, versionButton, statusButton));
-        apiInfo.setPadding(new Insets(10));
+        VBox apiInfo = new VBox(8, identity, new HBox(8, versionButton, statusButton));
+        apiInfo.getStyleClass().add("engineering-form");
         apiInfoPane = apiInfo;
 
         timingPane = new TimingPane(
@@ -78,7 +80,7 @@ final class ApiPane {
         rawResponse.setWrapText(false);
         rawResponse.setPrefRowCount(7);
         VBox rawPane = new VBox(rawResponse);
-        rawPane.setPadding(new Insets(8));
+        rawPane.getStyleClass().add("engineering-data-pane");
         VBox.setVgrow(rawResponse, Priority.ALWAYS);
         rawDataPane = rawPane;
 
@@ -91,7 +93,11 @@ final class ApiPane {
     }
 
     void setSystemHost(String host) {
+        apiRequests.invalidate();
         timingPane.setSystemHost(host);
+        application.setText("-");
+        version.setText("-");
+        apiVersion.setText("-");
     }
 
     void setLogBookCountListener(java.util.function.Consumer<Long> listener) {
@@ -180,6 +186,7 @@ final class ApiPane {
             String operation,
             CheckedSupplier<T> request,
             Consumer<T> success) {
+        final long requestGeneration = apiRequests.begin();
         setBusy(true);
         feedback.accept("Requesting " + operation + "...");
         CompletableFuture
@@ -191,6 +198,7 @@ final class ApiPane {
                     }
                 }, requests)
                 .whenComplete((result, error) -> Platform.runLater(() -> {
+                    if (!apiRequests.isCurrent(requestGeneration)) return;
                     setBusy(false);
                     if (error != null) {
                         Throwable root = rootCause(error);

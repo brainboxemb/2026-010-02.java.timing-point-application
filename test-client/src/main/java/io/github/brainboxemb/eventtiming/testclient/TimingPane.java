@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.testclient;
 
 import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyStringWrapper;
+import javafx.css.PseudoClass;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
@@ -38,6 +39,8 @@ import java.util.function.Supplier;
 /** Coordinates TimingNode controls/history and exposes framework-neutral JavaFX panes. */
 final class TimingPane {
     private static final int INITIAL_LOGBOOK_ROWS = 100;
+    private static final PseudoClass DELETED_REGISTRATION =
+            PseudoClass.getPseudoClass("deleted-registration");
     private static final DateTimeFormatter CLOCK_TIME =
             DateTimeFormatter.ofPattern("HH:mm:ss[.SS]");
     private static final ZoneId INPUT_ZONE = ZoneId.systemDefault();
@@ -64,6 +67,9 @@ final class TimingPane {
     private boolean eventsConnected;
     private boolean operationBusy;
     private boolean historyRefreshQueued;
+    // FX-thread-owned generation invalidates obsolete baseline/node history
+    // responses after reconnect, disconnect or a newer selection.
+    private final ViewRequestEpoch historyRequests = new ViewRequestEpoch();
     private long lastReportedLogBookCount = Long.MIN_VALUE;
 
     private final ComboBox<String> node = new ComboBox<>();
@@ -157,14 +163,14 @@ final class TimingPane {
         historyState.visibleProperty().bind(historyState.textProperty().isNotEqualTo("LIVE"));
         historyState.managedProperty().bind(historyState.visibleProperty());
         systemsPane.getChildren().setAll(historyState, systemTree, syncViewButton);
-        systemsPane.setPadding(new Insets(8));
+        systemsPane.getStyleClass().add("engineering-explorer-pane");
 
         node.setPrefWidth(230);
         locationInput.setPrefColumnCount(8);
         GridPane nodeGrid = new GridPane();
         nodeGrid.setHgap(12);
         nodeGrid.setVgap(8);
-        nodeGrid.setPadding(new Insets(10));
+        nodeGrid.getStyleClass().add("engineering-form");
         add(nodeGrid, 0, "TimingNode", node);
         add(nodeGrid, 1, "Problem", problem);
 
@@ -241,7 +247,7 @@ final class TimingPane {
                 registrationIdRow, dateTimeRow, manualReg, directControls,
                 autoRegCapability);
         registrationBox.getStyleClass().add("registration-form");
-        registrationBox.setPadding(new Insets(10));
+        registrationBox.getStyleClass().add("engineering-form");
         registrationPane = registrationBox;
 
         simulationPane =
@@ -264,7 +270,7 @@ final class TimingPane {
         registrationsPane = interpretedBox;
 
         configureLogBook();
-        VBox historyBox = new VBox(6, logBook);
+        VBox historyBox = new VBox(logBook);
         VBox.setVgrow(logBook, Priority.ALWAYS);
         logBookPane = historyBox;
 
@@ -351,6 +357,7 @@ final class TimingPane {
     }
 
     void disconnected(boolean stale) {
+        historyRequests.invalidate();
         eventsConnected = false;
         simulationPane.stopBatch();
         bufferedEvents.clear();
@@ -369,6 +376,9 @@ final class TimingPane {
     }
 
     void applyStatusEvent(ApiEventClient.StatusEvent event) {
+        // A previously queued WebSocket callback is not proof of a new
+        // connection after the user disconnected.
+        if (!eventsConnected) return;
         if (model.viewState() == TimingViewModel.ViewState.SYNCING) {
             bufferedEvents.add(event);
             return;
@@ -415,6 +425,7 @@ final class TimingPane {
     }
 
     void syncView() {
+        final long requestGeneration = historyRequests.begin();
         if (!eventsConnected) {
             model.viewState(TimingViewModel.ViewState.DISCONNECTED);
             historyState.setText("NOT SYNCED — connect Events");
@@ -493,6 +504,9 @@ final class TimingPane {
                     }
                 }, requests)
                 .whenComplete((result, error) -> Platform.runLater(() -> {
+                    if (!eventsConnected || !historyRequests.isCurrent(requestGeneration)) {
+                        return; // Obsolete baseline; never transition back to LIVE.
+                    }
                     if (error != null) {
                         model.viewState(TimingViewModel.ViewState.STALE);
                         historyState.setText("STALE — sync failed");
@@ -536,6 +550,7 @@ final class TimingPane {
     }
 
     private void loadSelectedLogBook() {
+        final long requestGeneration = historyRequests.begin();
         String selected = model.selectedNodeId();
         if (selected == null) {
             refresh();
@@ -563,6 +578,10 @@ final class TimingPane {
                     }
                 }, requests)
                 .whenComplete((result, error) -> Platform.runLater(() -> {
+                    if (!eventsConnected || !historyRequests.isCurrent(requestGeneration)
+                            || !selected.equals(model.selectedNodeId())) {
+                        return; // The operator has moved on; old node data is stale.
+                    }
                     if (error != null) {
                         model.viewState(TimingViewModel.ViewState.STALE);
                         historyState.setText("STALE");
@@ -604,6 +623,7 @@ final class TimingPane {
 
     private void autoReg() {
         final String selected = requireSelectedNode();
+        final long commandGeneration = historyRequests.current();
         boolean provided = PROVIDED_TIME.equals(directTimeMode.getValue());
         RegistrationInput input = registrationInput(provided);
         if (input == null) return;
@@ -635,6 +655,9 @@ final class TimingPane {
                 }, requests)
                 .whenComplete((result, error) -> Platform.runLater(() -> {
                     setOperationBusy(false);
+                    // A disconnect, new baseline or node selection may have
+                    // superseded this response. Never resurrect old UI state.
+                    if (!historyRequests.isCurrent(commandGeneration)) return;
                     if (error != null) {
                         clientLog.warn("Direct auto-reg rejected/unknown: node="
                                 + selected + ", id=" + input.registrationId()
@@ -659,6 +682,7 @@ final class TimingPane {
 
     private void manualReg() {
         final String selected = requireSelectedNode();
+        final long commandGeneration = historyRequests.current();
         RegistrationInput input = registrationInput();
         if (input == null) {
             return;
@@ -696,6 +720,9 @@ final class TimingPane {
                 }, requests)
                 .whenComplete((result, error) -> Platform.runLater(() -> {
                     setOperationBusy(false);
+                    // A disconnect, new baseline or node selection may have
+                    // superseded this response. Never resurrect old UI state.
+                    if (!historyRequests.isCurrent(commandGeneration)) return;
                     if (error != null) {
                         handleCommandError(error);
                         return;
@@ -769,6 +796,7 @@ final class TimingPane {
 
         final String selected =
                 requireSelectedNode();
+        final long commandGeneration = historyRequests.current();
         setOperationBusy(true);
         lastOperation.setText("Revoking...");
         feedback.accept("Submitting registration revoke...");
@@ -799,6 +827,9 @@ final class TimingPane {
                 }, requests)
                 .whenComplete((result, error) -> Platform.runLater(() -> {
                     setOperationBusy(false);
+                    // A disconnect, new baseline or node selection may have
+                    // superseded this response. Never resurrect old UI state.
+                    if (!historyRequests.isCurrent(commandGeneration)) return;
                     if (error != null) {
                         handleCommandError(error);
                         return;
@@ -820,6 +851,7 @@ final class TimingPane {
     }
 
     private void runStateCommand(StateCommand command) {
+        final long commandGeneration = historyRequests.current();
         setOperationBusy(true);
         lastOperation.setText("Requesting...");
         feedback.accept("Requesting TimingNode operation...");
@@ -836,6 +868,9 @@ final class TimingPane {
                 }, requests)
                 .whenComplete((result, error) -> Platform.runLater(() -> {
                     setOperationBusy(false);
+                    // A disconnect, new baseline or node selection may have
+                    // superseded this response. Never resurrect old UI state.
+                    if (!historyRequests.isCurrent(commandGeneration)) return;
                     if (error != null) {
                         handleCommandError(error);
                         return;
@@ -1121,9 +1156,10 @@ final class TimingPane {
                     TimingViewModel.InterpretedRegistration item,
                     boolean empty) {
                 super.updateItem(item, empty);
-                setStyle(!empty && item != null && item.deleted()
-                        ? "-fx-opacity: 0.55;"
-                        : "");
+                // TableRow instances are virtualized/reused; always update
+                // their semantic state rather than leaving an inline style.
+                pseudoClassStateChanged(DELETED_REGISTRATION,
+                        !empty && item != null && item.deleted());
             }
         });
     }

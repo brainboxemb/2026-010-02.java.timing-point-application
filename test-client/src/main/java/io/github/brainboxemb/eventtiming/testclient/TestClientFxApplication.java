@@ -73,6 +73,13 @@ public final class TestClientFxApplication extends Application {
     private final Label currentClientLogLevel = valueLabel();
     private final TextArea liveLogs = new TextArea();
     private final TextArea clientLogs = new TextArea();
+    // Batch high-volume log lines on FX without one Platform.runLater per line.
+    private final FxTextAppender clientLogAppender = new FxTextAppender(clientLogs);
+    private final FxTextAppender deviceLogAppender = new FxTextAppender(liveLogs);
+    // The token is FX-thread-owned, the WebSocket listener may outlive the
+    // connect attempt that originally registered it.
+    private final ViewRequestEpoch eventConnectionEpoch = new ViewRequestEpoch();
+    private final ViewRequestEpoch apiCheckEpoch = new ViewRequestEpoch();
 
     private ClientConfig config;
     private Path configPath;
@@ -416,11 +423,7 @@ public final class TestClientFxApplication extends Application {
     private VBox terminalPane() {
         terminal.setEditable(false);
         terminal.setWrapText(false);
-        terminal.setStyle(
-                "-fx-control-inner-background: black;"
-                        + "-fx-text-fill: #e8e8e8;"
-                        + "-fx-font-family: 'Consolas';"
-                        + "-fx-font-size: 13px;");
+        terminal.getStyleClass().add("engineering-console");
         VBox.setVgrow(terminal, Priority.ALWAYS);
 
         terminalInput.setPromptText("command");
@@ -428,11 +431,13 @@ public final class TestClientFxApplication extends Application {
         terminalSend.setDisable(true);
         HBox.setHgrow(terminalInput, Priority.ALWAYS);
         HBox input = new HBox(8, terminalInput, terminalSend);
+        input.setAlignment(Pos.CENTER_LEFT);
 
         terminalSend.setOnAction(event -> sendShellCommand());
         terminalInput.setOnAction(event -> sendShellCommand());
 
         VBox pane = new VBox(4, terminal, input);
+        pane.getStyleClass().add("engineering-tool-pane");
         pane.setPadding(new Insets(3));
         return pane;
     }
@@ -446,17 +451,13 @@ public final class TestClientFxApplication extends Application {
 
         liveLogs.setEditable(false);
         liveLogs.setWrapText(false);
-        liveLogs.setStyle(
-                "-fx-control-inner-background: black;"
-                        + "-fx-text-fill: #e8e8e8;"
-                        + "-fx-font-family: 'Consolas';"
-                        + "-fx-font-size: 12px;");
+        liveLogs.getStyleClass().add("engineering-console");
 
         applyDeviceLogLevel.setOnAction(event -> applyDeviceLogLevel());
 
         liveLogs.setContextMenu(logContextMenu(liveLogs, true));
         VBox pane = new VBox(liveLogs);
-        pane.setPadding(new Insets(2));
+        pane.getStyleClass().add("engineering-log-pane");
         VBox.setVgrow(liveLogs, Priority.ALWAYS);
         return pane;
     }
@@ -470,21 +471,14 @@ public final class TestClientFxApplication extends Application {
         clientLogs.setEditable(false);
         clientLogs.setWrapText(false);
         clientLogs.setText(clientLog.snapshot());
-        clientLogs.setStyle(
-                "-fx-control-inner-background: black;"
-                        + "-fx-text-fill: #e8e8e8;"
-                        + "-fx-font-family: 'Consolas';"
-                        + "-fx-font-size: 12px;");
-        clientLog.subscribe(line -> Platform.runLater(() -> {
-            clientLogs.appendText(line);
-            clientLogs.positionCaret(clientLogs.getLength());
-        }));
+        clientLogs.getStyleClass().add("engineering-console");
+        clientLog.subscribe(clientLogAppender::append);
 
         applyClientLogLevel.setOnAction(event -> applyClientLogLevel());
 
         clientLogs.setContextMenu(logContextMenu(clientLogs, false));
         VBox pane = new VBox(clientLogs);
-        pane.setPadding(new Insets(2));
+        pane.getStyleClass().add("engineering-log-pane");
         VBox.setVgrow(clientLogs, Priority.ALWAYS);
         return pane;
     }
@@ -523,6 +517,7 @@ public final class TestClientFxApplication extends Application {
     }
 
     private void connectEvents() {
+        final long eventGeneration = eventConnectionEpoch.begin();
         eventBoundary.setDisable(true);
         setBoundaryState(eventBoundary, "Events", "CONNECTING");
         clientLog.info("Connecting IF-03 Events to " + eventEndpoint());
@@ -532,6 +527,7 @@ public final class TestClientFxApplication extends Application {
                 @Override
                 public void onConnected() {
                     Platform.runLater(() -> {
+                        if (!eventConnectionEpoch.isCurrent(eventGeneration)) return;
                         setEventConnected(true, "CONNECTED");
                         apiPane.connected();
                         clientLog.info("IF-03 Events connected");
@@ -540,12 +536,18 @@ public final class TestClientFxApplication extends Application {
 
                 @Override
                 public void onEvent(ApiEventClient.ApiEvent event) {
-                    Platform.runLater(() -> showEvent(event));
+                    Platform.runLater(() -> {
+                        if (eventConnectionEpoch.isCurrent(eventGeneration)) {
+                            showEvent(event);
+                        }
+                    });
                 }
 
                 @Override
                 public void onClosed(int statusCode, String reason) {
                     Platform.runLater(() -> {
+                        if (!eventConnectionEpoch.isCurrent(eventGeneration)) return;
+                        eventConnectionEpoch.invalidate();
                         setEventConnected(false, "CONNECT");
                         apiPane.disconnected(true);
                         clientLog.warn("IF-03 Events disconnected (" + statusCode + ")");
@@ -555,6 +557,7 @@ public final class TestClientFxApplication extends Application {
                 @Override
                 public void onError(String message) {
                     Platform.runLater(() -> {
+                        if (!eventConnectionEpoch.isCurrent(eventGeneration)) return;
                         clientLog.error("IF-03 Events error: " + message);
                         if (!system.eventClient().isConnected()) {
                             setEventConnected(false, "ERROR");
@@ -566,6 +569,7 @@ public final class TestClientFxApplication extends Application {
             }).whenComplete((ignored, error) -> {
                 if (error != null) {
                     Platform.runLater(() -> {
+                        if (!eventConnectionEpoch.isCurrent(eventGeneration)) return;
                         Throwable cause = rootCause(error);
                         setEventConnected(false, "ERROR");
                         apiPane.disconnected(true);
@@ -581,6 +585,7 @@ public final class TestClientFxApplication extends Application {
     }
 
     private void disconnectEvents() {
+        eventConnectionEpoch.invalidate();
         setBoundaryState(eventBoundary, "Events", "DISCONNECTING");
         system.eventClient().disconnect();
         if (!system.eventClient().isConnected()) {
@@ -629,7 +634,7 @@ public final class TestClientFxApplication extends Application {
 
                                     @Override
                                     public void onLog(LiveLogClient.LogEntry entry) {
-                                        Platform.runLater(() -> appendDeviceLog(entry));
+                                        deviceLogAppender.append(entry.formatted());
                                     }
 
                                     @Override
@@ -694,11 +699,6 @@ public final class TestClientFxApplication extends Application {
         } catch (RuntimeException ex) {
             feedback.setText("Client log error: " + ex.getMessage());
         }
-    }
-
-    private void appendDeviceLog(LiveLogClient.LogEntry entry) {
-        liveLogs.appendText(entry.formatted());
-        liveLogs.positionCaret(liveLogs.getLength());
     }
 
     private void connectShell() {
@@ -791,6 +791,8 @@ public final class TestClientFxApplication extends Application {
                 return true;
             }
 
+            eventConnectionEpoch.invalidate();
+            apiCheckEpoch.invalidate();
             setEventConnected(false, "CONNECT");
             setShellConnected(false, "CONNECT");
             setLogConnected(false, "CONNECT");
@@ -808,6 +810,8 @@ public final class TestClientFxApplication extends Application {
     }
 
     private void checkApi() {
+        final long checkGeneration = apiCheckEpoch.begin();
+        final String target = system.host();
         setApiState("CHECKING");
         feedback.setText("Checking API " + apiEndpoint() + "...");
         clientLog.info("Checking IF-03 API at " + apiEndpoint());
@@ -821,6 +825,8 @@ public final class TestClientFxApplication extends Application {
                     }
                 }, requests)
                 .whenComplete((result, error) -> Platform.runLater(() -> {
+                    if (!apiCheckEpoch.isCurrent(checkGeneration)
+                            || !target.equals(system.host())) return;
                     if (error != null) {
                         setApiState("UNREACHABLE");
                         clientLog.error("IF-03 API check failed: " + rootMessage(error));

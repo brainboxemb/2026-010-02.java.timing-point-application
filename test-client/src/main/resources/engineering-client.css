@@ -1,12 +1,26 @@
+/* SI-02 palette: 44-02-GPD defines the semantic meaning of each token.
+ * Keep platform-specific caption styling separated at the foot of this file. */
 .root {
     -fx-font-family: "Segoe UI";
     -fx-font-size: 13px;
-    -bento-bg: #f7f7f7;
-    -bento-bg-raised: #eeeeee;
-    -bento-bg-hover: #e5e5e5;
-    -bento-border: #cfcfcf;
-    -bento-accent: #0078d7;
-    -bento-text: #202020;
+    -si02-surface: #f7f7f7;
+    -si02-raised: #eeeeee;
+    -si02-hover: #e5e5e5;
+    -si02-border: #cfcfcf;
+    -si02-text: #202020;
+    -si02-accent: #0078d7;
+    -si02-ok-bg: #e9f6ed;
+    -si02-ok-border: #5aa273;
+    -si02-warning-bg: #fff4da;
+    -si02-warning-border: #d6a34a;
+    -si02-error-bg: #fcecec;
+    -si02-error-border: #c97474;
+    -bento-bg: -si02-surface;
+    -bento-bg-raised: -si02-raised;
+    -bento-bg-hover: -si02-hover;
+    -bento-border: -si02-border;
+    -bento-accent: -si02-accent;
+    -bento-text: -si02-text;
 }
 
 .container-branch {
@@ -41,14 +55,7 @@
     -fx-background-color: -bento-bg-hover;
 }
 
-.header-pane .header:selected {
-    -fx-background-color: -bento-bg;
-}
-
-.header-pane:active .header:selected {
-    -fx-border-color: transparent transparent -bento-accent transparent;
-    -fx-border-width: 0 0 2px 0;
-}
+/* Selection is not keyboard focus; only the active leaf gains an accent. */
 
 .header Text {
     -fx-font-family: "Segoe UI";
@@ -91,11 +98,28 @@
     -fx-padding: 2px 7px;
 }
 
+/* Shared reusable pane roles, rather than view-specific inline styles. */
+.engineering-form { -fx-padding: 8px; }
+.engineering-explorer-pane { -fx-padding: 4px; }
+.engineering-data-pane { -fx-padding: 4px; }
+.engineering-tool-pane { -fx-padding: 3px; }
+.engineering-log-pane { -fx-padding: 2px; }
+
 .text-area.engineering-log,
 .text-area.engineering-raw-data {
     -fx-font-family: "Consolas";
-    -fx-font-size: 11px;
+    -fx-font-size: 12px;
 }
+.text-area.engineering-console {
+    -fx-control-inner-background: #000000;
+    -fx-text-fill: #e8e8e8;
+    -fx-font-family: "Consolas";
+    -fx-font-size: 12px;
+}
+.text-area.engineering-console .content {
+    -fx-background-color: #000000;
+}
+
 
 /* A selected tab in another pane is not an indication of new activity. */
 .header-pane .header:selected {
@@ -115,7 +139,7 @@
 }
 .context-menu .menu-item .label,
 .context-menu .menu-item .text {
-    -fx-text-fill: #202020;
+    -fx-text-fill: -si02-text;
 }
 .context-menu .menu-item:focused {
     -fx-background-color: #dbeaf9;
@@ -126,12 +150,12 @@
     -fx-border-color: #c1cbd4;
     -fx-padding: 5px 10px;
 }
-.connection-button.connection-ok { -fx-border-color: #5aa273; -fx-background-color: #e9f6ed; }
-.connection-button.connection-busy { -fx-border-color: #d6a34a; -fx-background-color: #fff4da; }
-.connection-button.connection-error { -fx-border-color: #c97474; -fx-background-color: #fcecec; }
+.connection-button.connection-ok { -fx-border-color: -si02-ok-border; -fx-background-color: -si02-ok-bg; }
+.connection-button.connection-busy { -fx-border-color: -si02-warning-border; -fx-background-color: -si02-warning-bg; }
+.connection-button.connection-error { -fx-border-color: -si02-error-border; -fx-background-color: -si02-error-bg; }
 .host-toolbar {
     -fx-alignment: center-left;
-    -fx-background-color: #f7f7f7;
+    -fx-background-color: -si02-surface;
 }
 .host-toolbar .label, .host-toolbar .button, .host-toolbar .text-field {
     -fx-alignment: center-left;
@@ -162,8 +186,8 @@
 .connect-power-icon { -fx-stroke: #364653; }
 .primary-connect.connection-ok .connect-power-icon { -fx-stroke: #267445; }
 .primary-connect.connection-partial {
-    -fx-border-color: #d6a34a;
-    -fx-background-color: #fff4da;
+    -fx-border-color: -si02-warning-border;
+    -fx-background-color: -si02-warning-bg;
 }
 .primary-connect.connection-partial .connect-power-icon { -fx-stroke: #966611; }
 .systems-tree { -fx-background-color: transparent; }
@@ -336,4 +360,10 @@
     -fx-font-size: 12px;
     -fx-padding: 0 10px;
     -fx-alignment: center;
+}
+
+/* Data status is semantic, not an inline row CSS string.
+ * Virtualized TableRows must reset the pseudo-class when reused. */
+.table-row-cell:deleted-registration {
+    -fx-opacity: 0.55;
 }
