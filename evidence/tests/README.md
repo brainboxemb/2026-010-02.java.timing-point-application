@@ -102,3 +102,7 @@ None.
 ## Raw evidence
 
 The original Surefire XML/TXT files are retained below this directory for detailed inspection.
+
+## Separate-process system verification
+
+The canonical Maven summary above covers the ordinary module tests. The separately executed process-level VC-ST1 verification is retained under [system-test/](system-test/README.md), including the real per-node LogBook persistence file produced by VC-ST1-002.

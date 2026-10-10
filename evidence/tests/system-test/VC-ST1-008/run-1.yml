@@ -1,0 +1,33 @@
+# VC-ST1-008: A owns TimingNode A, B owns TimingNode B.
+# The application resolves {SystemId} and {NodeId}.
+timingSystems:
+  - systemId: A
+    timingNodes:
+      - nodeId: A
+  - systemId: B
+    timingNodes:
+      - nodeId: B
+
+io:
+  storage:
+    timingData:
+      path: system-{SystemId}-node-{NodeId}-logbook.jsonl
+
+presentation:
+  remoteShell:
+    bindAddress: 127.0.0.1
+    port: 41417
+  api:
+    http:
+      bindAddress: 127.0.0.1
+      port: 37929
+    webSocket:
+      bindAddress: 127.0.0.1
+      port: 40065
+
+logging:
+  level: INFO
+  file:
+    path: logs
+    rotateBytes: 1048576
+    retainedFiles: 5

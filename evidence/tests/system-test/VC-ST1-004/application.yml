@@ -1,0 +1,30 @@
+# Single TimingNode fixture for VC-ST1-001 through VC-ST1-006.
+# A and @..._PORT@ are replaced by test factory.
+timingSystems:
+  - systemId: A
+    timingNodes:
+      - nodeId: A
+
+io:
+  storage:
+    timingData:
+      path: node_A_logbook.jsonl
+
+presentation:
+  remoteShell:
+    bindAddress: 127.0.0.1
+    port: 33053
+  api:
+    http:
+      bindAddress: 127.0.0.1
+      port: 46841
+    webSocket:
+      bindAddress: 127.0.0.1
+      port: 33121
+
+logging:
+  level: INFO
+  file:
+    path: logs
+    rotateBytes: 1048576
+    retainedFiles: 5

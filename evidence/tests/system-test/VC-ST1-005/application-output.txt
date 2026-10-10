@@ -1,0 +1,57 @@
+=== run 1: lifecycle source order and idempotence ===
+11:23:33.046 - [INFO] - timing-application 0.2.4-SNAPSHOT revision=950214b502e7e159f05a561300fd6a814d06390a sourceRef=main buildOrigin=github-actions dirty=false - [app.ApplicationLauncher.announceStartupIdentity]
+11:23:33.056 - [INFO] - TimingSystem A selected EventDataProvider id=reference implementation=io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventDataProvider - [runtime.TimingApplicationComposition.createConfigured]
+11:23:33.056 - [INFO] - TimingSystem A selected TimingDataProvider id=reference implementation=io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider - [runtime.TimingApplicationComposition.createConfigured]
+11:23:33.088 - [INFO] - Starting application - [application.ApplicationConductor.activate]
+11:23:33.088 - [INFO] - Activating TimingSystem Conductor - [lifecycle.ComponentLifecycleManager.activateAll]
+11:23:33.088 - [INFO] - Starting coordinator - [lifecycle.AbstractConductor.activate]
+11:23:33.088 - [INFO] - Activating TimingNode A - [lifecycle.ComponentLifecycleManager.activateAll]
+11:23:33.089 - [INFO] - TimingNode A activated - [lifecycle.ComponentLifecycleManager.activateAll]
+11:23:33.091 - [INFO] - Coordinator started - [lifecycle.AbstractConductor.activate]
+11:23:33.091 - [INFO] - TimingSystem Conductor activated - [lifecycle.ComponentLifecycleManager.activateAll]
+11:23:33.091 - [INFO] - Application started - [application.ApplicationConductor.activate]
+11:23:33.098 - [INFO] - HTTP IF-03 listening on 127.0.0.1:42243 - [api.HttpEndpoint.start]
+11:23:33.111 - [INFO] - WebSocket IF-03 listening on 127.0.0.1:41619/api/v1/events - [api.WebSocketEndpoint.start]
+11:23:33.112 - [INFO] - Remote terminal listening on 127.0.0.1:46349 - [shell.RemoteShellServer.start]
+Local console ready. Type 'help' for commands.
+event-timing> 
+11:23:33.162 - [INFO] - TimingNode A status changed: state CLOSED -> OPEN, location - -> 24, problems 0 -> 0 - [node.TimingNode.publishStatusChanged]
+event-timing> 
+11:23:33.473 - [INFO] - TimingNode A status changed: state OPEN -> CLOSED, location 24 -> 24, problems 0 -> 0 - [node.TimingNode.publishStatusChanged]
+event-timing> 
+11:23:33.804 - [INFO] - Stopping application - [application.ApplicationConductor.deactivate]
+11:23:33.804 - [INFO] - Deactivating TimingSystem Conductor - [lifecycle.ComponentLifecycleManager.deactivateAll]
+11:23:33.804 - [INFO] - Stopping coordinator - [lifecycle.AbstractConductor.deactivate]
+11:23:33.804 - [INFO] - Deactivating TimingNode A - [lifecycle.ComponentLifecycleManager.deactivateAll]
+11:23:33.804 - [INFO] - TimingNode A deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+11:23:33.804 - [INFO] - Coordinator stopped - [lifecycle.AbstractConductor.deactivate]
+11:23:33.804 - [INFO] - TimingSystem Conductor deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+11:23:33.805 - [INFO] - Application stopped - [application.ApplicationConductor.deactivate]
+timing-application lifecycle OK version=0.2.4-SNAPSHOT state=INACTIVE
+=== run 2: lifecycle recovery and continuation ===
+11:23:34.240 - [INFO] - timing-application 0.2.4-SNAPSHOT revision=950214b502e7e159f05a561300fd6a814d06390a sourceRef=main buildOrigin=github-actions dirty=false - [app.ApplicationLauncher.announceStartupIdentity]
+11:23:34.249 - [INFO] - TimingSystem A selected EventDataProvider id=reference implementation=io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventDataProvider - [runtime.TimingApplicationComposition.createConfigured]
+11:23:34.249 - [INFO] - TimingSystem A selected TimingDataProvider id=reference implementation=io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider - [runtime.TimingApplicationComposition.createConfigured]
+11:23:34.281 - [INFO] - Starting application - [application.ApplicationConductor.activate]
+11:23:34.281 - [INFO] - Activating TimingSystem Conductor - [lifecycle.ComponentLifecycleManager.activateAll]
+11:23:34.281 - [INFO] - Starting coordinator - [lifecycle.AbstractConductor.activate]
+11:23:34.281 - [INFO] - Activating TimingNode A - [lifecycle.ComponentLifecycleManager.activateAll]
+11:23:34.293 - [INFO] - TimingNode A activated - [lifecycle.ComponentLifecycleManager.activateAll]
+11:23:34.295 - [INFO] - Coordinator started - [lifecycle.AbstractConductor.activate]
+11:23:34.295 - [INFO] - TimingSystem Conductor activated - [lifecycle.ComponentLifecycleManager.activateAll]
+11:23:34.296 - [INFO] - Application started - [application.ApplicationConductor.activate]
+11:23:34.300 - [INFO] - HTTP IF-03 listening on 127.0.0.1:37803 - [api.HttpEndpoint.start]
+11:23:34.313 - [INFO] - WebSocket IF-03 listening on 127.0.0.1:34093/api/v1/events - [api.WebSocketEndpoint.start]
+11:23:34.314 - [INFO] - Remote terminal listening on 127.0.0.1:33755 - [shell.RemoteShellServer.start]
+Local console ready. Type 'help' for commands.
+event-timing> 
+11:23:34.852 - [INFO] - TimingNode A status changed: state CLOSED -> OPEN, location - -> 25, problems 0 -> 0 - [node.TimingNode.publishStatusChanged]
+11:23:34.878 - [INFO] - Stopping application - [application.ApplicationConductor.deactivate]
+11:23:34.879 - [INFO] - Deactivating TimingSystem Conductor - [lifecycle.ComponentLifecycleManager.deactivateAll]
+11:23:34.879 - [INFO] - Stopping coordinator - [lifecycle.AbstractConductor.deactivate]
+11:23:34.879 - [INFO] - Deactivating TimingNode A - [lifecycle.ComponentLifecycleManager.deactivateAll]
+11:23:34.879 - [INFO] - TimingNode A deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+11:23:34.879 - [INFO] - Coordinator stopped - [lifecycle.AbstractConductor.deactivate]
+11:23:34.879 - [INFO] - TimingSystem Conductor deactivated - [lifecycle.ComponentLifecycleManager.deactivateAll]
+11:23:34.879 - [INFO] - Application stopped - [application.ApplicationConductor.deactivate]
+timing-application lifecycle OK version=0.2.4-SNAPSHOT state=INACTIVE

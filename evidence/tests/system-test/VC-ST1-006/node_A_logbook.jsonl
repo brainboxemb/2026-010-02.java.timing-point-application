@@ -1,0 +1,4 @@
+{"v":1,"nodeId":"A","seqNr":1,"locId":24,"recType":"NODE_INFO","time":"2026-10-10T11:23:38.87Z","code":["OPEN"],"recTime":"2026-10-10T11:23:38.878Z"}
+{"v":1,"nodeId":"A","seqNr":2,"locId":24,"recType":"AUTO_REG","time":"2026-10-01T12:06:00.00Z","regId":"RT-A-0006","code":["ADD"],"tagSrc":"API","timeSrc":"API","recTime":"2026-10-10T11:23:38.887Z"}
+{"v":1,"nodeId":"A","seqNr":3,"locId":24,"recType":"AUTO_REG","time":"2026-10-01T12:06:00.00Z","regId":"RT-A-0006","code":["REV"],"tagSrc":"API","timeSrc":"API","recTime":"2026-10-10T11:23:38.892Z"}
+{"v":1,"nodeId":"A","seqNr":4,"locId":24,"recType":"AUTO_REG","time":"2026-10-01T12:06:00.00Z","regId":"RT-A-0006","code":["REV"],"tagSrc":"API","timeSrc":"API","recTime":"2026-10-10T11:23:38.896Z"}
