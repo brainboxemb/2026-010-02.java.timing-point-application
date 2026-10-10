@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Replace the handcrafted right-aligned Windows caption title with a compact clock mark and flat View/Help menus on the left; keep one set of library caption buttons at right and remove inherited button borders from them.
+
+
 - Use BentoFX's built-in ≡ dock-area menu (tab position and selected-tab dock-back) and automatic ▼ overflow selector throughout the Engineering Client, including floating windows. Remove bespoke ↩ tab icons and duplicated tab context handlers.
 
 
