@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.systemtest;
 
 import io.github.brainboxemb.eventtiming.systemtest.TimingApplicationFixture.Ports;
+import io.github.brainboxemb.eventtiming.systemtest.TestApplicationConfigFactory.Topology;
 import io.github.brainboxemb.eventtiming.systemtest.framework.HttpTestClient;
 import io.github.brainboxemb.eventtiming.systemtest.framework.HttpTestClient.Response;
 import io.github.brainboxemb.eventtiming.systemtest.framework.ProcessRun;
@@ -8,7 +9,6 @@ import io.github.brainboxemb.eventtiming.systemtest.framework.ProcessRun;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -18,8 +18,9 @@ import static org.junit.Assert.assertTrue;
 /**
  * Reusable black-box flow for VC-ST1-007 and VC-ST1-008.
  *
- * <p>Only the topology changes. Both cases exercise the same public IF-03
- * operations, per-node storage isolation and restart-recovery invariants.</p>
+ * <p>The YAML topology differs, but both test cases run the same public IF-03
+ * procedure. Assert separate sequences, storage files and restart recovery;
+ * the expected record contents are independent from the YAML parser.</p>
  */
 final class MultiTopologyLogBookVerification {
     private static final String TIME = "2026-10-01T12:00:00Z";
@@ -27,7 +28,7 @@ final class MultiTopologyLogBookVerification {
     private MultiTopologyLogBookVerification() {
     }
 
-    static void verify(String caseId, boolean twoSystems) throws Exception {
+    static void verify(String caseId, Topology topology) throws Exception {
         TimingApplicationFixture fixture = TimingApplicationFixture.create(caseId, "A");
         BlackBoxEvidence evidence = fixture.evidence();
         ProcessRun first = null;
@@ -36,8 +37,10 @@ final class MultiTopologyLogBookVerification {
         boolean passed = false;
 
         try {
+            // Start the packaged SI-01 with the chosen YAML topology.
             Ports ports = fixture.reservePorts();
-            File config = writeConfig(evidence, "run-1.yml", ports, twoSystems);
+            File config = TestApplicationConfigFactory.write(
+                    evidence, "run-1.yml", topology, ports, fixture.nodeId());
             first = fixture.start(config, caseId.toLowerCase(Locale.ROOT) + "-run-1");
             fixture.awaitReady(first, ports);
 
@@ -46,6 +49,7 @@ final class MultiTopologyLogBookVerification {
             assertHistory(http, "A", 0, null, null, null);
             assertHistory(http, "B", 0, null, null, null);
 
+            // Verify no cross-node mutation: B is still empty after A commits.
             operateNode(http, "A", 24, "REG-A-001");
             assertHistory(http, "A", 3, "24", "REG-A-001", "A");
             assertHistory(http, "B", 0, null, null, null);
@@ -54,11 +58,14 @@ final class MultiTopologyLogBookVerification {
             assertHistory(http, "B", 3, "25", "REG-B-001", "B");
             assertHistory(http, "A", 3, "24", "REG-A-001", "A");
 
+            // Compare physical files with independent expected node ownership.
             fixture.shutdown(first, ports);
-            checkFiles(evidence, twoSystems);
+            checkFiles(evidence, topology);
 
+            // Reuse persisted files but launch a new SI-01 process and ports.
             Ports restartPorts = fixture.reservePorts();
-            File restartConfig = writeConfig(evidence, "run-2.yml", restartPorts, twoSystems);
+            File restartConfig = TestApplicationConfigFactory.write(
+                    evidence, "run-2.yml", topology, restartPorts, fixture.nodeId());
             restart = fixture.start(
                     restartConfig, caseId.toLowerCase(Locale.ROOT) + "-run-2");
             fixture.awaitReady(restart, restartPorts);
@@ -83,63 +90,6 @@ final class MultiTopologyLogBookVerification {
             evidence.writeProcessOutput(output(first) + "\n" + output(restart));
             evidence.writeResult(passed, failure);
         }
-    }
-
-    private static File writeConfig(
-            BlackBoxEvidence evidence,
-            String name,
-            Ports ports,
-            boolean twoSystems) throws Exception {
-        StringBuilder config = new StringBuilder("timingSystems:\n");
-        if (twoSystems) {
-            appendSystem(config, "first", "SID-A", "A");
-            appendSystem(config, "second", "SID-B", "B");
-        } else {
-            config.append("  one:\n")
-                    .append("    timingSystemId: SID-9\n")
-                    .append("    timingNodes:\n")
-                    .append("      node-a:\n")
-                    .append("        timingNodeId: A\n")
-                    .append("      node-b:\n")
-                    .append("        timingNodeId: B\n");
-        }
-        config.append("io:\n")
-                .append("  storage:\n")
-                .append("    timingData:\n")
-                .append("      path: ")
-                .append(twoSystems
-                        ? "system-{SystemId}-node-{NodeId}-logbook.jsonl"
-                        : "node-{NodeId}-logbook.jsonl")
-                .append("\n")
-                .append("presentation:\n")
-                .append("  remoteShell:\n")
-                .append("    bindAddress: 127.0.0.1\n")
-                .append("    port: ").append(ports.shellPort()).append("\n")
-                .append("  api:\n")
-                .append("    http:\n")
-                .append("      bindAddress: 127.0.0.1\n")
-                .append("      port: ").append(ports.httpPort()).append("\n")
-                .append("    webSocket:\n")
-                .append("      bindAddress: 127.0.0.1\n")
-                .append("      port: ").append(ports.webSocketPort()).append("\n")
-                .append("logging:\n")
-                .append("  level: INFO\n")
-                .append("  file:\n")
-                .append("    path: logs\n")
-                .append("    rotateBytes: 1048576\n")
-                .append("    retainedFiles: 5\n");
-        File file = evidence.file(name);
-        Files.write(file.toPath(), config.toString().getBytes(StandardCharsets.UTF_8));
-        return file;
-    }
-
-    private static void appendSystem(
-            StringBuilder config, String key, String systemId, String nodeId) {
-        config.append("  ").append(key).append(":\n")
-                .append("    timingSystemId: ").append(systemId).append("\n")
-                .append("    timingNodes:\n")
-                .append("      node-").append(nodeId).append(":\n")
-                .append("        timingNodeId: ").append(nodeId).append("\n");
     }
 
     private static void assertInitialStatus(HttpTestClient http) throws Exception {
@@ -205,8 +155,9 @@ final class MultiTopologyLogBookVerification {
                 "\"regId\":\"REG-" + ("A".equals(node) ? "B" : "A") + "-001\""));
     }
 
-    private static void checkFiles(BlackBoxEvidence evidence, boolean twoSystems)
+    private static void checkFiles(BlackBoxEvidence evidence, Topology topology)
             throws Exception {
+        boolean twoSystems = topology == Topology.TWO_SYSTEMS_ONE_NODE_EACH;
         File a = evidence.file(twoSystems
                 ? "system-SID-A-node-A-logbook.jsonl"
                 : "node-A-logbook.jsonl");
