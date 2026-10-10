@@ -2,7 +2,18 @@
 
 ## Unreleased
 
-- Allow direct IF-03 automatic registration simulation without a supplied timestamp: the owning TimingNode captures its composed TimeSource during execution. Add short `tagSrc`/`timeSrc` provenance to new automatic LogBook records, retain legacy-record decode, and align the engineering client and black-box tests.
+- Allow IF-03 direct automatic registration without a supplied time: the owning TimingNode obtains its TimeSource during execution. Store optional `tagSrc`/`timeSrc` provenance in AUTO_REG TimingData, preserve legacy records and verify through black-box tests.
+
+- Place the SI-02 Systems tree as a compact upper-left pane, prune empty dock leaves on detach and reliably show/re-pin detached panels through a tab button or right-click; simplify Events to raw JSON, and unify all JavaFX controls under one square-edged desktop theme.
+
+
+- Refine the SI-02 Engineering workbench with a dockable Systems/node status tree, compact boundary buttons, dynamic log-level and LogBook-count headers, readable docking/context menus, detachable-pane dock-back and View → Reset layout, plus live-follow trailing rows in Registrations/LogBook.
+
+
+- Use concise `id` for IF-11 TimingSystem/TimingNode declarations while preserving explicit `timingSystemId` and `timingNodeId` in reference bindings. Migrate all YAML examples and system-test fixtures; legacy declaration fields are rejected rather than supported as aliases.
+
+
+- Make TimingSystem IDs compact: one-node systems use the same ID as their node (`A`, `B`); multi-node systems require a distinct application-wide ID (`9` for the current A/B fixture). Reject prefixed identifiers and conflicting identities; align default composition, samples, and black-box verification.
 
 
 - Require ordered `timingSystems` and nested `timingNodes` YAML lists with explicit IDs; remove meaningless keyed topology entries, migrate all configs and fixtures, and reject old mappings (no compatibility mode).

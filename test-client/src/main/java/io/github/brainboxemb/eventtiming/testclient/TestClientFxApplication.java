@@ -11,6 +11,10 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.RadioMenuItem;
+import javafx.scene.control.SeparatorMenuItem;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
@@ -42,14 +46,10 @@ public final class TestClientFxApplication extends Application {
     private final Button eventBoundary = new Button();
     private final Button terminalBoundary = new Button();
     private final Button deviceLogBoundary = new Button();
-    private final Button clientLogBoundary = new Button();
+    private final Label clientLogBoundary = new Label();
     private final TextField targetHost = new TextField();
     private final Button applyTarget = new Button("Apply target");
 
-    private final Label eventType = valueLabel();
-    private final Label eventOccurredAt = valueLabel();
-    private final Label eventTimingNodeId = valueLabel();
-    private final Label eventTimingNodeLifecycle = valueLabel();
     private final TextArea eventLog = new TextArea();
 
     private final TextArea terminal = new TextArea();
@@ -70,6 +70,8 @@ public final class TestClientFxApplication extends Application {
     private EngineeringSystemContext system;
     private ClientLog clientLog;
     private ApiPane apiPane;
+    private EngineeringWorkbench workbench;
+    private BorderPane workbenchRoot;
 
     @Override
     public void start(Stage stage) throws Exception {
@@ -94,7 +96,47 @@ public final class TestClientFxApplication extends Application {
                 this::setApiState,
                 clientLog);
 
-        EngineeringWorkbench workbench = new EngineeringWorkbench(
+        workbench = createWorkbench(
+                deviceLogPanel, terminalPanel, clientLogPanel, eventsPanel);
+        apiPane.setLogBookCountListener(workbench::setLogBookCount);
+        apiPane.setSystemHost(system.host());
+        workbench.setClientLogLevel(clientLog.level());
+
+        MenuItem resetLayout = new MenuItem("Reset layout");
+        resetLayout.setOnAction(event -> resetLayout(
+                deviceLogPanel, terminalPanel, clientLogPanel, eventsPanel));
+        Menu view = new Menu("View");
+        view.getItems().add(resetLayout);
+
+        MenuItem about = new MenuItem("About");
+        about.setOnAction(event -> showAbout(stage));
+        Menu help = new Menu("Help");
+        help.getItems().add(about);
+        MenuBar menuBar = new MenuBar(view, help);
+
+        HBox top = new HBox(menuBar, targetBar());
+        HBox.setHgrow(top.getChildren().get(1), Priority.ALWAYS);
+        workbenchRoot = new BorderPane();
+        workbenchRoot.setTop(top);
+        workbenchRoot.setCenter(workbench.root());
+        workbenchRoot.setBottom(feedback);
+        BorderPane.setMargin(feedback, new Insets(0, 12, 12, 12));
+
+        stage.setTitle(clientBuild.application() + " — " + clientBuild.version());
+        Scene scene = new Scene(workbenchRoot, 1360, 850);
+        var stylesheet = TestClientFxApplication.class.getResource("/engineering-client.css");
+        if (stylesheet != null) {
+            scene.getStylesheets().add(stylesheet.toExternalForm());
+        }
+        stage.setScene(scene);
+        stage.show();
+        clientLog.info("Engineering Client UI ready");
+    }
+
+    private EngineeringWorkbench createWorkbench(
+            VBox deviceLogPanel, VBox terminalPanel, VBox clientLogPanel, VBox eventsPanel) {
+        return new EngineeringWorkbench(
+                apiPane.systemsPane(),
                 apiPane.timingNodePane(),
                 apiPane.registrationPane(),
                 apiPane.simulationPane(),
@@ -105,30 +147,18 @@ public final class TestClientFxApplication extends Application {
                 apiPane.logBookPane(),
                 apiPane.rawDataPane(),
                 eventsPanel);
+    }
 
-        MenuItem about = new MenuItem("About");
-        about.setOnAction(event -> showAbout(stage));
-        Menu help = new Menu("Help");
-        help.getItems().add(about);
-        MenuBar menuBar = new MenuBar(help);
-
-        VBox top = new VBox(menuBar, targetBar(), apiPane.syncStateBar());
-
-        BorderPane root = new BorderPane();
-        root.setTop(top);
-        root.setCenter(workbench.root());
-        root.setBottom(feedback);
-        BorderPane.setMargin(feedback, new Insets(0, 12, 12, 12));
-
-        stage.setTitle(clientBuild.application() + " — " + clientBuild.version());
-        Scene scene = new Scene(root, 1280, 820);
-        var stylesheet = TestClientFxApplication.class.getResource("/engineering-client.css");
-        if (stylesheet != null) {
-            scene.getStylesheets().add(stylesheet.toExternalForm());
-        }
-        stage.setScene(scene);
-        stage.show();
-        clientLog.info("Engineering Client UI ready");
+    private void resetLayout(
+            VBox deviceLogPanel, VBox terminalPanel, VBox clientLogPanel, VBox eventsPanel) {
+        workbench.release();
+        workbench = createWorkbench(deviceLogPanel, terminalPanel, clientLogPanel, eventsPanel);
+        workbenchRoot.setCenter(workbench.root());
+        workbench.setClientLogLevel(clientLog.level());
+        workbench.setDeviceLogLevel(system.liveLogClient().isConnected()
+                ? currentDeviceLogLevel.getText() : null);
+        apiPane.setLogBookCountListener(workbench::setLogBookCount);
+        feedback.setText("Default window layout restored");
     }
 
     private Path resolveConfigPath() {
@@ -150,11 +180,11 @@ public final class TestClientFxApplication extends Application {
 
         apiBoundary.setTooltip(new Tooltip(
                 "IF-03 HTTP is stateless. Click to check that the API at the active target is reachable."));
-        clientLogBoundary.setDisable(true);
+        clientLogBoundary.getStyleClass().add("boundary-status");
 
         HBox bar = new HBox(
-                8,
-                new Label("Target"),
+                6,
+                new Label("Host"),
                 targetHost,
                 applyTarget,
                 apiBoundary,
@@ -163,7 +193,11 @@ public final class TestClientFxApplication extends Application {
                 deviceLogBoundary,
                 clientLogBoundary);
         HBox.setHgrow(targetHost, Priority.NEVER);
-        bar.setPadding(new Insets(10, 12, 10, 12));
+        bar.setPadding(new Insets(5, 8, 5, 8));
+        for (Button boundary : new Button[] {
+                apiBoundary, eventBoundary, terminalBoundary, deviceLogBoundary }) {
+            boundary.getStyleClass().add("connection-button");
+        }
         return bar;
     }
 
@@ -172,7 +206,7 @@ public final class TestClientFxApplication extends Application {
         setEventConnected(false, "CONNECT");
         setShellConnected(false, "CONNECT");
         setLogConnected(false, "CONNECT");
-        clientLogBoundary.setText("Client log\nACTIVE");
+        clientLogBoundary.setText("● Client Log · Active");
 
         apiBoundary.setOnAction(event -> checkApi());
         eventBoundary.setOnAction(event -> {
@@ -199,21 +233,12 @@ public final class TestClientFxApplication extends Application {
     }
 
     private VBox eventsPane() {
-        GridPane values = grid();
-        addRow(values, 0, "Event type", eventType);
-        addRow(values, 1, "Occurred at", eventOccurredAt);
-        addRow(values, 2, "Timing node", eventTimingNodeId);
-        addRow(values, 3, "State", eventTimingNodeLifecycle);
-
         eventLog.setEditable(false);
         eventLog.setWrapText(false);
-        eventLog.setPrefRowCount(18);
-        TitledPane logPane = new TitledPane("Received events (raw JSON)", eventLog);
-        logPane.setCollapsible(false);
-
-        VBox pane = new VBox(10, values, logPane);
-        pane.setPadding(new Insets(12));
-        VBox.setVgrow(logPane, Priority.ALWAYS);
+        eventLog.getStyleClass().add("engineering-raw-data");
+        VBox pane = new VBox(eventLog);
+        pane.setPadding(new Insets(4));
+        VBox.setVgrow(eventLog, Priority.ALWAYS);
         return pane;
     }
 
@@ -247,13 +272,6 @@ public final class TestClientFxApplication extends Application {
         deviceLogLevel.getItems().setAll("TRACE", "DEBUG", "INFO", "WARN", "ERROR");
         deviceLogLevel.setValue("INFO");
 
-        HBox deviceLevel = new HBox(
-                8,
-                new Label("SI-01 current level"),
-                currentDeviceLogLevel,
-                new Label("Set level"),
-                deviceLogLevel,
-                applyDeviceLogLevel);
 
         liveLogs.setEditable(false);
         liveLogs.setWrapText(false);
@@ -265,7 +283,8 @@ public final class TestClientFxApplication extends Application {
 
         applyDeviceLogLevel.setOnAction(event -> applyDeviceLogLevel());
 
-        VBox pane = new VBox(8, deviceLevel, liveLogs);
+        liveLogs.setContextMenu(logContextMenu(liveLogs, true));
+        VBox pane = new VBox(liveLogs);
         pane.setPadding(new Insets(12));
         VBox.setVgrow(liveLogs, Priority.ALWAYS);
         return pane;
@@ -276,13 +295,6 @@ public final class TestClientFxApplication extends Application {
         clientLogLevel.setValue(clientLog.level());
         currentClientLogLevel.setText(clientLog.level());
 
-        HBox clientLevel = new HBox(
-                8,
-                new Label("Client current level"),
-                currentClientLogLevel,
-                new Label("Set level"),
-                clientLogLevel,
-                applyClientLogLevel);
 
         clientLogs.setEditable(false);
         clientLogs.setWrapText(false);
@@ -299,10 +311,44 @@ public final class TestClientFxApplication extends Application {
 
         applyClientLogLevel.setOnAction(event -> applyClientLogLevel());
 
-        VBox pane = new VBox(8, clientLevel, clientLogs);
+        clientLogs.setContextMenu(logContextMenu(clientLogs, false));
+        VBox pane = new VBox(clientLogs);
         pane.setPadding(new Insets(12));
         VBox.setVgrow(clientLogs, Priority.ALWAYS);
         return pane;
+    }
+
+    private ContextMenu logContextMenu(TextArea area, boolean device) {
+        ContextMenu context = new ContextMenu();
+        MenuItem copy = new MenuItem("Copy");
+        copy.setOnAction(event -> area.copy());
+        MenuItem selectAll = new MenuItem("Select all");
+        selectAll.setOnAction(event -> area.selectAll());
+        Menu levels = new Menu("Log level");
+        ToggleGroup choices = new ToggleGroup();
+        for (String level : new String[] {"TRACE", "DEBUG", "INFO", "WARN", "ERROR"}) {
+            RadioMenuItem choice = new RadioMenuItem(level);
+            choice.setToggleGroup(choices);
+            choice.setOnAction(event -> {
+                if (device) {
+                    deviceLogLevel.setValue(level);
+                    applyDeviceLogLevel();
+                } else {
+                    clientLogLevel.setValue(level);
+                    applyClientLogLevel();
+                }
+            });
+            levels.getItems().add(choice);
+        }
+        context.setOnShowing(event -> {
+            String current = device ? currentDeviceLogLevel.getText() : clientLog.level();
+            levels.setDisable(device && !system.liveLogClient().isConnected());
+            for (MenuItem item : levels.getItems()) {
+                ((RadioMenuItem) item).setSelected(item.getText().equals(current));
+            }
+        });
+        context.getItems().addAll(copy, selectAll, new SeparatorMenuItem(), levels);
+        return context;
     }
 
     private void connectEvents() {
@@ -310,7 +356,7 @@ public final class TestClientFxApplication extends Application {
             return;
         }
         eventBoundary.setDisable(true);
-        eventBoundary.setText("Events :" + config.eventPort() + "\nCONNECTING");
+        setBoundaryState(eventBoundary, "Events", "CONNECTING");
         clientLog.info("Connecting IF-03 Events to " + eventEndpoint());
 
         try {
@@ -367,7 +413,7 @@ public final class TestClientFxApplication extends Application {
     }
 
     private void disconnectEvents() {
-        eventBoundary.setText("Events :" + config.eventPort() + "\nDISCONNECTING");
+        setBoundaryState(eventBoundary, "Events", "DISCONNECTING");
         system.eventClient().disconnect();
         if (!system.eventClient().isConnected()) {
             setEventConnected(false, "CONNECT");
@@ -377,26 +423,12 @@ public final class TestClientFxApplication extends Application {
     }
 
     private void showEvent(ApiEventClient.ApiEvent event) {
-        eventType.setText(event.eventType());
-        eventOccurredAt.setText(event.occurredAt().toString());
-
+        // Feed the presentation model but show only unmodified source JSON.
+        // Duplicating four status labels here is redundant with Systems.
         if (event instanceof ApiEventClient.StatusEvent statusEvent) {
-            if (statusEvent.status().nodes().isEmpty()) {
-                eventTimingNodeId.setText("-");
-                eventTimingNodeLifecycle.setText("-");
-            } else {
-                var node = statusEvent.status().nodes().get(0);
-                eventTimingNodeId.setText(node.id());
-                eventTimingNodeLifecycle.setText(node.state());
-            }
             apiPane.applyStatusEvent(statusEvent);
         } else if (event instanceof ApiEventClient.TimingDataEvent dataEvent) {
-            eventTimingNodeId.setText(dataEvent.timingData().timingNodeId());
-            eventTimingNodeLifecycle.setText("-");
             apiPane.applyTimingDataEvent(dataEvent);
-        } else {
-            eventTimingNodeId.setText("-");
-            eventTimingNodeLifecycle.setText("-");
         }
 
         if (!eventLog.getText().isEmpty()) {
@@ -412,8 +444,7 @@ public final class TestClientFxApplication extends Application {
             return;
         }
         deviceLogBoundary.setDisable(true);
-        deviceLogBoundary.setText(
-                "Device log :" + config.loggingServerPort() + "\nCONNECTING");
+        setBoundaryState(deviceLogBoundary, "Device Log", "CONNECTING");
         clientLog.info("Connecting SI-01 device log");
 
         CompletableFuture
@@ -441,6 +472,7 @@ public final class TestClientFxApplication extends Application {
                                         Platform.runLater(() -> {
                                             currentDeviceLogLevel.setText(level);
                                             deviceLogLevel.setValue(level);
+                                            workbench.setDeviceLogLevel(level);
                                         });
                                     }
 
@@ -491,6 +523,7 @@ public final class TestClientFxApplication extends Application {
             clientLog.setLevel(clientLogLevel.getValue());
             currentClientLogLevel.setText(clientLog.level());
             clientLogLevel.setValue(clientLog.level());
+            workbench.setClientLogLevel(clientLog.level());
             feedback.setText("Client log level " + clientLog.level());
             clientLog.info("Engineering Client log level changed to " + clientLog.level());
         } catch (RuntimeException ex) {
@@ -508,8 +541,7 @@ public final class TestClientFxApplication extends Application {
             return;
         }
         terminalBoundary.setDisable(true);
-        terminalBoundary.setText(
-                "Terminal :" + config.shellPort() + "\nCONNECTING");
+        setBoundaryState(terminalBoundary, "Terminal", "CONNECTING");
         clientLog.info("Connecting Remote Shell");
 
         CompletableFuture
@@ -602,6 +634,7 @@ public final class TestClientFxApplication extends Application {
             setShellConnected(false, "CONNECT");
             setLogConnected(false, "CONNECT");
             setApiState("CHECK");
+            apiPane.setSystemHost(system.host());
             apiPane.disconnected(true);
             feedback.setText("Target changed to " + system.host());
             clientLog.info("Engineering Client target changed to " + system.host());
@@ -643,31 +676,57 @@ public final class TestClientFxApplication extends Application {
                 }));
     }
 
+    private void setBoundaryState(Button button, String boundary, String state) {
+        button.getStyleClass().removeAll(
+                "connection-ok", "connection-busy", "connection-error");
+        boolean connected = "CONNECTED".equals(state) || "READY".equals(state);
+        boolean busy = "CONNECTING".equals(state) || "CHECKING".equals(state)
+                || "DISCONNECTING".equals(state);
+        boolean error = "UNREACHABLE".equals(state);
+        if (connected) button.getStyleClass().add("connection-ok");
+        else if (busy) button.getStyleClass().add("connection-busy");
+        else if (error) button.getStyleClass().add("connection-error");
+        String label = switch (state) {
+            case "CONNECTED" -> "Disconnect";
+            case "CHECK" -> "Check";
+            case "CONNECT" -> "Connect";
+            case "READY" -> "Ready · Check";
+            case "CHECKING" -> "Checking…";
+            case "CONNECTING" -> "Connecting…";
+            case "DISCONNECTING" -> "Disconnecting…";
+            case "UNREACHABLE" -> "Retry";
+            default -> state;
+        };
+        button.setText((connected ? "● " : busy ? "◐ " : "○ ")
+                + boundary + " · " + label);
+        button.setAccessibleText(boundary + " " + state);
+    }
+
     private void setApiState(String state) {
         apiBoundary.setDisable("CHECKING".equals(state));
-        apiBoundary.setText("API :" + config.apiHttpPort() + "\n" + state);
+        setBoundaryState(apiBoundary, "API", state);
     }
 
     private void setEventConnected(boolean connected, String state) {
         eventBoundary.setDisable(false);
-        eventBoundary.setText("Events :" + config.eventPort() + "\n" + state);
+        setBoundaryState(eventBoundary, "Events", state);
     }
 
     private void setShellConnected(boolean connected, String state) {
         terminalBoundary.setDisable(false);
-        terminalBoundary.setText("Terminal :" + config.shellPort() + "\n" + state);
+        setBoundaryState(terminalBoundary, "Terminal", state);
         terminalInput.setDisable(!connected);
         terminalSend.setDisable(!connected);
     }
 
     private void setLogConnected(boolean connected, String state) {
         deviceLogBoundary.setDisable(false);
-        deviceLogBoundary.setText(
-                "Device log :" + config.loggingServerPort() + "\n" + state);
+        setBoundaryState(deviceLogBoundary, "Device Log", state);
         deviceLogLevel.setDisable(!connected);
         applyDeviceLogLevel.setDisable(!connected);
-        if (!connected) {
-            currentDeviceLogLevel.setText("-");
+        if (!connected) currentDeviceLogLevel.setText("-");
+        if (workbench != null) {
+            workbench.setDeviceLogLevel(connected ? currentDeviceLogLevel.getText() : null);
         }
     }
 

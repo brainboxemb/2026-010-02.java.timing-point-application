@@ -17,8 +17,8 @@ public final class Config {
     /** Built-in IF-11 provider selection used when deployment does not override it. */
     public static final String REFERENCE_PROVIDER_ID = "reference";
 
-    private static final String DEFAULT_TIMING_SYSTEM_ID =
-            "SID-A";
+    // The compact multi-node default is distinct from normal A/B node IDs.
+    private static final String DEFAULT_MULTINODE_SYSTEM_ID = "9";
 
     /** Effective startup configuration for one TimingNode. */
     public static final class TimingNodeConfig {
@@ -75,9 +75,9 @@ public final class Config {
                 String eventDataProviderId,
                 String timingDataProviderId) {
             if (timingSystemId == null
-                    || timingSystemId.trim().isEmpty()) {
+                    || !timingSystemId.trim().matches("[A-Z1-9]")) {
                 throw new IllegalArgumentException(
-                        "timingSystemId must not be blank");
+                        "TimingSystemId must be one character A-Z or 1-9");
             }
             if (timingNodes == null
                     || timingNodes.isEmpty()) {
@@ -109,8 +109,21 @@ public final class Config {
                 nodes.add(timingNode);
             }
 
-            this.timingSystemId =
-                    timingSystemId.trim();
+            String resolvedSystemId = timingSystemId.trim();
+            if (nodes.size() == 1) {
+                String nodeId = nodes.get(0).timingNodeId().value();
+                if (!resolvedSystemId.equals(nodeId)) {
+                    throw new IllegalArgumentException(
+                            "Single-node TimingSystemId must equal TimingNodeId "
+                                    + nodeId);
+                }
+            } else if (nodeIds.contains(new NodeId(resolvedSystemId))) {
+                throw new IllegalArgumentException(
+                        "Multi-node TimingSystemId " + resolvedSystemId
+                                + " must differ from its TimingNodeIds");
+            }
+
+            this.timingSystemId = resolvedSystemId;
             this.timingNodes =
                     Collections.unmodifiableList(nodes);
             this.eventDataProviderId =
@@ -399,7 +412,9 @@ public final class Config {
                 new ArrayList<TimingSystemConfig>();
         result.add(
                 new TimingSystemConfig(
-                        DEFAULT_TIMING_SYSTEM_ID,
+                        timingNodes.size() == 1
+                                ? timingNodes.get(0).timingNodeId().value()
+                                : DEFAULT_MULTINODE_SYSTEM_ID,
                         timingNodes,
                         eventDataProviderId,
                         timingDataProviderId));

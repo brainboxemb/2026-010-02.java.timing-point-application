@@ -120,20 +120,22 @@ ordinary JavaFX nodes and do not depend on BentoFX APIs.
 The default composition is:
 
 ```text
-left                            right
----------------------------     ---------------------------
-TimingNode / Registration /     Registrations
-Simulation (tabs)               ---------------------------
----------------------------     LogBook
-Device Log                      ---------------------------
----------------------------     Raw Data / Events (tabs)
+left / controls & diagnostics    right / data
+-------------------------------- ------------------------
+Systems (compact tree)           Registrations
+-------------------------------- ------------------------
+TimingNode / Registration /      LogBook
+Simulation (tabs)                ------------------------
+-------------------------------- Raw Data / Events (tabs)
+Device Log
+--------------------------------
 Terminal
----------------------------
+--------------------------------
 Client Log
 ```
 
-The top target bar starts from the configured host but exposes the host/IP as an editable
-field. **Apply target** changes the instance-scoped connected-system context used by
+The compact top bar starts from the configured host but exposes the host/IP as an editable
+field. Port numbers remain in the client configuration rather than on the ordinary connection buttons. **Apply target** changes the instance-scoped connected-system context used by
 IF-03 HTTP, Events, Remote Shell and Device Log while the per-boundary ports remain
 config-driven.
 
@@ -141,7 +143,16 @@ The API control is deliberately clickable. IF-03 HTTP has no persistent connecti
 the control performs an explicit availability **CHECK** and reports CHECKING, READY or
 UNREACHABLE instead of pretending that a long-lived HTTP session was opened. Events,
 Terminal and Device Log retain their explicit connect/disconnect controls. Client-local
-logging is always available independently from SI-01.
+logging is always available independently from SI-01. The Systems pane shows the
+current target and its reported TimingNodes, state and location, and provides
+**Sync view**. Click a node to select it for node-scoped controls.
+
+Docking panes can be dragged into separate windows. Empty original dock
+areas are pruned, so the remaining panes use that space. A visible **↩** action
+in a moved panel's tab header or the tab's **right-click → Dock back** action
+restores its original dock area, including after that area was pruned.
+**View → Reset layout** reconstructs the entire original dock arrangement,
+without changing the connected target or SI-01 state.
 
 ### Timing, registration and data panes
 
@@ -161,11 +172,16 @@ separate dock areas:
   effective-time origin (`AUTO` or `MAN`); automatic registrations leave Code blank;
 - **LogBook / committed TimingData** is the technical/audit view and continues to show
   every committed source record, sequence, Type, Code, UTC-effective time and recorded
-  time.
+  time. Its dock header displays the source record count.
 
 **Raw Data** and **Events** share the lower-right detail area as tabs. **Device Log**,
-**Terminal** and **Client Log** are independent dock areas in the left column, rather
+**Terminal** and **Client Log** are independent dock areas in the middle column, rather
 than application-level tabs.
+
+The Registrations and LogBook tables each have one empty final presentation row.
+Selecting that row follows the latest incoming records. Selecting a historical row
+or scrolling upward pauses following for that table only; selecting the empty
+final row resumes. This row is never an actual registration or LogBook record.
 TeamID is an interpreted reference-data value, not a renamed RegistrationId. In the
 default/reference profile, `RT-A-NNNN` projects directly to TeamID `NNNN`;
 `RT-R-NNNN` remains unresolved until reserve assignment data is available. The
@@ -204,7 +220,9 @@ future event types remain visible as raw diagnostics.
 ### Device Log
 
 **Device Log** is an independent dock area. It shows live records from the connected SI-01
-`LoggingServer` and has its own current-level display and temporary runtime level control.
+`LoggingServer`. Its dock header shows the effective log-level abbreviation
+`[T/D/I/W/E]`; right-click inside the log to change the SI-01 runtime level
+when connected. An IF-03 registration request is not itself a device-log line.
 
 ### Terminal
 
@@ -216,8 +234,8 @@ emulator.
 
 **Client Log** is an independent dock area containing retained local Engineering Client
 startup/configuration/connection/request diagnostics and an independent current-level
-display and runtime threshold control. It remains available and controllable when SI-01 is
-offline. A client-level change is runtime-only; the configured startup level is restored
+display and runtime threshold control through the dock header and right-click menu.
+It remains available and controllable when SI-01 is offline. A client-level change is runtime-only; the configured startup level is restored
 on the next Engineering Client start.
 
 Device Log and Client Log remain independent. Both use the readable project log-line shape
@@ -255,8 +273,8 @@ The SI-02 client/application state uses the following LogBook/live-event synchro
   `TimingNodeId + sequenceNumber` key;
 - marks cached history stale during disconnect/reconnect while leaving SI-01 responsible
   for accepting/rejecting supported API commands;
-- shows the Timing-view synchronisation state prominently at the top of the API tab,
-  above Version/Status;
+- shows the Timing-view synchronisation state in the dockable Systems tree,
+  separate from registration controls and source-data views;
 - connecting **Events** immediately starts the status/capabilities/LogBook baseline
   synchronisation; the client does not wait for a later snapshot to decide to start;
 - exposes **Sync view** as the manual re-synchronisation action while Events is connected;
@@ -342,3 +360,8 @@ API HTTP/WebSocket, live-log and remote-shell client logic remain outside the Ja
 handlers so the UI does not become the owner of protocol semantics. The API client code
 remains independent of SI-01 implementation classes, matching the headless black-box
 client boundary.
+
+The workbench deliberately uses flat, square-edged JavaFX controls throughout,
+similar to a conventional Windows IDE. **Events** shows the raw JSON stream only;
+the synchronized current state belongs in Systems, and raw event payloads remain
+independently available for engineering inspection.
