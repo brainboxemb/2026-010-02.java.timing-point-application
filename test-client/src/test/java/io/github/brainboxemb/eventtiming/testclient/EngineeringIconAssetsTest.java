@@ -22,8 +22,8 @@ class EngineeringIconAssetsTest {
             assertNotNull(input, "Missing JavaFX Stage icon");
             var png = ImageIO.read(input);
             assertNotNull(png, "Corrupted PNG resource");
-            assertEquals(128, png.getWidth());
-            assertEquals(128, png.getHeight());
+            assertEquals(256, png.getWidth());
+            assertEquals(256, png.getHeight());
         }
     }
 
@@ -63,5 +63,7 @@ class EngineeringIconAssetsTest {
         assertTrue(dimensions.contains(32));
         assertTrue(dimensions.contains(48));
         assertTrue(dimensions.contains(128));
+        assertTrue(dimensions.contains(256), "High-DPI Windows must have 256px icon");
+        assertEquals(7, dimensions.size(), "Expected 16/24/32/48/64/128/256 variants");
     }
 }

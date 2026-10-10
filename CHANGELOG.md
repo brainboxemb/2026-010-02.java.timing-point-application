@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Enlarge the stopwatch dial/hand artwork for clearer 16–32px Windows taskbar rendering and regenerate a 256px JavaFX PNG and an optimized seven-size ICO (16–256px); preserve editable SVG and reproducible design-source generator.
+
+
 - Review Claude's proposed Windows caption improvements without reverting newer main changes: add safe lazy library loading/failure diagnostics and explicitly reserve caption-control width; restore the application name and version in a balanced title row. Introduce a branded stopwatch/signal application icon for the JavaFX Stage and Windows jpackage launcher.
 
 
