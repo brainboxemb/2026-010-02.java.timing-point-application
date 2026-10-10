@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Remove default BentoFX close ✕ icons from every permanent Engineering Client dock tab (not only Systems) via the real non-closable property. Docking, detaching and dock-back remain available.
+
+
 - Render SI-02 state/history views only when their semantic values change; deduplicate matching HTTP/WebSocket records, coalesce queued timing events, keep node selection stable and maintain disabled input controls through asynchronous status updates.
 
 
