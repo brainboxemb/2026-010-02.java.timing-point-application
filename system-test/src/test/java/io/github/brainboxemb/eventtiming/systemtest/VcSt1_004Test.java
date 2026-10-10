@@ -120,7 +120,7 @@ public class VcSt1_004Test {
                 + "\"locId\":24,"
                 + "\"recType\":\"AUTO_REG\","
                 + "\"time\":\"2026-10-01T12:00:00Z\","
-                + "\"regId\":\"N0001\","
+                + "\"regId\":\"" + TestParticipantIds.normalRegistration(1) + "\","
                 + "\"code\":[\"ADD\"],"
                 + "\"recTime\":\"2026-10-01T12:00:01Z\""
                 + "}\n";

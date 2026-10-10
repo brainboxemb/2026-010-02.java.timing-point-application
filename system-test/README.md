@@ -1,56 +1,30 @@
-# System-test module
+# System-test fixtures
 
-This module implements formal black-box verification cases from the SI-01 VTS.
+Black-box verification runs the packaged SI-01 application using YAML fixtures
+under `src/test/resources/configuration/`. Runtime ports are supplied by
+`TestApplicationConfigFactory`; the application's `{NodeId}` and `{SystemId}`
+path variables remain unchanged so the application resolves them itself.
 
-## Structure
+## Participant identifiers
 
-```text
-VcSt1_001Test / VcSt1_002Test / ...
-        |
-        | formal VC procedure + assertions
-        v
-TimingApplicationFixture
-        |
-        | SI-01 launch configuration, readiness, evidence and supported shutdown
-        v
-systemtest.framework
-        |
-        +-- ProcessRun
-        +-- HttpTestClient
-        +-- EventStream
-        +-- RemoteShellClient
-        +-- TestPorts
-```
+Use the shared `TestParticipantIds` helper instead of inventing IDs in each
+test. Numbering starts at `0001`; `0000` is invalid.
 
-The verification case is the important part. A `VcSt1_*Test` class should read
-roughly like the corresponding VTS procedure.
+| Kind | TagId (two physical tags) | RegistrationId | TeamId |
+| --- | --- | --- | --- |
+| Normal | `TT-A-0001-1`, `TT-A-0001-2` | `RT-A-0001` | `0001` |
+| Reserve | `TT-R-0001-1`, `TT-R-0001-2` | `RT-R-0001` | determined by reference-data lookup |
 
-## Boundary rules
+Both tags of one pair refer to the same RegistrationId. The `-1` / `-2`
+suffix identifies the physical tag, **not** another team or registration.
+The `A` in `RT-A-0001` means normal participant, **not TimingNode A**.
 
-System tests:
+The current VC-ST1-002 and VC-ST1-005 through VC-ST1-008 black-box flows call
+the IF-03 engineering `auto-reg` operation, which accepts **RegistrationId**.
+They verify registration commit and LogBook behaviour, **not** the RFID
+TagId-to-RegistrationId mapping or TeamId resolution. Those require an
+RFID/tag-observation verification scenario and reference-data checks.
 
-- start the packaged application as a separate process;
-- use only supported external interfaces;
-- do not import application/core product classes;
-- retain run evidence under the formal `VC-...` identifier.
-
-The reusable framework owns transport/process mechanics. It must not encode
-TimingNode registration semantics or case-specific expected values.
-
-`TimingApplicationFixture` is intentionally one layer above the generic
-framework. It may know how to launch SI-01, create synthetic application
-configuration, wait for IF-03 readiness and request supported shutdown. It must
-not contain the pass/fail semantics of a verification case.
-
-## Adding a verification case
-
-1. Define or update the formal `VC-...` case in the meta-repository VTS.
-2. Add a Java class named after that identifier, for example
-   `VC-ST1-004 -> VcSt1_004Test`.
-3. Keep the case procedure and assertions in that class.
-4. Reuse `TimingApplicationFixture` and `systemtest.framework` for mechanics.
-5. Add framework functionality only when it is reusable across verification
-   cases; do not hide case semantics behind convenience helpers.
-
-This separation is deliberate: the Java test should remain reviewable against
-the formal VTS without reading socket/process implementation code first.
+The two-node tests intentionally register two different normal participants,
+`RT-A-0001` and `RT-A-0002`, to prove records stay with their intended
+TimingNode and physical LogBook.

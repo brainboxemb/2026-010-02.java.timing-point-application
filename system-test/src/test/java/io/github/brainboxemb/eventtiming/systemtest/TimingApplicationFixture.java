@@ -1,15 +1,14 @@
 package io.github.brainboxemb.eventtiming.systemtest;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-
+import io.github.brainboxemb.eventtiming.systemtest.TestApplicationConfigFactory.Topology;
 import io.github.brainboxemb.eventtiming.systemtest.framework.EventStream;
 import io.github.brainboxemb.eventtiming.systemtest.framework.HttpTestClient;
 import io.github.brainboxemb.eventtiming.systemtest.framework.ProcessRun;
 import io.github.brainboxemb.eventtiming.systemtest.framework.RemoteShellClient;
 import io.github.brainboxemb.eventtiming.systemtest.framework.TestPorts;
+
+import java.io.File;
+import java.io.IOException;
 
 /**
  * SI-01-specific fixture layered on top of the generic black-box test framework.
@@ -56,12 +55,10 @@ final class TimingApplicationFixture {
         return new Ports(values[0], values[1], values[2]);
     }
 
+    /** Generate the single-node IF-11 YAML from the shared test resource. */
     File writeConfiguration(String name, Ports ports) throws IOException {
-        File config = evidence.file(name);
-        Files.write(
-                config.toPath(),
-                configuration(ports).getBytes(StandardCharsets.UTF_8));
-        return config;
+        return TestApplicationConfigFactory.write(
+                evidence, name, Topology.SINGLE_NODE, ports, nodeId);
     }
 
     ProcessRun start(File config, String collectorName) throws IOException {
@@ -135,36 +132,6 @@ final class TimingApplicationFixture {
                     "Missing required system property: " + name);
         }
         return value;
-    }
-
-    private String configuration(Ports ports) {
-        return "timingSystems:\n"
-                + "  timing-system-01:\n"
-                + "    timingSystemId: timing-system-01\n"
-                + "    timingNodes:\n"
-                + "      timing-node-01:\n"
-                + "        timingNodeId: " + nodeId + "\n"
-                + "io:\n"
-                + "  storage:\n"
-                + "    timingData:\n"
-                + "      path: node_" + nodeId + "_logbook.jsonl\n"
-                + "presentation:\n"
-                + "  remoteShell:\n"
-                + "    bindAddress: 127.0.0.1\n"
-                + "    port: " + ports.shellPort() + "\n"
-                + "  api:\n"
-                + "    http:\n"
-                + "      bindAddress: 127.0.0.1\n"
-                + "      port: " + ports.httpPort() + "\n"
-                + "    webSocket:\n"
-                + "      bindAddress: 127.0.0.1\n"
-                + "      port: " + ports.webSocketPort() + "\n"
-                + "logging:\n"
-                + "  level: INFO\n"
-                + "  file:\n"
-                + "    path: logs\n"
-                + "    rotateBytes: 1048576\n"
-                + "    retainedFiles: 5\n";
     }
 
     /** Three externally visible endpoints used by one SI-01 process run. */

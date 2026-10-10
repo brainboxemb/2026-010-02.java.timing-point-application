@@ -22,7 +22,8 @@ import static org.junit.Assert.assertTrue;
  */
 public class VcSt1_002Test {
     private static final String NODE_ID = "A";
-    private static final String REGISTRATION_ID = "N0001";
+    private static final String REGISTRATION_ID =
+            TestParticipantIds.normalRegistration(1);
     private static final String OBSERVATION_TIME = "2026-10-01T12:00:00Z";
     private static final String EXPECTED_WIRE_TIME = "2026-10-01T12:00:00.00Z";
 

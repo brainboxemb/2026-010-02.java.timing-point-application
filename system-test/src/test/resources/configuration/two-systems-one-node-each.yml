@@ -1,0 +1,37 @@
+# VC-ST1-008: SID-A owns TimingNode A, SID-B owns TimingNode B.
+# The application resolves {SystemId} and {NodeId}.
+timingSystems:
+  first:
+    timingSystemId: SID-A
+    timingNodes:
+      node-a:
+        timingNodeId: A
+  second:
+    timingSystemId: SID-B
+    timingNodes:
+      node-b:
+        timingNodeId: B
+
+io:
+  storage:
+    timingData:
+      path: system-{SystemId}-node-{NodeId}-logbook.jsonl
+
+presentation:
+  remoteShell:
+    bindAddress: 127.0.0.1
+    port: @SHELL_PORT@
+  api:
+    http:
+      bindAddress: 127.0.0.1
+      port: @HTTP_PORT@
+    webSocket:
+      bindAddress: 127.0.0.1
+      port: @WEB_SOCKET_PORT@
+
+logging:
+  level: INFO
+  file:
+    path: logs
+    rotateBytes: 1048576
+    retainedFiles: 5

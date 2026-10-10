@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Standardize system-test sample identities: normal TagId pair `TT-A-NNNN-1/-2` maps to `RT-A-NNNN` and TeamId `NNNN`, with reserve `TT-R`/`RT-R` distinguished; IF-03 direct-registration tests use only RegistrationId. Keep one shared fixture helper and document tag-mapping test-scope boundaries.
+
+- Move system-test IF-11 configuration out of Java concatenation into readable YAML test resources, with one small test-only factory for dynamic port/node values. Name multi-node topologies explicitly and clarify the intent of their black-box verification cases.
+
+
 - Add packaged-process IF-03 verification for two supported multi-node topologies: one TimingSystem SID-9 with TimingNodes A/B (VC-ST1-007), and two TimingSystems SID-A/SID-B with one node each (VC-ST1-008); assert independent per-node LogBook files, ordered registrations, isolation and restart recovery.
 
 - Record the exact packaged application version/revision/source provenance through configured runtime logging at startup, so the first INFO record reaches the retained log file. Keep direct console fallback when configuration or logging cannot be initialized, without double-printing a normal startup banner.
