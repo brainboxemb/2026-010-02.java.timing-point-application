@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make SI-02 Direct auto-reg injection explicit: choose node clock (default) or a provided replay time independently from manual data edits; explain the bypassed antenna path and report acceptance with node, ID and provenance separately from observed LogBook records.
+
 - Allow IF-03 direct automatic registration without a supplied time: the owning TimingNode obtains its TimeSource during execution. Store optional `tagSrc`/`timeSrc` provenance in AUTO_REG TimingData, preserve legacy records and verify through black-box tests.
 
 - Place the SI-02 Systems tree as a compact upper-left pane, prune empty dock leaves on detach and reliably show/re-pin detached panels through a tab button or right-click; simplify Events to raw JSON, and unify all JavaFX controls under one square-edged desktop theme.

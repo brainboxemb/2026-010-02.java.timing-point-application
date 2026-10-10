@@ -202,6 +202,15 @@ the canonical UTC API timestamp when sending. **Now** captures the current clien
 date/time and marks the manual-registration time source as `AUTO`; editing the date or
 time marks it as `MAN`.
 
+**Direct auto-reg** injects an accepted registration at the TimingNode and
+does not simulate reading an antenna. Its independent **Direct time** choice
+defaults to **TimingNode clock** (omit the `time` field from IF-03), or select
+**Provided time** to send the visible local date/time translated to UTC for
+repeatable replay. Manual-entry edits do not change this choice. Client Log
+and the operation result show node, RegistrationId, acceptance sequence and
+chosen time source; SI-01 LogBook is the authority for committed records and
+optional `tagSrc`/`timeSrc` provenance (old records may omit those).
+
 The **Simulated tags** pane is separate from direct `auto-reg`. It uses
 `TAG_SCENARIO_SIMULATION` to start one `simple`, `normal` or `edge` profile
 through the real SimulatedAntenna -> AntennaManager -> TagProcessor path. A batch selects
