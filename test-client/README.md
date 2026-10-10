@@ -180,9 +180,14 @@ together with a reliable restore action. The native close button of a
 separate floating window is distinct from a dock-tab close button.
 
 Docking panes can be dragged into separate windows. Empty original dock
-areas are pruned, so the remaining panes use that space. A visible **↩** action
-in a moved panel's tab header or the tab's **right-click → Dock back** action
-restores its original dock area, including after that area was pruned.
+areas are pruned, so the remaining panes use that space. Each BentoFX dock
+header has standard framework controls: **▼** selects tabs that overflow the
+available header space, while **≡** opens the dock-area menu. The menu's
+**Tab position** submenu moves headers to Top/Bottom/Left/Right. When the
+selected tab is away from its original area, the same ≡ menu offers
+**Dock selected tab back**. This works in floating windows as well as the main
+workbench, including when the old home area was pruned. No extra custom ↩
+tab button or separate right-click tab menu is needed.
 **View → Reset layout** reconstructs the entire original dock arrangement,
 without changing the connected target or SI-01 state.
 
