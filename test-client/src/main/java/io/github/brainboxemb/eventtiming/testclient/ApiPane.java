@@ -33,6 +33,8 @@ final class ApiPane {
     private final javafx.scene.Node rawDataPane;
     private final javafx.scene.Node apiInfoPane;
     private final TimingPane timingPane;
+    // Only the latest target-bound request may update API presentation.
+    private final ViewRequestEpoch apiRequests = new ViewRequestEpoch();
 
     ApiPane(
             Supplier<ApiClient> clientSupplier,
@@ -91,7 +93,11 @@ final class ApiPane {
     }
 
     void setSystemHost(String host) {
+        apiRequests.invalidate();
         timingPane.setSystemHost(host);
+        application.setText("-");
+        version.setText("-");
+        apiVersion.setText("-");
     }
 
     void setLogBookCountListener(java.util.function.Consumer<Long> listener) {
@@ -180,6 +186,7 @@ final class ApiPane {
             String operation,
             CheckedSupplier<T> request,
             Consumer<T> success) {
+        final long requestGeneration = apiRequests.begin();
         setBusy(true);
         feedback.accept("Requesting " + operation + "...");
         CompletableFuture
@@ -191,6 +198,7 @@ final class ApiPane {
                     }
                 }, requests)
                 .whenComplete((result, error) -> Platform.runLater(() -> {
+                    if (!apiRequests.isCurrent(requestGeneration)) return;
                     setBusy(false);
                     if (error != null) {
                         Throwable root = rootCause(error);

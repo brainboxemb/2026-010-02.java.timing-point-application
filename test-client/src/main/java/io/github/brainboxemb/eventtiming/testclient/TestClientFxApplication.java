@@ -79,6 +79,7 @@ public final class TestClientFxApplication extends Application {
     // The token is FX-thread-owned, the WebSocket listener may outlive the
     // connect attempt that originally registered it.
     private final ViewRequestEpoch eventConnectionEpoch = new ViewRequestEpoch();
+    private final ViewRequestEpoch apiCheckEpoch = new ViewRequestEpoch();
 
     private ClientConfig config;
     private Path configPath;
@@ -791,6 +792,7 @@ public final class TestClientFxApplication extends Application {
             }
 
             eventConnectionEpoch.invalidate();
+            apiCheckEpoch.invalidate();
             setEventConnected(false, "CONNECT");
             setShellConnected(false, "CONNECT");
             setLogConnected(false, "CONNECT");
@@ -808,6 +810,8 @@ public final class TestClientFxApplication extends Application {
     }
 
     private void checkApi() {
+        final long checkGeneration = apiCheckEpoch.begin();
+        final String target = system.host();
         setApiState("CHECKING");
         feedback.setText("Checking API " + apiEndpoint() + "...");
         clientLog.info("Checking IF-03 API at " + apiEndpoint());
@@ -821,6 +825,8 @@ public final class TestClientFxApplication extends Application {
                     }
                 }, requests)
                 .whenComplete((result, error) -> Platform.runLater(() -> {
+                    if (!apiCheckEpoch.isCurrent(checkGeneration)
+                            || !target.equals(system.host())) return;
                     if (error != null) {
                         setApiState("UNREACHABLE");
                         clientLog.error("IF-03 API check failed: " + rootMessage(error));
