@@ -15,7 +15,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationCo
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.SimulationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
-import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy.AutomaticRegistrationAction;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy.RegistrationRecordType;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
@@ -388,7 +387,9 @@ public final class HttpEndpoint implements AutoCloseable {
         final TimingTimestamp time;
         try {
             registrationId = new RegistrationId(request.id);
-            time = TimingTimestamp.parse(request.time);
+            time = request.time == null
+                    ? null
+                    : TimingTimestamp.parse(request.time);
         } catch (IllegalArgumentException ex) {
             throw HttpRequestReader.invalidValue(ex.getMessage());
         }
@@ -403,11 +404,11 @@ public final class HttpEndpoint implements AutoCloseable {
             return;
         }
 
-        RegistrationResult result =
-                timingNode.applyAutomaticRegistration(
-                        AutomaticRegistrationAction.ADD,
-                        registrationId,
-                        time);
+        // For omitted time, capture the node's configured TimeSource on
+        // its serial command lane, not the web/HTTP executor's wall clock.
+        RegistrationResult result = time == null
+                ? timingNode.simulateAutomaticRegistrationNow(registrationId)
+                : timingNode.simulateAutomaticRegistration(registrationId, time);
         if (result.outcome() == RegistrationResult.Outcome.NODE_NOT_OPEN) {
             sendJson(
                     exchange,
