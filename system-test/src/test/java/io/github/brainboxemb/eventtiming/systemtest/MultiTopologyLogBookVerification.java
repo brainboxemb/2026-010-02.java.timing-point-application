@@ -145,10 +145,12 @@ final class MultiTopologyLogBookVerification {
     private static void assertInitialStatus(HttpTestClient http) throws Exception {
         Response status = http.get("/api/v1/status");
         assertEquals(200, status.status());
-        assertContains(status.body(), "\"id\":\"A\"");
-        assertContains(status.body(), "\"id\":\"B\"");
-        // Node states must be fresh after restart rather than restored from LogBook.
-        assertContains(status.body(), "\"state\":\"CLOSED\"");
+        // Both nodes independently start CLOSED and without an active location,
+        // including after restart; merely finding one CLOSED state is not enough.
+        assertContains(
+                status.body(), "\"id\":\"A\",\"locationId\":null,\"state\":\"CLOSED\"");
+        assertContains(
+                status.body(), "\"id\":\"B\",\"locationId\":null,\"state\":\"CLOSED\"");
     }
 
     private static void operateNode(
