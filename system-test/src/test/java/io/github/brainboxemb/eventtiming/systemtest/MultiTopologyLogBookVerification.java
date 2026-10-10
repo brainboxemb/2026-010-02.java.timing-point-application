@@ -25,6 +25,13 @@ import static org.junit.Assert.assertTrue;
 final class MultiTopologyLogBookVerification {
     private static final String TIME = "2026-10-01T12:00:00Z";
 
+    // The A in RT-A-xxxx denotes a normal participant, not TimingNode A.
+    // Using different participants makes cross-node LogBook leaks observable.
+    private static final String REGISTRATION_A =
+            TestParticipantIds.normalRegistration(1);
+    private static final String REGISTRATION_B =
+            TestParticipantIds.normalRegistration(2);
+
     private MultiTopologyLogBookVerification() {
     }
 
@@ -50,13 +57,13 @@ final class MultiTopologyLogBookVerification {
             assertHistory(http, "B", 0, null, null, null);
 
             // Verify no cross-node mutation: B is still empty after A commits.
-            operateNode(http, "A", 24, "REG-A-001");
-            assertHistory(http, "A", 3, "24", "REG-A-001", "A");
+            operateNode(http, "A", 24, REGISTRATION_A);
+            assertHistory(http, "A", 3, "24", REGISTRATION_A, "A");
             assertHistory(http, "B", 0, null, null, null);
 
-            operateNode(http, "B", 25, "REG-B-001");
-            assertHistory(http, "B", 3, "25", "REG-B-001", "B");
-            assertHistory(http, "A", 3, "24", "REG-A-001", "A");
+            operateNode(http, "B", 25, REGISTRATION_B);
+            assertHistory(http, "B", 3, "25", REGISTRATION_B, "B");
+            assertHistory(http, "A", 3, "24", REGISTRATION_A, "A");
 
             // Compare physical files with independent expected node ownership.
             fixture.shutdown(first, ports);
@@ -71,8 +78,8 @@ final class MultiTopologyLogBookVerification {
             fixture.awaitReady(restart, restartPorts);
             HttpTestClient afterRestart = fixture.http(restartPorts);
             assertInitialStatus(afterRestart);
-            assertHistory(afterRestart, "A", 3, "24", "REG-A-001", "A");
-            assertHistory(afterRestart, "B", 3, "25", "REG-B-001", "B");
+            assertHistory(afterRestart, "A", 3, "24", REGISTRATION_A, "A");
+            assertHistory(afterRestart, "B", 3, "25", REGISTRATION_B, "B");
             fixture.shutdown(restart, restartPorts);
 
             evidence.verifyRuntimeLogging(
@@ -144,6 +151,8 @@ final class MultiTopologyLogBookVerification {
         }
         assertContains(page.body(), "\"nodeId\":\"" + recordNode + "\"");
         assertContains(page.body(), "\"locId\":" + location);
+        // This IF-03 stimulus supplies RegistrationId directly. It does not
+        // test TT-* tag mapping or the TeamId reference-data lookup.
         assertContains(page.body(), "\"regId\":\"" + registration + "\"");
         for (int n = 1; n <= 3; n++) {
             assertContains(page.body(), "\"seqNr\":" + n);
@@ -151,8 +160,9 @@ final class MultiTopologyLogBookVerification {
         assertContains(page.body(), "\"code\":[\"OPEN\"]");
         assertContains(page.body(), "\"code\":[\"ADD\"]");
         assertContains(page.body(), "\"code\":[\"CLOSE\"]");
+        String unexpected = "A".equals(node) ? REGISTRATION_B : REGISTRATION_A;
         assertTrue(!page.body().contains(
-                "\"regId\":\"REG-" + ("A".equals(node) ? "B" : "A") + "-001\""));
+                "\"regId\":\"" + unexpected + "\""));
     }
 
     private static void checkFiles(BlackBoxEvidence evidence, Topology topology)
@@ -171,8 +181,8 @@ final class MultiTopologyLogBookVerification {
                 (dir, name) -> name.endsWith(".jsonl"));
         assertTrue(allLogBooks != null);
         assertEquals("Expected exactly two physical LogBook files", 2, allLogBooks.length);
-        checkFile(a, "A", "24", "REG-A-001");
-        checkFile(b, "B", "25", "REG-B-001");
+        checkFile(a, "A", "24", REGISTRATION_A);
+        checkFile(b, "B", "25", REGISTRATION_B);
     }
 
     private static void checkFile(

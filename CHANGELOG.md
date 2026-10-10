@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Standardize system-test sample identities: normal TagId pair `TT-A-NNNN-1/-2` maps to `RT-A-NNNN` and TeamId `NNNN`, with reserve `TT-R`/`RT-R` distinguished; IF-03 direct-registration tests use only RegistrationId. Keep one shared fixture helper and document tag-mapping test-scope boundaries.
+
 - Move system-test IF-11 configuration out of Java concatenation into readable YAML test resources, with one small test-only factory for dynamic port/node values. Name multi-node topologies explicitly and clarify the intent of their black-box verification cases.
 
 
