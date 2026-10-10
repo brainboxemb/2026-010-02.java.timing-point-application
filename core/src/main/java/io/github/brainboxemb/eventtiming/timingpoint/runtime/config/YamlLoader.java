@@ -454,7 +454,7 @@ public final class YamlLoader {
             String field = root + "." + requireMappingEntryName(entry.getKey(), root);
             Map<?, ?> binding = requireMapping(entry.getValue(), field);
             rejectUnknownFields(binding, field, TIMING_SYSTEM_ID, ANTENNAS, INVENTORY_GROUP);
-            String systemId = requireString(binding.get(TIMING_SYSTEM_ID),
+            String systemId = requireCompactId(binding.get(TIMING_SYSTEM_ID),
                     field + "." + TIMING_SYSTEM_ID);
             String antennasField = field + "." + ANTENNAS;
             Map<?, ?> antennas = requireMapping(binding.get(ANTENNAS), antennasField);
@@ -482,7 +482,7 @@ public final class YamlLoader {
                 }
                 List<NodeId> nodes = new ArrayList<NodeId>();
                 for (Object rawNode : (List<?>) rawNodes) {
-                    nodes.add(new NodeId(requireString(rawNode, antennaField + ".timingNodes")));
+                    nodes.add(new NodeId(requireCompactId(rawNode, antennaField + ".timingNodes")));
                 }
                 configured.add(new AntennaManagerConfig.AntennaConfig(
                         antennaId,
