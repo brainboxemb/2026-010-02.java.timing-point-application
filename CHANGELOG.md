@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add packaged-process IF-03 verification for two supported multi-node topologies: one TimingSystem SID-9 with TimingNodes A/B (VC-ST1-007), and two TimingSystems SID-A/SID-B with one node each (VC-ST1-008); assert independent per-node LogBook files, ordered registrations, isolation and restart recovery.
+
 - Record the exact packaged application version/revision/source provenance through configured runtime logging at startup, so the first INFO record reaches the retained log file. Keep direct console fallback when configuration or logging cannot be initialized, without double-printing a normal startup banner.
 
 - Align Step 6 V01 / VC-ST1-003 execution with the current SI-02 baseline: use node-specific `vc-st1-003-node-A-logbook.jsonl` storage, run the packaged Java 21 Engineering Desktop Client app-image, and rename the standard client configuration/log path to `engineering-client.properties` / `logs/engineering-client`.
