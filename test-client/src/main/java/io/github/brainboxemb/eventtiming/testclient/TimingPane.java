@@ -60,6 +60,8 @@ final class TimingPane {
     private String systemHost = "-";
     private Consumer<Long> logBookCountListener = ignored -> {};
     private boolean eventsConnected;
+    private boolean operationBusy;
+    private boolean historyRefreshQueued;
 
     private final ComboBox<String> node = new ComboBox<>();
     private final Label problem = new Label("-");
@@ -361,9 +363,7 @@ final class TimingPane {
     }
 
     void applyStatus(ApiClient.StatusResult status) {
-        model.applyStatus(status);
-        syncNodeChoice();
-        refresh();
+        if (model.applyStatus(status)) refresh();
     }
 
     void applyStatusEvent(ApiEventClient.StatusEvent event) {
@@ -394,8 +394,22 @@ final class TimingPane {
             return;
         }
 
-        model.mergeCommitted(event.timingData());
-        refreshLogBook();
+        if (model.mergeCommitted(event.timingData())) requestHistoryRefresh();
+    }
+
+    /**
+     * A committed event should repaint the two history views, not the
+     * Explorer, simulated-tag controls or the node selector. Several
+     * IF-03 events in the same FX turn share one history update.
+     */
+    private void requestHistoryRefresh() {
+        if (historyRefreshQueued) return;
+        historyRefreshQueued = true;
+        Platform.runLater(() -> {
+            if (!historyRefreshQueued) return; // A full refresh superseded it.
+            historyRefreshQueued = false;
+            refreshLogBook();
+        });
     }
 
     void syncView() {
@@ -512,7 +526,6 @@ final class TimingPane {
         for (ApiEventClient.ApiEvent event : bufferedEvents) {
             if (event instanceof ApiEventClient.StatusEvent statusEvent) {
                 model.applyStatus(statusEvent.status());
-                syncNodeChoice();
             } else if (event instanceof ApiEventClient.TimingDataEvent timingDataEvent) {
                 model.mergeCommitted(timingDataEvent.timingData());
             }
@@ -634,12 +647,11 @@ final class TimingPane {
                             + ", timeSrc=" + source + ", seq=" + result.result().seq());
                     lastOperation.setText("Accepted seq " + result.result().seq()
                             + " · node " + selected + " · " + source);
-                    model.applyStatus(result.status());
-                    model.mergeLogBookPage(result.page());
-                    syncNodeChoice();
+                    boolean statusChanged = model.applyStatus(result.status());
+                    boolean historyChanged = model.mergeLogBookPage(result.page());
                     feedback.accept("Direct auto-reg accepted: seq "
                             + result.result().seq() + " · " + source);
-                    refresh();
+                    refreshAfterCommand(statusChanged, historyChanged);
                 }));
     }
 
@@ -695,13 +707,10 @@ final class TimingPane {
                     lastOperation.setText(
                             "seq "
                                     + result.result().seq());
-                    model.applyStatus(
-                            result.status());
-                    model.mergeLogBookPage(
-                            result.page());
-                    syncNodeChoice();
+                    boolean statusChanged = model.applyStatus(result.status());
+                    boolean historyChanged = model.mergeLogBookPage(result.page());
                     feedback.accept("OK");
-                    refresh();
+                    refreshAfterCommand(statusChanged, historyChanged);
                 }));
     }
 
@@ -801,13 +810,10 @@ final class TimingPane {
                     lastOperation.setText(
                             "REV seq "
                                     + result.result().seq());
-                    model.applyStatus(
-                            result.status());
-                    model.mergeLogBookPage(
-                            result.page());
-                    syncNodeChoice();
+                    boolean statusChanged = model.applyStatus(result.status());
+                    boolean historyChanged = model.mergeLogBookPage(result.page());
                     feedback.accept("OK");
-                    refresh();
+                    refreshAfterCommand(statusChanged, historyChanged);
                 }));
     }
 
@@ -837,10 +843,9 @@ final class TimingPane {
                     clientLog.info("API TimingNode operation result: "
                             + result.result().result());
                     lastOperation.setText(result.result().result());
-                    model.applyStatus(result.status());
-                    syncNodeChoice();
+                    boolean statusChanged = model.applyStatus(result.status());
                     feedback.accept("OK");
-                    refresh();
+                    if (statusChanged) refresh();
                 }));
     }
 
@@ -883,18 +888,19 @@ final class TimingPane {
     }
 
     private void setOperationBusy(boolean busy) {
-        if (busy) {
-            open.setDisable(true);
-            close.setDisable(true);
-            manualReg.setDisable(true);
-            autoReg.setDisable(true);
-            registrations.setDisable(true);
-        } else {
-            refreshControls();
-        }
+        // A concurrent status event must not re-enable controls while the
+        // HTTP operation is still in progress.
+        operationBusy = busy;
+        refreshControls();
+    }
+
+    private void refreshAfterCommand(boolean statusChanged, boolean historyChanged) {
+        if (statusChanged) refresh();
+        else if (historyChanged) requestHistoryRefresh();
     }
 
     private void refresh() {
+        historyRefreshQueued = false;
         syncNodeChoice();
         ApiClient.TimingNodeInfo selected = model.selectedNode();
         List<ApiClient.ProblemInfo> selectedProblems = model.selectedProblems();
@@ -917,7 +923,10 @@ final class TimingPane {
     private void refreshTree() {
         updatingTreeSelection = true;
         try {
-            systemRoot.setValue("System · " + systemHost);
+            String title = "System · " + systemHost;
+            if (!java.util.Objects.equals(systemRoot.getValue(), title)) {
+                systemRoot.setValue(title);
+            }
             Map<String, TreeItem<String>> existing = new java.util.HashMap<>();
             treeNodeIds.forEach((item, id) -> existing.put(id, item));
             treeNodeIds.clear();
@@ -933,7 +942,9 @@ final class TimingPane {
                             + " " + warnings.get(0).code();
                 }
                 TreeItem<String> item = existing.getOrDefault(nodeInfo.id(), new TreeItem<>());
-                item.setValue(label);
+                if (!java.util.Objects.equals(item.getValue(), label)) {
+                    item.setValue(label);
+                }
                 treeNodeIds.put(item, nodeInfo.id());
                 children.add(item);
                 if (nodeInfo.id().equals(model.selectedNodeId())) selectedItem = item;
@@ -942,8 +953,10 @@ final class TimingPane {
                 systemRoot.getChildren().setAll(children);
             }
             systemRoot.setExpanded(true);
-            if (selectedItem != null) systemTree.getSelectionModel().select(selectedItem);
-            else systemTree.getSelectionModel().clearSelection();
+            if (selectedItem != systemTree.getSelectionModel().getSelectedItem()) {
+                if (selectedItem != null) systemTree.getSelectionModel().select(selectedItem);
+                else systemTree.getSelectionModel().clearSelection();
+            }
             systemTree.setDisable(model.viewState() != TimingViewModel.ViewState.LIVE);
         } finally {
             updatingTreeSelection = false;
@@ -966,9 +979,9 @@ final class TimingPane {
                 !live
                         || model.nodes().size() <= 1
                         || simulationPane.running());
-        locationInput.setDisable(!live || !controls.open());
-        open.setDisable(!live || !controls.open());
-        close.setDisable(!live || !controls.close());
+        locationInput.setDisable(!live || operationBusy || !controls.open());
+        open.setDisable(!live || operationBusy || !controls.open());
+        close.setDisable(!live || operationBusy || !controls.close());
         boolean registrationInputEnabled =
                 live
                         && (controls.manualReg()
@@ -978,11 +991,11 @@ final class TimingPane {
         registrationDate.setDisable(!registrationInputEnabled);
         registrationTime.setDisable(!registrationInputEnabled);
         now.setDisable(!registrationInputEnabled);
-        manualReg.setDisable(!live || !controls.manualReg());
-        autoReg.setDisable(!live || !controls.autoReg());
+        manualReg.setDisable(!live || operationBusy || !controls.manualReg());
+        autoReg.setDisable(!live || operationBusy || !controls.autoReg());
         directTimeMode.setDisable(!live || !controls.autoReg());
         registrationScope.setDisable(!live);
-        registrations.setDisable(!live);
+        registrations.setDisable(!live || operationBusy);
 
         syncViewButton.setDisable(
                 !eventsConnected || model.viewState() == TimingViewModel.ViewState.SYNCING);
@@ -1000,10 +1013,20 @@ final class TimingPane {
         List<String> ids = model.nodes().stream()
                 .map(ApiClient.TimingNodeInfo::id)
                 .toList();
+        if (node.getItems().equals(ids)
+                && java.util.Objects.equals(node.getValue(), selected)) {
+            return;
+        }
         updatingNodeSelection = true;
         try {
-            node.setItems(FXCollections.observableArrayList(ids));
-            node.setValue(selected);
+            // JavaFX ComboBox.setItems() invalidates selection and can fire
+            // change listeners; never replace identical node lists.
+            if (!node.getItems().equals(ids)) {
+                node.setItems(FXCollections.observableArrayList(ids));
+            }
+            if (!java.util.Objects.equals(node.getValue(), selected)) {
+                node.setValue(selected);
+            }
         } finally {
             updatingNodeSelection = false;
         }
