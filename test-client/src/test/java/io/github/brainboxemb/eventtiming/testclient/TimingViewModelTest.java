@@ -339,6 +339,51 @@ class TimingViewModelTest {
     }
 
     @Test
+    void unchangedStatusDoesNotSignalARefresh() {
+        TimingViewModel model = new TimingViewModel();
+        ApiClient.StatusResult initial = status(node("node-01", 24, "OPEN"));
+        assertTrue(model.applyStatus(initial));
+        assertFalse(model.applyStatus(new ApiClient.StatusResult(
+                initial.nodes(), initial.problems(), "{ \"differentJson\": true }")));
+        assertTrue(model.applyStatus(status(node("node-01", 25, "OPEN"))));
+        assertFalse(model.applyStatus(status(node("node-01", 25, "OPEN"))));
+        assertTrue(model.applyStatus(status(node("node-01", 25, "CLOSED"))));
+    }
+
+    @Test
+    void sameCommittedRecordFromWebSocketAndHttpDoesNotSignalARefresh() {
+        TimingViewModel model = new TimingViewModel();
+        model.applyStatus(status(node("node-01", 24, "OPEN")));
+        ApiClient.TimingDataInfo first = record("node-01", 1L, "N0001");
+        assertTrue(model.mergeCommitted(first));
+        assertFalse(model.mergeCommitted(new ApiClient.TimingDataInfo(
+                first.timingNodeId(), first.sequenceNumber(), first.locationId(),
+                first.recordType(), first.effectiveTime(), first.registrationId(),
+                first.codes(), first.recordedAt(), "{ \"http\": true }")));
+        assertFalse(model.mergeLogBookPage(new ApiClient.LogBookPage(
+                1, null, List.of(first), "{}")));
+        assertTrue(model.mergeCommitted(record("node-01", 2L, "N0002")));
+        assertFalse(model.mergeLogBookPage(new ApiClient.LogBookPage(
+                1, null, List.of(first), "{}")));
+        assertEquals(2L, model.logBookCount());
+        assertEquals(2, model.records().size());
+    }
+
+    @Test
+    void changingOneCommittedRecordUpdatesItsExistingRow() {
+        TimingViewModel model = new TimingViewModel();
+        model.applyStatus(status(node("node-01", 24, "OPEN")));
+        ApiClient.TimingDataInfo first = record("node-01", 1L, "N0001");
+        assertTrue(model.mergeCommitted(first));
+        assertTrue(model.mergeCommitted(new ApiClient.TimingDataInfo(
+                first.timingNodeId(), first.sequenceNumber(), first.locationId(),
+                first.recordType(), first.effectiveTime(), "N0002", first.codes(),
+                first.recordedAt(), "{}")));
+        assertEquals(1, model.records().size());
+        assertEquals("N0002", model.records().get(0).registrationId());
+    }
+
+    @Test
     void formatsCanonicalCentisecondUtcTime() {
         assertEquals(
                 "2026-10-01T12:00:00.12Z",
