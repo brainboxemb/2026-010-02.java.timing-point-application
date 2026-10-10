@@ -741,7 +741,7 @@ public class YamlLoaderTest {
                         + "            timingNodes: [A]\n");
     }
 
-    private static void assertInvalidAntennaCollection(String expected, String bindingYaml)
+    private void assertInvalidAntennaCollection(String expected, String bindingYaml)
             throws Exception {
         try {
             load(timingNode("A") + timingDataStorage()
@@ -804,7 +804,7 @@ public class YamlLoaderTest {
                         + timingDataStorage());
     }
 
-    private static void assertUnsupportedDeclaration(
+    private void assertUnsupportedDeclaration(
             String objectPath, String oldField, String yaml) throws Exception {
         try {
             load(yaml);
