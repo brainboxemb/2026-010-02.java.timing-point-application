@@ -120,16 +120,18 @@ ordinary JavaFX nodes and do not depend on BentoFX APIs.
 The default composition is:
 
 ```text
-systems           controls / diagnostics       data
-----------------  --------------------------   ----------------------
-Systems tree      TimingNode / Registration /  Registrations
-                  Simulation (tabs)             ----------------------
-                  --------------------------   LogBook
-                  Device Log                    ----------------------
-                  --------------------------   Raw Data / Events
-                  Terminal                       (tabs)
-                  --------------------------
-                  Client Log
+left / controls & diagnostics    right / data
+-------------------------------- ------------------------
+Systems (compact tree)           Registrations
+-------------------------------- ------------------------
+TimingNode / Registration /      LogBook
+Simulation (tabs)                ------------------------
+-------------------------------- Raw Data / Events (tabs)
+Device Log
+--------------------------------
+Terminal
+--------------------------------
+Client Log
 ```
 
 The compact top bar starts from the configured host but exposes the host/IP as an editable
@@ -145,10 +147,12 @@ logging is always available independently from SI-01. The Systems pane shows the
 current target and its reported TimingNodes, state and location, and provides
 **Sync view**. Click a node to select it for node-scoped controls.
 
-Docking panes can be dragged into separate windows. The small **↩** action in
-a detached panel's tab header docks that panel back to its default location.
-**View → Reset layout** reconstructs the original dock arrangement, without
-changing the connected target or SI-01 state.
+Docking panes can be dragged into separate windows. Empty original dock
+areas are pruned, so the remaining panes use that space. A visible **↩** action
+in a moved panel's tab header or the tab's **right-click → Dock back** action
+restores its original dock area, including after that area was pruned.
+**View → Reset layout** reconstructs the entire original dock arrangement,
+without changing the connected target or SI-01 state.
 
 ### Timing, registration and data panes
 
@@ -356,3 +360,8 @@ API HTTP/WebSocket, live-log and remote-shell client logic remain outside the Ja
 handlers so the UI does not become the owner of protocol semantics. The API client code
 remains independent of SI-01 implementation classes, matching the headless black-box
 client boundary.
+
+The workbench deliberately uses flat, square-edged JavaFX controls throughout,
+similar to a conventional Windows IDE. **Events** shows the raw JSON stream only;
+the synchronized current state belongs in Systems, and raw event payloads remain
+independently available for engineering inspection.

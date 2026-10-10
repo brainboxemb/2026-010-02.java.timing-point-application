@@ -3,9 +3,11 @@ package io.github.brainboxemb.eventtiming.testclient;
 import javafx.geometry.Orientation;
 import javafx.scene.control.Button;
 import javafx.scene.control.Tooltip;
-import software.coley.bentofx.control.DragDropStage;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.MenuItem;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.List;
 import javafx.geometry.Side;
 import javafx.scene.Node;
 import software.coley.bentofx.Bento;
@@ -28,6 +30,8 @@ final class EngineeringWorkbench {
     private final DockContainerRootBranch root;
     private final Map<String, Dockable> dockables = new LinkedHashMap<>();
     private final Map<String, DockContainerLeaf> homeLeaves = new LinkedHashMap<>();
+    private final Map<DockContainerLeaf, DockContainerBranch> homeParents = new LinkedHashMap<>();
+    private final Map<DockContainerBranch, List<DockContainerLeaf>> homeOrdering = new LinkedHashMap<>();
 
     EngineeringWorkbench(
             Node systems,
@@ -44,9 +48,22 @@ final class EngineeringWorkbench {
 
         bento.stageBuilding().setApplySourceAsOwner(false);
         bento.stageBuilding().setApplyMousePosition(true);
-        bento.controlsBuilding().setHeaderFactory(
-                (dockable, parentPane) ->
-                        new CompactBentoHeader(dockable, parentPane).withDragDrop());
+        bento.controlsBuilding().setHeaderFactory((dockable, parentPane) -> {
+            var header = new CompactBentoHeader(dockable, parentPane).withDragDrop();
+            ContextMenu menu = new ContextMenu();
+            MenuItem dockBack = new MenuItem("↩  Dock back to original position");
+            dockBack.setOnAction(event -> dockBack(dockable.getIdentifier()));
+            menu.getItems().add(dockBack);
+            menu.setOnShowing(event -> {
+                DockContainerLeaf home = homeLeaves.get(dockable.getIdentifier());
+                dockBack.setDisable(home == null || dockable.getContainer() == home);
+            });
+            header.setOnContextMenuRequested(event -> {
+                menu.show(header, event.getScreenX(), event.getScreenY());
+                event.consume();
+            });
+            return header;
+        });
 
         DockBuilding builder = bento.dockBuilding();
         root = builder.root("engineering-root");
@@ -68,9 +85,21 @@ final class EngineeringWorkbench {
         leftColumn.setOrientation(Orientation.VERTICAL);
         rightColumn.setOrientation(Orientation.VERTICAL);
 
-        root.addContainers(systemsLeaf, leftColumn, rightColumn);
-        leftColumn.addContainers(controls, deviceLogLeaf, terminalLeaf, clientLogLeaf);
+        root.addContainers(leftColumn, rightColumn);
+        leftColumn.addContainers(
+                systemsLeaf, controls, deviceLogLeaf, terminalLeaf, clientLogLeaf);
         rightColumn.addContainers(registrationsLeaf, logBookLeaf, detailLeaf);
+
+        homeOrdering.put(leftColumn,
+                List.of(systemsLeaf, controls, deviceLogLeaf, terminalLeaf, clientLogLeaf));
+        homeOrdering.put(rightColumn,
+                List.of(registrationsLeaf, logBookLeaf, detailLeaf));
+        for (Map.Entry<DockContainerBranch, List<DockContainerLeaf>> group
+                : homeOrdering.entrySet()) {
+            for (DockContainerLeaf leaf : group.getValue()) {
+                homeParents.put(leaf, group.getKey());
+            }
+        }
 
         configureLeaf(systemsLeaf);
         configureLeaf(controls);
@@ -81,12 +110,14 @@ final class EngineeringWorkbench {
         configureLeaf(logBookLeaf);
         configureLeaf(detailLeaf);
 
-        systemsLeaf.setPruneWhenEmpty(false);
+        // The leaf must disappear when its only panel is detached; otherwise
+        // a blank column remains until the user manually resets the layout.
+        // Keep both column branches stable as docking homes for re-pinning.
         leftColumn.setPruneWhenEmpty(false);
         rightColumn.setPruneWhenEmpty(false);
 
-        root.setDividerPositions(0.18, 0.57);
-        leftColumn.setDividerPositions(0.44, 0.64, 0.83);
+        root.setDividerPositions(0.47);
+        leftColumn.setDividerPositions(0.17, 0.50, 0.68, 0.83);
         rightColumn.setDividerPositions(0.46, 0.76);
 
         systemsLeaf.addDockable(
@@ -156,8 +187,22 @@ final class EngineeringWorkbench {
         if (panel == null || home == null || panel.getContainer() == home) return;
         DockContainerLeaf current = panel.getContainer();
         if (current != null) current.removeDockable(panel);
+        restoreHomeArea(home);
         home.addDockable(panel);
         home.selectDockable(panel);
+    }
+
+    /** A pruned leaf must be reinserted at its normal position before repinning. */
+    private void restoreHomeArea(DockContainerLeaf home) {
+        DockContainerBranch parent = homeParents.get(home);
+        if (parent == null || home.getParentContainer() == parent) return;
+        List<DockContainerLeaf> order = homeOrdering.get(parent);
+        int targetIndex = order.indexOf(home);
+        int insertAt = 0;
+        for (int i = 0; i < targetIndex; i++) {
+            if (order.get(i).getParentContainer() == parent) insertAt++;
+        }
+        parent.addContainer(insertAt, home);
     }
 
     /** Release old dockables before rebuilding the canonical workbench tree. */
@@ -180,17 +225,15 @@ final class EngineeringWorkbench {
             pin.setAccessibleText("Dock " + panel.title() + " back");
             pin.setTooltip(new Tooltip("Dock back to original position"));
             pin.setFocusTraversable(false);
+            // Track the dockable's owner directly. Watching the JavaFX Scene
+            // misses the moment a newly detached window is created.
             Runnable updateVisibility = () -> {
-                boolean floating = pin.getScene() != null
-                        && pin.getScene().getWindow() instanceof DragDropStage;
-                pin.setVisible(floating);
-                pin.setManaged(floating);
+                boolean awayFromHome = current.getContainer() != home;
+                pin.setVisible(awayFromHome);
+                pin.setManaged(awayFromHome);
             };
-            pin.sceneProperty().addListener((observable, oldScene, newScene) -> {
-                updateVisibility.run();
-                if (newScene != null) newScene.windowProperty().addListener(
-                        (ob, oldWindow, newWindow) -> updateVisibility.run());
-            });
+            current.containerProperty().addListener(
+                    (observable, oldContainer, newContainer) -> updateVisibility.run());
             pin.setOnAction(event -> dockBack(panel.id()));
             updateVisibility.run();
             return pin;

@@ -50,10 +50,6 @@ public final class TestClientFxApplication extends Application {
     private final TextField targetHost = new TextField();
     private final Button applyTarget = new Button("Apply target");
 
-    private final Label eventType = valueLabel();
-    private final Label eventOccurredAt = valueLabel();
-    private final Label eventTimingNodeId = valueLabel();
-    private final Label eventTimingNodeLifecycle = valueLabel();
     private final TextArea eventLog = new TextArea();
 
     private final TextArea terminal = new TextArea();
@@ -237,21 +233,12 @@ public final class TestClientFxApplication extends Application {
     }
 
     private VBox eventsPane() {
-        GridPane values = grid();
-        addRow(values, 0, "Event type", eventType);
-        addRow(values, 1, "Occurred at", eventOccurredAt);
-        addRow(values, 2, "Timing node", eventTimingNodeId);
-        addRow(values, 3, "State", eventTimingNodeLifecycle);
-
         eventLog.setEditable(false);
         eventLog.setWrapText(false);
-        eventLog.setPrefRowCount(18);
-        TitledPane logPane = new TitledPane("Received events (raw JSON)", eventLog);
-        logPane.setCollapsible(false);
-
-        VBox pane = new VBox(10, values, logPane);
-        pane.setPadding(new Insets(12));
-        VBox.setVgrow(logPane, Priority.ALWAYS);
+        eventLog.getStyleClass().add("engineering-raw-data");
+        VBox pane = new VBox(eventLog);
+        pane.setPadding(new Insets(4));
+        VBox.setVgrow(eventLog, Priority.ALWAYS);
         return pane;
     }
 
@@ -436,26 +423,12 @@ public final class TestClientFxApplication extends Application {
     }
 
     private void showEvent(ApiEventClient.ApiEvent event) {
-        eventType.setText(event.eventType());
-        eventOccurredAt.setText(event.occurredAt().toString());
-
+        // Feed the presentation model but show only unmodified source JSON.
+        // Duplicating four status labels here is redundant with Systems.
         if (event instanceof ApiEventClient.StatusEvent statusEvent) {
-            if (statusEvent.status().nodes().isEmpty()) {
-                eventTimingNodeId.setText("-");
-                eventTimingNodeLifecycle.setText("-");
-            } else {
-                var node = statusEvent.status().nodes().get(0);
-                eventTimingNodeId.setText(node.id());
-                eventTimingNodeLifecycle.setText(node.state());
-            }
             apiPane.applyStatusEvent(statusEvent);
         } else if (event instanceof ApiEventClient.TimingDataEvent dataEvent) {
-            eventTimingNodeId.setText(dataEvent.timingData().timingNodeId());
-            eventTimingNodeLifecycle.setText("-");
             apiPane.applyTimingDataEvent(dataEvent);
-        } else {
-            eventTimingNodeId.setText("-");
-            eventTimingNodeLifecycle.setText("-");
         }
 
         if (!eventLog.getText().isEmpty()) {
