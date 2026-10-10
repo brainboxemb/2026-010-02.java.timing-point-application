@@ -38,11 +38,12 @@ import org.yaml.snakeyaml.error.YAMLException;
  */
 public final class YamlLoader {
     private static final String TIMING_SYSTEMS = "timingSystems";
-    private static final String TIMING_SYSTEM_ID = "timingSystemId";
+    // Source YAML uses compact but typed identifiers on every object.
+    private static final String SYSTEM_ID = "systemId";
     private static final String EVENT_DATA_PROVIDER = "eventDataProvider";
     private static final String TIMING_DATA_PROVIDER = "timingDataProvider";
     private static final String TIMING_NODES = "timingNodes";
-    private static final String TIMING_NODE_ID = "timingNodeId";
+    private static final String NODE_ID = "nodeId";
     private static final String TAG_PROCESSING = "tagProcessing";
     private static final String QUIET_TIMEOUT_MILLIS = "quietTimeoutMillis";
     private static final String MAX_BURST_DURATION_MILLIS = "maxBurstDurationMillis";
@@ -189,33 +190,33 @@ public final class YamlLoader {
             rejectUnknownFields(
                     timingSystem,
                     timingSystemField,
-                    TIMING_SYSTEM_ID,
+                    SYSTEM_ID,
                     EVENT_DATA_PROVIDER,
                     TIMING_DATA_PROVIDER,
                     TIMING_NODES);
 
             if (!timingSystem.containsKey(
-                    TIMING_SYSTEM_ID)) {
+                    SYSTEM_ID)) {
                 throw new IllegalArgumentException(
                         "Missing required configuration field: "
                                 + timingSystemField
                                 + "."
-                                + TIMING_SYSTEM_ID);
+                                + SYSTEM_ID);
             }
 
             String timingSystemId =
                     requireCompactId(
                             timingSystem.get(
-                                    TIMING_SYSTEM_ID),
+                                    SYSTEM_ID),
                             timingSystemField
                                     + "."
-                                    + TIMING_SYSTEM_ID)
+                                    + SYSTEM_ID)
                             .trim();
             if (timingSystemId.isEmpty()) {
                 throw new IllegalArgumentException(
                         timingSystemField
                                 + "."
-                                + TIMING_SYSTEM_ID
+                                + SYSTEM_ID
                                 + " must not be blank");
             }
             if (!systemIds.add(
@@ -257,26 +258,26 @@ public final class YamlLoader {
                 rejectUnknownFields(
                         timingNode,
                         timingNodeField,
-                        TIMING_NODE_ID,
+                        NODE_ID,
                         TAG_PROCESSING);
 
                 if (!timingNode.containsKey(
-                        TIMING_NODE_ID)) {
+                        NODE_ID)) {
                     throw new IllegalArgumentException(
                             "Missing required configuration field: "
                                     + timingNodeField
                                     + "."
-                                    + TIMING_NODE_ID);
+                                    + NODE_ID);
                 }
 
                 NodeId timingNodeId =
                         new NodeId(
                                 requireCompactId(
                                         timingNode.get(
-                                                TIMING_NODE_ID),
+                                                NODE_ID),
                                         timingNodeField
                                                 + "."
-                                                + TIMING_NODE_ID));
+                                                + NODE_ID));
                 if (!nodeIds.add(
                         timingNodeId)) {
                     throw new IllegalArgumentException(
@@ -448,26 +449,25 @@ public final class YamlLoader {
             return Collections.emptyList();
         }
         String root = IO + "." + DEVICES + "." + ANTENNA_MANAGERS;
-        Map<?, ?> bindings = requireMapping(devices.get(ANTENNA_MANAGERS), root);
+        List<?> bindings = requireList(devices.get(ANTENNA_MANAGERS), root);
         List<AntennaManagerConfig> result = new ArrayList<AntennaManagerConfig>();
-        for (Map.Entry<?, ?> entry : bindings.entrySet()) {
-            String field = root + "." + requireMappingEntryName(entry.getKey(), root);
-            Map<?, ?> binding = requireMapping(entry.getValue(), field);
-            rejectUnknownFields(binding, field, TIMING_SYSTEM_ID, ANTENNAS, INVENTORY_GROUP);
-            String systemId = requireCompactId(binding.get(TIMING_SYSTEM_ID),
-                    field + "." + TIMING_SYSTEM_ID);
+        for (int bindingIndex = 0; bindingIndex < bindings.size(); bindingIndex++) {
+            String field = root + "[" + bindingIndex + "]";
+            Map<?, ?> binding = requireMapping(bindings.get(bindingIndex), field);
+            rejectUnknownFields(binding, field, SYSTEM_ID, ANTENNAS, INVENTORY_GROUP);
+            String systemId = requireCompactId(binding.get(SYSTEM_ID),
+                    field + "." + SYSTEM_ID);
             String antennasField = field + "." + ANTENNAS;
-            Map<?, ?> antennas = requireMapping(binding.get(ANTENNAS), antennasField);
+            List<?> antennas = requireList(binding.get(ANTENNAS), antennasField);
             List<AntennaManagerConfig.AntennaConfig> configured =
                     new ArrayList<AntennaManagerConfig.AntennaConfig>();
-            for (Map.Entry<?, ?> antennaEntry : antennas.entrySet()) {
-                // SnakeYAML reads unquoted numeric keys as Integer; IDs remain 1..9.
-                String id = String.valueOf(antennaEntry.getKey());
-                AntennaId antennaId = new AntennaId(id);
-                String antennaField = antennasField + "." + id;
-                Map<?, ?> values = requireMapping(antennaEntry.getValue(), antennaField);
+            for (int antennaIndex = 0; antennaIndex < antennas.size(); antennaIndex++) {
+                String antennaField = antennasField + "[" + antennaIndex + "]";
+                Map<?, ?> values = requireMapping(antennas.get(antennaIndex), antennaField);
                 rejectUnknownFields(values, antennaField,
-                        PROVIDER, TYPE, TIMING_NODES, POWER);
+                        "id", PROVIDER, TYPE, TIMING_NODES, POWER);
+                AntennaId antennaId = new AntennaId(
+                        requireCompactId(values.get("id"), antennaField + ".id"));
                 String type = requireString(values.get(TYPE), antennaField + "." + TYPE);
                 if (!"rfid".equals(type)) {
                     throw new IllegalArgumentException(antennaField + ".type must be rfid");
@@ -476,13 +476,12 @@ public final class YamlLoader {
                     throw new IllegalArgumentException(
                             antennaField + ".power is not supported without an external power registry");
                 }
-                Object rawNodes = values.get(TIMING_NODES);
-                if (!(rawNodes instanceof List)) {
-                    throw new IllegalArgumentException(antennaField + ".timingNodes must be a YAML list");
-                }
+                List<?> rawNodes = requireList(values.get(TIMING_NODES),
+                        antennaField + "." + TIMING_NODES);
                 List<NodeId> nodes = new ArrayList<NodeId>();
-                for (Object rawNode : (List<?>) rawNodes) {
-                    nodes.add(new NodeId(requireCompactId(rawNode, antennaField + ".timingNodes")));
+                for (Object rawNode : rawNodes) {
+                    nodes.add(new NodeId(requireCompactId(
+                            rawNode, antennaField + "." + TIMING_NODES)));
                 }
                 configured.add(new AntennaManagerConfig.AntennaConfig(
                         antennaId,
@@ -640,23 +639,23 @@ public final class YamlLoader {
             rejectUnknownFields(
                     binding,
                     bindingField,
-                    TIMING_NODE_ID,
+                    NODE_ID,
                     PATH);
 
             NodeId nodeId =
                     new NodeId(
                             requireString(
-                                    binding.get(TIMING_NODE_ID),
+                                    binding.get(NODE_ID),
                                     bindingField
                                             + "."
-                                            + TIMING_NODE_ID));
+                                            + NODE_ID));
             TimingNodeStartup configuredNode =
                     configuredNodes.get(nodeId);
             if (configuredNode == null) {
                 throw new IllegalArgumentException(
                         bindingField
                                 + "."
-                                + TIMING_NODE_ID
+                                + NODE_ID
                                 + " references unknown TimingNode "
                                 + nodeId.value());
             }

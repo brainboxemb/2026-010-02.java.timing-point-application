@@ -7,12 +7,12 @@ parameters:
   ID: A
 
 timingSystems:
-  - timingSystemId: "{ID}"
+  - systemId: "{ID}"
     eventDataProvider: simulation
     timingDataProvider: reference
 
     timingNodes:
-      - timingNodeId: "{ID}"
+      - nodeId: "{ID}"
 
         tagProcessing:
           quietTimeoutMillis: 250
