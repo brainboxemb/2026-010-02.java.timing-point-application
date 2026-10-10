@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Use a single Host → Connect action and stable independent boundary option labels, with color denoting verified current connection state (green connected, yellow busy, red error), plus unchanged manual toggles.
+
+
 - Keep SI-02 Systems as a small top-left Explorer beside TimingNode/Registration/Simulation tabs rather than stacking the two vertically; remove the confusing close X from the persistent Explorer.
 
 
