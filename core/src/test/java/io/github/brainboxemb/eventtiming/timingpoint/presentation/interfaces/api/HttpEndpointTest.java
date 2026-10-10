@@ -275,6 +275,46 @@ public class HttpEndpointTest {
     }
 
     @Test
+    public void omittedSimulationTimeUsesOwningNodeClockAndRetainsAuditMetadata()
+            throws Exception {
+        Fixture fixture = new Fixture();
+        fixture.start();
+        HttpEndpoint server = new HttpEndpoint("127.0.0.1", 0, fixture.handler);
+        server.start();
+        try {
+            assertEquals(200, request(
+                    server.boundPort(), "POST", "/api/v1/node/A/open",
+                    "{\"locationId\":24}").status);
+
+            Response generated = request(server.boundPort(), "POST",
+                    "/api/v1/dev/node/A/auto-reg",
+                    "{\"id\":\"RT-A-0001\"}");
+            assertEquals(200, generated.status);
+            assertEquals("{\"seq\":2}", generated.body);
+            Response implicit = request(server.boundPort(), "GET",
+                    "/api/v1/node/A/logbook?last=1", null);
+            assertEquals(200, implicit.status);
+            assertTrue(implicit.body.contains("\"time\":\"2026-10-01T12:00:01.00Z\""));
+            assertTrue(implicit.body.contains("\"tagSrc\":\"API\""));
+            assertTrue(implicit.body.contains("\"timeSrc\":\"NODE\""));
+
+            Response explicit = request(server.boundPort(), "POST",
+                    "/api/v1/dev/node/A/auto-reg",
+                    "{\"id\":\"RT-A-0002\",\"time\":\"2026-10-01T12:00:00.987Z\"}");
+            assertEquals(200, explicit.status);
+            Response history = request(server.boundPort(), "GET",
+                    "/api/v1/node/A/logbook?last=1", null);
+            assertEquals(200, history.status);
+            assertTrue(history.body.contains("\"time\":\"2026-10-01T12:00:00.98Z\""));
+            assertTrue(history.body.contains("\"tagSrc\":\"API\""));
+            assertTrue(history.body.contains("\"timeSrc\":\"API\""));
+        } finally {
+            server.close();
+            fixture.close();
+        }
+    }
+
+    @Test
     public void startsSimulatedTagPassageThroughCapabilityGatedControl()
             throws Exception {
         AtomicReference<RegistrationId> registration =
