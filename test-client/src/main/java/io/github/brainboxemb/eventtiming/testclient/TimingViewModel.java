@@ -133,16 +133,18 @@ public final class TimingViewModel {
     }
 
     public List<ApiClient.ProblemInfo> selectedProblems() {
-        if (selectedNodeId == null) {
-            return List.of();
-        }
-        List<ApiClient.ProblemInfo> selected = new ArrayList<>();
+        return problemsForNode(selectedNodeId);
+    }
+
+    public List<ApiClient.ProblemInfo> problemsForNode(String nodeId) {
+        if (nodeId == null) return List.of();
+        List<ApiClient.ProblemInfo> matching = new ArrayList<>();
         for (ApiClient.ProblemInfo problem : problems) {
-            if (problem.nodeId() == null || selectedNodeId.equals(problem.nodeId())) {
-                selected.add(problem);
+            if (problem.nodeId() == null || nodeId.equals(problem.nodeId())) {
+                matching.add(problem);
             }
         }
-        return List.copyOf(selected);
+        return List.copyOf(matching);
     }
 
     public Controls controls() {

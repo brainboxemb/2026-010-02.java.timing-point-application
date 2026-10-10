@@ -1,6 +1,6 @@
 .root {
-    -fx-font-family: "System";
-    -fx-font-size: 12px;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13px;
     -bento-bg: #f7f7f7;
     -bento-bg-raised: #eeeeee;
     -bento-bg-hover: #e5e5e5;
@@ -51,8 +51,9 @@
 }
 
 .header Text {
-    -fx-font-family: "System";
-    -fx-font-size: 12px;
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13px;
+    -fx-font-smoothing-type: lcd;
     -fx-fill: -bento-text;
 }
 
@@ -95,3 +96,56 @@
     -fx-font-family: "Consolas";
     -fx-font-size: 11px;
 }
+
+/* A selected tab in another pane is not an indication of new activity. */
+.header-pane .header:selected {
+    -fx-border-color: transparent;
+    -fx-border-width: 0 0 2px 0;
+}
+.header-pane:active .header:selected {
+    -fx-border-color: transparent transparent -bento-accent transparent;
+    -fx-border-width: 0 0 2px 0;
+}
+.header-pane .header:focused {
+    -fx-background-color: #deebf8;
+}
+.context-menu {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #c7c7c7;
+}
+.context-menu .menu-item .label,
+.context-menu .menu-item .text {
+    -fx-text-fill: #202020;
+}
+.context-menu .menu-item:focused {
+    -fx-background-color: #dbeaf9;
+}
+.dock-back-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0 3px;
+    -fx-font-size: 14px;
+    -fx-text-fill: #28679d;
+}
+.dock-back-button:hover { -fx-background-color: #d6e5f4; }
+.connection-button {
+    -fx-background-radius: 4px;
+    -fx-border-radius: 4px;
+    -fx-border-color: #c1cbd4;
+    -fx-padding: 5px 10px;
+}
+.connection-button.connection-ok { -fx-border-color: #5aa273; -fx-background-color: #e9f6ed; }
+.connection-button.connection-busy { -fx-border-color: #d6a34a; -fx-background-color: #fff4da; }
+.connection-button.connection-error { -fx-border-color: #c97474; -fx-background-color: #fcecec; }
+.systems-tree { -fx-background-color: transparent; }
+
+.boundary-status {
+    -fx-alignment: center-left;
+    -fx-padding: 5px 7px;
+    -fx-text-fill: #247444;
+    -fx-font-size: 12px;
+}
+.sync-state {
+    -fx-font-weight: bold;
+    -fx-padding: 5px;
+}
+.menu-bar { -fx-padding: 0 2px; }
