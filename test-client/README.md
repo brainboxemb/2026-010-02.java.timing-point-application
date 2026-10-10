@@ -168,8 +168,9 @@ The default composition is:
 ```text
 left / controls & diagnostics         right / data
 -----------------------------------   ------------------------
-Systems  | TimingNode / Registration  Registrations
-Explorer | / Simulation (tabs)        ------------------------
+Systems  | TimingNode / API /         Registrations [LocationId]
+Explorer | Registration / Simulation  ------------------------
+         | (tabs)                     
 -----------------------------------   LogBook
 Device Log                            ------------------------
 -----------------------------------   Raw Data / Events (tabs)
@@ -217,8 +218,9 @@ without changing the connected target or SI-01 state.
 
 ### Timing, registration and data panes
 
-**TimingNode**, **Registration** and **Simulation** share the local control-tab area.
-Application/version identity is shown with the Registrations pane. The Engineering Client
+**TimingNode**, **API**, **Registration** and **Simulation** share the local control-tab area.
+Application/version identity and API diagnostic actions are in the **API** tab.
+The Engineering Client
 deliberately does not predict SI-01 domain acceptance from cached TimingNode state. Once a
 TimingNode is known, supported Open/Close requests remain available so processed results
 can be exercised and inspected. **Open** sends the LocationId currently entered in the
