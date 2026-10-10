@@ -24,7 +24,7 @@ public class TimingSystemConfigRegistryTest {
                                 null));
 
         assertEquals(
-                "SID-A",
+                "A",
                 config.timingSystems()
                         .get(0)
                         .timingSystemId());
@@ -34,13 +34,13 @@ public class TimingSystemConfigRegistryTest {
     public void preservesSystemOrderAndProvidesTypedLookup() {
         Config.TimingSystemConfig first =
                 system(
-                        "system-A",
+                        "A",
                         node(
                                 "A",
                                 path("a.jsonl")));
         Config.TimingSystemConfig second =
                 system(
-                        "system-B",
+                        "B",
                         node(
                                 "B",
                                 path("b.jsonl")));
@@ -59,7 +59,7 @@ public class TimingSystemConfigRegistryTest {
                 registry.systems().get(0));
         assertSame(
                 second,
-                registry.system("system-B"));
+                registry.system("B"));
         assertEquals(
                 new NodeId("B"),
                 registry.timingNode(
@@ -82,11 +82,13 @@ public class TimingSystemConfigRegistryTest {
             new TimingSystemConfigRegistry(
                     java.util.Arrays.asList(
                             system(
-                                    "system-A",
-                                    first),
+                                    "9",
+                                    first,
+                                    node("B", path("node-b.jsonl"))),
                             system(
-                                    "system-B",
-                                    second)));
+                                    "8",
+                                    second,
+                                    node("C", path("node-c.jsonl")))));
             fail("Expected duplicate TimingNode id to be rejected");
         } catch (IllegalArgumentException expected) {
             assertEquals(
@@ -113,12 +115,12 @@ public class TimingSystemConfigRegistryTest {
             new TimingSystemConfigRegistry(
                     java.util.Arrays.asList(
                             system(
-                                    "system-A",
+                                    "A",
                                     node(
                                             "A",
                                             first)),
                             system(
-                                    "system-B",
+                                    "B",
                                     node(
                                             "B",
                                             second))));
@@ -133,11 +135,10 @@ public class TimingSystemConfigRegistryTest {
 
     private static Config.TimingSystemConfig system(
             String id,
-            Config.TimingNodeConfig node) {
+            Config.TimingNodeConfig... node) {
         return new Config.TimingSystemConfig(
                 id,
-                Collections.singletonList(
-                        node),
+                java.util.Arrays.asList(node),
                 Config.REFERENCE_PROVIDER_ID,
                 Config.REFERENCE_PROVIDER_ID);
     }

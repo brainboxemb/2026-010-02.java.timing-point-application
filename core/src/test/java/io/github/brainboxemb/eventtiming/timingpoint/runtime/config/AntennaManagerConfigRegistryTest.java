@@ -30,7 +30,7 @@ public class AntennaManagerConfigRegistryTest {
         assertSame(
                 binding,
                 registry.binding(
-                        "system-A"));
+                        "A"));
         assertSame(
                 binding,
                 registry.bindings().get(0));
@@ -48,7 +48,7 @@ public class AntennaManagerConfigRegistryTest {
         } catch (IllegalArgumentException expected) {
             assertTrue(
                     expected.getMessage().contains(
-                            "routes to a TimingNode outside TimingSystem system-A: B"));
+                            "routes to a TimingNode outside TimingSystem A: B"));
         }
     }
 
@@ -60,7 +60,7 @@ public class AntennaManagerConfigRegistryTest {
                         TagProcessingPolicy.defaults());
         Config.TimingSystemConfig system =
                 new Config.TimingSystemConfig(
-                        "system-A",
+                        "A",
                         Collections.singletonList(
                                 node),
                         Config.REFERENCE_PROVIDER_ID,
@@ -73,7 +73,7 @@ public class AntennaManagerConfigRegistryTest {
     private static AntennaManagerConfig binding(
             NodeId target) {
         return new AntennaManagerConfig(
-                "system-A",
+                "A",
                 Collections.singletonList(
                         new AntennaManagerConfig.AntennaConfig(
                                 new AntennaId("1"),

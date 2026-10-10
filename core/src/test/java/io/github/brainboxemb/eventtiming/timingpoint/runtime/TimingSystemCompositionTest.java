@@ -43,12 +43,12 @@ public class TimingSystemCompositionTest {
         List<AntennaManagerConfig> bindings = new ArrayList<AntennaManagerConfig>();
         for (String nodeId : new String[]{"A", "B"}) {
             systems.add(new Config.TimingSystemConfig(
-                    "system-" + nodeId,
+                    nodeId,
                     Collections.singletonList(node(nodeId)),
                     Config.REFERENCE_PROVIDER_ID,
                     Config.REFERENCE_PROVIDER_ID));
             bindings.add(new AntennaManagerConfig(
-                    "system-" + nodeId,
+                    nodeId,
                     Collections.singletonList(new AntennaManagerConfig.AntennaConfig(
                             new AntennaId("1"),
                             "simulated",
@@ -101,7 +101,7 @@ public class TimingSystemCompositionTest {
         systems.add(
                 new TimingSystemResolvedData(
                         new Config.TimingSystemConfig(
-                                "system-A",
+                                "A",
                                 Collections.singletonList(node("A")),
                                 Config.REFERENCE_PROVIDER_ID,
                                 Config.REFERENCE_PROVIDER_ID),
@@ -114,8 +114,8 @@ public class TimingSystemCompositionTest {
             systems.add(
                     new TimingSystemResolvedData(
                             new Config.TimingSystemConfig(
-                                    "system-A",
-                                    Collections.singletonList(node("B")),
+                                    "A",
+                                    Collections.singletonList(node("A")),
                                     Config.REFERENCE_PROVIDER_ID,
                                     Config.REFERENCE_PROVIDER_ID),
                             false,
