@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Record the exact packaged application version/revision/source provenance through configured runtime logging at startup, so the first INFO record reaches the retained log file. Keep direct console fallback when configuration or logging cannot be initialized, without double-printing a normal startup banner.
+
 - Align Step 6 V01 / VC-ST1-003 execution with the current SI-02 baseline: use node-specific `vc-st1-003-node-A-logbook.jsonl` storage, run the packaged Java 21 Engineering Desktop Client app-image, and rename the standard client configuration/log path to `engineering-client.properties` / `logs/engineering-client`.
 
 - Restructure the standalone desktop application as SI-02 Engineering Desktop Client on Java 21 / JavaFX 21 with BentoFX 0.16.0, instance-scoped connected-system context, dockable real workbench panes, and a CI-verified Windows jpackage app-image path.
