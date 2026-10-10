@@ -7,7 +7,7 @@ parameters:
   ID: A
 
 timingSystems:
-  - timingSystemId: SID-{ID}
+  - timingSystemId: {ID}
     eventDataProvider: simulation
     timingDataProvider: reference
 
