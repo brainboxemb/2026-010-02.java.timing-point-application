@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Align the Host connection toolbar controls to one compact height, add a clearly labeled power-icon Connect/Disconnect action with active/partial visual states, and remove the always-on Client Log status label (logging remains available in its own dock).
+
+
 - Make Registrations filtering mouse-friendly with directly selectable BentoFX ≡ menu radio items; display the effective OPEN LocationId or All in the tab title, keeping default scope on the selected node's open location and showing no stale id when inactive. Hide the redundant bold LIVE label in Systems while retaining syncing/disconnection warnings.
 
 

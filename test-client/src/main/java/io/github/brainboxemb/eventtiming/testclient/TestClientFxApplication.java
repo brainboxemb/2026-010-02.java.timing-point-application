@@ -23,6 +23,9 @@ import javafx.scene.control.TitledPane;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.shape.SVGPath;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.StrokeLineCap;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
@@ -52,8 +55,8 @@ public final class TestClientFxApplication extends Application {
     private final Button eventBoundary = new Button();
     private final Button terminalBoundary = new Button();
     private final Button deviceLogBoundary = new Button();
-    private final Label clientLogBoundary = new Label();
     private final TextField targetHost = new TextField();
+    private final Tooltip connectTargetTooltip = new Tooltip();
     private final Button connectTarget = new Button("Connect");
 
     private final TextArea eventLog = new TextArea();
@@ -252,39 +255,68 @@ public final class TestClientFxApplication extends Application {
     }
 
     private HBox targetBar() {
+        Label hostLabel = new Label("Host");
+        hostLabel.setLabelFor(targetHost);
         targetHost.setText(system.host());
-        targetHost.setPromptText("host or IP");
+        targetHost.setPromptText("Host or IP");
         targetHost.setPrefColumnCount(15);
         targetHost.setTooltip(new Tooltip(
-                "Startup default from " + configPath
-                        + ". Edit the host/IP and apply it for all external boundaries."));
-        targetHost.setOnAction(event -> connectTarget());
-        connectTarget.setOnAction(event -> connectTarget());
-        connectTarget.getStyleClass().add("primary-connect");
-        connectTarget.setTooltip(new Tooltip(
-                "Apply host and connect all interfaces; click an individual option to toggle it."));
+                "Target host/IP from " + configPath
+                        + ". Disconnect before switching an active target."));
+        targetHost.setOnAction(event -> {
+            if (hasStatefulConnection()
+                    && !targetHost.getText().trim().equals(system.host())) {
+                feedback.setText("Disconnect before changing Host");
+                return;
+            }
+            toggleTargetConnection();
+        });
 
-        apiBoundary.setTooltip(new Tooltip(
-                "IF-03 HTTP is stateless. Click to check that the API at the active target is reachable."));
-        clientLogBoundary.getStyleClass().add("boundary-status");
+        connectTarget.setOnAction(event -> toggleTargetConnection());
+        connectTarget.getStyleClass().addAll("primary-connect", "connection-button");
+        // A small vector power icon with a readable Connect/Disconnect caption.
+        // No platform-dependent Unicode symbols or icon-only hidden actions.
+        SVGPath power = new SVGPath();
+        power.setContent("M 8 1.5 V 8 M 4.1 4.2 A 5.5 5.5 0 1 0 11.9 4.2");
+        power.setFill(Color.TRANSPARENT);
+        power.setStrokeWidth(1.6);
+        power.setStrokeLineCap(StrokeLineCap.ROUND);
+        power.getStyleClass().add("connect-power-icon");
+        connectTarget.setGraphic(power);
+        connectTarget.setTooltip(connectTargetTooltip);
 
+        Label separator = new Label();
+        separator.getStyleClass().add("host-toolbar-divider");
         HBox bar = new HBox(
-                6,
-                new Label("Host"),
-                targetHost,
-                connectTarget,
-                apiBoundary,
-                eventBoundary,
-                terminalBoundary,
-                deviceLogBoundary,
-                clientLogBoundary);
+                6, hostLabel, targetHost, connectTarget,
+                separator, apiBoundary, eventBoundary,
+                terminalBoundary, deviceLogBoundary);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        bar.getStyleClass().add("host-toolbar");
         HBox.setHgrow(targetHost, Priority.NEVER);
-        bar.setPadding(new Insets(5, 8, 5, 8));
+        bar.setPadding(new Insets(3, 8));
         for (Button boundary : new Button[] {
                 apiBoundary, eventBoundary, terminalBoundary, deviceLogBoundary }) {
             boundary.getStyleClass().add("connection-button");
         }
+        refreshTargetConnectButton();
         return bar;
+    }
+
+    private boolean hasStatefulConnection() {
+        return system.eventClient().isConnected()
+                || system.shellClient().isConnected()
+                || system.liveLogClient().isConnected();
+    }
+
+    /** Global Connect/Disconnect controls only stateful IF-03/engineering links.
+     * IF-03 HTTP is stateless and remains an independent reachability check. */
+    private void toggleTargetConnection() {
+        if (hasStatefulConnection()) {
+            disconnectTarget();
+        } else {
+            connectTarget();
+        }
     }
 
     private void connectTarget() {
@@ -293,6 +325,51 @@ public final class TestClientFxApplication extends Application {
         if (!system.eventClient().isConnected() && !eventBoundary.isDisabled()) connectEvents();
         if (!system.shellClient().isConnected() && !terminalBoundary.isDisabled()) connectShell();
         if (!system.liveLogClient().isConnected() && !deviceLogBoundary.isDisabled()) connectLogs();
+        refreshTargetConnectButton();
+    }
+
+    private void disconnectTarget() {
+        if (system.eventClient().isConnected()) disconnectEvents();
+        if (system.shellClient().isConnected()) {
+            system.shellClient().disconnect();
+            setShellConnected(false, "CONNECT");
+        }
+        if (system.liveLogClient().isConnected()) {
+            system.liveLogClient().disconnect();
+            setLogConnected(false, "CONNECT");
+        }
+        feedback.setText("Disconnected external interfaces from " + system.host());
+        clientLog.info("Disconnected Engineering Client external interfaces");
+        refreshTargetConnectButton();
+    }
+
+    private void refreshTargetConnectButton() {
+        boolean events = system.eventClient().isConnected();
+        boolean terminal = system.shellClient().isConnected();
+        boolean deviceLog = system.liveLogClient().isConnected();
+        ConnectionToolbarState state = ConnectionToolbarState.of(events, terminal, deviceLog);
+        boolean busy = eventBoundary.isDisabled()
+                || terminalBoundary.isDisabled() || deviceLogBoundary.isDisabled();
+
+        connectTarget.getStyleClass().removeAll(
+                "connection-ok", "connection-busy", "connection-partial", "connection-error");
+        if (busy) connectTarget.getStyleClass().add("connection-busy");
+        else if (state == ConnectionToolbarState.ALL) {
+            connectTarget.getStyleClass().add("connection-ok");
+        } else if (state == ConnectionToolbarState.PARTIAL) {
+            connectTarget.getStyleClass().add("connection-partial");
+        }
+        connectTarget.setText(busy
+                ? "Connecting…" : state == ConnectionToolbarState.NONE ? "Connect" : "Disconnect");
+        connectTarget.setDisable(busy);
+        String action = state == ConnectionToolbarState.NONE
+                ? "Apply Host and connect API check, Events, Terminal and Device Log"
+                : "Disconnect all active Events, Terminal and Device Log links";
+        connectTargetTooltip.setText(action
+                + " (" + state.connectedCount() + "/3 stateful links connected)."
+                + " The local Client Log is always active.");
+        connectTarget.setAccessibleText(connectTarget.getText()
+                + ". " + state.connectedCount() + " of 3 stateful links connected.");
     }
 
     private void configureBoundaryButtons() {
@@ -300,7 +377,6 @@ public final class TestClientFxApplication extends Application {
         setEventConnected(false, "CONNECT");
         setShellConnected(false, "CONNECT");
         setLogConnected(false, "CONNECT");
-        clientLogBoundary.setText("● Client Log");
 
         apiBoundary.setOnAction(event -> checkApi());
         eventBoundary.setOnAction(event -> {
@@ -779,6 +855,7 @@ public final class TestClientFxApplication extends Application {
         };
         button.setTooltip(new Tooltip(boundary + ": " + action));
         button.setAccessibleText(boundary + " " + state + ". " + action);
+        refreshTargetConnectButton();
     }
 
     private void setApiState(String state) {
