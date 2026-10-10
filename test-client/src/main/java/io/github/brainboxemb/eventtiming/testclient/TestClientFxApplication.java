@@ -294,7 +294,7 @@ public final class TestClientFxApplication extends Application {
         bar.setAlignment(Pos.CENTER_LEFT);
         bar.getStyleClass().add("host-toolbar");
         HBox.setHgrow(targetHost, Priority.NEVER);
-        bar.setPadding(new Insets(3, 8));
+        bar.setPadding(new Insets(3, 8, 3, 8));
         for (Button boundary : new Button[] {
                 apiBoundary, eventBoundary, terminalBoundary, deviceLogBoundary }) {
             boundary.getStyleClass().add("connection-button");
