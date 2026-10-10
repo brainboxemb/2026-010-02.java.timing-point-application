@@ -1,10 +1,10 @@
 # VC-ST1-008: A owns TimingNode A, B owns TimingNode B.
 # The application resolves {SystemId} and {NodeId}.
 timingSystems:
-  - timingSystemId: SID-A
+  - timingSystemId: A
     timingNodes:
       - timingNodeId: A
-  - timingSystemId: SID-B
+  - timingSystemId: B
     timingNodes:
       - timingNodeId: B
 
