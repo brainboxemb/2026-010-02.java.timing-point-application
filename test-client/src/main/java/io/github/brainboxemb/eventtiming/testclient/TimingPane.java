@@ -205,7 +205,7 @@ final class TimingPane {
         HBox dateTimeRow = new HBox(
                 8, new Label("Local time"), registrationDate, registrationTime, now);
         dateTimeRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-        dateTimeRow.setTooltip(new Tooltip(
+        Tooltip.install(dateTimeRow, new Tooltip(
                 "Date/time in " + INPUT_ZONE.getId()
                         + ". Now uses AUTO for manual registration;"
                         + " editing it marks the manual time as MAN."));
