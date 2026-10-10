@@ -4,9 +4,10 @@ import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.scene.control.TableView;
+import javafx.scene.control.ScrollBar;
+import javafx.geometry.Orientation;
 import javafx.scene.input.ScrollEvent;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -52,6 +53,8 @@ final class FollowLatestTable<T> {
         int selectedIndex = table.getSelectionModel().getSelectedIndex();
         boolean append = next.size() >= values.size()
                 && next.subList(0, values.size()).equals(values);
+        ScrollBar vertical = verticalScrollBar();
+        double priorScroll = vertical == null ? -1 : vertical.getValue();
         updating = true;
         try {
             if (append) {
@@ -73,7 +76,22 @@ final class FollowLatestTable<T> {
         } finally {
             updating = false;
         }
-        if (following) Platform.runLater(this::scrollToLatest);
+        if (following) {
+            Platform.runLater(this::scrollToLatest);
+        } else if (!append && vertical != null && priorScroll >= 0) {
+            // Rebuilding after a revoke/sync must not jump away from history.
+            Platform.runLater(() -> vertical.setValue(priorScroll));
+        }
+    }
+
+    private ScrollBar verticalScrollBar() {
+        for (javafx.scene.Node node : table.lookupAll(".scroll-bar")) {
+            if (node instanceof ScrollBar bar
+                    && bar.getOrientation() == Orientation.VERTICAL) {
+                return bar;
+            }
+        }
+        return null;
     }
 
     private void scrollToLatest() {

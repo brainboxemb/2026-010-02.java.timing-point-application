@@ -889,6 +889,8 @@ final class TimingPane {
         updatingTreeSelection = true;
         try {
             systemRoot.setValue("System · " + systemHost);
+            Map<String, TreeItem<String>> existing = new java.util.HashMap<>();
+            treeNodeIds.forEach((item, id) -> existing.put(id, item));
             treeNodeIds.clear();
             List<TreeItem<String>> children = new ArrayList<>();
             TreeItem<String> selectedItem = null;
@@ -896,12 +898,20 @@ final class TimingPane {
                 String label = nodeInfo.id() + " · " + nodeInfo.state()
                         + (nodeInfo.locationId() == null ? ""
                                 : " · Location " + nodeInfo.locationId());
-                TreeItem<String> item = new TreeItem<>(label);
+                List<ApiClient.ProblemInfo> warnings = model.problemsForNode(nodeInfo.id());
+                if (!warnings.isEmpty()) {
+                    label += " · " + warnings.get(0).severity()
+                            + " " + warnings.get(0).code();
+                }
+                TreeItem<String> item = existing.getOrDefault(nodeInfo.id(), new TreeItem<>());
+                item.setValue(label);
                 treeNodeIds.put(item, nodeInfo.id());
                 children.add(item);
                 if (nodeInfo.id().equals(model.selectedNodeId())) selectedItem = item;
             }
-            systemRoot.getChildren().setAll(children);
+            if (!systemRoot.getChildren().equals(children)) {
+                systemRoot.getChildren().setAll(children);
+            }
             systemRoot.setExpanded(true);
             if (selectedItem != null) systemTree.getSelectionModel().select(selectedItem);
             else systemTree.getSelectionModel().clearSelection();
