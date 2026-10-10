@@ -12,7 +12,6 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class TimingSystemConfigRegistryTest {
@@ -73,7 +72,8 @@ public class TimingSystemConfigRegistryTest {
                 () -> new TimingSystemConfigRegistry(Arrays.asList(
                         system("9", node("A", path("a.jsonl")),
                                 node("B", path("b.jsonl"))),
-                        system("9", node("9", path("9.jsonl"))))));
+                        system("8", node("9", path("9.jsonl")),
+                                node("C", path("c.jsonl"))))));
     }
 
     private static void expectInvalid(String message, Runnable operation) {
