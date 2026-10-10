@@ -76,6 +76,9 @@ public final class TestClientFxApplication extends Application {
     // Batch high-volume log lines on FX without one Platform.runLater per line.
     private final FxTextAppender clientLogAppender = new FxTextAppender(clientLogs);
     private final FxTextAppender deviceLogAppender = new FxTextAppender(liveLogs);
+    // The token is FX-thread-owned, the WebSocket listener may outlive the
+    // connect attempt that originally registered it.
+    private final ViewRequestEpoch eventConnectionEpoch = new ViewRequestEpoch();
 
     private ClientConfig config;
     private Path configPath;
@@ -513,6 +516,7 @@ public final class TestClientFxApplication extends Application {
     }
 
     private void connectEvents() {
+        final long eventGeneration = eventConnectionEpoch.begin();
         eventBoundary.setDisable(true);
         setBoundaryState(eventBoundary, "Events", "CONNECTING");
         clientLog.info("Connecting IF-03 Events to " + eventEndpoint());
@@ -522,6 +526,7 @@ public final class TestClientFxApplication extends Application {
                 @Override
                 public void onConnected() {
                     Platform.runLater(() -> {
+                        if (!eventConnectionEpoch.isCurrent(eventGeneration)) return;
                         setEventConnected(true, "CONNECTED");
                         apiPane.connected();
                         clientLog.info("IF-03 Events connected");
@@ -530,12 +535,18 @@ public final class TestClientFxApplication extends Application {
 
                 @Override
                 public void onEvent(ApiEventClient.ApiEvent event) {
-                    Platform.runLater(() -> showEvent(event));
+                    Platform.runLater(() -> {
+                        if (eventConnectionEpoch.isCurrent(eventGeneration)) {
+                            showEvent(event);
+                        }
+                    });
                 }
 
                 @Override
                 public void onClosed(int statusCode, String reason) {
                     Platform.runLater(() -> {
+                        if (!eventConnectionEpoch.isCurrent(eventGeneration)) return;
+                        eventConnectionEpoch.invalidate();
                         setEventConnected(false, "CONNECT");
                         apiPane.disconnected(true);
                         clientLog.warn("IF-03 Events disconnected (" + statusCode + ")");
@@ -545,6 +556,7 @@ public final class TestClientFxApplication extends Application {
                 @Override
                 public void onError(String message) {
                     Platform.runLater(() -> {
+                        if (!eventConnectionEpoch.isCurrent(eventGeneration)) return;
                         clientLog.error("IF-03 Events error: " + message);
                         if (!system.eventClient().isConnected()) {
                             setEventConnected(false, "ERROR");
@@ -556,6 +568,7 @@ public final class TestClientFxApplication extends Application {
             }).whenComplete((ignored, error) -> {
                 if (error != null) {
                     Platform.runLater(() -> {
+                        if (!eventConnectionEpoch.isCurrent(eventGeneration)) return;
                         Throwable cause = rootCause(error);
                         setEventConnected(false, "ERROR");
                         apiPane.disconnected(true);
@@ -571,6 +584,7 @@ public final class TestClientFxApplication extends Application {
     }
 
     private void disconnectEvents() {
+        eventConnectionEpoch.invalidate();
         setBoundaryState(eventBoundary, "Events", "DISCONNECTING");
         system.eventClient().disconnect();
         if (!system.eventClient().isConnected()) {
@@ -776,6 +790,7 @@ public final class TestClientFxApplication extends Application {
                 return true;
             }
 
+            eventConnectionEpoch.invalidate();
             setEventConnected(false, "CONNECT");
             setShellConnected(false, "CONNECT");
             setLogConnected(false, "CONNECT");
