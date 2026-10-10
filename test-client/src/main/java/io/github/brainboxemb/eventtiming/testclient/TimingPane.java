@@ -64,6 +64,9 @@ final class TimingPane {
     private boolean eventsConnected;
     private boolean operationBusy;
     private boolean historyRefreshQueued;
+    // FX-thread-owned generation invalidates obsolete baseline/node history
+    // responses after reconnect, disconnect or a newer selection.
+    private final ViewRequestEpoch historyRequests = new ViewRequestEpoch();
     private long lastReportedLogBookCount = Long.MIN_VALUE;
 
     private final ComboBox<String> node = new ComboBox<>();
@@ -157,14 +160,14 @@ final class TimingPane {
         historyState.visibleProperty().bind(historyState.textProperty().isNotEqualTo("LIVE"));
         historyState.managedProperty().bind(historyState.visibleProperty());
         systemsPane.getChildren().setAll(historyState, systemTree, syncViewButton);
-        systemsPane.setPadding(new Insets(8));
+        systemsPane.getStyleClass().add("engineering-explorer-pane");
 
         node.setPrefWidth(230);
         locationInput.setPrefColumnCount(8);
         GridPane nodeGrid = new GridPane();
         nodeGrid.setHgap(12);
         nodeGrid.setVgap(8);
-        nodeGrid.setPadding(new Insets(10));
+        nodeGrid.getStyleClass().add("engineering-form");
         add(nodeGrid, 0, "TimingNode", node);
         add(nodeGrid, 1, "Problem", problem);
 
@@ -241,7 +244,7 @@ final class TimingPane {
                 registrationIdRow, dateTimeRow, manualReg, directControls,
                 autoRegCapability);
         registrationBox.getStyleClass().add("registration-form");
-        registrationBox.setPadding(new Insets(10));
+        registrationBox.getStyleClass().add("engineering-form");
         registrationPane = registrationBox;
 
         simulationPane =
@@ -264,7 +267,7 @@ final class TimingPane {
         registrationsPane = interpretedBox;
 
         configureLogBook();
-        VBox historyBox = new VBox(6, logBook);
+        VBox historyBox = new VBox(logBook);
         VBox.setVgrow(logBook, Priority.ALWAYS);
         logBookPane = historyBox;
 
@@ -351,6 +354,7 @@ final class TimingPane {
     }
 
     void disconnected(boolean stale) {
+        historyRequests.invalidate();
         eventsConnected = false;
         simulationPane.stopBatch();
         bufferedEvents.clear();
@@ -369,6 +373,9 @@ final class TimingPane {
     }
 
     void applyStatusEvent(ApiEventClient.StatusEvent event) {
+        // A previously queued WebSocket callback is not proof of a new
+        // connection after the user disconnected.
+        if (!eventsConnected) return;
         if (model.viewState() == TimingViewModel.ViewState.SYNCING) {
             bufferedEvents.add(event);
             return;
@@ -415,6 +422,7 @@ final class TimingPane {
     }
 
     void syncView() {
+        final long requestGeneration = historyRequests.begin();
         if (!eventsConnected) {
             model.viewState(TimingViewModel.ViewState.DISCONNECTED);
             historyState.setText("NOT SYNCED — connect Events");
@@ -493,6 +501,9 @@ final class TimingPane {
                     }
                 }, requests)
                 .whenComplete((result, error) -> Platform.runLater(() -> {
+                    if (!eventsConnected || !historyRequests.isCurrent(requestGeneration)) {
+                        return; // Obsolete baseline; never transition back to LIVE.
+                    }
                     if (error != null) {
                         model.viewState(TimingViewModel.ViewState.STALE);
                         historyState.setText("STALE — sync failed");
@@ -536,6 +547,7 @@ final class TimingPane {
     }
 
     private void loadSelectedLogBook() {
+        final long requestGeneration = historyRequests.begin();
         String selected = model.selectedNodeId();
         if (selected == null) {
             refresh();
@@ -563,6 +575,10 @@ final class TimingPane {
                     }
                 }, requests)
                 .whenComplete((result, error) -> Platform.runLater(() -> {
+                    if (!eventsConnected || !historyRequests.isCurrent(requestGeneration)
+                            || !selected.equals(model.selectedNodeId())) {
+                        return; // The operator has moved on; old node data is stale.
+                    }
                     if (error != null) {
                         model.viewState(TimingViewModel.ViewState.STALE);
                         historyState.setText("STALE");

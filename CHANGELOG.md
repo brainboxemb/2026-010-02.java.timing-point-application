@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Consolidate SI-02 styling into documented flat desktop tokens, common pane spacing and shared console CSS; eliminate ad-hoc log styling and duplicate dock-header selectors.
+- Protect UI state against obsolete async baseline/node history completions after disconnect/reconnect/selection changes; batch client/device log updates on FX and coalesce redundant follow-latest scroll scheduling.
+
+
 - Align the Host connection toolbar controls to one compact height, add a clearly labeled power-icon Connect/Disconnect action with active/partial visual states, and remove the always-on Client Log status label (logging remains available in its own dock).
 
 

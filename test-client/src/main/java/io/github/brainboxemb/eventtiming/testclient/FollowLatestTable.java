@@ -20,6 +20,7 @@ final class FollowLatestTable<T> {
     private final ObservableList<T> rows = FXCollections.observableArrayList();
     private boolean following = true;
     private boolean updating;
+    private boolean scrollQueued;
     private List<T> values = List.of();
 
     FollowLatestTable(TableView<T> table) {
@@ -42,7 +43,7 @@ final class FollowLatestTable<T> {
                 }
             }
         });
-        Platform.runLater(this::scrollToLatest);
+        requestScrollToLatest();
     }
 
     void update(List<T> newValues) {
@@ -77,7 +78,7 @@ final class FollowLatestTable<T> {
             updating = false;
         }
         if (following) {
-            Platform.runLater(this::scrollToLatest);
+            requestScrollToLatest();
         } else if (!append && vertical != null && priorScroll >= 0) {
             // Rebuilding after a revoke/sync must not jump away from history.
             Platform.runLater(() -> vertical.setValue(priorScroll));
@@ -92,6 +93,15 @@ final class FollowLatestTable<T> {
             }
         }
         return null;
+    }
+
+    private void requestScrollToLatest() {
+        if (!following || scrollQueued) return;
+        scrollQueued = true;
+        Platform.runLater(() -> {
+            scrollQueued = false;
+            scrollToLatest();
+        });
     }
 
     private void scrollToLatest() {

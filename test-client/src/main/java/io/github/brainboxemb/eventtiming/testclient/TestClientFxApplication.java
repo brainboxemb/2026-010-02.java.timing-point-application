@@ -73,6 +73,9 @@ public final class TestClientFxApplication extends Application {
     private final Label currentClientLogLevel = valueLabel();
     private final TextArea liveLogs = new TextArea();
     private final TextArea clientLogs = new TextArea();
+    // Batch high-volume log lines on FX without one Platform.runLater per line.
+    private final FxTextAppender clientLogAppender = new FxTextAppender(clientLogs);
+    private final FxTextAppender deviceLogAppender = new FxTextAppender(liveLogs);
 
     private ClientConfig config;
     private Path configPath;
@@ -416,11 +419,7 @@ public final class TestClientFxApplication extends Application {
     private VBox terminalPane() {
         terminal.setEditable(false);
         terminal.setWrapText(false);
-        terminal.setStyle(
-                "-fx-control-inner-background: black;"
-                        + "-fx-text-fill: #e8e8e8;"
-                        + "-fx-font-family: 'Consolas';"
-                        + "-fx-font-size: 13px;");
+        terminal.getStyleClass().add("engineering-console");
         VBox.setVgrow(terminal, Priority.ALWAYS);
 
         terminalInput.setPromptText("command");
@@ -428,11 +427,13 @@ public final class TestClientFxApplication extends Application {
         terminalSend.setDisable(true);
         HBox.setHgrow(terminalInput, Priority.ALWAYS);
         HBox input = new HBox(8, terminalInput, terminalSend);
+        input.setAlignment(Pos.CENTER_LEFT);
 
         terminalSend.setOnAction(event -> sendShellCommand());
         terminalInput.setOnAction(event -> sendShellCommand());
 
         VBox pane = new VBox(4, terminal, input);
+        pane.getStyleClass().add("engineering-tool-pane");
         pane.setPadding(new Insets(3));
         return pane;
     }
@@ -446,17 +447,13 @@ public final class TestClientFxApplication extends Application {
 
         liveLogs.setEditable(false);
         liveLogs.setWrapText(false);
-        liveLogs.setStyle(
-                "-fx-control-inner-background: black;"
-                        + "-fx-text-fill: #e8e8e8;"
-                        + "-fx-font-family: 'Consolas';"
-                        + "-fx-font-size: 12px;");
+        liveLogs.getStyleClass().add("engineering-console");
 
         applyDeviceLogLevel.setOnAction(event -> applyDeviceLogLevel());
 
         liveLogs.setContextMenu(logContextMenu(liveLogs, true));
         VBox pane = new VBox(liveLogs);
-        pane.setPadding(new Insets(2));
+        pane.getStyleClass().add("engineering-log-pane");
         VBox.setVgrow(liveLogs, Priority.ALWAYS);
         return pane;
     }
@@ -470,21 +467,14 @@ public final class TestClientFxApplication extends Application {
         clientLogs.setEditable(false);
         clientLogs.setWrapText(false);
         clientLogs.setText(clientLog.snapshot());
-        clientLogs.setStyle(
-                "-fx-control-inner-background: black;"
-                        + "-fx-text-fill: #e8e8e8;"
-                        + "-fx-font-family: 'Consolas';"
-                        + "-fx-font-size: 12px;");
-        clientLog.subscribe(line -> Platform.runLater(() -> {
-            clientLogs.appendText(line);
-            clientLogs.positionCaret(clientLogs.getLength());
-        }));
+        clientLogs.getStyleClass().add("engineering-console");
+        clientLog.subscribe(clientLogAppender::append);
 
         applyClientLogLevel.setOnAction(event -> applyClientLogLevel());
 
         clientLogs.setContextMenu(logContextMenu(clientLogs, false));
         VBox pane = new VBox(clientLogs);
-        pane.setPadding(new Insets(2));
+        pane.getStyleClass().add("engineering-log-pane");
         VBox.setVgrow(clientLogs, Priority.ALWAYS);
         return pane;
     }
@@ -629,7 +619,7 @@ public final class TestClientFxApplication extends Application {
 
                                     @Override
                                     public void onLog(LiveLogClient.LogEntry entry) {
-                                        Platform.runLater(() -> appendDeviceLog(entry));
+                                        deviceLogAppender.append(entry.formatted());
                                     }
 
                                     @Override
@@ -694,11 +684,6 @@ public final class TestClientFxApplication extends Application {
         } catch (RuntimeException ex) {
             feedback.setText("Client log error: " + ex.getMessage());
         }
-    }
-
-    private void appendDeviceLog(LiveLogClient.LogEntry entry) {
-        liveLogs.appendText(entry.formatted());
-        liveLogs.positionCaret(liveLogs.getLength());
     }
 
     private void connectShell() {
