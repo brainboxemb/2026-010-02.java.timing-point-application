@@ -21,6 +21,9 @@ import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
 import javafx.scene.control.Tooltip;
+import javafx.scene.layout.StackPane;
+import javafx.scene.shape.SVGPath;
+import javafx.scene.paint.Color;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -120,15 +123,11 @@ public final class TestClientFxApplication extends Application {
         boolean nativeCaption = WindowsIntegratedTitleBar.isEnabled();
         workbenchRoot = new BorderPane();
         if (nativeCaption) {
-            // The menu and title occupy the same actual Windows caption row.
-            // Keep network controls below, and leave room at the far right for
-            // the native-looking minimize/maximize/close buttons.
+            // IDE-like one-row caption: icon + flat menus at left,
+            // drag area in the center, library caption buttons at right.
             Region dragSpace = new Region();
             HBox.setHgrow(dragSpace, Priority.ALWAYS);
-            Label captionTitle = new Label(
-                    clientBuild.application() + " — " + clientBuild.version());
-            captionTitle.getStyleClass().add("engineering-caption-title");
-            windowsCaption = new HBox(menuBar, dragSpace, captionTitle);
+            windowsCaption = new HBox(windowCaptionMark(), menuBar, dragSpace);
             windowsCaption.setAlignment(Pos.CENTER_LEFT);
             windowsCaption.getStyleClass().add("engineering-native-caption");
             workbenchRoot.setTop(new VBox(windowsCaption, hostBar));
@@ -159,6 +158,20 @@ public final class TestClientFxApplication extends Application {
             clientLog.warn("Windows titlebar extension unavailable, using standard frame");
         }
         clientLog.info("Engineering Client UI ready");
+    }
+
+    /** Small JavaFX vector clock, without an external icon/font resource. */
+    private javafx.scene.Node windowCaptionMark() {
+        SVGPath clock = new SVGPath();
+        clock.setContent("M 8 1.5 A 6.5 6.5 0 1 1 8 14.5 "
+                + "A 6.5 6.5 0 1 1 8 1.5 M 8 4.5 L 8 8 L 11 9.7");
+        clock.setFill(Color.TRANSPARENT);
+        clock.setStroke(Color.web("#2878b8"));
+        clock.setStrokeWidth(1.5);
+        StackPane mark = new StackPane(clock);
+        mark.getStyleClass().add("engineering-caption-mark");
+        mark.setMouseTransparent(true);
+        return mark;
     }
 
     private EngineeringWorkbench createWorkbench(

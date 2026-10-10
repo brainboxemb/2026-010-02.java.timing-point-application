@@ -238,25 +238,63 @@
     -fx-font-size: 12px;
 }
 
-/* The JavaFX MenuBar is placed inside the native caption on Windows. */
+/* Win32 caption: IDE-like mark/menu left, blank dragging area and one
+ * set of library-provided caption controls at the far right. */
 .engineering-native-caption {
     -fx-background-color: #f7f7f7;
-    -fx-min-height: 34px;
-    -fx-pref-height: 34px;
-    -fx-max-height: 34px;
-    -fx-padding: 0 3px;
+    -fx-min-height: 32px;
+    -fx-pref-height: 32px;
+    -fx-max-height: 32px;
+    -fx-padding: 0 138px 0 4px;
     -fx-spacing: 0;
-    -fx-border-color: #cfcfcf;
+    -fx-border-color: #dfdfdf;
     -fx-border-width: 0 0 1px 0;
+}
+.engineering-caption-mark {
+    -fx-min-width: 27px;
+    -fx-pref-width: 27px;
+    -fx-max-width: 27px;
+    -fx-min-height: 30px;
+    -fx-pref-height: 30px;
+    -fx-max-height: 30px;
 }
 .engineering-native-caption .menu-bar {
     -fx-background-color: transparent;
-    -fx-pref-height: 33px;
-    -fx-min-height: 33px;
+    -fx-background-insets: 0;
+    -fx-pref-height: 31px;
+    -fx-min-height: 31px;
     -fx-padding: 0;
+    -fx-border-width: 0;
+    -fx-border-color: transparent;
 }
-.engineering-caption-title {
-    -fx-text-fill: #3f4751;
+.engineering-native-caption .menu-bar .menu-button,
+.engineering-native-caption .menu-bar .menu {
+    -fx-background-color: transparent;
+    -fx-background-radius: 0;
+    -fx-background-insets: 0;
+    -fx-border-width: 0;
+    -fx-border-color: transparent;
+    -fx-border-radius: 0;
+    -fx-padding: 5px 8px;
+    -fx-effect: none;
+}
+.engineering-native-caption .menu-bar .menu-button:hover,
+.engineering-native-caption .menu-bar .menu-button:showing,
+.engineering-native-caption .menu-bar .menu:hover,
+.engineering-native-caption .menu-bar .menu:showing {
+    -fx-background-color: #e4ebf3;
+}
+.engineering-native-caption .menu-bar .label {
+    -fx-text-fill: #202020;
     -fx-font-size: 12px;
-    -fx-padding: 0 158px 0 12px;
+}
+/* The caption library injects its buttons into our JavaFX Scene.
+ * Exclude them from general flat-form button borders/padding. */
+.caption .button {
+    -fx-border-width: 0;
+    -fx-border-style: none;
+    -fx-border-color: transparent;
+    -fx-background-radius: 0;
+    -fx-padding: 0;
+    -fx-effect: none;
 }

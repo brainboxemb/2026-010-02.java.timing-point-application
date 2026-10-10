@@ -124,15 +124,18 @@ directory, so root-level Maven and NetBeans launches use the same file. Use
 The window title includes the Engineering Client software version. **Help → About** shows
 the client's own build identity and selected client-config path.
 
-On Windows 10/11, the main window uses a native-caption extension to put
-**View/Help and the application title in one Windows title-bar row**, with
-the host and boundary controls in a compact toolbar beneath. The extension
-retains the Win32 decorated-window frame and integrates system caption
-hit-testing, drag, minimize/maximize/close, and Windows Snap support. BentoFX
-floating windows are not modified. On other OSes the JavaFX MenuBar stays below
-the platform's own native caption. The native extension can be disabled with
-`-Dsi02.nativeTitleBar=false` for troubleshooting; manual Windows verification
-is required for maximize/restore, high-DPI, Windows Snap and detached windows.
+On Windows 10/11, the main window displays a compact icon and flat **View / Help**
+menus at the left of its Windows-integrated caption, with draggable blank space
+and the caption library's one set of system controls on the right. Host and
+connection options remain on the next row. The version remains in the Stage's
+Windows title (taskbar/Alt-Tab) and **Help → About**; we no longer repeat it as
+an extra right-aligned label. Menu items are ordinary JavaFX controls, while
+the caption extension performs Win32 hit testing and supplies caption buttons.
+The detached BentoFX windows remain ordinary native-decorated windows. On
+other systems JavaFX MenuBar stays below the OS titlebar. Use
+`-Dsi02.nativeTitleBar=false` to revert to the ordinary titlebar if needed.
+Packaged Windows smoke tests check startup but cannot prove caption visuals,
+drag/double-click, Snap Layouts or DPI correctness; verify interactively.
 
 ## Current Engineering workbench
 

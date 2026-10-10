@@ -14,8 +14,9 @@ import java.util.Locale;
  * The main-window-only Win32 caption integration.
  *
  * <p>JavaFX's standard decorated Stage always creates a separate menu row.
- * CustomCaption extends the system non-client area instead of using an
- * undecorated Stage, so standard resize/snap/maximize behavior remains native.
+ * CustomCaption extends the Win32 non-client area rather than creating
+ * an undecorated Stage. The library paints its own caption buttons and
+ * performs native hit testing. We must not duplicate these controls.
  * Do not apply this to independent BentoFX DragDropStage instances.</p>
  */
 final class WindowsIntegratedTitleBar {
@@ -34,13 +35,12 @@ final class WindowsIntegratedTitleBar {
         if (!isEnabled()) return false;
 
         try {
-            // The entire row supports drag/double-click, but View/Help menus
-            // must receive their own mouse events. Native caption button hit
-            // testing is handled separately by the Windows caption extension.
+            // Blank caption space is draggable. The JavaFX menus must
+            // receive normal pointer/keyboard input rather than HTCAPTION.
             DragRegion drag = new DragRegion(titleRow).addExcludeBounds(menuBar);
-            CaptionConfiguration config = new CaptionConfiguration(34)
+            CaptionConfiguration config = new CaptionConfiguration(32)
                     .setIconColor(Color.web("#3a4650"))
-                    .setIconHoverColor(Color.web("#1b2732"))
+                    .setIconHoverColor(Color.web("#202020"))
                     .setControlBackgroundColor(Color.web("#f7f7f7"))
                     .setButtonHoverColor(Color.web("#e5e5e5"))
                     .setCaptionDragRegion(drag);
