@@ -125,7 +125,7 @@ public class TimingSystemCompositionTest {
             fail("Expected duplicate TimingSystem id to be rejected");
         } catch (IllegalArgumentException expected) {
             assertTrue(expected.getMessage().contains(
-                    "Duplicate TimingSystem id system-A"));
+                    "Duplicate TimingSystem id A"));
         }
     }
 

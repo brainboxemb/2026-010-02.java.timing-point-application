@@ -204,7 +204,7 @@ public final class YamlLoader {
             }
 
             String timingSystemId =
-                    requireString(
+                    requireCompactId(
                             timingSystem.get(
                                     TIMING_SYSTEM_ID),
                             timingSystemField
@@ -271,7 +271,7 @@ public final class YamlLoader {
 
                 NodeId timingNodeId =
                         new NodeId(
-                                requireString(
+                                requireCompactId(
                                         timingNode.get(
                                                 TIMING_NODE_ID),
                                         timingNodeField
@@ -901,6 +901,17 @@ public final class YamlLoader {
             throw new IllegalArgumentException(field + " must be a YAML mapping");
         }
         return (Map<?, ?>) value;
+    }
+
+    /**
+     * Bare numeric YAML scalars such as 9 are parsed as Integer.
+     * The effective IDs remain textual (9 and "9" mean the same thing).
+     */
+    private static String requireCompactId(Object value, String field) {
+        if (value instanceof Integer) {
+            return Integer.toString(((Integer) value).intValue());
+        }
+        return requireString(value, field);
     }
 
     private static String requireString(Object value, String field) {
