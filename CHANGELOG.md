@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-- Render SI-02 controls and history only for actual model changes; deduplicate matching HTTP and WebSocket records, coalesce queued timing events, and preserve in-flight command locking across asynchronous status messages.
+- Render SI-02 state/history views only when their semantic values change; deduplicate matching HTTP/WebSocket records, coalesce queued timing events, keep node selection stable and maintain disabled input controls through asynchronous status updates.
+
+
+- Prevent silent mixed JavaFX 17/21 runtime linkage in SI-02: explicitly pin JavaFX base/graphics alongside controls/fxml, and check the loaded JavaFX module versions before launching BentoFX so NetBeans/IDE classpath conflicts produce an actionable diagnostic instead of cascading NoSuchMethodError stack traces.
 
 
 - Integrate the SI-02 menu and title in the main native Windows title-bar row, using a Windows-only Win32 caption extension with system drag/window control support; leave floating BentoFX windows unchanged, and provide a safe opt-out property for debugging.

@@ -28,6 +28,19 @@
   </properties>
 
   <dependencies>
+    <!-- All JavaFX modules must come from the same release. This also
+         prevents an older transitive javafx-base/graphics from winning
+         dependency mediation during IDE/classpath execution. -->
+    <dependency>
+      <groupId>org.openjfx</groupId>
+      <artifactId>javafx-base</artifactId>
+      <version>${javafx.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.openjfx</groupId>
+      <artifactId>javafx-graphics</artifactId>
+      <version>${javafx.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.openjfx</groupId>
       <artifactId>javafx-controls</artifactId>

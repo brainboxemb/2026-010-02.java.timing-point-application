@@ -14,6 +14,9 @@ public final class TestClientApplication {
     }
 
     public static void main(String[] args) {
+        // Fail before creating controls/dock areas if NetBeans or an IDE
+        // supplied old JavaFX modules beside the declared Maven release.
+        JavaFxRuntimeCheck.verify();
         Application.launch(TestClientFxApplication.class, args);
     }
 }
