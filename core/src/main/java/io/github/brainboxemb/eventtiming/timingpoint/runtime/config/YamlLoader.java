@@ -166,10 +166,8 @@ public final class YamlLoader {
                             + TIMING_SYSTEMS);
         }
 
-        Map<?, ?> timingSystems =
-                requireMapping(
-                        rawTimingSystems,
-                        TIMING_SYSTEMS);
+        List<?> timingSystems =
+                requireList(rawTimingSystems, TIMING_SYSTEMS);
         if (timingSystems.isEmpty()) {
             throw new IllegalArgumentException(
                     TIMING_SYSTEMS
@@ -184,18 +182,10 @@ public final class YamlLoader {
         Set<NodeId> nodeIds =
                 new LinkedHashSet<NodeId>();
 
-        for (Map.Entry<?, ?> systemEntry
-                : timingSystems.entrySet()) {
-            String timingSystemKey =
-                    requireMappingEntryName(
-                            systemEntry.getKey(),
-                            TIMING_SYSTEMS);
-            String timingSystemField =
-                    TIMING_SYSTEMS + "." + timingSystemKey;
+        for (int systemIndex = 0; systemIndex < timingSystems.size(); systemIndex++) {
+            String timingSystemField = TIMING_SYSTEMS + "[" + systemIndex + "]";
             Map<?, ?> timingSystem =
-                    requireMapping(
-                            systemEntry.getValue(),
-                            timingSystemField);
+                    requireMapping(timingSystems.get(systemIndex), timingSystemField);
             rejectUnknownFields(
                     timingSystem,
                     timingSystemField,
@@ -248,11 +238,8 @@ public final class YamlLoader {
                     timingSystemField
                             + "."
                             + TIMING_NODES;
-            Map<?, ?> timingNodes =
-                    requireMapping(
-                            timingSystem.get(
-                                    TIMING_NODES),
-                            timingNodesField);
+            List<?> timingNodes =
+                    requireList(timingSystem.get(TIMING_NODES), timingNodesField);
             if (timingNodes.isEmpty()) {
                 throw new IllegalArgumentException(
                         timingNodesField
@@ -263,20 +250,10 @@ public final class YamlLoader {
                     new ArrayList<TimingNodeStartup>(
                             timingNodes.size());
 
-            for (Map.Entry<?, ?> nodeEntry
-                    : timingNodes.entrySet()) {
-                String timingNodeKey =
-                        requireMappingEntryName(
-                                nodeEntry.getKey(),
-                                timingNodesField);
-                String timingNodeField =
-                        timingNodesField
-                                + "."
-                                + timingNodeKey;
+            for (int nodeIndex = 0; nodeIndex < timingNodes.size(); nodeIndex++) {
+                String timingNodeField = timingNodesField + "[" + nodeIndex + "]";
                 Map<?, ?> timingNode =
-                        requireMapping(
-                                nodeEntry.getValue(),
-                                timingNodeField);
+                        requireMapping(timingNodes.get(nodeIndex), timingNodeField);
                 rejectUnknownFields(
                         timingNode,
                         timingNodeField,
@@ -909,6 +886,14 @@ public final class YamlLoader {
             throw new IllegalArgumentException(field + " must be a YAML integer");
         }
         return ((Integer) value).intValue();
+    }
+
+    /** Topology has ordered YAML lists; identities live only in explicit ID fields. */
+    private static List<?> requireList(Object value, String field) {
+        if (!(value instanceof List)) {
+            throw new IllegalArgumentException(field + " must be a YAML list");
+        }
+        return (List<?>) value;
     }
 
     private static Map<?, ?> requireMapping(Object value, String field) {
