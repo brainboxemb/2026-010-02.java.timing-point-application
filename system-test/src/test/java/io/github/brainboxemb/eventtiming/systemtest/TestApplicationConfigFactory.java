@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
  * Loads readable IF-11 YAML fixtures and supplies per-run port numbers.
  *
  * <p>The complete test configurations live under src/test/resources/configuration.
- * Only @PORT@ and @NODE_ID@ markers are substituted here. Application-level
+ * Only @NODE_ID@ and @..._PORT@ markers are substituted here. Application-level
  * {NodeId} and {SystemId} path templates remain untouched so the black-box
  * tests verify the actual application's resolution of those templates.</p>
  */

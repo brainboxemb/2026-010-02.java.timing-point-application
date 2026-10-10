@@ -1,14 +1,14 @@
 package io.github.brainboxemb.eventtiming.systemtest;
 
-import java.io.File;
-import java.io.IOException;
 import io.github.brainboxemb.eventtiming.systemtest.TestApplicationConfigFactory.Topology;
-
 import io.github.brainboxemb.eventtiming.systemtest.framework.EventStream;
 import io.github.brainboxemb.eventtiming.systemtest.framework.HttpTestClient;
 import io.github.brainboxemb.eventtiming.systemtest.framework.ProcessRun;
 import io.github.brainboxemb.eventtiming.systemtest.framework.RemoteShellClient;
 import io.github.brainboxemb.eventtiming.systemtest.framework.TestPorts;
+
+import java.io.File;
+import java.io.IOException;
 
 /**
  * SI-01-specific fixture layered on top of the generic black-box test framework.
