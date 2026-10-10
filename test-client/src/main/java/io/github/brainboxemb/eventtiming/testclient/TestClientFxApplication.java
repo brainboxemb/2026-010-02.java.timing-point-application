@@ -348,6 +348,7 @@ public final class TestClientFxApplication extends Application {
         boolean terminal = system.shellClient().isConnected();
         boolean deviceLog = system.liveLogClient().isConnected();
         ConnectionToolbarState state = ConnectionToolbarState.of(events, terminal, deviceLog);
+        int connected = ConnectionToolbarState.countConnected(events, terminal, deviceLog);
         boolean busy = eventBoundary.isDisabled()
                 || terminalBoundary.isDisabled() || deviceLogBoundary.isDisabled();
 
@@ -366,10 +367,10 @@ public final class TestClientFxApplication extends Application {
                 ? "Apply Host and connect API check, Events, Terminal and Device Log"
                 : "Disconnect all active Events, Terminal and Device Log links";
         connectTargetTooltip.setText(action
-                + " (" + state.connectedCount() + "/3 stateful links connected)."
+                + " (" + connected + "/3 stateful links connected)."
                 + " The local Client Log is always active.");
         connectTarget.setAccessibleText(connectTarget.getText()
-                + ". " + state.connectedCount() + " of 3 stateful links connected.");
+                + ". " + connected + " of 3 stateful links connected.");
     }
 
     private void configureBoundaryButtons() {
