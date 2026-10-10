@@ -4,9 +4,9 @@ parameters:
   ID: A
 
 timingSystems:
-  - id: "{ID}"
+  - systemId: "{ID}"
     timingNodes:
-      - id: "{ID}"
+      - nodeId: "{ID}"
 
 io:
   storage:

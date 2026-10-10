@@ -1,10 +1,10 @@
 # VC-ST1-007: 9 contains TimingNodes A and B.
 # {NodeId} is expanded by the application to select distinct LogBooks.
 timingSystems:
-  - id: 9
+  - systemId: 9
     timingNodes:
-      - id: A
-      - id: B
+      - nodeId: A
+      - nodeId: B
 
 io:
   storage:

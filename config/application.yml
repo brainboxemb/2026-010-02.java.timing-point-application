@@ -4,14 +4,14 @@ parameters:
   ID: A
 
 timingSystems:
-  - id: "{ID}"
+  - systemId: "{ID}"
 
     # Built-in public/reference provider selections.
     eventDataProvider: reference
     timingDataProvider: reference
 
     timingNodes:
-      - id: "{ID}"
+      - nodeId: "{ID}"
 
         # Optional TimingNode-local TagProcessor startup policy.
         # These values match the compiled defaults and may be omitted individually.
