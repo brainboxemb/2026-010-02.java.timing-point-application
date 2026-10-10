@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-- Simplify the SI-02 Registration form into aligned RegistrationId, local time and manual/direct action rows; show manual AUTO/MAN on the action button instead of standalone status, hide normal capability chatter, and flatten nested ComboBox arrow/popup styling.
+- Simplify Registration input into aligned RegistrationId, local time and action rows; show AUTO/MAN on manual submit instead of status clutter, and make JavaFX ComboBox arrow/popup styles fully flat.
+
+
+- Use a single Host → Connect action and stable independent boundary option labels, with color denoting verified current connection state (green connected, yellow busy, red error), plus unchanged manual toggles.
 
 
 - Keep SI-02 Systems as a small top-left Explorer beside TimingNode/Registration/Simulation tabs rather than stacking the two vertically; remove the confusing close X from the persistent Explorer.

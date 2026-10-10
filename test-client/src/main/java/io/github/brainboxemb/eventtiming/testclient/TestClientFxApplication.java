@@ -48,7 +48,7 @@ public final class TestClientFxApplication extends Application {
     private final Button deviceLogBoundary = new Button();
     private final Label clientLogBoundary = new Label();
     private final TextField targetHost = new TextField();
-    private final Button applyTarget = new Button("Apply target");
+    private final Button connectTarget = new Button("Connect");
 
     private final TextArea eventLog = new TextArea();
 
@@ -175,8 +175,11 @@ public final class TestClientFxApplication extends Application {
         targetHost.setTooltip(new Tooltip(
                 "Startup default from " + configPath
                         + ". Edit the host/IP and apply it for all external boundaries."));
-        targetHost.setOnAction(event -> applyTargetHost());
-        applyTarget.setOnAction(event -> applyTargetHost());
+        targetHost.setOnAction(event -> connectTarget());
+        connectTarget.setOnAction(event -> connectTarget());
+        connectTarget.getStyleClass().add("primary-connect");
+        connectTarget.setTooltip(new Tooltip(
+                "Apply host and connect all interfaces; click an individual option to toggle it."));
 
         apiBoundary.setTooltip(new Tooltip(
                 "IF-03 HTTP is stateless. Click to check that the API at the active target is reachable."));
@@ -186,7 +189,7 @@ public final class TestClientFxApplication extends Application {
                 6,
                 new Label("Host"),
                 targetHost,
-                applyTarget,
+                connectTarget,
                 apiBoundary,
                 eventBoundary,
                 terminalBoundary,
@@ -201,12 +204,20 @@ public final class TestClientFxApplication extends Application {
         return bar;
     }
 
+    private void connectTarget() {
+        if (!applyTargetHost()) return;
+        checkApi();
+        if (!system.eventClient().isConnected() && !eventBoundary.isDisabled()) connectEvents();
+        if (!system.shellClient().isConnected() && !terminalBoundary.isDisabled()) connectShell();
+        if (!system.liveLogClient().isConnected() && !deviceLogBoundary.isDisabled()) connectLogs();
+    }
+
     private void configureBoundaryButtons() {
         setApiState("CHECK");
         setEventConnected(false, "CONNECT");
         setShellConnected(false, "CONNECT");
         setLogConnected(false, "CONNECT");
-        clientLogBoundary.setText("● Client Log · Active");
+        clientLogBoundary.setText("● Client Log");
 
         apiBoundary.setOnAction(event -> checkApi());
         eventBoundary.setOnAction(event -> {
@@ -352,9 +363,6 @@ public final class TestClientFxApplication extends Application {
     }
 
     private void connectEvents() {
-        if (!applyTargetHost()) {
-            return;
-        }
         eventBoundary.setDisable(true);
         setBoundaryState(eventBoundary, "Events", "CONNECTING");
         clientLog.info("Connecting IF-03 Events to " + eventEndpoint());
@@ -389,7 +397,7 @@ public final class TestClientFxApplication extends Application {
                     Platform.runLater(() -> {
                         clientLog.error("IF-03 Events error: " + message);
                         if (!system.eventClient().isConnected()) {
-                            setEventConnected(false, "CONNECT");
+                            setEventConnected(false, "ERROR");
                             apiPane.disconnected(true);
                         }
                         feedback.setText("Events error: " + message);
@@ -399,7 +407,7 @@ public final class TestClientFxApplication extends Application {
                 if (error != null) {
                     Platform.runLater(() -> {
                         Throwable cause = rootCause(error);
-                        setEventConnected(false, "CONNECT");
+                        setEventConnected(false, "ERROR");
                         apiPane.disconnected(true);
                         clientLog.error("IF-03 Events connect failed: " + rootMessage(cause));
                         feedback.setText("Events error: " + rootMessage(cause));
@@ -440,9 +448,6 @@ public final class TestClientFxApplication extends Application {
     }
 
     private void connectLogs() {
-        if (!applyTargetHost()) {
-            return;
-        }
         deviceLogBoundary.setDisable(true);
         setBoundaryState(deviceLogBoundary, "Device Log", "CONNECTING");
         clientLog.info("Connecting SI-01 device log");
@@ -500,7 +505,7 @@ public final class TestClientFxApplication extends Application {
                 .whenComplete((ignored, error) -> Platform.runLater(() -> {
                     if (error != null) {
                         Throwable cause = rootCause(error);
-                        setLogConnected(false, "CONNECT");
+                        setLogConnected(false, "ERROR");
                         clientLog.error("SI-01 device log connect failed: "
                                 + rootMessage(cause));
                         feedback.setText("Device log error: " + rootMessage(cause));
@@ -537,9 +542,6 @@ public final class TestClientFxApplication extends Application {
     }
 
     private void connectShell() {
-        if (!applyTargetHost()) {
-            return;
-        }
         terminalBoundary.setDisable(true);
         setBoundaryState(terminalBoundary, "Terminal", "CONNECTING");
         clientLog.info("Connecting Remote Shell");
@@ -582,12 +584,11 @@ public final class TestClientFxApplication extends Application {
                 .whenComplete((ignored, error) -> Platform.runLater(() -> {
                     if (error != null) {
                         Throwable cause = rootCause(error);
-                        setShellConnected(false, "CONNECT");
+                        setShellConnected(false, "ERROR");
                         clientLog.error("Remote Shell connect failed: " + rootMessage(cause));
                         feedback.setText("Terminal error: " + rootMessage(cause));
                     } else {
                         setShellConnected(true, "CONNECTED");
-                        terminalInput.requestFocus();
                         clientLog.info("Remote Shell connected");
                     }
                 }));
@@ -647,9 +648,6 @@ public final class TestClientFxApplication extends Application {
     }
 
     private void checkApi() {
-        if (!applyTargetHost()) {
-            return;
-        }
         setApiState("CHECKING");
         feedback.setText("Checking API " + apiEndpoint() + "...");
         clientLog.info("Checking IF-03 API at " + apiEndpoint());
@@ -679,27 +677,25 @@ public final class TestClientFxApplication extends Application {
     private void setBoundaryState(Button button, String boundary, String state) {
         button.getStyleClass().removeAll(
                 "connection-ok", "connection-busy", "connection-error");
-        boolean connected = "CONNECTED".equals(state) || "READY".equals(state);
+        boolean on = "CONNECTED".equals(state) || "READY".equals(state);
         boolean busy = "CONNECTING".equals(state) || "CHECKING".equals(state)
                 || "DISCONNECTING".equals(state);
-        boolean error = "UNREACHABLE".equals(state);
-        if (connected) button.getStyleClass().add("connection-ok");
+        boolean error = "UNREACHABLE".equals(state) || "ERROR".equals(state);
+        if (on) button.getStyleClass().add("connection-ok");
         else if (busy) button.getStyleClass().add("connection-busy");
         else if (error) button.getStyleClass().add("connection-error");
-        String label = switch (state) {
-            case "CONNECTED" -> "Disconnect";
-            case "CHECK" -> "Check";
-            case "CONNECT" -> "Connect";
-            case "READY" -> "Ready · Check";
-            case "CHECKING" -> "Checking…";
-            case "CONNECTING" -> "Connecting…";
-            case "DISCONNECTING" -> "Disconnecting…";
-            case "UNREACHABLE" -> "Retry";
-            default -> state;
+        button.setText(boundary);
+        String action = switch (state) {
+            case "CONNECTED" -> "Connected. Click to disconnect";
+            case "READY" -> "API check succeeded. Click to recheck";
+            case "CHECK" -> "Click to check API";
+            case "CONNECT" -> "Disconnected. Click to connect";
+            case "CHECKING", "CONNECTING", "DISCONNECTING" -> "Please wait";
+            case "ERROR", "UNREACHABLE" -> "Connection failed. Click to retry";
+            default -> "Status " + state;
         };
-        button.setText((connected ? "● " : busy ? "◐ " : "○ ")
-                + boundary + " · " + label);
-        button.setAccessibleText(boundary + " " + state);
+        button.setTooltip(new Tooltip(boundary + ": " + action));
+        button.setAccessibleText(boundary + " " + state + ". " + action);
     }
 
     private void setApiState(String state) {
