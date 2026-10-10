@@ -97,7 +97,10 @@ The script verifies JDK 21, builds the client, collects its runtime Maven
 dependencies, and invokes the JDK `jpackage` tool with the branded
 `test-client/src/main/resources/icons/event-timing.ico` Windows launcher icon.
 The same graphic is loaded from `event-timing.png` by JavaFX, including during
-an ordinary Maven/NetBeans run. The default output is:
+an ordinary Maven/NetBeans run.
+The editable icon artwork is stored in `test-client/assets/event-timing.svg`;
+regenerated PNG/ICO assets should keep its clock/read-signal motif and include
+small sizes suitable for Windows taskbar scaling. The default output is:
 
 ```text
 test-client\target\jpackage\EventTimingEngineeringClient\
