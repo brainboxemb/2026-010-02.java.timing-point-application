@@ -73,7 +73,6 @@ final class TimingPane {
     private final TextField registrationNumber = new TextField("0001");
     private final TextField registrationDate = new TextField();
     private final TextField registrationTime = new TextField();
-    private final Label registrationTimeSource = new Label("AUTO");
     private final Button now = new Button("Now");
     private final Button manualReg = new Button("Add manual");
     private final Button autoReg = new Button("Direct auto-reg");
@@ -193,41 +192,47 @@ final class TimingPane {
                 (ignored, previous, value) ->
                         markRegistrationTimeManual());
 
-        GridPane registrationGrid = new GridPane();
-        registrationGrid.setHgap(10);
-        registrationGrid.setVgap(8);
-        add(registrationGrid, 0, "Prefix", registrationPrefix);
-        add(registrationGrid, 1, "Number", registrationNumber);
-        add(registrationGrid, 2, "Date", registrationDate);
-        registrationGrid.add(
-                new Label("Time (" + INPUT_ZONE.getId() + ")"),
-                0,
-                3);
-        registrationGrid.add(
-                new HBox(8, registrationTime, now),
-                1,
-                3);
-        registrationGrid.add(
-                new HBox(
-                        8,
-                        new Label("Time source"),
-                        registrationTimeSource),
-                1,
-                4);
-        registrationGrid.add(manualReg, 1, 5);
+        // One compact input form, no status dashboard between editable fields.
+        // All fields are shared by manual and accepted direct registrations.
+        registrationPrefix.setPrefWidth(92);
+        registrationNumber.setPrefWidth(94);
+        registrationDate.setPrefWidth(112);
+        registrationTime.setPrefWidth(102);
+
+        HBox registrationIdRow = new HBox(
+                8, new Label("RegistrationId"), registrationPrefix, registrationNumber);
+        registrationIdRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        HBox dateTimeRow = new HBox(
+                8, new Label("Local time"), registrationDate, registrationTime, now);
+        dateTimeRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        dateTimeRow.setTooltip(new Tooltip(
+                "Date/time in " + INPUT_ZONE.getId()
+                        + ". Now uses AUTO for manual registration;"
+                        + " editing it marks the manual time as MAN."));
+
         directTimeMode.getItems().setAll(NODE_TIME, PROVIDED_TIME);
         directTimeMode.setValue(NODE_TIME);
+        directTimeMode.setPrefWidth(152);
         directTimeMode.setTooltip(new Tooltip(
-                "TimingNode clock omits time from the request. Provided time sends the"
-                        + " visible date/time for deterministic replay."));
+                "TimingNode clock omits time from IF-03. Provided time sends"
+                        + " the visible date/time for deterministic replay."));
         autoReg.setTooltip(new Tooltip(
-                "Injects an already accepted registration directly at the TimingNode."
-                        + " This bypasses antenna/tag/decoding/filtering."
-                        + " Use Simulation to exercise the physical observation path."));
+                "Injects an accepted registration directly at the TimingNode,"
+                        + " bypassing antenna/tag/decoding/filtering."
+                        + " Use Simulation to exercise the observation path."));
         HBox directControls = new HBox(8,
                 new Label("Direct time"), directTimeMode, autoReg);
-        VBox registrationBox = new VBox(
-                8, autoRegCapability, registrationGrid, directControls);
+        directControls.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        autoRegCapability.managedProperty().bind(autoRegCapability.visibleProperty());
+        autoRegCapability.getStyleClass().add("input-warning");
+        manualReg.setTooltip(new Tooltip(
+                "Manual time source is AUTO after Now and MAN after edits."
+                        + " This value is sent in the manual registration request."));
+
+        VBox registrationBox = new VBox(9,
+                registrationIdRow, dateTimeRow, manualReg, directControls,
+                autoRegCapability);
+        registrationBox.getStyleClass().add("registration-form");
         registrationBox.setPadding(new Insets(10));
         registrationPane = registrationBox;
 
@@ -948,14 +953,11 @@ final class TimingPane {
     private void refreshControls() {
         TimingViewModel.Controls controls = model.controls();
         boolean live = model.viewState() == TimingViewModel.ViewState.LIVE;
-        if (!live) {
-            autoRegCapability.setText(
-                    "Capability state cached/not synchronised");
-        } else {
-            autoRegCapability.setText(
-                    model.autoRegEnabled()
-                            ? "DIRECT_REGISTRATION_SIMULATION enabled"
-                            : "DIRECT_REGISTRATION_SIMULATION unavailable");
+        // Only communicate an exceptional capability state. Normal operation
+        // is self-explanatory from the available command buttons.
+        autoRegCapability.setVisible(live && !model.autoRegEnabled());
+        if (live && !model.autoRegEnabled()) {
+            autoRegCapability.setText("Direct auto-reg unavailable on this system");
         }
         simulationPane.refresh(
                 live,
@@ -1161,8 +1163,7 @@ final class TimingPane {
             updatingRegistrationTime = false;
         }
         manualTimeSource = "AUTO";
-        registrationTimeSource.setText(
-                manualTimeSource);
+        manualReg.setText("Add manual [AUTO]");
     }
 
     private void markRegistrationTimeManual() {
@@ -1170,8 +1171,7 @@ final class TimingPane {
             return;
         }
         manualTimeSource = "MAN";
-        registrationTimeSource.setText(
-                manualTimeSource);
+        manualReg.setText("Add manual [MAN]");
     }
 
     private static TableColumn<ApiClient.TimingDataInfo, String> column(

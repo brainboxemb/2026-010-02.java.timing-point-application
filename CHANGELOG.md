@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Simplify the SI-02 Registration form into aligned RegistrationId, local time and manual/direct action rows; show manual AUTO/MAN on the action button instead of standalone status, hide normal capability chatter, and flatten nested ComboBox arrow/popup styling.
+
+
 - Keep SI-02 Systems as a small top-left Explorer beside TimingNode/Registration/Simulation tabs rather than stacking the two vertically; remove the confusing close X from the persistent Explorer.
 
 

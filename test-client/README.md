@@ -193,6 +193,12 @@ for manual records, the original AUTO/MAN time-source classification to the norm
 node-scoped revoke operation. SI-01 appends the REV record; it does not delete or rewrite
 the ADD record. The immutable LogBook therefore continues to show both ADD and REV.
 
+Registration input uses a compact shared form with RegistrationId (prefix + number),
+local date/time and a Now button. The manual submit button directly shows its
+AUTO/MAN time-source classification; normally supported direct capability no
+longer adds an extra status row. Unsupported capability is explained only while
+the connected status is LIVE.
+
 Registration input uses a separate prefix and numeric field plus readable local civil
 date and hundredth-second clock time. The UI shows the interpreted client time zone next
 to the field (for example `Europe/Amsterdam`) and converts that explicit local value to
