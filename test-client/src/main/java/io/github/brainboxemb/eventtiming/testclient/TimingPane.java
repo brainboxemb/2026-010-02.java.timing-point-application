@@ -7,6 +7,8 @@ import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.TreeItem;
+import javafx.scene.control.TreeView;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableRow;
@@ -25,6 +27,8 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
@@ -48,13 +52,16 @@ final class TimingPane {
 
     private final Label historyState = new Label("NOT SYNCED — connect Events");
     private final Button syncViewButton = new Button("Sync view");
-    private final HBox syncStateBar = new HBox();
+    private final TreeItem<String> systemRoot = new TreeItem<>("System");
+    private final TreeView<String> systemTree = new TreeView<>(systemRoot);
+    private final Map<TreeItem<String>, String> treeNodeIds = new IdentityHashMap<>();
+    private final VBox systemsPane = new VBox(6);
+    private boolean updatingTreeSelection;
+    private String systemHost = "-";
+    private Consumer<Long> logBookCountListener = ignored -> {};
     private boolean eventsConnected;
 
     private final ComboBox<String> node = new ComboBox<>();
-    private final Label nodeSummary = new Label("-");
-    private final Label state = new Label("-");
-    private final Label location = new Label("-");
     private final Label problem = new Label("-");
     private final TextField locationInput = new TextField();
     private final Button open = new Button("Open");
@@ -83,8 +90,12 @@ final class TimingPane {
 
     private final TableView<TimingViewModel.InterpretedRegistration> registrations =
             new TableView<>();
-    private final Label logBookCount = new Label("0");
+
     private final TableView<ApiClient.TimingDataInfo> logBook = new TableView<>();
+    private final FollowLatestTable<TimingViewModel.InterpretedRegistration> registrationFollow =
+            new FollowLatestTable<>(registrations);
+    private final FollowLatestTable<ApiClient.TimingDataInfo> logBookFollow =
+            new FollowLatestTable<>(logBook);
 
     private boolean updatingNodeSelection;
     private final List<ApiEventClient.ApiEvent> bufferedEvents = new ArrayList<>();
@@ -112,23 +123,31 @@ final class TimingPane {
         this.clientLog = clientLog;
 
 
-        Region syncSpacer =
-                new Region();
-        HBox.setHgrow(
-                syncSpacer,
-                Priority.ALWAYS);
-        syncStateBar.setSpacing(8);
-        syncStateBar.getChildren().setAll(
-                new Label("Timing view"),
-                historyState,
-                new Label("Node"),
-                nodeSummary,
-                new Label("State"),
-                state,
-                new Label("Location"),
-                location,
-                syncSpacer,
-                syncViewButton);
+        systemTree.setShowRoot(true);
+        systemRoot.setExpanded(true);
+        systemTree.getStyleClass().add("systems-tree");
+        systemTree.setCellFactory(view -> new javafx.scene.control.TreeCell<>() {
+            @Override
+            protected void updateItem(String value, boolean empty) {
+                super.updateItem(value, empty);
+                setText(empty ? null : value);
+                setTooltip(empty || value == null ? null : new Tooltip(value));
+            }
+        });
+        systemTree.getSelectionModel().selectedItemProperty().addListener(
+                (ignored, oldItem, selectedItem) -> {
+                    if (updatingTreeSelection) return;
+                    String selectedId = treeNodeIds.get(selectedItem);
+                    if (selectedId != null && !selectedId.equals(model.selectedNodeId())) {
+                        model.selectNode(selectedId);
+                        loadSelectedLogBook();
+                    }
+                });
+        VBox.setVgrow(systemTree, Priority.ALWAYS);
+        syncViewButton.setMaxWidth(Double.MAX_VALUE);
+        historyState.getStyleClass().add("sync-state");
+        systemsPane.getChildren().setAll(historyState, systemTree, syncViewButton);
+        systemsPane.setPadding(new Insets(8));
 
         node.setPrefWidth(230);
         locationInput.setPrefColumnCount(8);
@@ -244,10 +263,7 @@ final class TimingPane {
         registrationsPane = upperRight;
 
         configureLogBook();
-        VBox historyBox = new VBox(
-                6,
-                new HBox(8, new Label("Count"), logBookCount),
-                logBook);
+        VBox historyBox = new VBox(6, logBook);
         VBox.setVgrow(logBook, Priority.ALWAYS);
         logBookPane = historyBox;
 
@@ -277,8 +293,18 @@ final class TimingPane {
         refresh();
     }
 
-    HBox syncStateBar() {
-        return syncStateBar;
+    javafx.scene.Node systemsPane() {
+        return systemsPane;
+    }
+
+    void setSystemHost(String host) {
+        systemHost = host;
+        refreshTree();
+    }
+
+    void setLogBookCountListener(Consumer<Long> listener) {
+        logBookCountListener = listener == null ? ignored -> {} : listener;
+        logBookCountListener.accept(model.logBookCount());
     }
 
     javafx.scene.Node timingNodePane() {
@@ -842,14 +868,6 @@ final class TimingPane {
     private void refresh() {
         syncNodeChoice();
         ApiClient.TimingNodeInfo selected = model.selectedNode();
-        nodeSummary.setText(
-                selected == null
-                        ? "-"
-                        : selected.id());
-        state.setText(selected == null ? "-" : selected.state());
-        location.setText(selected == null || selected.locationId() == null
-                ? "-"
-                : Integer.toString(selected.locationId()));
         List<ApiClient.ProblemInfo> selectedProblems = model.selectedProblems();
         if (selectedProblems.isEmpty()) {
             problem.setText("-");
@@ -863,7 +881,34 @@ final class TimingPane {
                             + first.message());
         }
         refreshControls();
+        refreshTree();
         refreshLogBook();
+    }
+
+    private void refreshTree() {
+        updatingTreeSelection = true;
+        try {
+            systemRoot.setValue("System · " + systemHost);
+            treeNodeIds.clear();
+            List<TreeItem<String>> children = new ArrayList<>();
+            TreeItem<String> selectedItem = null;
+            for (ApiClient.TimingNodeInfo nodeInfo : model.nodes()) {
+                String label = nodeInfo.id() + " · " + nodeInfo.state()
+                        + (nodeInfo.locationId() == null ? ""
+                                : " · Location " + nodeInfo.locationId());
+                TreeItem<String> item = new TreeItem<>(label);
+                treeNodeIds.put(item, nodeInfo.id());
+                children.add(item);
+                if (nodeInfo.id().equals(model.selectedNodeId())) selectedItem = item;
+            }
+            systemRoot.getChildren().setAll(children);
+            systemRoot.setExpanded(true);
+            if (selectedItem != null) systemTree.getSelectionModel().select(selectedItem);
+            else systemTree.getSelectionModel().clearSelection();
+            systemTree.setDisable(model.viewState() != TimingViewModel.ViewState.LIVE);
+        } finally {
+            updatingTreeSelection = false;
+        }
     }
 
     private void refreshControls() {
@@ -907,13 +952,10 @@ final class TimingPane {
     }
 
     private void refreshLogBook() {
-        registrations.setItems(FXCollections.observableArrayList(
-                model.interpretedRegistrations(
-                        INPUT_ZONE,
-                        "All".equals(
-                                registrationScope.getValue()))));
-        logBookCount.setText(Long.toString(model.logBookCount()));
-        logBook.setItems(FXCollections.observableArrayList(model.records()));
+        registrationFollow.update(model.interpretedRegistrations(
+                INPUT_ZONE, "All".equals(registrationScope.getValue())));
+        logBookCountListener.accept(model.logBookCount());
+        logBookFollow.update(model.records());
     }
 
     private void syncNodeChoice() {
@@ -1022,7 +1064,8 @@ final class TimingPane {
         TableColumn<TimingViewModel.InterpretedRegistration, String> column =
                 new TableColumn<>(title);
         column.setCellValueFactory(cell ->
-                new ReadOnlyStringWrapper(value.apply(cell.getValue())));
+                new ReadOnlyStringWrapper(cell.getValue() == null
+                        ? "" : value.apply(cell.getValue())));
         return column;
     }
 
@@ -1101,7 +1144,8 @@ final class TimingPane {
             java.util.function.Function<ApiClient.TimingDataInfo, String> value) {
         TableColumn<ApiClient.TimingDataInfo, String> column = new TableColumn<>(title);
         column.setCellValueFactory(cell ->
-                new ReadOnlyStringWrapper(value.apply(cell.getValue())));
+                new ReadOnlyStringWrapper(cell.getValue() == null
+                        ? "" : value.apply(cell.getValue())));
         return column;
     }
 
