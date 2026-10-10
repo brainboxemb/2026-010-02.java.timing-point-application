@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Keep SI-02 Systems as a small top-left Explorer beside TimingNode/Registration/Simulation tabs rather than stacking the two vertically; remove the confusing close X from the persistent Explorer.
+
+
 - Make SI-02 Direct auto-reg injection explicit: choose node clock (default) or a provided replay time independently from manual data edits; explain the bypassed antenna path and report acceptance with node, ID and provenance separately from observed LogBook records.
 
 - Allow IF-03 direct automatic registration without a supplied time: the owning TimingNode obtains its TimeSource during execution. Store optional `tagSrc`/`timeSrc` provenance in AUTO_REG TimingData, preserve legacy records and verify through black-box tests.
