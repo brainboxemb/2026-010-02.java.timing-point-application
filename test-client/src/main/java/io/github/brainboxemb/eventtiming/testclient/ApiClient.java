@@ -67,17 +67,26 @@ public final class ApiClient {
         return parseOperation(request("POST", nodePath(nodeId, "/close"), ""));
     }
 
+    /** Direct simulation with the owning TimingNode's effective time. */
+    public AutoRegResult autoReg(String nodeId, String registrationId)
+            throws IOException, InterruptedException {
+        return autoReg(nodeId, registrationId, null);
+    }
+
+    /** Direct simulation with optional explicit effective time for replay. */
     public AutoRegResult autoReg(String nodeId, String registrationId, String time)
             throws IOException, InterruptedException {
         if (registrationId == null || registrationId.trim().isEmpty()) {
             throw new IllegalArgumentException("registrationId must not be blank");
         }
-        if (time == null || time.trim().isEmpty()) {
-            throw new IllegalArgumentException("time must not be blank");
+        if (time != null && time.trim().isEmpty()) {
+            throw new IllegalArgumentException("explicit time must not be blank");
         }
         ObjectNode body = JSON.createObjectNode();
         body.put("id", registrationId);
-        body.put("time", time);
+        if (time != null) {
+            body.put("time", time);
+        }
         String rawJson = request(
                 "POST",
                 "/api/v1/dev/node/" + pathSegment(nodeId) + "/auto-reg",
