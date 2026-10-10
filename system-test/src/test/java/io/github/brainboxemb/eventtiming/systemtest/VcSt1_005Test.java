@@ -13,6 +13,11 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * VC-ST1-005 — lifecycle TimingData source ordering and recovery.
+ *
+ * <p>Drive OPEN, an automatic registration and CLOSE through IF-03. Their
+ * TimingData records must share one ordered sequence; repeated lifecycle
+ * commands must not add duplicates. After restart the preserved history must
+ * be available and the next accepted OPEN must continue the sequence.</p>
  */
 public class VcSt1_005Test {
     private static final String NODE_ID = "A";

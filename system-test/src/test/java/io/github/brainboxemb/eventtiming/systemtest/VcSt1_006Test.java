@@ -13,6 +13,11 @@ import static org.junit.Assert.assertTrue;
 
 /**
  * VC-ST1-006 — append-only registration revoke bookkeeping.
+ *
+ * <p>Verify raw IF-03 revoke semantics, not Engineering Client business-state
+ * interpretation. Accepted REV records append without modifying the original
+ * ADD; even a repeated valid REV is retained. Invalid input must fail before
+ * committing. Restart must recover the same immutable source history.</p>
  */
 public class VcSt1_006Test {
     private static final String NODE_ID = "A";
