@@ -894,6 +894,7 @@ final class TimingPane {
         // HTTP operation is still in progress.
         operationBusy = busy;
         refreshControls();
+        systemTree.setDisable(busy || model.viewState() != TimingViewModel.ViewState.LIVE);
     }
 
     private void refreshAfterCommand(boolean statusChanged, boolean historyChanged) {
@@ -959,7 +960,8 @@ final class TimingPane {
                 if (selectedItem != null) systemTree.getSelectionModel().select(selectedItem);
                 else systemTree.getSelectionModel().clearSelection();
             }
-            systemTree.setDisable(model.viewState() != TimingViewModel.ViewState.LIVE);
+            systemTree.setDisable(operationBusy
+                    || model.viewState() != TimingViewModel.ViewState.LIVE);
         } finally {
             updatingTreeSelection = false;
         }
@@ -979,6 +981,7 @@ final class TimingPane {
                 controls.simulation());
         node.setDisable(
                 !live
+                        || operationBusy
                         || model.nodes().size() <= 1
                         || simulationPane.running());
         locationInput.setDisable(!live || operationBusy || !controls.open());
