@@ -1,0 +1,34 @@
+# VC-ST1-007: SID-9 contains TimingNodes A and B.
+# {NodeId} is expanded by the application to select distinct LogBooks.
+timingSystems:
+  one:
+    timingSystemId: SID-9
+    timingNodes:
+      node-a:
+        timingNodeId: A
+      node-b:
+        timingNodeId: B
+
+io:
+  storage:
+    timingData:
+      path: node-{NodeId}-logbook.jsonl
+
+presentation:
+  remoteShell:
+    bindAddress: 127.0.0.1
+    port: @SHELL_PORT@
+  api:
+    http:
+      bindAddress: 127.0.0.1
+      port: @HTTP_PORT@
+    webSocket:
+      bindAddress: 127.0.0.1
+      port: @WEB_SOCKET_PORT@
+
+logging:
+  level: INFO
+  file:
+    path: logs
+    rotateBytes: 1048576
+    retainedFiles: 5
