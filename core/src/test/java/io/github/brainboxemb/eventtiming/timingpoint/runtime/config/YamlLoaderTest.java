@@ -729,7 +729,7 @@ public class YamlLoaderTest {
                         + "    timingNodes:\n"
                         + "      - timingNodeId: A\n"
                         + "      - timingNodeId: B\n"
-                        + "  - timingSystemId: B\n"
+                        + "  - timingSystemId: C\n"
                         + "    timingNodes:\n"
                         + "      - timingNodeId: C\n"
                         + "io:\n"
@@ -739,7 +739,7 @@ public class YamlLoaderTest {
         assertEquals(2, config.timingSystems().size());
         assertEquals(3, config.timingNodes().size());
         assertEquals("9", config.timingSystems().get(0).timingSystemId());
-        assertEquals("B", config.timingSystems().get(1).timingSystemId());
+        assertEquals("C", config.timingSystems().get(1).timingSystemId());
         assertEquals(Paths.get("node-C-logbook.jsonl"),
                 config.timingNode(new NodeId("C")).timingDataPath());
     }
