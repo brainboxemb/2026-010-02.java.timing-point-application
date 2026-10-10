@@ -225,9 +225,12 @@ final class EngineeringWorkbench {
     private Dockable dockable(DockBuilding builder, DockContainerLeaf home, WorkbenchPanel panel) {
         Dockable dockable = builder.dockable(panel.id());
         dockable.setTitle(panel.title());
-        // Systems is the persistent Explorer: closing it has no useful
-        // meaning, and an X would imply a missing reopen action.
-        if ("systems".equals(panel.id())) dockable.setClosable(false);
+        // All built-in SI-02 views are permanent until the workbench has a
+        // proper Window/Show panel menu. BentoFX defaults to closable tabs,
+        // which displays a misleading X and can remove a live diagnostic pane
+        // with no obvious way to get it back. This supported property also
+        // prevents the tab close action, not just its visual decoration.
+        dockable.setClosable(false);
         dockable.setNode(panel.content());
         dockable.setDragGroupMask(WORKBENCH_DRAG_GROUP);
         dockable.setIconFactory(current -> {

@@ -172,6 +172,13 @@ logging is always available independently from SI-01. The Systems pane shows the
 current target and its reported TimingNodes, state and location, and provides
 **Sync view**. Click a node to select it for node-scoped controls.
 
+All built-in workbench tabs are non-closable: they intentionally have **no ✕
+in their tab header**. The tabs still switch, drag and detach normally, but
+the client cannot silently lose an essential live-status, log or diagnostic
+pane. A future Window/Show panels menu could introduce optional hiding
+together with a reliable restore action. The native close button of a
+separate floating window is distinct from a dock-tab close button.
+
 Docking panes can be dragged into separate windows. Empty original dock
 areas are pruned, so the remaining panes use that space. A visible **↩** action
 in a moved panel's tab header or the tab's **right-click → Dock back** action
