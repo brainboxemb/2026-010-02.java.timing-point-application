@@ -98,9 +98,21 @@ dependencies, and invokes the JDK `jpackage` tool with the branded
 `test-client/src/main/resources/icons/event-timing.ico` Windows launcher icon.
 The same graphic is loaded from `event-timing.png` by JavaFX, including during
 an ordinary Maven/NetBeans run.
-The editable icon artwork is stored in `test-client/assets/event-timing.svg`;
-regenerated PNG/ICO assets should keep its clock/read-signal motif and include
-small sizes suitable for Windows taskbar scaling. The default output is:
+The editable icon artwork is stored in `test-client/assets/event-timing.svg`.
+The stopwatch dial is deliberately drawn **large** (approximately 82% of the
+icon including its stroke) so it stays legible on Windows taskbars at 16–32px.
+The ICO includes explicit 16, 24, 32, 48, 64, 128 and 256px variants, while
+JavaFX uses the 256px PNG. To regenerate both from SVG when the artwork changes:
+
+```powershell
+python -m pip install cairosvg Pillow
+python test-client/assets/generate_icons.py
+```
+
+These Python packages are needed **only for artwork generation**, never for
+Maven/JavaFX or the Windows launcher. A new build must be started after
+regeneration. If the taskbar still shows the previous icon, unpin the old
+shortcut and pin the rebuilt packaged launcher because Windows caches icons. The default output is:
 
 ```text
 test-client\target\jpackage\EventTimingEngineeringClient\

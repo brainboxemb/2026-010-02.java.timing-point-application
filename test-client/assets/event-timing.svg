@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Event Timing Engineering Client">
-  <!-- Editable master for the generated ICO/PNG app assets. Keep their design aligned. -->
-  <rect x="7" y="7" width="242" height="242" rx="49" fill="#142F45" stroke="#2A5875" stroke-width="5"/>
-  <rect x="115" y="28" width="26" height="17" rx="4" fill="#FFFFFF"/>
-  <circle cx="129" cy="128" r="80" fill="none" stroke="#FFFFFF" stroke-width="16"/>
-  <path d="M129 65 V78 M192 128 H179 M129 191 V178 M66 128 H79"
-        fill="none" stroke="#D8EFFC" stroke-width="6" stroke-linecap="round"/>
-  <path d="M128 128 L155 86 M128 128 L91 142"
-        fill="none" stroke="#F8A532" stroke-width="10" stroke-linecap="round"/>
-  <circle cx="128" cy="128" r="8" fill="#F8A532"/>
-  <path d="M201 114 Q213 128 201 142 M211 102 Q236 128 211 154"
-        fill="none" stroke="#38C7DB" stroke-width="5" stroke-linecap="round"/>
+  <!-- Foreground intentionally fills more of the square to stay clear at 16–32 px. -->
+  <rect x="3" y="3" width="250" height="250" rx="46" fill="#142F45" stroke="#2A5875" stroke-width="4"/>
+  <rect x="108" y="11" width="30" height="24" rx="4" fill="#FFFFFF"/>
+  <circle cx="121" cy="130" r="96" fill="none" stroke="#FFFFFF" stroke-width="18"/>
+  <path d="M121 55 V72 M196 130 H179 M121 205 V188 M46 130 H63"
+        fill="none" stroke="#DBF2FF" stroke-width="7" stroke-linecap="round"/>
+  <path d="M121 130 L153 80 M121 130 L85 145"
+        fill="none" stroke="#F8A532" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="121" cy="130" r="9" fill="#F8A532"/>
+  <path d="M216 112 Q231 130 216 148 M227 100 Q254 130 227 160"
+        fill="none" stroke="#38C7DB" stroke-width="6" stroke-linecap="round"/>
 </svg>
