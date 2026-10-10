@@ -80,17 +80,22 @@ public final class TimingViewModel {
         return nodes;
     }
 
-    public void applyStatus(ApiClient.StatusResult status) {
+    /** @return true only when the presented node/problem state changes. */
+    public boolean applyStatus(ApiClient.StatusResult status) {
         if (status == null) {
             throw new IllegalArgumentException("status must not be null");
         }
+        // WebSocket and HTTP status responses may carry different raw JSON.
+        boolean changed = !nodes.equals(status.nodes())
+                || !problems.equals(status.problems());
         nodes = status.nodes();
         problems = status.problems();
-
-        if (selectedNodeId != null && findNode(selectedNodeId) != null) {
-            return;
+        if (selectedNodeId == null || findNode(selectedNodeId) == null) {
+            String previous = selectedNodeId;
+            selectNode(nodes.isEmpty() ? null : nodes.get(0).id());
+            changed |= !Objects.equals(previous, selectedNodeId);
         }
-        selectNode(nodes.isEmpty() ? null : nodes.get(0).id());
+        return changed;
     }
 
     public String selectedNodeId() {
@@ -172,27 +177,51 @@ public final class TimingViewModel {
         logBookCount = info.count();
     }
 
-    public void mergeLogBookPage(ApiClient.LogBookPage page) {
+    /** @return true if the presented record set or count changes. */
+    public boolean mergeLogBookPage(ApiClient.LogBookPage page) {
         if (page == null) {
             throw new IllegalArgumentException("page must not be null");
         }
-        logBookCount = page.count();
+        // A newer live event can outrun an older HTTP page.
+        long nextCount = Math.max(logBookCount, page.count());
+        boolean changed = nextCount != logBookCount;
+        logBookCount = nextCount;
         for (ApiClient.TimingDataInfo record : page.records()) {
-            mergeCommitted(record);
+            changed |= mergeCommitted(record);
         }
+        return changed;
     }
 
-    public void mergeCommitted(ApiClient.TimingDataInfo record) {
+    /** @return false for an unchanged/replayed or non-selected record. */
+    public boolean mergeCommitted(ApiClient.TimingDataInfo record) {
         if (record == null) {
             throw new IllegalArgumentException("record must not be null");
         }
         if (selectedNodeId == null || !selectedNodeId.equals(record.timingNodeId())) {
-            return;
+            return false;
         }
-        records.put(record.key(), record);
-        if (record.sequenceNumber() > logBookCount) {
-            logBookCount = record.sequenceNumber();
+        boolean recordChanged = !equivalent(records.get(record.key()), record);
+        if (recordChanged) {
+            records.put(record.key(), record);
         }
+        long nextCount = Math.max(logBookCount, record.sequenceNumber());
+        boolean countChanged = nextCount != logBookCount;
+        logBookCount = nextCount;
+        return recordChanged || countChanged;
+    }
+
+    private static boolean equivalent(
+            ApiClient.TimingDataInfo a, ApiClient.TimingDataInfo b) {
+        if (a == null || b == null) return a == b;
+        // Protocol wrappers may format rawJson differently for the same
+        // committed record. Only compare the actual domain/view fields.
+        return Objects.equals(a.key(), b.key())
+                && a.locationId() == b.locationId()
+                && Objects.equals(a.recordType(), b.recordType())
+                && Objects.equals(a.effectiveTime(), b.effectiveTime())
+                && Objects.equals(a.registrationId(), b.registrationId())
+                && Objects.equals(a.codes(), b.codes())
+                && Objects.equals(a.recordedAt(), b.recordedAt());
     }
 
     public long logBookCount() {

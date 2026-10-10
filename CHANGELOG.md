@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Render SI-02 state/history views only when their semantic values change; deduplicate matching HTTP/WebSocket records, coalesce queued timing events, keep node selection stable and maintain disabled input controls through asynchronous status updates.
+
+
 - Prevent silent mixed JavaFX 17/21 runtime linkage in SI-02: explicitly pin JavaFX base/graphics alongside controls/fxml, and check the loaded JavaFX module versions before launching BentoFX so NetBeans/IDE classpath conflicts produce an actionable diagnostic instead of cascading NoSuchMethodError stack traces.
 
 
