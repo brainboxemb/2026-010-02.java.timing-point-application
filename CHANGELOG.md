@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Review Claude's proposed Windows caption improvements without reverting newer main changes: add safe lazy library loading/failure diagnostics and explicitly reserve caption-control width; restore the application name and version in a balanced title row. Introduce a branded stopwatch/signal application icon for the JavaFX Stage and Windows jpackage launcher.
+
+
 - Replace the handcrafted right-aligned Windows caption title with a compact clock mark and flat View/Help menus on the left; keep one set of library caption buttons at right and remove inherited button borders from them.
 
 

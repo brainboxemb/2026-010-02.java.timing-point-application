@@ -98,9 +98,21 @@
 
   <build>
     <resources>
+      <!-- Filter only the build identity. Binary PNG/ICO must never be treated
+           as filtered text or Maven may corrupt the packaged icon. -->
       <resource>
         <directory>src/main/resources</directory>
         <filtering>true</filtering>
+        <includes>
+          <include>event-timing-test-client-build.properties</include>
+        </includes>
+      </resource>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>false</filtering>
+        <excludes>
+          <exclude>event-timing-test-client-build.properties</exclude>
+        </excludes>
       </resource>
     </resources>
     <plugins>

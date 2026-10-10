@@ -21,9 +21,9 @@ import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
 import javafx.scene.control.Tooltip;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.StackPane;
-import javafx.scene.shape.SVGPath;
-import javafx.scene.paint.Color;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -31,6 +31,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
+import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -77,6 +78,7 @@ public final class TestClientFxApplication extends Application {
     private ApiPane apiPane;
     private EngineeringWorkbench workbench;
     private BorderPane workbenchRoot;
+    private Image windowIcon;
 
     @Override
     public void start(Stage stage) throws Exception {
@@ -118,16 +120,31 @@ public final class TestClientFxApplication extends Application {
         Menu help = new Menu("Help");
         help.getItems().add(about);
         MenuBar menuBar = new MenuBar(view, help);
+        loadWindowIcon(stage);
         HBox hostBar = targetBar();
         HBox windowsCaption = null;
         boolean nativeCaption = WindowsIntegratedTitleBar.isEnabled();
         workbenchRoot = new BorderPane();
         if (nativeCaption) {
-            // IDE-like one-row caption: icon + flat menus at left,
-            // drag area in the center, library caption buttons at right.
-            Region dragSpace = new Region();
-            HBox.setHgrow(dragSpace, Priority.ALWAYS);
-            windowsCaption = new HBox(windowCaptionMark(), menuBar, dragSpace);
+            // Keep app identity visible without returning to the old
+            // right-edge overlap: icon / menu / flexible space / title /
+            // flexible space / the library's 3 x 46 px caption buttons.
+            Region beforeTitle = new Region();
+            Region afterTitle = new Region();
+            HBox.setHgrow(beforeTitle, Priority.ALWAYS);
+            HBox.setHgrow(afterTitle, Priority.ALWAYS);
+            Region systemControls = new Region();
+            systemControls.setMinWidth(WindowsIntegratedTitleBar.CONTROLS_WIDTH);
+            systemControls.setPrefWidth(WindowsIntegratedTitleBar.CONTROLS_WIDTH);
+            systemControls.setMaxWidth(WindowsIntegratedTitleBar.CONTROLS_WIDTH);
+            Label captionTitle = new Label(
+                    clientBuild.application() + " — " + clientBuild.version());
+            captionTitle.getStyleClass().add("engineering-caption-title");
+            captionTitle.setMinWidth(0);
+            captionTitle.setTextOverrun(javafx.scene.control.OverrunStyle.ELLIPSIS);
+            windowsCaption = new HBox(
+                    windowCaptionMark(), menuBar, beforeTitle,
+                    captionTitle, afterTitle, systemControls);
             windowsCaption.setAlignment(Pos.CENTER_LEFT);
             windowsCaption.getStyleClass().add("engineering-native-caption");
             workbenchRoot.setTop(new VBox(windowsCaption, hostBar));
@@ -147,7 +164,8 @@ public final class TestClientFxApplication extends Application {
         stage.setScene(scene);
         stage.show();
         if (nativeCaption && !WindowsIntegratedTitleBar.install(
-                stage, windowsCaption, menuBar)) {
+                stage, windowsCaption, menuBar, reason ->
+                        clientLog.warn("Windows titlebar integration: " + reason))) {
             // Leave the original native frame available if the Windows-only
             // integration cannot initialize. No native change for other OSes.
             windowsCaption.getChildren().remove(menuBar);
@@ -160,15 +178,34 @@ public final class TestClientFxApplication extends Application {
         clientLog.info("Engineering Client UI ready");
     }
 
-    /** Small JavaFX vector clock, without an external icon/font resource. */
+    /** One source icon for IDE/JavaFX taskbar and main-window caption. */
+    private void loadWindowIcon(Stage stage) {
+        try (InputStream stream = TestClientFxApplication.class
+                .getResourceAsStream("/icons/event-timing.png")) {
+            if (stream == null) {
+                clientLog.warn("Engineering Client icon resource is missing");
+                return;
+            }
+            windowIcon = new Image(stream);
+            if (windowIcon.isError()) {
+                clientLog.warn("Engineering Client icon image could not be loaded");
+                return;
+            }
+            stage.getIcons().add(windowIcon);
+        } catch (java.io.IOException error) {
+            clientLog.warn("Unable to load Engineering Client icon: " + error);
+        }
+    }
+
     private javafx.scene.Node windowCaptionMark() {
-        SVGPath clock = new SVGPath();
-        clock.setContent("M 8 1.5 A 6.5 6.5 0 1 1 8 14.5 "
-                + "A 6.5 6.5 0 1 1 8 1.5 M 8 4.5 L 8 8 L 11 9.7");
-        clock.setFill(Color.TRANSPARENT);
-        clock.setStroke(Color.web("#2878b8"));
-        clock.setStrokeWidth(1.5);
-        StackPane mark = new StackPane(clock);
+        if (windowIcon == null || windowIcon.isError()) {
+            return new Region();
+        }
+        ImageView image = new ImageView(windowIcon);
+        image.setFitWidth(18);
+        image.setFitHeight(18);
+        image.setPreserveRatio(true);
+        StackPane mark = new StackPane(image);
         mark.getStyleClass().add("engineering-caption-mark");
         mark.setMouseTransparent(true);
         return mark;
