@@ -4,7 +4,7 @@ parameters:
   ID: A
 
 timingSystems:
-  - timingSystemId: SID-{ID}
+  - timingSystemId: "{ID}"
     timingNodes:
       - timingNodeId: "{ID}"
 

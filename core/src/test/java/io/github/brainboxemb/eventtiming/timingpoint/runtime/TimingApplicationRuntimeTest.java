@@ -63,9 +63,9 @@ public class TimingApplicationRuntimeTest {
                     new Config.TimingNodeConfig(new NodeId(id),
                             root.resolve("node_" + id + "_logbook.jsonl"),
                             TagProcessingPolicy.defaults()));
-            systems.add(new Config.TimingSystemConfig("system-" + id, nodes,
+            systems.add(new Config.TimingSystemConfig(id, nodes,
                     Config.REFERENCE_PROVIDER_ID, Config.REFERENCE_PROVIDER_ID));
-            managers.add(new AntennaManagerConfig("system-" + id,
+            managers.add(new AntennaManagerConfig(id,
                     Collections.singletonList(new AntennaManagerConfig.AntennaConfig(
                             new AntennaId("1"), "simulated",
                             Collections.singletonList(new NodeId(id)))),
@@ -216,13 +216,13 @@ public class TimingApplicationRuntimeTest {
                 new ArrayList<Config.TimingSystemConfig>();
         timingSystems.add(
                 new Config.TimingSystemConfig(
-                        "system-one",
+                        "A",
                         firstNodes,
                         Config.REFERENCE_PROVIDER_ID,
                         Config.REFERENCE_PROVIDER_ID));
         timingSystems.add(
                 new Config.TimingSystemConfig(
-                        "system-two",
+                        "B",
                         secondNodes,
                         Config.REFERENCE_PROVIDER_ID,
                         Config.REFERENCE_PROVIDER_ID));
@@ -328,13 +328,13 @@ public class TimingApplicationRuntimeTest {
                 new ArrayList<Config.TimingSystemConfig>();
         timingSystems.add(
                 new Config.TimingSystemConfig(
-                        "system-one",
+                        "A",
                         firstNodes,
                         Config.REFERENCE_PROVIDER_ID,
                         Config.REFERENCE_PROVIDER_ID));
         timingSystems.add(
                 new Config.TimingSystemConfig(
-                        "system-two",
+                        "B",
                         secondNodes,
                         "missing-event",
                         Config.REFERENCE_PROVIDER_ID));

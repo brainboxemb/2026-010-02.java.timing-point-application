@@ -169,10 +169,10 @@ final class MultiTopologyLogBookVerification {
             throws Exception {
         boolean twoSystems = topology == Topology.TWO_SYSTEMS_ONE_NODE_EACH;
         File a = evidence.file(twoSystems
-                ? "system-SID-A-node-A-logbook.jsonl"
+                ? "system-A-node-A-logbook.jsonl"
                 : "node-A-logbook.jsonl");
         File b = evidence.file(twoSystems
-                ? "system-SID-B-node-B-logbook.jsonl"
+                ? "system-B-node-B-logbook.jsonl"
                 : "node-B-logbook.jsonl");
         assertTrue("Expected separate A/B files", a.isFile() && b.isFile());
         assertTrue("A and B must use different files", !a.getCanonicalPath().equals(b.getCanonicalPath()));

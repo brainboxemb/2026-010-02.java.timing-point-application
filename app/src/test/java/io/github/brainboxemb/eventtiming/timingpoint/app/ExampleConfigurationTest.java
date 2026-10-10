@@ -44,7 +44,7 @@ public class ExampleConfigurationTest {
                 "A",
                 config.timingNodeId().value());
         assertEquals(
-                "SID-A",
+                "A",
                 config.timingSystems()
                         .get(0)
                         .timingSystemId());

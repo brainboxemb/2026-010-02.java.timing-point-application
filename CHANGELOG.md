@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Make TimingSystem IDs compact: one-node systems use the same ID as their node (`A`, `B`); multi-node systems require a distinct application-wide ID (`9` for the current A/B fixture). Reject prefixed identifiers and conflicting identities; align default composition, samples, and black-box verification.
+
+
 - Require ordered `timingSystems` and nested `timingNodes` YAML lists with explicit IDs; remove meaningless keyed topology entries, migrate all configs and fixtures, and reject old mappings (no compatibility mode).
 
 
