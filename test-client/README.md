@@ -120,22 +120,15 @@ ordinary JavaFX nodes and do not depend on BentoFX APIs.
 The default composition is:
 
 ```text
-left / controls & diagnostics    right / data
--------------------------------- ------------------------
-Systems | TimingNode, Registration, Simulation
-       (compact Explorer | control tabs)      Registrations
--------------------------------------------   ------------------------
-Device Log                                    LogBook
--------------------------------------------   ------------------------
-Terminal                                     Raw Data / Events (tabs)
--------------------------------------------
-Client Log
-
--------------------------------- Raw Data / Events (tabs)
-Device Log
---------------------------------
+left / controls & diagnostics         right / data
+-----------------------------------   ------------------------
+Systems  | TimingNode / Registration  Registrations
+Explorer | / Simulation (tabs)        ------------------------
+-----------------------------------   LogBook
+Device Log                            ------------------------
+-----------------------------------   Raw Data / Events (tabs)
 Terminal
---------------------------------
+-----------------------------------
 Client Log
 ```
 
