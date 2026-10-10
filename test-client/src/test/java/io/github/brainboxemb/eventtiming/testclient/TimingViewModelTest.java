@@ -15,6 +15,39 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TimingViewModelTest {
     @Test
+    void registrationScopeTitleFollowsOpenLocationAndSelectedNode() {
+        TimingViewModel model = new TimingViewModel();
+        assertEquals("–", model.registrationScopeLabel(false));
+        assertEquals("All", model.registrationScopeLabel(true));
+        model.applyStatus(status(
+                node("node-01", 24, "OPEN"),
+                node("node-02", 35, "OPEN")));
+
+        // A known OPEN node is not yet a live/synchronized view.
+        assertEquals("–", model.registrationScopeLabel(false));
+        model.viewState(TimingViewModel.ViewState.LIVE);
+        assertEquals("24", model.registrationScopeLabel(false));
+        model.selectNode("node-02");
+        assertEquals("35", model.registrationScopeLabel(false));
+
+        model.applyStatus(status(
+                node("node-01", 24, "OPEN"),
+                node("node-02", 36, "OPEN")));
+        assertEquals("36", model.registrationScopeLabel(false));
+        assertEquals("All", model.registrationScopeLabel(true));
+        model.applyStatus(status(
+                node("node-01", 24, "OPEN"),
+                node("node-02", 36, "CLOSED")));
+        assertEquals("–", model.registrationScopeLabel(false));
+        model.viewState(TimingViewModel.ViewState.STALE);
+        assertEquals("All", model.registrationScopeLabel(true));
+        model.selectNode("node-01");
+        assertEquals("–", model.registrationScopeLabel(false));
+        model.viewState(TimingViewModel.ViewState.LIVE);
+        assertEquals("24", model.registrationScopeLabel(false));
+    }
+
+    @Test
     void keepsSupportedCommandsAvailableForNegativePathTesting() {
         TimingViewModel model = new TimingViewModel();
         model.applyStatus(status(

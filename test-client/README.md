@@ -168,8 +168,9 @@ The default composition is:
 ```text
 left / controls & diagnostics         right / data
 -----------------------------------   ------------------------
-Systems  | TimingNode / Registration  Registrations
-Explorer | / Simulation (tabs)        ------------------------
+Systems  | TimingNode / API /         Registrations [LocationId]
+Explorer | Registration / Simulation  ------------------------
+         | (tabs)                     
 -----------------------------------   LogBook
 Device Log                            ------------------------
 -----------------------------------   Raw Data / Events (tabs)
@@ -217,8 +218,9 @@ without changing the connected target or SI-01 state.
 
 ### Timing, registration and data panes
 
-**TimingNode**, **Registration** and **Simulation** share the local control-tab area.
-Application/version identity is shown with the Registrations pane. The Engineering Client
+**TimingNode**, **API**, **Registration** and **Simulation** share the local control-tab area.
+Application/version identity and API diagnostic actions are in the **API** tab.
+The Engineering Client
 deliberately does not predict SI-01 domain acceptance from cached TimingNode state. Once a
 TimingNode is known, supported Open/Close requests remain available so processed results
 can be exercised and inspected. **Open** sends the LocationId currently entered in the
@@ -248,12 +250,20 @@ disabled even while other status messages arrive.
 The **API** tab sits next to **TimingNode** in the Engineering workbench.
 It contains the remote Application, Version and API version diagnostics and
 explicit Refresh version / Refresh status actions. The Registrations pane
-is only the interpreted registration table: use its BentoFX ≡ menu →
-**Show registrations → Current location / All locations** to change the
-visible scope; the active scope is preserved when the dock layout resets.
+is only the interpreted registration table. Its tab shows the effective scope:
+**Registrations [24]** for an OPEN LocationId 24, **Registrations [All]**
+when the user explicitly selects all locations, or **Registrations [–]**
+when no current OPEN location is available. The default is the currently
+OPEN location of the selected TimingNode. Click the dock's standard ≡ button
+to select **Current open location** or **All locations** directly (no nested
+submenu); the checked option updates immediately and survives resetting the
+dock layout. When the selected node opens, closes, or changes location, the
+scope caption follows without rebuilding the entire workbench.
 The Time column displays local times in the operator's configured system
 timezone. Table headers use regular-weight text, and Device Log, Terminal
-and Client Log use compact two-to-three-pixel panel margins.
+and Client Log use compact two-to-three-pixel panel margins. The Systems
+Explorer hides its redundant **LIVE** heading, while warnings like
+NOT SYNCED / SYNCING / STALE remain visible.
 
 The Registrations and LogBook tables each have one empty final presentation row.
 Selecting that row follows the latest incoming records. Selecting a historical row

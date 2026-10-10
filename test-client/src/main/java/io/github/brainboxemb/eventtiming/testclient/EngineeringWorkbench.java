@@ -159,7 +159,8 @@ final class EngineeringWorkbench {
                 dockable(builder, clientLogLeaf, new WorkbenchPanel("client-log", "Client Log", clientLog)));
 
         registrationsLeaf.addDockable(
-                dockable(builder, registrationsLeaf, new WorkbenchPanel("registrations", "Registrations", registrations)));
+                dockable(builder, registrationsLeaf, new WorkbenchPanel(
+                        "registrations", "Registrations [–]", registrations)));
         logBookLeaf.addDockable(
                 dockable(builder, logBookLeaf, new WorkbenchPanel("logbook", "LogBook", logBook)));
         detailLeaf.addDockables(
@@ -187,12 +188,18 @@ final class EngineeringWorkbench {
             }
         }
 
-        // Register scope as part of the existing BentoFX dock menu. Unlike
-        // a bespoke toolbar, the options are available in detached panes too.
-        if (selected != null && "registrations".equals(selected.getIdentifier())) {
-            Menu show = new Menu("Show registrations");
+        // Direct entries in the standard BentoFX ≡ menu: a nested JavaFX
+        // submenu requires a second hover/click target, which is awkward
+        // (and was reported as non-working) in compact Windows dock headers.
+        // A single-tab dock may not yet have an explicit selectedDockable:
+        // determine membership from the actual leaf as a fallback.
+        boolean registrationsDock = selected != null
+                ? "registrations".equals(selected.getIdentifier())
+                : leaf.getDockables().stream()
+                        .anyMatch(d -> "registrations".equals(d.getIdentifier()));
+        if (registrationsDock) {
             ToggleGroup scope = new ToggleGroup();
-            RadioMenuItem current = new RadioMenuItem("Current location");
+            RadioMenuItem current = new RadioMenuItem("Current open location");
             RadioMenuItem all = new RadioMenuItem("All locations");
             current.setToggleGroup(scope);
             all.setToggleGroup(scope);
@@ -203,8 +210,8 @@ final class EngineeringWorkbench {
             MenuItem timezone = new MenuItem(
                     "Times shown in " + java.time.ZoneId.systemDefault().getId());
             timezone.setDisable(true);
-            show.getItems().addAll(current, all, new SeparatorMenuItem(), timezone);
-            menu.getItems().addAll(show, new SeparatorMenuItem());
+            menu.getItems().addAll(
+                    current, all, timezone, new SeparatorMenuItem());
         }
 
         Menu tabPosition = new Menu("Tab position");
@@ -239,7 +246,18 @@ final class EngineeringWorkbench {
 
     void setLogBookCount(long count) {
         Dockable panel = dockables.get("logbook");
-        if (panel != null) panel.setTitle("LogBook (" + count + ")");
+        if (panel != null) {
+            String title = "LogBook (" + count + ")";
+            if (!title.equals(panel.getTitle())) panel.setTitle(title);
+        }
+    }
+
+    void setRegistrationScope(String scope) {
+        Dockable panel = dockables.get("registrations");
+        if (panel != null) {
+            String title = "Registrations [" + scope + "]";
+            if (!title.equals(panel.getTitle())) panel.setTitle(title);
+        }
     }
 
     private void setTitle(String id, String name, String level) {

@@ -138,8 +138,9 @@
     -fx-font-size: 12px;
 }
 .sync-state {
-    -fx-font-weight: bold;
-    -fx-padding: 5px;
+    -fx-font-weight: normal;
+    -fx-text-fill: #53606c;
+    -fx-padding: 2px 1px;
 }
 .menu-bar { -fx-padding: 0 2px; }
 

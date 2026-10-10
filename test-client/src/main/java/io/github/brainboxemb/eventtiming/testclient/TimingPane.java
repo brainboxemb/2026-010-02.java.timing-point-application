@@ -59,6 +59,8 @@ final class TimingPane {
     private boolean updatingTreeSelection;
     private String systemHost = "-";
     private Consumer<Long> logBookCountListener = ignored -> {};
+    private Consumer<String> registrationScopeListener = ignored -> {};
+    private String lastReportedRegistrationScope;
     private boolean eventsConnected;
     private boolean operationBusy;
     private boolean historyRefreshQueued;
@@ -150,6 +152,10 @@ final class TimingPane {
         VBox.setVgrow(systemTree, Priority.ALWAYS);
         syncViewButton.setMaxWidth(Double.MAX_VALUE);
         historyState.getStyleClass().add("sync-state");
+        // LIVE duplicates the connection/status indicators and wastes space;
+        // still display NOT SYNCED / SYNCING / STALE warnings when needed.
+        historyState.visibleProperty().bind(historyState.textProperty().isNotEqualTo("LIVE"));
+        historyState.managedProperty().bind(historyState.visibleProperty());
         systemsPane.getChildren().setAll(historyState, systemTree, syncViewButton);
         systemsPane.setPadding(new Insets(8));
 
@@ -301,6 +307,12 @@ final class TimingPane {
         logBookCountListener = listener == null ? ignored -> {} : listener;
         lastReportedLogBookCount = model.logBookCount();
         logBookCountListener.accept(lastReportedLogBookCount);
+    }
+
+    void setRegistrationScopeListener(Consumer<String> listener) {
+        registrationScopeListener = listener == null ? ignored -> {} : listener;
+        lastReportedRegistrationScope = model.registrationScopeLabel(showAllRegistrations);
+        registrationScopeListener.accept(lastReportedRegistrationScope);
     }
 
     javafx.scene.Node timingNodePane() {
@@ -994,6 +1006,11 @@ final class TimingPane {
     }
 
     private void refreshLogBook() {
+        String scope = model.registrationScopeLabel(showAllRegistrations);
+        if (!scope.equals(lastReportedRegistrationScope)) {
+            lastReportedRegistrationScope = scope;
+            registrationScopeListener.accept(scope);
+        }
         registrationFollow.update(model.interpretedRegistrations(
                 INPUT_ZONE, showAllRegistrations));
         long count = model.logBookCount();
