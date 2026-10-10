@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.testclient;
 
 import javafx.application.Platform;
 import javafx.beans.property.ReadOnlyStringWrapper;
+import javafx.css.PseudoClass;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
@@ -38,6 +39,8 @@ import java.util.function.Supplier;
 /** Coordinates TimingNode controls/history and exposes framework-neutral JavaFX panes. */
 final class TimingPane {
     private static final int INITIAL_LOGBOOK_ROWS = 100;
+    private static final PseudoClass DELETED_REGISTRATION =
+            PseudoClass.getPseudoClass("deleted-registration");
     private static final DateTimeFormatter CLOCK_TIME =
             DateTimeFormatter.ofPattern("HH:mm:ss[.SS]");
     private static final ZoneId INPUT_ZONE = ZoneId.systemDefault();
@@ -1153,9 +1156,10 @@ final class TimingPane {
                     TimingViewModel.InterpretedRegistration item,
                     boolean empty) {
                 super.updateItem(item, empty);
-                setStyle(!empty && item != null && item.deleted()
-                        ? "-fx-opacity: 0.55;"
-                        : "");
+                // TableRow instances are virtualized/reused; always update
+                // their semantic state rather than leaving an inline style.
+                pseudoClassStateChanged(DELETED_REGISTRATION,
+                        !empty && item != null && item.deleted());
             }
         });
     }

@@ -132,7 +132,7 @@ final class SimulatedTagsPane extends VBox {
 
         GridPane grid =
                 new GridPane();
-        grid.setHgap(10);
+        grid.setHgap(8);
         grid.setVgap(8);
         add(grid, 0, "Profile", profile);
         add(grid, 1, "Count", count);
@@ -178,8 +178,8 @@ final class SimulatedTagsPane extends VBox {
 
         setSpacing(
                 8);
-        setPadding(
-                new Insets(10));
+        getStyleClass().add("engineering-form");
+        capability.managedProperty().bind(capability.visibleProperty());
         getChildren().setAll(
                 capability,
                 grid);
@@ -202,12 +202,11 @@ final class SimulatedTagsPane extends VBox {
     void refresh(
             boolean live,
             boolean enabled) {
-        capability.setText(
-                !live
-                        ? "Capability state cached/not synchronised"
-                        : enabled
-                                ? "TAG_SCENARIO_SIMULATION enabled"
-                                : "TAG_SCENARIO_SIMULATION unavailable");
+        // Normal enabled state needs no extra status banner between tabs.
+        capability.setVisible(!live || !enabled);
+        capability.setText(!live
+                ? "Capability state not synchronised"
+                : enabled ? "" : "TAG_SCENARIO_SIMULATION unavailable");
 
         boolean fieldsDisabled =
                 !live

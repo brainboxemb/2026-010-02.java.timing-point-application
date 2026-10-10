@@ -361,3 +361,9 @@
     -fx-padding: 0 10px;
     -fx-alignment: center;
 }
+
+/* Data status is semantic, not an inline row CSS string.
+ * Virtualized TableRows must reset the pseudo-class when reused. */
+.table-row-cell:deleted-registration {
+    -fx-opacity: 0.55;
+}
