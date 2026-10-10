@@ -69,7 +69,10 @@ final class TimingPane {
     private final Label registrationTimeSource = new Label("AUTO");
     private final Button now = new Button("Now");
     private final Button manualReg = new Button("Add manual");
-    private final Button autoReg = new Button("Send auto-reg");
+    private final Button autoReg = new Button("Direct auto-reg");
+    private static final String NODE_TIME = "TimingNode clock";
+    private static final String PROVIDED_TIME = "Provided time";
+    private final ComboBox<String> directTimeMode = new ComboBox<>();
     private final ComboBox<String> registrationScope = new ComboBox<>();
 
     private boolean updatingRegistrationTime;
@@ -192,15 +195,20 @@ final class TimingPane {
                         registrationTimeSource),
                 1,
                 4);
-        registrationGrid.add(
-                new HBox(
-                        8,
-                        manualReg,
-                        autoReg),
-                1,
-                5);
-
-        VBox registrationBox = new VBox(8, autoRegCapability, registrationGrid);
+        registrationGrid.add(manualReg, 1, 5);
+        directTimeMode.getItems().setAll(NODE_TIME, PROVIDED_TIME);
+        directTimeMode.setValue(NODE_TIME);
+        directTimeMode.setTooltip(new Tooltip(
+                "TimingNode clock omits time from the request. Provided time sends the"
+                        + " visible date/time for deterministic replay."));
+        autoReg.setTooltip(new Tooltip(
+                "Injects an already accepted registration directly at the TimingNode."
+                        + " This bypasses antenna/tag/decoding/filtering."
+                        + " Use Simulation to exercise the physical observation path."));
+        HBox directControls = new HBox(8,
+                new Label("Direct time"), directTimeMode, autoReg);
+        VBox registrationBox = new VBox(
+                8, autoRegCapability, registrationGrid, directControls);
         registrationBox.setPadding(new Insets(10));
         registrationPane = registrationBox;
 
@@ -550,18 +558,18 @@ final class TimingPane {
 
     private void autoReg() {
         final String selected = requireSelectedNode();
-        RegistrationInput input = registrationInput();
-        if (input == null) {
-            return;
-        }
+        boolean provided = PROVIDED_TIME.equals(directTimeMode.getValue());
+        RegistrationInput input = registrationInput(provided);
+        if (input == null) return;
 
-        // Default/Now uses the node's TimeSource. A manually edited time
-        // remains explicit for deterministic engineering replay.
-        final String explicitTime = "MAN".equals(manualTimeSource)
-                ? input.time() : null;
+        // The choice is independent from whether the shared manual-entry
+        // date/time has been edited or Now was pressed.
+        final String explicitTime = provided ? input.time() : null;
+        final String source = provided ? "API" : "NODE";
         setOperationBusy(true);
-        lastOperation.setText("Submitting...");
-        feedback.accept("Submitting registration...");
+        lastOperation.setText("Submitting direct auto-reg (" + source + ")...");
+        feedback.accept("Injecting " + input.registrationId()
+                + " on node " + selected + " · timeSrc=" + source);
         CompletableFuture
                 .supplyAsync(() -> {
                     try {
@@ -582,18 +590,24 @@ final class TimingPane {
                 .whenComplete((result, error) -> Platform.runLater(() -> {
                     setOperationBusy(false);
                     if (error != null) {
+                        clientLog.warn("Direct auto-reg rejected/unknown: node="
+                                + selected + ", id=" + input.registrationId()
+                                + ", timeSrc=" + source);
                         handleCommandError(error);
                         return;
                     }
                     apiState.accept("READY");
                     rawSink.accept(result.result().rawJson());
-                    clientLog.info("API registration request committed as seq "
-                            + result.result().seq());
-                    lastOperation.setText("seq " + result.result().seq());
+                    clientLog.info("Direct auto-reg accepted: node=" + selected
+                            + ", id=" + input.registrationId() + ", tagSrc=API"
+                            + ", timeSrc=" + source + ", seq=" + result.result().seq());
+                    lastOperation.setText("Accepted seq " + result.result().seq()
+                            + " · node " + selected + " · " + source);
                     model.applyStatus(result.status());
                     model.mergeLogBookPage(result.page());
                     syncNodeChoice();
-                    feedback.accept("OK");
+                    feedback.accept("Direct auto-reg accepted: seq "
+                            + result.result().seq() + " · " + source);
                     refresh();
                 }));
     }
@@ -661,6 +675,10 @@ final class TimingPane {
     }
 
     private RegistrationInput registrationInput() {
+        return registrationInput(true);
+    }
+
+    private RegistrationInput registrationInput(boolean requireTime) {
         String number =
                 registrationNumber.getText()
                         .trim();
@@ -674,6 +692,7 @@ final class TimingPane {
                 registrationPrefix.getText()
                         .trim()
                         + number;
+        if (!requireTime) return new RegistrationInput(id, null);
         try {
             String time =
                     TimingViewModel.canonicalTime(
@@ -904,6 +923,7 @@ final class TimingPane {
         now.setDisable(!registrationInputEnabled);
         manualReg.setDisable(!live || !controls.manualReg());
         autoReg.setDisable(!live || !controls.autoReg());
+        directTimeMode.setDisable(!live || !controls.autoReg());
         registrationScope.setDisable(!live);
         registrations.setDisable(!live);
 

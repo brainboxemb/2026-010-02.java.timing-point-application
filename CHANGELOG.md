@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Clarify Engineering Client direct accepted-registration injection: explicitly choose TimingNode time or provided replay time (independent from manual entry edits), explain the bypassed antenna path, and report target/ID/time provenance and acceptance separately from committed history.
+
+
 - Allow direct IF-03 automatic registration simulation without a supplied timestamp: the owning TimingNode captures its composed TimeSource during execution. Add short `tagSrc`/`timeSrc` provenance to new automatic LogBook records, retain legacy-record decode, and align the engineering client and black-box tests.
 
 

@@ -186,6 +186,15 @@ the canonical UTC API timestamp when sending. **Now** captures the current clien
 date/time and marks the manual-registration time source as `AUTO`; editing the date or
 time marks it as `MAN`.
 
+**Direct auto-reg** injects an already accepted registration into the TimingNode;
+it does not simulate reading an antenna. The direct time selector defaults to
+**TimingNode clock** (omit `time` from the request), or **Provided time** (send
+the displayed date/time for deterministic replay). This is independent of
+changes to the manual registration date/time. Client feedback records target,
+RegistrationId, chosen time source and accepted sequence; the separately
+observed committed record carries `tagSrc`/`timeSrc` provenance when supplied by
+SI-01, and older records may omit these fields.
+
 The **Simulated tags** pane is separate from direct `auto-reg`. It uses
 `TAG_SCENARIO_SIMULATION` to start one `simple`, `normal` or `edge` profile
 through the real SimulatedAntenna -> AntennaManager -> TagProcessor path. A batch selects
