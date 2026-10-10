@@ -137,3 +137,15 @@
 .connection-button.connection-busy { -fx-border-color: #d6a34a; -fx-background-color: #fff4da; }
 .connection-button.connection-error { -fx-border-color: #c97474; -fx-background-color: #fcecec; }
 .systems-tree { -fx-background-color: transparent; }
+
+.boundary-status {
+    -fx-alignment: center-left;
+    -fx-padding: 5px 7px;
+    -fx-text-fill: #247444;
+    -fx-font-size: 12px;
+}
+.sync-state {
+    -fx-font-weight: bold;
+    -fx-padding: 5px;
+}
+.menu-bar { -fx-padding: 0 2px; }

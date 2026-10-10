@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Refine the SI-02 Engineering workbench with a dockable Systems/node status tree, compact boundary buttons, dynamic log-level and LogBook-count headers, readable docking/context menus, detachable-pane dock-back and View → Reset layout, plus live-follow trailing rows in Registrations/LogBook.
+
+
 - Use concise `id` for IF-11 TimingSystem/TimingNode declarations while preserving explicit `timingSystemId` and `timingNodeId` in reference bindings. Migrate all YAML examples and system-test fixtures; legacy declaration fields are rejected rather than supported as aliases.
 
 
