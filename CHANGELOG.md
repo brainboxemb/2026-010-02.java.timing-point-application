@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Place the SI-02 Systems tree as a compact upper-left pane, prune empty dock leaves on detach and reliably show/re-pin detached panels through a tab button or right-click; simplify Events to raw JSON, and unify all JavaFX controls under one square-edged desktop theme.
+
+
 - Refine the SI-02 Engineering workbench with a dockable Systems/node status tree, compact boundary buttons, dynamic log-level and LogBook-count headers, readable docking/context menus, detachable-pane dock-back and View → Reset layout, plus live-follow trailing rows in Registrations/LogBook.
 
 

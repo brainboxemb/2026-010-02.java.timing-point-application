@@ -128,8 +128,8 @@
 }
 .dock-back-button:hover { -fx-background-color: #d6e5f4; }
 .connection-button {
-    -fx-background-radius: 4px;
-    -fx-border-radius: 4px;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
     -fx-border-color: #c1cbd4;
     -fx-padding: 5px 10px;
 }
@@ -149,3 +149,46 @@
     -fx-padding: 5px;
 }
 .menu-bar { -fx-padding: 0 2px; }
+
+/* Engineering Client: one flat desktop control language, not mixed rounded/flat. */
+.button, .toggle-button, .combo-box-base, .text-field, .text-area,
+.choice-box, .menu-button, .split-menu-button, .color-picker, .spinner,
+.spinner .increment-arrow-button, .spinner .decrement-arrow-button,
+.scroll-bar .thumb, .scroll-bar .track,
+.context-menu, .tooltip, .tree-view, .table-view,
+.titled-pane > .title {
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+    -fx-effect: none;
+}
+.button, .toggle-button, .combo-box-base, .text-field, .choice-box,
+.menu-button, .split-menu-button, .spinner {
+    -fx-border-color: #bfc6ce;
+    -fx-border-width: 1;
+}
+.button, .toggle-button, .menu-button, .split-menu-button {
+    -fx-background-color: #ededed;
+}
+.button:hover, .toggle-button:hover, .menu-button:hover {
+    -fx-background-color: #e0e9f1;
+}
+.button:pressed, .toggle-button:selected {
+    -fx-background-color: #ccdeef;
+}
+.button:focused, .text-field:focused, .combo-box-base:focused {
+    -fx-border-color: -bento-accent;
+}
+.table-view, .tree-view {
+    -fx-background-color: white;
+    -fx-border-color: #cfd4d9;
+    -fx-border-width: 1;
+}
+.table-view .column-header, .table-view .filler {
+    -fx-background-color: #eeeeee;
+    -fx-background-radius: 0;
+    -fx-border-width: 0 1px 1px 0;
+    -fx-border-color: #d0d0d0;
+}
+.table-row-cell, .tree-cell {
+    -fx-background-radius: 0;
+}
