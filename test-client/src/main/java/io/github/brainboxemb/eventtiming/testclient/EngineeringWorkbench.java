@@ -200,7 +200,10 @@ final class EngineeringWorkbench {
             all.setSelected(allRegistrations.getAsBoolean());
             current.setOnAction(event -> setAllRegistrations.accept(false));
             all.setOnAction(event -> setAllRegistrations.accept(true));
-            show.getItems().addAll(current, all);
+            MenuItem timezone = new MenuItem(
+                    "Times shown in " + java.time.ZoneId.systemDefault().getId());
+            timezone.setDisable(true);
+            show.getItems().addAll(current, all, new SeparatorMenuItem(), timezone);
             menu.getItems().addAll(show, new SeparatorMenuItem());
         }
 
