@@ -164,6 +164,14 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         writeCodes(
                 generator,
                 actionCode(data.action()));
+        if (data.tagSource() != null && data.registrationTimeSource() != null) {
+            generator.writeStringField("tagSrc", data.tagSource().name());
+            generator.writeStringField("timeSrc", data.registrationTimeSource().name());
+        } else if (data.tagSource() != null || data.registrationTimeSource() != null) {
+            throw new CodecException(
+                    CodecException.Reason.ENCODE_FAILURE,
+                    "automatic tagSrc and timeSrc must appear together");
+        }
     }
 
     private static void writeManual(
@@ -379,6 +387,16 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                                 readStringArray(parser, valueToken, name, fields.codesSeen);
                         fields.codesSeen = true;
                         break;
+                    case "tagSrc":
+                        fields.tagSourceText =
+                                readString(parser, valueToken, name, fields.tagSourceSeen);
+                        fields.tagSourceSeen = true;
+                        break;
+                    case "timeSrc":
+                        fields.timeSourceText =
+                                readString(parser, valueToken, name, fields.timeSourceSeen);
+                        fields.timeSourceSeen = true;
+                        break;
                     case "recTime":
                         fields.recordedAtText =
                                 readString(parser, valueToken, name, fields.recordedAtSeen);
@@ -428,6 +446,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         }
 
         if (RECORD_TYPE_NODE_INFO.equals(fields.recordType)) {
+            rejectNonAutomaticProvenance(fields);
             rejectLifecycleRegistrationFields(fields);
             require(fields.codesSeen, "code");
             if (hasExactCodes(fields.codes, CODE_OPEN)) {
@@ -445,6 +464,20 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         RegistrationId registrationId = registrationId(fields.registrationId);
 
         if (RECORD_TYPE_AUTO_REG.equals(fields.recordType)) {
+            if (fields.tagSourceSeen != fields.timeSourceSeen) {
+                throw invalid("tagSrc and timeSrc must appear together");
+            }
+            if (fields.tagSourceSeen) {
+                try {
+                    context = new TimingDataFactory.Context(
+                            context.timingNodeId(), context.sequenceNumber(),
+                            context.locationId(), context.effectiveTime(), context.recordedAt(),
+                            TimingData.TagSource.valueOf(fields.tagSourceText),
+                            TimingData.AutomaticTimeSource.valueOf(fields.timeSourceText));
+                } catch (IllegalArgumentException ex) {
+                    throw invalid("unsupported tagSrc/timeSrc value", ex);
+                }
+            }
             if (hasExactCodes(fields.codes, CODE_ADD)) {
                 return timingDataFactory.createAutomaticRegistration(
                         context,
@@ -461,6 +494,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                     "AUTO_REG code must be exactly ADD or REV");
         }
 
+        rejectNonAutomaticProvenance(fields);
         TimingData.RegistrationAction action =
                 registrationAction(fields.codes);
         TimingData.ManualTimeSource timeSource =
@@ -498,6 +532,13 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         return auto
                 ? TimingData.ManualTimeSource.AUTOMATIC
                 : TimingData.ManualTimeSource.OPERATOR_ENTERED;
+    }
+
+    private static void rejectNonAutomaticProvenance(DecodedFields fields)
+            throws CodecException {
+        if (fields.tagSourceSeen || fields.timeSourceSeen) {
+            throw invalid("tagSrc/timeSrc are only valid on AUTO_REG");
+        }
     }
 
     private static void rejectLifecycleRegistrationFields(DecodedFields fields)
@@ -686,5 +727,9 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         private boolean codesSeen;
         private String recordedAtText;
         private boolean recordedAtSeen;
+        private String tagSourceText;
+        private boolean tagSourceSeen;
+        private String timeSourceText;
+        private boolean timeSourceSeen;
     }
 }
