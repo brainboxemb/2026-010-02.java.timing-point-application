@@ -620,6 +620,7 @@ final class TimingPane {
 
     private void autoReg() {
         final String selected = requireSelectedNode();
+        final long commandGeneration = historyRequests.current();
         boolean provided = PROVIDED_TIME.equals(directTimeMode.getValue());
         RegistrationInput input = registrationInput(provided);
         if (input == null) return;
@@ -651,6 +652,9 @@ final class TimingPane {
                 }, requests)
                 .whenComplete((result, error) -> Platform.runLater(() -> {
                     setOperationBusy(false);
+                    // A disconnect, new baseline or node selection may have
+                    // superseded this response. Never resurrect old UI state.
+                    if (!historyRequests.isCurrent(commandGeneration)) return;
                     if (error != null) {
                         clientLog.warn("Direct auto-reg rejected/unknown: node="
                                 + selected + ", id=" + input.registrationId()
@@ -675,6 +679,7 @@ final class TimingPane {
 
     private void manualReg() {
         final String selected = requireSelectedNode();
+        final long commandGeneration = historyRequests.current();
         RegistrationInput input = registrationInput();
         if (input == null) {
             return;
@@ -712,6 +717,9 @@ final class TimingPane {
                 }, requests)
                 .whenComplete((result, error) -> Platform.runLater(() -> {
                     setOperationBusy(false);
+                    // A disconnect, new baseline or node selection may have
+                    // superseded this response. Never resurrect old UI state.
+                    if (!historyRequests.isCurrent(commandGeneration)) return;
                     if (error != null) {
                         handleCommandError(error);
                         return;
@@ -785,6 +793,7 @@ final class TimingPane {
 
         final String selected =
                 requireSelectedNode();
+        final long commandGeneration = historyRequests.current();
         setOperationBusy(true);
         lastOperation.setText("Revoking...");
         feedback.accept("Submitting registration revoke...");
@@ -815,6 +824,9 @@ final class TimingPane {
                 }, requests)
                 .whenComplete((result, error) -> Platform.runLater(() -> {
                     setOperationBusy(false);
+                    // A disconnect, new baseline or node selection may have
+                    // superseded this response. Never resurrect old UI state.
+                    if (!historyRequests.isCurrent(commandGeneration)) return;
                     if (error != null) {
                         handleCommandError(error);
                         return;
@@ -836,6 +848,7 @@ final class TimingPane {
     }
 
     private void runStateCommand(StateCommand command) {
+        final long commandGeneration = historyRequests.current();
         setOperationBusy(true);
         lastOperation.setText("Requesting...");
         feedback.accept("Requesting TimingNode operation...");
@@ -852,6 +865,9 @@ final class TimingPane {
                 }, requests)
                 .whenComplete((result, error) -> Platform.runLater(() -> {
                     setOperationBusy(false);
+                    // A disconnect, new baseline or node selection may have
+                    // superseded this response. Never resurrect old UI state.
+                    if (!historyRequests.isCurrent(commandGeneration)) return;
                     if (error != null) {
                         handleCommandError(error);
                         return;

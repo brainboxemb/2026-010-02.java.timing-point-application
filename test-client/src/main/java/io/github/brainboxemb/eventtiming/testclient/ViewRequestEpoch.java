@@ -14,6 +14,10 @@ final class ViewRequestEpoch {
         return ++generation;
     }
 
+    long current() {
+        return generation;
+    }
+
     void invalidate() {
         generation++;
     }

@@ -250,9 +250,9 @@ The maintained SI-02 UI design/review rules are documented in
 [44-02-GPD Engineering Client design rules](https://github.com/brainboxemb/2026-010-01.meta.event-timing-software/blob/main/docs/44-02-GPD-engineering-client-design-rules.md).
 The JavaFX stylesheet centralizes named palette/status tokens and shared form,
 log and data-pane spacing rather than duplicating inline styles. Technical
-updates reject stale async history results after disconnect, a newer sync or
-TimingNode selection, and high-volume local/device logs are batched into
-small JavaFX update passes.
+updates reject stale async baseline, selected-node history and command results
+after disconnect, a newer sync or TimingNode selection; high-volume
+local/device logs are batched into small JavaFX update passes.
 
 Rendering is change-driven: a semantic TimingNode status change updates controls
 and the Systems tree; a newly committed timing record updates the history views.
