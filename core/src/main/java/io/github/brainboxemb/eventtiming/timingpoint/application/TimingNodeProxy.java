@@ -102,6 +102,20 @@ public final class TimingNodeProxy {
         }
     }
 
+    /** Engineering-only accepted registration with an explicit API timestamp. */
+    public RegistrationResult simulateAutomaticRegistration(
+            RegistrationId registrationId, TimingTimestamp time) {
+        return timingNode.invoke(
+                TimingNodeCommands.simulateAutomaticRegistration(registrationId, time));
+    }
+
+    /** Engineering-only accepted registration using this node's own TimeSource. */
+    public RegistrationResult simulateAutomaticRegistrationNow(
+            RegistrationId registrationId) {
+        return timingNode.invoke(
+                TimingNodeCommands.simulateAutomaticRegistrationNow(registrationId));
+    }
+
     /**
      * Commits one normal manual registration with client-supplied effective
      * time and client-side time-selection classification.
