@@ -93,11 +93,17 @@ final class ApiPane {
     }
 
     void setSystemHost(String host) {
+        // A pending API request belongs to the previous host. Its completion
+        // is ignored by the request epoch, so release its busy state here:
+        // otherwise Version/Status stay disabled until a stale result arrives
+        // (or forever if that request never completes).
         apiRequests.invalidate();
+        setBusy(false);
         timingPane.setSystemHost(host);
         application.setText("-");
         version.setText("-");
         apiVersion.setText("-");
+        rawResponse.clear();
     }
 
     void setLogBookCountListener(java.util.function.Consumer<Long> listener) {
