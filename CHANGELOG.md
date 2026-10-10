@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Move application/version/API diagnostics to an independent **API** tab beside TimingNode, remove the duplicated Registrations status header, move the Current location/All locations filter to the standard BentoFX ≡ menu, and tighten log-panel spacing and table header typography.
+
+
 - Enlarge the stopwatch dial/hand artwork for clearer 16–32px Windows taskbar rendering and regenerate a 256px JavaFX PNG and an optimized seven-size ICO (16–256px); preserve editable SVG and reproducible design-source generator.
 
 

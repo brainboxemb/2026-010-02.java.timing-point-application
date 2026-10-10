@@ -6,6 +6,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
@@ -30,6 +31,7 @@ final class ApiPane {
     private final Label apiVersion = valueLabel();
     private final TextArea rawResponse = new TextArea();
     private final javafx.scene.Node rawDataPane;
+    private final javafx.scene.Node apiInfoPane;
     private final TimingPane timingPane;
 
     ApiPane(
@@ -49,23 +51,24 @@ final class ApiPane {
         this.apiState = apiState;
         this.clientLog = clientLog;
 
-        HBox identityBar =
-                new HBox(
-                        10,
-                        new Label("Application"),
-                        application,
-                        new Label("Version"),
-                        version,
-                        new Label("API version"),
-                        apiVersion,
-                        versionButton,
-                        statusButton);
+        // API metadata and explicit diagnostics belong in their own
+        // engineering tab, not above the interpreted registrations table.
+        GridPane identity = new GridPane();
+        identity.setHgap(14);
+        identity.setVgap(10);
+        identity.addRow(0, new Label("Application"), application);
+        identity.addRow(1, new Label("Version"), version);
+        identity.addRow(2, new Label("API version"), apiVersion);
+        versionButton.setText("Refresh version");
+        statusButton.setText("Refresh status");
+        VBox apiInfo = new VBox(14, identity, new HBox(8, versionButton, statusButton));
+        apiInfo.setPadding(new Insets(10));
+        apiInfoPane = apiInfo;
 
         timingPane = new TimingPane(
                 clientSupplier,
                 requests,
                 initialPrefix,
-                identityBar,
                 this::showRaw,
                 feedback,
                 apiState,
@@ -97,6 +100,18 @@ final class ApiPane {
 
     javafx.scene.Node timingNodePane() {
         return timingPane.timingNodePane();
+    }
+
+    javafx.scene.Node apiInfoPane() {
+        return apiInfoPane;
+    }
+
+    boolean showAllRegistrations() {
+        return timingPane.showAllRegistrations();
+    }
+
+    void setShowAllRegistrations(boolean all) {
+        timingPane.setShowAllRegistrations(all);
     }
 
     javafx.scene.Node registrationPane() {

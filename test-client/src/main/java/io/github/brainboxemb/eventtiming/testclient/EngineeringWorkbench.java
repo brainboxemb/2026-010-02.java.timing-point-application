@@ -12,6 +12,8 @@ import javafx.scene.control.ToggleGroup;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.List;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import software.coley.bentofx.Bento;
 import software.coley.bentofx.building.DockBuilding;
 import software.coley.bentofx.dockable.Dockable;
@@ -27,6 +29,8 @@ import software.coley.bentofx.layout.container.DockContainerRootBranch;
  */
 final class EngineeringWorkbench {
     private static final int WORKBENCH_DRAG_GROUP = 1;
+    private final BooleanSupplier allRegistrations;
+    private final Consumer<Boolean> setAllRegistrations;
 
     // As in Recaf, configure *every* leaf through BentoFX's builder seam.
     // Dragging a tab to a new leaf or floating window must not lose the
@@ -54,6 +58,7 @@ final class EngineeringWorkbench {
     EngineeringWorkbench(
             Node systems,
             Node timingNode,
+            Node apiInfo,
             Node registration,
             Node simulation,
             Node deviceLog,
@@ -62,7 +67,11 @@ final class EngineeringWorkbench {
             Node registrations,
             Node logBook,
             Node rawData,
-            Node events) {
+            Node events,
+            BooleanSupplier allRegistrations,
+            Consumer<Boolean> setAllRegistrations) {
+        this.allRegistrations = java.util.Objects.requireNonNull(allRegistrations);
+        this.setAllRegistrations = java.util.Objects.requireNonNull(setAllRegistrations);
 
         bento.stageBuilding().setApplySourceAsOwner(false);
         bento.stageBuilding().setApplyMousePosition(true);
@@ -138,6 +147,7 @@ final class EngineeringWorkbench {
 
         controls.addDockables(
                 dockable(builder, controls, new WorkbenchPanel("timing-node", "TimingNode", timingNode)),
+                dockable(builder, controls, new WorkbenchPanel("api-info", "API", apiInfo)),
                 dockable(builder, controls, new WorkbenchPanel("registration", "Registration", registration)),
                 dockable(builder, controls, new WorkbenchPanel("simulation", "Simulation", simulation)));
 
@@ -175,6 +185,26 @@ final class EngineeringWorkbench {
                 dockBack.setOnAction(event -> dockBack(selected.getIdentifier()));
                 menu.getItems().addAll(dockBack, new SeparatorMenuItem());
             }
+        }
+
+        // Register scope as part of the existing BentoFX dock menu. Unlike
+        // a bespoke toolbar, the options are available in detached panes too.
+        if (selected != null && "registrations".equals(selected.getIdentifier())) {
+            Menu show = new Menu("Show registrations");
+            ToggleGroup scope = new ToggleGroup();
+            RadioMenuItem current = new RadioMenuItem("Current location");
+            RadioMenuItem all = new RadioMenuItem("All locations");
+            current.setToggleGroup(scope);
+            all.setToggleGroup(scope);
+            current.setSelected(!allRegistrations.getAsBoolean());
+            all.setSelected(allRegistrations.getAsBoolean());
+            current.setOnAction(event -> setAllRegistrations.accept(false));
+            all.setOnAction(event -> setAllRegistrations.accept(true));
+            MenuItem timezone = new MenuItem(
+                    "Times shown in " + java.time.ZoneId.systemDefault().getId());
+            timezone.setDisable(true);
+            show.getItems().addAll(current, all, new SeparatorMenuItem(), timezone);
+            menu.getItems().addAll(show, new SeparatorMenuItem());
         }
 
         Menu tabPosition = new Menu("Tab position");

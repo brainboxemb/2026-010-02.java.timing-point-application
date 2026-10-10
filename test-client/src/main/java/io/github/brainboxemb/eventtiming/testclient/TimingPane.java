@@ -82,7 +82,8 @@ final class TimingPane {
     private static final String NODE_TIME = "TimingNode clock";
     private static final String PROVIDED_TIME = "Provided time";
     private final ComboBox<String> directTimeMode = new ComboBox<>();
-    private final ComboBox<String> registrationScope = new ComboBox<>();
+    // View-only filter, controlled by the Registrations dock ≡ menu.
+    private boolean showAllRegistrations;
 
     private boolean updatingRegistrationTime;
     private String manualTimeSource = "AUTO";
@@ -109,13 +110,11 @@ final class TimingPane {
             Supplier<ApiClient> clientSupplier,
             ExecutorService requests,
             String initialPrefix,
-            javafx.scene.Node rightHeader,
             Consumer<String> rawSink,
             Consumer<String> feedback,
             Consumer<String> apiState,
             ClientLog clientLog) {
         if (clientSupplier == null || requests == null
-                || rightHeader == null
                 || rawSink == null || feedback == null
                 || apiState == null || clientLog == null) {
             throw new IllegalArgumentException("TimingPane dependencies must not be null");
@@ -252,32 +251,11 @@ final class TimingPane {
                         clientLog);
 
         configureRegistrationView();
-        registrationScope.setItems(
-                FXCollections.observableArrayList(
-                        "Current location",
-                        "All"));
-        registrationScope.setValue(
-                "Current location");
-        registrationScope.setOnAction(
-                event -> refreshLogBook());
-        VBox interpretedBox = new VBox(
-                6,
-                new HBox(
-                        8,
-                        new Label("Show"),
-                        registrationScope,
-                        new Label("Times shown in " + INPUT_ZONE.getId())),
-                registrations);
+        // No redundant API identity or filter toolbar. Scope is exposed in
+        // BentoFX's standard ≡ area menu; the table uses all available space.
+        VBox interpretedBox = new VBox(registrations);
         VBox.setVgrow(registrations, Priority.ALWAYS);
-        VBox upperRight =
-                new VBox(
-                        10,
-                        rightHeader,
-                        interpretedBox);
-        VBox.setVgrow(
-                interpretedBox,
-                Priority.ALWAYS);
-        registrationsPane = upperRight;
+        registrationsPane = interpretedBox;
 
         configureLogBook();
         VBox historyBox = new VBox(6, logBook);
@@ -339,6 +317,16 @@ final class TimingPane {
 
     javafx.scene.Node registrationsPane() {
         return registrationsPane;
+    }
+
+    boolean showAllRegistrations() {
+        return showAllRegistrations;
+    }
+
+    void setShowAllRegistrations(boolean showAll) {
+        if (showAllRegistrations == showAll) return;
+        showAllRegistrations = showAll;
+        refreshLogBook();
     }
 
     javafx.scene.Node logBookPane() {
@@ -999,7 +987,6 @@ final class TimingPane {
         manualReg.setDisable(!live || operationBusy || !controls.manualReg());
         autoReg.setDisable(!live || operationBusy || !controls.autoReg());
         directTimeMode.setDisable(!live || operationBusy || !controls.autoReg());
-        registrationScope.setDisable(!live || operationBusy);
         registrations.setDisable(!live || operationBusy);
 
         syncViewButton.setDisable(
@@ -1008,7 +995,7 @@ final class TimingPane {
 
     private void refreshLogBook() {
         registrationFollow.update(model.interpretedRegistrations(
-                INPUT_ZONE, "All".equals(registrationScope.getValue())));
+                INPUT_ZONE, showAllRegistrations));
         long count = model.logBookCount();
         if (count != lastReportedLogBookCount) {
             lastReportedLogBookCount = count;
