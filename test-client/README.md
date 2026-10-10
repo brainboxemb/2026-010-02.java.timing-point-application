@@ -132,15 +132,20 @@ Terminal
 Client Log
 ```
 
-The compact top bar starts from the configured host but exposes the host/IP as an editable
-field. Port numbers remain in the client configuration rather than on the ordinary connection buttons. **Apply target** changes the instance-scoped connected-system context used by
-IF-03 HTTP, Events, Remote Shell and Device Log while the per-boundary ports remain
-config-driven.
+The top bar has Host/IP followed immediately by **Connect**, which applies
+the chosen host and independently checks/connects API, Events, Terminal and
+Device Log; no startup auto-connect. The four corresponding option buttons
+retain short stable labels without Connect/Disconnect text. Green means that
+boundary has actually connected or (for stateless HTTP) passed its API check;
+yellow means busy, red means failed, neutral means disconnected. Clicking an
+individual button connects/disconnects that interface (or checks API again).
+Tooltips show status and operation. Client Log is always local and active;
+individual boundary ports stay in configuration.
 
 The API control is deliberately clickable. IF-03 HTTP has no persistent connection, so
 the control performs an explicit availability **CHECK** and reports CHECKING, READY or
 UNREACHABLE instead of pretending that a long-lived HTTP session was opened. Events,
-Terminal and Device Log retain their explicit connect/disconnect controls. Client-local
+Terminal and Device Log remain independently toggleable without changing button captions. Client-local
 logging is always available independently from SI-01. The Systems pane shows the
 current target and its reported TimingNodes, state and location, and provides
 **Sync view**. Click a node to select it for node-scoped controls.
