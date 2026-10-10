@@ -54,7 +54,7 @@ public class YamlLoaderTest {
                         "parameters:\n"
                                 + "  ID: A\n"
                                 + "timingSystems:\n"
-                                + "  - timingSystemId: {ID}\n"
+                                + "  - timingSystemId: \"{ID}\"\n"
                                 + "    timingNodes:\n"
                                 + "      - timingNodeId: \"{ID}\"\n"
                                 + "io:\n"
