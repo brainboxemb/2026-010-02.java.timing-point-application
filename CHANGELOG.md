@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Use BentoFX's built-in ≡ dock-area menu (tab position and selected-tab dock-back) and automatic ▼ overflow selector throughout the Engineering Client, including floating windows. Remove bespoke ↩ tab icons and duplicated tab context handlers.
+
+
 - Remove default BentoFX close ✕ icons from every permanent Engineering Client dock tab (not only Systems) via the real non-closable property. Docking, detaching and dock-back remain available.
 
 

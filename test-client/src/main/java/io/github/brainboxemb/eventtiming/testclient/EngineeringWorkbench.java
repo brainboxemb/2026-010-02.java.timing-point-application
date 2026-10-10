@@ -1,15 +1,17 @@
 package io.github.brainboxemb.eventtiming.testclient;
 
 import javafx.geometry.Orientation;
-import javafx.scene.control.Button;
-import javafx.scene.control.Tooltip;
+import javafx.geometry.Side;
+import javafx.scene.Node;
 import javafx.scene.control.ContextMenu;
+import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.RadioMenuItem;
+import javafx.scene.control.SeparatorMenuItem;
+import javafx.scene.control.ToggleGroup;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.List;
-import javafx.geometry.Side;
-import javafx.scene.Node;
 import software.coley.bentofx.Bento;
 import software.coley.bentofx.building.DockBuilding;
 import software.coley.bentofx.dockable.Dockable;
@@ -26,7 +28,23 @@ import software.coley.bentofx.layout.container.DockContainerRootBranch;
 final class EngineeringWorkbench {
     private static final int WORKBENCH_DRAG_GROUP = 1;
 
-    private final Bento bento = new Bento();
+    // As in Recaf, configure *every* leaf through BentoFX's builder seam.
+    // Dragging a tab to a new leaf or floating window must not lose the
+    // standard ≡ configuration menu. BentoFX copies this factory when it
+    // creates a standalone DragDropStage.
+    private final Bento bento = new Bento() {
+        @Override
+        protected DockBuilding newDockBuilding() {
+            return new DockBuilding(this) {
+                @Override
+                public DockContainerLeaf leaf(String identifier) {
+                    DockContainerLeaf leaf = super.leaf(identifier);
+                    leaf.setMenuFactory(EngineeringWorkbench.this::buildDockMenu);
+                    return leaf;
+                }
+            };
+        }
+    };
     private final DockContainerRootBranch root;
     private final Map<String, Dockable> dockables = new LinkedHashMap<>();
     private final Map<String, DockContainerLeaf> homeLeaves = new LinkedHashMap<>();
@@ -48,22 +66,9 @@ final class EngineeringWorkbench {
 
         bento.stageBuilding().setApplySourceAsOwner(false);
         bento.stageBuilding().setApplyMousePosition(true);
-        bento.controlsBuilding().setHeaderFactory((dockable, parentPane) -> {
-            var header = new CompactBentoHeader(dockable, parentPane).withDragDrop();
-            ContextMenu menu = new ContextMenu();
-            MenuItem dockBack = new MenuItem("↩  Dock back to original position");
-            dockBack.setOnAction(event -> dockBack(dockable.getIdentifier()));
-            menu.getItems().add(dockBack);
-            menu.setOnShowing(event -> {
-                DockContainerLeaf home = homeLeaves.get(dockable.getIdentifier());
-                dockBack.setDisable(home == null || dockable.getContainer() == home);
-            });
-            header.setOnContextMenuRequested(event -> {
-                menu.show(header, event.getScreenX(), event.getScreenY());
-                event.consume();
-            });
-            return header;
-        });
+        bento.controlsBuilding().setHeaderFactory(
+                (dockable, parentPane) ->
+                        new CompactBentoHeader(dockable, parentPane).withDragDrop());
 
         DockBuilding builder = bento.dockBuilding();
         root = builder.root("engineering-root");
@@ -156,6 +161,40 @@ final class EngineeringWorkbench {
         return root;
     }
 
+    /**
+     * Standard BentoFX header-area ≡ menu. The ▼ overflow selector is
+     * managed by HeaderPane; no custom tab toolbar is necessary.
+     */
+    private ContextMenu buildDockMenu(DockContainerLeaf leaf) {
+        ContextMenu menu = new ContextMenu();
+        Dockable selected = leaf.getSelectedDockable();
+        if (selected != null) {
+            DockContainerLeaf home = homeLeaves.get(selected.getIdentifier());
+            if (home != null && home != selected.getContainer()) {
+                MenuItem dockBack = new MenuItem("Dock selected tab back");
+                dockBack.setOnAction(event -> dockBack(selected.getIdentifier()));
+                menu.getItems().addAll(dockBack, new SeparatorMenuItem());
+            }
+        }
+
+        Menu tabPosition = new Menu("Tab position");
+        ToggleGroup positionGroup = new ToggleGroup();
+        for (Side side : Side.values()) {
+            RadioMenuItem item = new RadioMenuItem(switch (side) {
+                case TOP -> "Top";
+                case BOTTOM -> "Bottom";
+                case LEFT -> "Left";
+                case RIGHT -> "Right";
+            });
+            item.setToggleGroup(positionGroup);
+            item.setSelected(leaf.getSide() == side);
+            item.setOnAction(event -> leaf.setSide(side));
+            tabPosition.getItems().add(item);
+        }
+        menu.getItems().add(tabPosition);
+        return menu;
+    }
+
     private static void configureLeaf(DockContainerLeaf leaf) {
         leaf.setSide(Side.TOP);
     }
@@ -233,25 +272,6 @@ final class EngineeringWorkbench {
         dockable.setClosable(false);
         dockable.setNode(panel.content());
         dockable.setDragGroupMask(WORKBENCH_DRAG_GROUP);
-        dockable.setIconFactory(current -> {
-            Button pin = new Button("↩");
-            pin.getStyleClass().add("dock-back-button");
-            pin.setAccessibleText("Dock " + panel.title() + " back");
-            pin.setTooltip(new Tooltip("Dock back to original position"));
-            pin.setFocusTraversable(false);
-            // Track the dockable's owner directly. Watching the JavaFX Scene
-            // misses the moment a newly detached window is created.
-            Runnable updateVisibility = () -> {
-                boolean awayFromHome = current.getContainer() != home;
-                pin.setVisible(awayFromHome);
-                pin.setManaged(awayFromHome);
-            };
-            current.containerProperty().addListener(
-                    (observable, oldContainer, newContainer) -> updateVisibility.run());
-            pin.setOnAction(event -> dockBack(panel.id()));
-            updateVisibility.run();
-            return pin;
-        });
         dockables.put(panel.id(), dockable);
         homeLeaves.put(panel.id(), home);
         return dockable;
