@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Simplify Registration input into aligned RegistrationId, local time and action rows; show AUTO/MAN on manual submit instead of status clutter, and make JavaFX ComboBox arrow/popup styles fully flat.
+
+
 - Use a single Host → Connect action and stable independent boundary option labels, with color denoting verified current connection state (green connected, yellow busy, red error), plus unchanged manual toggles.
 
 
