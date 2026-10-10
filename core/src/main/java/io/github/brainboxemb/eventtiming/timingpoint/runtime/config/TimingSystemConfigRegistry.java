@@ -38,6 +38,18 @@ final class TimingSystemConfigRegistry {
                 : timingSystems) {
             register(timingSystem);
         }
+
+        // Multi-node system IDs occupy their own globally unique slot.
+        // They must not be confused with *any* TimingNode in this application.
+        for (Config.TimingSystemConfig timingSystem : timingSystems) {
+            if (timingSystem.timingNodes().size() > 1
+                    && nodes.containsKey(new NodeId(timingSystem.timingSystemId()))) {
+                throw new IllegalArgumentException(
+                        "Multi-node TimingSystemId "
+                                + timingSystem.timingSystemId()
+                                + " must differ from all TimingNodeIds");
+            }
+        }
     }
 
     private void register(
