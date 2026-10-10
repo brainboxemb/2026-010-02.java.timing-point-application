@@ -191,6 +191,12 @@ separate dock areas:
 **Terminal** and **Client Log** are independent dock areas in the middle column, rather
 than application-level tabs.
 
+Rendering is change-driven: a semantic TimingNode status change updates controls
+and the Systems tree; a new committed timing record updates only the history
+views. Duplicate WebSocket and HTTP status/record messages no longer redraw the
+same information. Queued timing events can share one JavaFX history pass, while
+an in-flight command keeps its controls disabled throughout concurrent events.
+
 The Registrations and LogBook tables each have one empty final presentation row.
 Selecting that row follows the latest incoming records. Selecting a historical row
 or scrolling upward pauses following for that table only; selecting the empty

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Render SI-02 controls and history only for actual model changes; deduplicate matching HTTP and WebSocket records, coalesce queued timing events, and preserve in-flight command locking across asynchronous status messages.
+
+
 - Integrate the SI-02 menu and title in the main native Windows title-bar row, using a Windows-only Win32 caption extension with system drag/window control support; leave floating BentoFX windows unchanged, and provide a safe opt-out property for debugging.
 
 
