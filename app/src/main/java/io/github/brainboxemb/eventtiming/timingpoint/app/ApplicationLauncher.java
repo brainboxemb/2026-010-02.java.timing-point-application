@@ -12,11 +12,15 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.nio.file.Path;
+import java.util.logging.Logger;
 
 /** Handles command-line actions, process logging and application shutdown. */
 final class ApplicationLauncher {
     private ApplicationLauncher() {
     }
+
+    private static final Logger LOGGER =
+            Logger.getLogger(ApplicationLauncher.class.getName());
 
     /**
      * Executes one startup command and returns a process exit code.
@@ -103,13 +107,17 @@ final class ApplicationLauncher {
             Path configPath,
             PrintStream out,
             PrintStream err) {
-        out.println(
-                startupIdentityLine(
-                        buildIdentity));
-
         try {
-            Config config = YamlLoader.load(configPath);
-            runConfiguredApplication(buildIdentity, config);
+            final Config config;
+            try {
+                config = YamlLoader.load(configPath);
+            } catch (IOException | RuntimeException ex) {
+                // No configured log sink exists yet, so keep the build identity
+                // visible when loading configuration fails.
+                out.println(startupIdentityLine(buildIdentity));
+                throw ex;
+            }
+            runConfiguredApplication(buildIdentity, config, out);
             return 0;
         } catch (IOException | RuntimeException ex) {
             err.println(
@@ -128,14 +136,23 @@ final class ApplicationLauncher {
      */
     private static void runConfiguredApplication(
             BuildIdentity buildIdentity,
-            Config config)
+            Config config,
+            PrintStream out)
             throws IOException {
         Logging logging = null;
         LoggingServer loggingServer = null;
         try {
             if (config.logging() != null) {
-                logging = Logging.start(config.logging());
+                try {
+                    logging = Logging.start(config.logging());
+                } catch (IOException | RuntimeException ex) {
+                    // Log initialization failed; preserve the original
+                    // pre-configuration console fallback for diagnosis.
+                    out.println(startupIdentityLine(buildIdentity));
+                    throw ex;
+                }
             }
+            announceStartupIdentity(buildIdentity, logging, out);
             if (config.loggingServer() != null) {
                 if (logging == null) {
                     throw new IllegalStateException(
@@ -221,12 +238,25 @@ final class ApplicationLauncher {
     }
 
     /**
-     * Formats the one-line identity printed at the start of normal execution.
+     * Records build provenance through the normal runtime logging pipeline.
      *
-     * <p>The line is intentionally independent of configured logging so a
-     * configuration or logging startup failure still records which build was
-     * executed.</p>
+     * <p>The configured logger delivers the INFO record to the retained file
+     * and console handlers. Only deployments without logging use stdout;
+     * failures before logging starts are handled by the startup caller.</p>
      */
+    static void announceStartupIdentity(
+            BuildIdentity buildIdentity,
+            Logging logging,
+            PrintStream out) {
+        String identityLine = startupIdentityLine(buildIdentity);
+        if (logging != null) {
+            LOGGER.info(identityLine);
+        } else {
+            out.println(identityLine);
+        }
+    }
+
+    /** Formats the canonical one-line startup identity. */
     static String startupIdentityLine(
             BuildIdentity buildIdentity) {
         if (buildIdentity == null) {

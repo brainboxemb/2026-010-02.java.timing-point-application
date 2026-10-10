@@ -1,10 +1,17 @@
 package io.github.brainboxemb.eventtiming.timingpoint.app;
 
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.Logging;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingConfig;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingFileConfig;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevel;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.PrintStream;
 import java.nio.file.Path;
+import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -69,6 +76,43 @@ public class MainTest {
         assertTrue(
                 output.stderr.contains(
                         "Unable to start application from configuration"));
+    }
+
+    @Test
+    public void configuredStartupIdentityIsWrittenToRetainedLogOnce()
+            throws Exception {
+        File logs = temporaryFolder.newFolder("startup-identity-logs");
+        LoggingConfig config = new LoggingConfig(
+                LoggingLevel.INFO,
+                new LoggingFileConfig(logs.getAbsolutePath(), 4096, 3));
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+
+        try (Logging logging = Logging.start(config);
+                PrintStream out = new PrintStream(stdout, true, "UTF-8")) {
+            ApplicationLauncher.announceStartupIdentity(identity(), logging, out);
+        }
+
+        File[] files = logs.listFiles((directory, name) -> name.endsWith(".txt"));
+        assertTrue(files != null && files.length == 1);
+        String retained = new String(
+                Files.readAllBytes(files[0].toPath()),
+                StandardCharsets.UTF_8);
+
+        String identity = Main.startupIdentityLine(identity());
+        assertTrue(retained.contains("[INFO] - " + identity));
+        assertEquals(1, retained.split("revision=abc123def456", -1).length - 1);
+        assertEquals("", stdout.toString("UTF-8"));
+    }
+
+    @Test
+    public void startupIdentityStillUsesStdoutWithoutConfiguredLogging()
+            throws Exception {
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+        try (PrintStream out = new PrintStream(stdout, true, "UTF-8")) {
+            ApplicationLauncher.announceStartupIdentity(identity(), null, out);
+        }
+        assertTrue(stdout.toString("UTF-8").contains(
+                Main.startupIdentityLine(identity())));
     }
 
     @Test
