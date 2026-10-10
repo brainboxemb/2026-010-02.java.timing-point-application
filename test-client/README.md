@@ -245,6 +245,16 @@ Duplicate WebSocket and HTTP messages no longer redraw identical data. Queued
 timing events share a JavaFX history update, and commands keep their controls
 disabled even while other status messages arrive.
 
+The **API** tab sits next to **TimingNode** in the Engineering workbench.
+It contains the remote Application, Version and API version diagnostics and
+explicit Refresh version / Refresh status actions. The Registrations pane
+is only the interpreted registration table: use its BentoFX ≡ menu →
+**Show registrations → Current location / All locations** to change the
+visible scope; the active scope is preserved when the dock layout resets.
+The Time column displays local times in the operator's configured system
+timezone. Table headers use regular-weight text, and Device Log, Terminal
+and Client Log use compact two-to-three-pixel panel margins.
+
 The Registrations and LogBook tables each have one empty final presentation row.
 Selecting that row follows the latest incoming records. Selecting a historical row
 or scrolling upward pauses following for that table only; selecting the empty

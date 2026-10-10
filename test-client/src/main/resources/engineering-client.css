@@ -120,13 +120,6 @@
 .context-menu .menu-item:focused {
     -fx-background-color: #dbeaf9;
 }
-.dock-back-button {
-    -fx-background-color: transparent;
-    -fx-padding: 0 3px;
-    -fx-font-size: 14px;
-    -fx-text-fill: #28679d;
-}
-.dock-back-button:hover { -fx-background-color: #d6e5f4; }
 .connection-button {
     -fx-background-radius: 0;
     -fx-border-radius: 0;
@@ -182,6 +175,13 @@
     -fx-background-color: white;
     -fx-border-color: #cfd4d9;
     -fx-border-width: 1;
+}
+/* Ordinary desktop data grid: quiet labels, not bold form headings. */
+.table-view .column-header .label {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 12px;
+    -fx-font-weight: normal;
+    -fx-text-fill: #364553;
 }
 .table-view .column-header, .table-view .filler {
     -fx-background-color: #eeeeee;

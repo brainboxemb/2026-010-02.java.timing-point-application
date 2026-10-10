@@ -216,6 +216,7 @@ public final class TestClientFxApplication extends Application {
         return new EngineeringWorkbench(
                 apiPane.systemsPane(),
                 apiPane.timingNodePane(),
+                apiPane.apiInfoPane(),
                 apiPane.registrationPane(),
                 apiPane.simulationPane(),
                 deviceLogPanel,
@@ -224,7 +225,9 @@ public final class TestClientFxApplication extends Application {
                 apiPane.registrationsPane(),
                 apiPane.logBookPane(),
                 apiPane.rawDataPane(),
-                eventsPanel);
+                eventsPanel,
+                apiPane::showAllRegistrations,
+                apiPane::setShowAllRegistrations);
     }
 
     private void resetLayout(
@@ -350,8 +353,8 @@ public final class TestClientFxApplication extends Application {
         terminalSend.setOnAction(event -> sendShellCommand());
         terminalInput.setOnAction(event -> sendShellCommand());
 
-        VBox pane = new VBox(8, terminal, input);
-        pane.setPadding(new Insets(12));
+        VBox pane = new VBox(4, terminal, input);
+        pane.setPadding(new Insets(3));
         return pane;
     }
 
@@ -374,7 +377,7 @@ public final class TestClientFxApplication extends Application {
 
         liveLogs.setContextMenu(logContextMenu(liveLogs, true));
         VBox pane = new VBox(liveLogs);
-        pane.setPadding(new Insets(12));
+        pane.setPadding(new Insets(2));
         VBox.setVgrow(liveLogs, Priority.ALWAYS);
         return pane;
     }
@@ -402,7 +405,7 @@ public final class TestClientFxApplication extends Application {
 
         clientLogs.setContextMenu(logContextMenu(clientLogs, false));
         VBox pane = new VBox(clientLogs);
-        pane.setPadding(new Insets(12));
+        pane.setPadding(new Insets(2));
         VBox.setVgrow(clientLogs, Priority.ALWAYS);
         return pane;
     }
