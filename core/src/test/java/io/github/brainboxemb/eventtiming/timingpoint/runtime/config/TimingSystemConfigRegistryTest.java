@@ -6,16 +6,18 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
+import java.util.Arrays;
 
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class TimingSystemConfigRegistryTest {
     @Test
-    public void singleSystemCompatibilityConfigUsesCompactDefaultId() {
+    public void singleNodeConfigUsesMatchingSystemId() {
         Config config =
                 new Config(
                         new NodeId("A"),
@@ -28,6 +30,59 @@ public class TimingSystemConfigRegistryTest {
                 config.timingSystems()
                         .get(0)
                         .timingSystemId());
+    }
+
+    @Test
+    public void multiNodeDefaultIsNine() {
+        Config config = new Config(
+                Arrays.asList(node("A", path("a.jsonl")),
+                        node("B", path("b.jsonl"))),
+                new Presentation(null, null),
+                null, null,
+                Config.REFERENCE_PROVIDER_ID,
+                Config.REFERENCE_PROVIDER_ID);
+        assertEquals("9", config.timingSystems().get(0).timingSystemId());
+    }
+
+    @Test
+    public void rejectsPrefixedSystemIdentifier() {
+        expectInvalid(
+                "TimingSystemId must be one character A-Z or 1-9",
+                () -> system("SID-A", node("A", path("a.jsonl"))));
+    }
+
+    @Test
+    public void rejectsSingleNodeSystemIdDifferentFromNode() {
+        expectInvalid(
+                "Single-node TimingSystemId must equal TimingNodeId A",
+                () -> system("B", node("A", path("a.jsonl"))));
+    }
+
+    @Test
+    public void rejectsMultiNodeSystemIdMatchingOwnedNode() {
+        expectInvalid(
+                "Multi-node TimingSystemId A must differ from its TimingNodeIds",
+                () -> system("A", node("A", path("a.jsonl")),
+                        node("B", path("b.jsonl"))));
+    }
+
+    @Test
+    public void rejectsMultiNodeSystemIdMatchingAnotherSystemsNode() {
+        expectInvalid(
+                "Multi-node TimingSystemId 9 must differ from all TimingNodeIds",
+                () -> new TimingSystemConfigRegistry(Arrays.asList(
+                        system("9", node("A", path("a.jsonl")),
+                                node("B", path("b.jsonl"))),
+                        system("9", node("9", path("9.jsonl"))))));
+    }
+
+    private static void expectInvalid(String message, Runnable operation) {
+        try {
+            operation.run();
+            fail("Expected invalid TimingSystemId: " + message);
+        } catch (IllegalArgumentException expected) {
+            assertEquals(message, expected.getMessage());
+        }
     }
 
     @Test
