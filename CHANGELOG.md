@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Integrate the SI-02 menu and title in the main native Windows title-bar row, using a Windows-only Win32 caption extension with system drag/window control support; leave floating BentoFX windows unchanged, and provide a safe opt-out property for debugging.
+
+
 - Simplify Registration input into aligned RegistrationId, local time and action rows; show AUTO/MAN on manual submit instead of status clutter, and make JavaFX ComboBox arrow/popup styles fully flat.
 
 

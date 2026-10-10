@@ -112,6 +112,16 @@ directory, so root-level Maven and NetBeans launches use the same file. Use
 The window title includes the Engineering Client software version. **Help → About** shows
 the client's own build identity and selected client-config path.
 
+On Windows 10/11, the main window uses a native-caption extension to put
+**View/Help and the application title in one Windows title-bar row**, with
+the host and boundary controls in a compact toolbar beneath. The extension
+retains the Win32 decorated-window frame and integrates system caption
+hit-testing, drag, minimize/maximize/close, and Windows Snap support. BentoFX
+floating windows are not modified. On other OSes the JavaFX MenuBar stays below
+the platform's own native caption. The native extension can be disabled with
+`-Dsi02.nativeTitleBar=false` for troubleshooting; manual Windows verification
+is required for maximize/restore, high-DPI, Windows Snap and detached windows.
+
 ## Current Engineering workbench
 
 The Engineering Client uses BentoFX for workbench composition. Functional panes remain

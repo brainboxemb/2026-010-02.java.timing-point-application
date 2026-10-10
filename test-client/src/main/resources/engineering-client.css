@@ -237,3 +237,26 @@
     -fx-text-fill: #a35c16;
     -fx-font-size: 12px;
 }
+
+/* The JavaFX MenuBar is placed inside the native caption on Windows. */
+.engineering-native-caption {
+    -fx-background-color: #f7f7f7;
+    -fx-min-height: 34px;
+    -fx-pref-height: 34px;
+    -fx-max-height: 34px;
+    -fx-padding: 0 3px;
+    -fx-spacing: 0;
+    -fx-border-color: #cfcfcf;
+    -fx-border-width: 0 0 1px 0;
+}
+.engineering-native-caption .menu-bar {
+    -fx-background-color: transparent;
+    -fx-pref-height: 33px;
+    -fx-min-height: 33px;
+    -fx-padding: 0;
+}
+.engineering-caption-title {
+    -fx-text-fill: #3f4751;
+    -fx-font-size: 12px;
+    -fx-padding: 0 158px 0 12px;
+}
