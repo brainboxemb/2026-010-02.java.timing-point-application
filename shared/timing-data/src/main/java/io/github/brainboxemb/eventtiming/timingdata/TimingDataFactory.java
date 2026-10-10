@@ -83,6 +83,8 @@ public interface TimingDataFactory {
         private final TimingDataTypes.LocationId locationId;
         private final TimingTimestamp effectiveTime;
         private final TimingTimestamp recordedAt;
+        private final TimingData.TagSource tagSource;
+        private final TimingData.AutomaticTimeSource registrationTimeSource;
 
         public Context(
                 TimingDataTypes.NodeId timingNodeId,
@@ -90,6 +92,22 @@ public interface TimingDataFactory {
                 TimingDataTypes.LocationId locationId,
                 TimingTimestamp effectiveTime,
                 TimingTimestamp recordedAt) {
+            this(timingNodeId, sequenceNumber, locationId, effectiveTime,
+                    recordedAt, null, null);
+        }
+
+        public Context(
+                TimingDataTypes.NodeId timingNodeId,
+                long sequenceNumber,
+                TimingDataTypes.LocationId locationId,
+                TimingTimestamp effectiveTime,
+                TimingTimestamp recordedAt,
+                TimingData.TagSource tagSource,
+                TimingData.AutomaticTimeSource registrationTimeSource) {
+            if ((tagSource == null) != (registrationTimeSource == null)) {
+                throw new IllegalArgumentException(
+                        "tagSrc and timeSrc must be both present or both absent");
+            }
             if (timingNodeId == null) {
                 throw new IllegalArgumentException("timingNodeId must not be null");
             }
@@ -112,6 +130,8 @@ public interface TimingDataFactory {
             this.locationId = locationId;
             this.effectiveTime = effectiveTime;
             this.recordedAt = recordedAt;
+            this.tagSource = tagSource;
+            this.registrationTimeSource = registrationTimeSource;
         }
 
         public TimingDataTypes.NodeId timingNodeId() {
@@ -132,6 +152,14 @@ public interface TimingDataFactory {
 
         public TimingTimestamp recordedAt() {
             return recordedAt;
+        }
+
+        public TimingData.TagSource tagSource() {
+            return tagSource;
+        }
+
+        public TimingData.AutomaticTimeSource registrationTimeSource() {
+            return registrationTimeSource;
         }
     }
 }

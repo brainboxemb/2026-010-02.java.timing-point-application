@@ -50,6 +50,41 @@ public class DefaultTimingDataCodecTest {
     }
 
     @Test
+    public void preservesAutomaticProvenanceInRecordAndRecovery() throws Exception {
+        TimingDataFactory.Context contextual = new TimingDataFactory.Context(
+                new NodeId("A"), 1L, new LocationId(7),
+                EFFECTIVE, RECORDED,
+                TimingData.TagSource.API,
+                TimingData.AutomaticTimeSource.NODE);
+        TimingData.AutomaticRegistration record = factory.createAutomaticRegistration(
+                contextual, new RegistrationId("RT-A-0001"));
+
+        String json = new String(codec.encode(record), StandardCharsets.UTF_8);
+        assertTrue(json.contains(
+                "\"code\":[\"ADD\"],\"tagSrc\":\"API\",\"timeSrc\":\"NODE\""));
+        TimingData.AutomaticRegistration recovered =
+                (TimingData.AutomaticRegistration) codec.decode(codec.encode(record));
+        assertSame(TimingData.TagSource.API, recovered.tagSource());
+        assertSame(TimingData.AutomaticTimeSource.NODE, recovered.registrationTimeSource());
+        assertTrue(new String(codec.encode(recovered), StandardCharsets.UTF_8)
+                .contains("\"timeSrc\":\"NODE\""));
+
+        // Old records are valid and must not acquire invented provenance.
+        TimingData.AutomaticRegistration legacy =
+                (TimingData.AutomaticRegistration) codec.decode(
+                        codec.encode(factory.createAutomaticRegistration(
+                                context(1L), new RegistrationId("RT-A-0001"))));
+        assertEquals(null, legacy.tagSource());
+        assertEquals(null, legacy.registrationTimeSource());
+
+        // Partial or unknown attribution is invalid, not silently accepted.
+        String oneMissing = json.replace(",\"timeSrc\":\"NODE\"", "");
+        assertInvalid(json(oneMissing));
+        assertInvalid(json(json.replace("\"tagSrc\":\"API\"", "\"tagSrc\":\"MYSTERY\"")));
+        assertInvalid(json(json.replace("\"timeSrc\":\"NODE\"", "\"timeSrc\":\"CLOCK\"")));
+    }
+
+    @Test
     public void encodesAndDecodesManualRegistration() throws Exception {
         TimingData.ManualRegistration original =
                 factory.createManualRegistration(

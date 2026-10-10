@@ -155,9 +155,43 @@ final class TimingNodeLogic {
         return CloseResult.CLOSED;
     }
 
+    /** The antenna/TagProcessor path retains its observation timestamp. */
     RegistrationResult addAutomaticRegistration(
             RegistrationId registrationId,
             TimingTimestamp time)
+            throws TimingDataPersistence.PersistenceException {
+        return commitAutomaticRegistration(
+                registrationId, time,
+                TimingData.TagSource.ANT,
+                TimingData.AutomaticTimeSource.OBS);
+    }
+
+    /** IF-03 direct simulation with explicit API-supplied effective time. */
+    RegistrationResult simulateAutomaticRegistration(
+            RegistrationId registrationId,
+            TimingTimestamp time)
+            throws TimingDataPersistence.PersistenceException {
+        return commitAutomaticRegistration(
+                registrationId, time,
+                TimingData.TagSource.API,
+                TimingData.AutomaticTimeSource.API);
+    }
+
+    /** IF-03 direct simulation captures time on the owning TimingNode lane. */
+    RegistrationResult simulateAutomaticRegistrationNow(
+            RegistrationId registrationId)
+            throws TimingDataPersistence.PersistenceException {
+        return commitAutomaticRegistration(
+                registrationId, atCentisecond(timeSource.now()),
+                TimingData.TagSource.API,
+                TimingData.AutomaticTimeSource.NODE);
+    }
+
+    private RegistrationResult commitAutomaticRegistration(
+            RegistrationId registrationId,
+            TimingTimestamp effectiveTime,
+            TimingData.TagSource tagSource,
+            TimingData.AutomaticTimeSource timeProvenance)
             throws TimingDataPersistence.PersistenceException {
         ensureOperational();
         if (state != State.OPEN) {
@@ -167,7 +201,10 @@ final class TimingNodeLogic {
 
         TimingData data = timingDataFactory.createAutomaticRegistration(
                 nextRegistrationContext(
-                        normalizeRegistrationTime(time)),
+                        locationId,
+                        normalizeRegistrationTime(effectiveTime),
+                        tagSource,
+                        timeProvenance),
                 registrationId);
         return commitRegistration(data);
     }
@@ -203,7 +240,9 @@ final class TimingNodeLogic {
                 timingDataFactory.createAutomaticRegistration(
                         nextRegistrationContext(
                                 originalLocationId,
-                                originalTime),
+                                originalTime,
+                                TimingData.TagSource.API,
+                                TimingData.AutomaticTimeSource.API),
                         registrationId,
                         TimingData.RegistrationAction.REV);
         return commitRegistration(data);
@@ -303,6 +342,21 @@ final class TimingNodeLogic {
                 recordLocationId,
                 effectiveTime,
                 currentRecordedTime());
+    }
+
+    private Context nextRegistrationContext(
+            LocationId recordLocationId,
+            TimingTimestamp effectiveTime,
+            TimingData.TagSource tagSource,
+            TimingData.AutomaticTimeSource timeProvenance) {
+        return new Context(
+                timingNodeId,
+                logBook.nextSequence(),
+                recordLocationId,
+                effectiveTime,
+                currentRecordedTime(),
+                tagSource,
+                timeProvenance);
     }
 
     private Context nextLifecycleContext(

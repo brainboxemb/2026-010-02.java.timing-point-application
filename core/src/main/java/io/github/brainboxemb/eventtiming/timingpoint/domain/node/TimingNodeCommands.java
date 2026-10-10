@@ -53,6 +53,30 @@ public final class TimingNodeCommands {
                         time));
     }
 
+    /** Direct IF-03 simulation with a caller-supplied effective time. */
+    public static TimingNodeCommand<RegistrationResult>
+            simulateAutomaticRegistration(
+                    RegistrationId registrationId,
+                    TimingTimestamp time) {
+        if (registrationId == null || time == null) {
+            throw new IllegalArgumentException("registrationId and time are required");
+        }
+        return simple(
+                "simulateAutomaticRegistration",
+                logic -> logic.simulateAutomaticRegistration(registrationId, time));
+    }
+
+    /** Direct IF-03 simulation; capture TimeSource on the node's serial lane. */
+    public static TimingNodeCommand<RegistrationResult>
+            simulateAutomaticRegistrationNow(RegistrationId registrationId) {
+        if (registrationId == null) {
+            throw new IllegalArgumentException("registrationId must not be null");
+        }
+        return simple(
+                "simulateAutomaticRegistrationNow",
+                logic -> logic.simulateAutomaticRegistrationNow(registrationId));
+    }
+
     public static TimingNodeCommand<RegistrationResult>
             commitManualRegistration(
                     RegistrationId registrationId,

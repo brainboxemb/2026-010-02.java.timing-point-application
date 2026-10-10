@@ -67,6 +67,41 @@ public class TimingNodeRegistrationTest {
     }
 
     @Test
+    public void simulatedRegistrationsUseNodeTimeAndAuditTheSource() {
+        RecordingStore store = new RecordingStore();
+        TimingNode node = node(store);
+        node.activate();
+        try {
+            node.invoke(TimingNodeCommands.open(new LocationId(24)));
+            AutomaticRegistration implicit = (AutomaticRegistration) node.invoke(
+                    TimingNodeCommands.simulateAutomaticRegistrationNow(
+                            new RegistrationId("RT-A-0001"))).timingData();
+            assertEquals(RECORDED_AT, implicit.effectiveTime());
+            assertEquals(RECORDED_AT, implicit.recordedAt());
+            assertEquals(TimingData.TagSource.API, implicit.tagSource());
+            assertEquals(TimingData.AutomaticTimeSource.NODE,
+                    implicit.registrationTimeSource());
+
+            AutomaticRegistration explicit = (AutomaticRegistration) node.invoke(
+                    TimingNodeCommands.simulateAutomaticRegistration(
+                            new RegistrationId("RT-A-0002"), EFFECTIVE_TIME)).timingData();
+            assertEquals(EFFECTIVE_TIME, explicit.effectiveTime());
+            assertEquals(TimingData.TagSource.API, explicit.tagSource());
+            assertEquals(TimingData.AutomaticTimeSource.API,
+                    explicit.registrationTimeSource());
+
+            AutomaticRegistration antenna = (AutomaticRegistration) node.invoke(
+                    TimingNodeCommands.addAutomaticRegistration(
+                            new RegistrationId("RT-A-0003"), EFFECTIVE_TIME)).timingData();
+            assertEquals(TimingData.TagSource.ANT, antenna.tagSource());
+            assertEquals(TimingData.AutomaticTimeSource.OBS,
+                    antenna.registrationTimeSource());
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
     public void registrationAddsNormalizeEffectiveTimeToCentisecond() {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);

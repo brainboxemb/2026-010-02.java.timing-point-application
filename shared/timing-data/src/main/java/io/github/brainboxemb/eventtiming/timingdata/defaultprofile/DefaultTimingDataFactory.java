@@ -122,6 +122,14 @@ public final class DefaultTimingDataFactory implements TimingDataFactory {
             return registrationId;
         }
 
+        public final TimingData.TagSource tagSource() {
+            return context.tagSource();
+        }
+
+        public final TimingData.AutomaticTimeSource registrationTimeSource() {
+            return context.registrationTimeSource();
+        }
+
         public final TimingData.RegistrationAction action() {
             return action;
         }

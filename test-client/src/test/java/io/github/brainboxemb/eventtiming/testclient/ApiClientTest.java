@@ -158,6 +158,7 @@ public class ApiClientTest {
                 "TN-01",
                 "N0002",
                 "2026-10-01T12:00:04.00Z").seq());
+        assertEquals(2L, client.autoReg("TN-01", "RT-A-0001").seq());
         assertEquals(
                 "ACCEPTED",
                 client.simulateRegistration(
@@ -216,6 +217,13 @@ public class ApiClientTest {
         assertTrue(requests.get(1).body().contains("\"id\":\"N0002\""));
         assertTrue(requests.get(1).body().contains(
                 "\"time\":\"2026-10-01T12:00:04.00Z\""));
+
+        Request automaticNodeTime = requests.stream()
+                .filter(request -> request.uri().endsWith("/auto-reg"))
+                .filter(request -> request.body().contains("RT-A-0001"))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("{\"id\":\"RT-A-0001\"}", automaticNodeTime.body());
 
         Request simulation = requests.stream()
                 .filter(request -> request.uri().endsWith("/simulation/registration"))

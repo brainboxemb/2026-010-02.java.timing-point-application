@@ -134,10 +134,8 @@ final class HttpRequestReader {
                 throw invalidValue(
                         "Missing required field: id");
             }
-            if (time == null) {
-                throw invalidValue(
-                        "Missing required field: time");
-            }
+            // Missing time requests the owning TimingNode's TimeSource.
+            // An explicit JSON null remains invalid (time must be a string).
             return new AutoRegistrationRequest(id, time);
         } catch (RequestException ex) {
             throw ex;

@@ -46,6 +46,16 @@ public interface TimingData {
     interface AutomaticRegistration extends TimingData {
         TimingDataTypes.RegistrationId registrationId();
 
+        /** How the registration entered the automatic path (not a TagId). */
+        default TagSource tagSource() {
+            return null; // Earlier IF-05 records have no audit provenance.
+        }
+
+        /** Where the effective registration timestamp originated. */
+        default AutomaticTimeSource registrationTimeSource() {
+            return null; // Unknown for records written before this extension.
+        }
+
         /**
          * Registration action represented by this record.
          *
@@ -76,6 +86,22 @@ public interface TimingData {
         default RegistrationAction action() {
             return RegistrationAction.ADD;
         }
+    }
+
+    /**
+     * Automatic registration origin. ANT means the antenna observation path,
+     * including simulated antennas; API is a direct engineering request.
+     */
+    enum TagSource {
+        ANT,
+        API
+    }
+
+    /** Provenance of an automatic registration's effective timestamp. */
+    enum AutomaticTimeSource {
+        OBS,  // Time carried by the antenna observation.
+        API,  // Explicit timestamp supplied by a direct API caller.
+        NODE  // Captured by the TimingNode's configured TimeSource.
     }
 
     /** Append-only registration action represented by a registration record. */

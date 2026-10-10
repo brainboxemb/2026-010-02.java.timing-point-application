@@ -180,7 +180,8 @@ final class TimingPane {
         registrationTime.setPrefColumnCount(10);
         registrationTime.setTooltip(new Tooltip(
                 "Local civil time in " + INPUT_ZONE.getId()
-                        + "; sent to IF-03 as canonical UTC."));
+                        + ". Manual edits are sent as explicit UTC time;"
+                        + " direct auto-reg without edits uses the TimingNode clock."));
         updateNow();
         registrationDate.textProperty().addListener(
                 (ignored, previous, value) ->
@@ -580,6 +581,9 @@ final class TimingPane {
             return;
         }
 
+        // Omit time for the default/Now mode; SI-01 obtains its TimeSource.
+        final String explicitTime = "MAN".equals(manualTimeSource)
+                ? input.time() : null;
         setOperationBusy(true);
         lastOperation.setText("Submitting...");
         feedback.accept("Submitting registration...");
@@ -591,7 +595,7 @@ final class TimingPane {
                                 api.autoReg(
                                         selected,
                                         input.registrationId(),
-                                        input.time());
+                                        explicitTime);
                         ApiClient.LogBookPage page =
                                 api.getLogBookFrom(selected, result.seq(), 1);
                         ApiClient.StatusResult status = api.getStatus();
