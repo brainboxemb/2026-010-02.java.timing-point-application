@@ -69,6 +69,7 @@ final class EngineeringWorkbench {
         root = builder.root("engineering-root");
 
         DockContainerBranch leftColumn = builder.branch("left-column");
+        DockContainerBranch leftTop = builder.branch("left-top");
         DockContainerLeaf systemsLeaf = builder.leaf("systems");
         DockContainerBranch rightColumn = builder.branch("right-column");
 
@@ -83,15 +84,17 @@ final class EngineeringWorkbench {
 
         root.setOrientation(Orientation.HORIZONTAL);
         leftColumn.setOrientation(Orientation.VERTICAL);
+        leftTop.setOrientation(Orientation.HORIZONTAL);
         rightColumn.setOrientation(Orientation.VERTICAL);
 
         root.addContainers(leftColumn, rightColumn);
-        leftColumn.addContainers(
-                systemsLeaf, controls, deviceLogLeaf, terminalLeaf, clientLogLeaf);
+        leftColumn.addContainers(leftTop, deviceLogLeaf, terminalLeaf, clientLogLeaf);
+        leftTop.addContainers(systemsLeaf, controls);
         rightColumn.addContainers(registrationsLeaf, logBookLeaf, detailLeaf);
 
+        homeOrdering.put(leftTop, List.of(systemsLeaf, controls));
         homeOrdering.put(leftColumn,
-                List.of(systemsLeaf, controls, deviceLogLeaf, terminalLeaf, clientLogLeaf));
+                List.of(deviceLogLeaf, terminalLeaf, clientLogLeaf));
         homeOrdering.put(rightColumn,
                 List.of(registrationsLeaf, logBookLeaf, detailLeaf));
         for (Map.Entry<DockContainerBranch, List<DockContainerLeaf>> group
@@ -112,12 +115,17 @@ final class EngineeringWorkbench {
 
         // The leaf must disappear when its only panel is detached; otherwise
         // a blank column remains until the user manually resets the layout.
+        // Keep the split between Explorer and controls intact while either
+        // pane remains. A detached Systems pane then leaves controls visible
+        // at full width and is reconstructed in its original slot on re-pin.
+        leftTop.setPruneWhenEmpty(false);
         // Keep both column branches stable as docking homes for re-pinning.
         leftColumn.setPruneWhenEmpty(false);
         rightColumn.setPruneWhenEmpty(false);
 
-        root.setDividerPositions(0.47);
-        leftColumn.setDividerPositions(0.17, 0.50, 0.68, 0.83);
+        root.setDividerPositions(0.49);
+        leftColumn.setDividerPositions(0.43, 0.64, 0.82);
+        leftTop.setDividerPositions(0.28);
         rightColumn.setDividerPositions(0.46, 0.76);
 
         systemsLeaf.addDockable(
@@ -217,6 +225,9 @@ final class EngineeringWorkbench {
     private Dockable dockable(DockBuilding builder, DockContainerLeaf home, WorkbenchPanel panel) {
         Dockable dockable = builder.dockable(panel.id());
         dockable.setTitle(panel.title());
+        // Systems is the persistent Explorer: closing it has no useful
+        // meaning, and an X would imply a missing reopen action.
+        if ("systems".equals(panel.id())) dockable.setClosable(false);
         dockable.setNode(panel.content());
         dockable.setDragGroupMask(WORKBENCH_DRAG_GROUP);
         dockable.setIconFactory(current -> {

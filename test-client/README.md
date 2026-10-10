@@ -122,10 +122,15 @@ The default composition is:
 ```text
 left / controls & diagnostics    right / data
 -------------------------------- ------------------------
-Systems (compact tree)           Registrations
--------------------------------- ------------------------
-TimingNode / Registration /      LogBook
-Simulation (tabs)                ------------------------
+Systems | TimingNode, Registration, Simulation
+       (compact Explorer | control tabs)      Registrations
+-------------------------------------------   ------------------------
+Device Log                                    LogBook
+-------------------------------------------   ------------------------
+Terminal                                     Raw Data / Events (tabs)
+-------------------------------------------
+Client Log
+
 -------------------------------- Raw Data / Events (tabs)
 Device Log
 --------------------------------
