@@ -62,6 +62,7 @@ final class TimingPane {
     private boolean eventsConnected;
     private boolean operationBusy;
     private boolean historyRefreshQueued;
+    private long lastReportedLogBookCount = Long.MIN_VALUE;
 
     private final ComboBox<String> node = new ComboBox<>();
     private final Label problem = new Label("-");
@@ -320,7 +321,8 @@ final class TimingPane {
 
     void setLogBookCountListener(Consumer<Long> listener) {
         logBookCountListener = listener == null ? ignored -> {} : listener;
-        logBookCountListener.accept(model.logBookCount());
+        lastReportedLogBookCount = model.logBookCount();
+        logBookCountListener.accept(lastReportedLogBookCount);
     }
 
     javafx.scene.Node timingNodePane() {
@@ -986,15 +988,15 @@ final class TimingPane {
                 live
                         && (controls.manualReg()
                                 || controls.autoReg());
-        registrationPrefix.setDisable(!registrationInputEnabled);
-        registrationNumber.setDisable(!registrationInputEnabled);
-        registrationDate.setDisable(!registrationInputEnabled);
-        registrationTime.setDisable(!registrationInputEnabled);
-        now.setDisable(!registrationInputEnabled);
+        registrationPrefix.setDisable(operationBusy || !registrationInputEnabled);
+        registrationNumber.setDisable(operationBusy || !registrationInputEnabled);
+        registrationDate.setDisable(operationBusy || !registrationInputEnabled);
+        registrationTime.setDisable(operationBusy || !registrationInputEnabled);
+        now.setDisable(operationBusy || !registrationInputEnabled);
         manualReg.setDisable(!live || operationBusy || !controls.manualReg());
         autoReg.setDisable(!live || operationBusy || !controls.autoReg());
-        directTimeMode.setDisable(!live || !controls.autoReg());
-        registrationScope.setDisable(!live);
+        directTimeMode.setDisable(!live || operationBusy || !controls.autoReg());
+        registrationScope.setDisable(!live || operationBusy);
         registrations.setDisable(!live || operationBusy);
 
         syncViewButton.setDisable(
@@ -1004,7 +1006,11 @@ final class TimingPane {
     private void refreshLogBook() {
         registrationFollow.update(model.interpretedRegistrations(
                 INPUT_ZONE, "All".equals(registrationScope.getValue())));
-        logBookCountListener.accept(model.logBookCount());
+        long count = model.logBookCount();
+        if (count != lastReportedLogBookCount) {
+            lastReportedLogBookCount = count;
+            logBookCountListener.accept(count);
+        }
         logBookFollow.update(model.records());
     }
 
