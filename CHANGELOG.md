@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Prevent silent mixed JavaFX 17/21 runtime linkage in SI-02: explicitly pin JavaFX base/graphics alongside controls/fxml, and check the loaded JavaFX module versions before launching BentoFX so NetBeans/IDE classpath conflicts produce an actionable diagnostic instead of cascading NoSuchMethodError stack traces.
+
+
 - Integrate the SI-02 menu and title in the main native Windows title-bar row, using a Windows-only Win32 caption extension with system drag/window control support; leave floating BentoFX windows unchanged, and provide a safe opt-out property for debugging.
 
 

@@ -21,6 +21,18 @@ not remove the software-item boundary.
 - Jackson 2.21.2 for independent JSON parsing
 - independent client services for IF-03, Remote Shell and live diagnostics
 
+**JavaFX runtime consistency:** SI-02 requires all `javafx.base`,
+`javafx.graphics`, `javafx.controls` and `javafx.fxml` JARs to resolve
+from the same Maven version (21.0.10). A NetBeans run action that adds an
+old JavaFX SDK or JARs on its own classpath/module-path can compile the
+application but fail at runtime with `NoSuchMethodError` (for example,
+`MappingChange.<init>` or `ObservableValue.map` via BentoFX). Do not
+try to fix this by changing TableView refresh logic. Use the Maven Wrapper
+command below or a packaged Windows app-image, remove IDE-injected old
+JavaFX libraries, and ensure the Run main class is `TestClientApplication`.
+The plain main launcher checks JavaFX versions **before** creating any UI
+and prints loaded module origins with a corrective command on mismatch.
+
 The JavaFX Maven setup follows the normal OpenJFX Maven model: JavaFX modules and
 platform-specific native libraries are resolved as Maven dependencies. The executable
 entry point is `TestClientApplication`, a plain Java class. The actual JavaFX subclass
