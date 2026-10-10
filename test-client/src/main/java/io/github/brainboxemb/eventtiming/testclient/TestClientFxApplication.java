@@ -240,6 +240,7 @@ public final class TestClientFxApplication extends Application {
         workbench.setDeviceLogLevel(system.liveLogClient().isConnected()
                 ? currentDeviceLogLevel.getText() : null);
         apiPane.setLogBookCountListener(workbench::setLogBookCount);
+        apiPane.setRegistrationScopeListener(workbench::setRegistrationScope);
         feedback.setText("Default window layout restored");
     }
 
