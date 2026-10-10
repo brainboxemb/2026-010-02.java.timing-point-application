@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report-3.0.xsd" version="3.0" name="io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingTest" time="0.044" tests="7" errors="0" skipped="0" failures="0">
+  <properties>
+    <property name="awt.toolkit" value="sun.awt.X11.XToolkit"/>
+    <property name="file.encoding.pkg" value="sun.io"/>
+    <property name="java.specification.version" value="1.8"/>
+    <property name="sun.cpu.isalist" value=""/>
+    <property name="sun.jnu.encoding" value="UTF-8"/>
+    <property name="java.class.path" value="/home/runner/work/2026-010-02.java.timing-point-application/2026-010-02.java.timing-point-application/core/target/test-classes:/home/runner/work/2026-010-02.java.timing-point-application/2026-010-02.java.timing-point-application/core/target/classes:/home/runner/work/2026-010-02.java.timing-point-application/2026-010-02.java.timing-point-application/shared/timing-data/target/event-timing-data-0.2.4-SNAPSHOT.jar:/home/runner/work/2026-010-02.java.timing-point-application/2026-010-02.java.timing-point-application/shared/event-data/target/event-data-0.2.4-SNAPSHOT.jar:/home/runner/.m2/repository/org/slf4j/slf4j-api/2.0.17/slf4j-api-2.0.17.jar:/home/runner/.m2/repository/org/yaml/snakeyaml/2.7/snakeyaml-2.7.jar:/home/runner/.m2/repository/org/java-websocket/Java-WebSocket/1.6.0/Java-WebSocket-1.6.0.jar:/home/runner/.m2/repository/com/fasterxml/jackson/core/jackson-core/2.21.5/jackson-core-2.21.5.jar:/home/runner/.m2/repository/junit/junit/4.13.2/junit-4.13.2.jar:/home/runner/.m2/repository/org/hamcrest/hamcrest-core/1.3/hamcrest-core-1.3.jar:"/>
+    <property name="java.vm.vendor" value="Temurin"/>
+    <property name="sun.arch.data.model" value="64"/>
+    <property name="java.vendor.url" value="https://adoptium.net/"/>
+    <property name="user.timezone" value="Etc/UTC"/>
+    <property name="java.vm.specification.version" value="1.8"/>
+    <property name="os.name" value="Linux"/>
+    <property name="sun.java.launcher" value="SUN_STANDARD"/>
+    <property name="sun.boot.library.path" value="/usr/lib/jvm/temurin-8-jdk-amd64/jre/lib/amd64"/>
+    <property name="sun.java.command" value="/home/runner/work/2026-010-02.java.timing-point-application/2026-010-02.java.timing-point-application/core/target/surefire/surefirebooter-20261010112235902_9.jar /home/runner/work/2026-010-02.java.timing-point-application/2026-010-02.java.timing-point-application/core/target/surefire 2026-10-10T11-22-32_350-jvmRun1 surefire-20261010112235902_7tmp surefire_2-20261010112235902_8tmp"/>
+    <property name="surefire.test.class.path" value="/home/runner/work/2026-010-02.java.timing-point-application/2026-010-02.java.timing-point-application/core/target/test-classes:/home/runner/work/2026-010-02.java.timing-point-application/2026-010-02.java.timing-point-application/core/target/classes:/home/runner/work/2026-010-02.java.timing-point-application/2026-010-02.java.timing-point-application/shared/timing-data/target/event-timing-data-0.2.4-SNAPSHOT.jar:/home/runner/work/2026-010-02.java.timing-point-application/2026-010-02.java.timing-point-application/shared/event-data/target/event-data-0.2.4-SNAPSHOT.jar:/home/runner/.m2/repository/org/slf4j/slf4j-api/2.0.17/slf4j-api-2.0.17.jar:/home/runner/.m2/repository/org/yaml/snakeyaml/2.7/snakeyaml-2.7.jar:/home/runner/.m2/repository/org/java-websocket/Java-WebSocket/1.6.0/Java-WebSocket-1.6.0.jar:/home/runner/.m2/repository/com/fasterxml/jackson/core/jackson-core/2.21.5/jackson-core-2.21.5.jar:/home/runner/.m2/repository/junit/junit/4.13.2/junit-4.13.2.jar:/home/runner/.m2/repository/org/hamcrest/hamcrest-core/1.3/hamcrest-core-1.3.jar:"/>
+    <property name="sun.cpu.endian" value="little"/>
+    <property name="user.home" value="/home/runner"/>
+    <property name="user.language" value="en"/>
+    <property name="java.specification.vendor" value="Oracle Corporation"/>
+    <property name="java.home" value="/usr/lib/jvm/temurin-8-jdk-amd64/jre"/>
+    <property name="basedir" value="/home/runner/work/2026-010-02.java.timing-point-application/2026-010-02.java.timing-point-application/core"/>
+    <property name="file.separator" value="/"/>
+    <property name="line.separator" value="&#10;"/>
+    <property name="java.vm.specification.vendor" value="Oracle Corporation"/>
+    <property name="java.specification.name" value="Java Platform API Specification"/>
+    <property name="java.awt.graphicsenv" value="sun.awt.X11GraphicsEnvironment"/>
+    <property name="surefire.real.class.path" value="/home/runner/work/2026-010-02.java.timing-point-application/2026-010-02.java.timing-point-application/core/target/surefire/surefirebooter-20261010112235902_9.jar"/>
+    <property name="sun.boot.class.path" value="/usr/lib/jvm/temurin-8-jdk-amd64/jre/lib/resources.jar:/usr/lib/jvm/temurin-8-jdk-amd64/jre/lib/rt.jar:/usr/lib/jvm/temurin-8-jdk-amd64/jre/lib/sunrsasign.jar:/usr/lib/jvm/temurin-8-jdk-amd64/jre/lib/jsse.jar:/usr/lib/jvm/temurin-8-jdk-amd64/jre/lib/jce.jar:/usr/lib/jvm/temurin-8-jdk-amd64/jre/lib/charsets.jar:/usr/lib/jvm/temurin-8-jdk-amd64/jre/lib/jfr.jar:/usr/lib/jvm/temurin-8-jdk-amd64/jre/classes"/>
+    <property name="sun.management.compiler" value="HotSpot 64-Bit Tiered Compilers"/>
+    <property name="java.runtime.version" value="1.8.0_504-b01"/>
+    <property name="user.name" value="runner"/>
+    <property name="path.separator" value=":"/>
+    <property name="os.version" value="6.17.0-1022-azure"/>
+    <property name="java.endorsed.dirs" value="/usr/lib/jvm/temurin-8-jdk-amd64/jre/lib/endorsed"/>
+    <property name="java.runtime.name" value="OpenJDK Runtime Environment"/>
+    <property name="eventTiming.expectedProjectVersion" value="0.2.4-SNAPSHOT"/>
+    <property name="file.encoding" value="UTF-8"/>
+    <property name="java.vm.name" value="OpenJDK 64-Bit Server VM"/>
+    <property name="localRepository" value="/home/runner/.m2/repository"/>
+    <property name="java.vendor.url.bug" value="https://github.com/adoptium/adoptium-support/issues"/>
+    <property name="java.io.tmpdir" value="/tmp"/>
+    <property name="java.version" value="1.8.0_504"/>
+    <property name="user.dir" value="/home/runner/work/2026-010-02.java.timing-point-application/2026-010-02.java.timing-point-application/core"/>
+    <property name="os.arch" value="amd64"/>
+    <property name="java.vm.specification.name" value="Java Virtual Machine Specification"/>
+    <property name="java.awt.printerjob" value="sun.print.PSPrinterJob"/>
+    <property name="sun.os.patch.level" value="unknown"/>
+    <property name="java.library.path" value="/usr/java/packages/lib/amd64:/usr/lib64:/lib64:/lib:/usr/lib"/>
+    <property name="java.vm.info" value="mixed mode"/>
+    <property name="java.vendor" value="Temurin"/>
+    <property name="java.vm.version" value="25.504-b01"/>
+    <property name="java.specification.maintenance.version" value="6"/>
+    <property name="java.ext.dirs" value="/usr/lib/jvm/temurin-8-jdk-amd64/jre/lib/ext:/usr/java/packages/lib/ext"/>
+    <property name="sun.io.unicode.encoding" value="UnicodeLittle"/>
+    <property name="java.class.version" value="52.0"/>
+  </properties>
+  <testcase name="rotatesWithinConfiguredRetention" classname="io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingTest" time="0.035">
+    <system-err><![CDATA[11:22:37.972 - [INFO] - rotation-0-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.972 - [INFO] - rotation-1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.972 - [INFO] - rotation-2-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.973 - [INFO] - rotation-3-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.973 - [INFO] - rotation-4-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.973 - [INFO] - rotation-5-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.974 - [INFO] - rotation-6-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.976 - [INFO] - rotation-7-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.977 - [INFO] - rotation-8-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.977 - [INFO] - rotation-9-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.978 - [INFO] - rotation-10-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.978 - [INFO] - rotation-11-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.978 - [INFO] - rotation-12-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.979 - [INFO] - rotation-13-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.979 - [INFO] - rotation-14-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.979 - [INFO] - rotation-15-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.980 - [INFO] - rotation-16-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.980 - [INFO] - rotation-17-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.980 - [INFO] - rotation-18-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.981 - [INFO] - rotation-19-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.981 - [INFO] - rotation-20-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.982 - [INFO] - rotation-21-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.982 - [INFO] - rotation-22-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.982 - [INFO] - rotation-23-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.983 - [INFO] - rotation-24-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.983 - [INFO] - rotation-25-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.983 - [INFO] - rotation-26-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.984 - [INFO] - rotation-27-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.984 - [INFO] - rotation-28-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.985 - [INFO] - rotation-29-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.985 - [INFO] - rotation-30-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.985 - [INFO] - rotation-31-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.986 - [INFO] - rotation-32-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.986 - [INFO] - rotation-33-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.986 - [INFO] - rotation-34-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.986 - [INFO] - rotation-35-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.986 - [INFO] - rotation-36-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.987 - [INFO] - rotation-37-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.987 - [INFO] - rotation-38-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.988 - [INFO] - rotation-39-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.988 - [INFO] - rotation-40-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.988 - [INFO] - rotation-41-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.989 - [INFO] - rotation-42-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.989 - [INFO] - rotation-43-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.990 - [INFO] - rotation-44-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.990 - [INFO] - rotation-45-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.990 - [INFO] - rotation-46-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.991 - [INFO] - rotation-47-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.991 - [INFO] - rotation-48-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.992 - [INFO] - rotation-49-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.992 - [INFO] - rotation-50-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.992 - [INFO] - rotation-51-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.993 - [INFO] - rotation-52-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.993 - [INFO] - rotation-53-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.993 - [INFO] - rotation-54-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.994 - [INFO] - rotation-55-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.994 - [INFO] - rotation-56-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.994 - [INFO] - rotation-57-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.995 - [INFO] - rotation-58-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.995 - [INFO] - rotation-59-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.995 - [INFO] - rotation-60-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.996 - [INFO] - rotation-61-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.996 - [INFO] - rotation-62-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.996 - [INFO] - rotation-63-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.997 - [INFO] - rotation-64-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.997 - [INFO] - rotation-65-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.997 - [INFO] - rotation-66-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.998 - [INFO] - rotation-67-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.998 - [INFO] - rotation-68-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.998 - [INFO] - rotation-69-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.998 - [INFO] - rotation-70-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.999 - [INFO] - rotation-71-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.999 - [INFO] - rotation-72-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:37.999 - [INFO] - rotation-73-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.000 - [INFO] - rotation-74-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.000 - [INFO] - rotation-75-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.000 - [INFO] - rotation-76-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.000 - [INFO] - rotation-77-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.000 - [INFO] - rotation-78-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.001 - [INFO] - rotation-79-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.001 - [INFO] - rotation-80-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.001 - [INFO] - rotation-81-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.002 - [INFO] - rotation-82-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.002 - [INFO] - rotation-83-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.002 - [INFO] - rotation-84-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.003 - [INFO] - rotation-85-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.003 - [INFO] - rotation-86-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.003 - [INFO] - rotation-87-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.004 - [INFO] - rotation-88-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.004 - [INFO] - rotation-89-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.004 - [INFO] - rotation-90-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.005 - [INFO] - rotation-91-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.005 - [INFO] - rotation-92-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.005 - [INFO] - rotation-93-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.006 - [INFO] - rotation-94-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.006 - [INFO] - rotation-95-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.006 - [INFO] - rotation-96-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.006 - [INFO] - rotation-97-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.006 - [INFO] - rotation-98-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+11:22:38.007 - [INFO] - rotation-99-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx - [logging.LoggingTest.rotatesWithinConfiguredRetention]
+]]></system-err>
+  </testcase>
+  <testcase name="keepsLastProjectPackageSegmentForSourceContext" classname="io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingTest" time="0.0"/>
+  <testcase name="keepsNonProjectSourceQualified" classname="io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingTest" time="0.0"/>
+  <testcase name="repeatedWallClockTimestampNeverOverwritesExistingLog" classname="io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingTest" time="0.004"/>
+  <testcase name="appliesCompactFormatterToConsoleAndRestoresPreviousFormatter" classname="io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingTest" time="0.002"/>
+  <testcase name="staleWallClockCannotPruneActiveLog" classname="io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingTest" time="0.002"/>
+  <testcase name="formatsRetainedRecordLikeExistingOperatorLogs" classname="io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingTest" time="0.0"/>
+</testsuite>

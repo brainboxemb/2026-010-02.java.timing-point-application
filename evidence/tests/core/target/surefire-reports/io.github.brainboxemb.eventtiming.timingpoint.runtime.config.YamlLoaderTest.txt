@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: io.github.brainboxemb.eventtiming.timingpoint.runtime.config.YamlLoaderTest
+-------------------------------------------------------------------------------
+Tests run: 50, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.252 s -- in io.github.brainboxemb.eventtiming.timingpoint.runtime.config.YamlLoaderTest

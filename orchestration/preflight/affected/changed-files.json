@@ -1,0 +1,31 @@
+{
+  "files": [
+    "core/src/test/java/io/github/brainboxemb/eventtiming/timingpoint/presentation/interfaces/api/HttpRequestReaderTest.java",
+    "shared/timing-data/src/test/java/io/github/brainboxemb/eventtiming/timingdata/defaultprofile/DefaultTimingDataCodecTest.java",
+    "shared/timing-data/src/main/java/io/github/brainboxemb/eventtiming/timingdata/TimingDataFactory.java",
+    "core/src/main/java/io/github/brainboxemb/eventtiming/timingpoint/presentation/interfaces/api/HttpRequestReader.java",
+    "core/src/main/java/io/github/brainboxemb/eventtiming/timingpoint/presentation/interfaces/api/HttpEndpoint.java",
+    "test-client/src/main/java/io/github/brainboxemb/eventtiming/testclient/ApiClient.java",
+    "system-test/src/test/java/io/github/brainboxemb/eventtiming/systemtest/MultiTopologyLogBookVerification.java",
+    "test-client/src/test/java/io/github/brainboxemb/eventtiming/testclient/ApiClientTest.java",
+    "core/src/main/java/io/github/brainboxemb/eventtiming/timingpoint/application/TimingNodeProxy.java",
+    "core/src/main/java/io/github/brainboxemb/eventtiming/timingpoint/domain/node/TimingNodeCommands.java",
+    "shared/timing-data/src/main/java/io/github/brainboxemb/eventtiming/timingdata/defaultprofile/DefaultTimingDataCodec.java",
+    "core/src/test/java/io/github/brainboxemb/eventtiming/timingpoint/domain/node/TimingNodeRegistrationTest.java",
+    "test-client/src/main/java/io/github/brainboxemb/eventtiming/testclient/TimingPane.java",
+    "core/src/test/java/io/github/brainboxemb/eventtiming/timingpoint/presentation/interfaces/api/HttpEndpointTest.java",
+    "CHANGELOG.md",
+    "core/src/main/java/io/github/brainboxemb/eventtiming/timingpoint/domain/node/TimingNodeLogic.java",
+    "shared/timing-data/src/main/java/io/github/brainboxemb/eventtiming/timingdata/defaultprofile/DefaultTimingDataFactory.java",
+    "shared/timing-data/src/main/java/io/github/brainboxemb/eventtiming/timingdata/TimingData.java"
+  ],
+  "options": {
+    "base": "a1f165bec632b6baec866e7200c077332d3ce508",
+    "defaultBranch": true,
+    "head": "950214b502e7e159f05a561300fd6a814d06390a",
+    "local": false,
+    "status": [],
+    "stdin": false
+  },
+  "shallow": false
+}

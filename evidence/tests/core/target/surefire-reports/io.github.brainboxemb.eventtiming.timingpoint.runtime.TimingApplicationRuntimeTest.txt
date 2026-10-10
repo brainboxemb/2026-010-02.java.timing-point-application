@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: io.github.brainboxemb.eventtiming.timingpoint.runtime.TimingApplicationRuntimeTest
+-------------------------------------------------------------------------------
+Tests run: 16, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.464 s -- in io.github.brainboxemb.eventtiming.timingpoint.runtime.TimingApplicationRuntimeTest
