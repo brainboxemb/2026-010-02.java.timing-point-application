@@ -94,7 +94,10 @@ application image with:
 ```
 
 The script verifies JDK 21, builds the client, collects its runtime Maven
-dependencies and invokes the JDK `jpackage` tool. The default output is:
+dependencies, and invokes the JDK `jpackage` tool with the branded
+`test-client/src/main/resources/icons/event-timing.ico` Windows launcher icon.
+The same graphic is loaded from `event-timing.png` by JavaFX, including during
+an ordinary Maven/NetBeans run. The default output is:
 
 ```text
 test-client\target\jpackage\EventTimingEngineeringClient\
@@ -124,13 +127,16 @@ directory, so root-level Maven and NetBeans launches use the same file. Use
 The window title includes the Engineering Client software version. **Help → About** shows
 the client's own build identity and selected client-config path.
 
-On Windows 10/11, the main window displays a compact icon and flat **View / Help**
-menus at the left of its Windows-integrated caption, with draggable blank space
-and the caption library's one set of system controls on the right. Host and
-connection options remain on the next row. The version remains in the Stage's
-Windows title (taskbar/Alt-Tab) and **Help → About**; we no longer repeat it as
-an extra right-aligned label. Menu items are ordinary JavaFX controls, while
-the caption extension performs Win32 hit testing and supplies caption buttons.
+On Windows 10/11, the caption shows the application icon and flat
+**View / Help** menus on the left, plus the **application name and version**
+centered within the available space. The last 138 px are explicitly reserved
+for the caption library's three window buttons to prevent text/control overlap.
+Host and connection options stay on the next row. Both a real JavaFX Stage
+icon and a multi-resolution `.ico` for the Windows packaged launcher are
+provided (the generic Java taskbar icon should no longer be used). Menu items
+remain JavaFX controls; the caption extension performs Win32 hit testing.
+If Windows still shows a previously pinned Java icon, unpin the old shortcut
+and re-pin the new launcher to refresh its cached taskbar identity.
 The detached BentoFX windows remain ordinary native-decorated windows. On
 other systems JavaFX MenuBar stays below the OS titlebar. Use
 `-Dsi02.nativeTitleBar=false` to revert to the ordinary titlebar if needed.

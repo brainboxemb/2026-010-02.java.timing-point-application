@@ -2,25 +2,28 @@ package io.github.brainboxemb.eventtiming.testclient;
 
 import javafx.scene.Node;
 import javafx.scene.control.MenuBar;
-import javafx.scene.paint.Color;
 import javafx.stage.Stage;
-import net.yetihafen.javafx.customcaption.CaptionConfiguration;
-import net.yetihafen.javafx.customcaption.CustomCaption;
-import net.yetihafen.javafx.customcaption.DragRegion;
 
 import java.util.Locale;
+import java.util.function.Consumer;
 
 /**
- * The main-window-only Win32 caption integration.
+ * Optional Windows caption integration for the SI-02 main window only.
  *
- * <p>JavaFX's standard decorated Stage always creates a separate menu row.
- * CustomCaption extends the Win32 non-client area rather than creating
- * an undecorated Stage. The library paints its own caption buttons and
- * performs native hit testing. We must not duplicate these controls.
- * Do not apply this to independent BentoFX DragDropStage instances.</p>
+ * <p>The library wraps the JavaFX scene root with overlay caption controls
+ * and integrates their hit-testing with Win32. Floating BentoFX windows keep
+ * their ordinary native title bars. The library is deliberately isolated in
+ * the nested Impl class so an IDE without its Windows/JNA dependencies can
+ * still launch with the normal decorated window.</p>
  */
 final class WindowsIntegratedTitleBar {
     private static final String OPTION = "si02.nativeTitleBar";
+    private static final String LIBRARY = "net.yetihafen.javafx.customcaption.CustomCaption";
+
+    /** Must match the JavaFX caption-row height. */
+    static final int CAPTION_HEIGHT = 32;
+    /** Javafx-customcaption supplies three 46-pixel buttons. */
+    static final int CONTROLS_WIDTH = 3 * 46;
 
     private WindowsIntegratedTitleBar() {
     }
@@ -28,29 +31,50 @@ final class WindowsIntegratedTitleBar {
     static boolean isEnabled() {
         return System.getProperty("os.name", "")
                 .toLowerCase(Locale.ROOT).startsWith("windows")
-                && Boolean.parseBoolean(System.getProperty(OPTION, "true"));
+                && Boolean.parseBoolean(System.getProperty(OPTION, "true"))
+                && hasLibrary();
     }
 
-    static boolean install(Stage mainStage, Node titleRow, MenuBar menuBar) {
-        if (!isEnabled()) return false;
-
+    private static boolean hasLibrary() {
         try {
-            // Blank caption space is draggable. The JavaFX menus must
-            // receive normal pointer/keyboard input rather than HTCAPTION.
-            DragRegion drag = new DragRegion(titleRow).addExcludeBounds(menuBar);
-            CaptionConfiguration config = new CaptionConfiguration(32)
-                    .setIconColor(Color.web("#3a4650"))
-                    .setIconHoverColor(Color.web("#202020"))
-                    .setControlBackgroundColor(Color.web("#f7f7f7"))
-                    .setButtonHoverColor(Color.web("#e5e5e5"))
-                    .setCaptionDragRegion(drag);
-
-            // Must run after stage.show() so the native HWND exists.
-            CustomCaption.useForStage(mainStage, config);
+            Class.forName(LIBRARY, false, WindowsIntegratedTitleBar.class.getClassLoader());
             return true;
-        } catch (RuntimeException | LinkageError ex) {
-            System.err.println("SI-02: unable to integrate Windows caption: " + ex);
+        } catch (ClassNotFoundException | LinkageError error) {
+            System.err.println("SI-02: Windows caption library unavailable: " + error);
             return false;
+        }
+    }
+
+    static boolean install(Stage stage, Node captionRow, MenuBar menuBar,
+                           Consumer<String> warning) {
+        if (!isEnabled()) return false;
+        try {
+            Impl.install(stage, captionRow, menuBar);
+            return true;
+        } catch (RuntimeException | LinkageError error) {
+            String message = "Unable to integrate the Windows caption: " + error;
+            System.err.println("SI-02: " + message);
+            warning.accept(message);
+            return false;
+        }
+    }
+
+    /** All direct references to the optional caption library are isolated. */
+    private static final class Impl {
+        private Impl() {
+        }
+
+        static void install(Stage stage, Node captionRow, MenuBar menuBar) {
+            var drag = new net.yetihafen.javafx.customcaption.DragRegion(captionRow)
+                    .addExcludeBounds(menuBar);
+            var config = new net.yetihafen.javafx.customcaption.CaptionConfiguration(CAPTION_HEIGHT)
+                    .setIconColor(javafx.scene.paint.Color.web("#3a4650"))
+                    .setIconHoverColor(javafx.scene.paint.Color.web("#202020"))
+                    .setControlBackgroundColor(javafx.scene.paint.Color.web("#f7f7f7"))
+                    .setButtonHoverColor(javafx.scene.paint.Color.web("#e5e5e5"))
+                    .setCaptionDragRegion(drag);
+            // Must be called once the stage is showing and has a native HWND.
+            net.yetihafen.javafx.customcaption.CustomCaption.useForStage(stage, config);
         }
     }
 }

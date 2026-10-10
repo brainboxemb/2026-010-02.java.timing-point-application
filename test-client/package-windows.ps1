@@ -72,10 +72,16 @@ try {
     Remove-Item -Recurse -Force $OutputDir -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force $OutputDir | Out-Null
 
+    $IconPath = Join-Path $ModuleRoot "src\\main\\resources\\icons\\event-timing.ico"
+    if (-not (Test-Path $IconPath)) {
+        throw "Missing SI-02 Windows launcher icon: $IconPath"
+    }
+
     $jpackageArgs = @(
         "--type", "app-image",
         "--name", "EventTimingEngineeringClient",
         "--vendor", "brainboxemb",
+        "--icon", $IconPath,
         "--input", $InputDir,
         "--main-jar", $MainJar.Name,
         "--main-class", "io.github.brainboxemb.eventtiming.testclient.TestClientApplication",

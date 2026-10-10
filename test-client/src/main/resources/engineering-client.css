@@ -238,14 +238,14 @@
     -fx-font-size: 12px;
 }
 
-/* Win32 caption: IDE-like mark/menu left, blank dragging area and one
- * set of library-provided caption controls at the far right. */
+/* Win32 caption: mark / flat menus / centered identity / free space /
+ * one set of library-provided caption controls, with a reserved final 138px. */
 .engineering-native-caption {
     -fx-background-color: #f7f7f7;
     -fx-min-height: 32px;
     -fx-pref-height: 32px;
     -fx-max-height: 32px;
-    -fx-padding: 0 138px 0 4px;
+    -fx-padding: 0 0 0 4px;
     -fx-spacing: 0;
     -fx-border-color: #dfdfdf;
     -fx-border-width: 0 0 1px 0;
@@ -297,4 +297,11 @@
     -fx-background-radius: 0;
     -fx-padding: 0;
     -fx-effect: none;
+}
+
+.engineering-caption-title {
+    -fx-text-fill: #43505e;
+    -fx-font-size: 12px;
+    -fx-padding: 0 10px;
+    -fx-alignment: center;
 }
