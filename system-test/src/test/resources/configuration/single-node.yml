@@ -1,11 +1,9 @@
 # Single TimingNode fixture for VC-ST1-001 through VC-ST1-006.
 # @NODE_ID@ and @..._PORT@ are replaced by test factory.
 timingSystems:
-  timing-system-01:
-    timingSystemId: timing-system-01
+  - timingSystemId: timing-system-01
     timingNodes:
-      timing-node-01:
-        timingNodeId: @NODE_ID@
+      - timingNodeId: @NODE_ID@
 
 io:
   storage:
