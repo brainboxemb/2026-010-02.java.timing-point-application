@@ -38,6 +38,8 @@ import org.yaml.snakeyaml.error.YAMLException;
  */
 public final class YamlLoader {
     private static final String TIMING_SYSTEMS = "timingSystems";
+    // Declarations use contextual id; cross-references retain explicit names.
+    private static final String TOPOLOGY_ID = "id";
     private static final String TIMING_SYSTEM_ID = "timingSystemId";
     private static final String EVENT_DATA_PROVIDER = "eventDataProvider";
     private static final String TIMING_DATA_PROVIDER = "timingDataProvider";
@@ -189,33 +191,33 @@ public final class YamlLoader {
             rejectUnknownFields(
                     timingSystem,
                     timingSystemField,
-                    TIMING_SYSTEM_ID,
+                    TOPOLOGY_ID,
                     EVENT_DATA_PROVIDER,
                     TIMING_DATA_PROVIDER,
                     TIMING_NODES);
 
             if (!timingSystem.containsKey(
-                    TIMING_SYSTEM_ID)) {
+                    TOPOLOGY_ID)) {
                 throw new IllegalArgumentException(
                         "Missing required configuration field: "
                                 + timingSystemField
                                 + "."
-                                + TIMING_SYSTEM_ID);
+                                + TOPOLOGY_ID);
             }
 
             String timingSystemId =
                     requireCompactId(
                             timingSystem.get(
-                                    TIMING_SYSTEM_ID),
+                                    TOPOLOGY_ID),
                             timingSystemField
                                     + "."
-                                    + TIMING_SYSTEM_ID)
+                                    + TOPOLOGY_ID)
                             .trim();
             if (timingSystemId.isEmpty()) {
                 throw new IllegalArgumentException(
                         timingSystemField
                                 + "."
-                                + TIMING_SYSTEM_ID
+                                + TOPOLOGY_ID
                                 + " must not be blank");
             }
             if (!systemIds.add(
@@ -257,26 +259,26 @@ public final class YamlLoader {
                 rejectUnknownFields(
                         timingNode,
                         timingNodeField,
-                        TIMING_NODE_ID,
+                        TOPOLOGY_ID,
                         TAG_PROCESSING);
 
                 if (!timingNode.containsKey(
-                        TIMING_NODE_ID)) {
+                        TOPOLOGY_ID)) {
                     throw new IllegalArgumentException(
                             "Missing required configuration field: "
                                     + timingNodeField
                                     + "."
-                                    + TIMING_NODE_ID);
+                                    + TOPOLOGY_ID);
                 }
 
                 NodeId timingNodeId =
                         new NodeId(
                                 requireCompactId(
                                         timingNode.get(
-                                                TIMING_NODE_ID),
+                                                TOPOLOGY_ID),
                                         timingNodeField
                                                 + "."
-                                                + TIMING_NODE_ID));
+                                                + TOPOLOGY_ID));
                 if (!nodeIds.add(
                         timingNodeId)) {
                     throw new IllegalArgumentException(

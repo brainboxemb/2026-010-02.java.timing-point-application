@@ -54,9 +54,9 @@ public class YamlLoaderTest {
                         "parameters:\n"
                                 + "  ID: A\n"
                                 + "timingSystems:\n"
-                                + "  - timingSystemId: \"{ID}\"\n"
+                                + "  - id: \"{ID}\"\n"
                                 + "    timingNodes:\n"
-                                + "      - timingNodeId: \"{ID}\"\n"
+                                + "      - id: \"{ID}\"\n"
                                 + "io:\n"
                                 + "  storage:\n"
                                 + "    timingData:\n"
@@ -110,12 +110,12 @@ public class YamlLoaderTest {
         Config config =
                 load(
                         "timingSystems:\n"
-                                + "  - timingSystemId: A\n"
+                                + "  - id: A\n"
                                 + "    timingNodes:\n"
-                                + "      - timingNodeId: A\n"
-                                + "  - timingSystemId: B\n"
+                                + "      - id: A\n"
+                                + "  - id: B\n"
                                 + "    timingNodes:\n"
-                                + "      - timingNodeId: B\n"
+                                + "      - id: B\n"
                                 + "io:\n"
                                 + "  storage:\n"
                                 + "    timingData:\n"
@@ -144,9 +144,9 @@ public class YamlLoaderTest {
             throws Exception {
         load(
                 "timingSystems:\n"
-                        + "  - timingSystemId: {UNKNOWN}\n"
+                        + "  - id: {UNKNOWN}\n"
                         + "    timingNodes:\n"
-                        + "      - timingNodeId: A\n"
+                        + "      - id: A\n"
                         + timingDataStorage());
     }
 
@@ -165,9 +165,9 @@ public class YamlLoaderTest {
             throws Exception {
         load(
                 "timingSystems:\n"
-                        + "  - timingSystemId: {NodeId}\n"
+                        + "  - id: {NodeId}\n"
                         + "    timingNodes:\n"
-                        + "      - timingNodeId: A\n"
+                        + "      - id: A\n"
                         + timingDataStorage());
     }
 
@@ -187,11 +187,11 @@ public class YamlLoaderTest {
             throws Exception {
         Config config = load(
                 "timingSystems:\n"
-                        + "  - timingSystemId: A\n"
+                        + "  - id: A\n"
                         + "    eventDataProvider: custom-event\n"
                         + "    timingDataProvider: custom-timing\n"
                         + "    timingNodes:\n"
-                        + "      - timingNodeId: A\n"
+                        + "      - id: A\n"
                         + timingDataStorage());
 
         assertEquals(
@@ -207,10 +207,10 @@ public class YamlLoaderTest {
             throws Exception {
         load(
                 "timingSystems:\n"
-                        + "  - timingSystemId: A\n"
+                        + "  - id: A\n"
                         + "    eventDataProvider: '   '\n"
                         + "    timingNodes:\n"
-                        + "      - timingNodeId: A\n"
+                        + "      - id: A\n"
                         + timingDataStorage());
     }
 
@@ -219,10 +219,10 @@ public class YamlLoaderTest {
             throws Exception {
         load(
                 "timingSystems:\n"
-                        + "  - timingSystemId: A\n"
+                        + "  - id: A\n"
                         + "    timingDataProvider: '   '\n"
                         + "    timingNodes:\n"
-                        + "      - timingNodeId: A\n"
+                        + "      - id: A\n"
                         + timingDataStorage());
     }
 
@@ -400,12 +400,12 @@ public class YamlLoaderTest {
         Config config =
                 load(
                         "timingSystems:\n"
-                                + "  - timingSystemId: A\n"
+                                + "  - id: A\n"
                                 + "    timingNodes:\n"
-                                + "      - timingNodeId: A\n"
-                                + "  - timingSystemId: B\n"
+                                + "      - id: A\n"
+                                + "  - id: B\n"
                                 + "    timingNodes:\n"
-                                + "      - timingNodeId: B\n"
+                                + "      - id: B\n"
                                 + timingDataStorageNodes());
 
         assertEquals(
@@ -431,12 +431,12 @@ public class YamlLoaderTest {
             throws Exception {
         load(
                 "timingSystems:\n"
-                        + "  - timingSystemId: A\n"
+                        + "  - id: A\n"
                         + "    timingNodes:\n"
-                        + "      - timingNodeId: A\n"
-                        + "  - timingSystemId: A\n"
+                        + "      - id: A\n"
+                        + "  - id: A\n"
                         + "    timingNodes:\n"
-                        + "      - timingNodeId: A\n"
+                        + "      - id: A\n"
                         + timingDataStorageNodes());
     }
 
@@ -445,14 +445,14 @@ public class YamlLoaderTest {
             throws Exception {
         load(
                 "timingSystems:\n"
-                        + "  - timingSystemId: 9\n"
+                        + "  - id: 9\n"
                         + "    timingNodes:\n"
-                        + "      - timingNodeId: A\n"
-                        + "      - timingNodeId: B\n"
-                        + "  - timingSystemId: 8\n"
+                        + "      - id: A\n"
+                        + "      - id: B\n"
+                        + "  - id: 8\n"
                         + "    timingNodes:\n"
-                        + "      - timingNodeId: A\n"
-                        + "      - timingNodeId: C\n"
+                        + "      - id: A\n"
+                        + "      - id: C\n"
                         + "io:\n"
                         + "  storage:\n"
                         + "    timingData:\n"
@@ -468,7 +468,7 @@ public class YamlLoaderTest {
         load(
                 "timingSystems:\n"
                         + "  - timingNodes:\n"
-                        + "      - timingNodeId: A\n"
+                        + "      - id: A\n"
                         + timingDataStorage());
     }
 
@@ -559,7 +559,7 @@ public class YamlLoaderTest {
     public void rejectsMissingTimingNodeId() throws Exception {
         load(
                 "timingSystems:\n"
-                        + "  - timingSystemId: A\n"
+                        + "  - id: A\n"
                         + "    timingNodes:\n"
                         + "      - {}\n"
                         + timingDataStorage());
@@ -569,9 +569,9 @@ public class YamlLoaderTest {
     public void rejectsBlankTimingNodeId() throws Exception {
         load(
                 "timingSystems:\n"
-                        + "  - timingSystemId: A\n"
+                        + "  - id: A\n"
                         + "    timingNodes:\n"
-                        + "      - timingNodeId: '   '\n"
+                        + "      - id: '   '\n"
                         + timingDataStorage());
     }
 
@@ -725,13 +725,13 @@ public class YamlLoaderTest {
     public void loadsExplicitListTopologyWithTwoSystemsAndThreeNodes() throws Exception {
         Config config = load(
                 "timingSystems:\n"
-                        + "  - timingSystemId: 9\n"
+                        + "  - id: 9\n"
                         + "    timingNodes:\n"
-                        + "      - timingNodeId: A\n"
-                        + "      - timingNodeId: B\n"
-                        + "  - timingSystemId: C\n"
+                        + "      - id: A\n"
+                        + "      - id: B\n"
+                        + "  - id: C\n"
                         + "    timingNodes:\n"
-                        + "      - timingNodeId: C\n"
+                        + "      - id: C\n"
                         + "io:\n"
                         + "  storage:\n"
                         + "    timingData:\n"
@@ -744,32 +744,70 @@ public class YamlLoaderTest {
                 config.timingNode(new NodeId("C")).timingDataPath());
     }
 
+
+    /**
+     * Topology object declarations use id; do not retain the old verbose
+     * field names as aliases. Foreign references elsewhere still use them.
+     */
+    @Test
+    public void rejectsVerboseSystemIdentityDeclaration() throws Exception {
+        assertUnsupportedDeclaration(
+                "timingSystems[0]", "timingSystemId",
+                "timingSystems:\n"
+                        + "  - timingSystemId: A\n"
+                        + "    timingNodes:\n"
+                        + "      - id: A\n"
+                        + timingDataStorage());
+    }
+
+    @Test
+    public void rejectsVerboseNodeIdentityDeclaration() throws Exception {
+        assertUnsupportedDeclaration(
+                "timingSystems[0].timingNodes[0]", "timingNodeId",
+                "timingSystems:\n"
+                        + "  - id: A\n"
+                        + "    timingNodes:\n"
+                        + "      - timingNodeId: A\n"
+                        + timingDataStorage());
+    }
+
+    private static void assertUnsupportedDeclaration(
+            String objectPath, String oldField, String yaml) throws Exception {
+        try {
+            load(yaml);
+            org.junit.Assert.fail("Expected old declaration field to be rejected");
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Unsupported configuration field in "
+                    + objectPath + ": " + oldField, ex.getMessage());
+        }
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void rejectsOldKeyedTimingSystems() throws Exception {
         load("timingSystems:\n"
                 + "  first:\n"
-                + "    timingSystemId: A\n"
+                + "    id: A\n"
                 + "    timingNodes:\n"
-                + "      - timingNodeId: A\n"
+                + "      - id: A\n"
                 + timingDataStorage());
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsOldKeyedTimingNodes() throws Exception {
         load("timingSystems:\n"
-                + "  - timingSystemId: A\n"
+                + "  - id: A\n"
                 + "    timingNodes:\n"
                 + "      first:\n"
-                + "        timingNodeId: A\n"
+                + "        id: A\n"
                 + timingDataStorage());
     }
 
     private static String twoTimingNodes() {
         return "timingSystems:\n"
-                        + "  - timingSystemId: 9\n"
+                        + "  - id: 9\n"
                 + "    timingNodes:\n"
-                + "      - timingNodeId: A\n"
-                + "      - timingNodeId: B\n";
+                + "      - id: A\n"
+                + "      - id: B\n";
     }
 
     private static String timingDataStorageNodes() {
@@ -794,9 +832,9 @@ public class YamlLoaderTest {
             String tagProcessingFields) {
         String yaml =
                 "timingSystems:\n"
-                        + "  - timingSystemId: " + nodeId + "\n"
+                        + "  - id: " + nodeId + "\n"
                         + "    timingNodes:\n"
-                        + "      - timingNodeId: " + nodeId + "\n";
+                        + "      - id: " + nodeId + "\n";
         if (tagProcessingFields != null) {
             yaml +=
                     "        tagProcessing:\n"
