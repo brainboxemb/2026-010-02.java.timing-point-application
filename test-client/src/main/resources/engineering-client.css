@@ -129,14 +129,45 @@
 .connection-button.connection-ok { -fx-border-color: #5aa273; -fx-background-color: #e9f6ed; }
 .connection-button.connection-busy { -fx-border-color: #d6a34a; -fx-background-color: #fff4da; }
 .connection-button.connection-error { -fx-border-color: #c97474; -fx-background-color: #fcecec; }
+.host-toolbar {
+    -fx-alignment: center-left;
+    -fx-background-color: #f7f7f7;
+}
+.host-toolbar .label, .host-toolbar .button, .host-toolbar .text-field {
+    -fx-alignment: center-left;
+}
+.host-toolbar .text-field,
+.host-toolbar .connection-button {
+    -fx-min-height: 28px;
+    -fx-pref-height: 28px;
+    -fx-max-height: 28px;
+}
+.host-toolbar .connection-button {
+    -fx-alignment: center;
+    -fx-padding: 3px 9px;
+}
+.host-toolbar .host-toolbar-divider {
+    -fx-min-width: 1px;
+    -fx-pref-width: 1px;
+    -fx-max-width: 1px;
+    -fx-min-height: 18px;
+    -fx-pref-height: 18px;
+    -fx-background-color: #cdd3d8;
+    -fx-padding: 0;
+}
+.primary-connect {
+    -fx-min-width: 104px;
+    -fx-graphic-text-gap: 6px;
+}
+.connect-power-icon { -fx-stroke: #364653; }
+.primary-connect.connection-ok .connect-power-icon { -fx-stroke: #267445; }
+.primary-connect.connection-partial {
+    -fx-border-color: #d6a34a;
+    -fx-background-color: #fff4da;
+}
+.primary-connect.connection-partial .connect-power-icon { -fx-stroke: #966611; }
 .systems-tree { -fx-background-color: transparent; }
 
-.boundary-status {
-    -fx-alignment: center-left;
-    -fx-padding: 5px 7px;
-    -fx-text-fill: #247444;
-    -fx-font-size: 12px;
-}
 .sync-state {
     -fx-font-weight: normal;
     -fx-text-fill: #53606c;

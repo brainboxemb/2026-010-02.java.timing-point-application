@@ -179,15 +179,20 @@ Terminal
 Client Log
 ```
 
-The top bar has Host/IP followed immediately by **Connect**, which applies
-the chosen host and independently checks/connects API, Events, Terminal and
-Device Log; no startup auto-connect. The four corresponding option buttons
-retain short stable labels without Connect/Disconnect text. Green means that
-boundary has actually connected or (for stateless HTTP) passed its API check;
-yellow means busy, red means failed, neutral means disconnected. Clicking an
-individual button connects/disconnects that interface (or checks API again).
-Tooltips show status and operation. Client Log is always local and active;
-individual boundary ports stay in configuration.
+The compact toolbar vertically aligns **Host**, the target IP and all link
+buttons. The main power-icon/text **Connect** button checks HTTP API
+availability and opens Events, Terminal and Device Log together; once one
+or more stateful links are active, it becomes **Disconnect**, allowing the
+user to close all of them with the same action. It is green when all three
+stateful links are connected, amber when partially connected or connecting,
+and neutral when disconnected. The API's HTTP check is stateless, so it
+cannot be "disconnected" and has its own reachability button. The four
+independent API, Events, Terminal and Device Log buttons retain stable short
+labels and each has a tooltip describing its state/action. A changed Host
+does not silently redirect existing links: disconnect before switching.
+The redundant `● Client Log` label is gone from the toolbar: Client Log
+is a local, always-running dock pane whose own tab identifies it.
+Individual boundary ports stay in the configuration.
 
 The API control is deliberately clickable. IF-03 HTTP has no persistent connection, so
 the control performs an explicit availability **CHECK** and reports CHECKING, READY or
