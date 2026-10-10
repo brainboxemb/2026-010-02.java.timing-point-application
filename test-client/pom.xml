@@ -17,6 +17,7 @@
     <javafx.version>21.0.10</javafx.version>
     <jackson.version>2.21.2</jackson.version>
     <bentofx.version>0.16.0</bentofx.version>
+    <customcaption.version>1.0</customcaption.version>
     <junit.version>5.10.2</junit.version>
     <maven.compiler.plugin.version>3.13.0</maven.compiler.plugin.version>
     <maven.surefire.plugin.version>3.2.5</maven.surefire.plugin.version>
@@ -31,6 +32,16 @@
       <groupId>org.openjfx</groupId>
       <artifactId>javafx-controls</artifactId>
       <version>${javafx.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.openjfx</groupId>
+      <artifactId>javafx-fxml</artifactId>
+      <version>${javafx.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>net.yetihafen</groupId>
+      <artifactId>javafx-customcaption</artifactId>
+      <version>${customcaption.version}</version>
     </dependency>
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>

@@ -68,3 +68,22 @@ jobs:
           if (-not (Test-Path $launcher)) {
             throw "Missing packaged Engineering Client launcher: $launcher"
           }
+
+      - name: Smoke-test native main window launch on Windows
+        shell: pwsh
+        run: |
+          $launcher = Resolve-Path "test-client\target\jpackage\EventTimingEngineeringClient\EventTimingEngineeringClient.exe"
+          $process = Start-Process -FilePath $launcher.Path -WorkingDirectory (Get-Location).Path -PassThru
+          try {
+            Start-Sleep -Seconds 8
+            $process.Refresh()
+            if ($process.HasExited) {
+              throw "Packaged Windows client exited during title-bar startup (code: $($process.ExitCode))"
+            }
+          }
+          finally {
+            $process.Refresh()
+            if (-not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+            }
+          }

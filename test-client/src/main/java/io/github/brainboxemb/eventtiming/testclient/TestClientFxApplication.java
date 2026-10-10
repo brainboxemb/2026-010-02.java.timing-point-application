@@ -3,6 +3,8 @@ package io.github.brainboxemb.eventtiming.testclient;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.layout.Region;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
@@ -113,11 +115,28 @@ public final class TestClientFxApplication extends Application {
         Menu help = new Menu("Help");
         help.getItems().add(about);
         MenuBar menuBar = new MenuBar(view, help);
-
-        HBox top = new HBox(menuBar, targetBar());
-        HBox.setHgrow(top.getChildren().get(1), Priority.ALWAYS);
+        HBox hostBar = targetBar();
+        HBox windowsCaption = null;
+        boolean nativeCaption = WindowsIntegratedTitleBar.isEnabled();
         workbenchRoot = new BorderPane();
-        workbenchRoot.setTop(top);
+        if (nativeCaption) {
+            // The menu and title occupy the same actual Windows caption row.
+            // Keep network controls below, and leave room at the far right for
+            // the native-looking minimize/maximize/close buttons.
+            Region dragSpace = new Region();
+            HBox.setHgrow(dragSpace, Priority.ALWAYS);
+            Label captionTitle = new Label(
+                    clientBuild.application() + " — " + clientBuild.version());
+            captionTitle.getStyleClass().add("engineering-caption-title");
+            windowsCaption = new HBox(menuBar, dragSpace, captionTitle);
+            windowsCaption.setAlignment(Pos.CENTER_LEFT);
+            windowsCaption.getStyleClass().add("engineering-native-caption");
+            workbenchRoot.setTop(new VBox(windowsCaption, hostBar));
+        } else {
+            HBox top = new HBox(menuBar, hostBar);
+            HBox.setHgrow(hostBar, Priority.ALWAYS);
+            workbenchRoot.setTop(top);
+        }
         workbenchRoot.setCenter(workbench.root());
         workbenchRoot.setBottom(feedback);
         BorderPane.setMargin(feedback, new Insets(0, 12, 12, 12));
@@ -125,11 +144,20 @@ public final class TestClientFxApplication extends Application {
         stage.setTitle(clientBuild.application() + " — " + clientBuild.version());
         Scene scene = new Scene(workbenchRoot, 1360, 850);
         var stylesheet = TestClientFxApplication.class.getResource("/engineering-client.css");
-        if (stylesheet != null) {
-            scene.getStylesheets().add(stylesheet.toExternalForm());
-        }
+        if (stylesheet != null) scene.getStylesheets().add(stylesheet.toExternalForm());
         stage.setScene(scene);
         stage.show();
+        if (nativeCaption && !WindowsIntegratedTitleBar.install(
+                stage, windowsCaption, menuBar)) {
+            // Leave the original native frame available if the Windows-only
+            // integration cannot initialize. No native change for other OSes.
+            windowsCaption.getChildren().remove(menuBar);
+            ((VBox) workbenchRoot.getTop()).getChildren().remove(hostBar);
+            HBox fallback = new HBox(menuBar, hostBar);
+            HBox.setHgrow(hostBar, Priority.ALWAYS);
+            workbenchRoot.setTop(fallback);
+            clientLog.warn("Windows titlebar extension unavailable, using standard frame");
+        }
         clientLog.info("Engineering Client UI ready");
     }
 
