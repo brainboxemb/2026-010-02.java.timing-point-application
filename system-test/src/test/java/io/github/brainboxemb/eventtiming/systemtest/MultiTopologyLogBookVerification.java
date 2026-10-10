@@ -23,8 +23,6 @@ import static org.junit.Assert.assertTrue;
  * the expected record contents are independent from the YAML parser.</p>
  */
 final class MultiTopologyLogBookVerification {
-    private static final String TIME = "2026-10-01T12:00:00Z";
-
     // The A in RT-A-xxxx denotes a normal participant, not TimingNode A.
     // Using different participants makes cross-node LogBook leaks observable.
     private static final String REGISTRATION_A =
@@ -110,6 +108,7 @@ final class MultiTopologyLogBookVerification {
                 status.body(), "\"id\":\"B\",\"locationId\":null,\"state\":\"CLOSED\"");
     }
 
+    /** Simulate an ADD without time; SI-01 must use the owning TimingSystem clock. */
     private static void operateNode(
             HttpTestClient http, String node, int location, String registration)
             throws Exception {
@@ -121,7 +120,7 @@ final class MultiTopologyLogBookVerification {
 
         Response added = http.post(
                 "/api/v1/dev/node/" + node + "/auto-reg",
-                "{\"id\":\"" + registration + "\",\"time\":\"" + TIME + "\"}");
+                "{\"id\":\"" + registration + "\"}");
         assertEquals(200, added.status());
         assertContains(added.body(), "\"seq\":2");
 
@@ -159,6 +158,8 @@ final class MultiTopologyLogBookVerification {
         }
         assertContains(page.body(), "\"code\":[\"OPEN\"]");
         assertContains(page.body(), "\"code\":[\"ADD\"]");
+        assertContains(page.body(), "\"tagSrc\":\"API\"");
+        assertContains(page.body(), "\"timeSrc\":\"NODE\"");
         assertContains(page.body(), "\"code\":[\"CLOSE\"]");
         String unexpected = "A".equals(node) ? REGISTRATION_B : REGISTRATION_A;
         assertTrue(!page.body().contains(
@@ -201,6 +202,8 @@ final class MultiTopologyLogBookVerification {
                     !line.contains("\"nodeId\":\"" + ("A".equals(node) ? "B" : "A") + "\""));
         }
         assertContains(lines.get(1), "\"regId\":\"" + registration + "\"");
+        assertContains(lines.get(1), "\"tagSrc\":\"API\"");
+        assertContains(lines.get(1), "\"timeSrc\":\"NODE\"");
     }
 
     private static void assertContains(String json, String value) {
