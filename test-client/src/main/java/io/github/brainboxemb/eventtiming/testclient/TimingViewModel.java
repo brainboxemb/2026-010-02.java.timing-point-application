@@ -106,6 +106,22 @@ public final class TimingViewModel {
         return selectedNodeId == null ? null : findNode(selectedNodeId);
     }
 
+    /**
+     * The interpreted view defaults to the selected node's OPEN location.
+     * Do not show a stale location when the view is disconnected or the node
+     * is closed. The explicit All scope is independent of node state.
+     */
+    public String registrationScopeLabel(boolean allLocations) {
+        if (allLocations) return "All";
+        ApiClient.TimingNodeInfo selected = selectedNode();
+        if (viewState != ViewState.LIVE || selected == null
+                || !"OPEN".equals(selected.state())
+                || selected.locationId() == null) {
+            return "–";
+        }
+        return Integer.toString(selected.locationId());
+    }
+
     public void selectNode(String nodeId) {
         if (nodeId != null && findNode(nodeId) == null) {
             throw new IllegalArgumentException("Unknown TimingNode: " + nodeId);

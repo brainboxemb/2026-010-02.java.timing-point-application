@@ -106,6 +106,7 @@ public final class TestClientFxApplication extends Application {
         workbench = createWorkbench(
                 deviceLogPanel, terminalPanel, clientLogPanel, eventsPanel);
         apiPane.setLogBookCountListener(workbench::setLogBookCount);
+        apiPane.setRegistrationScopeListener(workbench::setRegistrationScope);
         apiPane.setSystemHost(system.host());
         workbench.setClientLogLevel(clientLog.level());
 

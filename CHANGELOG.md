@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Make Registrations filtering mouse-friendly with directly selectable BentoFX ≡ menu radio items; display the effective OPEN LocationId or All in the tab title, keeping default scope on the selected node's open location and showing no stale id when inactive. Hide the redundant bold LIVE label in Systems while retaining syncing/disconnection warnings.
+
+
 - Move application/version/API diagnostics to an independent **API** tab beside TimingNode, remove the duplicated Registrations status header, move the Current location/All locations filter to the standard BentoFX ≡ menu, and tighten log-panel spacing and table header typography.
 
 

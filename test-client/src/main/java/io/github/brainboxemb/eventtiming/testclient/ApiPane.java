@@ -98,6 +98,10 @@ final class ApiPane {
         timingPane.setLogBookCountListener(listener);
     }
 
+    void setRegistrationScopeListener(Consumer<String> listener) {
+        timingPane.setRegistrationScopeListener(listener);
+    }
+
     javafx.scene.Node timingNodePane() {
         return timingPane.timingNodePane();
     }

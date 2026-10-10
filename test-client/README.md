@@ -248,12 +248,20 @@ disabled even while other status messages arrive.
 The **API** tab sits next to **TimingNode** in the Engineering workbench.
 It contains the remote Application, Version and API version diagnostics and
 explicit Refresh version / Refresh status actions. The Registrations pane
-is only the interpreted registration table: use its BentoFX ≡ menu →
-**Show registrations → Current location / All locations** to change the
-visible scope; the active scope is preserved when the dock layout resets.
+is only the interpreted registration table. Its tab shows the effective scope:
+**Registrations [24]** for an OPEN LocationId 24, **Registrations [All]**
+when the user explicitly selects all locations, or **Registrations [–]**
+when no current OPEN location is available. The default is the currently
+OPEN location of the selected TimingNode. Click the dock's standard ≡ button
+to select **Current open location** or **All locations** directly (no nested
+submenu); the checked option updates immediately and survives resetting the
+dock layout. When the selected node opens, closes, or changes location, the
+scope caption follows without rebuilding the entire workbench.
 The Time column displays local times in the operator's configured system
 timezone. Table headers use regular-weight text, and Device Log, Terminal
-and Client Log use compact two-to-three-pixel panel margins.
+and Client Log use compact two-to-three-pixel panel margins. The Systems
+Explorer hides its redundant **LIVE** heading, while warnings like
+NOT SYNCED / SYNCING / STALE remain visible.
 
 The Registrations and LogBook tables each have one empty final presentation row.
 Selecting that row follows the latest incoming records. Selecting a historical row
