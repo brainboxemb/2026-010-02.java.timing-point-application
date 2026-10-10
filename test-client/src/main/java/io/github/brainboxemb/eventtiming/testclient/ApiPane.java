@@ -83,8 +83,16 @@ final class ApiPane {
         statusButton.setOnAction(event -> loadStatus());
     }
 
-    javafx.scene.Node syncStateBar() {
-        return timingPane.syncStateBar();
+    javafx.scene.Node systemsPane() {
+        return timingPane.systemsPane();
+    }
+
+    void setSystemHost(String host) {
+        timingPane.setSystemHost(host);
+    }
+
+    void setLogBookCountListener(java.util.function.Consumer<Long> listener) {
+        timingPane.setLogBookCountListener(listener);
     }
 
     javafx.scene.Node timingNodePane() {
