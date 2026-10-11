@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Name the executable entry thread `tp-main` so thread dumps and profilers use the same compact runtime naming convention as other application-owned threads.
+
 - Move default console and retained-file logging behind one bounded non-blocking Infrastructure queue and writer thread; batch file flushes periodically and on WARN/ERROR/shutdown so timing lanes never perform log file or console I/O.
 
 - Add operational TimingData/LogBook logging: INFO records recovery start/completion, selected tag passages and successful durable+LogBook commits; repaired tails use WARN, while raw observations and filtering detail remain TRACE/DEBUG.
