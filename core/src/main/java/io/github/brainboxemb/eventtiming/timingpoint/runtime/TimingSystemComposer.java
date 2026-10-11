@@ -9,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTi
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
@@ -62,15 +63,17 @@ final class TimingSystemComposer {
         }
         AntennaSet antennaSet = createAntennas(managerBinding, implicitAntennas);
 
+        AntennaSettings antennaSettings = antennaSet.isEmpty() ? null : new AntennaSettings();
         AntennaManager antennaManager = antennaSet.isEmpty()
                 ? null : new AntennaManager(
                         antennaSet,
                         executors.createAntennaControlExecutor(),
-                        ANTENNA_CONTROL_TIMEOUT);
+                        ANTENNA_CONTROL_TIMEOUT,
+                        antennaSettings);
 
         SystemConductor conductor = new SystemConductor(
                 nodes,
-                antennaManager,
+                antennaSettings,
                 executors.createSystemConductorExecutor());
 
         applicationConductor.registerTimingSystem(antennaManager, conductor);

@@ -51,7 +51,8 @@ public final class AntennaManager implements CooperativeTask {
 
     private final ScheduledTaskRunner taskRunner;
     private final AntennaSet antennaSet;
-    private final Setting<Boolean> inventoryEnabledSetting = new Setting<Boolean>(Boolean.FALSE);
+    private final Setting<Boolean> inventoryEnabledSetting;
+    private final AntennaSettings settings;
     private final SelfTestTask selfTestTask;
     private final InventoryTask inventoryTask;
     private final AntennaShutdownTask shutdownTask;
@@ -72,6 +73,17 @@ public final class AntennaManager implements CooperativeTask {
             AntennaSet antennaSet,
             SerialScheduledExecutor controlLane,
             Duration controlTimeout) {
+        this(antennaSet, controlLane, controlTimeout, new AntennaSettings());
+    }
+
+    public AntennaManager(
+            AntennaSet antennaSet,
+            SerialScheduledExecutor controlLane,
+            Duration controlTimeout,
+            AntennaSettings settings) {
+        checkArgument(settings != null, "settings must not be null");
+        this.settings = settings;
+        inventoryEnabledSetting = settings.inventorySetting();
         checkArgument(antennaSet != null, "antennaSet must not be null");
         checkArgument(controlLane != null, "controlLane must not be null");
 
@@ -96,6 +108,11 @@ public final class AntennaManager implements CooperativeTask {
          */
         selfTestTask.completedEvent().subscribe(this::onSelfTestCompleted);
         inventoryTask.completedEvent().subscribe(this::onInventoryCompleted);
+        settings.changedEvent().subscribe(ignored -> {
+            if (state == State.ACTIVE) {
+                stateMachine.wake();
+            }
+        });
     }
 
     public synchronized void activate() {
@@ -124,25 +141,18 @@ public final class AntennaManager implements CooperativeTask {
                 && current != Phase.WAIT_SELF_TEST;
     }
 
-    /**
-     * Sets the desired inventory state without turning the same desired value
-     * into an implicit retry.
-     *
-     * <p>This is the state-driven input used by application coordination.
-     * Repeating the same value is accepted but does not advance the underlying
-     * Setting request revision or wake the manager again.</p>
-     */
-    public synchronized boolean setInventoryEnabled(
-            boolean enabled) {
+    /** Compatibility adapter for existing controls; prefer shared Settings updates. */
+    public synchronized boolean setInventoryEnabled(boolean enabled) {
         if (state != State.ACTIVE) {
             return false;
         }
 
-        if (inventoryEnabledSetting.requestIfChanged(
-                Boolean.valueOf(enabled))) {
-            stateMachine.wake();
-        }
+        settings.update(edit -> edit.inventoryEnabled(enabled));
         return true;
+    }
+
+    public AntennaSettings settings() {
+        return settings;
     }
 
     /**
