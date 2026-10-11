@@ -150,6 +150,7 @@ final class AsyncLogHandler extends Handler {
 
     private void writeLoop() {
         long lastFlushNanos = System.nanoTime();
+        boolean dirty = false;
         try {
             while (accepting || !queue.isEmpty()) {
                 LogRecord record = null;
@@ -166,17 +167,21 @@ final class AsyncLogHandler extends Handler {
                 reportDroppedRecords();
                 if (record != null) {
                     publishToDelegates(record);
+                    dirty = true;
                     if (record.getLevel().intValue()
                             >= Level.WARNING.intValue()) {
                         flushDelegates();
+                        dirty = false;
                         lastFlushNanos = System.nanoTime();
                     }
                 }
 
                 long now = System.nanoTime();
-                if (now - lastFlushNanos
+                if (dirty
+                        && now - lastFlushNanos
                         >= TimeUnit.MILLISECONDS.toNanos(flushIntervalMillis)) {
                     flushDelegates();
+                    dirty = false;
                     lastFlushNanos = now;
                 }
             }
