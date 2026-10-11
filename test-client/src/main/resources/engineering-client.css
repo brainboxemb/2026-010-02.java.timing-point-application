@@ -121,8 +121,9 @@
 }
 
 
-/* A selected tab in another pane is not an indication of new activity. */
+/* Selected remains visibly selected without implying keyboard focus/activity. */
 .header-pane .header:selected {
+    -fx-background-color: -bento-bg;
     -fx-border-color: transparent;
     -fx-border-width: 0 0 2px 0;
 }
