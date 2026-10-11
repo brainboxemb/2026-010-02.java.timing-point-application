@@ -9,6 +9,7 @@
     -si02-border: #cfcfcf;
     -si02-text: #202020;
     -si02-accent: #0078d7;
+    -si02-selected-bg: #dbeaf9;
     -si02-ok-bg: #e9f6ed;
     -si02-ok-border: #5aa273;
     -si02-warning-bg: #fff4da;
@@ -123,7 +124,7 @@
 
 /* Selected remains visibly selected without implying keyboard focus/activity. */
 .header-pane .header:selected {
-    -fx-background-color: -bento-bg;
+    -fx-background-color: -si02-selected-bg;
     -fx-border-color: transparent;
     -fx-border-width: 0 0 2px 0;
 }

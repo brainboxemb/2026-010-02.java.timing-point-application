@@ -22,8 +22,9 @@ class EngineeringClientCssTest {
         }
 
         assertTrue(
-                css.contains(".header-pane .header:selected {\n"
-                        + "    -fx-background-color: -bento-bg;"),
+                css.contains("-si02-selected-bg: #dbeaf9;")
+                        && css.contains(".header-pane .header:selected {\n"
+                        + "    -fx-background-color: -si02-selected-bg;"),
                 "Selected BentoFX tab must remain visibly distinct from the raised tab strip");
         assertTrue(
                 css.contains(".header-pane:active .header:selected {\n"
