@@ -10,6 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationCo
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
@@ -290,6 +291,7 @@ public class WebSocketEndpointTest {
 
         first.activate();
         second.activate();
+        awaitStatus(gateway.timingNode(new NodeId("A")));
         gateway.timingNode(new NodeId("B"))
                 .open(new LocationId(24));
 
@@ -337,6 +339,7 @@ public class WebSocketEndpointTest {
                         PresentationGatewayFixture.configurationControl(
                                 new NodeId("A")));
         node.activate();
+        awaitStatus(handler.timingNode(new NodeId("A")));
         WebSocketEndpoint server = new WebSocketEndpoint(
                 "127.0.0.1",
                 0,
@@ -394,6 +397,28 @@ public class WebSocketEndpointTest {
         return client;
     }
 
+    private static void awaitStatus(
+            TimingNodeProxy proxy)
+            throws Exception {
+        long deadline =
+                System.nanoTime()
+                        + TimeUnit.SECONDS.toNanos(1L);
+        while (true) {
+            try {
+                proxy.status();
+                return;
+            } catch (OperationException ex) {
+                if (ex.reason() != OperationException.Reason.UNAVAILABLE) {
+                    throw ex;
+                }
+                if (System.nanoTime() >= deadline) {
+                    throw ex;
+                }
+                Thread.sleep(2L);
+            }
+        }
+    }
+
     private static void assertSnapshot(
             String json,
             String timingNodeId,
@@ -445,8 +470,9 @@ public class WebSocketEndpointTest {
                                     new NodeId("A")));
         }
 
-        private void start() {
+        private void start() throws Exception {
             node.activate();
+            awaitStatus(handler.timingNode(new NodeId("A")));
         }
 
         @Override
