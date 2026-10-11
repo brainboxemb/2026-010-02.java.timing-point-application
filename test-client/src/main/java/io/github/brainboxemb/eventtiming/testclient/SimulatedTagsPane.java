@@ -192,6 +192,7 @@ final class SimulatedTagsPane extends VBox {
                 event -> refreshControls());
         refresh(
                 false,
+                false,
                 false);
     }
 
