@@ -5,7 +5,9 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 
@@ -37,7 +39,7 @@ import org.slf4j.LoggerFactory;
  * Server-to-client IF-03 event stream.
  *
  * <p>The endpoint subscribes only to the transport-independent
- * {@link PresentationGateway}. It sends one complete STATUS_SNAPSHOT when a client
+ * {@link PresentationGateway}. It sends a STATUS_SNAPSHOT when a client
  * connects, then broadcasts authoritative STATUS_CHANGED and
  * TIMING_DATA_COMMITTED notifications. Slow clients are disconnected before
  * their transport backlog can grow without bound. Historical TimingData is
@@ -222,15 +224,31 @@ public final class WebSocketEndpoint implements AutoCloseable {
     }
 
     private void refreshStatusSnapshot() {
-        List<TimingNodeStatus> statuses =
-                presentationGateway.timingNodeStatuses();
-        synchronized (statusByNode) {
-            statusByNode.clear();
-            for (TimingNodeStatus status : statuses) {
-                statusByNode.put(
+        Map<NodeId, TimingNodeStatus> available =
+                new LinkedHashMap<NodeId, TimingNodeStatus>();
+
+        for (TimingNodeProxy timingNode : presentationGateway.timingNodes()) {
+            try {
+                TimingNodeStatus status = timingNode.status();
+                available.put(
                         status.timingNodeId(),
                         status);
+            } catch (OperationException ex) {
+                if (ex.reason() != OperationException.Reason.UNAVAILABLE) {
+                    throw ex;
+                }
+
+                /*
+                 * TimingNode activation may still be running its first recovery
+                 * task. Its initial status event will populate this cache later.
+                 * Do not block WebSocket startup and do not invent CLOSED state.
+                 */
             }
+        }
+
+        synchronized (statusByNode) {
+            statusByNode.clear();
+            statusByNode.putAll(available);
         }
     }
 
