@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeQuery.ReadConsistency;
@@ -79,7 +80,16 @@ public final class SystemConductor extends AbstractConductor implements Cooperat
         if (!containsNode(node)) {
             throw new IllegalArgumentException("TimingNode does not belong to this TimingSystem");
         }
-        taskController.wake();
+
+        /*
+         * A TimingNode may finish its first recovery while this Conductor is
+         * still activating its children. onActivated() always requests the first
+         * reconciliation, so an event arriving before this lane is RUNNING does
+         * not need to be retained separately.
+         */
+        if (coordinationLane().state() == SerialExecutor.State.RUNNING) {
+            taskController.wake();
+        }
     }
 
     @Override
@@ -92,7 +102,23 @@ public final class SystemConductor extends AbstractConductor implements Cooperat
     public TaskStep runStep() {
         boolean required = false;
         for (TimingNode node : nodes) {
-            Status status = node.query(TimingNodeQueries.status(), ReadConsistency.CURRENT);
+            final Status status;
+            try {
+                status = node.query(
+                        TimingNodeQueries.status(),
+                        ReadConsistency.CURRENT);
+            } catch (OperationException ex) {
+                if (ex.reason() == OperationException.Reason.UNAVAILABLE) {
+                    /*
+                     * Activation starts node recovery asynchronously. Do not wait
+                     * here and do not publish a partial system decision. The
+                     * node's first Status publication wakes a later reconciliation.
+                     */
+                    return TaskStep.done();
+                }
+                throw ex;
+            }
+
             if (status.state() == State.OPEN) {
                 required = true;
             }

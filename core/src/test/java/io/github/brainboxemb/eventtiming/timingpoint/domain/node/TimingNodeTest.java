@@ -26,6 +26,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -64,6 +65,96 @@ public class TimingNodeTest {
             assertEquals(TimingNodeTypes.State.CLOSED, status.state());
             assertFalse(status.hasLocation());
         } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
+    public void activationQueuesRecoveryOnNodeLaneAndReturnsBeforeRecoveryCompletes()
+            throws Exception {
+        SerialExecutor executor =
+                newSerialExecutor(
+                        4,
+                        "timing-node-recovery-worker");
+        BlockingPersistence persistence =
+                new BlockingPersistence(executor);
+        TimingNode node =
+                node(
+                        new NodeId("A"),
+                        persistence,
+                        executor,
+                        1000L);
+        CountDownLatch firstStatusPublished = new CountDownLatch(1);
+        node.statusChangedEvent().subscribe(
+                status -> firstStatusPublished.countDown());
+
+        final Throwable[] activationFailure = new Throwable[1];
+        Thread activationCaller = new Thread(
+                () -> {
+                    try {
+                        node.activate();
+                    } catch (Throwable failure) {
+                        activationFailure[0] = failure;
+                    }
+                },
+                "timing-node-activation-caller");
+
+        activationCaller.start();
+        try {
+            assertTrue(
+                    "recovery did not start",
+                    persistence.loadStarted.await(
+                            1L,
+                            TimeUnit.SECONDS));
+            activationCaller.join(250L);
+            assertFalse(
+                    "activate() waited for persistence recovery",
+                    activationCaller.isAlive());
+            assertNull(activationFailure[0]);
+            assertTrue(
+                    "persistence recovery did not run on the TimingNode lane",
+                    persistence.executedOnNodeLane);
+
+            try {
+                node.query(
+                        TimingNodeQueries.status(),
+                        ReadConsistency.CURRENT);
+                fail("CURRENT status must remain unavailable during recovery");
+            } catch (TimingNodeTypes.OperationException expected) {
+                assertEquals(
+                        TimingNodeTypes.OperationException.Reason.UNAVAILABLE,
+                        expected.reason());
+            }
+
+            assertEquals(
+                    TimingNodeTypes.CommandAdmission.ACCEPTED,
+                    node.offer(
+                            TimingNodeCommands.open(
+                                    new LocationId(24))));
+
+            persistence.releaseLoad.countDown();
+            assertTrue(
+                    "initial status was not published after recovery",
+                    firstStatusPublished.await(
+                            1L,
+                            TimeUnit.SECONDS));
+
+            TimingNodeTypes.Status ordered =
+                    node.query(
+                            TimingNodeQueries.status(),
+                            ReadConsistency.ORDERED);
+            assertEquals(
+                    TimingNodeTypes.State.OPEN,
+                    ordered.state());
+            assertEquals(
+                    TimingNodeTypes.State.OPEN,
+                    node.query(
+                            TimingNodeQueries.status(),
+                            ReadConsistency.CURRENT)
+                            .state());
+        } finally {
+            persistence.releaseLoad.countDown();
+            activationCaller.join(1000L);
             node.deactivate();
         }
     }
@@ -645,7 +736,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void currentStatusDoesNotHideFailedSerialLane() {
+    public void activationFailsWhenInitialRecoveryCannotBeAdmitted() {
         SerialExecutor executor =
                 new SerialExecutor(
                         2,
@@ -656,33 +747,26 @@ public class TimingNodeTest {
                         });
         TimingNode node = node(new NodeId("A"), executor, 1000L);
 
-        node.activate();
         try {
-            assertEquals(
-                    TimingNodeTypes.State.CLOSED,
-                    node.query(
-                            TimingNodeQueries.status(),
-                            ReadConsistency.CURRENT)
-                            .state());
-
-            assertEquals(
-                    TimingNodeTypes.CommandAdmission.NOT_RUNNING,
-                    node.offer(
-                            TimingNodeCommands.open(
-                                    new LocationId(24))));
-
-            try {
-                node.query(
-                        TimingNodeQueries.status(),
-                        ReadConsistency.CURRENT);
-                fail("expected failed lane to invalidate CURRENT status");
-            } catch (TimingNodeTypes.OperationException expected) {
-                assertEquals(
-                        TimingNodeTypes.OperationException.Reason.FAILED,
-                        expected.reason());
-            }
+            node.activate();
+            fail("expected activation failure");
+        } catch (IllegalStateException expected) {
+            assertTrue(
+                    expected.getMessage()
+                            .contains("initial recovery"));
         } finally {
             node.deactivate();
+        }
+
+        try {
+            node.query(
+                    TimingNodeQueries.status(),
+                    ReadConsistency.CURRENT);
+            fail("failed activation must not publish CURRENT status");
+        } catch (TimingNodeTypes.OperationException expected) {
+            assertEquals(
+                    TimingNodeTypes.OperationException.Reason.FAILED,
+                    expected.reason());
         }
     }
 
@@ -734,8 +818,60 @@ public class TimingNodeTest {
         return new TimingNode(logic, executor, timeoutMillis);
     }
 
+    private static TimingNode node(
+            NodeId id,
+            TimingDataPersistence persistence,
+            SerialExecutor executor,
+            long timeoutMillis) {
+        TimingNodeLogic logic = new TimingNodeLogic(
+                id,
+                persistence,
+                new DefaultTimingDataFactory(),
+                TimingNodeTest::now,
+                SystemMonotonicClock.INSTANCE);
+        return new TimingNode(logic, executor, timeoutMillis);
+    }
+
     private static Instant now() {
         return Instant.parse("2026-10-02T08:00:00Z");
+    }
+
+    private static final class BlockingPersistence implements TimingDataPersistence {
+        private final SerialExecutor expectedLane;
+        private final CountDownLatch loadStarted =
+                new CountDownLatch(1);
+        private final CountDownLatch releaseLoad =
+                new CountDownLatch(1);
+        private volatile boolean executedOnNodeLane;
+
+        private BlockingPersistence(
+                SerialExecutor expectedLane) {
+            this.expectedLane = expectedLane;
+        }
+
+        @Override
+        public LoadResult load()
+                throws PersistenceException {
+            executedOnNodeLane =
+                    expectedLane.isExecutingOnCurrentThread();
+            loadStarted.countDown();
+            try {
+                releaseLoad.await();
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new PersistenceException(
+                        "test recovery interrupted",
+                        ex);
+            }
+            return new LoadResult(
+                    Collections.<TimingData>emptyList(),
+                    false);
+        }
+
+        @Override
+        public void append(TimingData data) {
+            // Recovery/lane ownership test only.
+        }
     }
 
     private static final class RecordingPersistence implements TimingDataPersistence {

@@ -6,6 +6,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 
@@ -37,7 +38,7 @@ import org.slf4j.LoggerFactory;
  * Server-to-client IF-03 event stream.
  *
  * <p>The endpoint subscribes only to the transport-independent
- * {@link PresentationGateway}. It sends one complete STATUS_SNAPSHOT when a client
+ * {@link PresentationGateway}. It sends a STATUS_SNAPSHOT when a client
  * connects, then broadcasts authoritative STATUS_CHANGED and
  * TIMING_DATA_COMMITTED notifications. Slow clients are disconnected before
  * their transport backlog can grow without bound. Historical TimingData is
@@ -110,8 +111,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
         if (server != null) {
             throw new IllegalStateException("WebSocket IF-03 server is already started");
         }
-
-        refreshStatusSnapshot();
 
         InetSocketAddress address =
                 new InetSocketAddress(InetAddress.getByName(bindAddress), port);
@@ -325,9 +324,26 @@ public final class WebSocketEndpoint implements AutoCloseable {
             outboundDelivery.connected(
                     connection);
             try {
+                /*
+                 * Transport activation is independent from TimingNode readiness.
+                 * A connecting client, however, receives only a complete current
+                 * snapshot. If initial node recovery is still pending, ask the
+                 * client to retry rather than inventing or omitting node state.
+                 */
+                refreshStatusSnapshot();
                 sendEvent(
                         connection,
                         snapshotJson());
+            } catch (OperationException ex) {
+                if (ex.reason() == OperationException.Reason.UNAVAILABLE) {
+                    LOG.debug(
+                            "IF-03 status snapshot is not ready yet");
+                    connection.close(
+                            1013,
+                            "TimingNode status not ready");
+                    return;
+                }
+                throw ex;
             } catch (RuntimeException ex) {
                 LOG.warn(
                         "Unable to create initial IF-03 status snapshot",

@@ -10,6 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.DynamicConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 
@@ -65,6 +66,36 @@ public final class PresentationGatewayFixture implements AutoCloseable {
                 configuration);
         for (TimingNode node : nodes) {
             node.activate();
+        }
+        for (NodeId nodeId : ids) {
+            awaitInitialStatus(nodeId);
+        }
+    }
+
+    private void awaitInitialStatus(NodeId nodeId) {
+        long deadline =
+                System.nanoTime()
+                        + java.util.concurrent.TimeUnit.SECONDS.toNanos(1L);
+        while (true) {
+            try {
+                handler.timingNode(nodeId).status();
+                return;
+            } catch (OperationException ex) {
+                if (ex.reason() != OperationException.Reason.UNAVAILABLE) {
+                    throw ex;
+                }
+                if (System.nanoTime() >= deadline) {
+                    throw ex;
+                }
+                try {
+                    Thread.sleep(2L);
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(
+                            "Interrupted waiting for test TimingNode readiness",
+                            interrupted);
+                }
+            }
         }
     }
 

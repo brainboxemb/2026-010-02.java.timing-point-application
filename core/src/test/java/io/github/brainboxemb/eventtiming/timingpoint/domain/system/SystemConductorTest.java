@@ -35,6 +35,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -76,6 +77,77 @@ public class SystemConductorTest {
             await(() -> !antenna.inventoryRunning(), 1000L);
         } finally {
             conductor.deactivate();
+            manager.deactivate();
+        }
+    }
+
+    @Test
+    public void activationDoesNotWaitForNodeRecoveryAndLaterStatusWakesReconciliation()
+            throws Exception {
+        BlockingPersistence persistence = new BlockingPersistence();
+        TimingNode node = newTimingNode("A", persistence);
+        SimulatedAntenna antenna = new SimulatedAntenna();
+        AntennaManager manager = newAntennaManager(antenna);
+        SerialExecutor lane =
+                new SerialExecutor(
+                        4,
+                        "conductor-startup-test",
+                        newWorker("conductor-startup-worker"));
+        SystemConductor conductor =
+                new SystemConductor(
+                        new TimingNodeList().add(node),
+                        manager.settings(),
+                        lane);
+        node.statusChangedEvent().subscribe(
+                status -> conductor.onTimingNodeStatusChanged(node, status));
+
+        manager.activate();
+        final Throwable[] activationFailure = new Throwable[1];
+        Thread activationCaller =
+                new Thread(
+                        () -> {
+                            try {
+                                conductor.activate();
+                            } catch (Throwable failure) {
+                                activationFailure[0] = failure;
+                            }
+                        },
+                        "system-conductor-activation-caller");
+        activationCaller.start();
+
+        try {
+            assertTrue(
+                    "node recovery did not start",
+                    persistence.loadStarted.await(
+                            1L,
+                            TimeUnit.SECONDS));
+            activationCaller.join(250L);
+            assertFalse(
+                    "SystemConductor activation waited for TimingNode recovery",
+                    activationCaller.isAlive());
+            assertNull(activationFailure[0]);
+            assertEquals(
+                    "no partial inventory decision before node readiness",
+                    0L,
+                    manager.settings().revision());
+
+            assertEquals(
+                    io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandAdmission.ACCEPTED,
+                    node.offer(
+                            TimingNodeCommands.open(
+                                    new LocationId(24))));
+
+            persistence.releaseLoad.countDown();
+            await(
+                    antenna::inventoryRunning,
+                    1000L);
+            assertTrue(manager.settings().inventoryEnabled());
+        } finally {
+            persistence.releaseLoad.countDown();
+            activationCaller.join(1000L);
+            if (!activationCaller.isAlive()) {
+                conductor.deactivate();
+            }
             manager.deactivate();
         }
     }
@@ -192,6 +264,26 @@ public class SystemConductorTest {
                 new SerialScheduledExecutor(8, "conductor-tag-test", newScheduledWorker("conductor-tag-test")));
     }
 
+    private TimingNode newTimingNode(
+            String id,
+            TimingDataPersistence persistence) {
+        return new TimingNode(
+                new NodeId(id),
+                persistence,
+                new DefaultTimingDataFactory(),
+                SystemConductorTest::now,
+                ReadOnlyConfiguration.fixed(TagProcessingPolicy.defaults()),
+                EventData.empty(),
+                new SerialExecutor(
+                        8,
+                        "conductor-node-startup-test",
+                        newWorker("conductor-node-startup-worker")),
+                new SerialScheduledExecutor(
+                        8,
+                        "conductor-tag-startup-test",
+                        newScheduledWorker("conductor-tag-startup-worker")));
+    }
+
     private AntennaManager newAntennaManager(SimulatedAntenna antenna) {
         return new AntennaManager(
                 new AntennaSet().add(new AntennaId("1"), antenna),
@@ -226,6 +318,35 @@ public class SystemConductorTest {
 
     private static Instant now() {
         return Instant.parse("2026-10-06T09:00:00Z");
+    }
+
+    private static final class BlockingPersistence implements TimingDataPersistence {
+        private final CountDownLatch loadStarted =
+                new CountDownLatch(1);
+        private final CountDownLatch releaseLoad =
+                new CountDownLatch(1);
+
+        @Override
+        public LoadResult load()
+                throws PersistenceException {
+            loadStarted.countDown();
+            try {
+                releaseLoad.await();
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new PersistenceException(
+                        "test recovery interrupted",
+                        ex);
+            }
+            return new LoadResult(
+                    Collections.<TimingData>emptyList(),
+                    false);
+        }
+
+        @Override
+        public void append(TimingData data) {
+            // Startup coordination test only.
+        }
     }
 
     private static final class NoOpPersistence implements TimingDataPersistence {

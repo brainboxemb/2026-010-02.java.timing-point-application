@@ -8,7 +8,10 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
@@ -83,7 +86,7 @@ public class TimingApplicationRuntimeTest {
     }
 
     @Test
-    public void composesConfiguredTimingNodeIntoRuntime() {
+    public void composesConfiguredTimingNodeIntoRuntime() throws Exception {
         Config config = config(
                 temporaryFolder.getRoot().toPath().resolve("timing-data.jsonl"));
 
@@ -92,7 +95,11 @@ public class TimingApplicationRuntimeTest {
         try {
             assertEquals(
                     "A",
-                    application.presentationGateway().timingNode(new NodeId("A")).status().timingNodeId().value());
+                    awaitStatus(
+                            application.presentationGateway()
+                                    .timingNode(new NodeId("A")))
+                            .timingNodeId()
+                            .value());
         } finally {
             application.deactivate();
         }
@@ -575,17 +582,21 @@ public class TimingApplicationRuntimeTest {
         application.activate();
         try {
             assertEquals(TimingApplicationRuntime.State.ACTIVE, application.state());
+            TimingNodeStatus status =
+                    awaitStatus(
+                            application.presentationGateway()
+                                    .timingNode(new NodeId("A")));
             assertEquals(
                     TimingNodeTypes.State.ERROR,
-                    application.presentationGateway().timingNode(new NodeId("A")).status().state());
+                    status.state());
             assertEquals(
                     1,
-                    application.presentationGateway().timingNode(new NodeId("A")).status().problems().size());
+                    status.problems().size());
             assertEquals(
                     TimingNodeTypes.ProblemCode.TIMING_DATA_RECOVERY_FAILED,
-                    application.presentationGateway().timingNode(new NodeId("A")).status().problems().get(0).code());
+                    status.problems().get(0).code());
             assertTrue(
-                    application.presentationGateway().timingNode(new NodeId("A")).status().problems().get(0).message()
+                    status.problems().get(0).message()
                             .contains("TimingData recovery failed"));
         } finally {
             application.deactivate();
@@ -671,6 +682,27 @@ public class TimingApplicationRuntimeTest {
             fail("expected shut-down antenna after application shutdown");
         } catch (IllegalStateException expected) {
             assertTrue(expected.getMessage().contains("inventory is not running"));
+        }
+    }
+
+    private static TimingNodeStatus awaitStatus(
+            TimingNodeProxy node)
+            throws Exception {
+        long deadline =
+                System.nanoTime()
+                        + TimeUnit.SECONDS.toNanos(1L);
+        while (true) {
+            try {
+                return node.status();
+            } catch (OperationException ex) {
+                if (ex.reason() != OperationException.Reason.UNAVAILABLE) {
+                    throw ex;
+                }
+                if (System.nanoTime() >= deadline) {
+                    throw ex;
+                }
+                Thread.sleep(5L);
+            }
         }
     }
 

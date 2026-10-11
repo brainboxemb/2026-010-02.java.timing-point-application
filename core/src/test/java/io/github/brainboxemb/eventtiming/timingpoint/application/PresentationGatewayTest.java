@@ -9,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGatewayFixture;
@@ -42,13 +43,13 @@ public class PresentationGatewayTest {
     }
 
     @Test
-    public void statusComesFromTimingNode() {
+    public void statusComesFromTimingNode() throws Exception {
         TimingNode node = node(new RecordingStore());
         PresentationGateway gateway = new PresentationGateway(identity(), nodes(node), configuration());
 
         node.activate();
         try {
-            TimingNodeStatus status = gateway.timingNode(new NodeId("A")).status();
+            TimingNodeStatus status = awaitStatus(gateway.timingNode(new NodeId("A")));
             assertEquals(new NodeId("A"), status.timingNodeId());
             assertEquals(
                     TimingNodeTypes.State.CLOSED,
@@ -59,7 +60,7 @@ public class PresentationGatewayTest {
     }
 
     @Test
-    public void statusMapsContainedRecoveryProblemFromTimingNode() {
+    public void statusMapsContainedRecoveryProblemFromTimingNode() throws Exception {
         RecordingStore store = new RecordingStore();
         store.failLoad = true;
         TimingNode node = node(store);
@@ -67,7 +68,7 @@ public class PresentationGatewayTest {
 
         node.activate();
         try {
-            TimingNodeStatus status = gateway.timingNode(new NodeId("A")).status();
+            TimingNodeStatus status = awaitStatus(gateway.timingNode(new NodeId("A")));
             assertEquals(
                     TimingNodeTypes.State.ERROR,
                     status.state());
@@ -83,7 +84,7 @@ public class PresentationGatewayTest {
     }
 
     @Test
-    public void timingNodeProxyOwnsNodeScopedPresentationBoundary() {
+    public void timingNodeProxyOwnsNodeScopedPresentationBoundary() throws Exception {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
         PresentationGateway gateway = new PresentationGateway(identity(), nodes(node), configuration());
@@ -93,6 +94,7 @@ public class PresentationGatewayTest {
 
         node.activate();
         try {
+            awaitStatus(proxy);
             proxy.statusChangedEvent().subscribe(statusChanges::add);
             proxy.timingDataCommittedEvent().subscribe(committed::add);
 
@@ -158,7 +160,7 @@ public class PresentationGatewayTest {
     }
 
     @Test
-    public void exposesOneProxyPerComposedTimingNode() {
+    public void exposesOneProxyPerComposedTimingNode() throws Exception {
         TimingNode first =
                 TimingNodeFixture.create(
                         new NodeId("A"),
@@ -181,6 +183,8 @@ public class PresentationGatewayTest {
         first.activate();
         second.activate();
         try {
+            awaitStatus(gateway.timingNode(new NodeId("A")));
+            awaitStatus(gateway.timingNode(new NodeId("B")));
             assertEquals(2, gateway.timingNodes().size());
             assertEquals(
                     new NodeId("A"),
@@ -285,6 +289,27 @@ public class PresentationGatewayTest {
                 identity(),
                 nodes(node(new RecordingStore())),
                 null);
+    }
+
+    private static TimingNodeStatus awaitStatus(
+            TimingNodeProxy proxy)
+            throws Exception {
+        long deadline =
+                System.nanoTime()
+                        + java.util.concurrent.TimeUnit.SECONDS.toNanos(1L);
+        while (true) {
+            try {
+                return proxy.status();
+            } catch (OperationException ex) {
+                if (ex.reason() != OperationException.Reason.UNAVAILABLE) {
+                    throw ex;
+                }
+                if (System.nanoTime() >= deadline) {
+                    throw ex;
+                }
+                Thread.sleep(2L);
+            }
+        }
     }
 
     private static TimingNodeList nodes(

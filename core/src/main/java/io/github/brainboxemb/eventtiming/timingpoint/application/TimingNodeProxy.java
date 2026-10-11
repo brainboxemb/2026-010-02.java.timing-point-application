@@ -235,7 +235,12 @@ public final class TimingNodeProxy {
                 TimingNodeQueries.visitLatestTimingData(limit, visitor));
     }
 
-    /** Returns the subscription-only authoritative status-change event. */
+    /**
+     * Returns node Status publications for Presentation.
+     *
+     * <p>The first event may be the TimingNode's post-recovery initial Status;
+     * later events represent effective status changes.</p>
+     */
     public EventSource<TimingNodeStatus> statusChangedEvent() {
         return statusChangedEvent;
     }
