@@ -37,7 +37,7 @@ are `simple`, `normal` or `edge`. Registrations use the same
 LIVE TimingNode is captured when Run starts; disconnect, node change or
 loss of simulation capability stops the script. Script and GUI simulation
 batches cannot run concurrently. IF-03 remains the only operation boundary.
-See [examples/batch.lua](examples/batch.lua) for an editable example.
+See the [Lua language/API reference](docs/lua-scripting.md) for the exact supported calls,\nrequirements and troubleshooting, and [examples/batch.lua](examples/batch.lua)\nfor an editable example.
 
 The interpreter intentionally does **not** expose `luajava`, filesystem
 `io`, process `os`, package loaders or Java reflection. These restrictions
