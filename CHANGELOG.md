@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Run the NetBeans Engineering Client actions in a separate Java 21-capable child JVM via `exec:exec`; Run/Debug use the Maven runtime classpath, `${java.home}/bin/java`, Windows long-classpath handling and NetBeans JDWP child-process debugging, keeping Maven/JGit/ForkJoin threads out of the SI-02 runtime.
+
 - Run the NetBeans Timing Point Application actions in a separate JVM via `exec:exec` instead of Maven's in-process `exec:java`; Run/Debug now use the runtime classpath, Windows-safe long classpath handling and NetBeans JDWP child-process debugging. The real application JVM main thread is named `tp-main`.
 
 - Remove the dedicated Presentation prompt scheduler thread: the passive console-prompt quiet-period deadline is serviced by the existing `tp-inf-logging` writer while retaining separate blocking console and remote-shell threads.
