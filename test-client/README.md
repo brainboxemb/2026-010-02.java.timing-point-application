@@ -12,6 +12,39 @@ SI-02 is a standalone desktop Maven application with its own Java 21 runtime and
 dependency on `timing-point-core` or `timing-point-app`. Repository co-location does
 not remove the software-item boundary.
 
+## Client-side Lua scripting
+
+The **Scripts** dock tab (beside Simulation) runs local `.lua` engineering
+scripts. Open a file with **Open .lua**, drop it onto the Scripts panel, or
+edit the script in place; **Run** is always explicit and dropping a file does
+not execute it. **Stop** cancels the script, including a CPU-bound Lua loop
+or a delay; it cannot undo a simulation request already accepted by SI-01.
+Scripts run in a dedicated worker, not on the JavaFX thread or SI-01 runtime.
+
+Use the small supported scripting facade, not internal Java objects:
+
+```lua
+timing.log("Example batch")
+timing.batch{count=10, from=1, to=2000, order="random",
+             seed=42, intervalMs=500, profile="normal"}
+timing.simulate("RT-A-0100", "simple")
+timing.sleep(1000)
+```
+
+`order` accepts `linear` or `random` (seeded/reproducible); the profiles
+are `simple`, `normal` or `edge`. Registrations use the same
+`RT-A-%04d` generator as the Simulation GUI. The currently selected
+LIVE TimingNode is captured when Run starts; disconnect, node change or
+loss of simulation capability stops the script. Script and GUI simulation
+batches cannot run concurrently. IF-03 remains the only operation boundary.
+See [examples/batch.lua](examples/batch.lua) for an editable example.
+
+The interpreter intentionally does **not** expose `luajava`, filesystem
+`io`, process `os`, package loaders or Java reflection. These restrictions
+reduce accidental misuse; Lua scripts are still **trusted, operator-selected
+engineering inputs**, not a secure sandbox for hostile programs. No script is
+executed automatically on startup or file drop.
+
 ## Baseline
 
 - Java 21

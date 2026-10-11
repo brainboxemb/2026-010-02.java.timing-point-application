@@ -138,6 +138,10 @@ final class ApiPane {
         return timingPane.simulationPane();
     }
 
+    javafx.scene.Node scriptsPane() {
+        return timingPane.scriptsPane();
+    }
+
     javafx.scene.Node registrationsPane() {
         return timingPane.registrationsPane();
     }

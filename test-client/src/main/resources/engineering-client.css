@@ -367,3 +367,9 @@
 .table-row-cell:deleted-registration {
     -fx-opacity: 0.55;
 }
+
+/* SI-02 Lua editor: same flat desktop panels and readable monospaced code. */
+.text-area.engineering-script-editor {
+    -fx-font-family: "Consolas";
+    -fx-font-size: 12px;
+}

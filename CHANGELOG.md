@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add SI-02-only embedded Lua scripts via LuaJ with a Scripts docking tab, open/drop editable .lua files, Run/Stop, log output and an example batch; reuse IF-03 simulation and current GUI batch planning, without adding Lua to Timing Application.
+
+
 - Simplify inventory control using shared transactional AntennaSettings; remove duplicate DerivedProperty/SourceProperty and PropertyRegistry state from SystemConductor while retaining CURRENT status queries and asynchronous AntennaManager reconciliation.
 
 - Consolidate SI-02 styling into documented flat desktop tokens, common pane spacing and shared console CSS; eliminate ad-hoc log styling and duplicate dock-header selectors.

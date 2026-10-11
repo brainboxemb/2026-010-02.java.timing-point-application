@@ -61,6 +61,7 @@ final class EngineeringWorkbench {
             Node apiInfo,
             Node registration,
             Node simulation,
+            Node scripts,
             Node deviceLog,
             Node terminal,
             Node clientLog,
@@ -149,7 +150,8 @@ final class EngineeringWorkbench {
                 dockable(builder, controls, new WorkbenchPanel("timing-node", "TimingNode", timingNode)),
                 dockable(builder, controls, new WorkbenchPanel("api-info", "API", apiInfo)),
                 dockable(builder, controls, new WorkbenchPanel("registration", "Registration", registration)),
-                dockable(builder, controls, new WorkbenchPanel("simulation", "Simulation", simulation)));
+                dockable(builder, controls, new WorkbenchPanel("simulation", "Simulation", simulation)),
+                dockable(builder, controls, new WorkbenchPanel("scripts", "Scripts", scripts)));
 
         deviceLogLeaf.addDockable(
                 dockable(builder, deviceLogLeaf, new WorkbenchPanel("device-log", "Device Log", deviceLog)));
