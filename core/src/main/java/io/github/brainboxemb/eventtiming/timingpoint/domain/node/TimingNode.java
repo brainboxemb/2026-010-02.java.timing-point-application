@@ -284,12 +284,14 @@ public final class TimingNode {
     }
 
     /**
-     * Recovers the TimingData state currently defined by the active recovery
-     * design before accepting serial operations.
+     * Activates this component's execution context and schedules initial recovery.
      *
-     * <p>OPEN/CLOSED state recovery is defined by the dedicated TimingData
-     * design/implementation track; component activation must not invent a
-     * separate TimingNode operational-state policy.</p>
+     * <p>Activation does not perform persistence I/O and does not wait for
+     * recovery. The TimingNode serial lane is started first and recovery is
+     * admitted as its first node task. Mutable node state, LogBook rebuild and
+     * recovery error handling therefore stay on the TimingNode's own logical
+     * lane. CURRENT status remains unavailable until that task publishes the
+     * initial immutable Status snapshot.</p>
      */
     public void activate() {
         SerialExecutor.State executorState = serialExecutor.state();
@@ -298,7 +300,40 @@ public final class TimingNode {
         }
 
         publishedStatus = null;
+        serialExecutor.start();
 
+        SerialExecutor.AdmissionResult initialization =
+                serialExecutor.offer(this::initializeOnNodeLane);
+        if (initialization != SerialExecutor.AdmissionResult.ACCEPTED) {
+            serialExecutor.close();
+            throw new IllegalStateException(
+                    "TimingNode initial recovery could not be admitted: " + initialization);
+        }
+
+        /*
+         * The node lane exists before TagProcessor activation so every accepted
+         * child handoff has a live downstream target. Initial recovery was
+         * already admitted first, so later node work remains ordered behind it.
+         */
+        if (tagProcessor != null) {
+            try {
+                tagProcessor.activate();
+            } catch (RuntimeException ex) {
+                serialExecutor.close();
+                throw ex;
+            }
+        }
+    }
+
+    /**
+     * First ordered TimingNode task after activation.
+     *
+     * <p>Persistence loading may block the shared physical TimingNode worker,
+     * but ownership remains node-local: all recovered mutable state is written
+     * while this TimingNode lane is current. Runtime may deliberately back
+     * multiple logical node lanes with one physical worker.</p>
+     */
+    private void initializeOnNodeLane() {
         try {
             logic.recoverTimingData();
         } catch (TimingDataPersistence.PersistenceException | RuntimeException ex) {
@@ -309,23 +344,9 @@ public final class TimingNode {
                     ex);
         }
 
-        /*
-         * The node serial lane starts before TagProcessor activation so every accepted tag
-         * result has a running downstream handoff target. TagProcessor owns
-         * its own scheduled serial lane but its activation lifecycle belongs to this
-         * TimingNode aggregate.
-         */
-        serialExecutor.start();
-        if (tagProcessor != null) {
-            try {
-                tagProcessor.activate();
-            } catch (RuntimeException ex) {
-                serialExecutor.close();
-                throw ex;
-            }
-        }
-
-        publishCurrentStatus(logic.status());
+        Status initialStatus = logic.status();
+        publishCurrentStatus(initialStatus);
+        publishInitialStatus(initialStatus);
     }
 
     public void deactivate() {
@@ -457,6 +478,32 @@ public final class TimingNode {
 
         publishStatusChanged(before, after);
         return command.complete(this, result);
+    }
+
+    /**
+     * Publishes first status availability after the activation recovery task.
+     *
+     * <p>This uses the existing status event so externally composed current-state
+     * consumers can wake and reread CURRENT state. The event is not recovery
+     * work itself and its payload is not a replacement for the current snapshot.</p>
+     */
+    private void publishInitialStatus(Status status) {
+        LOG.info(
+                "TimingNode {} initial status available: state {}, location {}, problems {}",
+                timingNodeId().value(),
+                status.state(),
+                status.hasLocation() ? status.locationId() : "-",
+                status.problems().size());
+
+        Event.DeliveryReport delivery = statusChangedEvent.emit(status);
+        if (!delivery.successful()) {
+            LOG.warn(
+                    "TimingNode initial status published but "
+                            + delivery.failureCount()
+                            + " status listener(s) failed for "
+                            + timingNodeId().value(),
+                    delivery.failures().get(0));
+        }
     }
 
     private void publishStatusChanged(Status before, Status after) {
