@@ -156,8 +156,7 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
     /** Called from the FX owner after status, selection or capability changes. */
     void refresh(boolean live, boolean simulationEnabled, String nodeId) {
         simulationAvailable = simulationEnabled;
-        available = live && nodeId != null
-                && !nodeId.isBlank() && !guiBatchRunning.getAsBoolean();
+        available = canRun(live, nodeId, guiBatchRunning.getAsBoolean());
         if (!running) {
             state.setText(!live ? "Scripts require Events LIVE (connect and sync)"
                     : nodeId == null || nodeId.isBlank() ? "Select a TimingNode"
@@ -173,6 +172,10 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
         stop.setDisable(!running);
         open.setDisable(running);
         source.setEditable(!running);
+    }
+
+    static boolean canRun(boolean live, String nodeId, boolean guiBatchRunning) {
+        return live && nodeId != null && !nodeId.isBlank() && !guiBatchRunning;
     }
 
     private void runScript() {
