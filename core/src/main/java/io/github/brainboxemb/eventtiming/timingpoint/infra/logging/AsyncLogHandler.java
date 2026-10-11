@@ -125,8 +125,14 @@ final class AsyncLogHandler extends Handler {
             return;
         }
 
+        /*
+         * Do not interrupt the writer: an interrupt while a Java NIO file write
+         * or flush is in progress can close the underlying channel. The bounded
+         * poll timeout wakes an idle writer within flushIntervalMillis; active
+         * sink I/O is allowed to finish normally before the accepted queue is
+         * drained.
+         */
         accepting = false;
-        writerThread.interrupt();
         if (Thread.currentThread() != writerThread) {
             boolean interrupted = false;
             while (writerThread.isAlive()) {
