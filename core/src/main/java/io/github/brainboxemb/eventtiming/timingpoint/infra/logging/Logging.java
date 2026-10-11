@@ -27,6 +27,7 @@ public final class Logging
     private final CompactLogFormatter liveFormatter;
     private final LoggingControl control;
     private final ConsolePromptCoordinator promptCoordinator;
+    private boolean closed;
 
     private Logging(
             Logger rootLogger,
@@ -63,6 +64,8 @@ public final class Logging
         Map<Handler, Formatter> previousFormatters =
                 new IdentityHashMap<Handler, Formatter>();
         List<Handler> consoleHandlers =
+                new ArrayList<Handler>();
+        List<Handler> detachedConsoleHandlers =
                 new ArrayList<Handler>();
         ConsolePromptCoordinator promptCoordinator =
                 new ConsolePromptCoordinator();
@@ -105,6 +108,7 @@ public final class Logging
 
             for (Handler consoleHandler : consoleHandlers) {
                 root.removeHandler(consoleHandler);
+                detachedConsoleHandlers.add(consoleHandler);
             }
             root.addHandler(asyncHandler);
             asyncAttached = true;
@@ -116,7 +120,7 @@ public final class Logging
                     previousFormatters,
                     fileHandler,
                     asyncHandler,
-                    new ArrayList<Handler>(consoleHandlers),
+                    new ArrayList<Handler>(detachedConsoleHandlers),
                     liveFormatter,
                     control,
                     promptCoordinator);
@@ -136,7 +140,7 @@ public final class Logging
                     previousRoot,
                     previousHandlers,
                     previousFormatters,
-                    consoleHandlers);
+                    detachedConsoleHandlers);
             throw ex;
         }
     }
@@ -170,7 +174,12 @@ public final class Logging
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+
         rootLogger.removeHandler(asyncHandler);
 
         // Drain every record already accepted by the bounded queue before
