@@ -17,7 +17,8 @@ class EngineeringClientCssTest {
         try (InputStream input = getClass()
                 .getResourceAsStream("/engineering-client.css")) {
             assertNotNull(input, "Missing Engineering Client stylesheet");
-            css = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+            css = new String(input.readAllBytes(), StandardCharsets.UTF_8)
+                    .replace("\r\n", "\n");
         }
 
         assertTrue(
