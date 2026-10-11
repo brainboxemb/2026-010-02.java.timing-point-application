@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-- Run application execution on an application-owned non-daemon `tp-main` thread so Maven `exec:java` can terminate its generated `<mainClass>.main()` bootstrap thread instead of leaving that long launcher name visible during runtime.
+- Run the NetBeans Timing Point Application actions in a separate JVM via `exec:exec` instead of Maven's in-process `exec:java`; Run/Debug now use the runtime classpath, Windows-safe long classpath handling and NetBeans JDWP child-process debugging. The real application JVM main thread is named `tp-main`.
 
-- Remove the dedicated Presentation prompt scheduler thread: the passive console-prompt quiet-period deadline is serviced by the existing `tp-inf-logging` writer. Reassert `tp-main` at the long-lived application runtime boundary while retaining separate blocking console and remote-shell threads.
+- Remove the dedicated Presentation prompt scheduler thread: the passive console-prompt quiet-period deadline is serviced by the existing `tp-inf-logging` writer while retaining separate blocking console and remote-shell threads.
 
 - Normalize project-owned thread names for compact diagnostics: `tp-main`, `tp-dl-*` for Domain workers and `tp-pl-*` for Presentation threads, while keeping `tp-io-*` and `tp-inf-*` unchanged.
 
