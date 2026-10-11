@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Name the executable entry thread `tp-main` so thread dumps and profilers use the same compact runtime naming convention as other application-owned threads.
+- Normalize project-owned thread names for compact diagnostics: `tp-main`, `tp-dl-*` for Domain workers and `tp-pl-*` for Presentation threads, while keeping `tp-io-*` and `tp-inf-*` unchanged.
 
 - Move default console and retained-file logging behind one bounded non-blocking Infrastructure queue and writer thread; batch file flushes periodically and on WARN/ERROR/shutdown so timing lanes never perform log file or console I/O.
 

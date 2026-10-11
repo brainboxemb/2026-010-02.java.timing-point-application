@@ -157,7 +157,7 @@ final class PresentationRuntime {
                 consoleThread =
                         new Thread(
                                 localConsole,
-                                "tp-prl-console");
+                                "tp-pl-console");
                 consoleThread.setDaemon(true);
                 consoleThread.start();
             }

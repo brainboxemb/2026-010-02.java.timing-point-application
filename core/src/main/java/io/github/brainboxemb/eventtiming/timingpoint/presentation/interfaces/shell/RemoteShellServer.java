@@ -83,7 +83,7 @@ public final class RemoteShellServer implements AutoCloseable {
         socket.bind(new InetSocketAddress(address, port), 1);
         serverSocket = socket;
 
-        Thread thread = new Thread(this::acceptLoop, "tp-prl-remote-shell");
+        Thread thread = new Thread(this::acceptLoop, "tp-pl-remote-shell");
         thread.setDaemon(true);
         acceptThread = thread;
         thread.start();

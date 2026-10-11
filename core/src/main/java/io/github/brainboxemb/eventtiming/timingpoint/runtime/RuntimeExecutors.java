@@ -97,11 +97,11 @@ final class RuntimeExecutors implements AutoCloseable {
                 0L,
                 TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>(),
-                threadFactory("tp-dml-node-worker"),
+                threadFactory("tp-dl-node-worker"),
                 new ThreadPoolExecutor.AbortPolicy());
         tagProcessorWorker = new ScheduledThreadPoolExecutor(
                 1,
-                threadFactory("tp-dml-tagproc-worker"));
+                threadFactory("tp-dl-tagproc-worker"));
         tagProcessorWorker.setRemoveOnCancelPolicy(true);
 
         coordinationWorker = new ThreadPoolExecutor(
@@ -110,7 +110,7 @@ final class RuntimeExecutors implements AutoCloseable {
                 0L,
                 TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>(),
-                threadFactory("tp-system-coord-worker"),
+                threadFactory("tp-dl-system-worker"),
                 new ThreadPoolExecutor.AbortPolicy());
 
         sharedIoWorker = new ScheduledThreadPoolExecutor(
