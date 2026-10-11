@@ -9,13 +9,9 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeQueries;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
@@ -39,7 +35,6 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -80,6 +75,81 @@ public class SystemConductorTest {
             second.invoke(TimingNodeCommands.close());
             await(() -> !antenna.inventoryRunning(), 1000L);
         } finally {
+            conductor.deactivate();
+            manager.deactivate();
+        }
+    }
+
+    @Test
+    public void statusEventWakesConductorWithoutUpdatingSettingsOnNodeThread() throws Exception {
+        TimingNode node = newTimingNode("A");
+        SimulatedAntenna antenna = new SimulatedAntenna();
+        AntennaManager manager = newAntennaManager(antenna);
+        SerialExecutor lane = new SerialExecutor(4, "conductor-event-test", newWorker("conductor-event-worker"));
+        SystemConductor conductor = new SystemConductor(
+                new TimingNodeList().add(node), manager.settings(), lane);
+        node.statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(node, status));
+
+        manager.activate();
+        conductor.activate();
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        try {
+            await(() -> lane.metrics().snapshot().queueDepth() == 0, 1000L);
+            assertEquals(SerialExecutor.AdmissionResult.ACCEPTED, lane.offer(() -> {
+                started.countDown();
+                try { release.await(); } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+            }));
+            assertTrue(started.await(1L, TimeUnit.SECONDS));
+            node.invoke(TimingNodeCommands.open(new LocationId(24)));
+            assertFalse("Node event only wakes the Conductor", manager.settings().inventoryEnabled());
+            release.countDown();
+            await(antenna::inventoryRunning, 1000L);
+        } finally {
+            release.countDown();
+            conductor.deactivate();
+            manager.deactivate();
+        }
+    }
+
+    @Test
+    public void rapidNodeChangesCoalesceToCurrentOpenState() throws Exception {
+        TimingNode node = newTimingNode("A");
+        SimulatedAntenna antenna = new SimulatedAntenna();
+        AntennaManager manager = newAntennaManager(antenna);
+        SerialExecutor lane = new SerialExecutor(4, "conductor-coalesce-test", newWorker("coalesce-worker"));
+        SystemConductor conductor = new SystemConductor(
+                new TimingNodeList().add(node), manager.settings(), lane);
+        node.statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(node, status));
+
+        manager.activate();
+        conductor.activate();
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        try {
+            await(() -> lane.metrics().snapshot().queueDepth() == 0, 1000L);
+            assertEquals(SerialExecutor.AdmissionResult.ACCEPTED, lane.offer(() -> {
+                started.countDown();
+                try { release.await(); } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+            }));
+            assertTrue(started.await(1L, TimeUnit.SECONDS));
+            node.invoke(TimingNodeCommands.open(new LocationId(24)));
+            node.invoke(TimingNodeCommands.close());
+            node.invoke(TimingNodeCommands.open(new LocationId(25)));
+            assertFalse(manager.settings().inventoryEnabled());
+            assertEquals("one coalesced pending reconciliation", 1,
+                    lane.metrics().snapshot().queueDepth());
+            release.countDown();
+            await(antenna::inventoryRunning, 1000L);
+            assertTrue(manager.settings().inventoryEnabled());
+            assertEquals("no intermediate OPEN/CLOSE publication", 1L,
+                    manager.settings().revision());
+        } finally {
+            release.countDown();
             conductor.deactivate();
             manager.deactivate();
         }

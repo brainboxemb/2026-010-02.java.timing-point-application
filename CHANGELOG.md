@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Simplify inventory control using shared transactional AntennaSettings; remove duplicate DerivedProperty/SourceProperty and PropertyRegistry state from SystemConductor while retaining CURRENT status queries and asynchronous AntennaManager reconciliation.
+
 - Consolidate SI-02 styling into documented flat desktop tokens, common pane spacing and shared console CSS; eliminate ad-hoc log styling and duplicate dock-header selectors.
 - Protect UI state against obsolete async baseline/node history completions after disconnect/reconnect/selection changes; batch client/device log updates on FX and coalesce redundant follow-latest scroll scheduling.
 

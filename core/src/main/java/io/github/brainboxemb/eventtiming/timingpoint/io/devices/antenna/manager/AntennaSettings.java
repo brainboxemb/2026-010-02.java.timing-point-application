@@ -14,6 +14,7 @@ public final class AntennaSettings {
     private final Setting<Boolean> setting = new Setting<Boolean>(Boolean.FALSE);
     private final Event<Long> changed = new Event<Long>();
     private long revision;
+    private boolean updating;
 
     /** Temporary transaction editor; never retain it beyond update(). */
     public static final class Edit {
@@ -26,10 +27,18 @@ public final class AntennaSettings {
         if (transaction == null) { throw new IllegalArgumentException("transaction must not be null"); }
         Long changedRevision = null;
         synchronized (this) {
-            Edit edit = new Edit(setting.requestedValue().booleanValue());
-            transaction.accept(edit);
-            if (setting.requestIfChanged(Boolean.valueOf(edit.enabled))) {
-                changedRevision = Long.valueOf(++revision);
+            if (updating) {
+                throw new IllegalStateException("nested Settings update is not allowed");
+            }
+            updating = true;
+            try {
+                Edit edit = new Edit(setting.requestedValue().booleanValue());
+                transaction.accept(edit);
+                if (setting.requestIfChanged(Boolean.valueOf(edit.enabled))) {
+                    changedRevision = Long.valueOf(++revision);
+                }
+            } finally {
+                updating = false;
             }
         }
         // Synchronous event delivery happens outside the settings lock.
