@@ -12,7 +12,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class EngineeringClientCssTest {
 
     @Test
-    void selectedDockTabHasNeutralFillAndActiveLeafAddsAccent() throws Exception {
+    void dockHeadersLookLikeTabsAndSelectedActiveStatesRemainDistinct()
+            throws Exception {
         String css;
         try (InputStream input = getClass()
                 .getResourceAsStream("/engineering-client.css")) {
@@ -22,12 +23,25 @@ class EngineeringClientCssTest {
         }
 
         assertTrue(
-                css.contains(".header-pane .header:selected {\n"
+                css.contains(".header-region {\n"
                         + "    -fx-background-color: -bento-bg;"),
-                "Selected BentoFX tab must remain visibly distinct from the raised tab strip");
+                "BentoFX tab strip must have its own surface");
+        assertTrue(
+                css.contains(".header {\n"
+                        + "    -fx-background-color: -bento-bg-raised;")
+                        && css.contains(
+                                "-fx-border-color: transparent -bento-border "
+                                        + "-bento-border transparent;"),
+                "Every BentoFX header must have a visible tab fill and separator");
+        assertTrue(
+                css.contains("-si02-selected-bg: #dbeaf9;")
+                        && css.contains(".header-pane .header:selected {\n"
+                        + "    -fx-background-color: -si02-selected-bg;"),
+                "Selected BentoFX tab must have a clear selected fill");
         assertTrue(
                 css.contains(".header-pane:active .header:selected {\n"
-                        + "    -fx-border-color: transparent transparent -bento-accent transparent;"),
+                        + "    -fx-border-color: transparent -bento-border "
+                        + "-bento-accent transparent;"),
                 "Only the active leaf should add the accent underline");
     }
 }

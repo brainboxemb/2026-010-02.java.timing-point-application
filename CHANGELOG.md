@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restore clear BentoFX tab affordance: the strip has its own surface, every tab has a raised fill plus subtle separator, selected tabs use a dedicated light selection fill (#dbeaf9), and only the active leaf adds the accent underline.
+
 - Restore the neutral selected BentoFX tab fill so a selected tab remains visibly distinct from the raised header strip; the active leaf still adds the restrained accent underline. Add a stylesheet regression test for the selected/active distinction.
 
 - Run the NetBeans Engineering Client actions in a separate Java 21-capable child JVM via `exec:exec`; Run/Debug use the Maven runtime classpath, `${java.home}/bin/java`, Windows long-classpath handling and NetBeans JDWP child-process debugging, keeping Maven/JGit/ForkJoin threads out of the SI-02 runtime.
