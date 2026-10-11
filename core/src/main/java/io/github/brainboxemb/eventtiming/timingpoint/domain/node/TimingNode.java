@@ -334,16 +334,38 @@ public final class TimingNode {
      * multiple logical node lanes with one physical worker.</p>
      */
     private void initializeOnNodeLane() {
+        LOG.info(
+                "TimingNode {} TimingData recovery started",
+                timingNodeId().value());
+
+        final TimingDataPersistence.LoadResult recovery;
         try {
-            logic.recoverTimingData();
+            recovery = logic.recoverTimingData();
         } catch (TimingDataPersistence.PersistenceException | RuntimeException ex) {
             logic.markTimingDataRecoveryFailed(ex);
             LOG.error(
                     "TimingData recovery failed for {}; TimingNode remains available in ERROR state",
                     timingNodeId().value(),
                     ex);
+            publishRecoveredStatus();
+            return;
         }
 
+        LOG.info(
+                "TimingNode {} TimingData recovery completed: records={}, tailRepaired={}",
+                timingNodeId().value(),
+                recovery.records().size(),
+                recovery.repairedIncompleteTail());
+        if (recovery.repairedIncompleteTail()) {
+            LOG.warn(
+                    "TimingNode {} TimingData recovery repaired an incomplete final record tail",
+                    timingNodeId().value());
+        }
+
+        publishRecoveredStatus();
+    }
+
+    private void publishRecoveredStatus() {
         Status initialStatus = logic.status();
         publishCurrentStatus(initialStatus);
         publishInitialStatus(initialStatus);

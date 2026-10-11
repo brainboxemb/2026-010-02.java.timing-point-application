@@ -27,6 +27,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * Internal mutable logic of one TimingNode.
  *
@@ -35,6 +38,9 @@ import java.util.function.Consumer;
  * {@link TimingNode} component boundary.</p>
  */
 final class TimingNodeLogic {
+    private static final Logger LOG =
+            LoggerFactory.getLogger(TimingNodeLogic.class);
+
     private final NodeId timingNodeId;
     private final LogBook logBook;
     private final TimingDataPersistence timingDataPersistence;
@@ -299,12 +305,14 @@ final class TimingNodeLogic {
                 problems);
     }
 
-    void recoverTimingData() throws TimingDataPersistence.PersistenceException {
+    TimingDataPersistence.LoadResult recoverTimingData()
+            throws TimingDataPersistence.PersistenceException {
         TimingDataPersistence.LoadResult loadResult = timingDataPersistence.load();
         for (TimingData data : loadResult.records()) {
             logBook.add(data);
         }
         timingDataTailRecovered = loadResult.repairedIncompleteTail();
+        return loadResult;
     }
 
     void markTimingDataRecoveryFailed(Throwable failure) {
@@ -481,5 +489,72 @@ final class TimingNodeLogic {
         }
 
         metrics.recordCommit();
+        logCommittedTimingData(data);
+    }
+
+    private void logCommittedTimingData(TimingData data) {
+        String type = timingDataType(data);
+        String location = data.locationId() == null
+                ? "-"
+                : String.valueOf(data.locationId().value());
+
+        if (data instanceof TimingData.AutomaticRegistration) {
+            TimingData.AutomaticRegistration registration =
+                    (TimingData.AutomaticRegistration) data;
+            LOG.info(
+                    "TimingData committed: node={}, sequence={}, type={}, registrationId={}, action={}, "
+                            + "location={}, effectiveTime={}, tagSource={}, timeSource={}",
+                    timingNodeId.value(),
+                    data.sequenceNumber(),
+                    type,
+                    registration.registrationId().value(),
+                    registration.action(),
+                    location,
+                    data.effectiveTime(),
+                    registration.tagSource(),
+                    registration.registrationTimeSource());
+            return;
+        }
+
+        if (data instanceof TimingData.ManualRegistration) {
+            TimingData.ManualRegistration registration =
+                    (TimingData.ManualRegistration) data;
+            LOG.info(
+                    "TimingData committed: node={}, sequence={}, type={}, registrationId={}, action={}, "
+                            + "location={}, effectiveTime={}, timeSource={}",
+                    timingNodeId.value(),
+                    data.sequenceNumber(),
+                    type,
+                    registration.registrationId().value(),
+                    registration.action(),
+                    location,
+                    data.effectiveTime(),
+                    registration.timeSource());
+            return;
+        }
+
+        LOG.info(
+                "TimingData committed: node={}, sequence={}, type={}, location={}, effectiveTime={}",
+                timingNodeId.value(),
+                data.sequenceNumber(),
+                type,
+                location,
+                data.effectiveTime());
+    }
+
+    private static String timingDataType(TimingData data) {
+        if (data instanceof TimingData.AutomaticRegistration) {
+            return "AUTO_REG";
+        }
+        if (data instanceof TimingData.ManualRegistration) {
+            return "MAN_REG";
+        }
+        if (data instanceof TimingData.NodeOpen) {
+            return "NODE_OPEN";
+        }
+        if (data instanceof TimingData.NodeClose) {
+            return "NODE_CLOSE";
+        }
+        return data.getClass().getSimpleName();
     }
 }

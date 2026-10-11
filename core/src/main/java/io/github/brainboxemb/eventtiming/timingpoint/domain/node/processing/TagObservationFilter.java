@@ -90,9 +90,7 @@ final class TagObservationFilter {
 
         if (state != null && state.expired(now, policy)) {
             bursts.remove(registrationId);
-            closedBurst = new ClosedBurst(
-                    registrationId,
-                    state.maxRssiObservedAt());
+            closedBurst = state.close(registrationId);
             metrics.recordClosedBurst();
             state = null;
         }
@@ -120,9 +118,7 @@ final class TagObservationFilter {
             BurstState state = entry.getValue();
             if (state.expired(now, policy)) {
                 iterator.remove();
-                closedBursts.add(new ClosedBurst(
-                        entry.getKey(),
-                        state.maxRssiObservedAt()));
+                closedBursts.add(state.close(entry.getKey()));
                 metrics.recordClosedBurst();
             }
         }
@@ -171,6 +167,13 @@ final class TagObservationFilter {
         if (closedBurst == null) {
             return;
         }
+        LOG.info(
+                "Tag passage selected: registrationId={}, tagId={}, rssi={}, observedAt={}",
+                closedBurst.registrationId.value(),
+                closedBurst.tagId.value(),
+                closedBurst.rssi,
+                closedBurst.observedAt);
+
         try {
             validObservationCallback.accept(
                     closedBurst.registrationId,
@@ -185,12 +188,18 @@ final class TagObservationFilter {
 
     private static final class ClosedBurst {
         private final RegistrationId registrationId;
+        private final TagId tagId;
+        private final int rssi;
         private final TimingTimestamp observedAt;
 
         private ClosedBurst(
                 RegistrationId registrationId,
+                TagId tagId,
+                int rssi,
                 TimingTimestamp observedAt) {
             this.registrationId = registrationId;
+            this.tagId = tagId;
+            this.rssi = rssi;
             this.observedAt = observedAt;
         }
     }
@@ -247,8 +256,13 @@ final class TagObservationFilter {
                     || now - firstSeenNanos >= policy.maxBurstDurationNanos();
         }
 
-        private TimingTimestamp maxRssiObservedAt() {
-            return maxRssiObservedAt;
+        private ClosedBurst close(
+                RegistrationId registrationId) {
+            return new ClosedBurst(
+                    registrationId,
+                    maxRssiTagId,
+                    maxRssi,
+                    maxRssiObservedAt);
         }
 
         private TagPassageSnapshot snapshot(
