@@ -10,16 +10,40 @@ public final class Main {
     }
 
     public static void main(String[] args) {
-        ApplicationLauncher.nameRuntimeThread();
-
-        int exitCode = run(
+        /*
+         * Maven exec:java owns the bootstrap thread and gives it a generated
+         * <mainClass>.main() name. Hand long-lived application execution to an
+         * application-owned non-daemon thread so launch tooling can terminate
+         * its bootstrap thread and runtime diagnostics show tp-main.
+         */
+        Thread runtimeThread = runtimeThread(
                 args,
                 EmbeddedBuildIdentityLoader.load(),
                 System.out,
                 System.err);
-        if (exitCode != 0) {
-            System.exit(exitCode);
-        }
+        runtimeThread.start();
+    }
+
+    static Thread runtimeThread(
+            String[] args,
+            BuildIdentity identity,
+            PrintStream out,
+            PrintStream err) {
+        Thread thread = new Thread(
+                () -> {
+                    ApplicationLauncher.nameRuntimeThread();
+                    int exitCode = run(
+                            args,
+                            identity,
+                            out,
+                            err);
+                    if (exitCode != 0) {
+                        System.exit(exitCode);
+                    }
+                },
+                "tp-main");
+        thread.setDaemon(false);
+        return thread;
     }
 
     static int run(String[] args, BuildIdentity identity, PrintStream out, PrintStream err) {

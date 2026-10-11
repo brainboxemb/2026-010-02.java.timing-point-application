@@ -27,6 +27,36 @@ public class MainTest {
             new TemporaryFolder();
 
     @Test
+    public void runtimeThreadIsApplicationOwnedNonDaemonTpMain()
+            throws Exception {
+        ByteArrayOutputStream stdoutBytes =
+                new ByteArrayOutputStream();
+        ByteArrayOutputStream stderrBytes =
+                new ByteArrayOutputStream();
+
+        try (PrintStream stdout =
+                        new PrintStream(stdoutBytes, true, "UTF-8");
+                PrintStream stderr =
+                        new PrintStream(stderrBytes, true, "UTF-8")) {
+            Thread runtimeThread = Main.runtimeThread(
+                    new String[] {"--help"},
+                    identity(),
+                    stdout,
+                    stderr);
+
+            assertEquals("tp-main", runtimeThread.getName());
+            assertFalse(runtimeThread.isDaemon());
+
+            runtimeThread.start();
+            runtimeThread.join(1000L);
+
+            assertFalse(runtimeThread.isAlive());
+            assertTrue(stdoutBytes.toString("UTF-8").contains("Startup options:"));
+            assertEquals("", stderrBytes.toString("UTF-8"));
+        }
+    }
+
+    @Test
     public void runtimeThreadNamingUsesCompactMainName() {
         Thread current = Thread.currentThread();
         String previous = current.getName();
