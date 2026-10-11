@@ -451,7 +451,12 @@ public final class TimingNode {
         }
     }
 
-    /** Returns the subscription-only stream of authoritative status changes. */
+    /**
+     * Returns the subscription-only stream of authoritative Status publications.
+     *
+     * <p>The first event follows initial recovery and makes CURRENT status
+     * available. Later events represent effective status changes.</p>
+     */
     public EventSource<Status> statusChangedEvent() {
         return statusChangedEvent;
     }
