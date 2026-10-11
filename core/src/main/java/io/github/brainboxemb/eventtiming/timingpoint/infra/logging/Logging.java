@@ -104,7 +104,8 @@ public final class Logging
             asyncHandler = new AsyncLogHandler(
                     asynchronousSinks,
                     config.queueCapacity(),
-                    config.flushIntervalMillis());
+                    config.flushIntervalMillis(),
+                    promptCoordinator);
 
             for (Handler consoleHandler : consoleHandlers) {
                 root.removeHandler(consoleHandler);

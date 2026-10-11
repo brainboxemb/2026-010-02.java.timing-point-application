@@ -2,19 +2,16 @@ package io.github.brainboxemb.eventtiming.timingpoint.infra.logging;
 
 import java.io.IOException;
 import java.io.Writer;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
  * Coordinates one local terminal prompt with asynchronous console log output.
  *
  * <p>The first log record in a burst moves output to a fresh line. Further log
- * records only postpone one prompt redraw. After a short quiet period the prompt
- * is rendered once again. This keeps startup/info bursts readable without
- * printing a prompt between every log line.</p>
+ * records postpone one prompt redraw. The coordinator is passive: it records
+ * the quiet-period deadline, while the existing async logging writer calls
+ * {@link #redrawPromptIfDue()} and therefore owns the timing/execution context.
+ * No separate prompt thread is created.</p>
  *
  * <p>This is intentionally small and line-oriented. It does not attempt to
  * restore a partially typed command; that requires a real line editor.</p>
@@ -23,31 +20,25 @@ final class ConsolePromptCoordinator
         implements ConsolePromptControl, AutoCloseable {
     private static final long PROMPT_REDRAW_DELAY_MILLIS = 150L;
 
-    private final ScheduledExecutorService scheduler;
-    private final long redrawDelayMillis;
+    private final long redrawDelayNanos;
 
     private Writer output;
     private String prompt;
     private boolean promptVisible;
     private boolean burstActive;
-    private ScheduledFuture<?> redrawFuture;
+    private long redrawDeadlineNanos;
 
     ConsolePromptCoordinator() {
-        this(
-                PROMPT_REDRAW_DELAY_MILLIS);
+        this(PROMPT_REDRAW_DELAY_MILLIS);
     }
 
-    ConsolePromptCoordinator(
-            long redrawDelayMillis) {
+    ConsolePromptCoordinator(long redrawDelayMillis) {
         if (redrawDelayMillis < 0L) {
             throw new IllegalArgumentException(
                     "redrawDelayMillis must not be negative");
         }
-
-        this.redrawDelayMillis = redrawDelayMillis;
-        scheduler =
-                Executors.newSingleThreadScheduledExecutor(
-                        new DaemonThreadFactory());
+        redrawDelayNanos =
+                TimeUnit.MILLISECONDS.toNanos(redrawDelayMillis);
     }
 
     @Override
@@ -67,14 +58,14 @@ final class ConsolePromptCoordinator
         this.prompt = prompt;
         promptVisible = true;
         burstActive = false;
-        cancelRedraw();
+        redrawDeadlineNanos = 0L;
     }
 
     @Override
     public synchronized void promptConsumed() {
         promptVisible = false;
         burstActive = false;
-        cancelRedraw();
+        redrawDeadlineNanos = 0L;
     }
 
     synchronized void beforeConsoleLog() {
@@ -82,8 +73,7 @@ final class ConsolePromptCoordinator
             return;
         }
 
-        write(
-                System.lineSeparator());
+        write(System.lineSeparator());
         promptVisible = false;
         burstActive = true;
     }
@@ -93,46 +83,77 @@ final class ConsolePromptCoordinator
             return;
         }
 
-        cancelRedraw();
-        redrawFuture =
-                scheduler.schedule(
-                        this::redrawPromptAfterQuietPeriod,
-                        redrawDelayMillis,
-                        TimeUnit.MILLISECONDS);
+        redrawDeadlineNanos =
+                System.nanoTime() + redrawDelayNanos;
     }
 
-    @Override
-    public synchronized void close() {
-        cancelRedraw();
-        scheduler.shutdownNow();
-        output = null;
-        prompt = null;
-        promptVisible = false;
-        burstActive = false;
+    /**
+     * Returns how long the logging writer may sleep before prompt work is due.
+     */
+    synchronized long nextWakeDelayMillis(long maximumDelayMillis) {
+        if (maximumDelayMillis < 0L) {
+            throw new IllegalArgumentException(
+                    "maximumDelayMillis must not be negative");
+        }
+        if (!hasPendingRedraw()) {
+            return maximumDelayMillis;
+        }
+
+        long remaining =
+                redrawDeadlineNanos - System.nanoTime();
+        if (remaining <= 0L) {
+            return 0L;
+        }
+
+        long remainingMillis =
+                TimeUnit.NANOSECONDS.toMillis(remaining);
+        if (remainingMillis == 0L) {
+            remainingMillis = 1L;
+        }
+        return Math.min(
+                maximumDelayMillis,
+                remainingMillis);
     }
 
-    private void redrawPromptAfterQuietPeriod() {
-        synchronized (this) {
-            redrawFuture = null;
-            if (!burstActive
-                    || promptVisible
-                    || output == null
-                    || prompt == null) {
-                return;
-            }
+    /**
+     * Redraws the prompt when its quiet-period deadline has elapsed.
+     *
+     * <p>Called only by the async logging writer in production.</p>
+     */
+    synchronized void redrawPromptIfDue() {
+        if (!hasPendingRedraw()
+                || System.nanoTime() < redrawDeadlineNanos) {
+            return;
+        }
 
-            write(
-                    prompt);
+        redrawDeadlineNanos = 0L;
+        write(prompt);
+        if (burstActive) {
             promptVisible = true;
             burstActive = false;
         }
     }
 
-    private void write(
-            String text) {
+    @Override
+    public synchronized void close() {
+        output = null;
+        prompt = null;
+        promptVisible = false;
+        burstActive = false;
+        redrawDeadlineNanos = 0L;
+    }
+
+    private boolean hasPendingRedraw() {
+        return burstActive
+                && !promptVisible
+                && output != null
+                && prompt != null
+                && redrawDeadlineNanos != 0L;
+    }
+
+    private void write(String text) {
         try {
-            output.write(
-                    text);
+            output.write(text);
             output.flush();
         } catch (IOException ex) {
             /*
@@ -141,30 +162,7 @@ final class ConsolePromptCoordinator
              */
             promptVisible = false;
             burstActive = false;
-            cancelRedraw();
-        }
-    }
-
-    private void cancelRedraw() {
-        if (redrawFuture != null) {
-            redrawFuture.cancel(
-                    false);
-            redrawFuture = null;
-        }
-    }
-
-    private static final class DaemonThreadFactory
-            implements ThreadFactory {
-        @Override
-        public Thread newThread(
-                Runnable runnable) {
-            Thread thread =
-                    new Thread(
-                            runnable,
-                            "tp-pl-prompt");
-            thread.setDaemon(
-                    true);
-            return thread;
+            redrawDeadlineNanos = 0L;
         }
     }
 }
