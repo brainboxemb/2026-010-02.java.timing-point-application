@@ -10,6 +10,8 @@ public final class Main {
     }
 
     public static void main(String[] args) {
+        Thread.currentThread().setName("tp-main");
+
         int exitCode = run(
                 args,
                 EmbeddedBuildIdentityLoader.load(),

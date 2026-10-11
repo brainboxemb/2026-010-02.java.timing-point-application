@@ -161,7 +161,7 @@ final class ConsolePromptCoordinator
             Thread thread =
                     new Thread(
                             runnable,
-                            "tp-prl-prompt");
+                            "tp-pl-prompt");
             thread.setDaemon(
                     true);
             return thread;

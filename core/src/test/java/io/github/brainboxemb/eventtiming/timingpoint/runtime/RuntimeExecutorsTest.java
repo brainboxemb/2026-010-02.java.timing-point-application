@@ -63,7 +63,7 @@ public class RuntimeExecutorsTest {
 
             assertTrue(done.await(1, TimeUnit.SECONDS));
             assertEquals(
-                    "tp-dml-node-worker",
+                    "tp-dl-node-worker",
                     firstThread.get());
             assertEquals(
                     firstThread.get(),
@@ -103,7 +103,7 @@ public class RuntimeExecutorsTest {
                             1,
                             TimeUnit.SECONDS));
             assertEquals(
-                    "tp-system-coord-worker",
+                    "tp-dl-system-worker",
                     threadName.get());
         } finally {
             conductor.close();
@@ -201,7 +201,7 @@ public class RuntimeExecutorsTest {
 
             assertTrue(done.await(1, TimeUnit.SECONDS));
             assertEquals(
-                    "tp-dml-tagproc-worker",
+                    "tp-dl-tagproc-worker",
                     firstThread.get());
             assertEquals(
                     firstThread.get(),
