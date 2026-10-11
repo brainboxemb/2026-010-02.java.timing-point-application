@@ -496,7 +496,7 @@ final class TimingNodeLogic {
         String type = timingDataType(data);
         String location = data.locationId() == null
                 ? "-"
-                : data.locationId().value();
+                : String.valueOf(data.locationId().value());
 
         if (data instanceof TimingData.AutomaticRegistration) {
             TimingData.AutomaticRegistration registration =
