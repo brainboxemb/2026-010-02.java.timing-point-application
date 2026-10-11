@@ -20,8 +20,16 @@ import org.slf4j.LoggerFactory;
 /**
  * Coordinates one TimingSystem.
  *
- * <p>Node events only wake the control task. A control run reads current node
- * statuses and publishes desired inventory to shared AntennaSettings.</p>
+ * <p>Runtime composition wires each TimingNode's statusChangedEvent() to
+ * {@link #onTimingNodeStatusChanged(TimingNode, Status)} before activation.
+ * This class deliberately does not subscribe to its own dependencies in its
+ * constructor: event wiring belongs to the composition root and is visible
+ * alongside the rest of the application graph.</p>
+ *
+ * <p>A status event only wakes the control task. The subsequent run reads
+ * every TimingNode's CURRENT status and publishes the desired inventory state
+ * through the shared AntennaSettings. It does not retain a second copy of
+ * node state or invoke AntennaManager directly.</p>
  */
 public final class SystemConductor extends AbstractConductor implements CooperativeTask {
     private static final Logger LOG = LoggerFactory.getLogger(SystemConductor.class);
@@ -58,9 +66,10 @@ public final class SystemConductor extends AbstractConductor implements Cooperat
     /**
      * Accepts one authoritative post-change TimingNode Status.
      *
-     * <p>This callback validates node ownership and wakes the coalesced control
-     * task. The later control run reads CURRENT published state; this callback
-     * never waits on another execution lane.</p>
+     * <p>The subscription is installed by runtime composition, not by this
+     * Conductor. This handler validates node ownership and only wakes the
+     * coalesced control task. The later run reads CURRENT published state;
+     * the event payload is not cached or treated as a control command.</p>
      */
     public void onTimingNodeStatusChanged(TimingNode node, Status status) {
         if (status == null) {
@@ -89,6 +98,11 @@ public final class SystemConductor extends AbstractConductor implements Cooperat
             }
         }
         if (antennaSettings != null) {
+            // Capture the aggregate decision for this run. update() executes
+            // the lambda synchronously as one settings transaction: the editor
+            // sets the desired value, which is published only after the lambda
+            // completes. An unchanged value publishes nothing. Hardware
+            // reconciliation remains asynchronous in AntennaManager.
             final boolean enabled = required;
             antennaSettings.update(edit -> edit.inventoryEnabled(enabled));
         }
