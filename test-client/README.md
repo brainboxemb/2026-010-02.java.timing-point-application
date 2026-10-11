@@ -72,6 +72,14 @@ entry point is `TestClientApplication`, a plain Java class. The actual JavaFX su
 is kept internal as `TestClientFxApplication`; this prevents the JVM or an IDE from
 treating the selected main class as a special JavaFX launcher target.
 
+The checked-in NetBeans Run/Debug actions start SI-02 with Maven `exec:exec` in a
+**separate child JVM** rather than `exec:java` inside Maven's own JVM. The child
+executable is `${java.home}/bin/java`, so it uses the same Java 21-capable JDK that
+successfully builds the client. The action supplies the Maven runtime classpath,
+enables long-classpath handling for Windows, and injects the NetBeans JDWP address
+into the child JVM for Debug. Maven/JGit/ForkJoin build-tool threads therefore do
+not appear as Engineering Client runtime threads.
+
 ## External boundaries
 
 The Engineering Client communicates with SI-01 only through supported external
