@@ -13,6 +13,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
@@ -148,7 +149,7 @@ public class SimulationRuntimeRecoveryTest {
                     recoveryCommitEvents.get());
 
             TimingNodeStatus recoveredStatus =
-                    recoveredNode.status();
+                    awaitStatus(recoveredNode);
             assertEquals(
                     TimingNodeTypes.State.CLOSED,
                     recoveredStatus.state());
@@ -392,6 +393,27 @@ public class SimulationRuntimeRecoveryTest {
                 "verification/step5-v03",
                 "local",
                 false);
+    }
+
+    private static TimingNodeStatus awaitStatus(
+            TimingNodeProxy node)
+            throws Exception {
+        long deadline =
+                System.nanoTime()
+                        + TimeUnit.SECONDS.toNanos(1L);
+        while (true) {
+            try {
+                return node.status();
+            } catch (OperationException ex) {
+                if (ex.reason() != OperationException.Reason.UNAVAILABLE) {
+                    throw ex;
+                }
+                if (System.nanoTime() >= deadline) {
+                    throw ex;
+                }
+                Thread.sleep(5L);
+            }
+        }
     }
 
     private static void await(
