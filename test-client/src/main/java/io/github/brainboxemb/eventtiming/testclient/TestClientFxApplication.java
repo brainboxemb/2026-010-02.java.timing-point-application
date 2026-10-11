@@ -230,6 +230,7 @@ public final class TestClientFxApplication extends Application {
                 apiPane.apiInfoPane(),
                 apiPane.registrationPane(),
                 apiPane.simulationPane(),
+                apiPane.scriptsPane(),
                 deviceLogPanel,
                 terminalPanel,
                 clientLogPanel,
@@ -946,6 +947,9 @@ public final class TestClientFxApplication extends Application {
 
     @Override
     public void stop() {
+        if (apiPane != null) {
+            apiPane.close();
+        }
         if (system != null) {
             system.close();
         }

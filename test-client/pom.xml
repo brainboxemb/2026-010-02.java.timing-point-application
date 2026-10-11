@@ -16,6 +16,7 @@
     <maven.compiler.release>21</maven.compiler.release>
     <javafx.version>21.0.10</javafx.version>
     <jackson.version>2.21.2</jackson.version>
+    <luaj.version>3.0.1</luaj.version>
     <bentofx.version>0.16.0</bentofx.version>
     <customcaption.version>1.0</customcaption.version>
     <junit.version>5.10.2</junit.version>
@@ -87,6 +88,12 @@
           <artifactId>javafx-web</artifactId>
         </exclusion>
       </exclusions>
+    </dependency>
+    <!-- Lua is embedded exclusively in SI-02 Engineering Client, not SI-01. -->
+    <dependency>
+      <groupId>org.luaj</groupId>
+      <artifactId>luaj-jse</artifactId>
+      <version>${luaj.version}</version>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>

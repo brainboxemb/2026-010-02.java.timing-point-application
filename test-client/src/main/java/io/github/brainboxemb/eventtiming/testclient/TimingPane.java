@@ -97,6 +97,7 @@ final class TimingPane {
     private String manualTimeSource = "AUTO";
 
     private final SimulatedTagsPane simulationPane;
+    private final EngineeringScriptsPane scriptsPane;
     private final javafx.scene.Node timingNodePane;
     private final javafx.scene.Node registrationPane;
     private final javafx.scene.Node registrationsPane;
@@ -262,6 +263,13 @@ final class TimingPane {
                         this::refreshControls,
                         clientLog);
 
+        scriptsPane = new EngineeringScriptsPane(
+                clientSupplier,
+                model::selectedNodeId,
+                simulationPane::running,
+                this::refreshControls,
+                clientLog);
+
         configureRegistrationView();
         // No redundant API identity or filter toolbar. Scope is exposed in
         // BentoFX's standard ≡ area menu; the table uses all available space.
@@ -333,6 +341,14 @@ final class TimingPane {
         return simulationPane;
     }
 
+    javafx.scene.Node scriptsPane() {
+        return scriptsPane;
+    }
+
+    void close() {
+        scriptsPane.close();
+    }
+
     javafx.scene.Node registrationsPane() {
         return registrationsPane;
     }
@@ -360,6 +376,7 @@ final class TimingPane {
         historyRequests.invalidate();
         eventsConnected = false;
         simulationPane.stopBatch();
+        scriptsPane.stopScript();
         bufferedEvents.clear();
         model.viewState(stale
                 ? TimingViewModel.ViewState.STALE
@@ -1011,14 +1028,15 @@ final class TimingPane {
         if (live && !model.autoRegEnabled()) {
             autoRegCapability.setText("Direct auto-reg unavailable on this system");
         }
+        scriptsPane.refresh(live, controls.simulation(), model.selectedNodeId());
         simulationPane.refresh(
-                live,
-                controls.simulation());
+                live, controls.simulation(), scriptsPane.running());
         node.setDisable(
                 !live
                         || operationBusy
                         || model.nodes().size() <= 1
-                        || simulationPane.running());
+                        || simulationPane.running()
+                        || scriptsPane.running());
         locationInput.setDisable(!live || operationBusy || !controls.open());
         open.setDisable(!live || operationBusy || !controls.open());
         close.setDisable(!live || operationBusy || !controls.close());
