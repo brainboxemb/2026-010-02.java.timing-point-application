@@ -246,15 +246,28 @@ public final class TagProcessor {
     }
 
     private void processObservation(TagObservation observation) {
+        LOG.trace(
+                "Tag observation: tagId={}, rssi={}, observedAt={}",
+                observation.tagId().value(),
+                observation.rssi(),
+                observation.observedAt());
+
         RegistrationId registrationId = eventData.registrationIdFor(observation.tagId());
         if (registrationId == null) {
             metrics.recordUnmapped();
+            LOG.debug(
+                    "Tag observation ignored because TagId {} is unmapped",
+                    observation.tagId().value());
             return;
         }
 
         metrics.recordMapped();
         if (duplicateFilter.isDuplicate(registrationId)) {
             metrics.recordDuplicate();
+            LOG.debug(
+                    "Tag observation suppressed as duplicate: registrationId={}, tagId={}",
+                    registrationId.value(),
+                    observation.tagId().value());
             return;
         }
 

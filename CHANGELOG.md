@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add operational TimingData/LogBook logging: INFO records recovery start/completion, selected tag passages and successful durable+LogBook commits; repaired tails use WARN, while raw observations and filtering detail remain TRACE/DEBUG.
+
 - Move TimingNode startup recovery onto the node's own serial lane: `activate()` starts execution/lifecycle and queues recovery without waiting; CURRENT status becomes available after recovery publication and SystemConductor tolerates startup-not-ready nodes.
 
 - Add SI-02-only embedded Lua scripts via LuaJ with a Scripts docking tab, open/drop editable .lua files, Run/Stop, log output and an example batch; reuse IF-03 simulation and current GUI batch planning, without adding Lua to Timing Application.
