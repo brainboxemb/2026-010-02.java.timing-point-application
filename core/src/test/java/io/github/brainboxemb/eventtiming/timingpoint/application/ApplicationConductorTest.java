@@ -151,7 +151,7 @@ public class ApplicationConductorTest {
             conductor =
                     new SystemConductor(
                             timingNodes,
-                            manager,
+                            manager.settings(),
                             new SerialExecutor(
                                     8,
                                     "app-system-" + label,
