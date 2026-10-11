@@ -1030,8 +1030,7 @@ final class TimingPane {
         }
         scriptsPane.refresh(live, controls.simulation(), model.selectedNodeId());
         simulationPane.refresh(
-                live && !scriptsPane.running(),
-                controls.simulation());
+                live, controls.simulation(), scriptsPane.running());
         node.setDisable(
                 !live
                         || operationBusy

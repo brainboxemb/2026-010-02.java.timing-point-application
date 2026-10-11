@@ -201,7 +201,8 @@ final class SimulatedTagsPane extends VBox {
 
     void refresh(
             boolean live,
-            boolean enabled) {
+            boolean enabled,
+            boolean scriptsRunning) {
         // Normal enabled state needs no extra status banner between tabs.
         capability.setVisible(!live || !enabled);
         capability.setText(!live
@@ -211,7 +212,8 @@ final class SimulatedTagsPane extends VBox {
         boolean fieldsDisabled =
                 !live
                         || !enabled
-                        || running;
+                        || running
+                        || scriptsRunning;
         profile.setDisable(
                 fieldsDisabled);
         count.setDisable(
@@ -231,7 +233,8 @@ final class SimulatedTagsPane extends VBox {
         start.setDisable(
                 !live
                         || !enabled
-                        || running);
+                        || running
+                        || scriptsRunning);
         stop.setDisable(
                 !running);
     }
