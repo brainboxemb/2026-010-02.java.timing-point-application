@@ -44,13 +44,22 @@ public class AntennaSettingsTest {
             catch (InterruptedException ex) { Thread.currentThread().interrupt(); }
         }));
         first.start();
+        java.util.concurrent.ExecutorService reader = java.util.concurrent.Executors.newSingleThreadExecutor();
         try {
             assertTrue(editStarted.await(1, java.util.concurrent.TimeUnit.SECONDS));
-            assertFalse("unfinished edit must remain invisible",
-                    settings.inventoryEnabled());
+            java.util.concurrent.CountDownLatch readerStarted = new java.util.concurrent.CountDownLatch(1);
+            java.util.concurrent.Future<Boolean> published = reader.submit(() -> {
+                readerStarted.countDown();
+                return settings.inventoryEnabled();
+            });
+            assertTrue(readerStarted.await(1, java.util.concurrent.TimeUnit.SECONDS));
+            assertFalse("reader must wait until full transaction is committed", published.isDone());
+            release.countDown();
+            assertTrue(published.get(1, java.util.concurrent.TimeUnit.SECONDS));
         } finally {
             release.countDown();
             first.join(1000L);
+            reader.shutdownNow();
         }
         assertFalse(first.isAlive());
         assertTrue(settings.inventoryEnabled());
