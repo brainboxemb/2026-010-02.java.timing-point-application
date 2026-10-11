@@ -5,7 +5,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
-import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
@@ -112,8 +111,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
         if (server != null) {
             throw new IllegalStateException("WebSocket IF-03 server is already started");
         }
-
-        refreshStatusSnapshot();
 
         InetSocketAddress address =
                 new InetSocketAddress(InetAddress.getByName(bindAddress), port);
@@ -224,31 +221,15 @@ public final class WebSocketEndpoint implements AutoCloseable {
     }
 
     private void refreshStatusSnapshot() {
-        Map<NodeId, TimingNodeStatus> available =
-                new LinkedHashMap<NodeId, TimingNodeStatus>();
-
-        for (TimingNodeProxy timingNode : presentationGateway.timingNodes()) {
-            try {
-                TimingNodeStatus status = timingNode.status();
-                available.put(
-                        status.timingNodeId(),
-                        status);
-            } catch (OperationException ex) {
-                if (ex.reason() != OperationException.Reason.UNAVAILABLE) {
-                    throw ex;
-                }
-
-                /*
-                 * TimingNode activation may still be running its first recovery
-                 * task. Its initial status event will populate this cache later.
-                 * Do not block WebSocket startup and do not invent CLOSED state.
-                 */
-            }
-        }
-
+        List<TimingNodeStatus> statuses =
+                presentationGateway.timingNodeStatuses();
         synchronized (statusByNode) {
             statusByNode.clear();
-            statusByNode.putAll(available);
+            for (TimingNodeStatus status : statuses) {
+                statusByNode.put(
+                        status.timingNodeId(),
+                        status);
+            }
         }
     }
 
@@ -343,9 +324,26 @@ public final class WebSocketEndpoint implements AutoCloseable {
             outboundDelivery.connected(
                     connection);
             try {
+                /*
+                 * Transport activation is independent from TimingNode readiness.
+                 * A connecting client, however, receives only a complete current
+                 * snapshot. If initial node recovery is still pending, ask the
+                 * client to retry rather than inventing or omitting node state.
+                 */
+                refreshStatusSnapshot();
                 sendEvent(
                         connection,
                         snapshotJson());
+            } catch (OperationException ex) {
+                if (ex.reason() == OperationException.Reason.UNAVAILABLE) {
+                    LOG.debug(
+                            "IF-03 status snapshot is not ready yet");
+                    connection.close(
+                            1013,
+                            "TimingNode status not ready");
+                    return;
+                }
+                throw ex;
             } catch (RuntimeException ex) {
                 LOG.warn(
                         "Unable to create initial IF-03 status snapshot",
