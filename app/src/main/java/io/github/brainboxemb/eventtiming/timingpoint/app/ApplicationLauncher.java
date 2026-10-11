@@ -188,11 +188,6 @@ final class ApplicationLauncher {
             BuildIdentity buildIdentity,
             Config config,
             Logging logging) {
-        // The Maven/IDE launcher may give its invocation thread a generated
-        // Main.main() name. Assert the application-owned name again at the
-        // long-lived runtime boundary used for activation and shutdown waiting.
-        nameRuntimeThread();
-
         TimingApplicationRuntime application =
                 TimingApplicationRuntime.create(
                         buildIdentity,
@@ -214,10 +209,6 @@ final class ApplicationLauncher {
 
         try {
             application.activate();
-
-            // Keep the long-lived waiting thread identifiable even if startup
-            // tooling or a component changed the caller thread name.
-            nameRuntimeThread();
 
             try {
                 application.awaitShutdownRequest();
@@ -263,10 +254,6 @@ final class ApplicationLauncher {
         } else {
             out.println(identityLine);
         }
-    }
-
-    static void nameRuntimeThread() {
-        Thread.currentThread().setName("tp-main");
     }
 
     /** Formats the canonical one-line startup identity. */
