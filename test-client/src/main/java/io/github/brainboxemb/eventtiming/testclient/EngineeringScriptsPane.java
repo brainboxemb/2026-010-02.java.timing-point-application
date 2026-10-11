@@ -164,7 +164,7 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
                     : !simulationEnabled ? "Lua ready; simulation unavailable (TAG_SCENARIO_SIMULATION)"
                     : "Lua ready (simulation available)");
         }
-        if (running && (!live || !simulationEnabled
+        if (running && (!live
                 || !java.util.Objects.equals(nodeId, runningNode))) {
             stopScript();
         }
