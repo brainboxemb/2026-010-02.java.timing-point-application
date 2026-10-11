@@ -14,6 +14,7 @@ import org.luaj.vm2.lib.BaseLib;
 import org.luaj.vm2.lib.Bit32Lib;
 import org.luaj.vm2.lib.DebugLib;
 import org.luaj.vm2.lib.OneArgFunction;
+import org.luaj.vm2.lib.PackageLib;
 import org.luaj.vm2.lib.StringLib;
 import org.luaj.vm2.lib.TableLib;
 import org.luaj.vm2.lib.TwoArgFunction;
@@ -59,6 +60,10 @@ final class EngineeringLuaEngine {
 
         Globals globals = new Globals();
         globals.load(new BaseLib()); // Classpath-only finder; no filesystem I/O.
+        // LuaJ's standard table/string/debug libraries register into
+        // package.loaded at initialization. Load the registry internally,
+        // then hide its loader entrypoints before evaluating user scripts.
+        globals.load(new PackageLib());
         globals.load(new Bit32Lib());
         globals.load(new TableLib());
         globals.load(new StringLib());
@@ -74,6 +79,9 @@ final class EngineeringLuaEngine {
             }
         });
         globals.set("debug", LuaValue.NIL);
+        globals.set("package", LuaValue.NIL);
+        globals.set("require", LuaValue.NIL);
+        globals.set("module", LuaValue.NIL);
         globals.set("load", LuaValue.NIL);
         globals.set("loadfile", LuaValue.NIL);
         globals.set("dofile", LuaValue.NIL);
