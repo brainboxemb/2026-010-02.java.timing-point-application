@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Move default console and retained-file logging behind one bounded non-blocking Infrastructure queue and writer thread; batch file flushes periodically and on WARN/ERROR/shutdown so timing lanes never perform log file or console I/O.
+
 - Add operational TimingData/LogBook logging: INFO records recovery start/completion, selected tag passages and successful durable+LogBook commits; repaired tails use WARN, while raw observations and filtering detail remain TRACE/DEBUG.
 
 - Move TimingNode startup recovery onto the node's own serial lane: `activate()` starts execution/lifecycle and queues recovery without waiting; CURRENT status becomes available after recovery publication and SystemConductor tolerates startup-not-ready nodes.

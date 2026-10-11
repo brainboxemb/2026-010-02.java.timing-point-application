@@ -94,8 +94,9 @@ final class TimestampedFileLogHandler extends Handler {
             if (bytesWritten > 0 && bytesWritten + bytes.length > rotateBytes) {
                 rotate();
             }
+            // The async logging writer owns flush cadence. Keeping this sink
+            // buffered prevents one filesystem flush per application log record.
             output.write(bytes);
-            output.flush();
             bytesWritten += bytes.length;
         } catch (IOException ex) {
             reportError("Unable to write retained runtime log", ex, ErrorManager.WRITE_FAILURE);

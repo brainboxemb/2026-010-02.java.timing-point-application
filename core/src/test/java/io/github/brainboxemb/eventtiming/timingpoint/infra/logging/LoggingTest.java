@@ -7,10 +7,16 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Formatter;
+import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
@@ -176,6 +182,144 @@ public class LoggingTest {
                 "\\d{2}:\\d{2}:\\d{2}\\.\\d{3} - \\[INFO\\] - WebServer started - "
                         + "\\[com\\.bata\\.ebart\\.next\\.web\\.WebServer\\.<init>\\]"
                         + "\\R"));
+    }
+
+    @Test
+    public void asynchronousHandlerNeverWaitsForSlowDelegateIo() throws Exception {
+        BlockingHandler slow = new BlockingHandler();
+        AsyncLogHandler async = new AsyncLogHandler(
+                Arrays.<Handler>asList(slow),
+                2,
+                50L);
+        try {
+            async.publish(new LogRecord(Level.INFO, "first"));
+            assertTrue(slow.started.await(1L, TimeUnit.SECONDS));
+
+            CountDownLatch returned = new CountDownLatch(1);
+            Thread producer = new Thread(() -> {
+                async.publish(new LogRecord(Level.INFO, "second"));
+                async.publish(new LogRecord(Level.INFO, "third"));
+                async.publish(new LogRecord(Level.INFO, "fourth"));
+                returned.countDown();
+            });
+
+            producer.start();
+            assertTrue(
+                    "publisher waited for slow logging delegate",
+                    returned.await(250L, TimeUnit.MILLISECONDS));
+            producer.join(1000L);
+            assertTrue(async.droppedRecordCount() >= 1L);
+        } finally {
+            slow.release.countDown();
+            async.close();
+        }
+    }
+
+    @Test
+    public void asynchronousHandlerDrainsAcceptedRecordsBeforeClose() {
+        RecordingHandler sink = new RecordingHandler();
+        AsyncLogHandler async = new AsyncLogHandler(
+                Arrays.<Handler>asList(sink),
+                16,
+                50L);
+
+        for (int i = 0; i < 10; i++) {
+            async.publish(
+                    new LogRecord(
+                            Level.INFO,
+                            "record-" + i));
+        }
+
+        async.close();
+
+        assertEquals(10, sink.messages.size());
+        for (int i = 0; i < 10; i++) {
+            assertEquals(
+                    "record-" + i,
+                    sink.messages.get(i));
+        }
+    }
+
+    @Test
+    public void warnRecordReplacesQueuedLowerSeverityOnOverflow()
+            throws Exception {
+        BlockingHandler slow = new BlockingHandler();
+        AsyncLogHandler async = new AsyncLogHandler(
+                Arrays.<Handler>asList(slow),
+                1,
+                50L);
+        try {
+            async.publish(new LogRecord(Level.INFO, "running"));
+            assertTrue(slow.started.await(1L, TimeUnit.SECONDS));
+
+            async.publish(new LogRecord(Level.INFO, "low-priority"));
+            async.publish(new LogRecord(Level.WARNING, "important"));
+
+            slow.release.countDown();
+            async.close();
+
+            assertTrue(slow.messages.contains("important"));
+            assertTrue(
+                    "expected lower-severity overflow to be counted",
+                    async.droppedRecordCount() >= 1L);
+        } finally {
+            slow.release.countDown();
+            async.close();
+        }
+    }
+
+    private static final class RecordingHandler extends Handler {
+        private final List<String> messages =
+                new ArrayList<String>();
+
+        @Override
+        public synchronized void publish(LogRecord record) {
+            messages.add(record.getMessage());
+        }
+
+        @Override
+        public void flush() {
+            // No external sink.
+        }
+
+        @Override
+        public void close() {
+            // Test owns lifecycle.
+        }
+    }
+
+    private static final class BlockingHandler extends Handler {
+        private final CountDownLatch started =
+                new CountDownLatch(1);
+        private final CountDownLatch release =
+                new CountDownLatch(1);
+        private final List<String> messages =
+                new ArrayList<String>();
+        private final AtomicInteger flushes =
+                new AtomicInteger();
+
+        @Override
+        public void publish(LogRecord record) {
+            started.countDown();
+            try {
+                release.await();
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+            }
+            synchronized (this) {
+                messages.add(record.getMessage());
+            }
+        }
+
+        @Override
+        public void flush() {
+            flushes.incrementAndGet();
+        }
+
+        @Override
+        public void close() {
+            release.countDown();
+        }
     }
 
     private static File[] timestampedLogs(File directory) {
