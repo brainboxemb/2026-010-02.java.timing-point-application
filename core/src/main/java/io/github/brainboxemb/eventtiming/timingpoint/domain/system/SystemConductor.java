@@ -7,9 +7,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
-import io.github.brainboxemb.eventtiming.timingpoint.infra.property.DerivedProperty;
-import io.github.brainboxemb.eventtiming.timingpoint.infra.property.SourceProperty;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTaskController;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
@@ -22,25 +20,19 @@ import org.slf4j.LoggerFactory;
 /**
  * Coordinates one TimingSystem.
  *
- * <p>The SystemConductor owns TimingNode lifecycle and the system-wide inventory
- * decision. SourceProperty and DerivedProperty only hold current state; all
- * scheduling and coalescing remain in this Conductor's CooperativeTaskController.</p>
- *
- * <p>Every control run refreshes current state from each TimingNode's CURRENT
- * published Status before deriving inventory intent. TimingNode status events
- * only wake this control task; they do not mutate SourceProperties directly.</p>
+ * <p>Node events only wake the control task. A control run reads current node
+ * statuses and publishes desired inventory to shared AntennaSettings.</p>
  */
 public final class SystemConductor extends AbstractConductor implements CooperativeTask {
     private static final Logger LOG = LoggerFactory.getLogger(SystemConductor.class);
 
-    private final PropertyRegistry properties = new PropertyRegistry();
-    private final AntennaManager antennaManager;
+    private final TimingNodeList nodes;
+    private final AntennaSettings antennaSettings;
     private final CooperativeTaskController taskController;
-    private final DerivedProperty<Boolean> inventoryRequired;
 
     public SystemConductor(
             TimingNodeList timingNodes,
-            AntennaManager antennaManager,
+            AntennaSettings antennaSettings,
             SerialExecutor coordinationLane) {
         super(coordinationLane);
 
@@ -48,21 +40,20 @@ public final class SystemConductor extends AbstractConductor implements Cooperat
             throw new IllegalArgumentException("timingNodes must not be empty");
         }
 
-        this.antennaManager = antennaManager;
+        this.nodes = timingNodes.copy();
+        this.antennaSettings = antennaSettings;
         taskController = new CooperativeTaskController(
                 new SerialTaskRunner(coordinationLane()),
                 this,
                 this::onControlTaskFailure);
 
         for (TimingNode node : timingNodes) {
-            properties.register(new SourceProperty<TimingNode, State>(node));
             registerComponent(
                     "TimingNode " + node.timingNodeId().value(),
                     node::activate,
                     node::deactivate);
         }
 
-        inventoryRequired = new DerivedProperty<Boolean>(this::deriveInventoryRequired);
     }
 
     /**
@@ -77,12 +68,12 @@ public final class SystemConductor extends AbstractConductor implements Cooperat
             throw new IllegalArgumentException("status must not be null");
         }
 
-        requireNodeProperty(node);
+        boolean found = false;
+        for (TimingNode candidate : nodes) {
+            if (candidate == node) { found = true; break; }
+        }
+        if (!found) { throw new IllegalArgumentException("foreign TimingNode"); }
         taskController.wake();
-    }
-
-    SourceProperty<TimingNode, State> nodeStateProperty(TimingNode node) {
-        return requireNodeProperty(node);
     }
 
     @Override
@@ -93,47 +84,16 @@ public final class SystemConductor extends AbstractConductor implements Cooperat
 
     @Override
     public TaskStep runStep() {
-        refreshSourceProperties();
-        inventoryRequired.recalculate();
-
-        if (antennaManager != null && !antennaManager.setInventoryEnabled(inventoryRequired.currentValue())) {
-            LOG.warn(
-                    "AntennaManager rejected inventory enabled={} managerState={}",
-                    inventoryRequired.currentValue(),
-                    antennaManager.state());
+        boolean required = false;
+        for (TimingNode node : nodes) {
+            Status status = node.query(TimingNodeQueries.status(), ReadConsistency.CURRENT);
+            if (status.state() == State.OPEN) { required = true; }
         }
-
+        if (antennaSettings != null) {
+            final boolean enabled = required;
+            antennaSettings.update(edit -> edit.inventoryEnabled(enabled));
+        }
         return TaskStep.done();
-    }
-
-    private void refreshSourceProperties() {
-        for (SourceProperty<TimingNode, State> property : properties) {
-            Status status =
-                    property.source().query(
-                            TimingNodeQueries.status(),
-                            ReadConsistency.CURRENT);
-            property.update(status.state());
-        }
-    }
-
-    private Boolean deriveInventoryRequired() {
-        for (SourceProperty<TimingNode, State> property : properties) {
-            if (!property.initialized()) {
-                throw new IllegalStateException("TimingNode source property is not initialized");
-            }
-            if (property.currentValue() == State.OPEN) {
-                return Boolean.TRUE;
-            }
-        }
-        return Boolean.FALSE;
-    }
-
-    private SourceProperty<TimingNode, State> requireNodeProperty(TimingNode node) {
-        SourceProperty<TimingNode, State> property = properties.get(node);
-        if (property == null) {
-            throw new IllegalArgumentException("TimingNode does not belong to this TimingSystem");
-        }
-        return property;
     }
 
     private void onControlTaskFailure(Throwable failure) {
