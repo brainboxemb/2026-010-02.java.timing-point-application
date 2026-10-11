@@ -56,6 +56,7 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
     private final AtomicBoolean validRun = new AtomicBoolean();
     private volatile boolean running;
     private boolean available;
+    private boolean simulationAvailable;
     private String runningNode;
     private Future<?> job;
     private long generation;
@@ -154,8 +155,16 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
 
     /** Called from the FX owner after status, selection or capability changes. */
     void refresh(boolean live, boolean simulationEnabled, String nodeId) {
-        available = live && simulationEnabled && nodeId != null
+        simulationAvailable = simulationEnabled;
+        available = live && nodeId != null
                 && !nodeId.isBlank() && !guiBatchRunning.getAsBoolean();
+        if (!running) {
+            state.setText(!live ? "Scripts require Events LIVE (connect and sync)"
+                    : nodeId == null || nodeId.isBlank() ? "Select a TimingNode"
+                    : guiBatchRunning.getAsBoolean() ? "GUI simulation batch is running"
+                    : !simulationEnabled ? "Lua ready; simulation unavailable (TAG_SCENARIO_SIMULATION)"
+                    : "Lua ready (simulation available)");
+        }
         if (running && (!live || !simulationEnabled
                 || !java.util.Objects.equals(nodeId, runningNode))) {
             stopScript();
@@ -176,6 +185,7 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
         }
         final ApiClient client = clientSupplier.get(); // target is fixed for this run.
         final String script = source.getText();
+        final boolean canSimulate = simulationAvailable;
         final long currentGeneration = ++generation;
         runningNode = nodeId;
         running = true;
@@ -189,6 +199,10 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
                 EngineeringLuaEngine.run(script,
                         (regId, profile) -> {
                             if (!validRun.get()) throw new EngineeringLuaEngine.Stopped();
+                            if (!canSimulate) {
+                                throw new IllegalStateException("TAG_SCENARIO_SIMULATION unavailable; "
+                                        + "start SI-01 with config/development-simulation.yml");
+                            }
                             client.simulateRegistration(nodeId, regId, profile);
                         },
                         line -> Platform.runLater(() -> {
@@ -213,9 +227,9 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
             running = false;
             validRun.set(false);
             job = null;
+            refreshControls.run();
             state.setText(message);
             output.appendText(message + "\n");
-            refreshControls.run();
         });
     }
 
