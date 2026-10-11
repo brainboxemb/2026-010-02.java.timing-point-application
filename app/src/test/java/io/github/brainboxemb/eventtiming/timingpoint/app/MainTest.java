@@ -27,6 +27,19 @@ public class MainTest {
             new TemporaryFolder();
 
     @Test
+    public void runtimeThreadNamingUsesCompactMainName() {
+        Thread current = Thread.currentThread();
+        String previous = current.getName();
+        try {
+            current.setName("io.github.example.Main.main()");
+            ApplicationLauncher.nameRuntimeThread();
+            assertEquals("tp-main", current.getName());
+        } finally {
+            current.setName(previous);
+        }
+    }
+
+    @Test
     public void helpReturnsSuccessAndDoesNotUseErrorOutput()
             throws Exception {
         Output output = run("--help");

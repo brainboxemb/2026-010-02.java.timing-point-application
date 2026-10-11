@@ -10,7 +10,7 @@ public final class Main {
     }
 
     public static void main(String[] args) {
-        Thread.currentThread().setName("tp-main");
+        ApplicationLauncher.nameRuntimeThread();
 
         int exitCode = run(
                 args,

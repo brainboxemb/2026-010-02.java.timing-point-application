@@ -33,6 +33,7 @@ final class AsyncLogHandler extends Handler {
     private final AtomicLong droppedRecords = new AtomicLong();
     private final AtomicLong unreportedDroppedRecords = new AtomicLong();
     private final Thread writerThread;
+    private final ConsolePromptCoordinator promptCoordinator;
 
     private volatile boolean accepting = true;
 
@@ -40,6 +41,18 @@ final class AsyncLogHandler extends Handler {
             List<Handler> delegates,
             int queueCapacity,
             long flushIntervalMillis) {
+        this(
+                delegates,
+                queueCapacity,
+                flushIntervalMillis,
+                null);
+    }
+
+    AsyncLogHandler(
+            List<Handler> delegates,
+            int queueCapacity,
+            long flushIntervalMillis,
+            ConsolePromptCoordinator promptCoordinator) {
         if (delegates == null || delegates.isEmpty()) {
             throw new IllegalArgumentException("delegates must not be empty");
         }
@@ -61,6 +74,7 @@ final class AsyncLogHandler extends Handler {
         }
         this.queue = new ArrayBlockingQueue<LogRecord>(queueCapacity);
         this.flushIntervalMillis = flushIntervalMillis;
+        this.promptCoordinator = promptCoordinator;
         setLevel(Level.ALL);
 
         writerThread = new Thread(this::writeLoop, THREAD_NAME);
@@ -153,10 +167,19 @@ final class AsyncLogHandler extends Handler {
         boolean dirty = false;
         try {
             while (accepting || !queue.isEmpty()) {
+                redrawPromptIfDue();
+
+                long waitMillis = flushIntervalMillis;
+                if (promptCoordinator != null) {
+                    waitMillis =
+                            promptCoordinator.nextWakeDelayMillis(
+                                    waitMillis);
+                }
+
                 LogRecord record = null;
                 try {
                     record = queue.poll(
-                            flushIntervalMillis,
+                            waitMillis,
                             TimeUnit.MILLISECONDS);
                 } catch (InterruptedException ex) {
                     if (accepting) {
@@ -176,6 +199,8 @@ final class AsyncLogHandler extends Handler {
                     }
                 }
 
+                redrawPromptIfDue();
+
                 long now = System.nanoTime();
                 if (dirty
                         && now - lastFlushNanos
@@ -186,8 +211,15 @@ final class AsyncLogHandler extends Handler {
                 }
             }
         } finally {
+            redrawPromptIfDue();
             reportDroppedRecords();
             flushDelegates();
+        }
+    }
+
+    private void redrawPromptIfDue() {
+        if (promptCoordinator != null) {
+            promptCoordinator.redrawPromptIfDue();
         }
     }
 
