@@ -54,8 +54,17 @@
         <recursive>false</recursive>
         <goals>
             <goal>process-classes</goal>
-            <goal>exec:java</goal>
+            <goal>exec:exec</goal>
         </goals>
+        <properties>
+            <exec.vmArgs></exec.vmArgs>
+            <exec.args>${exec.vmArgs} -classpath %classpath ${exec.mainClass} ${exec.appArgs}</exec.args>
+            <exec.appArgs>"${maven.multiModuleProjectDirectory}/config/application.yml"</exec.appArgs>
+            <exec.mainClass>io.github.brainboxemb.eventtiming.timingpoint.app.Main</exec.mainClass>
+            <exec.executable>java</exec.executable>
+            <exec.classpathScope>runtime</exec.classpathScope>
+            <exec.longClasspath>true</exec.longClasspath>
+        </properties>
     </action>
     <action>
         <actionName>debug</actionName>
@@ -68,10 +77,17 @@
         <recursive>false</recursive>
         <goals>
             <goal>process-classes</goal>
-            <goal>exec:java</goal>
+            <goal>exec:exec</goal>
         </goals>
         <properties>
-            <jpda.listen>maven</jpda.listen>
+            <exec.vmArgs>-agentlib:jdwp=transport=dt_socket,server=n,address=${jpda.address}</exec.vmArgs>
+            <exec.args>${exec.vmArgs} -classpath %classpath ${exec.mainClass} ${exec.appArgs}</exec.args>
+            <exec.appArgs>"${maven.multiModuleProjectDirectory}/config/application.yml"</exec.appArgs>
+            <exec.mainClass>io.github.brainboxemb.eventtiming.timingpoint.app.Main</exec.mainClass>
+            <exec.executable>java</exec.executable>
+            <exec.classpathScope>runtime</exec.classpathScope>
+            <exec.longClasspath>true</exec.longClasspath>
+            <jpda.listen>true</jpda.listen>
         </properties>
     </action>
 </actions>
