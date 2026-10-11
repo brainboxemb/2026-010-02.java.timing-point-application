@@ -43,12 +43,16 @@
     -fx-background-insets: 0, 1px;
 }
 
-.header-region,
-.header {
-    -fx-background-color: -bento-bg-raised;
+.header-region {
+    -fx-background-color: -bento-bg;
 }
 
+/* Every BentoFX header is visibly a tab, not just adjacent text on a strip. */
 .header {
+    -fx-background-color: -bento-bg-raised;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent -bento-border -bento-border transparent;
+    -fx-border-width: 0 1px 1px 0;
     -fx-padding: 0;
 }
 
@@ -125,12 +129,12 @@
 /* Selected remains visibly selected without implying keyboard focus/activity. */
 .header-pane .header:selected {
     -fx-background-color: -si02-selected-bg;
-    -fx-border-color: transparent;
-    -fx-border-width: 0 0 2px 0;
+    -fx-border-color: transparent -bento-border -bento-border transparent;
+    -fx-border-width: 0 1px 1px 0;
 }
 .header-pane:active .header:selected {
-    -fx-border-color: transparent transparent -bento-accent transparent;
-    -fx-border-width: 0 0 2px 0;
+    -fx-border-color: transparent -bento-border -bento-accent transparent;
+    -fx-border-width: 0 1px 2px 0;
 }
 .header-pane .header:focused {
     -fx-background-color: #deebf8;

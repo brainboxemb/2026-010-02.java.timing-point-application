@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Increase selected BentoFX tab contrast with a dedicated light selection fill token (#dbeaf9); active leaves keep the accent underline while unselected tabs remain on the raised header surface.
+- Restore clear BentoFX tab affordance: the strip has its own surface, every tab has a raised fill plus subtle separator, selected tabs use a dedicated light selection fill (#dbeaf9), and only the active leaf adds the accent underline.
 
 - Restore the neutral selected BentoFX tab fill so a selected tab remains visibly distinct from the raised header strip; the active leaf still adds the restrained accent underline. Add a stylesheet regression test for the selected/active distinction.
 
