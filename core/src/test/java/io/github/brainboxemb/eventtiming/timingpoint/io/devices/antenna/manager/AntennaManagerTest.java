@@ -35,6 +35,30 @@ import static org.junit.Assert.fail;
 public class AntennaManagerTest {
 
     @Test
+    public void desiredSettingsPublishedBeforeActivationAreAppliedAfterSelfTest()
+            throws Exception {
+        ScheduledExecutorService shared = sharedExecutor();
+        SimulatedAntenna antenna = new SimulatedAntenna();
+        AntennaManager manager = manager(
+                Collections.<Antenna>singletonList(antenna),
+                shared,
+                4,
+                Duration.ofSeconds(1));
+
+        try {
+            manager.settings().update(edit -> edit.inventoryEnabled(true));
+            assertFalse(antenna.inventoryRunning());
+
+            manager.activate();
+            awaitCondition(antenna::inventoryRunning, 1000L);
+            assertTrue(antenna.inventoryRunning());
+        } finally {
+            manager.deactivate();
+            shared.shutdownNow();
+        }
+    }
+
+    @Test
     public void activationStartsAsynchronousSelfTestAndAppliesPendingEnable()
             throws Exception {
         ScheduledExecutorService shared =

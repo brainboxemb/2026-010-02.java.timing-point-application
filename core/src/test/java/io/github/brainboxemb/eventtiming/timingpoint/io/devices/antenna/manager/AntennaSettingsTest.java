@@ -1,82 +1,106 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
 import org.junit.Test;
-import static org.junit.Assert.*;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class AntennaSettingsTest {
-    @Test public void commitsOnlyChangedState() {
+    @Test
+    public void commitsOnlyChangedState() {
         AntennaSettings settings = new AntennaSettings();
         AtomicInteger events = new AtomicInteger();
-        settings.changedEvent().subscribe(rev -> events.incrementAndGet());
-        settings.update(s -> s.inventoryEnabled(true));
-        settings.update(s -> s.inventoryEnabled(true));
+        settings.changedEvent().subscribe(revision -> events.incrementAndGet());
+
+        settings.update(edit -> edit.inventoryEnabled(true));
+        settings.update(edit -> edit.inventoryEnabled(true));
+
         assertTrue(settings.inventoryEnabled());
         assertEquals(1L, settings.revision());
         assertEquals(1, events.get());
     }
 
-
-    @Test public void nestedTransactionDoesNotCommitPartialState() {
+    @Test
+    public void exceptionRollsBack() {
         AntennaSettings settings = new AntennaSettings();
         try {
-            settings.update(s -> {
-                s.inventoryEnabled(true);
-                settings.update(nested -> nested.inventoryEnabled(false));
+            settings.update(edit -> {
+                edit.inventoryEnabled(true);
+                throw new IllegalStateException("rollback");
             });
-            fail("nested update should be rejected");
+            fail("expected transaction failure");
         } catch (IllegalStateException expected) {
             assertFalse(settings.inventoryEnabled());
             assertEquals(0L, settings.revision());
         }
-        settings.update(s -> s.inventoryEnabled(true));
+    }
+
+    @Test
+    public void nestedTransactionCannotCommitPartialState() {
+        AntennaSettings settings = new AntennaSettings();
+
+        try {
+            settings.update(edit -> {
+                edit.inventoryEnabled(true);
+                settings.update(nested -> nested.inventoryEnabled(false));
+            });
+            fail("nested update must be rejected");
+        } catch (IllegalStateException expected) {
+            assertFalse(settings.inventoryEnabled());
+            assertEquals(0L, settings.revision());
+        }
+
+        settings.update(edit -> edit.inventoryEnabled(true));
         assertTrue(settings.inventoryEnabled());
     }
 
-    @Test public void concurrentTransactionsHaveConsistentPublishedRevisions() throws Exception {
+    @Test
+    public void concurrentReadersOnlySeeCommittedState() throws Exception {
         AntennaSettings settings = new AntennaSettings();
-        java.util.concurrent.CountDownLatch editStarted = new java.util.concurrent.CountDownLatch(1);
-        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
-        Thread first = new Thread(() -> settings.update(s -> {
-            s.inventoryEnabled(true);
+        CountDownLatch editStarted = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+
+        Thread writer = new Thread(() -> settings.update(edit -> {
+            edit.inventoryEnabled(true);
             editStarted.countDown();
-            try { release.await(); }
-            catch (InterruptedException ex) { Thread.currentThread().interrupt(); }
+            try {
+                release.await();
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+            }
         }));
-        first.start();
-        java.util.concurrent.ExecutorService reader = java.util.concurrent.Executors.newSingleThreadExecutor();
+
+        ExecutorService readerWorker = Executors.newSingleThreadExecutor();
+        writer.start();
         try {
-            assertTrue(editStarted.await(1, java.util.concurrent.TimeUnit.SECONDS));
-            java.util.concurrent.CountDownLatch readerStarted = new java.util.concurrent.CountDownLatch(1);
-            java.util.concurrent.Future<Boolean> published = reader.submit(() -> {
+            assertTrue(editStarted.await(1L, TimeUnit.SECONDS));
+            CountDownLatch readerStarted = new CountDownLatch(1);
+            Future<Boolean> published = readerWorker.submit(() -> {
                 readerStarted.countDown();
                 return settings.inventoryEnabled();
             });
-            assertTrue(readerStarted.await(1, java.util.concurrent.TimeUnit.SECONDS));
-            assertFalse("reader must wait until full transaction is committed", published.isDone());
+            assertTrue(readerStarted.await(1L, TimeUnit.SECONDS));
+            assertFalse("read cannot complete during an uncommitted transaction",
+                    published.isDone());
             release.countDown();
-            assertTrue(published.get(1, java.util.concurrent.TimeUnit.SECONDS));
+            assertTrue(published.get(1L, TimeUnit.SECONDS));
         } finally {
             release.countDown();
-            first.join(1000L);
-            reader.shutdownNow();
+            writer.join(1000L);
+            readerWorker.shutdownNow();
         }
-        assertFalse(first.isAlive());
+
+        assertFalse(writer.isAlive());
         assertTrue(settings.inventoryEnabled());
         assertEquals(1L, settings.revision());
-    }
-
-    @Test public void exceptionRollsBack() {
-        AntennaSettings settings = new AntennaSettings();
-        try {
-            settings.update(s -> {
-                s.inventoryEnabled(true);
-                throw new IllegalStateException("rollback");
-            });
-            fail("expected failure");
-        } catch (IllegalStateException expected) {
-            assertFalse(settings.inventoryEnabled());
-            assertEquals(0L, settings.revision());
-        }
     }
 }

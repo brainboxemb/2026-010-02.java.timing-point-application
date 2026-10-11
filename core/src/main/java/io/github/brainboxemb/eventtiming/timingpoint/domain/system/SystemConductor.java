@@ -53,7 +53,6 @@ public final class SystemConductor extends AbstractConductor implements Cooperat
                     node::activate,
                     node::deactivate);
         }
-
     }
 
     /**
@@ -68,11 +67,9 @@ public final class SystemConductor extends AbstractConductor implements Cooperat
             throw new IllegalArgumentException("status must not be null");
         }
 
-        boolean found = false;
-        for (TimingNode candidate : nodes) {
-            if (candidate == node) { found = true; break; }
+        if (!containsNode(node)) {
+            throw new IllegalArgumentException("TimingNode does not belong to this TimingSystem");
         }
-        if (!found) { throw new IllegalArgumentException("foreign TimingNode"); }
         taskController.wake();
     }
 
@@ -87,13 +84,24 @@ public final class SystemConductor extends AbstractConductor implements Cooperat
         boolean required = false;
         for (TimingNode node : nodes) {
             Status status = node.query(TimingNodeQueries.status(), ReadConsistency.CURRENT);
-            if (status.state() == State.OPEN) { required = true; }
+            if (status.state() == State.OPEN) {
+                required = true;
+            }
         }
         if (antennaSettings != null) {
             final boolean enabled = required;
             antennaSettings.update(edit -> edit.inventoryEnabled(enabled));
         }
         return TaskStep.done();
+    }
+
+    private boolean containsNode(TimingNode node) {
+        for (TimingNode candidate : nodes) {
+            if (candidate == node) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void onControlTaskFailure(Throwable failure) {

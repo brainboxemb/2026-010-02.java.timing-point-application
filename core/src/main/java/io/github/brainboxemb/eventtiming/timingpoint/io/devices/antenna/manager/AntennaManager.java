@@ -108,7 +108,11 @@ public final class AntennaManager implements CooperativeTask {
          */
         selfTestTask.completedEvent().subscribe(this::onSelfTestCompleted);
         inventoryTask.completedEvent().subscribe(this::onInventoryCompleted);
-        settings.changedEvent().subscribe(ignored -> { if (state == State.ACTIVE) { stateMachine.wake(); } });
+        settings.changedEvent().subscribe(ignored -> {
+            if (state == State.ACTIVE) {
+                stateMachine.wake();
+            }
+        });
     }
 
     public synchronized void activate() {
@@ -139,12 +143,17 @@ public final class AntennaManager implements CooperativeTask {
 
     /** Compatibility adapter for existing controls; prefer shared Settings updates. */
     public synchronized boolean setInventoryEnabled(boolean enabled) {
-        if (state != State.ACTIVE) { return false; }
+        if (state != State.ACTIVE) {
+            return false;
+        }
+
         settings.update(edit -> edit.inventoryEnabled(enabled));
         return true;
     }
 
-    public AntennaSettings settings() { return settings; }
+    public AntennaSettings settings() {
+        return settings;
+    }
 
     /**
      * Explicitly requests inventory to become enabled.
