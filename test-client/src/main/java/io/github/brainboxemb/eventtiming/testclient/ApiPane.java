@@ -142,6 +142,10 @@ final class ApiPane {
         return timingPane.scriptsPane();
     }
 
+    void close() {
+        timingPane.close();
+    }
+
     javafx.scene.Node registrationsPane() {
         return timingPane.registrationsPane();
     }

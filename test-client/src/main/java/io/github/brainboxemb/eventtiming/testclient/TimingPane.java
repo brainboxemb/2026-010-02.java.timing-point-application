@@ -345,6 +345,10 @@ final class TimingPane {
         return scriptsPane;
     }
 
+    void close() {
+        scriptsPane.close();
+    }
+
     javafx.scene.Node registrationsPane() {
         return registrationsPane;
     }

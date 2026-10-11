@@ -170,6 +170,10 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
         if (running || !available) return;
         String nodeId = selectedNode.get(); // FX-thread snapshot.
         if (nodeId == null || nodeId.isBlank() || guiBatchRunning.getAsBoolean()) return;
+        if (source.getText().getBytes(StandardCharsets.UTF_8).length > MAX_SCRIPT_BYTES) {
+            state.setText("Script must be <= 128 KiB");
+            return;
+        }
         final ApiClient client = clientSupplier.get(); // target is fixed for this run.
         final String script = source.getText();
         final long currentGeneration = ++generation;
