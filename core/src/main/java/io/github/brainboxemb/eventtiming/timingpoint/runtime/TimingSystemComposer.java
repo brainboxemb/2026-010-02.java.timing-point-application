@@ -28,9 +28,10 @@ import java.util.Map;
  *
  * <p>Only the physical worker pools and application coordination are shared.
  * Nodes, their persistence, logical lanes, antenna set and AntennaManager are
- * built independently for each system. Only the specific AntennaManager is
- * passed to the Domain Conductor; no I/O container crosses that boundary.
- * This class has no lifecycle.</p>
+ * built independently for each system. Runtime passes the shared
+ * AntennaSettings to the Domain Conductor, not AntennaManager itself.
+ * This class also installs event subscriptions before activation; component
+ * constructors do not hide cross-component event wiring. It has no lifecycle.</p>
  */
 final class TimingSystemComposer {
     private static final Duration ANTENNA_CONTROL_TIMEOUT = Duration.ofSeconds(2);
@@ -77,6 +78,10 @@ final class TimingSystemComposer {
                 executors.createSystemConductorExecutor());
 
         applicationConductor.registerTimingSystem(antennaManager, conductor);
+
+        // Composition owns the event graph: each node signals the Conductor,
+        // whose handler only wakes its task. The task later reads CURRENT
+        // node status, so event payloads need not be buffered or replayed.
         for (TimingNode node : nodes) {
             node.statusChangedEvent().subscribe(
                     status -> conductor.onTimingNodeStatusChanged(node, status));
