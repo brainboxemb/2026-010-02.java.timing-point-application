@@ -117,7 +117,7 @@ final class ApplicationLauncher {
                 out.println(startupIdentityLine(buildIdentity));
                 throw ex;
             }
-            runConfiguredApplication(buildIdentity, config, out);
+            runConfiguredApplication(buildIdentity, configPath, config, out);
             return 0;
         } catch (IOException | RuntimeException ex) {
             err.println(
@@ -136,6 +136,7 @@ final class ApplicationLauncher {
      */
     private static void runConfiguredApplication(
             BuildIdentity buildIdentity,
+            Path configPath,
             Config config,
             PrintStream out)
             throws IOException {
@@ -153,6 +154,12 @@ final class ApplicationLauncher {
                 }
             }
             announceStartupIdentity(buildIdentity, logging, out);
+            String parameters = startupParametersLine(configPath, config);
+            if (logging == null) {
+                out.println(parameters);
+            } else {
+                LOGGER.info(parameters);
+            }
             if (config.loggingServer() != null) {
                 if (logging == null) {
                     throw new IllegalStateException(
@@ -254,6 +261,31 @@ final class ApplicationLauncher {
         } else {
             out.println(identityLine);
         }
+    }
+
+    /**
+     * Safe operator-facing startup summary. Do not print YAML contents,
+     * arbitrary CLI strings, credentials or other deployment secrets.
+     */
+    static String startupParametersLine(Path configPath, Config config) {
+        if (configPath == null || config == null) {
+            throw new IllegalArgumentException("Startup config path and config are required");
+        }
+        StringBuilder info = new StringBuilder("Startup parameters: action=START, config=")
+                .append(configPath.toAbsolutePath().normalize());
+        for (Config.TimingSystemConfig system : config.timingSystems()) {
+            info.append("; SystemId=").append(system.timingSystemId())
+                    .append(" NodeIds=");
+            boolean first = true;
+            for (Config.TimingNodeConfig node : system.timingNodes()) {
+                if (!first) info.append(",");
+                info.append(node.timingNodeId().value());
+                first = false;
+            }
+            info.append(" EventDataProvider=").append(system.eventDataProviderId())
+                    .append(" TimingDataProvider=").append(system.timingDataProviderId());
+        }
+        return info.toString();
     }
 
     /** Formats the canonical one-line startup identity. */
