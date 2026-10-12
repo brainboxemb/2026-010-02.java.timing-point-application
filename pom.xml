@@ -33,8 +33,6 @@
     <exec.maven.plugin.version>3.6.4</exec.maven.plugin.version>
     <eventTiming.sourceRef>${git.branch}</eventTiming.sourceRef>
     <eventTiming.buildOrigin>local</eventTiming.buildOrigin>
-    <!-- NetBeans Run/Debug config file; overridden by selected development profile. -->
-    <eventTiming.runConfigFile>application.yml</eventTiming.runConfigFile>
     <!--
       Intentionally pinned to the Java-8-compatible plugin line. It supplies Git/build
       provenance for BuildIdentity; it is not upgraded independently of the Java baseline.
@@ -43,18 +41,16 @@
   </properties>
 
   <profiles>
-    <!-- IDE configuration selectors: only the startup YAML differs. -->
+    <!--
+      NetBeans exposes Maven profiles as selectable project configurations.
+      Configuration-specific Run/Debug bindings live in matching
+      nbactions-dev-reference.xml and nbactions-dev-simulation.xml files.
+    -->
     <profile>
       <id>dev-reference</id>
-      <properties>
-        <eventTiming.runConfigFile>application.yml</eventTiming.runConfigFile>
-      </properties>
     </profile>
     <profile>
       <id>dev-simulation</id>
-      <properties>
-        <eventTiming.runConfigFile>development-simulation.yml</eventTiming.runConfigFile>
-      </properties>
     </profile>
 
     <profile>
