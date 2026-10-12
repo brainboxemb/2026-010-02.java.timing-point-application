@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.eventdata;
 
 import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventDataProvider;
-import io.github.brainboxemb.eventtiming.eventdata.simulation.SimulationEventDataProvider;
+import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 
 import org.junit.Test;
@@ -76,15 +76,9 @@ public class EventDataProviderTest {
     }
 
     @Test
-    public void simulationProviderUsesReferenceGrammarWithinFixtureRange() {
-        EventDataProvider provider =
-                new SimulationEventDataProvider();
+    public void boundedDefaultEventDataUsesReferenceGrammarWithoutAnotherProvider() {
         EventData eventData =
-                provider.createEventData();
-
-        assertEquals(
-                "simulation",
-                provider.id());
+                DefaultEventData.normalOnly(1, 2000);
         assertEquals(
                 2,
                 eventData.tagIdsFor(
