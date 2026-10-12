@@ -59,7 +59,7 @@
         <properties>
             <exec.vmArgs></exec.vmArgs>
             <exec.args>${exec.vmArgs} -classpath %classpath ${exec.mainClass} ${exec.appArgs}</exec.args>
-            <exec.appArgs>--config "${maven.multiModuleProjectDirectory}/config/${eventTiming.runConfigFile}"</exec.appArgs>
+            <exec.appArgs>--config "${maven.multiModuleProjectDirectory}/config/application.yml"</exec.appArgs>
             <exec.mainClass>io.github.brainboxemb.eventtiming.timingpoint.app.Main</exec.mainClass>
             <exec.executable>java</exec.executable>
             <exec.classpathScope>runtime</exec.classpathScope>
@@ -82,7 +82,7 @@
         <properties>
             <exec.vmArgs>-agentlib:jdwp=transport=dt_socket,server=n,address=${jpda.address}</exec.vmArgs>
             <exec.args>${exec.vmArgs} -classpath %classpath ${exec.mainClass} ${exec.appArgs}</exec.args>
-            <exec.appArgs>--config "${maven.multiModuleProjectDirectory}/config/${eventTiming.runConfigFile}"</exec.appArgs>
+            <exec.appArgs>--config "${maven.multiModuleProjectDirectory}/config/application.yml"</exec.appArgs>
             <exec.mainClass>io.github.brainboxemb.eventtiming.timingpoint.app.Main</exec.mainClass>
             <exec.executable>java</exec.executable>
             <exec.classpathScope>runtime</exec.classpathScope>
