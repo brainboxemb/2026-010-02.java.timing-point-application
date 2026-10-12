@@ -30,10 +30,14 @@ import java.util.function.Supplier;
 /** SI-02-only script editor and runner. No scripting support in SI-01. */
 final class EngineeringScriptsPane extends VBox implements AutoCloseable {
     private static final int MAX_SCRIPT_BYTES = 128 * 1024;
-    private static final String STARTER =
-            "-- Client-side Lua: executes against selected LIVE TimingNode via IF-03\n"
-            + "timing.batch{count=10, from=1, to=2000, order='linear',\n"
-            + "             intervalMs=500, profile='normal'}\n";
+    static final String STARTER =
+            "-- Local Lua works while the Engineering Client is LIVE.\n"
+            + "print('Engineering Lua is ready')\n"
+            + "timing.log('Selected TimingNode is LIVE')\n"
+            + "-- For simulated antenna passages, first verify that\n"
+            + "-- TAG_SCENARIO_SIMULATION is enabled in the API tab.\n"
+            + "-- timing.batch{count=10, from=1, to=2000, order='linear',\n"
+            + "--              intervalMs=500, profile='normal'}\n";
 
     private final Supplier<ApiClient> clientSupplier;
     private final Supplier<String> selectedNode;
@@ -76,10 +80,16 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
         source.setPromptText("Enter Lua script or drop a .lua file");
         source.getStyleClass().add("engineering-script-editor");
         output.setEditable(false);
-        output.setWrapText(false);
+        output.setWrapText(true);
         output.getStyleClass().add("engineering-log");
-        HBox toolbar = new HBox(8, open, run, stop, state);
+        // Status must not steal width from the action buttons in narrow dock tabs.
+        HBox toolbar = new HBox(8, open, run, stop);
         toolbar.setAlignment(Pos.CENTER_LEFT);
+        for (Button action : new Button[]{open, run, stop}) {
+            action.setMinWidth(javafx.scene.layout.Region.USE_PREF_SIZE);
+        }
+        state.setWrapText(true);
+        state.setMinHeight(javafx.scene.layout.Region.USE_PREF_SIZE);
         SplitPane editors = new SplitPane(
                 new VBox(new Label("Script"), source),
                 new VBox(new Label("Output"), output));
@@ -90,7 +100,7 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
             VBox box = (VBox) child;
             VBox.setVgrow(box.getChildren().get(1), Priority.ALWAYS);
         }
-        getChildren().addAll(toolbar, editors);
+        getChildren().addAll(toolbar, state, editors);
         getStyleClass().add("engineering-data-pane");
         setSpacing(4);
 
@@ -203,8 +213,9 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
                         (regId, profile) -> {
                             if (!validRun.get()) throw new EngineeringLuaEngine.Stopped();
                             if (!canSimulate) {
-                                throw new IllegalStateException("TAG_SCENARIO_SIMULATION unavailable; "
-                                        + "start SI-01 with config/development-simulation.yml");
+                                throw new IllegalStateException("TAG_SCENARIO_SIMULATION disabled on connected SI-01. "
+                                        + "Check API > Capabilities, verify the SI-01 startup configuration "
+                                        + "and simulated antenna, then reconnect.");
                             }
                             client.simulateRegistration(nodeId, regId, profile);
                         },
@@ -231,7 +242,9 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
             validRun.set(false);
             job = null;
             refreshControls.run();
-            state.setText(message);
+            boolean failed = message.startsWith("Error:");
+            state.setText(failed ? "Script failed — see Output" : message);
+            state.setTooltip(failed ? new Tooltip(message) : null);
             output.appendText(message + "\n");
         });
     }
