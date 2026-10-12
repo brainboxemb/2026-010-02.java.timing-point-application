@@ -185,6 +185,10 @@ final class ApiPane {
     }
 
     private void showCapabilities(ApiClient.CapabilitiesResult result) {
+        if (result == null) {
+            capabilities.setText("UNKNOWN — sync failed or in progress");
+            return;
+        }
         StringBuilder display = new StringBuilder();
         for (ApiClient.CapabilityInfo entry : result.capabilities()) {
             if (display.length() > 0) display.append("\n");
