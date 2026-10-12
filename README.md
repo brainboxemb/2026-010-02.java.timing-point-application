@@ -35,6 +35,31 @@ Formal packaged-process black-box verification is explicit:
 ./mvnw verify -Psystem-test
 ```
 
+## NetBeans development configurations
+
+The Maven parent project exposes two selectable NetBeans configurations
+in **Project > Properties > Configurations** / **Set Configuration**:
+
+- **dev-reference** — Run and Debug SI-01 with `config/application.yml`.
+  This uses `reference` EventData, providing algorithmic tag/registration mapping.
+- **dev-simulation** — Run and Debug SI-01 with `config/development-simulation.yml`.
+  This uses the bounded `simulation` EventData fixture and separate LogBook.
+
+Normal/default also starts with `config/application.yml`. Select a configuration
+on the **Timing Point Parent** Maven project, then run or debug the project.
+Both use the external Java process (`exec:exec`), not Maven's in-process
+`exec:java`. Restart SI-01 when switching profiles and reconnect SI-02.
+
+**SimulatedAntenna produces tag observations.** EventData only maps TagIds,
+RegistrationIds and TeamIds; choosing the `simulation` EventData provider is
+not what enables the simulated antenna. The capability is advertised by the
+actual antenna composition and topology. Look under the SI-02 **API** tab for
+the connected application's `TAG_SCENARIO_SIMULATION` value.
+
+On successful start, the SI-01 log records `Startup parameters` with the
+selected YAML's resolved path and the configured SystemIds, NodeIds and provider
+names. It does not dump the YAML file or secrets.
+
 ## Startup command line
 
 Show the startup options provided by the packaged application:
@@ -84,7 +109,7 @@ test-client/          standalone JavaFX Development Client
 docs/                 focused repository support documentation
 ```
 
-The Development Client is engineering tooling, not SI-02.
+The Engineering Client is **SI-02**, a reusable desktop software item.
 
 ## Read next
 

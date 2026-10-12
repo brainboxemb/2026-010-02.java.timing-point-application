@@ -137,6 +137,11 @@ For the formal `VC-ST1-003` running-system check, follow
 [VC-ST1-003.md](VC-ST1-003.md); it uses dedicated verification storage so normal
 development TimingData is not modified.
 
+The default script in **Scripts** is a harmless local Lua smoke test; uncomment the
+`timing.batch` example only when the connected SI-01 advertises an enabled
+`TAG_SCENARIO_SIMULATION` capability. A capability error reports SI-01's
+current response; reconnect/restart SI-01 after switching startup profiles.
+
 ## Windows app-image
 
 With `JAVA_HOME` pointing to a full JDK 21, build the self-contained Windows

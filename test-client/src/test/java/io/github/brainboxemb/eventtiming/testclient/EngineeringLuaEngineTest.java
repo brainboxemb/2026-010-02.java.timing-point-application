@@ -55,6 +55,18 @@ class EngineeringLuaEngineTest {
                 (id, p) -> fail("should not simulate"), x -> {}, () -> true);
     }
 
+    @Test void localCapabilityRefusalIsNotReportedAsServerRejection() {
+        LuaError ex = assertThrows(LuaError.class, () ->
+                EngineeringLuaEngine.run("timing.simulate('RT-A-0001', 'simple')",
+                        (id, profile) -> {
+                            throw new EngineeringLuaEngine.CapabilityUnavailable(
+                                    "TAG_SCENARIO_SIMULATION disabled");
+                        },
+                        message -> {}, () -> true));
+        assertTrue(ex.getMessage().contains("Simulation not submitted:"));
+        assertFalse(ex.getMessage().contains("IF-03 simulation rejected:"));
+    }
+
     @Test void invalidBatchStopsBeforeApiCall() {
         assertThrows(LuaError.class, () ->
                 EngineeringLuaEngine.run("timing.batch{count=10001}",
