@@ -35,9 +35,12 @@ timing.sleep(1000)
 are `simple`, `normal` or `edge`. Registrations use the same
 `RT-A-%04d` generator as the Simulation GUI. The currently selected
 LIVE TimingNode is captured when Run starts; disconnect, node change or
-loss of simulation capability stops the script. Script and GUI simulation
-batches cannot run concurrently. IF-03 remains the only operation boundary.
-See [examples/batch.lua](examples/batch.lua) for an editable example.
+loss of connection stops the script. Simulation calls separately require the
+TAG_SCENARIO_SIMULATION capability. Script and GUI simulation batches cannot
+run concurrently. IF-03 remains the only operation boundary.
+See the [Lua language/API reference](docs/lua-scripting.md) for supported calls,
+requirements and troubleshooting, and [examples/batch.lua](examples/batch.lua)
+for an editable example.
 
 The interpreter intentionally does **not** expose `luajava`, filesystem
 `io`, process `os`, package loaders or Java reflection. These restrictions
@@ -120,6 +123,7 @@ That configuration selects the bounded public `simulation` EventData profile for
 `TT-A-NNNN-1` and `TT-A-NNNN-2`, while keeping simulation TimingData in a
 dedicated file. The normal `config/application.yml` uses the algorithmic
 `reference` EventData profile.
+
 The IF-03 `TAG_SCENARIO_SIMULATION` capability is now determined by an actual
 composed `SimulatedAntenna` (plus single-system/single-node topology and nonempty
 EventData), not by a particular EventData provider name. On the one-node Windows
@@ -128,7 +132,6 @@ simulated tags as well. Physical-antenna compositions do not advertise it.
 The **API** tab displays the raw capability IDs with their `supported` and
 `enabled` values after an Events baseline sync. Before sync, the values are
 unknown—not disabled.
-
 
 For the formal `VC-ST1-003` running-system check, follow
 [VC-ST1-003.md](VC-ST1-003.md); it uses dedicated verification storage so normal
