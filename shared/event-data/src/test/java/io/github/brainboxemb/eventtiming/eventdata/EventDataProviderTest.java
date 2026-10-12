@@ -47,6 +47,15 @@ public class EventDataProviderTest {
                 eventData.registrationIdFor(
                         new TeamId("0001")));
 
+        // The normal reference profile is not limited to a simulation fixture.
+        RegistrationId upperNormal = new RegistrationId("RT-A-9999");
+        assertEquals(
+                upperNormal,
+                eventData.registrationIdFor(new TagId("TT-A-9999-1")));
+        assertEquals(
+                new RegistrationId("RT-A-2001"),
+                eventData.registrationIdFor(new TagId("TT-A-2001-2")));
+
         RegistrationId reserve =
                 new RegistrationId("RT-R-0001");
         assertEquals(
