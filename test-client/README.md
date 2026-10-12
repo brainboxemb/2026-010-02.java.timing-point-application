@@ -118,11 +118,12 @@ start SI-01 with:
 java -jar app\target\timing-point-app-<version>.jar config\development-simulation.yml
 ```
 
-That configuration selects the bounded public `simulation` EventData profile for
-`RT-A-0001` through `RT-A-2000`, using physical tag pairs
-`TT-A-NNNN-1` and `TT-A-NNNN-2`, while keeping simulation TimingData in a
-dedicated file. The normal `config/application.yml` uses the algorithmic
-`reference` EventData profile.
+That configuration uses the same algorithmic `reference` EventData provider
+as `config/application.yml`: normal tag/registration mappings span
+`RT-A-0001` through `RT-A-9999`, with paired tags `TT-A-NNNN-1/2`.
+Its dedicated TimingData file isolates engineering experiments from normal
+development history. A simulated antenna, not a special EventData provider,
+generates tag observations.
 
 The IF-03 `TAG_SCENARIO_SIMULATION` capability is now determined by an actual
 composed `SimulatedAntenna` (plus single-system/single-node topology and nonempty

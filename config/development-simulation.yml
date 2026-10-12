@@ -1,15 +1,16 @@
 # Development configuration for the built-in simulated-tag scenario path.
 #
 # On Windows the current development platform fallback composes SimulatedAntenna 1.
-# The simulated antenna (with a single system/node and nonempty EventData) makes
-# TAG_SCENARIO_SIMULATION available. Selecting the simulation EventData provider
-# gives a finite 2000-team dataset but is not required to enable the capability.
+# The antenna, supported topology and nonempty EventData determine
+# TAG_SCENARIO_SIMULATION, not the EventData provider.
+# This profile uses the SAME reference EventData as the normal configuration;
+# the isolated LogBook lets engineers run experiments without changing normal data.
 parameters:
   ID: A
 
 timingSystems:
   - systemId: "{ID}"
-    eventDataProvider: simulation
+    eventDataProvider: reference
     timingDataProvider: reference
 
     timingNodes:
