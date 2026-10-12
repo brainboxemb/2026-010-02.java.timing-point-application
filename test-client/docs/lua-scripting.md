@@ -3,6 +3,9 @@
 SI-02 embeds **LuaJ 3.0.1** (Lua 5.2-style language). Scripts execute **locally in the Engineering Client**, never in SI-01.
 
 ## Run and availability
+
+The editor starts with a **local-only hello/log example**; the simulated-tag batch is commented out. A normal script remains runnable without tag-simulation support, whereas uncommenting the batch requires SI-01 to advertise the enabled capability. If the client says `TAG_SCENARIO_SIMULATION unavailable`, inspect the **API** tab and verify you restarted the *SI-01 process* with the intended NetBeans configuration; upgrading SI-02 alone does not alter SI-01 capabilities.
+
 1. Connect Events and wait for baseline synchronisation (**LIVE**). Select a TimingNode.
 2. In **Scripts**, edit the source, use **Open .lua**, or drag a UTF-8 `.lua` file onto the Scripts panel.
 3. Click **Run**; read Output and use **Stop** to cancel. Opening or dropping a script does not execute it.
