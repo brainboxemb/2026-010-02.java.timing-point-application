@@ -34,7 +34,7 @@ timing.batch{count=10, from=1, to=100, order="random",
 See [../examples/batch.lua](../examples/batch.lua) for the maintained example.
 
 ## Boundaries
-One script at a time; GUI and Lua batches cannot run simultaneously. A script captures the selected node at start; disconnect, node change or loss of simulation capability stops it. Maximum script file size: 128 KiB. Stop cannot undo already accepted commands.
+One script at a time; GUI and Lua batches cannot run simultaneously. A script captures the selected node at start; disconnect or node change stops it. Simulation calls require the advertised capability. Maximum script file size: 128 KiB. Stop cannot undo already accepted commands.
 
 The interpreter does not expose `io`, `os`, `package`, `require`, `luajava`, `loadfile`, `dofile`, Java reflection, or arbitrary process/file/network access. The restrictions are not a security sandbox: run trusted engineering scripts only.
 
