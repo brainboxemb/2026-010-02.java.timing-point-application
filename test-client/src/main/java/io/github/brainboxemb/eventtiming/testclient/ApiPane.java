@@ -185,18 +185,7 @@ final class ApiPane {
     }
 
     private void showCapabilities(ApiClient.CapabilitiesResult result) {
-        if (result == null) {
-            capabilities.setText("UNKNOWN — sync failed or in progress");
-            return;
-        }
-        StringBuilder display = new StringBuilder();
-        for (ApiClient.CapabilityInfo entry : result.capabilities()) {
-            if (display.length() > 0) display.append("\n");
-            display.append(entry.id()).append("   ")
-                    .append(entry.supported() ? "yes" : "no").append(" / ")
-                    .append(entry.enabled() ? "yes" : "no");
-        }
-        capabilities.setText(display.length() == 0 ? "No capabilities advertised" : display.toString());
+        capabilities.setText(CapabilityDisplay.format(result));
     }
 
     private void loadVersion() {
