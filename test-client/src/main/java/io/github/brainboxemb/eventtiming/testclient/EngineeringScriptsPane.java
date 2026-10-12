@@ -213,7 +213,7 @@ final class EngineeringScriptsPane extends VBox implements AutoCloseable {
                         (regId, profile) -> {
                             if (!validRun.get()) throw new EngineeringLuaEngine.Stopped();
                             if (!canSimulate) {
-                                throw new IllegalStateException("TAG_SCENARIO_SIMULATION disabled on connected SI-01. "
+                                throw new EngineeringLuaEngine.CapabilityUnavailable("TAG_SCENARIO_SIMULATION disabled on connected SI-01. "
                                         + "Check API > Capabilities, verify the SI-01 startup configuration "
                                         + "and simulated antenna, then reconnect.");
                             }
