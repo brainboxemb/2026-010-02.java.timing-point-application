@@ -7,7 +7,7 @@ SI-02 embeds **LuaJ 3.0.1** (Lua 5.2-style language). Scripts execute **locally 
 2. In **Scripts**, edit the source, use **Open .lua**, or drag a UTF-8 `.lua` file onto the Scripts panel.
 3. Click **Run**; read Output and use **Stop** to cancel. Opening or dropping a script does not execute it.
 
-Local Lua scripts can run when the client is LIVE even if simulation is disabled. **Simulation** commands require the separate SI-01 capability `TAG_SCENARIO_SIMULATION`. In the default `config/application.yml`, `eventDataProvider: reference` does not provide that capability. To enable simulation, start SI-01 with `config/development-simulation.yml` (provider `simulation`), then reconnect/sync.
+Local Lua scripts can run when the client is LIVE even if simulation is disabled. **Simulation** commands require the separate SI-01 capability `TAG_SCENARIO_SIMULATION`. The capability depends on a configured simulated antenna and compatible topology/data, **not** on a specific EventData provider ID. On Windows, the current single-node development fallback uses `SimulatedAntenna`, so both the default `config/application.yml` (`reference` EventData) and `config/development-simulation.yml` (`simulation` EventData) can advertise it. The latter uses a dedicated simulation LogBook. A physical-antenna runtime must not expose simulated-tag control unless that capability is explicitly composed. Verify the actual advertised values in the Engineering Client **API** tab after Events reaches LIVE.
 
 ## Application API
 - `timing.log(text)`: append to script Output.
