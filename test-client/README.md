@@ -118,11 +118,20 @@ start SI-01 with:
 java -jar app\target\timing-point-app-<version>.jar config\development-simulation.yml
 ```
 
-That configuration selects the public `simulation` EventData profile for
+That configuration selects the bounded public `simulation` EventData profile for
 `RT-A-0001` through `RT-A-2000`, using physical tag pairs
 `TT-A-NNNN-1` and `TT-A-NNNN-2`, while keeping simulation TimingData in a
 dedicated file. The normal `config/application.yml` uses the algorithmic
 `reference` EventData profile.
+
+The IF-03 `TAG_SCENARIO_SIMULATION` capability is now determined by an actual
+composed `SimulatedAntenna` (plus single-system/single-node topology and nonempty
+EventData), not by a particular EventData provider name. On the one-node Windows
+development fallback, the normal `reference` profile can therefore support
+simulated tags as well. Physical-antenna compositions do not advertise it.
+The **API** tab displays the raw capability IDs with their `supported` and
+`enabled` values after an Events baseline sync. Before sync, the values are
+unknown—not disabled.
 
 For the formal `VC-ST1-003` running-system check, follow
 [VC-ST1-003.md](VC-ST1-003.md); it uses dedicated verification storage so normal

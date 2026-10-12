@@ -1,8 +1,9 @@
 # Development configuration for the built-in simulated-tag scenario path.
 #
 # On Windows the current development platform fallback composes SimulatedAntenna 1.
-# Selecting the public "simulation" EventData provider enables the capability-gated
-# TAG_SCENARIO_SIMULATION IF-03 operation used by the Development Client.
+# The simulated antenna (with a single system/node and nonempty EventData) makes
+# TAG_SCENARIO_SIMULATION available. Selecting the simulation EventData provider
+# gives a finite 2000-team dataset but is not required to enable the capability.
 parameters:
   ID: A
 

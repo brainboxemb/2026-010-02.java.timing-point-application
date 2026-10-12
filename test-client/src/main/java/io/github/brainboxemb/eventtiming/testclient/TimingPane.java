@@ -114,6 +114,7 @@ final class TimingPane {
 
     private boolean updatingNodeSelection;
     private final List<ApiEventClient.ApiEvent> bufferedEvents = new ArrayList<>();
+    private Consumer<ApiClient.CapabilitiesResult> capabilitiesListener = ignored -> {};
 
     TimingPane(
             Supplier<ApiClient> clientSupplier,
@@ -345,6 +346,10 @@ final class TimingPane {
         return scriptsPane;
     }
 
+    void setCapabilitiesListener(Consumer<ApiClient.CapabilitiesResult> listener) {
+        capabilitiesListener = java.util.Objects.requireNonNull(listener);
+    }
+
     void close() {
         scriptsPane.close();
     }
@@ -453,6 +458,7 @@ final class TimingPane {
 
         bufferedEvents.clear();
         model.viewState(TimingViewModel.ViewState.SYNCING);
+        capabilitiesListener.accept(null);
         historyState.setText("SYNCING");
         feedback.accept("Synchronising API history...");
         refresh();
@@ -526,6 +532,7 @@ final class TimingPane {
                     }
                     if (error != null) {
                         model.viewState(TimingViewModel.ViewState.STALE);
+                        capabilitiesListener.accept(null);
                         historyState.setText("STALE — sync failed");
                         handleApiFailure("History sync", error);
                         refresh();
@@ -537,6 +544,7 @@ final class TimingPane {
                     model.applyStatus(result.status());
                     syncNodeChoice();
                     model.applyCapabilities(result.capabilities());
+                    capabilitiesListener.accept(result.capabilities());
                     if (result.replace()) {
                         model.clearLogBook();
                     }

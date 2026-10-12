@@ -2,7 +2,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.EventDataProvider;
-import io.github.brainboxemb.eventtiming.eventdata.simulation.SimulationEventDataProvider;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider;
@@ -209,8 +208,8 @@ final class TimingApplicationComposition {
             resolvedSystems.add(
                     new TimingSystemResolvedData(
                             timingSystem,
-                            SimulationEventDataProvider.ID.equals(
-                                    eventDataProvider.id()),
+                            true, // Availability is derived from a composed simulated antenna,
+                                  // topology and non-empty EventData, not provider identity.
                             eventDataProvider.createEventData(),
                             timingDataProvider.createFactory(),
                             timingDataProvider.createCodec()));

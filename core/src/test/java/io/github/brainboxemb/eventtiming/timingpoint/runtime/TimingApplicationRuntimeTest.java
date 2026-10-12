@@ -8,6 +8,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
+import io.github.brainboxemb.eventtiming.timingpoint.application.SimulationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
@@ -394,8 +395,9 @@ public class TimingApplicationRuntimeTest {
         assertTrue(
                 "Windows normal composition should include AntennaManager",
                 application.antennaManager() != null);
-        assertFalse(
-                "reference EventData must not enable engineering tag scenarios",
+        assertTrue(
+                "The composed Windows simulated antenna and nonempty reference EventData "
+                        + "should enable engineering tag scenarios",
                 application
                         .presentationGateway()
                         .capabilities()
@@ -430,6 +432,27 @@ public class TimingApplicationRuntimeTest {
                             .operation()
                             == AntennaOperation.INVENTORY,
                     1000L);
+
+            // Verify not just the advertised flag: reference EventData must
+            // also support a real tag-scenario passage through TagProcessor.
+            CountDownLatch simulatedCommit = new CountDownLatch(1);
+            application.presentationGateway()
+                    .timingNode(new NodeId("A"))
+                    .timingDataCommittedEvent()
+                    .subscribe(data -> {
+                        if (data instanceof AutomaticRegistration
+                                && new RegistrationId("RT-A-0042")
+                                        .equals(((AutomaticRegistration) data).registrationId())) {
+                            simulatedCommit.countDown();
+                        }
+                    });
+            assertEquals(
+                    SimulationControl.StartResult.ACCEPTED,
+                    application.presentationGateway().simulation()
+                            .startRegistration(new RegistrationId("RT-A-0042"), "simple"));
+            assertTrue(
+                    "Reference EventData passage should commit through the antenna path",
+                    simulatedCommit.await(3L, TimeUnit.SECONDS));
 
             application.timingNode().invoke(
                     TimingNodeCommands.close());
