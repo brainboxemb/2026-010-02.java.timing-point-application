@@ -394,8 +394,9 @@ public class TimingApplicationRuntimeTest {
         assertTrue(
                 "Windows normal composition should include AntennaManager",
                 application.antennaManager() != null);
-        assertFalse(
-                "reference EventData must not enable engineering tag scenarios",
+        assertTrue(
+                "The composed Windows simulated antenna and nonempty reference EventData "
+                        + "should enable engineering tag scenarios",
                 application
                         .presentationGateway()
                         .capabilities()
