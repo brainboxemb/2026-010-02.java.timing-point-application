@@ -42,6 +42,11 @@ final class EngineeringLuaEngine {
         Stopped() { super("Script stopped"); }
     }
 
+    /** Local capability gate: no IF-03 command was sent to the server. */
+    static final class CapabilityUnavailable extends Exception {
+        CapabilityUnavailable(String message) { super(message); }
+    }
+
     private EngineeringLuaEngine() { }
 
     static void run(String source, SimulationSender sender,
@@ -185,6 +190,9 @@ final class EngineeringLuaEngine {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new Stopped();
+        } catch (CapabilityUnavailable ex) {
+            check.run();
+            throw new LuaError("Simulation not submitted: " + ex.getMessage());
         } catch (Exception ex) {
             check.run();
             throw new LuaError("IF-03 simulation rejected: " + ex.getMessage());
