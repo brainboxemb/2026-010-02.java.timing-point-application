@@ -471,7 +471,7 @@ public class TimingApplicationRuntimeTest {
     }
 
     @Test
-    public void windowsSimulationProfileEnablesTagScenarioCapability() {
+    public void windowsDevelopmentLogbookCanSimulateWithReferenceEventData() {
         Path file =
                 temporaryFolder
                         .getRoot()
@@ -493,7 +493,7 @@ public class TimingApplicationRuntimeTest {
                         config(
                                 file,
                                 TagProcessingPolicy.defaults(),
-                                "simulation",
+                                "reference",
                                 "reference"),
                         windows);
 
