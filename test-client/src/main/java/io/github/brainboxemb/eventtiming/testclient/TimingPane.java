@@ -114,6 +114,7 @@ final class TimingPane {
 
     private boolean updatingNodeSelection;
     private final List<ApiEventClient.ApiEvent> bufferedEvents = new ArrayList<>();
+    private Consumer<ApiClient.CapabilitiesResult> capabilitiesListener = ignored -> {};
 
     TimingPane(
             Supplier<ApiClient> clientSupplier,
@@ -345,6 +346,10 @@ final class TimingPane {
         return scriptsPane;
     }
 
+    void setCapabilitiesListener(Consumer<ApiClient.CapabilitiesResult> listener) {
+        capabilitiesListener = java.util.Objects.requireNonNull(listener);
+    }
+
     void close() {
         scriptsPane.close();
     }
@@ -537,6 +542,7 @@ final class TimingPane {
                     model.applyStatus(result.status());
                     syncNodeChoice();
                     model.applyCapabilities(result.capabilities());
+                    capabilitiesListener.accept(result.capabilities());
                     if (result.replace()) {
                         model.clearLogBook();
                     }
