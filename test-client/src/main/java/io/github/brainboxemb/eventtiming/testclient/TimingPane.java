@@ -458,6 +458,7 @@ final class TimingPane {
 
         bufferedEvents.clear();
         model.viewState(TimingViewModel.ViewState.SYNCING);
+        capabilitiesListener.accept(null);
         historyState.setText("SYNCING");
         feedback.accept("Synchronising API history...");
         refresh();
@@ -531,6 +532,7 @@ final class TimingPane {
                     }
                     if (error != null) {
                         model.viewState(TimingViewModel.ViewState.STALE);
+                        capabilitiesListener.accept(null);
                         historyState.setText("STALE — sync failed");
                         handleApiFailure("History sync", error);
                         refresh();
