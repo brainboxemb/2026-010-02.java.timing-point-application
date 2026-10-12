@@ -29,6 +29,7 @@ final class ApiPane {
     private final Label application = valueLabel();
     private final Label version = valueLabel();
     private final Label apiVersion = valueLabel();
+    private final TextArea capabilities = new TextArea("NOT SYNCED");
     private final TextArea rawResponse = new TextArea();
     private final javafx.scene.Node rawDataPane;
     private final javafx.scene.Node apiInfoPane;
@@ -63,7 +64,12 @@ final class ApiPane {
         identity.addRow(2, new Label("API version"), apiVersion);
         versionButton.setText("Refresh version");
         statusButton.setText("Refresh status");
-        VBox apiInfo = new VBox(8, identity, new HBox(8, versionButton, statusButton));
+        capabilities.setEditable(false);
+        capabilities.setWrapText(false);
+        capabilities.setPrefRowCount(5);
+        capabilities.setPromptText("No capabilities received");
+        VBox apiInfo = new VBox(8, identity, new HBox(8, versionButton, statusButton),
+                new Label("IF-03 capabilities — supported / enabled"), capabilities);
         apiInfo.getStyleClass().add("engineering-form");
         apiInfoPane = apiInfo;
 
@@ -75,6 +81,7 @@ final class ApiPane {
                 feedback,
                 apiState,
                 clientLog);
+        timingPane.setCapabilitiesListener(this::showCapabilities);
 
         rawResponse.setEditable(false);
         rawResponse.setWrapText(false);
@@ -104,6 +111,7 @@ final class ApiPane {
         version.setText("-");
         apiVersion.setText("-");
         rawResponse.clear();
+        capabilities.setText("NOT SYNCED");
     }
 
     void setLogBookCountListener(java.util.function.Consumer<Long> listener) {
@@ -159,10 +167,12 @@ final class ApiPane {
     }
 
     void connected() {
+        capabilities.setText("SYNCING");
         timingPane.connected();
     }
 
     void disconnected(boolean stale) {
+        capabilities.setText(stale ? "STALE — reconnect and sync" : "NOT SYNCED");
         timingPane.disconnected(stale);
     }
 
@@ -172,6 +182,17 @@ final class ApiPane {
 
     void applyTimingDataEvent(ApiEventClient.TimingDataEvent event) {
         timingPane.applyTimingDataEvent(event);
+    }
+
+    private void showCapabilities(ApiClient.CapabilitiesResult result) {
+        StringBuilder display = new StringBuilder();
+        for (ApiClient.CapabilityInfo entry : result.capabilities()) {
+            if (display.length() > 0) display.append("\n");
+            display.append(entry.id()).append("   ")
+                    .append(entry.supported() ? "yes" : "no").append(" / ")
+                    .append(entry.enabled() ? "yes" : "no");
+        }
+        capabilities.setText(display.length() == 0 ? "No capabilities advertised" : display.toString());
     }
 
     private void loadVersion() {
