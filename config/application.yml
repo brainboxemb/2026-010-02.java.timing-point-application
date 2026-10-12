@@ -6,7 +6,11 @@ parameters:
 timingSystems:
   - systemId: "{ID}"
 
-    # Event data is independent of the antenna implementation. On Windows the\n    # single-node development fallback composes SimulatedAntenna and now\n    # advertises TAG_SCENARIO_SIMULATION when EventData is nonempty.\n    # Production/real antenna compositions do not gain this capability.\n    # Built-in public/reference provider selections.
+    # EventData maps TagId, RegistrationId and TeamId independently of the
+    # physical or simulated antenna implementation. The built-in reference
+    # provider is used by both normal and development-simulation profiles.
+    # On Windows the single-node development fallback composes SimulatedAntenna;
+    # physical antenna compositions do not gain tag simulation automatically.
     eventDataProvider: reference
     timingDataProvider: reference
 

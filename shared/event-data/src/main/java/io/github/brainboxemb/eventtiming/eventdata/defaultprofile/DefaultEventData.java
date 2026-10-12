@@ -47,8 +47,8 @@ public final class DefaultEventData extends EventData {
     /**
      * Creates a deterministic range-limited profile.
      *
-     * <p>This is used by engineering simulation to keep its advertised fixture
-     * range bounded while reusing the same identifier grammar.</p>
+     * <p>Range-limited data sets are useful in deterministic fixtures.
+     * They do not enable or implement antenna simulation.</p>
      */
     public DefaultEventData(
             int firstNumber,

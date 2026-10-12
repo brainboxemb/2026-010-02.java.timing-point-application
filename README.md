@@ -43,7 +43,8 @@ in **Project > Properties > Configurations** / **Set Configuration**:
 - **dev-reference** — Run and Debug SI-01 with `config/application.yml`.
   This uses `reference` EventData, providing algorithmic tag/registration mapping.
 - **dev-simulation** — Run and Debug SI-01 with `config/development-simulation.yml`.
-  This uses the bounded `simulation` EventData fixture and separate LogBook.
+  This uses the same `reference` EventData mapping as normal startup but a
+  separate engineering LogBook.
 
 Normal/default also starts with `config/application.yml`. Select a configuration
 on the **Timing Point Parent** Maven project, then run or debug the project.
@@ -51,10 +52,11 @@ Both use the external Java process (`exec:exec`), not Maven's in-process
 `exec:java`. Restart SI-01 when switching profiles and reconnect SI-02.
 
 **SimulatedAntenna produces tag observations.** EventData only maps TagIds,
-RegistrationIds and TeamIds; choosing the `simulation` EventData provider is
-not what enables the simulated antenna. The capability is advertised by the
-actual antenna composition and topology. Look under the SI-02 **API** tab for
-the connected application's `TAG_SCENARIO_SIMULATION` value.
+RegistrationIds and TeamIds, regardless of whether the antenna is physical or
+simulated. The `reference` provider supplies the same mapping in both profiles.
+The capability is advertised by the actual antenna composition and topology.
+Check the connected SI-01's `TAG_SCENARIO_SIMULATION` value in the SI-02
+**API** tab.
 
 On successful start, the SI-01 log records `Startup parameters` with the
 selected YAML's resolved path and the configured SystemIds, NodeIds and provider

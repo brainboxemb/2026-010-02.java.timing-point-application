@@ -2,7 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
-import io.github.brainboxemb.eventtiming.eventdata.simulation.SimulationEventDataProvider;
+import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventDataProvider;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData.AutomaticRegistration;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
@@ -195,7 +195,7 @@ public class SimulationRuntimeScenarioTest {
                         identity(),
                         config(),
                         antenna,
-                        new SimulationEventDataProvider()
+                        new DefaultEventDataProvider()
                                 .createEventData());
 
         List<TagObservation> observations =
@@ -343,7 +343,7 @@ public class SimulationRuntimeScenarioTest {
     }
 
     private static EventData eventData() {
-        return new SimulationEventDataProvider()
+        return new DefaultEventDataProvider()
                 .createEventData();
     }
 
