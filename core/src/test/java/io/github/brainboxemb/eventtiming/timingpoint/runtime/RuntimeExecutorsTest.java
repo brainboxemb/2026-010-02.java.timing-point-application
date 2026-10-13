@@ -28,7 +28,7 @@ public class RuntimeExecutorsTest {
     }
 
     @Test
-    public void timingNodesShareOnePhysicalNodeWorker()
+    public void timingNodeDataLanesShareOnePhysicalNodeWorker()
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
         RuntimeExecutors.TimingNodeExecutors first =
@@ -43,19 +43,19 @@ public class RuntimeExecutorsTest {
                 new AtomicReference<String>();
         CountDownLatch done = new CountDownLatch(2);
 
-        first.timingNode().start();
-        second.timingNode().start();
+        first.dataLane().start();
+        second.dataLane().start();
         try {
             assertEquals(
                     SerialExecutor.AdmissionResult.ACCEPTED,
-                    first.timingNode().offer(() -> {
+                    first.dataLane().offer(() -> {
                         firstThread.set(
                                 Thread.currentThread().getName());
                         done.countDown();
                     }));
             assertEquals(
                     SerialExecutor.AdmissionResult.ACCEPTED,
-                    second.timingNode().offer(() -> {
+                    second.dataLane().offer(() -> {
                         secondThread.set(
                                 Thread.currentThread().getName());
                         done.countDown();
@@ -69,8 +69,54 @@ public class RuntimeExecutorsTest {
                     firstThread.get(),
                     secondThread.get());
         } finally {
-            first.timingNode().close();
-            second.timingNode().close();
+            first.dataLane().close();
+            second.dataLane().close();
+            runtime.close();
+        }
+    }
+
+    @Test
+    public void timingNodeDataAndTaskLanesShareTheSamePhysicalWorker()
+            throws Exception {
+        RuntimeExecutors runtime = new RuntimeExecutors();
+        RuntimeExecutors.TimingNodeExecutors lanes =
+                runtime.createTimingNodeExecutors();
+        runtime.start();
+
+        AtomicReference<String> dataThread =
+                new AtomicReference<String>();
+        AtomicReference<String> taskThread =
+                new AtomicReference<String>();
+        CountDownLatch done = new CountDownLatch(2);
+
+        lanes.dataLane().start();
+        lanes.taskLane().start();
+        try {
+            assertEquals(
+                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    lanes.dataLane().offer(() -> {
+                        dataThread.set(
+                                Thread.currentThread().getName());
+                        done.countDown();
+                    }));
+            assertEquals(
+                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    lanes.taskLane().offer(() -> {
+                        taskThread.set(
+                                Thread.currentThread().getName());
+                        done.countDown();
+                    }));
+
+            assertTrue(done.await(1, TimeUnit.SECONDS));
+            assertEquals(
+                    "tp-dl-node-worker",
+                    dataThread.get());
+            assertEquals(
+                    dataThread.get(),
+                    taskThread.get());
+        } finally {
+            lanes.taskLane().close();
+            lanes.dataLane().close();
             runtime.close();
         }
     }

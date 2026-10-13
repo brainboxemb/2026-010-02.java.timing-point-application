@@ -128,7 +128,11 @@ public class ApplicationConductorTest {
                             EventData.empty(),
                             new SerialExecutor(
                                     8,
-                                    "app-node-" + label,
+                                    "app-node-data-" + label,
+                                    nodeWorker),
+                            new SerialExecutor(
+                                    8,
+                                    "app-node-task-" + label,
                                     nodeWorker),
                             new SerialScheduledExecutor(
                                     8,

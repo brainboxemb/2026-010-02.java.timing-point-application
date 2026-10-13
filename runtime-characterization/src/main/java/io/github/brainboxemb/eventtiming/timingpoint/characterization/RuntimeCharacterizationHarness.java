@@ -83,7 +83,8 @@ final class RuntimeCharacterizationHarness
     private ExecutorService nodeWorker;
     private ScheduledThreadPoolExecutor tagWorker;
     private ScheduledThreadPoolExecutor ioWorker;
-    private SerialExecutor nodeLane;
+    private SerialExecutor dataLane;
+    private SerialExecutor taskLane;
     private SerialScheduledExecutor tagLane;
     private SerialScheduledExecutor antennaLane;
     private SimulatedAntenna antenna;
@@ -139,10 +140,15 @@ final class RuntimeCharacterizationHarness
         ioWorker.setRemoveOnCancelPolicy(
                 true);
 
-        nodeLane =
+        dataLane =
                 new SerialExecutor(
                         TIMING_NODE_QUEUE_CAPACITY,
-                        "TimingNode",
+                        "TimingNodeData",
+                        nodeWorker);
+        taskLane =
+                new SerialExecutor(
+                        TIMING_NODE_QUEUE_CAPACITY,
+                        "TimingNodeTask",
                         nodeWorker);
         tagLane =
                 new SerialScheduledExecutor(
@@ -181,7 +187,8 @@ final class RuntimeCharacterizationHarness
                         eventData(
                                 config.warmupCount()
                                         + config.measuredCount()),
-                        nodeLane,
+                        dataLane,
+                        taskLane,
                         tagLane,
                         SystemMonotonicClock.INSTANCE,
                         nodeMetrics,
@@ -212,7 +219,7 @@ final class RuntimeCharacterizationHarness
 
         measurements =
                 new RuntimeMeasurementReader(
-                        nodeLane.metrics(),
+                        dataLane.metrics(),
                         nodeMetrics,
                         tagMetrics);
 
@@ -443,15 +450,10 @@ final class RuntimeCharacterizationHarness
                 "burst processing to settle");
 
         /*
-         * Metrics and published filter snapshots are deliberately non-blocking
-         * observations. A final TagProcessor callback may therefore still be
-         * completing when the settled predicate first becomes visible.
-         *
-         * Put a barrier behind all currently admitted TagProcessor work before
-         * taking the final admitted-count snapshot. Then wait for those accepted
-         * registrations to commit and put a second barrier behind the TimingNode
-         * lane. The following ORDERED history query can then be admitted against
-         * a genuinely drained lane instead of racing the tail of the burst.
+         * Metrics and filter snapshots are observations, not lane barriers.
+         * Drain TagProcessor first, then snapshot admitted handoffs, wait for
+         * those commits, and finally drain the TimingNode Data Lane. This keeps
+         * the subsequent ORDERED history query out of the burst tail.
          */
         awaitTagProcessorBarrier();
 
@@ -462,7 +464,7 @@ final class RuntimeCharacterizationHarness
                         + preloadedCount
                         + settled.admitted());
 
-        awaitTimingNodeBarrier();
+        awaitDataLaneBarrier();
     }
 
     private void awaitCommitted(
@@ -487,18 +489,18 @@ final class RuntimeCharacterizationHarness
         }
     }
 
-    private void awaitTimingNodeBarrier()
+    private void awaitDataLaneBarrier()
             throws InterruptedException {
         CountDownLatch barrier = new CountDownLatch(1);
         await(
-                () -> nodeLane.offer(barrier::countDown)
+                () -> dataLane.offer(barrier::countDown)
                         == SerialExecutor.AdmissionResult.ACCEPTED,
-                "TimingNode barrier admission");
+                "TimingNode Data Lane barrier admission");
         if (!barrier.await(
                 COMPLETION_TIMEOUT_MILLIS,
                 TimeUnit.MILLISECONDS)) {
             throw new IllegalStateException(
-                    "Timed out waiting for TimingNode barrier");
+                    "Timed out waiting for TimingNode Data Lane barrier");
         }
     }
 

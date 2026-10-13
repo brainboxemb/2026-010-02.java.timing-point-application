@@ -562,6 +562,13 @@ public class TagProcessorTest {
 
     private TimingNode node(RecordingStore store) {
         TimeSource timeSource = () -> RECORDED_AT.instant();
+        ExecutorService nodeWorker =
+                Executors.newSingleThreadExecutor(
+                        runnable -> new Thread(
+                                runnable,
+                                "tag-processor-test-node-worker"));
+        ownedWorkers.add(nodeWorker);
+
         return new TimingNode(
                 new NodeId("A"),
                 store,
@@ -570,7 +577,14 @@ public class TagProcessorTest {
                 ReadOnlyConfiguration.fixed(
                         TagProcessingPolicy.defaults()),
                 EventData.empty(),
-                newSerialExecutor(32, "tag-processor-test-node"),
+                new SerialExecutor(
+                        32,
+                        "tag-processor-test-node-data",
+                        nodeWorker),
+                new SerialExecutor(
+                        32,
+                        "tag-processor-test-node-task",
+                        nodeWorker),
                 newScheduledExecutor(
                         "tag-processor-test-owned-tag"));
     }

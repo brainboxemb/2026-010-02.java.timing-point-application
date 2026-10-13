@@ -53,7 +53,10 @@ public final class TimingNode {
     private static final long DEFAULT_OPERATION_TIMEOUT_MILLIS = 2000L;
 
     private final TimingNodeLogic logic;
-    private final SerialExecutor serialExecutor;
+    /** Sole ordered owner of mutable TimingNode data. */
+    private final SerialExecutor dataLane;
+    /** Independent node-task lane; protocol work migrates here incrementally. */
+    private final SerialExecutor taskLane;
     private final TagProcessor tagProcessor;
     private final long operationTimeoutMillis;
     private final MonotonicClock monotonicClock;
@@ -124,7 +127,11 @@ public final class TimingNode {
                         new TimingNodeMetrics()),
                 new SerialExecutor(
                         32,
-                        "test-node-" + requireId(timingNodeId).value(),
+                        "test-node-data-" + requireId(timingNodeId).value(),
+                        Runnable::run),
+                new SerialExecutor(
+                        32,
+                        "test-node-task-" + requireId(timingNodeId).value(),
                         Runnable::run),
                 DEFAULT_OPERATION_TIMEOUT_MILLIS,
                 SystemMonotonicClock.INSTANCE,
@@ -147,7 +154,8 @@ public final class TimingNode {
             TimeSource timeSource,
             ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
             EventData eventData,
-            SerialExecutor serialExecutor,
+            SerialExecutor dataLane,
+            SerialExecutor taskLane,
             SerialScheduledExecutor tagProcessorExecutor) {
         this(
                 timingNodeId,
@@ -156,7 +164,8 @@ public final class TimingNode {
                 timeSource,
                 tagProcessingConfiguration,
                 eventData,
-                serialExecutor,
+                dataLane,
+                taskLane,
                 tagProcessorExecutor,
                 SystemMonotonicClock.INSTANCE,
                 new TimingNodeMetrics(),
@@ -171,7 +180,8 @@ public final class TimingNode {
             TimeSource timeSource,
             ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
             EventData eventData,
-            SerialExecutor serialExecutor,
+            SerialExecutor dataLane,
+            SerialExecutor taskLane,
             SerialScheduledExecutor tagProcessorExecutor,
             UpstreamStream upstreamStream) {
         this(
@@ -181,7 +191,8 @@ public final class TimingNode {
                 timeSource,
                 tagProcessingConfiguration,
                 eventData,
-                serialExecutor,
+                dataLane,
+                taskLane,
                 tagProcessorExecutor,
                 SystemMonotonicClock.INSTANCE,
                 new TimingNodeMetrics(),
@@ -196,7 +207,8 @@ public final class TimingNode {
             TimeSource timeSource,
             ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
             EventData eventData,
-            SerialExecutor serialExecutor,
+            SerialExecutor dataLane,
+            SerialExecutor taskLane,
             SerialScheduledExecutor tagProcessorExecutor,
             MonotonicClock monotonicClock) {
         this(
@@ -206,7 +218,8 @@ public final class TimingNode {
                 timeSource,
                 tagProcessingConfiguration,
                 eventData,
-                serialExecutor,
+                dataLane,
+                taskLane,
                 tagProcessorExecutor,
                 monotonicClock,
                 new TimingNodeMetrics(),
@@ -225,7 +238,8 @@ public final class TimingNode {
             TimeSource timeSource,
             ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
             EventData eventData,
-            SerialExecutor serialExecutor,
+            SerialExecutor dataLane,
+            SerialExecutor taskLane,
             SerialScheduledExecutor tagProcessorExecutor,
             MonotonicClock monotonicClock,
             TimingNodeMetrics timingNodeMetrics,
@@ -237,7 +251,8 @@ public final class TimingNode {
                 timeSource,
                 tagProcessingConfiguration,
                 eventData,
-                serialExecutor,
+                dataLane,
+                taskLane,
                 tagProcessorExecutor,
                 monotonicClock,
                 timingNodeMetrics,
@@ -252,14 +267,18 @@ public final class TimingNode {
             TimeSource timeSource,
             ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
             EventData eventData,
-            SerialExecutor serialExecutor,
+            SerialExecutor dataLane,
+            SerialExecutor taskLane,
             SerialScheduledExecutor tagProcessorExecutor,
             MonotonicClock monotonicClock,
             TimingNodeMetrics timingNodeMetrics,
             TagProcessingMetrics tagProcessingMetrics,
             UpstreamStream upstreamStream) {
-        if (serialExecutor == null) {
-            throw new IllegalArgumentException("serialExecutor must not be null");
+        if (dataLane == null) {
+            throw new IllegalArgumentException("dataLane must not be null");
+        }
+        if (taskLane == null) {
+            throw new IllegalArgumentException("taskLane must not be null");
         }
         if (tagProcessingConfiguration == null) {
             throw new IllegalArgumentException(
@@ -294,7 +313,8 @@ public final class TimingNode {
                 eventData,
                 monotonicClock,
                 timingNodeMetrics);
-        this.serialExecutor = serialExecutor;
+        this.dataLane = dataLane;
+        this.taskLane = taskLane;
         this.operationTimeoutMillis = DEFAULT_OPERATION_TIMEOUT_MILLIS;
         this.monotonicClock = monotonicClock;
         this.metrics = timingNodeMetrics;
@@ -342,11 +362,12 @@ public final class TimingNode {
      */
     TimingNode(
             TimingNodeLogic logic,
-            SerialExecutor serialExecutor,
+            SerialExecutor dataLane,
             long operationTimeoutMillis) {
         this(
                 logic,
-                serialExecutor,
+                dataLane,
+                directTestTaskLane(logic),
                 operationTimeoutMillis,
                 SystemMonotonicClock.INSTANCE,
                 null,
@@ -356,12 +377,13 @@ public final class TimingNode {
 
     TimingNode(
             TimingNodeLogic logic,
-            SerialExecutor serialExecutor,
+            SerialExecutor dataLane,
             long operationTimeoutMillis,
             MonotonicClock monotonicClock) {
         this(
                 logic,
-                serialExecutor,
+                dataLane,
+                directTestTaskLane(logic),
                 operationTimeoutMillis,
                 monotonicClock,
                 null,
@@ -369,9 +391,21 @@ public final class TimingNode {
                 UpstreamStream.unavailable());
     }
 
+    private static SerialExecutor directTestTaskLane(
+            TimingNodeLogic logic) {
+        if (logic == null) {
+            throw new IllegalArgumentException("logic must not be null");
+        }
+        return new SerialExecutor(
+                32,
+                "test-node-task-" + logic.timingNodeId().value(),
+                Runnable::run);
+    }
+
     private TimingNode(
             TimingNodeLogic logic,
-            SerialExecutor serialExecutor,
+            SerialExecutor dataLane,
+            SerialExecutor taskLane,
             long operationTimeoutMillis,
             MonotonicClock monotonicClock,
             TagProcessor tagProcessor,
@@ -380,8 +414,11 @@ public final class TimingNode {
         if (logic == null) {
             throw new IllegalArgumentException("logic must not be null");
         }
-        if (serialExecutor == null) {
-            throw new IllegalArgumentException("serialExecutor must not be null");
+        if (dataLane == null) {
+            throw new IllegalArgumentException("dataLane must not be null");
+        }
+        if (taskLane == null) {
+            throw new IllegalArgumentException("taskLane must not be null");
         }
         if (operationTimeoutMillis < 1L) {
             throw new IllegalArgumentException("operationTimeoutMillis must be positive");
@@ -396,7 +433,8 @@ public final class TimingNode {
             throw new IllegalArgumentException("upstreamStream must not be null");
         }
         this.logic = logic;
-        this.serialExecutor = serialExecutor;
+        this.dataLane = dataLane;
+        this.taskLane = taskLane;
         this.tagProcessor = tagProcessor;
         this.operationTimeoutMillis = operationTimeoutMillis;
         this.monotonicClock = monotonicClock;
@@ -429,28 +467,28 @@ public final class TimingNode {
     }
 
     /**
-     * Gives the upstream child only the execution operations it needs.
+     * Gives the upstream child its temporary Data Lane execution seam.
      *
-     * <p>The SerialExecutor and TimingNode's internal execution seams remain
-     * private to this package; moving upstream code to a subpackage must not
-     * widen the public TimingNode API.</p>
+     * <p>UpstreamDataSync and LogBookSync still directly use Data Lane-owned
+     * mutable objects. Moving this adapter to the Task Lane before explicit
+     * bounded asynchronous handoffs exist would create two writers.</p>
      */
     private UpstreamMessagePort.NodeLane upstreamNodeLane() {
         return new UpstreamMessagePort.NodeLane() {
             @Override
             public boolean offer(
                     Runnable task) {
-                return offerNodeTask(task);
+                return offerDataLaneTask(task);
             }
 
             @Override
             public void run(Runnable task, String operation) {
-                runNodeTask(task, operation);
+                runDataLaneTask(task, operation);
             }
 
             @Override
             public <R> R run(Callable<R> task, String operation) {
-                return runNodeTask(task, operation);
+                return runDataLaneTask(task, operation);
             }
         };
     }
@@ -459,53 +497,71 @@ public final class TimingNode {
      * Activates this component's execution context and schedules initial recovery.
      *
      * <p>Activation does not perform persistence I/O and does not wait for
-     * recovery. The TimingNode serial lane is started first and recovery is
+     * recovery. The TimingNode Data Lane is started first and recovery is
      * admitted as its first node task. Mutable node state, LogBook rebuild and
      * recovery error handling therefore stay on the TimingNode's own logical
      * lane. CURRENT status remains unavailable until that task publishes the
      * initial immutable Status snapshot.</p>
      */
     public void activate() {
-        SerialExecutor.State executorState = serialExecutor.state();
-        if (executorState != SerialExecutor.State.NEW && executorState != SerialExecutor.State.STOPPED) {
-            throw new IllegalStateException("TimingNode cannot activate with executor state=" + executorState);
+        SerialExecutor.State dataState = dataLane.state();
+        SerialExecutor.State taskState = taskLane.state();
+        if ((dataState != SerialExecutor.State.NEW
+                && dataState != SerialExecutor.State.STOPPED)
+                || (taskState != SerialExecutor.State.NEW
+                && taskState != SerialExecutor.State.STOPPED)) {
+            throw new IllegalStateException(
+                    "TimingNode cannot activate with dataLane=" + dataState
+                            + ", taskLane=" + taskState);
         }
 
         publishedStatus = null;
-        serialExecutor.start();
+        dataLane.start();
 
         SerialExecutor.AdmissionResult initialization =
-                serialExecutor.offer(this::initializeOnNodeLane);
+                dataLane.offer(this::initializeOnDataLane);
         if (initialization != SerialExecutor.AdmissionResult.ACCEPTED) {
-            serialExecutor.close();
+            dataLane.close();
             throw new IllegalStateException(
                     "TimingNode initial recovery could not be admitted: " + initialization);
         }
 
         /*
-         * The node lane exists before TagProcessor activation so every accepted
-         * child handoff has a live downstream target. Initial recovery was
-         * already admitted first, so later node work remains ordered behind it.
+         * Recovery is already first in Data Lane order before the independent
+         * Task Lane becomes active. Upstream deliberately still targets Data
+         * Lane in this scaffold until explicit cross-lane handoffs exist.
+         */
+        try {
+            taskLane.start();
+        } catch (RuntimeException ex) {
+            dataLane.close();
+            throw ex;
+        }
+
+        /*
+         * Both TimingNode lanes exist before TagProcessor activation so accepted
+         * child handoffs always have a live downstream target.
          */
         if (tagProcessor != null) {
             try {
                 tagProcessor.activate();
             } catch (RuntimeException ex) {
-                serialExecutor.close();
+                taskLane.close();
+                dataLane.close();
                 throw ex;
             }
         }
     }
 
     /**
-     * First ordered TimingNode task after activation.
+     * First ordered Data Lane recovery operation after activation.
      *
      * <p>Persistence loading may block the shared physical TimingNode worker,
      * but ownership remains node-local: all recovered mutable state is written
      * while this TimingNode lane is current. Runtime may deliberately back
-     * multiple logical node lanes with one physical worker.</p>
+     * multiple logical Data Lanes with one physical worker.</p>
      */
-    private void initializeOnNodeLane() {
+    private void initializeOnDataLane() {
         LOG.info(
                 "TimingNode {} TimingData recovery started",
                 timingNodeId().value());
@@ -547,9 +603,9 @@ public final class TimingNode {
         RuntimeException firstFailure = null;
 
         /*
-         * Stop/drain tag ingress before closing the TimingNode lane. This lets
-         * already accepted TagProcessor input complete its non-blocking
-         * TimingNode.offer(...) handoff while that target still exists.
+         * Stop/drain tag ingress before either TimingNode lane. Upstream is
+         * still Data Lane-bound in this scaffold, so Task Lane has no mutable
+         * node-data work to drain yet.
          */
         if (tagProcessor != null) {
             try {
@@ -560,7 +616,15 @@ public final class TimingNode {
         }
 
         try {
-            serialExecutor.close();
+            taskLane.close();
+        } catch (RuntimeException ex) {
+            if (firstFailure == null) {
+                firstFailure = ex;
+            }
+        }
+
+        try {
+            dataLane.close();
         } catch (RuntimeException ex) {
             if (firstFailure == null) {
                 firstFailure = ex;
@@ -590,7 +654,7 @@ public final class TimingNode {
     }
 
     /**
-     * Executes one typed state-changing command on the TimingNode serial lane.
+     * Executes one typed state-changing command on the TimingNode Data Lane.
      *
      * <p>The command contains the domain operation and its arguments. TimingNode
      * remains responsible for admission, ordering, timeout/failure mapping and
@@ -610,7 +674,7 @@ public final class TimingNode {
      *
      * <p>This is the fire-and-forget producer boundary used when a higher-priority
      * producer must return promptly. The method performs only immediate bounded
-     * queue admission to the TimingNode serial lane. ACCEPTED means that ownership
+     * queue admission to the TimingNode Data Lane. ACCEPTED means that ownership
      * of the command was handed off to that lower-priority lane; it does not mean
      * that the later domain operation ran or committed.</p>
      */
@@ -620,7 +684,7 @@ public final class TimingNode {
         }
 
         SerialExecutor.AdmissionResult admission =
-                serialExecutor.offer(() -> applySubmitted(command));
+                dataLane.offer(() -> applySubmitted(command));
         switch (admission) {
             case ACCEPTED:
                 return CommandAdmission.ACCEPTED;
@@ -745,7 +809,7 @@ public final class TimingNode {
      * Executes one typed read with the requested consistency.
      *
      * <p>CURRENT reads use only a safely published immutable read model and never
-     * enter the serial lane. ORDERED reads execute on the node lane after work
+     * enter the serial lane. ORDERED reads execute on the Data Lane after work
      * accepted earlier.</p>
      */
     public <R> R query(
@@ -785,12 +849,12 @@ public final class TimingNode {
     }
 
     Status publishedStatus() {
-        SerialExecutor.State executorState = serialExecutor.state();
+        SerialExecutor.State executorState = dataLane.state();
         if (executorState == SerialExecutor.State.FAILED) {
             throw new OperationException(
                     OperationException.Reason.FAILED,
                     "status CURRENT result is unavailable because the TimingNode serial executor failed",
-                    serialExecutor.failure());
+                    dataLane.failure());
         }
         if (executorState != SerialExecutor.State.RUNNING) {
             throw new OperationException(
@@ -853,35 +917,35 @@ public final class TimingNode {
     }
 
     /**
-     * Executes node-owned helper work on the same serial lane as commands,
+     * Executes Data Lane-owned helper work on the same serial lane as commands,
      * LogBook access and state mutation.
      *
      * <p>UpstreamMessagePort uses this seam so upstream processing cannot race
      * with registration commits or other TimingNode state changes.</p>
      */
     /**
-     * Admits one fire-and-forget node-owned task to the same serial lane.
+     * Admits one fire-and-forget Data Lane task to the same serial lane.
      *
      * <p>Upstream stream notifications use this non-blocking seam. The task
      * itself is short and performs no transport I/O.</p>
      */
-    boolean offerNodeTask(
+    boolean offerDataLaneTask(
             Runnable task) {
         if (task == null) {
             throw new IllegalArgumentException(
                     "task must not be null");
         }
-        return serialExecutor.offer(task)
+        return dataLane.offer(task)
                 == SerialExecutor.AdmissionResult.ACCEPTED;
     }
 
     /**
-     * Runs one synchronous void operation on the node lane.
+     * Runs one synchronous helper operation on the Data Lane.
      *
      * <p>The lambda only adapts Runnable to the Callable-based serial executor.
      * Keeping that conversion here avoids return-null boilerplate in callers.</p>
      */
-    void runNodeTask(Runnable task, String operation) {
+    void runDataLaneTask(Runnable task, String operation) {
         if (task == null) {
             throw new IllegalArgumentException("task must not be null");
         }
@@ -891,7 +955,7 @@ public final class TimingNode {
         }, operation);
     }
 
-    <R> R runNodeTask(
+    <R> R runDataLaneTask(
             Callable<R> task,
             String operation) {
         if (task == null) {
@@ -904,25 +968,25 @@ public final class TimingNode {
     }
 
     private <R> R runSerialized(Callable<R> work, String operation) {
-        if (serialExecutor.isExecutingOnCurrentThread()) {
+        if (dataLane.isExecutingOnCurrentThread()) {
             throw new IllegalStateException(
                     "Reentrant ORDERED TimingNode operation "
                             + operation
                             + " cannot wait for the same serial lane");
         }
 
-        SerialExecutor.SubmitResult<R> submitResult = serialExecutor.submit(work);
+        SerialExecutor.SubmitResult<R> submitResult = dataLane.submit(work);
         switch (submitResult.admission()) {
             case FULL:
                 throw new OperationException(
                         OperationException.Reason.BUSY,
                         operation + " could not be admitted because the TimingNode queue is full");
             case NOT_RUNNING:
-                if (serialExecutor.state() == SerialExecutor.State.FAILED) {
+                if (dataLane.state() == SerialExecutor.State.FAILED) {
                     throw new OperationException(
                             OperationException.Reason.FAILED,
                             operation + " could not run because the TimingNode serial executor failed",
-                            serialExecutor.failure());
+                            dataLane.failure());
                 }
                 throw new OperationException(
                         OperationException.Reason.UNAVAILABLE,

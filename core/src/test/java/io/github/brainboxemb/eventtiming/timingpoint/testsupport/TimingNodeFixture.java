@@ -84,7 +84,11 @@ public final class TimingNodeFixture {
                 EventData.empty(),
                 new SerialExecutor(
                         32,
-                        "test-node-" + suffix,
+                        "test-node-data-" + suffix,
+                        NODE_WORKER),
+                new SerialExecutor(
+                        32,
+                        "test-node-task-" + suffix,
                         NODE_WORKER),
                 new SerialScheduledExecutor(
                         32,
