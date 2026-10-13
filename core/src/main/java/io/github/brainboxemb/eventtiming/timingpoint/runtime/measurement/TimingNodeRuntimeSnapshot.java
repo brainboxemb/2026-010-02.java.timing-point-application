@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeMetrics;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutorMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutorMetrics;
 
 /**
  * Immutable engineering snapshot of one TimingNode runtime path.
