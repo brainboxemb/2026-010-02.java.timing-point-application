@@ -12,6 +12,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.StageStartTimes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TeamAssignments;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.UniqueTeamRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
@@ -54,6 +55,8 @@ final class TimingNodeLogic {
     private final TimingNodeMetrics metrics;
     private final TeamAssignments teamAssignments = new TeamAssignments();
     private final StageStartTimes stageStartTimes = new StageStartTimes();
+    private final UniqueTeamRegistrations uniqueTeamRegistrations =
+            new UniqueTeamRegistrations();
     private final StageTiming stageTiming;
 
     private State state = State.CLOSED;
@@ -153,6 +156,10 @@ final class TimingNodeLogic {
 
     StageStartTimes stageStartTimes() {
         return stageStartTimes;
+    }
+
+    UniqueTeamRegistrations uniqueTeamRegistrations() {
+        return uniqueTeamRegistrations;
     }
 
     StageTiming.Result stageTiming(
@@ -382,6 +389,7 @@ final class TimingNodeLogic {
         TimingDataPersistence.LoadResult loadResult = timingDataPersistence.load();
         for (TimingData data : loadResult.records()) {
             logBook.add(data);
+            updateUniqueTeamRegistrations(data);
         }
         timingDataTailRecovered = loadResult.repairedIncompleteTail();
         return loadResult;
@@ -555,6 +563,7 @@ final class TimingNodeLogic {
 
         try {
             logBook.add(data);
+            updateUniqueTeamRegistrations(data);
         } catch (RuntimeException ex) {
             timingDataCommitFailure = ex;
             throw ex;
@@ -562,6 +571,46 @@ final class TimingNodeLogic {
 
         metrics.recordCommit();
         logCommittedTimingData(data);
+    }
+
+    /**
+     * Mirrors committed registration ADD/REV semantics into the compact
+     * registration data used for current unique-team counts.
+     *
+     * <p>No TeamId is resolved here. Team resolution belongs to the current
+     * EventData/TeamAssignments view and may change after the registration was
+     * committed.</p>
+     */
+    private void updateUniqueTeamRegistrations(
+            TimingData data) {
+        if (data instanceof TimingData.AutomaticRegistration) {
+            TimingData.AutomaticRegistration registration =
+                    (TimingData.AutomaticRegistration) data;
+            updateUniqueTeamRegistrations(
+                    registration.registrationId(),
+                    registration.action());
+            return;
+        }
+
+        if (data instanceof TimingData.ManualRegistration) {
+            TimingData.ManualRegistration registration =
+                    (TimingData.ManualRegistration) data;
+            updateUniqueTeamRegistrations(
+                    registration.registrationId(),
+                    registration.action());
+        }
+    }
+
+    private void updateUniqueTeamRegistrations(
+            RegistrationId registrationId,
+            TimingData.RegistrationAction action) {
+        if (action == TimingData.RegistrationAction.ADD) {
+            uniqueTeamRegistrations.registered(
+                    registrationId);
+        } else if (action == TimingData.RegistrationAction.REV) {
+            uniqueTeamRegistrations.revoked(
+                    registrationId);
+        }
     }
 
     private void logCommittedTimingData(TimingData data) {
