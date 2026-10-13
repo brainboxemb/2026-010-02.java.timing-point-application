@@ -185,13 +185,13 @@ public final class UpstreamMessagePort {
     private void applyTeamAssignmentChanges(
             TeamAssignments updatedAssignments,
             UpstreamData.RaceData raceData) {
-        if (raceData.reserveTagMapChanges() == null) {
+        if (raceData.teamAssignmentChanges() == null) {
             throw new IllegalArgumentException(
                     "team assignment changes must not be null");
         }
 
-        for (UpstreamData.ReserveTagMapChange change
-                : raceData.reserveTagMapChanges()) {
+        for (UpstreamData.TeamAssignmentChange change
+                : raceData.teamAssignmentChanges()) {
             if (change == null) {
                 throw new IllegalArgumentException(
                         "team assignment change must not be null");
