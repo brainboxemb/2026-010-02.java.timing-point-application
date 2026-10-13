@@ -18,19 +18,20 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  *
  * <p>The LogBook is the TIMING_DATA source of truth. A REQ captures the current
  * source head once; records committed afterwards are intentionally excluded from
- * that replay. Replay is bounded to one batch per TimingNode serial-lane turn so
- * large recovery traffic cannot monopolize the node.</p>
+ * that synchronization run. Records are sent in batches of at most 256 per
+ * TimingNode serial-lane turn so a large synchronization cannot monopolize the
+ * node.</p>
  */
 final class LogBookSync {
-    private static final int REPLAY_BATCH_SIZE = 256;
+    private static final int MAX_RECORDS_PER_BATCH = 256;
 
     private final NodeId nodeId;
     private final UpstreamStream stream;
     private final LogBook logBook;
 
-    private boolean replayActive;
-    private long replayNextSequence;
-    private long replayCapturedHead;
+    private boolean syncActive;
+    private long nextSequence;
+    private long syncHead;
 
     LogBookSync(NodeId nodeId, UpstreamStream stream, LogBook logBook) {
         checkArgument(nodeId != null, "nodeId must not be null");
@@ -56,11 +57,11 @@ final class LogBookSync {
     }
 
     /**
-     * Starts a replay at the inclusive requested sequence.
+     * Starts LogBook synchronization at the inclusive requested sequence.
      *
-     * <p>The captured head remains fixed for the complete replay.</p>
+     * <p>The captured head remains fixed for the complete synchronization run.</p>
      */
-    void processReq(UpstreamData.Req req) {
+    void handleReq(UpstreamData.Req req) {
         checkArgument(req != null, "req must not be null");
         if (req.stream() != UpstreamData.Stream.TIMING_DATA) {
             throw new UnsupportedOperationException("Inbound REQ supports TIMING_DATA only");
@@ -72,62 +73,64 @@ final class LogBookSync {
 
         long capturedHead = headSequence();
         if (fromSequence > capturedHead) {
-            replayActive = false;
+            syncActive = false;
             return;
         }
 
-        replayNextSequence = fromSequence;
-        replayCapturedHead = capturedHead;
-        replayActive = true;
+        nextSequence = fromSequence;
+        syncHead = capturedHead;
+        syncActive = true;
     }
 
-    boolean replayPending() {
-        return replayActive;
+    boolean syncPending() {
+        return syncActive;
     }
 
-    void cancelReplay() {
-        replayActive = false;
+    void cancelSync() {
+        syncActive = false;
     }
 
     /**
-     * Sends at most one batch using references to existing committed records.
+     * Sends the next batch using references to existing committed records.
+     *
+     * <p>At most 256 records are sent in one TimingNode serial-lane turn.</p>
      */
-    void processReplayBatch() {
+    void sendNextBatch() {
         int limit = (int) Math.min(
-                (long) REPLAY_BATCH_SIZE,
-                replayCapturedHead - replayNextSequence + 1L);
+                (long) MAX_RECORDS_PER_BATCH,
+                syncHead - nextSequence + 1L);
 
         List<TimingData> records = new ArrayList<TimingData>(limit);
-        logBook.visitRange(replayNextSequence, limit, records::add);
+        logBook.visitRange(nextSequence, limit, records::add);
 
         if (records.isEmpty()) {
-            replayActive = false;
+            syncActive = false;
         }
         checkState(!records.isEmpty(),
-                "LogBook head %s advertised record %s but replay returned no data",
-                replayCapturedHead, replayNextSequence);
+                "LogBook head %s advertised record %s but synchronization returned no data",
+                syncHead, nextSequence);
 
         TimingData first = records.get(0);
-        if (first.sequenceNumber() != replayNextSequence) {
-            replayActive = false;
+        if (first.sequenceNumber() != nextSequence) {
+            syncActive = false;
         }
-        checkState(first.sequenceNumber() == replayNextSequence,
-                "TimingData replay expected sequence %s but got %s",
-                replayNextSequence, first.sequenceNumber());
+        checkState(first.sequenceNumber() == nextSequence,
+                "TimingData synchronization expected sequence %s but got %s",
+                nextSequence, first.sequenceNumber());
 
         TimingData last = records.get(records.size() - 1);
-        if (last.sequenceNumber() > replayCapturedHead) {
-            replayActive = false;
+        if (last.sequenceNumber() > syncHead) {
+            syncActive = false;
         }
-        checkState(last.sequenceNumber() <= replayCapturedHead,
-                "TimingData replay crossed captured head %s", replayCapturedHead);
+        checkState(last.sequenceNumber() <= syncHead,
+                "TimingData synchronization crossed captured head %s", syncHead);
 
         stream.send(DefaultUpstreamData.timingData(nodeId, records));
 
-        if (last.sequenceNumber() >= replayCapturedHead) {
-            replayActive = false;
+        if (last.sequenceNumber() >= syncHead) {
+            syncActive = false;
         } else {
-            replayNextSequence = last.sequenceNumber() + 1L;
+            nextSequence = last.sequenceNumber() + 1L;
         }
     }
 }
