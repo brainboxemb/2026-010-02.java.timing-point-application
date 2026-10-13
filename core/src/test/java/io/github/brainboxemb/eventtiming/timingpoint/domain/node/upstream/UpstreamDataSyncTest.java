@@ -21,7 +21,7 @@ public class UpstreamDataSyncTest {
         TestUpstreamStream stream = new TestUpstreamStream();
         UpstreamDataSync sync = sync(stream);
 
-        sync.processRaceData(
+        sync.handleRaceData(
                 DefaultUpstreamData.raceData(
                         new NodeId("A"),
                         1L,
@@ -31,7 +31,7 @@ public class UpstreamDataSyncTest {
         stream.takeSent(); // ACK for sequence 1.
 
         try {
-            sync.processSync(
+            sync.handleSync(
                     DefaultUpstreamData.sync(
                             new NodeId("A"),
                             UpstreamData.Stream.RACE_DATA,
@@ -45,7 +45,7 @@ public class UpstreamDataSyncTest {
     @Test
     public void timingDataSyncIsNotOwnedByUpstreamDataSync() {
         try {
-            sync(new TestUpstreamStream()).processSync(
+            sync(new TestUpstreamStream()).handleSync(
                     DefaultUpstreamData.sync(
                             new NodeId("A"),
                             UpstreamData.Stream.TIMING_DATA,
