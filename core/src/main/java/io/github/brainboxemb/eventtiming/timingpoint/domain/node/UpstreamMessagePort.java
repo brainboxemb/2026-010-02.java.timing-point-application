@@ -5,37 +5,38 @@ import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RaceDataApplyResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.StageStartTimes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TeamAssignments;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.UniqueTeamRegistrations;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * TimingNode-owned semantic upstream handler.
+ * TimingNode-owned semantic upstream port.
  *
- * <p>All mutable upstream state is handled on the owning TimingNode serial lane.
- * The port decides semantic protocol outcomes; transport connectors only move
- * UpstreamData messages.</p>
+ * <p>The port is bound to one node-scoped {@link UpstreamStream}. Real transport
+ * I/O stays outside the TimingNode. The stream only exposes local non-blocking
+ * inbound/outbound queues; semantic processing runs as short tasks on the
+ * existing TimingNode serial lane.</p>
  */
 public final class UpstreamMessagePort {
     private final TimingNode timingNode;
+    private final UpstreamStream stream;
     private final EventData eventData;
     private final TeamAssignments teamAssignments;
     private final StageStartTimes stageStartTimes;
     private final UniqueTeamRegistrations uniqueTeamRegistrations;
+    private final AtomicBoolean inputTaskScheduled =
+            new AtomicBoolean();
 
     private long lastAppliedRaceDataSequence;
 
     /*
-     * Heartbeat scheduling is supplied by runtime composition, but the state
-     * transition itself belongs to this node and therefore lives on the node
-     * serial lane.
+     * Heartbeat scheduling is supplied by runtime composition, while heartbeat
+     * state changes remain serialized with other node work.
      */
     private long heartbeatRequestsSent;
     private long heartbeatAnswersReceived;
@@ -45,6 +46,7 @@ public final class UpstreamMessagePort {
 
     UpstreamMessagePort(
             TimingNode timingNode,
+            UpstreamStream stream,
             EventData eventData,
             TeamAssignments teamAssignments,
             StageStartTimes stageStartTimes,
@@ -52,6 +54,10 @@ public final class UpstreamMessagePort {
         if (timingNode == null) {
             throw new IllegalArgumentException(
                     "timingNode must not be null");
+        }
+        if (stream == null) {
+            throw new IllegalArgumentException(
+                    "stream must not be null");
         }
         if (eventData == null) {
             throw new IllegalArgumentException(
@@ -70,10 +76,385 @@ public final class UpstreamMessagePort {
                     "uniqueTeamRegistrations must not be null");
         }
         this.timingNode = timingNode;
+        this.stream = stream;
         this.eventData = eventData;
         this.teamAssignments = teamAssignments;
         this.stageStartTimes = stageStartTimes;
         this.uniqueTeamRegistrations = uniqueTeamRegistrations;
+    }
+
+    /**
+     * Signals that the node-scoped stream may contain inbound data.
+     *
+     * <p>The caller performs no semantic work and never waits for the TimingNode
+     * lane. At most one upstream task is pending/running for this port.</p>
+     *
+     * @return true when work is already scheduled or was admitted now
+     */
+    public boolean inputAvailable() {
+        if (!stream.isAvailable()
+                || !stream.hasMessage()) {
+            return false;
+        }
+        if (!inputTaskScheduled.compareAndSet(
+                false,
+                true)) {
+            return true;
+        }
+
+        if (timingNode.offerNodeTask(
+                new UpstreamMessageTask(this))) {
+            return true;
+        }
+
+        inputTaskScheduled.set(false);
+        return false;
+    }
+
+    /**
+     * Processes one stream item while the TimingNode serial lane is current.
+     *
+     * <p>One message per task is intentional. If more data is already queued,
+     * another task is appended to the same lane so registrations and other node
+     * work are not starved by an upstream burst.</p>
+     */
+    void processNextOnNodeLane() {
+        try {
+            if (!stream.isAvailable()
+                    || !stream.hasMessage()) {
+                return;
+            }
+
+            UpstreamData data =
+                    stream.read();
+            processOnNodeLane(data);
+        } finally {
+            scheduleNextTurnOrRelease();
+        }
+    }
+
+    private void processOnNodeLane(
+            UpstreamData data) {
+        if (!(data instanceof UpstreamData.NodeScoped)) {
+            throw new IllegalArgumentException(
+                    "UpstreamData is not node-scoped: "
+                            + data.family());
+        }
+
+        UpstreamData.NodeScoped nodeData =
+                (UpstreamData.NodeScoped) data;
+        if (!timingNode.timingNodeId().equals(
+                nodeData.timingNodeId())) {
+            throw new IllegalArgumentException(
+                    "UpstreamData NodeId does not match node-scoped stream");
+        }
+
+        switch (data.family()) {
+            case RACE_DATA:
+                if (!(data instanceof UpstreamData.RaceData)) {
+                    throw new IllegalArgumentException(
+                            "RACE_DATA has incompatible semantic type");
+                }
+                processRaceDataOnNodeLane(
+                        (UpstreamData.RaceData) data);
+                return;
+
+            case PING:
+                if (!(data instanceof UpstreamData.Ping)) {
+                    throw new IllegalArgumentException(
+                            "PING has incompatible semantic type");
+                }
+                processPingOnNodeLane(
+                        (UpstreamData.Ping) data);
+                return;
+
+            default:
+                throw new UnsupportedOperationException(
+                        "Inbound UpstreamData family is not implemented by TimingNode: "
+                                + data.family());
+        }
+    }
+
+    /**
+     * Applies one ordered RACE_DATA message and writes the protocol response
+     * directly to the same node-scoped stream.
+     */
+    private void processRaceDataOnNodeLane(
+            UpstreamData.RaceData raceData) {
+        long receivedSequence =
+                raceData.sequence();
+        if (receivedSequence < 1L
+                || receivedSequence > TimingData.MAX_SEQUENCE_NUMBER) {
+            throw new IllegalArgumentException(
+                    "RACE_DATA sequence is outside the supported range");
+        }
+
+        if (receivedSequence <= lastAppliedRaceDataSequence) {
+            sendRaceDataAck(
+                    lastAppliedRaceDataSequence);
+            return;
+        }
+
+        long expectedSequence =
+                lastAppliedRaceDataSequence + 1L;
+        if (receivedSequence != expectedSequence) {
+            stream.send(
+                    DefaultUpstreamData.req(
+                            timingNode.timingNodeId(),
+                            UpstreamData.Stream.RACE_DATA,
+                            expectedSequence));
+            return;
+        }
+
+        /*
+         * Apply one RACE_DATA message transactionally. Work is done on copies;
+         * live node data changes only after every change has validated.
+         */
+        TeamAssignments updatedAssignments =
+                teamAssignments.copy();
+        StageStartTimes updatedStartTimes =
+                stageStartTimes.copy();
+
+        applyTeamAssignmentChanges(
+                updatedAssignments,
+                raceData);
+        applyStageStartChanges(
+                updatedStartTimes,
+                raceData);
+        updatedAssignments.validate();
+
+        teamAssignments.replaceWith(
+                updatedAssignments);
+        stageStartTimes.replaceWith(
+                updatedStartTimes);
+        lastAppliedRaceDataSequence =
+                receivedSequence;
+
+        sendRaceDataAck(
+                receivedSequence);
+    }
+
+    private void sendRaceDataAck(
+            long sequence) {
+        stream.send(
+                DefaultUpstreamData.ack(
+                        timingNode.timingNodeId(),
+                        UpstreamData.Stream.RACE_DATA,
+                        sequence));
+    }
+
+    /**
+     * One scheduled heartbeat step for this TimingNode.
+     *
+     * <p>The request is written to the same stream as all other outbound
+     * upstream traffic. No transport I/O occurs on the node lane.</p>
+     */
+    public void heartbeatTick() {
+        onNodeLane(
+                () -> {
+                    heartbeatTickOnNodeLane();
+                    return null;
+                },
+                "upstreamHeartbeat");
+    }
+
+    public HeartbeatStatus heartbeatStatus() {
+        return onNodeLane(
+                this::heartbeatStatusOnNodeLane,
+                "upstreamHeartbeatStatus");
+    }
+
+    private void heartbeatTickOnNodeLane() {
+        if (!stream.isAvailable()) {
+            return;
+        }
+
+        if (heartbeatAnswerPending) {
+            heartbeatMissedIntervals++;
+        }
+
+        heartbeatRequestsSent++;
+        heartbeatAnswerPending = true;
+        heartbeatPingId =
+                "hb-" + heartbeatRequestsSent;
+
+        stream.send(
+                DefaultUpstreamData.ping(
+                        timingNode.timingNodeId(),
+                        UpstreamData.PingOperation.REQ,
+                        UpstreamData.PingMode.HB,
+                        heartbeatPingId));
+    }
+
+    private void processPingOnNodeLane(
+            UpstreamData.Ping ping) {
+        if (ping.operation()
+                == UpstreamData.PingOperation.REQ) {
+            stream.send(
+                    DefaultUpstreamData.ping(
+                            timingNode.timingNodeId(),
+                            UpstreamData.PingOperation.ANS,
+                            ping.mode(),
+                            ping.pingId()));
+            return;
+        }
+
+        if (ping.operation()
+                == UpstreamData.PingOperation.ANS
+                && ping.mode() == UpstreamData.PingMode.HB
+                && heartbeatAnswerPending
+                && heartbeatPingId != null
+                && heartbeatPingId.equals(
+                        ping.pingId())) {
+            heartbeatAnswerPending = false;
+            heartbeatAnswersReceived++;
+        }
+    }
+
+    public long raceDataAppliedSequence() {
+        return onNodeLane(
+                () -> Long.valueOf(
+                        lastAppliedRaceDataSequence),
+                "raceDataAppliedSequence")
+                .longValue();
+    }
+
+    public TeamId teamIdFor(
+            RegistrationId registrationId) {
+        if (registrationId == null) {
+            throw new IllegalArgumentException(
+                    "registrationId must not be null");
+        }
+        return onNodeLane(
+                () -> resolveTeamId(
+                        registrationId),
+                "upstreamTeamIdFor");
+    }
+
+    TimingTimestamp stageStartTimeFor(
+            TeamId teamId) {
+        return onNodeLane(
+                () -> stageStartTimes.startFor(
+                        teamId),
+                "upstreamStageStartTimeFor");
+    }
+
+    public int uniqueTeamRegistrationCount() {
+        return onNodeLane(
+                () -> Integer.valueOf(
+                        uniqueTeamRegistrations.uniqueTeamCount(
+                                this::resolveTeamId)),
+                "uniqueTeamRegistrationCount")
+                .intValue();
+    }
+
+    private void applyTeamAssignmentChanges(
+            TeamAssignments updatedAssignments,
+            UpstreamData.RaceData raceData) {
+        if (raceData.teamAssignmentChanges() == null) {
+            throw new IllegalArgumentException(
+                    "team assignment changes must not be null");
+        }
+
+        for (UpstreamData.TeamAssignmentChange change
+                : raceData.teamAssignmentChanges()) {
+            if (change == null) {
+                throw new IllegalArgumentException(
+                        "team assignment change must not be null");
+            }
+
+            switch (change.operation()) {
+                case SET:
+                    if (eventData.teamIdFor(
+                            change.registrationId()) != null) {
+                        throw new IllegalArgumentException(
+                                "active assignment cannot override fixed EventData TeamId for "
+                                        + change.registrationId());
+                    }
+                    updatedAssignments.assign(
+                            change.registrationId(),
+                            change.teamId());
+                    break;
+
+                case DEL:
+                    updatedAssignments.remove(
+                            change.registrationId());
+                    break;
+
+                default:
+                    throw new IllegalArgumentException(
+                            "unsupported team assignment operation "
+                                    + change.operation());
+            }
+        }
+    }
+
+    private static void applyStageStartChanges(
+            StageStartTimes updatedStartTimes,
+            UpstreamData.RaceData raceData) {
+        if (raceData.stageStartTimeChanges() == null) {
+            throw new IllegalArgumentException(
+                    "stage start changes must not be null");
+        }
+
+        for (UpstreamData.StageStartTimeChange change
+                : raceData.stageStartTimeChanges()) {
+            if (change == null) {
+                throw new IllegalArgumentException(
+                        "stage start change must not be null");
+            }
+
+            switch (change.operation()) {
+                case SET:
+                    updatedStartTimes.set(
+                            change.teamId(),
+                            change.start());
+                    break;
+
+                case DEL:
+                    updatedStartTimes.remove(
+                            change.teamId());
+                    break;
+
+                default:
+                    throw new IllegalArgumentException(
+                            "unsupported stage start operation "
+                                    + change.operation());
+            }
+        }
+    }
+
+    private TeamId resolveTeamId(
+            RegistrationId registrationId) {
+        TeamId fixed =
+                eventData.teamIdFor(
+                        registrationId);
+        return fixed != null
+                ? fixed
+                : teamAssignments.teamIdFor(
+                        registrationId);
+    }
+
+    /**
+     * Keeps one upstream task pending while more input is already queued.
+     */
+    private void scheduleNextTurnOrRelease() {
+        if (stream.isAvailable()
+                && stream.hasMessage()
+                && timingNode.offerNodeTask(
+                        new UpstreamMessageTask(this))) {
+            return;
+        }
+
+        inputTaskScheduled.set(false);
+    }
+
+    private <R> R onNodeLane(
+            Callable<R> task,
+            String operation) {
+        return timingNode.runNodeTask(
+                task,
+                operation);
     }
 
     public static final class HeartbeatStatus {
@@ -108,388 +489,5 @@ public final class UpstreamMessagePort {
         public boolean answerPending() {
             return answerPending;
         }
-    }
-
-    /**
-     * Handles one inbound node-scoped upstream message.
-     *
-     * <p>This is the semantic entry point used by the application router. The
-     * router resolves only the target node; this port owns message meaning and
-     * any ACK/REQ/PING response produced by that node.</p>
-     */
-    public List<UpstreamData> handle(
-            UpstreamData.NodeScoped data) {
-        if (data == null) {
-            throw new IllegalArgumentException(
-                    "data must not be null");
-        }
-        if (!timingNode.timingNodeId().equals(
-                data.timingNodeId())) {
-            throw new IllegalArgumentException(
-                    "UpstreamData NodeId does not match TimingNode");
-        }
-
-        switch (data.family()) {
-            case RACE_DATA:
-                if (!(data instanceof UpstreamData.RaceData)) {
-                    throw new IllegalArgumentException(
-                            "RACE_DATA has incompatible semantic type");
-                }
-                return handleRaceData(
-                        (UpstreamData.RaceData) data);
-            case PING:
-                if (!(data instanceof UpstreamData.Ping)) {
-                    throw new IllegalArgumentException(
-                            "PING has incompatible semantic type");
-                }
-                UpstreamData.Ping response =
-                        handlePing(
-                                (UpstreamData.Ping) data);
-                return response == null
-                        ? Collections.<UpstreamData>emptyList()
-                        : Collections.<UpstreamData>singletonList(response);
-            default:
-                throw new UnsupportedOperationException(
-                        "Inbound UpstreamData family is not implemented by TimingNode: "
-                                + data.family());
-        }
-    }
-
-    private List<UpstreamData> handleRaceData(
-            UpstreamData.RaceData raceData) {
-        RaceDataApplyResult apply =
-                applyRaceData(
-                        raceData);
-
-        switch (apply.outcome()) {
-            case APPLIED:
-            case DUPLICATE:
-                return Collections.<UpstreamData>singletonList(
-                        DefaultUpstreamData.ack(
-                                raceData.timingNodeId(),
-                                UpstreamData.Stream.RACE_DATA,
-                                apply.acknowledgeSequence()));
-            case GAP:
-                return Collections.<UpstreamData>singletonList(
-                        DefaultUpstreamData.req(
-                                raceData.timingNodeId(),
-                                UpstreamData.Stream.RACE_DATA,
-                                apply.requestedFromSequence()));
-            case REJECTED:
-                throw new IllegalArgumentException(
-                        apply.message());
-            default:
-                throw new IllegalStateException(
-                        "Unsupported RaceData outcome "
-                                + apply.outcome());
-        }
-    }
-
-    /**
-     * One scheduled heartbeat step for this TimingNode.
-     *
-     * <p>The scheduler may be shared by many nodes. Calling this method always
-     * serializes the heartbeat decision with this node's registration, LogBook
-     * and upstream state. If the previous heartbeat is still unanswered, one
-     * missed interval is recorded before the next request is created.</p>
-     */
-    public UpstreamData.Ping heartbeatTick() {
-        return onNodeLane(
-                this::heartbeatTickOnNodeLane,
-                "upstreamHeartbeat");
-    }
-
-    /**
-     * Handles one inbound node-scoped PING.
-     *
-     * <p>REQ is answered with ANS using the same mode/pingId. An HB answer that
-     * matches the currently outstanding heartbeat marks that heartbeat as
-     * answered. Answers never trigger another answer.</p>
-     */
-    public UpstreamData.Ping handlePing(
-            UpstreamData.Ping ping) {
-        if (ping == null) {
-            throw new IllegalArgumentException(
-                    "ping must not be null");
-        }
-        /*
-         * Target validation does not depend on mutable node state. Reject a
-         * misrouted message before entering the serial lane so callers receive
-         * the actual contract error instead of a wrapped node-task failure.
-         */
-        if (!timingNode.timingNodeId().equals(
-                ping.timingNodeId())) {
-            throw new IllegalArgumentException(
-                    "PING NodeId does not match TimingNode");
-        }
-        return onNodeLane(
-                () -> handlePingOnNodeLane(ping),
-                "upstreamPing");
-    }
-
-    public HeartbeatStatus heartbeatStatus() {
-        return onNodeLane(
-                this::heartbeatStatusOnNodeLane,
-                "upstreamHeartbeatStatus");
-    }
-
-    private UpstreamData.Ping heartbeatTickOnNodeLane() {
-        if (heartbeatAnswerPending) {
-            heartbeatMissedIntervals++;
-        }
-
-        heartbeatRequestsSent++;
-        heartbeatAnswerPending = true;
-        heartbeatPingId =
-                "hb-" + heartbeatRequestsSent;
-
-        return DefaultUpstreamData.ping(
-                timingNode.timingNodeId(),
-                UpstreamData.PingOperation.REQ,
-                UpstreamData.PingMode.HB,
-                heartbeatPingId);
-    }
-
-    private UpstreamData.Ping handlePingOnNodeLane(
-            UpstreamData.Ping ping) {
-        if (ping.operation()
-                == UpstreamData.PingOperation.REQ) {
-            return io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData.ping(
-                    timingNode.timingNodeId(),
-                    UpstreamData.PingOperation.ANS,
-                    ping.mode(),
-                    ping.pingId());
-        }
-
-        if (ping.operation()
-                == UpstreamData.PingOperation.ANS
-                && ping.mode() == UpstreamData.PingMode.HB
-                && heartbeatAnswerPending
-                && heartbeatPingId != null
-                && heartbeatPingId.equals(ping.pingId())) {
-            heartbeatAnswerPending = false;
-            heartbeatAnswersReceived++;
-        }
-        return null;
-    }
-
-    private HeartbeatStatus heartbeatStatusOnNodeLane() {
-        return new HeartbeatStatus(
-                heartbeatRequestsSent,
-                heartbeatAnswersReceived,
-                heartbeatMissedIntervals,
-                heartbeatAnswerPending);
-    }
-
-    public RaceDataApplyResult applyRaceData(
-            UpstreamData.RaceData raceData) {
-        if (raceData == null) {
-            throw new IllegalArgumentException(
-                    "raceData must not be null");
-        }
-        return onNodeLane(
-                () -> applyRaceDataOnNodeLane(raceData),
-                "upstreamRaceData");
-    }
-
-    public long raceDataAppliedSequence() {
-        return onNodeLane(
-                () -> Long.valueOf(lastAppliedRaceDataSequence),
-                "raceDataAppliedSequence")
-                .longValue();
-    }
-
-    public TeamId teamIdFor(
-            RegistrationId registrationId) {
-        if (registrationId == null) {
-            throw new IllegalArgumentException(
-                    "registrationId must not be null");
-        }
-        return onNodeLane(
-                () -> resolveTeamId(registrationId),
-                "upstreamTeamIdFor");
-    }
-
-    TimingTimestamp stageStartTimeFor(
-            TeamId teamId) {
-        return onNodeLane(
-                () -> stageStartTimes.startFor(teamId),
-                "upstreamStageStartTimeFor");
-    }
-
-    /**
-     * Returns the current number of unique teams with one or more active
-     * registrations.
-     *
-     * <p>Resolution happens at read time so a later TeamAssignment immediately
-     * changes the count without rewriting committed TimingData.</p>
-     */
-    public int uniqueTeamRegistrationCount() {
-        return onNodeLane(
-                () -> Integer.valueOf(
-                        uniqueTeamRegistrations.uniqueTeamCount(
-                                this::resolveTeamId)),
-                "uniqueTeamRegistrationCount")
-                .intValue();
-    }
-
-    private RaceDataApplyResult applyRaceDataOnNodeLane(
-            UpstreamData.RaceData raceData) {
-        long receivedSequence = raceData.sequence();
-        if (receivedSequence < 1L
-                || receivedSequence > TimingData.MAX_SEQUENCE_NUMBER) {
-            return RaceDataApplyResult.rejected(
-                    receivedSequence,
-                    lastAppliedRaceDataSequence,
-                    "RACE_DATA sequence is outside the supported range");
-        }
-
-        if (!timingNode.timingNodeId().equals(
-                raceData.timingNodeId())) {
-            return RaceDataApplyResult.rejected(
-                    receivedSequence,
-                    lastAppliedRaceDataSequence,
-                    "RACE_DATA NodeId does not match TimingNode");
-        }
-
-        if (receivedSequence <= lastAppliedRaceDataSequence) {
-            return RaceDataApplyResult.duplicate(
-                    receivedSequence,
-                    lastAppliedRaceDataSequence);
-        }
-
-        long expectedSequence =
-                lastAppliedRaceDataSequence + 1L;
-        if (receivedSequence != expectedSequence) {
-            return RaceDataApplyResult.gap(
-                    receivedSequence,
-                    lastAppliedRaceDataSequence,
-                    expectedSequence);
-        }
-
-        /*
-         * Apply one RACE_DATA message transactionally. Work is done on copies;
-         * live node data is replaced only after every change has validated.
-         */
-        TeamAssignments updatedAssignments =
-                teamAssignments.copy();
-        StageStartTimes updatedStartTimes =
-                stageStartTimes.copy();
-
-        try {
-            applyTeamAssignmentChanges(
-                    updatedAssignments,
-                    raceData);
-            applyStageStartChanges(
-                    updatedStartTimes,
-                    raceData);
-            updatedAssignments.validate();
-        } catch (IllegalArgumentException ex) {
-            return RaceDataApplyResult.rejected(
-                    receivedSequence,
-                    lastAppliedRaceDataSequence,
-                    ex.getMessage());
-        }
-
-        teamAssignments.replaceWith(
-                updatedAssignments);
-        stageStartTimes.replaceWith(
-                updatedStartTimes);
-        lastAppliedRaceDataSequence =
-                receivedSequence;
-
-        return RaceDataApplyResult.applied(
-                receivedSequence);
-    }
-
-    private void applyTeamAssignmentChanges(
-            TeamAssignments updatedAssignments,
-            UpstreamData.RaceData raceData) {
-        if (raceData.teamAssignmentChanges() == null) {
-            throw new IllegalArgumentException(
-                    "team assignment changes must not be null");
-        }
-
-        for (UpstreamData.TeamAssignmentChange change
-                : raceData.teamAssignmentChanges()) {
-            if (change == null) {
-                throw new IllegalArgumentException(
-                        "team assignment change must not be null");
-            }
-
-            switch (change.operation()) {
-                case SET:
-                    if (eventData.teamIdFor(
-                            change.registrationId()) != null) {
-                        throw new IllegalArgumentException(
-                                "active assignment cannot override fixed EventData TeamId for "
-                                        + change.registrationId());
-                    }
-                    updatedAssignments.assign(
-                            change.registrationId(),
-                            change.teamId());
-                    break;
-                case DEL:
-                    updatedAssignments.remove(
-                            change.registrationId());
-                    break;
-                default:
-                    throw new IllegalArgumentException(
-                            "unsupported team assignment operation "
-                                    + change.operation());
-            }
-        }
-    }
-
-    private static void applyStageStartChanges(
-            StageStartTimes updatedStartTimes,
-            UpstreamData.RaceData raceData) {
-        if (raceData.stageStartTimeChanges() == null) {
-            throw new IllegalArgumentException(
-                    "stage start changes must not be null");
-        }
-
-        for (UpstreamData.StageStartTimeChange change
-                : raceData.stageStartTimeChanges()) {
-            if (change == null) {
-                throw new IllegalArgumentException(
-                        "stage start change must not be null");
-            }
-
-            switch (change.operation()) {
-                case SET:
-                    updatedStartTimes.set(
-                            change.teamId(),
-                            change.start());
-                    break;
-                case DEL:
-                    updatedStartTimes.remove(
-                            change.teamId());
-                    break;
-                default:
-                    throw new IllegalArgumentException(
-                            "unsupported stage start operation "
-                                    + change.operation());
-            }
-        }
-    }
-
-    private TeamId resolveTeamId(
-            RegistrationId registrationId) {
-        TeamId fixed =
-                eventData.teamIdFor(
-                        registrationId);
-        return fixed != null
-                ? fixed
-                : teamAssignments.teamIdFor(
-                        registrationId);
-    }
-
-    private <R> R onNodeLane(
-            Callable<R> task,
-            String operation) {
-        return timingNode.runNodeTask(
-                task,
-                operation);
     }
 }
