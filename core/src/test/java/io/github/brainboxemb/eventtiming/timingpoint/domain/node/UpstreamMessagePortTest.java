@@ -23,6 +23,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class UpstreamMessagePortTest {
 
@@ -447,6 +448,98 @@ public class UpstreamMessagePortTest {
             assertTrue(
                     node.upstreamMessagePort()
                             .inputAvailable());
+            assertEquals(0, stream.sentCount());
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
+    public void raceDataSyncBehindAppliedSequenceIsRejected() {
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
+        TimingNode node =
+                node("A", stream);
+        node.activate();
+        try {
+            UpstreamMessagePort port =
+                    node.upstreamMessagePort();
+
+            stream.receive(
+                    DefaultUpstreamData.raceData(
+                            new NodeId("A"),
+                            1L,
+                            Collections.singletonList(
+                                    DefaultUpstreamData.teamAssignmentSet(
+                                            "RT-R-0001",
+                                            "0042")),
+                            Collections.<UpstreamData.StageStartTimeChange>emptyList()));
+            assertTrue(port.inputAvailable());
+            stream.takeSent();
+
+            stream.receive(
+                    DefaultUpstreamData.sync(
+                            new NodeId("A"),
+                            UpstreamData.Stream.RACE_DATA,
+                            0L));
+
+            try {
+                /*
+                 * Call the package-private task turn directly so the semantic
+                 * exception is observable instead of being logged by the
+                 * fire-and-forget SerialExecutor path.
+                 */
+                port.processNextOnNodeLane();
+                fail("expected RACE_DATA source-head conflict");
+            } catch (IllegalStateException expected) {
+                assertTrue(
+                        expected.getMessage()
+                                .contains("behind"));
+            }
+            assertEquals(0, stream.sentCount());
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
+    public void wrongDirectionReqAndSyncAreRejected() {
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
+        TimingNode node =
+                node("A", stream);
+        node.activate();
+        try {
+            UpstreamMessagePort port =
+                    node.upstreamMessagePort();
+
+            stream.receive(
+                    DefaultUpstreamData.req(
+                            new NodeId("A"),
+                            UpstreamData.Stream.RACE_DATA,
+                            1L));
+            try {
+                port.processNextOnNodeLane();
+                fail("expected unsupported REQ direction");
+            } catch (UnsupportedOperationException expected) {
+                assertTrue(
+                        expected.getMessage()
+                                .contains("TIMING_DATA"));
+            }
+
+            stream.receive(
+                    DefaultUpstreamData.sync(
+                            new NodeId("A"),
+                            UpstreamData.Stream.TIMING_DATA,
+                            0L));
+            try {
+                port.processNextOnNodeLane();
+                fail("expected unsupported SYNC direction");
+            } catch (UnsupportedOperationException expected) {
+                assertTrue(
+                        expected.getMessage()
+                                .contains("RACE_DATA"));
+            }
             assertEquals(0, stream.sentCount());
         } finally {
             node.deactivate();
