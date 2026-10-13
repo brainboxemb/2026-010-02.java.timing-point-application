@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
+package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntSupplier;
