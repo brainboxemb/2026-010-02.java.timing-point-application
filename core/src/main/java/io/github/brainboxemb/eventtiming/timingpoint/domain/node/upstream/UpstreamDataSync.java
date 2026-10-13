@@ -60,7 +60,7 @@ final class UpstreamDataSync {
      * the first missing sequence. Live state changes only after every change in
      * the message has validated.</p>
      */
-    void processRaceData(UpstreamData.RaceData raceData) {
+    void handleRaceData(UpstreamData.RaceData raceData) {
         checkArgument(raceData != null, "raceData must not be null");
 
         long receivedSequence = raceData.sequence();
@@ -97,7 +97,7 @@ final class UpstreamDataSync {
     /**
      * Reconciles Central's advertised RACE_DATA head with local applied state.
      */
-    void processSync(UpstreamData.Sync sync) {
+    void handleSync(UpstreamData.Sync sync) {
         checkArgument(sync != null, "sync must not be null");
         if (sync.stream() != UpstreamData.Stream.RACE_DATA) {
             throw new UnsupportedOperationException("Inbound SYNC supports RACE_DATA only");
