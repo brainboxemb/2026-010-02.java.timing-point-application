@@ -35,6 +35,12 @@ public final class TimingNodeQueries {
         return TIMING_DATA_COUNT;
     }
 
+    public static TimingNodeQuery<Long> timingDataHeadSequence() {
+        return new TimingNodeQuery<>(
+                "timingDataHeadSequence",
+                TimingNodeLogic::timingDataHeadSequence);
+    }
+
     public static TimingNodeQuery<StageTiming> stageTiming(
             long sequenceNumber,
             ZoneId raceTimeZone) {

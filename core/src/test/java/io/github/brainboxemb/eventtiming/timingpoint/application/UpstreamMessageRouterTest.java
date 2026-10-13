@@ -1,7 +1,12 @@
 package io.github.brainboxemb.eventtiming.timingpoint.application;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
@@ -10,6 +15,7 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -184,6 +190,55 @@ public class UpstreamMessageRouterTest {
     }
 
     @Test
+    public void timingDataReplayIsRoutedToSelectedNodeOnly() {
+        TimingNode nodeA =
+                node(
+                        "A",
+                        timingData(
+                                "A",
+                                3));
+        TimingNode nodeB =
+                node(
+                        "B",
+                        timingData(
+                                "B",
+                                2));
+        nodeA.activate();
+        nodeB.activate();
+        try {
+            UpstreamMessageRouter router =
+                    new UpstreamMessageRouter(
+                            nodes(
+                                    nodeA,
+                                    nodeB));
+
+            List<UpstreamData> responses =
+                    router.route(
+                            DefaultUpstreamData.req(
+                                    new NodeId("B"),
+                                    UpstreamData.Stream.TIMING_DATA,
+                                    1L));
+
+            assertEquals(
+                    1,
+                    responses.size());
+            UpstreamData.TimingDataTransfer transfer =
+                    (UpstreamData.TimingDataTransfer) responses.get(0);
+            assertEquals(
+                    2,
+                    transfer.records().size());
+            for (TimingData record : transfer.records()) {
+                assertEquals(
+                        new NodeId("B"),
+                        record.timingNodeId());
+            }
+        } finally {
+            nodeA.deactivate();
+            nodeB.deactivate();
+        }
+    }
+
+    @Test
     public void unsupportedFamilyIsA_nodePortConcern() {
         TimingNode node = node("A");
         node.activate();
@@ -223,30 +278,84 @@ public class UpstreamMessageRouterTest {
     }
 
     private static TimingNode node(String id) {
+        return node(
+                id,
+                Collections.<TimingData>emptyList());
+    }
+
+    private static TimingNode node(
+            String id,
+            List<TimingData> initialTimingData) {
         return TimingNodeFixture.create(
                 new NodeId(id),
-                new EmptyPersistence(),
+                new MemoryPersistence(initialTimingData),
                 () -> Instant.parse("2026-10-13T12:00:00Z"));
     }
 
     private static TimingNodeList nodes(
-            TimingNode node) {
-        return new TimingNodeList()
-                .add(node);
+            TimingNode... timingNodes) {
+        TimingNodeList result =
+                new TimingNodeList();
+        for (TimingNode timingNode : timingNodes) {
+            result.add(timingNode);
+        }
+        return result;
     }
 
-    private static final class EmptyPersistence
+    private static List<TimingData> timingData(
+            String nodeId,
+            int count) {
+        DefaultTimingDataFactory factory =
+                new DefaultTimingDataFactory();
+        List<TimingData> records =
+                new ArrayList<TimingData>(
+                        count);
+        Instant base =
+                Instant.parse(
+                        "2026-10-13T12:00:00Z");
+
+        for (int index = 1;
+                index <= count;
+                index++) {
+            TimingTimestamp timestamp =
+                    new TimingTimestamp(
+                            base.plusMillis(index));
+            records.add(
+                    factory.createAutomaticRegistration(
+                            new TimingDataFactory.Context(
+                                    new NodeId(nodeId),
+                                    index,
+                                    new LocationId(1),
+                                    timestamp,
+                                    timestamp),
+                            new RegistrationId(
+                                    "RT-A-0001")));
+        }
+        return records;
+    }
+
+    private static final class MemoryPersistence
             implements TimingDataPersistence {
+        private final List<TimingData> records =
+                new ArrayList<TimingData>();
+
+        private MemoryPersistence(
+                List<TimingData> initialTimingData) {
+            records.addAll(
+                    initialTimingData);
+        }
+
         @Override
-        public LoadResult load() {
+        public synchronized LoadResult load() {
             return new LoadResult(
-                    Collections.<TimingData>emptyList(),
+                    new ArrayList<TimingData>(records),
                     false);
         }
 
         @Override
-        public void append(TimingData data) {
-            // Router tests do not commit TimingData.
+        public synchronized void append(
+                TimingData data) {
+            records.add(data);
         }
     }
 }

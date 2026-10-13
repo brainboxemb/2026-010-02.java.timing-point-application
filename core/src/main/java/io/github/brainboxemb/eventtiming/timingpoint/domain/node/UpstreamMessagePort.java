@@ -12,6 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.UniqueTeam
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -24,6 +25,8 @@ import java.util.concurrent.Callable;
  * UpstreamData messages.</p>
  */
 public final class UpstreamMessagePort {
+    private static final int REPLAY_BATCH_SIZE = 256;
+
     private final TimingNode timingNode;
     private final EventData eventData;
     private final TeamAssignments teamAssignments;
@@ -137,6 +140,20 @@ public final class UpstreamMessagePort {
                 }
                 return handleRaceData(
                         (UpstreamData.RaceData) data);
+            case SYNC:
+                if (!(data instanceof UpstreamData.Sync)) {
+                    throw new IllegalArgumentException(
+                            "SYNC has incompatible semantic type");
+                }
+                return handleSync(
+                        (UpstreamData.Sync) data);
+            case REQ:
+                if (!(data instanceof UpstreamData.Req)) {
+                    throw new IllegalArgumentException(
+                            "REQ has incompatible semantic type");
+                }
+                return handleReq(
+                        (UpstreamData.Req) data);
             case PING:
                 if (!(data instanceof UpstreamData.Ping)) {
                     throw new IllegalArgumentException(
@@ -183,6 +200,158 @@ public final class UpstreamMessagePort {
                         "Unsupported RaceData outcome "
                                 + apply.outcome());
         }
+    }
+
+    /**
+     * Creates this node's current TIMING_DATA source-head advertisement.
+     *
+     * <p>An empty LogBook has source head 0. The caller decides when the
+     * advertisement is published; the node port owns the source-head meaning.</p>
+     */
+    public UpstreamData.Sync timingDataSync() {
+        return DefaultUpstreamData.sync(
+                timingNode.timingNodeId(),
+                UpstreamData.Stream.TIMING_DATA,
+                timingDataHead());
+    }
+
+    /** Returns the current committed TIMING_DATA source head; zero means empty. */
+    public long timingDataHead() {
+        return timingNode.query(
+                TimingNodeQueries.timingDataHeadSequence());
+    }
+
+    /**
+     * Returns at most {@code limit} retained TimingData records from the
+     * inclusive source sequence.
+     *
+     * <p>Each call is one bounded ordered read on the existing TimingNode lane.
+     * Replay loops therefore do not monopolize the lane for an entire request.</p>
+     */
+    public List<TimingData> timingDataFrom(
+            long fromSequence,
+            int limit) {
+        if (fromSequence < 1L) {
+            throw new IllegalArgumentException(
+                    "fromSequence must be >= 1");
+        }
+        if (limit < 1) {
+            throw new IllegalArgumentException(
+                    "limit must be >= 1");
+        }
+
+        List<TimingData> records =
+                new ArrayList<TimingData>(
+                        limit);
+        timingNode.query(
+                TimingNodeQueries.visitTimingDataRange(
+                        fromSequence,
+                        limit,
+                        records::add));
+        return Collections.unmodifiableList(
+                records);
+    }
+
+    private List<UpstreamData> handleSync(
+            UpstreamData.Sync sync) {
+        if (sync.stream() != UpstreamData.Stream.RACE_DATA) {
+            throw new UnsupportedOperationException(
+                    "Inbound SYNC supports RACE_DATA only");
+        }
+
+        long applied =
+                raceDataAppliedSequence();
+        long sourceHead =
+                sync.sequence();
+
+        if (sourceHead == applied) {
+            return Collections.emptyList();
+        }
+        if (sourceHead > applied) {
+            return Collections.<UpstreamData>singletonList(
+                    DefaultUpstreamData.req(
+                            timingNode.timingNodeId(),
+                            UpstreamData.Stream.RACE_DATA,
+                            applied + 1L));
+        }
+
+        throw new IllegalStateException(
+                "Central RACE_DATA source head "
+                        + sourceHead
+                        + " is behind already applied sequence "
+                        + applied);
+    }
+
+    private List<UpstreamData> handleReq(
+            UpstreamData.Req req) {
+        if (req.stream() != UpstreamData.Stream.TIMING_DATA) {
+            throw new UnsupportedOperationException(
+                    "Inbound REQ supports TIMING_DATA only");
+        }
+
+        /*
+         * Capture the source head once for this request. New commits may happen
+         * between bounded replay batches, but they belong to a later REQ.
+         */
+        long capturedHead =
+                timingDataHead();
+        if (req.fromSequence() > capturedHead) {
+            return Collections.emptyList();
+        }
+
+        List<UpstreamData> responses =
+                new ArrayList<UpstreamData>();
+        long nextSequence =
+                req.fromSequence();
+
+        while (nextSequence <= capturedHead) {
+            int limit =
+                    (int) Math.min(
+                            (long) REPLAY_BATCH_SIZE,
+                            capturedHead - nextSequence + 1L);
+            List<TimingData> records =
+                    timingDataFrom(
+                            nextSequence,
+                            limit);
+
+            if (records.isEmpty()) {
+                throw new IllegalStateException(
+                        "LogBook head "
+                                + capturedHead
+                                + " advertised record "
+                                + nextSequence
+                                + " but replay returned no data");
+            }
+
+            TimingData first =
+                    records.get(0);
+            if (first.sequenceNumber() != nextSequence) {
+                throw new IllegalStateException(
+                        "TimingData replay sequence gap: expected "
+                                + nextSequence
+                                + " but got "
+                                + first.sequenceNumber());
+            }
+
+            TimingData last =
+                    records.get(
+                            records.size() - 1);
+            if (last.sequenceNumber() > capturedHead) {
+                throw new IllegalStateException(
+                        "TimingData replay crossed captured head "
+                                + capturedHead);
+            }
+
+            responses.add(
+                    DefaultUpstreamData.timingData(
+                            timingNode.timingNodeId(),
+                            records));
+            nextSequence =
+                    last.sequenceNumber() + 1L;
+        }
+
+        return Collections.unmodifiableList(
+                responses);
     }
 
     /**
@@ -254,7 +423,7 @@ public final class UpstreamMessagePort {
             UpstreamData.Ping ping) {
         if (ping.operation()
                 == UpstreamData.PingOperation.REQ) {
-            return io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData.ping(
+            return DefaultUpstreamData.ping(
                     timingNode.timingNodeId(),
                     UpstreamData.PingOperation.ANS,
                     ping.mode(),

@@ -360,6 +360,19 @@ final class TimingNodeLogic {
         return logBook.size();
     }
 
+    /**
+     * Returns the highest committed TimingData source sequence.
+     *
+     * <p>LogBook records are contiguous from sequence 1, so an empty LogBook
+     * has source head 0 and otherwise the head is nextSequence - 1.</p>
+     */
+    long timingDataHeadSequence() {
+        ensureOperational();
+        return logBook.size() == 0
+                ? 0L
+                : logBook.nextSequence() - 1L;
+    }
+
     int visitTimingDataRange(
             long fromSequence,
             int limit,
