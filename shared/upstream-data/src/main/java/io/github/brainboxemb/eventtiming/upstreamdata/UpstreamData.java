@@ -13,8 +13,8 @@ import java.util.Objects;
 /**
  * Transport-independent IF-06 semantic message contract.
  *
- * <p>UpstreamData wraps existing semantic data; it does not create another
- * TimingData identity or source-order model.</p>
+ * <p>TimingData keeps its existing IF-05/LogBook source sequence. RaceData is
+ * the independently ordered Central-System-to-TimingNode stream.</p>
  */
 public interface UpstreamData {
 
@@ -22,15 +22,22 @@ public interface UpstreamData {
 
     enum Family {
         TIMING_DATA,
-        REFERENCE_DATA,
+        RACE_DATA,
         SYNC,
+        ACK,
+        REQ,
         PING,
         STATUS
     }
 
-    enum ReferenceDataset {
-        RACE_DATA,
-        STAGE_START_TIMES
+    enum Stream {
+        TIMING_DATA,
+        RACE_DATA
+    }
+
+    enum ChangeOperation {
+        SET,
+        DEL
     }
 
     enum PingOperation {
@@ -50,44 +57,70 @@ public interface UpstreamData {
         List<TimingData> records();
     }
 
-    interface ReferenceData extends NodeScoped {
-        ReferenceDataset dataset();
-        long revision();
-    }
+    interface RaceData extends NodeScoped {
+        long sequence();
 
-    interface RaceData extends ReferenceData {
-        List<RaceAssignment> assignments();
-    }
+        List<ReserveTagMapChange> reserveTagMapChanges();
 
-    interface StageStartTimes extends ReferenceData {
-        List<StageStartDefinition> starts();
+        List<StageStartTimeChange> stageStartTimeChanges();
     }
 
     interface Sync extends NodeScoped {
-        long timingSequence();
-        Long raceDataRevision();
-        Long stageStartTimesRevision();
+        Stream stream();
+
+        long sequence();
+    }
+
+    interface Ack extends NodeScoped {
+        Stream stream();
+
+        long sequence();
+    }
+
+    interface Req extends NodeScoped {
+        Stream stream();
+
+        long fromSequence();
     }
 
     interface Ping extends UpstreamData {
         PingOperation operation();
+
+        /** Null denotes the normal/manual form without a mode field. */
         PingMode mode();
+
+        /** Optional opaque reference correlation token. */
         String pingId();
     }
 
-    final class RaceAssignment {
+    final class ReserveTagMapChange {
+        private final ChangeOperation operation;
         private final RegistrationId registrationId;
         private final TeamId teamId;
 
-        public RaceAssignment(RegistrationId registrationId, TeamId teamId) {
+        public ReserveTagMapChange(
+                ChangeOperation operation,
+                RegistrationId registrationId,
+                TeamId teamId) {
+            if (operation == null) {
+                throw new IllegalArgumentException("operation must not be null");
+            }
             if (registrationId == null) {
                 throw new IllegalArgumentException("registrationId must not be null");
             }
-            if (teamId == null) {
-                throw new IllegalArgumentException("teamId must not be null");
+            if (operation == ChangeOperation.SET && teamId == null) {
+                throw new IllegalArgumentException("SET requires teamId");
             }
+            if (operation == ChangeOperation.DEL && teamId != null) {
+                throw new IllegalArgumentException("DEL must not carry teamId");
+            }
+            this.operation = operation;
             this.registrationId = registrationId;
             this.teamId = teamId;
+        }
+
+        public ChangeOperation operation() {
+            return operation;
         }
 
         public RegistrationId registrationId() {
@@ -103,47 +136,54 @@ public interface UpstreamData {
             if (this == other) {
                 return true;
             }
-            if (!(other instanceof RaceAssignment)) {
+            if (!(other instanceof ReserveTagMapChange)) {
                 return false;
             }
-            RaceAssignment that = (RaceAssignment) other;
-            return registrationId.equals(that.registrationId)
-                    && teamId.equals(that.teamId);
+            ReserveTagMapChange that = (ReserveTagMapChange) other;
+            return operation == that.operation
+                    && registrationId.equals(that.registrationId)
+                    && Objects.equals(teamId, that.teamId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(registrationId, teamId);
-        }
-
-        @Override
-        public String toString() {
-            return registrationId + "->" + teamId;
+            return Objects.hash(operation, registrationId, teamId);
         }
     }
 
-    final class StageStartDefinition {
+    final class StageStartTimeChange {
+        private final ChangeOperation operation;
         private final TeamId teamId;
         private final LocalTime startTime;
         private final LocalDate startDate;
 
-        public StageStartDefinition(TeamId teamId, LocalTime startTime) {
-            this(teamId, startTime, null);
-        }
-
-        public StageStartDefinition(
+        public StageStartTimeChange(
+                ChangeOperation operation,
                 TeamId teamId,
                 LocalTime startTime,
                 LocalDate startDate) {
+            if (operation == null) {
+                throw new IllegalArgumentException("operation must not be null");
+            }
             if (teamId == null) {
                 throw new IllegalArgumentException("teamId must not be null");
             }
-            if (startTime == null) {
-                throw new IllegalArgumentException("startTime must not be null");
+            if (operation == ChangeOperation.SET && startTime == null) {
+                throw new IllegalArgumentException("SET requires startTime");
             }
+            if (operation == ChangeOperation.DEL
+                    && (startTime != null || startDate != null)) {
+                throw new IllegalArgumentException(
+                        "DEL must not carry startTime/startDate");
+            }
+            this.operation = operation;
             this.teamId = teamId;
             this.startTime = startTime;
             this.startDate = startDate;
+        }
+
+        public ChangeOperation operation() {
+            return operation;
         }
 
         public TeamId teamId() {
@@ -163,23 +203,19 @@ public interface UpstreamData {
             if (this == other) {
                 return true;
             }
-            if (!(other instanceof StageStartDefinition)) {
+            if (!(other instanceof StageStartTimeChange)) {
                 return false;
             }
-            StageStartDefinition that = (StageStartDefinition) other;
-            return teamId.equals(that.teamId)
-                    && startTime.equals(that.startTime)
+            StageStartTimeChange that = (StageStartTimeChange) other;
+            return operation == that.operation
+                    && teamId.equals(that.teamId)
+                    && Objects.equals(startTime, that.startTime)
                     && Objects.equals(startDate, that.startDate);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(teamId, startTime, startDate);
-        }
-
-        @Override
-        public String toString() {
-            return teamId + "@" + (startDate == null ? "" : startDate + "T") + startTime;
+            return Objects.hash(operation, teamId, startTime, startDate);
         }
     }
 }
