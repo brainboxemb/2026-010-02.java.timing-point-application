@@ -6,11 +6,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObser
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTask;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTaskController;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.ScheduledTaskRunner;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.TaskStep;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.CooperativeTask;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.CooperativeTaskController;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.ScheduledTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.time.Duration;
 import java.util.List;

@@ -1,4 +1,6 @@
-package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
+package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
+
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.CooperativeTaskRunner;
 
 /**
  * One cooperatively scheduled operation or control task executed by a

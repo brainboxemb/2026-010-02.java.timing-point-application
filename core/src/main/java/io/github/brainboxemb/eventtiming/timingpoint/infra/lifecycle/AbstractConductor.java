@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
+package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;

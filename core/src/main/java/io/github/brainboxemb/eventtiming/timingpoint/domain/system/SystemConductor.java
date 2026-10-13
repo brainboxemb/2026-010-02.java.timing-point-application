@@ -9,11 +9,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTask;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.CooperativeTaskController;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialExecutor;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialTaskRunner;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.TaskStep;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.CooperativeTask;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.CooperativeTaskController;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.SerialTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
