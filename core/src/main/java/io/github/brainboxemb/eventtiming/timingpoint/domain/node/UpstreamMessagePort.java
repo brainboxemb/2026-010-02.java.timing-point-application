@@ -3,9 +3,11 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RaceDataApplyResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.StageStartTimes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TeamAssignments;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.UniqueTeamRegistrations;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 import java.util.concurrent.Callable;
@@ -22,6 +24,7 @@ public final class UpstreamMessagePort {
     private final EventData eventData;
     private final TeamAssignments teamAssignments;
     private final StageStartTimes stageStartTimes;
+    private final UniqueTeamRegistrations uniqueTeamRegistrations;
 
     private long lastAppliedRaceDataSequence;
 
@@ -29,7 +32,8 @@ public final class UpstreamMessagePort {
             TimingNode timingNode,
             EventData eventData,
             TeamAssignments teamAssignments,
-            StageStartTimes stageStartTimes) {
+            StageStartTimes stageStartTimes,
+            UniqueTeamRegistrations uniqueTeamRegistrations) {
         if (timingNode == null) {
             throw new IllegalArgumentException(
                     "timingNode must not be null");
@@ -46,10 +50,15 @@ public final class UpstreamMessagePort {
             throw new IllegalArgumentException(
                     "stageStartTimes must not be null");
         }
+        if (uniqueTeamRegistrations == null) {
+            throw new IllegalArgumentException(
+                    "uniqueTeamRegistrations must not be null");
+        }
         this.timingNode = timingNode;
         this.eventData = eventData;
         this.teamAssignments = teamAssignments;
         this.stageStartTimes = stageStartTimes;
+        this.uniqueTeamRegistrations = uniqueTeamRegistrations;
     }
 
     public RaceDataApplyResult applyRaceData(
@@ -71,7 +80,7 @@ public final class UpstreamMessagePort {
     }
 
     public TeamId teamIdFor(
-            io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId registrationId) {
+            RegistrationId registrationId) {
         if (registrationId == null) {
             throw new IllegalArgumentException(
                     "registrationId must not be null");
@@ -86,6 +95,22 @@ public final class UpstreamMessagePort {
         return onNodeLane(
                 () -> stageStartTimes.startFor(teamId),
                 "upstreamStageStartTimeFor");
+    }
+
+    /**
+     * Returns the current number of unique teams with one or more active
+     * registrations.
+     *
+     * <p>Resolution happens at read time so a later TeamAssignment immediately
+     * changes the count without rewriting committed TimingData.</p>
+     */
+    public int uniqueTeamRegistrationCount() {
+        return onNodeLane(
+                () -> Integer.valueOf(
+                        uniqueTeamRegistrations.uniqueTeamCount(
+                                this::resolveTeamId)),
+                "uniqueTeamRegistrationCount")
+                .intValue();
     }
 
     private RaceDataApplyResult applyRaceDataOnNodeLane(
@@ -122,6 +147,10 @@ public final class UpstreamMessagePort {
                     expectedSequence);
         }
 
+        /*
+         * Apply one RACE_DATA message transactionally. Work is done on copies;
+         * live node data is replaced only after every change has validated.
+         */
         TeamAssignments updatedAssignments =
                 teamAssignments.copy();
         StageStartTimes updatedStartTimes =
@@ -227,7 +256,7 @@ public final class UpstreamMessagePort {
     }
 
     private TeamId resolveTeamId(
-            io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId registrationId) {
+            RegistrationId registrationId) {
         TeamId fixed =
                 eventData.teamIdFor(
                         registrationId);
