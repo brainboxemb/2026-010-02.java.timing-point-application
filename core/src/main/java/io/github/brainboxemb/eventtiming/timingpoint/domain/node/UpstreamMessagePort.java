@@ -119,23 +119,36 @@ public final class UpstreamMessagePort {
      */
     public List<UpstreamData> handle(
             UpstreamData.NodeScoped data) {
-        if (data == null) {
-            throw new IllegalArgumentException(
-                    "data must not be null");
-        }
-        if (!timingNode.timingNodeId().equals(
-                data.timingNodeId())) {
-            throw new IllegalArgumentException(
-                    "UpstreamData NodeId does not match TimingNode");
-        }
+        validateNodeTarget(data);
 
+        /*
+         * One inbound semantic message becomes one explicit TimingNode task.
+         * UpstreamMessagePort owns no executor: the task runs on the same serial
+         * lane as registrations, LogBook access and other mutable node work.
+         */
+        return timingNode.runNodeTask(
+                new UpstreamMessageTask(
+                        this,
+                        data),
+                "upstream:" + data.family());
+    }
+
+    /**
+     * Executes one already-admitted upstream task on the TimingNode serial lane.
+     *
+     * <p>This method must not submit another node task. Family handlers called
+     * from here operate directly on node-owned state while the serial lane is
+     * current.</p>
+     */
+    List<UpstreamData> handleOnNodeLane(
+            UpstreamData.NodeScoped data) {
         switch (data.family()) {
             case RACE_DATA:
                 if (!(data instanceof UpstreamData.RaceData)) {
                     throw new IllegalArgumentException(
                             "RACE_DATA has incompatible semantic type");
                 }
-                return handleRaceData(
+                return handleRaceDataOnNodeLane(
                         (UpstreamData.RaceData) data);
             case PING:
                 if (!(data instanceof UpstreamData.Ping)) {
@@ -143,7 +156,7 @@ public final class UpstreamMessagePort {
                             "PING has incompatible semantic type");
                 }
                 UpstreamData.Ping response =
-                        handlePing(
+                        handlePingOnNodeLane(
                                 (UpstreamData.Ping) data);
                 return response == null
                         ? Collections.<UpstreamData>emptyList()
@@ -155,10 +168,10 @@ public final class UpstreamMessagePort {
         }
     }
 
-    private List<UpstreamData> handleRaceData(
+    private List<UpstreamData> handleRaceDataOnNodeLane(
             UpstreamData.RaceData raceData) {
         RaceDataApplyResult apply =
-                applyRaceData(
+                applyRaceDataOnNodeLane(
                         raceData);
 
         switch (apply.outcome()) {
@@ -193,6 +206,19 @@ public final class UpstreamMessagePort {
      * and upstream state. If the previous heartbeat is still unanswered, one
      * missed interval is recorded before the next request is created.</p>
      */
+    private void validateNodeTarget(
+            UpstreamData.NodeScoped data) {
+        if (data == null) {
+            throw new IllegalArgumentException(
+                    "data must not be null");
+        }
+        if (!timingNode.timingNodeId().equals(
+                data.timingNodeId())) {
+            throw new IllegalArgumentException(
+                    "UpstreamData NodeId does not match TimingNode");
+        }
+    }
+
     public UpstreamData.Ping heartbeatTick() {
         return onNodeLane(
                 this::heartbeatTickOnNodeLane,
