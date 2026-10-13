@@ -19,6 +19,9 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+
 /**
  * TimingNode-owned semantic upstream port.
  *
@@ -38,9 +41,13 @@ public final class UpstreamMessagePort {
     private final TeamAssignments teamAssignments;
     private final StageStartTimes stageStartTimes;
     private final UniqueTeamRegistrations uniqueTeamRegistrations;
-    private final AtomicBoolean inputTaskScheduled =
-            new AtomicBoolean();
+    private final AtomicBoolean inputTaskScheduled = new AtomicBoolean();
 
+    /*
+     * Highest contiguous RACE_DATA sequence applied to live node state.
+     * Only the TimingNode serial lane changes this value. It is protocol state,
+     * not a public read model.
+     */
     private long lastAppliedRaceDataSequence;
 
     /*
@@ -70,38 +77,14 @@ public final class UpstreamMessagePort {
             TeamAssignments teamAssignments,
             StageStartTimes stageStartTimes,
             UniqueTeamRegistrations uniqueTeamRegistrations) {
-        if (nodeId == null) {
-            throw new IllegalArgumentException(
-                    "nodeId must not be null");
-        }
-        if (nodeLane == null) {
-            throw new IllegalArgumentException(
-                    "nodeLane must not be null");
-        }
-        if (stream == null) {
-            throw new IllegalArgumentException(
-                    "stream must not be null");
-        }
-        if (eventData == null) {
-            throw new IllegalArgumentException(
-                    "eventData must not be null");
-        }
-        if (logBook == null) {
-            throw new IllegalArgumentException(
-                    "logBook must not be null");
-        }
-        if (teamAssignments == null) {
-            throw new IllegalArgumentException(
-                    "teamAssignments must not be null");
-        }
-        if (stageStartTimes == null) {
-            throw new IllegalArgumentException(
-                    "stageStartTimes must not be null");
-        }
-        if (uniqueTeamRegistrations == null) {
-            throw new IllegalArgumentException(
-                    "uniqueTeamRegistrations must not be null");
-        }
+        checkArgument(nodeId != null, "nodeId must not be null");
+        checkArgument(nodeLane != null, "nodeLane must not be null");
+        checkArgument(stream != null, "stream must not be null");
+        checkArgument(eventData != null, "eventData must not be null");
+        checkArgument(logBook != null, "logBook must not be null");
+        checkArgument(teamAssignments != null, "teamAssignments must not be null");
+        checkArgument(stageStartTimes != null, "stageStartTimes must not be null");
+        checkArgument(uniqueTeamRegistrations != null, "uniqueTeamRegistrations must not be null");
         this.nodeId = nodeId;
         this.nodeLane = nodeLane;
         this.stream = stream;
@@ -121,18 +104,14 @@ public final class UpstreamMessagePort {
      * @return true when work is already scheduled or was admitted now
      */
     public boolean inputAvailable() {
-        if (!stream.isAvailable()
-                || !stream.hasMessage()) {
+        if (!stream.isAvailable() || !stream.hasMessage()) {
             return false;
         }
-        if (!inputTaskScheduled.compareAndSet(
-                false,
-                true)) {
+        if (!inputTaskScheduled.compareAndSet(false, true)) {
             return true;
         }
 
-        if (nodeLane.offer(
-                new UpstreamMessageTask(this))) {
+        if (nodeLane.offer(new UpstreamMessageTask(this))) {
             return true;
         }
 
@@ -173,55 +152,36 @@ public final class UpstreamMessagePort {
 
     private void processOnNodeLane(
             UpstreamData data) {
-        if (!(data instanceof UpstreamData.NodeScoped)) {
-            throw new IllegalArgumentException(
-                    "UpstreamData is not node-scoped: "
-                            + data.family());
-        }
+        checkArgument(data instanceof UpstreamData.NodeScoped,
+                "UpstreamData is not node-scoped: %s", data.family());
 
-        UpstreamData.NodeScoped nodeData =
-                (UpstreamData.NodeScoped) data;
-        if (!nodeId.equals(
-                nodeData.timingNodeId())) {
-            throw new IllegalArgumentException(
-                    "UpstreamData NodeId does not match node-scoped stream");
-        }
+        UpstreamData.NodeScoped nodeData = (UpstreamData.NodeScoped) data;
+        checkArgument(nodeId.equals(nodeData.timingNodeId()),
+                "UpstreamData NodeId does not match node-scoped stream");
 
         switch (data.family()) {
             case RACE_DATA:
-                if (!(data instanceof UpstreamData.RaceData)) {
-                    throw new IllegalArgumentException(
-                            "RACE_DATA has incompatible semantic type");
-                }
-                processRaceDataOnNodeLane(
-                        (UpstreamData.RaceData) data);
+                checkArgument(data instanceof UpstreamData.RaceData,
+                        "RACE_DATA has incompatible semantic type");
+                processRaceDataOnNodeLane((UpstreamData.RaceData) data);
                 return;
 
             case SYNC:
-                if (!(data instanceof UpstreamData.Sync)) {
-                    throw new IllegalArgumentException(
-                            "SYNC has incompatible semantic type");
-                }
-                processSyncOnNodeLane(
-                        (UpstreamData.Sync) data);
+                checkArgument(data instanceof UpstreamData.Sync,
+                        "SYNC has incompatible semantic type");
+                processSyncOnNodeLane((UpstreamData.Sync) data);
                 return;
 
             case REQ:
-                if (!(data instanceof UpstreamData.Req)) {
-                    throw new IllegalArgumentException(
-                            "REQ has incompatible semantic type");
-                }
-                processReqOnNodeLane(
-                        (UpstreamData.Req) data);
+                checkArgument(data instanceof UpstreamData.Req,
+                        "REQ has incompatible semantic type");
+                processReqOnNodeLane((UpstreamData.Req) data);
                 return;
 
             case PING:
-                if (!(data instanceof UpstreamData.Ping)) {
-                    throw new IllegalArgumentException(
-                            "PING has incompatible semantic type");
-                }
-                processPingOnNodeLane(
-                        (UpstreamData.Ping) data);
+                checkArgument(data instanceof UpstreamData.Ping,
+                        "PING has incompatible semantic type");
+                processPingOnNodeLane((UpstreamData.Ping) data);
                 return;
 
             default:
@@ -237,22 +197,16 @@ public final class UpstreamMessagePort {
      */
     private void processRaceDataOnNodeLane(
             UpstreamData.RaceData raceData) {
-        long receivedSequence =
-                raceData.sequence();
-        if (receivedSequence < 1L
-                || receivedSequence > TimingData.MAX_SEQUENCE_NUMBER) {
-            throw new IllegalArgumentException(
-                    "RACE_DATA sequence is outside the supported range");
-        }
+        long receivedSequence = raceData.sequence();
+        checkArgument(receivedSequence >= 1L && receivedSequence <= TimingData.MAX_SEQUENCE_NUMBER,
+                "RACE_DATA sequence is outside the supported range");
 
         if (receivedSequence <= lastAppliedRaceDataSequence) {
-            sendRaceDataAck(
-                    lastAppliedRaceDataSequence);
+            sendRaceDataAck(lastAppliedRaceDataSequence);
             return;
         }
 
-        long expectedSequence =
-                lastAppliedRaceDataSequence + 1L;
+        long expectedSequence = lastAppliedRaceDataSequence + 1L;
         if (receivedSequence != expectedSequence) {
             stream.send(
                     DefaultUpstreamData.req(
@@ -266,28 +220,18 @@ public final class UpstreamMessagePort {
          * Apply one RACE_DATA message transactionally. Work is done on copies;
          * live node data changes only after every change has validated.
          */
-        TeamAssignments updatedAssignments =
-                teamAssignments.copy();
-        StageStartTimes updatedStartTimes =
-                stageStartTimes.copy();
+        TeamAssignments updatedAssignments = teamAssignments.copy();
+        StageStartTimes updatedStartTimes = stageStartTimes.copy();
 
-        applyTeamAssignmentChanges(
-                updatedAssignments,
-                raceData);
-        applyStageStartChanges(
-                updatedStartTimes,
-                raceData);
+        applyTeamAssignmentChanges(updatedAssignments, raceData);
+        applyStageStartChanges(updatedStartTimes, raceData);
         updatedAssignments.validate();
 
-        teamAssignments.replaceWith(
-                updatedAssignments);
-        stageStartTimes.replaceWith(
-                updatedStartTimes);
-        lastAppliedRaceDataSequence =
-                receivedSequence;
+        teamAssignments.replaceWith(updatedAssignments);
+        stageStartTimes.replaceWith(updatedStartTimes);
+        lastAppliedRaceDataSequence = receivedSequence;
 
-        sendRaceDataAck(
-                receivedSequence);
+        sendRaceDataAck(receivedSequence);
     }
 
     private void sendRaceDataAck(
@@ -331,20 +275,20 @@ public final class UpstreamMessagePort {
         return logBook.headSequence();
     }
 
-    private void processSyncOnNodeLane(
-            UpstreamData.Sync sync) {
+    /**
+     * Reconciles Central's RACE_DATA source head with the highest contiguous
+     * sequence already applied locally. Missing data is requested from the first
+     * gap; Central moving backwards is treated as a protocol/state conflict.
+     */
+    private void processSyncOnNodeLane(UpstreamData.Sync sync) {
         if (sync.stream() != UpstreamData.Stream.RACE_DATA) {
             throw new UnsupportedOperationException(
                     "Inbound SYNC supports RACE_DATA only");
         }
 
-        long sourceHead =
-                sync.sequence();
-        if (sourceHead < 0L
-                || sourceHead > TimingData.MAX_SEQUENCE_NUMBER) {
-            throw new IllegalArgumentException(
-                    "SYNC sequence is outside the supported range");
-        }
+        long sourceHead = sync.sequence();
+        checkArgument(sourceHead >= 0L && sourceHead <= TimingData.MAX_SEQUENCE_NUMBER,
+                "SYNC sequence is outside the supported range");
 
         if (sourceHead == lastAppliedRaceDataSequence) {
             return;
@@ -366,80 +310,67 @@ public final class UpstreamMessagePort {
                         + lastAppliedRaceDataSequence);
     }
 
-    private void processReqOnNodeLane(
-            UpstreamData.Req req) {
+    /**
+     * Starts one TIMING_DATA replay from the requested sequence.
+     *
+     * <p>The current LogBook head is captured once. Later commits are not added
+     * to this replay; Central can request them after the next SYNC.</p>
+     */
+    private void processReqOnNodeLane(UpstreamData.Req req) {
         if (req.stream() != UpstreamData.Stream.TIMING_DATA) {
             throw new UnsupportedOperationException(
                     "Inbound REQ supports TIMING_DATA only");
         }
 
-        long fromSequence =
-                req.fromSequence();
-        if (fromSequence < 1L
-                || fromSequence > TimingData.MAX_SEQUENCE_NUMBER) {
-            throw new IllegalArgumentException(
-                    "REQ fromSequence is outside the supported range");
-        }
+        long fromSequence = req.fromSequence();
+        checkArgument(fromSequence >= 1L && fromSequence <= TimingData.MAX_SEQUENCE_NUMBER,
+                "REQ fromSequence is outside the supported range");
 
-        long capturedHead =
-                timingDataHeadOnNodeLane();
+        long capturedHead = timingDataHeadOnNodeLane();
         if (fromSequence > capturedHead) {
             replayActive = false;
             return;
         }
 
-        /*
-         * Capture the source head once. Records committed while replay is in
-         * progress belong to a later REQ and are never appended to this replay.
-         */
         replayNextSequence = fromSequence;
         replayCapturedHead = capturedHead;
         replayActive = true;
     }
 
+    /**
+     * Sends at most one bounded replay batch.
+     *
+     * <p>Only references to existing LogBook records are collected. The next
+     * batch is scheduled as a new node-lane turn so ordinary node work can run
+     * between large replay batches.</p>
+     */
     private void processReplayBatchOnNodeLane() {
-        int limit =
-                (int) Math.min(
-                        (long) REPLAY_BATCH_SIZE,
-                        replayCapturedHead - replayNextSequence + 1L);
-        List<TimingData> records =
-                new ArrayList<TimingData>(
-                        limit);
-        logBook.visitRange(
-                replayNextSequence,
-                limit,
-                records::add);
+        int limit = (int) Math.min((long) REPLAY_BATCH_SIZE,
+                replayCapturedHead - replayNextSequence + 1L);
+        List<TimingData> records = new ArrayList<TimingData>(limit);
+        logBook.visitRange(replayNextSequence, limit, records::add);
 
         if (records.isEmpty()) {
             replayActive = false;
-            throw new IllegalStateException(
-                    "LogBook head "
-                            + replayCapturedHead
-                            + " advertised record "
-                            + replayNextSequence
-                            + " but replay returned no data");
         }
+        checkState(!records.isEmpty(),
+                "LogBook head %s advertised record %s but replay returned no data",
+                replayCapturedHead, replayNextSequence);
 
-        TimingData first =
-                records.get(0);
+        TimingData first = records.get(0);
         if (first.sequenceNumber() != replayNextSequence) {
             replayActive = false;
-            throw new IllegalStateException(
-                    "TimingData replay expected sequence "
-                            + replayNextSequence
-                            + " but got "
-                            + first.sequenceNumber());
         }
+        checkState(first.sequenceNumber() == replayNextSequence,
+                "TimingData replay expected sequence %s but got %s",
+                replayNextSequence, first.sequenceNumber());
 
-        TimingData last =
-                records.get(
-                        records.size() - 1);
+        TimingData last = records.get(records.size() - 1);
         if (last.sequenceNumber() > replayCapturedHead) {
             replayActive = false;
-            throw new IllegalStateException(
-                    "TimingData replay crossed captured head "
-                            + replayCapturedHead);
         }
+        checkState(last.sequenceNumber() <= replayCapturedHead,
+                "TimingData replay crossed captured head %s", replayCapturedHead);
 
         stream.send(
                 DefaultUpstreamData.timingData(
@@ -451,8 +382,7 @@ public final class UpstreamMessagePort {
             return;
         }
 
-        replayNextSequence =
-                last.sequenceNumber() + 1L;
+        replayNextSequence = last.sequenceNumber() + 1L;
     }
 
     /**
@@ -495,8 +425,7 @@ public final class UpstreamMessagePort {
 
         heartbeatRequestsSent++;
         heartbeatAnswerPending = true;
-        heartbeatPingId =
-                "hb-" + heartbeatRequestsSent;
+        heartbeatPingId = "hb-" + heartbeatRequestsSent;
 
         stream.send(
                 DefaultUpstreamData.ping(
@@ -531,57 +460,33 @@ public final class UpstreamMessagePort {
         }
     }
 
-    public long raceDataAppliedSequence() {
-        return onNodeLane(
-                () -> Long.valueOf(
-                        lastAppliedRaceDataSequence),
-                "raceDataAppliedSequence")
-                .longValue();
+    /** Resolves the current TeamId using EventData first and live assignments as fallback. */
+    public TeamId teamIdFor(RegistrationId registrationId) {
+        checkArgument(registrationId != null, "registrationId must not be null");
+        return onNodeLane(() -> resolveTeamId(registrationId), "upstreamTeamIdFor");
     }
 
-    public TeamId teamIdFor(
-            RegistrationId registrationId) {
-        if (registrationId == null) {
-            throw new IllegalArgumentException(
-                    "registrationId must not be null");
-        }
-        return onNodeLane(
-                () -> resolveTeamId(
-                        registrationId),
-                "upstreamTeamIdFor");
+    /** Reads the current Central-provided stage start on the owning node lane. */
+    public TimingTimestamp stageStartTimeFor(TeamId teamId) {
+        return onNodeLane(() -> stageStartTimes.startFor(teamId), "upstreamStageStartTimeFor");
     }
 
-    public TimingTimestamp stageStartTimeFor(
-            TeamId teamId) {
-        return onNodeLane(
-                () -> stageStartTimes.startFor(
-                        teamId),
-                "upstreamStageStartTimeFor");
-    }
-
+    /** Returns the current unique-team count derived from active registrations. */
     public int uniqueTeamRegistrationCount() {
         return onNodeLane(
-                () -> Integer.valueOf(
-                        uniqueTeamRegistrations.uniqueTeamCount(
-                                this::resolveTeamId)),
-                "uniqueTeamRegistrationCount")
-                .intValue();
+                () -> uniqueTeamRegistrations.uniqueTeamCount(this::resolveTeamId),
+                "uniqueTeamRegistrationCount");
     }
 
     private void applyTeamAssignmentChanges(
             TeamAssignments updatedAssignments,
             UpstreamData.RaceData raceData) {
-        if (raceData.teamAssignmentChanges() == null) {
-            throw new IllegalArgumentException(
-                    "team assignment changes must not be null");
-        }
+        checkArgument(raceData.teamAssignmentChanges() != null,
+                "team assignment changes must not be null");
 
         for (UpstreamData.TeamAssignmentChange change
                 : raceData.teamAssignmentChanges()) {
-            if (change == null) {
-                throw new IllegalArgumentException(
-                        "team assignment change must not be null");
-            }
+            checkArgument(change != null, "team assignment change must not be null");
 
             switch (change.operation()) {
                 case SET:
@@ -612,17 +517,12 @@ public final class UpstreamMessagePort {
     private static void applyStageStartChanges(
             StageStartTimes updatedStartTimes,
             UpstreamData.RaceData raceData) {
-        if (raceData.stageStartTimeChanges() == null) {
-            throw new IllegalArgumentException(
-                    "stage start changes must not be null");
-        }
+        checkArgument(raceData.stageStartTimeChanges() != null,
+                "stage start changes must not be null");
 
         for (UpstreamData.StageStartTimeChange change
                 : raceData.stageStartTimeChanges()) {
-            if (change == null) {
-                throw new IllegalArgumentException(
-                        "stage start change must not be null");
-            }
+            checkArgument(change != null, "stage start change must not be null");
 
             switch (change.operation()) {
                 case SET:
@@ -644,15 +544,11 @@ public final class UpstreamMessagePort {
         }
     }
 
-    private TeamId resolveTeamId(
-            RegistrationId registrationId) {
-        TeamId fixed =
-                eventData.teamIdFor(
-                        registrationId);
+    private TeamId resolveTeamId(RegistrationId registrationId) {
+        TeamId fixed = eventData.teamIdFor(registrationId);
         return fixed != null
                 ? fixed
-                : teamAssignments.teamIdFor(
-                        registrationId);
+                : teamAssignments.teamIdFor(registrationId);
     }
 
     /**
@@ -662,20 +558,15 @@ public final class UpstreamMessagePort {
         if (stream.isAvailable()
                 && (replayActive
                         || stream.hasMessage())
-                && nodeLane.offer(
-                        new UpstreamMessageTask(this))) {
+                && nodeLane.offer(new UpstreamMessageTask(this))) {
             return;
         }
 
         inputTaskScheduled.set(false);
     }
 
-    private <R> R onNodeLane(
-            Callable<R> task,
-            String operation) {
-        return nodeLane.run(
-                task,
-                operation);
+    private <R> R onNodeLane(Callable<R> task, String operation) {
+        return nodeLane.run(task, operation);
     }
 
     /**
@@ -688,9 +579,7 @@ public final class UpstreamMessagePort {
     public interface NodeLane {
         boolean offer(Runnable task);
 
-        <R> R run(
-                Callable<R> task,
-                String operation);
+        <R> R run(Callable<R> task, String operation);
     }
 
     public static final class HeartbeatStatus {
