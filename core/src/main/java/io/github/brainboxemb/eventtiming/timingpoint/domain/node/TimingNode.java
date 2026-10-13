@@ -220,6 +220,9 @@ public final class TimingNode {
         tagProcessingConfiguration.changes()
                 .subscribe(
                         tagProcessor::onPolicyConfigurationChanged);
+
+        this.upstreamMessagePort =
+                new UpstreamMessagePort(this);
     }
 
     /**
