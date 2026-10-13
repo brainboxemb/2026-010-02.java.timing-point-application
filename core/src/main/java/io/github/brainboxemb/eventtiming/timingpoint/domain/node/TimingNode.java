@@ -420,8 +420,9 @@ public final class TimingNode {
     /**
      * Returns the TimingNode-owned semantic upstream port.
      *
-     * <p>The port owns the node-scoped UpstreamStream boundary and keeps
-     * transport adapters away from internal TimingNode logic.</p>
+     * <p>The port consumes the node-scoped UpstreamStream supplied by the
+     * I/O Messaging layer and keeps transport adapters away from internal
+     * TimingNode logic.</p>
      */
     public UpstreamMessagePort upstreamMessagePort() {
         return upstreamMessagePort;
