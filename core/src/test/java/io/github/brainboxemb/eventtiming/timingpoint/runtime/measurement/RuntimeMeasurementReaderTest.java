@@ -13,7 +13,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeMetri
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
