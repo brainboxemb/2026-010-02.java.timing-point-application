@@ -96,7 +96,7 @@ public final class UpstreamMessagePort {
      * work is appended to the back of the same lane so synchronization cannot
      * starve registrations or other node work.</p>
      */
-    void processNextOnNodeLane() {
+    void handleNextOnNodeLane() {
         try {
             if (!stream.isAvailable()) {
                 logBookSync.cancelSync();
@@ -159,14 +159,15 @@ public final class UpstreamMessagePort {
         }
     }
 
-    /** Sends a TIMING_DATA SYNC using the current committed LogBook head. */
+    /**
+     * Sends a TIMING_DATA SYNC using the directly published LogBook head.
+     *
+     * <p>No TimingNode-lane hop is needed: LogBook publishes its scalar head for
+     * direct reads and UpstreamStream.send only enqueues into the local Messaging
+     * mailbox.</p>
+     */
     public void sendTimingDataSync() {
-        onNodeLane(logBookSync::sendSync, "sendTimingDataSync");
-    }
-
-    /** Returns the current committed TIMING_DATA source head. */
-    public long timingDataHead() {
-        return onNodeLane(logBookSync::headSequence, "timingDataHead");
+        logBookSync.sendSync();
     }
 
     /**
