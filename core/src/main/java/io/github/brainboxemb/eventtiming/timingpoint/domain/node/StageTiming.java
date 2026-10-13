@@ -4,6 +4,8 @@ import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.StageStartTimes;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TeamAssignments;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -16,7 +18,7 @@ import java.time.ZonedDateTime;
  *
  * <p>The capability never mutates TimingData or live RaceData state. Every
  * calculation uses one already committed TimingData record plus the current
- * EventData/ReserveTagMap/StageStartTimes state.</p>
+ * EventData/TeamAssignments/StageStartTimes state.</p>
  */
 public final class StageTiming {
 
@@ -154,27 +156,27 @@ public final class StageTiming {
     }
 
     private final EventData eventData;
-    private final ReserveTagMap reserveTagMap;
+    private final TeamAssignments teamAssignments;
     private final StageStartTimes stageStartTimes;
 
     StageTiming(
             EventData eventData,
-            ReserveTagMap reserveTagMap,
+            TeamAssignments teamAssignments,
             StageStartTimes stageStartTimes) {
         if (eventData == null) {
             throw new IllegalArgumentException(
                     "eventData must not be null");
         }
-        if (reserveTagMap == null) {
+        if (teamAssignments == null) {
             throw new IllegalArgumentException(
-                    "reserveTagMap must not be null");
+                    "teamAssignments must not be null");
         }
         if (stageStartTimes == null) {
             throw new IllegalArgumentException(
                     "stageStartTimes must not be null");
         }
         this.eventData = eventData;
-        this.reserveTagMap = reserveTagMap;
+        this.teamAssignments = teamAssignments;
         this.stageStartTimes = stageStartTimes;
     }
 
@@ -208,7 +210,7 @@ public final class StageTiming {
                         registration.registrationId);
         if (teamId == null) {
             teamId =
-                    reserveTagMap.teamIdFor(
+                    teamAssignments.teamIdFor(
                             registration.registrationId);
         }
         if (teamId == null) {

@@ -9,8 +9,9 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.StageStartTimes;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TeamAssignments;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
@@ -44,16 +45,13 @@ public class StageTimingTest {
                 LocalTime.of(23, 59, 50),
                 null);
 
-        TimingData record =
-                automatic(
-                        1L,
-                        "RT-A-0001",
-                        Instant.parse("2026-10-13T22:00:10Z"),
-                        TimingData.RegistrationAction.ADD);
-
         StageTiming.Result result =
                 fixture.stageTiming.calculate(
-                        record,
+                        automatic(
+                                1L,
+                                "RT-A-0001",
+                                Instant.parse("2026-10-13T22:00:10Z"),
+                                TimingData.RegistrationAction.ADD),
                         ZoneId.of("Europe/Amsterdam"));
 
         assertSame(StageTiming.Outcome.RESOLVED, result.outcome());
@@ -90,9 +88,11 @@ public class StageTimingTest {
     }
 
     @Test
-    public void reserveRegistrationUsesLiveReserveTagMapFallback() {
+    public void activeTeamAssignmentIsFallbackWhenEventDataHasNoTeam() {
         Fixture fixture = fixture();
-        fixture.setReserveTeam("RT-R-0001", "0042");
+        fixture.assignTeam(
+                "RT-R-0001",
+                "0042");
         fixture.setStart(
                 "0042",
                 LocalTime.of(12, 0),
@@ -248,7 +248,7 @@ public class StageTimingTest {
     }
 
     @Test
-    public void timingNodeLogicReadsStageTimingFromCommittedLogBookSequence()
+    public void nodeQueryUsesCommittedLogBookAndCurrentUpstreamData()
             throws Exception {
         TimingData committed =
                 automatic(
@@ -256,44 +256,47 @@ public class StageTimingTest {
                         "RT-A-0001",
                         Instant.parse("2026-10-13T12:00:20Z"),
                         TimingData.RegistrationAction.ADD);
-        StaticPersistence persistence =
-                new StaticPersistence(committed);
-        TimingNodeLogic logic =
-                new TimingNodeLogic(
+        TimingNode node =
+                new TimingNode(
                         NODE_ID,
-                        persistence,
+                        new StaticPersistence(committed),
                         FACTORY,
                         () -> Instant.parse("2026-10-13T12:05:00Z"),
-                        new DefaultEventData(),
-                        SystemMonotonicClock.INSTANCE,
-                        new TimingNodeMetrics());
+                        new DefaultEventData());
 
-        logic.recoverTimingData();
-        logic.applyRaceData(
-                DefaultUpstreamData.raceData(
-                        NODE_ID,
-                        1L,
-                        Collections.<UpstreamData.ReserveTagMapChange>emptyList(),
-                        Collections.singletonList(
-                                DefaultUpstreamData.stageStartSet(
-                                        "0001",
-                                        LocalTime.of(12, 0)))));
+        node.activate();
+        try {
+            node.upstreamMessagePort()
+                    .applyRaceData(
+                            DefaultUpstreamData.raceData(
+                                    NODE_ID,
+                                    1L,
+                                    Collections.<UpstreamData.ReserveTagMapChange>emptyList(),
+                                    Collections.singletonList(
+                                            DefaultUpstreamData.stageStartSet(
+                                                    "0001",
+                                                    LocalTime.of(12, 0)))));
 
-        StageTiming.Result resolved =
-                logic.stageTiming(
-                        1L,
-                        ZoneOffset.UTC);
-        StageTiming.Result missing =
-                logic.stageTiming(
-                        2L,
-                        ZoneOffset.UTC);
+            StageTiming.Result resolved =
+                    node.query(
+                            TimingNodeQueries.stageTiming(
+                                    1L,
+                                    ZoneOffset.UTC));
+            StageTiming.Result missing =
+                    node.query(
+                            TimingNodeQueries.stageTiming(
+                                    2L,
+                                    ZoneOffset.UTC));
 
-        assertSame(StageTiming.Outcome.RESOLVED, resolved.outcome());
-        assertEquals(Duration.ofSeconds(20), resolved.elapsed());
-        assertSame(
-                StageTiming.Outcome.TIMING_DATA_NOT_FOUND,
-                missing.outcome());
-        assertEquals(2L, missing.sequenceNumber());
+            assertSame(StageTiming.Outcome.RESOLVED, resolved.outcome());
+            assertEquals(Duration.ofSeconds(20), resolved.elapsed());
+            assertSame(
+                    StageTiming.Outcome.TIMING_DATA_NOT_FOUND,
+                    missing.outcome());
+            assertEquals(2L, missing.sequenceNumber());
+        } finally {
+            node.deactivate();
+        }
     }
 
     private static TimingData.AutomaticRegistration automatic(
@@ -325,38 +328,33 @@ public class StageTimingTest {
     }
 
     private static final class Fixture {
-        private final ReserveTagMap reserveTagMap =
-                new ReserveTagMap();
+        private final TeamAssignments teamAssignments =
+                new TeamAssignments();
         private final StageStartTimes stageStartTimes =
                 new StageStartTimes();
         private final StageTiming stageTiming =
                 new StageTiming(
                         new DefaultEventData(),
-                        reserveTagMap,
+                        teamAssignments,
                         stageStartTimes);
 
-        private void setReserveTeam(
+        private void assignTeam(
                 String registrationId,
                 String teamId) {
-            reserveTagMap.replaceWith(
-                    reserveTagMap.candidateAfter(
-                            Collections.singletonList(
-                                    DefaultUpstreamData.reserveTagSet(
-                                            registrationId,
-                                            teamId))));
+            teamAssignments.assign(
+                    new RegistrationId(registrationId),
+                    new TeamId(teamId));
+            teamAssignments.validate();
         }
 
         private void setStart(
                 String teamId,
                 LocalTime startTime,
                 LocalDate startDate) {
-            stageStartTimes.replaceWith(
-                    stageStartTimes.candidateAfter(
-                            Collections.singletonList(
-                                    DefaultUpstreamData.stageStartSet(
-                                            teamId,
-                                            startTime,
-                                            startDate))));
+            stageStartTimes.set(
+                    new TeamId(teamId),
+                    startTime,
+                    startDate);
         }
     }
 
