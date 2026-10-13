@@ -353,8 +353,11 @@ public class StageTimingTest {
                 LocalDate startDate) {
             stageStartTimes.set(
                     new TeamId(teamId),
-                    startTime,
-                    startDate);
+                    startDate == null
+                            ? TimingTimestamp.localTime(startTime)
+                            : TimingTimestamp.localDateTime(
+                                    startDate,
+                                    startTime));
         }
     }
 

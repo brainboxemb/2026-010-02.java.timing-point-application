@@ -13,8 +13,6 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
 
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -79,15 +77,12 @@ public class DefaultUpstreamDataCodecTest {
                         Arrays.asList(
                                 DefaultUpstreamData.stageStartSet(
                                         "0042",
-                                        LocalTime.of(
-                                                23,
-                                                59,
-                                                50,
-                                                120000000)),
+                                        TimingTimestamp.parse(
+                                                "23:59:50.12")),
                                 DefaultUpstreamData.stageStartSet(
                                         "0043",
-                                        LocalTime.of(0, 2, 0),
-                                        LocalDate.of(2026, 10, 14))));
+                                        TimingTimestamp.parse(
+                                                "2026-10-14T00:02:00"))));
 
         String json = text(codec.encode(original));
         assertTrue(json.contains("\"type\":\"RACE_DATA\""));
@@ -96,6 +91,10 @@ public class DefaultUpstreamDataCodecTest {
         assertTrue(json.contains("\"stageStartTimes\""));
         assertTrue(json.contains("\"op\":\"SET\""));
         assertTrue(json.contains("\"op\":\"DEL\""));
+        assertTrue(json.contains(
+                "\"start\":\"23:59:50.12\""));
+        assertTrue(json.contains(
+                "\"start\":\"2026-10-14T00:02:00\""));
 
         UpstreamData.RaceData decoded =
                 (UpstreamData.RaceData) codec.decode(bytes(json));
@@ -126,11 +125,11 @@ public class DefaultUpstreamDataCodecTest {
                 "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
                         + "\"seq\":2,\"data\":{\"stageStartTimes\":["
                         + "{\"op\":\"DEL\",\"teamId\":\"0042\","
-                        + "\"startTime\":\"12:00:00\"}]}}");
+                        + "\"start\":\"12:00:00\"}]}}");
     }
 
     @Test
-    public void rejectsStageStartTimeFinerThanCentisecondOnEncode() throws Exception {
+    public void stageStartTimestampMayBeTimeOnly() throws Exception {
         UpstreamData.RaceData data =
                 DefaultUpstreamData.raceData(
                         new NodeId("A"),
@@ -139,20 +138,21 @@ public class DefaultUpstreamDataCodecTest {
                         Collections.singletonList(
                                 DefaultUpstreamData.stageStartSet(
                                         "0042",
-                                        LocalTime.of(
-                                                12,
-                                                0,
-                                                0,
-                                                123000000))));
+                                        TimingTimestamp.parse(
+                                                "12:00:00.123"))));
 
-        try {
-            codec.encode(data);
-            fail("expected encode failure");
-        } catch (UpstreamDataCodec.CodecException expected) {
-            assertSame(
-                    UpstreamDataCodec.CodecException.Reason.ENCODE_FAILURE,
-                    expected.reason());
-        }
+        String json = text(codec.encode(data));
+        assertTrue(json.contains(
+                "\"start\":\"12:00:00.123\""));
+
+        UpstreamData.RaceData decoded =
+                (UpstreamData.RaceData) codec.decode(bytes(json));
+        assertEquals(
+                TimingTimestamp.Knowledge.TIME_ONLY,
+                decoded.stageStartTimeChanges()
+                        .get(0)
+                        .start()
+                        .knowledge());
     }
 
     @Test

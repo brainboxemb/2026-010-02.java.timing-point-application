@@ -570,8 +570,8 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                     new NodeId(fields.nodeId),
                     fields.sequenceNumber,
                     new LocationId(fields.locationId),
-                    TimingTimestamp.parse(fields.effectiveTimeText),
-                    TimingTimestamp.parse(fields.recordedAtText));
+                    TimingTimestamp.parseAbsolute(fields.effectiveTimeText),
+                    TimingTimestamp.parseAbsolute(fields.recordedAtText));
         } catch (RuntimeException ex) {
             throw invalid("common IF-05 TimingData envelope is invalid", ex);
         }

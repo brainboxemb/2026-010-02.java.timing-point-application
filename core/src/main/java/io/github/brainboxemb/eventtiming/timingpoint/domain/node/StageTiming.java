@@ -4,6 +4,7 @@ import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.StageStartTimes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TeamAssignments;
 
@@ -219,7 +220,7 @@ public final class StageTiming {
                     registration.registrationId);
         }
 
-        StageStartTimes.StartDefinition start =
+        TimingTimestamp start =
                 stageStartTimes.startFor(
                         teamId);
         if (start == null) {
@@ -267,13 +268,22 @@ public final class StageTiming {
     }
 
     private static Instant resolveStartInstant(
-            StageStartTimes.StartDefinition start,
+            TimingTimestamp start,
             Instant registrationInstant,
             ZoneId raceTimeZone) {
-        if (start.startDate() != null) {
+        /*
+         * An upstream source may know only local time, local date/time, or an
+         * absolute timestamp. StageTiming owns the missing race-day/timezone
+         * interpretation; the timestamp itself never invents that context.
+         */
+        if (start.isAbsolute()) {
+            return start.instant();
+        }
+
+        if (start.hasDate()) {
             return ZonedDateTime.of(
-                    start.startDate(),
-                    start.startTime(),
+                    start.date(),
+                    start.time(),
                     raceTimeZone)
                     .toInstant();
         }
@@ -282,21 +292,21 @@ public final class StageTiming {
                 registrationInstant
                         .atZone(raceTimeZone)
                         .toLocalDate();
-        ZonedDateTime candidate =
+        ZonedDateTime resolved =
                 ZonedDateTime.of(
                         registrationDate,
-                        start.startTime(),
+                        start.time(),
                         raceTimeZone);
 
-        if (candidate.toInstant()
+        if (resolved.toInstant()
                 .isAfter(registrationInstant)) {
-            candidate =
+            resolved =
                     ZonedDateTime.of(
                             registrationDate.minusDays(1L),
-                            start.startTime(),
+                            start.time(),
                             raceTimeZone);
         }
-        return candidate.toInstant();
+        return resolved.toInstant();
     }
 
     private static final class Registration {
