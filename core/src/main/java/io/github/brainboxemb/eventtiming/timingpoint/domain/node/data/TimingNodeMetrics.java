@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.data;
 
 /**
  * Component-owned engineering counters for the TimingNode commit/event path.

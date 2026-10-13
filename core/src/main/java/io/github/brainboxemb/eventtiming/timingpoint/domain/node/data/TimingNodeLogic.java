@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.data;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
@@ -9,7 +9,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory.Context;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.StageStartTimes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.TeamAssignments;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.UniqueTeamRegistrations;
@@ -17,6 +16,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTim
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
@@ -42,8 +42,8 @@ import org.slf4j.LoggerFactory;
  * Internal mutable logic of one TimingNode.
  *
  * <p>This object contains the node state and domain decisions. It has no queue,
- * timeout or event-delivery responsibility; those belong to the visible
- * {@link TimingNode} component boundary.</p>
+ * timeout or event-delivery responsibility; those belong to the owning
+ * {@link NodeDataProcessor} component.</p>
  */
 final class TimingNodeLogic {
     private static final Logger LOG =

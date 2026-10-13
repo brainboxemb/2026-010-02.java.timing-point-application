@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.data;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
@@ -19,7 +19,7 @@ public final class TimingNodeQueries {
             new TimingNodeQuery<>(
                     "status",
                     TimingNodeLogic::status,
-                    TimingNode::publishedStatus);
+                    NodeDataProcessor::publishedStatus);
     private static final TimingNodeQuery<Integer> TIMING_DATA_COUNT =
             new TimingNodeQuery<>(
                     "timingDataCount",
@@ -28,7 +28,7 @@ public final class TimingNodeQueries {
             new TimingNodeQuery<>(
                     "timingDataHead",
                     TimingNodeLogic::timingDataHead,
-                    TimingNode::currentTimingDataHead);
+                    NodeDataProcessor::currentTimingDataHead);
 
     private TimingNodeQueries() {
     }
@@ -45,7 +45,7 @@ public final class TimingNodeQueries {
      * Returns the highest committed TimingData sequence, or 0 when the LogBook is empty.
      *
      * <p>CURRENT reads use the LogBook's published scalar head directly. ORDERED
-     * reads enter the TimingNode lane and therefore observe work accepted earlier.</p>
+     * reads enter the Data Lane and therefore observe work accepted earlier.</p>
      */
     public static TimingNodeQuery<Long> timingDataHead() {
         return TIMING_DATA_HEAD;
@@ -68,7 +68,7 @@ public final class TimingNodeQueries {
     }
 
     /**
-     * Visits at most {@code limit} LogBook records on the TimingNode serial lane.
+     * Visits at most {@code limit} LogBook records on the Data Lane.
      *
      * <p>The visitor must be short/non-blocking and must not make a result-bearing
      * ORDERED call back into the same TimingNode. CURRENT status reads are safe.</p>
@@ -86,7 +86,7 @@ public final class TimingNodeQueries {
     }
 
     /**
-     * Visits at most {@code limit} newest LogBook records on the TimingNode serial lane.
+     * Visits at most {@code limit} newest LogBook records on the Data Lane.
      */
     public static TimingNodeQuery<Integer> visitLatestTimingData(
             int limit,

@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.data;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
@@ -11,9 +11,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 /**
  * Standard state-changing commands supported by TimingNode.
  *
- * <p>The factory validates command input at creation time. Execution remains the
- * responsibility of {@link TimingNode}, which applies the command to its
- * package-private logic on the serial lane.</p>
+ * <p>The factory validates command input at creation time. Execution belongs to
+ * {@link NodeDataProcessor}, which applies the command on the Data Lane.</p>
  */
 public final class TimingNodeCommands {
     private static final TimingNodeCommand<CloseResult> CLOSE =
@@ -164,8 +163,7 @@ public final class TimingNodeCommands {
             TimingNodeCommand.Action<R> action) {
         return new TimingNodeCommand<>(
                 name,
-                action,
-                (node, result) -> result);
+                action);
     }
 
 }
