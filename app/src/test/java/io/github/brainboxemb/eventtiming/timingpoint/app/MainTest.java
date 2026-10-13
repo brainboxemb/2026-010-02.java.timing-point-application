@@ -44,9 +44,15 @@ public class MainTest {
 
         assertEquals(0, output.exitCode);
         assertTrue(output.stdout.contains(
-                "timing-application test-version"));
+                "Application identity"));
         assertTrue(output.stdout.contains(
-                "revision=abc123def456"));
+                "  Application: timing-application"));
+        assertTrue(output.stdout.contains(
+                "  Version: test-version"));
+        assertTrue(output.stdout.contains(
+                "  Revision: abc123def456"));
+        assertTrue(output.stdout.contains(
+                "  SourceRef: feature/test"));
         assertTrue(output.stderr.isEmpty());
     }
 
@@ -69,10 +75,16 @@ public class MainTest {
                 output.exitCode);
         assertTrue(
                 output.stdout.contains(
-                        "timing-application test-version revision=abc123def456"));
+                        "Application identity"));
         assertTrue(
                 output.stdout.contains(
-                        "sourceRef=feature/test"));
+                        "  Version: test-version"));
+        assertTrue(
+                output.stdout.contains(
+                        "  Revision: abc123def456"));
+        assertTrue(
+                output.stdout.contains(
+                        "  SourceRef: feature/test"));
         assertTrue(
                 output.stderr.contains(
                         "Unable to start application from configuration"));
@@ -98,9 +110,15 @@ public class MainTest {
                 Files.readAllBytes(files[0].toPath()),
                 StandardCharsets.UTF_8);
 
-        String identity = Main.startupIdentityLine(identity());
-        assertTrue(retained.contains("[INFO] - " + identity));
-        assertEquals(1, retained.split("revision=abc123def456", -1).length - 1);
+        assertTrue(retained.contains("[INFO] - Application identity"));
+        assertTrue(retained.contains("[INFO] -   Application: timing-application"));
+        assertTrue(retained.contains("[INFO] -   Version: test-version"));
+        assertTrue(retained.contains("[INFO] -   API version: 1"));
+        assertTrue(retained.contains("[INFO] -   Revision: abc123def456"));
+        assertTrue(retained.contains("[INFO] -   SourceRef: feature/test"));
+        assertTrue(retained.contains("[INFO] -   BuildOrigin: local"));
+        assertTrue(retained.contains("[INFO] -   Dirty: false"));
+        assertEquals(1, retained.split("abc123def456", -1).length - 1);
         assertEquals("", stdout.toString("UTF-8"));
     }
 
@@ -111,8 +129,11 @@ public class MainTest {
         try (PrintStream out = new PrintStream(stdout, true, "UTF-8")) {
             ApplicationLauncher.announceStartupIdentity(identity(), null, out);
         }
-        assertTrue(stdout.toString("UTF-8").contains(
-                Main.startupIdentityLine(identity())));
+        String text = stdout.toString("UTF-8");
+        assertTrue(text.contains("Application identity"));
+        assertTrue(text.contains("  Application: timing-application"));
+        assertTrue(text.contains("  Version: test-version"));
+        assertTrue(text.contains("  Revision: abc123def456"));
     }
 
     @Test
