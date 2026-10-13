@@ -60,12 +60,12 @@ final class UpstreamHeartbeat {
         answerPending = true;
         pendingPingId = "hb-" + requestsSent;
 
+        publishStatus();
         stream.send(DefaultUpstreamData.ping(
                 nodeId,
                 UpstreamData.PingOperation.REQ,
                 UpstreamData.PingMode.HB,
                 pendingPingId));
-        publishStatus();
     }
 
     /**
