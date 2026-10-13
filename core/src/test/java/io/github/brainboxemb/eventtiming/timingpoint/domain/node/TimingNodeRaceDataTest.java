@@ -102,7 +102,7 @@ public class TimingNodeRaceDataTest {
                                     new NodeId("A"),
                                     1L,
                                     Collections.singletonList(
-                                            DefaultUpstreamData.reserveTagDelete(
+                                            DefaultUpstreamData.teamAssignmentDelete(
                                                     "RT-R-0001")),
                                     Collections.<UpstreamData.StageStartTimeChange>emptyList()));
 
@@ -161,7 +161,7 @@ public class TimingNodeRaceDataTest {
                                     new NodeId("A"),
                                     1L,
                                     Collections.singletonList(
-                                            DefaultUpstreamData.reserveTagSet(
+                                            DefaultUpstreamData.teamAssignmentSet(
                                                     "RT-A-0001",
                                                     "9999")),
                                     Collections.singletonList(
@@ -194,7 +194,7 @@ public class TimingNodeRaceDataTest {
                             DefaultUpstreamData.raceData(
                                     new NodeId("A"),
                                     1L,
-                                    Collections.<UpstreamData.ReserveTagMapChange>emptyList(),
+                                    Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
                                     Collections.singletonList(
                                             DefaultUpstreamData.stageStartSet(
                                                     "0042",
@@ -214,7 +214,7 @@ public class TimingNodeRaceDataTest {
                             DefaultUpstreamData.raceData(
                                     new NodeId("A"),
                                     2L,
-                                    Collections.<UpstreamData.ReserveTagMapChange>emptyList(),
+                                    Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
                                     Collections.singletonList(
                                             DefaultUpstreamData.stageStartDelete(
                                                     "0042"))));
@@ -239,7 +239,7 @@ public class TimingNodeRaceDataTest {
                 new NodeId("A"),
                 sequence,
                 Collections.singletonList(
-                        DefaultUpstreamData.reserveTagSet(
+                        DefaultUpstreamData.teamAssignmentSet(
                                 registrationId,
                                 teamId)),
                 Collections.<UpstreamData.StageStartTimeChange>emptyList());

@@ -30,20 +30,20 @@ public final class DefaultUpstreamData {
     public static UpstreamData.RaceData raceData(
             NodeId nodeId,
             long sequence,
-            List<UpstreamData.ReserveTagMapChange> reserveTagMapChanges,
+            List<UpstreamData.TeamAssignmentChange> teamAssignmentChanges,
             List<UpstreamData.StageStartTimeChange> stageStartTimeChanges) {
-        List<UpstreamData.ReserveTagMapChange> reserve =
-                copyReserveTagMapChanges(reserveTagMapChanges);
+        List<UpstreamData.TeamAssignmentChange> assignments =
+                copyTeamAssignmentChanges(teamAssignmentChanges);
         List<UpstreamData.StageStartTimeChange> starts =
                 copyStageStartTimeChanges(stageStartTimeChanges);
-        if (reserve.isEmpty() && starts.isEmpty()) {
+        if (assignments.isEmpty() && starts.isEmpty()) {
             throw new IllegalArgumentException(
                     "RACE_DATA requires at least one change");
         }
         return new RaceDataValue(
                 requireNodeId(nodeId),
                 requirePositiveSequence(sequence, "RaceData sequence"),
-                reserve,
+                assignments,
                 starts);
     }
 
@@ -82,6 +82,7 @@ public final class DefaultUpstreamData {
     }
 
     public static UpstreamData.Ping ping(
+            NodeId nodeId,
             UpstreamData.PingOperation operation,
             UpstreamData.PingMode mode,
             String pingId) {
@@ -95,21 +96,25 @@ public final class DefaultUpstreamData {
                 throw new IllegalArgumentException("pingId must not be blank");
             }
         }
-        return new PingValue(operation, mode, normalizedId);
+        return new PingValue(
+                requireNodeId(nodeId),
+                operation,
+                mode,
+                normalizedId);
     }
 
-    public static UpstreamData.ReserveTagMapChange reserveTagSet(
+    public static UpstreamData.TeamAssignmentChange teamAssignmentSet(
             String registrationId,
             String teamId) {
-        return new UpstreamData.ReserveTagMapChange(
+        return new UpstreamData.TeamAssignmentChange(
                 UpstreamData.ChangeOperation.SET,
                 new RegistrationId(registrationId),
                 new TeamId(teamId));
     }
 
-    public static UpstreamData.ReserveTagMapChange reserveTagDelete(
+    public static UpstreamData.TeamAssignmentChange teamAssignmentDelete(
             String registrationId) {
-        return new UpstreamData.ReserveTagMapChange(
+        return new UpstreamData.TeamAssignmentChange(
                 UpstreamData.ChangeOperation.DEL,
                 new RegistrationId(registrationId),
                 null);
@@ -199,23 +204,23 @@ public final class DefaultUpstreamData {
         return Collections.unmodifiableList(copy);
     }
 
-    private static List<UpstreamData.ReserveTagMapChange>
-            copyReserveTagMapChanges(
-                    List<UpstreamData.ReserveTagMapChange> changes) {
+    private static List<UpstreamData.TeamAssignmentChange>
+            copyTeamAssignmentChanges(
+                    List<UpstreamData.TeamAssignmentChange> changes) {
         if (changes == null) {
             return Collections.emptyList();
         }
-        List<UpstreamData.ReserveTagMapChange> copy =
-                new ArrayList<UpstreamData.ReserveTagMapChange>(changes.size());
+        List<UpstreamData.TeamAssignmentChange> copy =
+                new ArrayList<UpstreamData.TeamAssignmentChange>(changes.size());
         Set<RegistrationId> keys = new LinkedHashSet<RegistrationId>();
-        for (UpstreamData.ReserveTagMapChange change : changes) {
+        for (UpstreamData.TeamAssignmentChange change : changes) {
             if (change == null) {
                 throw new IllegalArgumentException(
-                        "reserveTagMapChanges must not contain null");
+                        "teamAssignmentChanges must not contain null");
             }
             if (!keys.add(change.registrationId())) {
                 throw new IllegalArgumentException(
-                        "duplicate reserveTagMap regId "
+                        "duplicate teamAssignments regId "
                                 + change.registrationId());
             }
             copy.add(change);
@@ -285,17 +290,17 @@ public final class DefaultUpstreamData {
             extends NodeValue
             implements UpstreamData.RaceData {
         private final long sequence;
-        private final List<UpstreamData.ReserveTagMapChange> reserveTagMapChanges;
+        private final List<UpstreamData.TeamAssignmentChange> teamAssignmentChanges;
         private final List<UpstreamData.StageStartTimeChange> stageStartTimeChanges;
 
         private RaceDataValue(
                 NodeId nodeId,
                 long sequence,
-                List<UpstreamData.ReserveTagMapChange> reserveTagMapChanges,
+                List<UpstreamData.TeamAssignmentChange> teamAssignmentChanges,
                 List<UpstreamData.StageStartTimeChange> stageStartTimeChanges) {
             super(nodeId);
             this.sequence = sequence;
-            this.reserveTagMapChanges = reserveTagMapChanges;
+            this.teamAssignmentChanges = teamAssignmentChanges;
             this.stageStartTimeChanges = stageStartTimeChanges;
         }
 
@@ -310,8 +315,8 @@ public final class DefaultUpstreamData {
         }
 
         @Override
-        public List<UpstreamData.ReserveTagMapChange> reserveTagMapChanges() {
-            return reserveTagMapChanges;
+        public List<UpstreamData.TeamAssignmentChange> teamAssignmentChanges() {
+            return teamAssignmentChanges;
         }
 
         @Override
@@ -427,15 +432,18 @@ public final class DefaultUpstreamData {
     }
 
     private static final class PingValue
+            extends NodeValue
             implements UpstreamData.Ping {
         private final PingOperation operation;
         private final PingMode mode;
         private final String pingId;
 
         private PingValue(
+                NodeId nodeId,
                 PingOperation operation,
                 PingMode mode,
                 String pingId) {
+            super(nodeId);
             this.operation = operation;
             this.mode = mode;
             this.pingId = pingId;

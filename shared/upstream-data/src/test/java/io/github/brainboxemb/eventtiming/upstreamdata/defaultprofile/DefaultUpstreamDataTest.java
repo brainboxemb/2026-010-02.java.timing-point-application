@@ -19,10 +19,10 @@ public class DefaultUpstreamDataTest {
                     new NodeId("A"),
                     1L,
                     Arrays.asList(
-                            DefaultUpstreamData.reserveTagSet(
+                            DefaultUpstreamData.teamAssignmentSet(
                                     "RT-R-0001",
                                     "0042"),
-                            DefaultUpstreamData.reserveTagDelete(
+                            DefaultUpstreamData.teamAssignmentDelete(
                                     "RT-R-0001")),
                     Collections.<UpstreamData.StageStartTimeChange>emptyList());
             fail("expected invalid RaceData");
@@ -37,7 +37,7 @@ public class DefaultUpstreamDataTest {
             DefaultUpstreamData.raceData(
                     new NodeId("A"),
                     1L,
-                    Collections.<UpstreamData.ReserveTagMapChange>emptyList(),
+                    Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
                     Arrays.asList(
                             DefaultUpstreamData.stageStartDelete("0042"),
                             DefaultUpstreamData.stageStartDelete("0042")));
