@@ -370,7 +370,8 @@ public class UpstreamMessagePortTest {
                     258L,
                     node.query(
                             TimingNodeQueries.timingDataHead(),
-                            TimingNodeQuery.ReadConsistency.CURRENT));
+                            TimingNodeQuery.ReadConsistency.CURRENT)
+                            .longValue());
             assertEquals(0, stream.sentCount());
         } finally {
             node.deactivate();
