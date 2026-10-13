@@ -58,6 +58,7 @@ public final class TimingNode {
     private final TimingNodeMetrics metrics;
     private final Event<Status> statusChangedEvent = new Event<>();
     private final Event<TimingData> timingDataCommittedEvent = new Event<>();
+    private final UpstreamMessagePort upstreamMessagePort;
 
     /** Latest activation-complete immutable Status visible to CURRENT queries. */
     private volatile Status publishedStatus;
@@ -278,10 +279,21 @@ public final class TimingNode {
         this.operationTimeoutMillis = operationTimeoutMillis;
         this.monotonicClock = monotonicClock;
         this.metrics = logic.metrics();
+        this.upstreamMessagePort = new UpstreamMessagePort(this);
     }
 
     public NodeId timingNodeId() {
         return logic.timingNodeId();
+    }
+
+    /**
+     * Returns the TimingNode-owned semantic upstream port.
+     *
+     * <p>Application routing uses this port so upstream connectors never call
+     * internal TimingNode logic directly.</p>
+     */
+    public UpstreamMessagePort upstreamMessagePort() {
+        return upstreamMessagePort;
     }
 
     /**
