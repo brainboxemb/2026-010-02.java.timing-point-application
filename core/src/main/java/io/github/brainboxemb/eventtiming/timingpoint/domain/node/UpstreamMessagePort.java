@@ -7,7 +7,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.StageStartTimes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TeamAssignments;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.UniqueTeamRegistrations;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.UniqueTeamRegistrations;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
