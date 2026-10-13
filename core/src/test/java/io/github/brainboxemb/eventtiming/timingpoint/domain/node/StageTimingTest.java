@@ -251,26 +251,32 @@ public class StageTimingTest {
                         "RT-A-0001",
                         Instant.parse("2026-10-13T12:00:20Z"),
                         TimingData.RegistrationAction.ADD);
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
         TimingNode node =
                 new TimingNode(
                         NODE_ID,
                         new StaticPersistence(committed),
                         FACTORY,
                         () -> Instant.parse("2026-10-13T12:05:00Z"),
-                        new DefaultEventData());
+                        new DefaultEventData(),
+                        stream);
 
         node.activate();
         try {
-            node.upstreamMessagePort()
-                    .applyRaceData(
-                            DefaultUpstreamData.raceData(
-                                    NODE_ID,
-                                    1L,
-                                    Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
-                                    Collections.singletonList(
-                                            DefaultUpstreamData.stageStartSet(
-                                                    "0001",
-                                                    LocalTime.NOON))));
+            stream.receive(
+                    DefaultUpstreamData.raceData(
+                            NODE_ID,
+                            1L,
+                            Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
+                            Collections.singletonList(
+                                    DefaultUpstreamData.stageStartSet(
+                                            "0001",
+                                            LocalTime.NOON))));
+            assertTrue(
+                    node.upstreamMessagePort()
+                            .inputAvailable());
+            stream.takeSent();
 
             List<StageTime> ranking =
                     node.query(

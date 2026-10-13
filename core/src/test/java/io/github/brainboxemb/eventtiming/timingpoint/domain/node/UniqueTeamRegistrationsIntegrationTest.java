@@ -25,6 +25,8 @@ public class UniqueTeamRegistrationsIntegrationTest {
 
     @Test
     public void recoveredAndLaterAssignedRegistrationsUseCurrentTeamResolution() {
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
         TimingNode node =
                 new TimingNode(
                         new NodeId("A"),
@@ -33,7 +35,8 @@ public class UniqueTeamRegistrationsIntegrationTest {
                                 registration(2L, "RT-R-0001")),
                         new DefaultTimingDataFactory(),
                         () -> Instant.parse("2026-10-13T12:05:00Z"),
-                        new DefaultEventData());
+                        new DefaultEventData(),
+                        stream);
 
         node.activate();
         try {
@@ -45,7 +48,7 @@ public class UniqueTeamRegistrationsIntegrationTest {
                     1,
                     port.uniqueTeamRegistrationCount());
 
-            port.applyRaceData(
+            stream.receive(
                     DefaultUpstreamData.raceData(
                             new NodeId("A"),
                             1L,
@@ -54,6 +57,9 @@ public class UniqueTeamRegistrationsIntegrationTest {
                                             "RT-R-0001",
                                             "0042")),
                             Collections.<UpstreamData.StageStartTimeChange>emptyList()));
+            org.junit.Assert.assertTrue(
+                    port.inputAvailable());
+            stream.takeSent();
 
             // The LogBook is unchanged; the current assignment now resolves the
             // second active RegistrationId to a second unique TeamId.

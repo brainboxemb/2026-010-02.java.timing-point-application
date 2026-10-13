@@ -10,63 +10,63 @@ import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpst
 
 import java.time.Instant;
 import java.util.Collections;
-import java.util.List;
 
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class UpstreamMessagePortTest {
 
     @Test
-    public void genericHandleOwnsRaceDataAckSemantics() {
-        TimingNode node = node("A");
+    public void raceDataIsReadFromStreamAndAckIsSentToStream() {
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
+        TimingNode node =
+                node("A", stream);
         node.activate();
         try {
-            UpstreamMessagePort port =
-                    node.upstreamMessagePort();
+            stream.receive(
+                    DefaultUpstreamData.raceData(
+                            new NodeId("A"),
+                            1L,
+                            Collections.singletonList(
+                                    DefaultUpstreamData.teamAssignmentSet(
+                                            "RT-R-0001",
+                                            "0042")),
+                            Collections.<UpstreamData.StageStartTimeChange>emptyList()));
 
-            List<UpstreamData> responses =
-                    port.handle(
-                            DefaultUpstreamData.raceData(
-                                    new NodeId("A"),
-                                    1L,
-                                    Collections.singletonList(
-                                            DefaultUpstreamData.teamAssignmentSet(
-                                                    "RT-R-0001",
-                                                    "0042")),
-                                    Collections.<UpstreamData.StageStartTimeChange>emptyList()));
-
-            assertEquals(
-                    1,
-                    responses.size());
             assertTrue(
-                    responses.get(0)
-                            instanceof UpstreamData.Ack);
-            assertEquals(
-                    1L,
-                    ((UpstreamData.Ack) responses.get(0))
-                            .sequence());
+                    node.upstreamMessagePort()
+                            .inputAvailable());
+
+            UpstreamData.Ack ack =
+                    (UpstreamData.Ack) stream.takeSent();
+            assertSame(
+                    UpstreamData.Stream.RACE_DATA,
+                    ack.stream());
+            assertEquals(1L, ack.sequence());
         } finally {
             node.deactivate();
         }
     }
 
     @Test
-    public void heartbeatTickIsNodeScopedAndTracksMissedIntervals() {
-        TimingNode node = node("A");
+    public void heartbeatUsesSameOutboundStreamAndTracksMissedIntervals() {
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
+        TimingNode node =
+                node("A", stream);
         node.activate();
         try {
             UpstreamMessagePort port =
                     node.upstreamMessagePort();
 
+            port.heartbeatTick();
             UpstreamData.Ping first =
-                    port.heartbeatTick();
+                    (UpstreamData.Ping) stream.takeSent();
 
             assertEquals(
                     new NodeId("A"),
@@ -79,76 +79,14 @@ public class UpstreamMessagePortTest {
                     first.mode());
             assertEquals("hb-1", first.pingId());
 
-            UpstreamMessagePort.HeartbeatStatus firstStatus =
-                    port.heartbeatStatus();
-            assertEquals(1L, firstStatus.requestsSent());
-            assertEquals(0L, firstStatus.answersReceived());
-            assertEquals(0L, firstStatus.missedIntervals());
-            assertTrue(firstStatus.answerPending());
-
+            port.heartbeatTick();
             UpstreamData.Ping second =
-                    port.heartbeatTick();
+                    (UpstreamData.Ping) stream.takeSent();
             assertEquals("hb-2", second.pingId());
 
-            UpstreamMessagePort.HeartbeatStatus secondStatus =
-                    port.heartbeatStatus();
-            assertEquals(2L, secondStatus.requestsSent());
-            assertEquals(1L, secondStatus.missedIntervals());
-            assertTrue(secondStatus.answerPending());
-        } finally {
-            node.deactivate();
-        }
-    }
-
-    @Test
-    public void matchingHeartbeatAnswerClearsPendingState() {
-        TimingNode node = node("A");
-        node.activate();
-        try {
-            UpstreamMessagePort port =
-                    node.upstreamMessagePort();
-            UpstreamData.Ping request =
-                    port.heartbeatTick();
-
-            UpstreamData.Ping response =
-                    port.handlePing(
-                            DefaultUpstreamData.ping(
-                                    new NodeId("A"),
-                                    UpstreamData.PingOperation.ANS,
-                                    UpstreamData.PingMode.HB,
-                                    request.pingId()));
-
-            assertNull(response);
-
             UpstreamMessagePort.HeartbeatStatus status =
                     port.heartbeatStatus();
-            assertEquals(1L, status.answersReceived());
-            assertEquals(0L, status.missedIntervals());
-            assertFalse(status.answerPending());
-        } finally {
-            node.deactivate();
-        }
-    }
-
-    @Test
-    public void staleHeartbeatAnswerDoesNotAcknowledgeCurrentRequest() {
-        TimingNode node = node("A");
-        node.activate();
-        try {
-            UpstreamMessagePort port =
-                    node.upstreamMessagePort();
-            port.heartbeatTick();
-            port.heartbeatTick();
-
-            port.handlePing(
-                    DefaultUpstreamData.ping(
-                            new NodeId("A"),
-                            UpstreamData.PingOperation.ANS,
-                            UpstreamData.PingMode.HB,
-                            "hb-1"));
-
-            UpstreamMessagePort.HeartbeatStatus status =
-                    port.heartbeatStatus();
+            assertEquals(2L, status.requestsSent());
             assertEquals(0L, status.answersReceived());
             assertEquals(1L, status.missedIntervals());
             assertTrue(status.answerPending());
@@ -158,72 +96,103 @@ public class UpstreamMessagePortTest {
     }
 
     @Test
-    public void inboundPingRequestProducesAnswerWithoutAnotherRequest() {
-        TimingNode node = node("A");
+    public void matchingHeartbeatAnswerIsReadFromStream() {
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
+        TimingNode node =
+                node("A", stream);
         node.activate();
         try {
             UpstreamMessagePort port =
                     node.upstreamMessagePort();
+            port.heartbeatTick();
+            UpstreamData.Ping request =
+                    (UpstreamData.Ping) stream.takeSent();
 
-            UpstreamData.Ping answer =
-                    port.handlePing(
-                            DefaultUpstreamData.ping(
-                                    new NodeId("A"),
-                                    UpstreamData.PingOperation.REQ,
-                                    UpstreamData.PingMode.HB,
-                                    "peer-42"));
-
-            assertEquals(
-                    new NodeId("A"),
-                    answer.timingNodeId());
-            assertSame(
-                    UpstreamData.PingOperation.ANS,
-                    answer.operation());
-            assertSame(
-                    UpstreamData.PingMode.HB,
-                    answer.mode());
-            assertEquals("peer-42", answer.pingId());
+            stream.receive(
+                    DefaultUpstreamData.ping(
+                            new NodeId("A"),
+                            UpstreamData.PingOperation.ANS,
+                            UpstreamData.PingMode.HB,
+                            request.pingId()));
+            assertTrue(port.inputAvailable());
 
             UpstreamMessagePort.HeartbeatStatus status =
                     port.heartbeatStatus();
-            assertEquals(0L, status.requestsSent());
-            assertEquals(0L, status.answersReceived());
+            assertEquals(1L, status.answersReceived());
+            assertEquals(0L, status.missedIntervals());
+            assertFalse(status.answerPending());
+            assertEquals(0, stream.sentCount());
         } finally {
             node.deactivate();
         }
     }
 
     @Test
-    public void pingForDifferentNodeIsRejected() {
-        TimingNode node = node("A");
+    public void inboundPingRequestProducesAnswerOnSameStream() {
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
+        TimingNode node =
+                node("A", stream);
         node.activate();
         try {
-            try {
-                node.upstreamMessagePort()
-                        .handlePing(
-                                DefaultUpstreamData.ping(
-                                        new NodeId("B"),
-                                        UpstreamData.PingOperation.REQ,
-                                        null,
-                                        "manual-1"));
-                fail("expected node mismatch");
-            } catch (IllegalArgumentException expected) {
-                assertTrue(
-                        expected.getMessage()
-                                .contains("NodeId"));
-            }
+            stream.receive(
+                    DefaultUpstreamData.ping(
+                            new NodeId("A"),
+                            UpstreamData.PingOperation.REQ,
+                            UpstreamData.PingMode.HB,
+                            "peer-42"));
+
+            assertTrue(
+                    node.upstreamMessagePort()
+                            .inputAvailable());
+
+            UpstreamData.Ping answer =
+                    (UpstreamData.Ping) stream.takeSent();
+            assertSame(
+                    UpstreamData.PingOperation.ANS,
+                    answer.operation());
+            assertEquals("peer-42", answer.pingId());
         } finally {
             node.deactivate();
         }
     }
 
-    private static TimingNode node(String nodeId) {
+    @Test
+    public void unavailableStreamDoesNotScheduleNodeWork() {
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
+        stream.setAvailable(false);
+        stream.receive(
+                DefaultUpstreamData.ping(
+                        new NodeId("A"),
+                        UpstreamData.PingOperation.REQ,
+                        null,
+                        "manual-1"));
+
+        TimingNode node =
+                node("A", stream);
+        node.activate();
+        try {
+            assertFalse(
+                    node.upstreamMessagePort()
+                            .inputAvailable());
+            assertEquals(0, stream.sentCount());
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    private static TimingNode node(
+            String nodeId,
+            UpstreamStream stream) {
         return new TimingNode(
                 new NodeId(nodeId),
                 new EmptyPersistence(),
                 new DefaultTimingDataFactory(),
                 () -> Instant.parse("2026-10-13T12:00:00Z"),
-                EventData.empty());
+                EventData.empty(),
+                stream);
     }
 
     private static final class EmptyPersistence
@@ -237,7 +206,7 @@ public class UpstreamMessagePortTest {
 
         @Override
         public void append(TimingData data) {
-            // Upstream heartbeat tests do not commit TimingData.
+            // Upstream-only tests do not commit TimingData.
         }
     }
 }
