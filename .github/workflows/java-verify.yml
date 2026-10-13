@@ -156,7 +156,9 @@ jobs:
           grep -F -- '--generate-config' packaged-cli/help.txt
 
           java -jar "${jar}" --version > packaged-cli/version.txt
-          grep -F "timing-application ${APP_VERSION}" packaged-cli/version.txt
+          grep -F 'Application identity' packaged-cli/version.txt
+          grep -F '  Application: timing-application' packaged-cli/version.txt
+          grep -F "  Version: ${APP_VERSION}" packaged-cli/version.txt
 
           mkdir -p packaged-cli/generated
           java -jar "${jar}"             --generate-config packaged-cli/generated/application.yml
