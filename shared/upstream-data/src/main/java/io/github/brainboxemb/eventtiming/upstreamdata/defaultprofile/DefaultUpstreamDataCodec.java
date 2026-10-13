@@ -9,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
 
@@ -242,23 +243,28 @@ public final class DefaultUpstreamDataCodec
                 generator.writeStringField("op", change.operation().name());
                 generator.writeStringField("teamId", change.teamId().value());
                 if (change.operation() == UpstreamData.ChangeOperation.SET) {
-                    if (change.startTime() == null) {
+                    TimingTimestamp start = change.start();
+                    if (start == null) {
                         throw encodeFailure(
-                                "stageStartTimes SET requires startTime",
+                                "stageStartTimes SET requires start timestamp",
+                                null);
+                    }
+                    if (start.isAbsolute()) {
+                        throw encodeFailure(
+                                "stageStartTimes wire format requires local timestamp semantics",
                                 null);
                     }
                     generator.writeStringField(
                             "startTime",
-                            formatStartTime(change.startTime()));
-                    if (change.startDate() != null) {
+                            formatStartTime(start.time()));
+                    if (start.hasDate()) {
                         generator.writeStringField(
                                 "startDate",
-                                START_DATE.format(change.startDate()));
+                                START_DATE.format(start.date()));
                     }
-                } else if (change.startTime() != null
-                        || change.startDate() != null) {
+                } else if (change.start() != null) {
                     throw encodeFailure(
-                            "stageStartTimes DEL must not carry startTime/startDate",
+                            "stageStartTimes DEL must not carry start timestamp",
                             null);
                 }
                 generator.writeEndObject();
@@ -711,12 +717,20 @@ public final class DefaultUpstreamDataCodec
             LocalDate parsedDate =
                     startDate == null ? null : parseStartDate(startDate);
 
+            TimingTimestamp start = null;
+            if (parsedTime != null) {
+                start = parsedDate == null
+                        ? TimingTimestamp.localTime(parsedTime)
+                        : TimingTimestamp.localDateTime(
+                                parsedDate,
+                                parsedTime);
+            }
+
             result.add(
                     new UpstreamData.StageStartTimeChange(
                             operation,
                             new TeamId(teamId),
-                            parsedTime,
-                            parsedDate));
+                            start));
         }
         return result;
     }
