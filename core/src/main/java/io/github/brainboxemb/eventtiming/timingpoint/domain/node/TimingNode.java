@@ -191,6 +191,7 @@ public final class TimingNode {
                 timingDataPersistence,
                 timingDataFactory,
                 timeSource,
+                eventData,
                 monotonicClock,
                 timingNodeMetrics);
         this.serialExecutor = serialExecutor;
