@@ -26,7 +26,4 @@ public final class Main {
         return ApplicationLauncher.run(args, identity, out, err);
     }
 
-    static String startupIdentityLine(BuildIdentity identity) {
-        return ApplicationLauncher.startupIdentityLine(identity);
-    }
 }
