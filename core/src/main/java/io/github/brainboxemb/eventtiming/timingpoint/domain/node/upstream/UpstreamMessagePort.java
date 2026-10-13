@@ -178,14 +178,8 @@ public final class UpstreamMessagePort {
     }
 
     /** Returns a consistent heartbeat snapshot from the TimingNode serial lane. */
-    public HeartbeatStatus heartbeatStatus() {
-        UpstreamHeartbeat.Snapshot snapshot =
-                onNodeLane(heartbeat::snapshot, "upstreamHeartbeatStatus");
-        return new HeartbeatStatus(
-                snapshot.requestsSent,
-                snapshot.answersReceived,
-                snapshot.missedIntervals,
-                snapshot.answerPending);
+    public UpstreamMessageTypes.HeartbeatStatus heartbeatStatus() {
+        return onNodeLane(heartbeat::status, "upstreamHeartbeatStatus");
     }
 
     /** Resolves current TeamId using EventData first and live assignments as fallback. */
@@ -241,38 +235,4 @@ public final class UpstreamMessagePort {
         <R> R run(Callable<R> task, String operation);
     }
 
-    /** Immutable public heartbeat snapshot. */
-    public static final class HeartbeatStatus {
-        private final long requestsSent;
-        private final long answersReceived;
-        private final long missedIntervals;
-        private final boolean answerPending;
-
-        private HeartbeatStatus(
-                long requestsSent,
-                long answersReceived,
-                long missedIntervals,
-                boolean answerPending) {
-            this.requestsSent = requestsSent;
-            this.answersReceived = answersReceived;
-            this.missedIntervals = missedIntervals;
-            this.answerPending = answerPending;
-        }
-
-        public long requestsSent() {
-            return requestsSent;
-        }
-
-        public long answersReceived() {
-            return answersReceived;
-        }
-
-        public long missedIntervals() {
-            return missedIntervals;
-        }
-
-        public boolean answerPending() {
-            return answerPending;
-        }
-    }
 }

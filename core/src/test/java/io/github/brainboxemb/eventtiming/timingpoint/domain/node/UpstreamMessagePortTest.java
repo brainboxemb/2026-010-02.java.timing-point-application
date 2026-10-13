@@ -9,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamMessagePort;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamMessageTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
@@ -92,7 +93,7 @@ public class UpstreamMessagePortTest {
                     (UpstreamData.Ping) stream.takeSent();
             assertEquals("hb-2", second.pingId());
 
-            UpstreamMessagePort.HeartbeatStatus status =
+            UpstreamMessageTypes.HeartbeatStatus status =
                     port.heartbeatStatus();
             assertEquals(2L, status.requestsSent());
             assertEquals(0L, status.answersReceived());
@@ -125,7 +126,7 @@ public class UpstreamMessagePortTest {
                             request.pingId()));
             assertTrue(port.inputAvailable());
 
-            UpstreamMessagePort.HeartbeatStatus status =
+            UpstreamMessageTypes.HeartbeatStatus status =
                     port.heartbeatStatus();
             assertEquals(1L, status.answersReceived());
             assertEquals(0L, status.missedIntervals());
