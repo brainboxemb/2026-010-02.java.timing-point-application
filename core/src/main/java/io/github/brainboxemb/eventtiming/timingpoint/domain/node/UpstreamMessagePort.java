@@ -319,9 +319,7 @@ public final class UpstreamMessagePort {
     }
 
     private long timingDataHeadOnNodeLane() {
-        return logBook.size() == 0
-                ? 0L
-                : logBook.nextSequence() - 1L;
+        return logBook.headSequence();
     }
 
     private void processSyncOnNodeLane(
