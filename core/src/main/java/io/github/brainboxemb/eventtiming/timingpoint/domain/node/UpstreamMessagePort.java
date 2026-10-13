@@ -133,6 +133,16 @@ public final class UpstreamMessagePort {
             throw new IllegalArgumentException(
                     "ping must not be null");
         }
+        /*
+         * Target validation does not depend on mutable node state. Reject a
+         * misrouted message before entering the serial lane so callers receive
+         * the actual contract error instead of a wrapped node-task failure.
+         */
+        if (!timingNode.timingNodeId().equals(
+                ping.timingNodeId())) {
+            throw new IllegalArgumentException(
+                    "PING NodeId does not match TimingNode");
+        }
         return onNodeLane(
                 () -> handlePingOnNodeLane(ping),
                 "upstreamPing");
@@ -163,12 +173,6 @@ public final class UpstreamMessagePort {
 
     private UpstreamData.Ping handlePingOnNodeLane(
             UpstreamData.Ping ping) {
-        if (!timingNode.timingNodeId().equals(
-                ping.timingNodeId())) {
-            throw new IllegalArgumentException(
-                    "PING NodeId does not match TimingNode");
-        }
-
         if (ping.operation()
                 == UpstreamData.PingOperation.REQ) {
             return io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData.ping(
