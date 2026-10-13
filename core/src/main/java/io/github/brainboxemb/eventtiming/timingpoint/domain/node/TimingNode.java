@@ -76,11 +76,32 @@ public final class TimingNode {
             TimingDataFactory timingDataFactory,
             TimeSource timeSource) {
         this(
+                timingNodeId,
+                timingDataPersistence,
+                timingDataFactory,
+                timeSource,
+                EventData.empty());
+    }
+
+    /**
+     * Test-only convenience construction with explicit EventData.
+     *
+     * <p>This keeps tests on the same EventData/TeamAssignments resolution path
+     * as production without creating physical worker threads.</p>
+     */
+    TimingNode(
+            NodeId timingNodeId,
+            TimingDataPersistence timingDataPersistence,
+            TimingDataFactory timingDataFactory,
+            TimeSource timeSource,
+            EventData eventData) {
+        this(
                 new TimingNodeLogic(
                         timingNodeId,
                         timingDataPersistence,
                         timingDataFactory,
                         timeSource,
+                        eventData,
                         SystemMonotonicClock.INSTANCE,
                         new TimingNodeMetrics()),
                 new SerialExecutor(
@@ -89,7 +110,8 @@ public final class TimingNode {
                         Runnable::run),
                 DEFAULT_OPERATION_TIMEOUT_MILLIS,
                 SystemMonotonicClock.INSTANCE,
-                null);
+                null,
+                eventData);
     }
 
     /**
@@ -246,7 +268,8 @@ public final class TimingNode {
                 serialExecutor,
                 operationTimeoutMillis,
                 SystemMonotonicClock.INSTANCE,
-                null);
+                null,
+                EventData.empty());
     }
 
     TimingNode(
@@ -259,7 +282,8 @@ public final class TimingNode {
                 serialExecutor,
                 operationTimeoutMillis,
                 monotonicClock,
-                null);
+                null,
+                EventData.empty());
     }
 
     private TimingNode(
@@ -267,7 +291,8 @@ public final class TimingNode {
             SerialExecutor serialExecutor,
             long operationTimeoutMillis,
             MonotonicClock monotonicClock,
-            TagProcessor tagProcessor) {
+            TagProcessor tagProcessor,
+            EventData eventData) {
         if (logic == null) {
             throw new IllegalArgumentException("logic must not be null");
         }
@@ -280,6 +305,9 @@ public final class TimingNode {
         if (monotonicClock == null) {
             throw new IllegalArgumentException("monotonicClock must not be null");
         }
+        if (eventData == null) {
+            throw new IllegalArgumentException("eventData must not be null");
+        }
         this.logic = logic;
         this.serialExecutor = serialExecutor;
         this.tagProcessor = tagProcessor;
@@ -289,7 +317,7 @@ public final class TimingNode {
         this.upstreamMessagePort =
                 new UpstreamMessagePort(
                         this,
-                        EventData.empty(),
+                        eventData,
                         logic.teamAssignments(),
                         logic.stageStartTimes());
     }
@@ -695,6 +723,13 @@ public final class TimingNode {
         }
     }
 
+    /**
+     * Executes node-owned helper work on the same serial lane as commands,
+     * LogBook access and state mutation.
+     *
+     * <p>UpstreamMessagePort uses this seam so upstream processing cannot race
+     * with registration commits or other TimingNode state changes.</p>
+     */
     <R> R runNodeTask(
             Callable<R> task,
             String operation) {
