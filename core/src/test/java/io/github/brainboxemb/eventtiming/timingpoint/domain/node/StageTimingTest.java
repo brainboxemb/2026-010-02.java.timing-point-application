@@ -9,11 +9,11 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.StageStartTimes;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TeamAssignments;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.StageStartTimes;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.TeamAssignments;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
