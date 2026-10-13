@@ -15,20 +15,28 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 /**
  * TimingNode-owned semantic boundary for node-scoped upstream communication.
  *
- * <p>The port owns only dispatch and admission to the TimingNode serial lane.
- * Protocol state is deliberately split into {@link UpstreamHeartbeat},
- * {@link UpstreamDataSync} and {@link LogBookSync}. Transport/session I/O belongs
- * to the I/O-layer {@link UpstreamStream}; none of these domain helpers owns a
- * transport thread or executor.</p>
+ * <p>The port coordinates two TimingNode-owned logical lanes. Existing
+ * RACE_DATA/LogBook work remains on the Data Lane while heartbeat protocol state
+ * is owned by the Task Lane. Protocol state is deliberately split into
+ * {@link UpstreamHeartbeat}, {@link UpstreamDataSync} and {@link LogBookSync}.
+ * Transport/session I/O belongs to the I/O-layer {@link UpstreamStream}; none of
+ * these domain helpers owns a transport thread or executor.</p>
  */
 public final class UpstreamMessagePort {
+    private static final Logger LOG =
+            LoggerFactory.getLogger(UpstreamMessagePort.class);
+
     private final NodeId nodeId;
-    private final NodeLane nodeLane;
+    private final DataLane dataLane;
+    private final TaskLane taskLane;
     private final UpstreamStream stream;
     private final UpstreamHeartbeat heartbeat;
     private final UpstreamDataSync upstreamDataSync;
@@ -44,7 +52,8 @@ public final class UpstreamMessagePort {
 
     public UpstreamMessagePort(
             NodeId nodeId,
-            NodeLane nodeLane,
+            DataLane dataLane,
+            TaskLane taskLane,
             UpstreamStream stream,
             EventData eventData,
             LogBook logBook,
@@ -52,12 +61,14 @@ public final class UpstreamMessagePort {
             StageStartTimes stageStartTimes,
             UniqueTeamRegistrations uniqueTeamRegistrations) {
         checkArgument(nodeId != null, "nodeId must not be null");
-        checkArgument(nodeLane != null, "nodeLane must not be null");
+        checkArgument(dataLane != null, "dataLane must not be null");
+        checkArgument(taskLane != null, "taskLane must not be null");
         checkArgument(stream != null, "stream must not be null");
         checkArgument(uniqueTeamRegistrations != null, "uniqueTeamRegistrations must not be null");
 
         this.nodeId = nodeId;
-        this.nodeLane = nodeLane;
+        this.dataLane = dataLane;
+        this.taskLane = taskLane;
         this.stream = stream;
         this.heartbeat = new UpstreamHeartbeat(nodeId, stream);
         this.upstreamDataSync =
@@ -80,7 +91,7 @@ public final class UpstreamMessagePort {
             return true;
         }
 
-        if (nodeLane.offer(new UpstreamMessageTask(this))) {
+        if (dataLane.offer(new UpstreamMessageTask(this))) {
             return true;
         }
 
@@ -89,14 +100,14 @@ public final class UpstreamMessagePort {
     }
 
     /**
-     * Executes one upstream turn on the TimingNode serial lane.
+     * Executes one existing upstream data/replay turn on the TimingNode Data Lane.
      *
      * <p>A turn handles either one inbound message or sends one LogBook
      * synchronization batch. Each batch contains at most 256 records. Remaining
      * work is appended to the back of the same lane so synchronization cannot
      * starve registrations or other node work.</p>
      */
-    void handleNextOnNodeLane() {
+    void handleNextOnDataLane() {
         try {
             if (!stream.isAvailable()) {
                 logBookSync.cancelSync();
@@ -150,7 +161,14 @@ public final class UpstreamMessagePort {
             case PING:
                 checkArgument(data instanceof UpstreamData.Ping,
                         "PING has incompatible semantic type");
-                heartbeat.handle((UpstreamData.Ping) data);
+                UpstreamData.Ping ping =
+                        (UpstreamData.Ping) data;
+                if (!taskLane.offer(
+                        () -> heartbeat.handle(ping))) {
+                    LOG.warn(
+                            "Dropped upstream PING for node {} because the Task Lane could not accept it",
+                            nodeId.value());
+                }
                 return;
 
             default:
@@ -171,30 +189,37 @@ public final class UpstreamMessagePort {
     }
 
     /**
-     * Runs one externally scheduled heartbeat tick on the TimingNode serial lane.
+     * Offers one externally scheduled heartbeat tick to the TimingNode Task Lane.
+     *
+     * <p>This handoff is deliberately non-blocking because Data and Task Lane may
+     * share one physical worker.</p>
      */
     public void heartbeatTick() {
-        onNodeLane(heartbeat::tick, "upstreamHeartbeat");
+        if (!taskLane.offer(heartbeat::tick)) {
+            LOG.warn(
+                    "Skipped heartbeat tick for node {} because the Task Lane could not accept it",
+                    nodeId.value());
+        }
     }
 
-    /** Returns a consistent heartbeat snapshot from the TimingNode serial lane. */
+    /** Returns the latest immutable heartbeat snapshot without a lane hop. */
     public UpstreamMessageTypes.HeartbeatStatus heartbeatStatus() {
-        return onNodeLane(heartbeat::status, "upstreamHeartbeatStatus");
+        return heartbeat.status();
     }
 
     /** Resolves current TeamId using EventData first and live assignments as fallback. */
     public TeamId teamIdFor(RegistrationId registrationId) {
-        return onNodeLane(() -> upstreamDataSync.teamIdFor(registrationId), "upstreamTeamIdFor");
+        return onDataLane(() -> upstreamDataSync.teamIdFor(registrationId), "upstreamTeamIdFor");
     }
 
     /** Reads the current Central-provided stage start on the owning node lane. */
     public TimingTimestamp stageStartTimeFor(TeamId teamId) {
-        return onNodeLane(() -> upstreamDataSync.stageStartTimeFor(teamId), "upstreamStageStartTimeFor");
+        return onDataLane(() -> upstreamDataSync.stageStartTimeFor(teamId), "upstreamStageStartTimeFor");
     }
 
     /** Returns the unique-team count derived from active registrations and current assignments. */
     public int uniqueTeamRegistrationCount() {
-        return onNodeLane(
+        return onDataLane(
                 () -> Integer.valueOf(uniqueTeamRegistrations.uniqueTeamCount(upstreamDataSync::teamIdFor)),
                 "uniqueTeamRegistrationCount").intValue();
     }
@@ -206,33 +231,38 @@ public final class UpstreamMessagePort {
         boolean workRemaining =
                 stream.isAvailable() && (logBookSync.syncPending() || stream.hasMessage());
 
-        if (workRemaining && nodeLane.offer(new UpstreamMessageTask(this))) {
+        if (workRemaining && dataLane.offer(new UpstreamMessageTask(this))) {
             return;
         }
 
         inputTaskScheduled.set(false);
     }
 
-    private void onNodeLane(Runnable task, String operation) {
-        nodeLane.run(task, operation);
+    private void onDataLane(Runnable task, String operation) {
+        dataLane.run(task, operation);
     }
 
-    private <R> R onNodeLane(Callable<R> task, String operation) {
-        return nodeLane.run(task, operation);
+    private <R> R onDataLane(Callable<R> task, String operation) {
+        return dataLane.run(task, operation);
     }
 
-    /**
-     * Narrow execution boundary supplied by the owning TimingNode.
-     *
-     * <p>The upstream package never receives the SerialExecutor itself. Both
-     * operations target the existing TimingNode serial lane.</p>
-     */
-    public interface NodeLane {
+    /** Narrow Data Lane execution boundary supplied by the owning TimingNode. */
+    public interface DataLane {
         boolean offer(Runnable task);
 
         void run(Runnable task, String operation);
 
         <R> R run(Callable<R> task, String operation);
+    }
+
+    /**
+     * Narrow non-blocking Task Lane boundary.
+     *
+     * <p>Upstream code may only offer work here; it cannot synchronously wait
+     * across lanes that may share the same physical worker.</p>
+     */
+    public interface TaskLane {
+        boolean offer(Runnable task);
     }
 
 }
