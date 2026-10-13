@@ -4,6 +4,7 @@ import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RaceDataApplyResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.StageStartTimes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TeamAssignments;
@@ -231,7 +232,7 @@ public final class UpstreamMessagePort {
                 "upstreamTeamIdFor");
     }
 
-    StageStartTimes.StartDefinition stageStartTimeFor(
+    TimingTimestamp stageStartTimeFor(
             TeamId teamId) {
         return onNodeLane(
                 () -> stageStartTimes.startFor(teamId),
@@ -381,8 +382,7 @@ public final class UpstreamMessagePort {
                 case SET:
                     updatedStartTimes.set(
                             change.teamId(),
-                            change.startTime(),
-                            change.startDate());
+                            change.start());
                     break;
                 case DEL:
                     updatedStartTimes.remove(

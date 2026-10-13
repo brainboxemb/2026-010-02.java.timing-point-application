@@ -4,6 +4,7 @@ import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 import java.time.LocalDate;
@@ -123,18 +124,36 @@ public final class DefaultUpstreamData {
     public static UpstreamData.StageStartTimeChange stageStartSet(
             String teamId,
             LocalTime startTime) {
-        return stageStartSet(teamId, startTime, null);
+        return stageStartSet(
+                teamId,
+                TimingTimestamp.localTime(
+                        startTime));
     }
 
     public static UpstreamData.StageStartTimeChange stageStartSet(
             String teamId,
             LocalTime startTime,
             LocalDate startDate) {
+        return stageStartSet(
+                teamId,
+                startDate == null
+                        ? TimingTimestamp.localTime(startTime)
+                        : TimingTimestamp.localDateTime(
+                                startDate,
+                                startTime));
+    }
+
+    public static UpstreamData.StageStartTimeChange stageStartSet(
+            String teamId,
+            TimingTimestamp start) {
+        if (start == null) {
+            throw new IllegalArgumentException(
+                    "start must not be null");
+        }
         return new UpstreamData.StageStartTimeChange(
                 UpstreamData.ChangeOperation.SET,
                 new TeamId(teamId),
-                startTime,
-                startDate);
+                start);
     }
 
     public static UpstreamData.StageStartTimeChange stageStartDelete(
@@ -142,7 +161,6 @@ public final class DefaultUpstreamData {
         return new UpstreamData.StageStartTimeChange(
                 UpstreamData.ChangeOperation.DEL,
                 new TeamId(teamId),
-                null,
                 null);
     }
 
