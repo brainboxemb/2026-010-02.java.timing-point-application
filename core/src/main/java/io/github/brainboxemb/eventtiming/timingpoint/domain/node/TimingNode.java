@@ -9,6 +9,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDat
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamMessagePort;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -101,7 +103,7 @@ public final class TimingNode {
                 timingDataFactory,
                 timeSource,
                 eventData,
-                UnavailableUpstreamStream.INSTANCE);
+                UpstreamStream.unavailable());
     }
 
     TimingNode(
@@ -159,7 +161,7 @@ public final class TimingNode {
                 SystemMonotonicClock.INSTANCE,
                 new TimingNodeMetrics(),
                 new TagProcessingMetrics(),
-                UnavailableUpstreamStream.INSTANCE);
+                UpstreamStream.unavailable());
     }
 
     public TimingNode(
@@ -209,7 +211,7 @@ public final class TimingNode {
                 monotonicClock,
                 new TimingNodeMetrics(),
                 new TagProcessingMetrics(),
-                UnavailableUpstreamStream.INSTANCE);
+                UpstreamStream.unavailable());
     }
 
     /**
@@ -240,7 +242,7 @@ public final class TimingNode {
                 monotonicClock,
                 timingNodeMetrics,
                 tagProcessingMetrics,
-                UnavailableUpstreamStream.INSTANCE);
+                UpstreamStream.unavailable());
     }
 
     public TimingNode(
@@ -320,7 +322,8 @@ public final class TimingNode {
 
         this.upstreamMessagePort =
                 new UpstreamMessagePort(
-                        this,
+                        timingNodeId(),
+                        upstreamNodeLane(),
                         upstreamStream,
                         eventData,
                         logic.logBook(),
@@ -348,7 +351,7 @@ public final class TimingNode {
                 SystemMonotonicClock.INSTANCE,
                 null,
                 EventData.empty(),
-                UnavailableUpstreamStream.INSTANCE);
+                UpstreamStream.unavailable());
     }
 
     TimingNode(
@@ -363,7 +366,7 @@ public final class TimingNode {
                 monotonicClock,
                 null,
                 EventData.empty(),
-                UnavailableUpstreamStream.INSTANCE);
+                UpstreamStream.unavailable());
     }
 
     private TimingNode(
@@ -400,7 +403,8 @@ public final class TimingNode {
         this.metrics = logic.metrics();
         this.upstreamMessagePort =
                 new UpstreamMessagePort(
-                        this,
+                        timingNodeId(),
+                        upstreamNodeLane(),
                         upstreamStream,
                         eventData,
                         logic.logBook(),
@@ -421,6 +425,32 @@ public final class TimingNode {
      */
     public UpstreamMessagePort upstreamMessagePort() {
         return upstreamMessagePort;
+    }
+
+    /**
+     * Gives the upstream child only the execution operations it needs.
+     *
+     * <p>The SerialExecutor and TimingNode's internal execution seams remain
+     * private to this package; moving upstream code to a subpackage must not
+     * widen the public TimingNode API.</p>
+     */
+    private UpstreamMessagePort.NodeLane upstreamNodeLane() {
+        return new UpstreamMessagePort.NodeLane() {
+            @Override
+            public boolean offer(
+                    Runnable task) {
+                return offerNodeTask(task);
+            }
+
+            @Override
+            public <R> R run(
+                    Callable<R> task,
+                    String operation) {
+                return runNodeTask(
+                        task,
+                        operation);
+            }
+        };
     }
 
     /**
