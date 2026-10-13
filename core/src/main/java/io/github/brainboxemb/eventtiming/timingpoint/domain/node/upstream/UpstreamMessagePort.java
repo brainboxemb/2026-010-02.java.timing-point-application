@@ -10,6 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.StageStartTimes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TeamAssignments;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.UniqueTeamRegistrations;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
