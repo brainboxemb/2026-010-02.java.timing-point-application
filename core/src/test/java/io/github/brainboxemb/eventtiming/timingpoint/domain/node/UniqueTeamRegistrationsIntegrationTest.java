@@ -1,0 +1,113 @@
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
+
+import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
+import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
+
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+
+public class UniqueTeamRegistrationsIntegrationTest {
+
+    @Test
+    public void recoveredAndLaterAssignedRegistrationsUseCurrentTeamResolution() {
+        TimingNode node =
+                new TimingNode(
+                        new NodeId("A"),
+                        new StaticPersistence(
+                                registration(1L, "RT-A-0001"),
+                                registration(2L, "RT-R-0001")),
+                        new DefaultTimingDataFactory(),
+                        () -> Instant.parse("2026-10-13T12:05:00Z"),
+                        new DefaultEventData());
+
+        node.activate();
+        try {
+            UpstreamMessagePort port =
+                    node.upstreamMessagePort();
+
+            // RT-A-0001 is fixed by EventData. RT-R-0001 is still unresolved.
+            assertEquals(
+                    1,
+                    port.uniqueTeamRegistrationCount());
+
+            port.applyRaceData(
+                    DefaultUpstreamData.raceData(
+                            new NodeId("A"),
+                            1L,
+                            Collections.singletonList(
+                                    DefaultUpstreamData.reserveTagSet(
+                                            "RT-R-0001",
+                                            "0042")),
+                            Collections.<UpstreamData.StageStartTimeChange>emptyList()));
+
+            // The LogBook is unchanged; the current assignment now resolves the
+            // second active RegistrationId to a second unique TeamId.
+            assertEquals(
+                    2,
+                    port.uniqueTeamRegistrationCount());
+            assertEquals(
+                    Integer.valueOf(2),
+                    node.query(
+                            TimingNodeQueries.timingDataCount()));
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    private static TimingData registration(
+            long sequence,
+            String registrationId) {
+        TimingTimestamp time =
+                new TimingTimestamp(
+                        Instant.parse("2026-10-13T12:00:00Z")
+                                .plusMillis(sequence));
+        return new DefaultTimingDataFactory()
+                .createAutomaticRegistration(
+                        new TimingDataFactory.Context(
+                                new NodeId("A"),
+                                sequence,
+                                new LocationId(1),
+                                time,
+                                time),
+                        new RegistrationId(registrationId));
+    }
+
+    private static final class StaticPersistence
+            implements TimingDataPersistence {
+        private final List<TimingData> records;
+
+        private StaticPersistence(
+                TimingData... records) {
+            this.records =
+                    Arrays.asList(records);
+        }
+
+        @Override
+        public LoadResult load() {
+            return new LoadResult(
+                    records,
+                    false);
+        }
+
+        @Override
+        public void append(TimingData data) {
+            throw new AssertionError(
+                    "recovery/count test must not append TimingData");
+        }
+    }
+}
