@@ -29,34 +29,56 @@ public final class DefaultUpstreamData {
 
     public static UpstreamData.RaceData raceData(
             NodeId nodeId,
-            long revision,
-            List<UpstreamData.RaceAssignment> assignments) {
+            long sequence,
+            List<UpstreamData.ReserveTagMapChange> reserveTagMapChanges,
+            List<UpstreamData.StageStartTimeChange> stageStartTimeChanges) {
+        List<UpstreamData.ReserveTagMapChange> reserve =
+                copyReserveTagMapChanges(reserveTagMapChanges);
+        List<UpstreamData.StageStartTimeChange> starts =
+                copyStageStartTimeChanges(stageStartTimeChanges);
+        if (reserve.isEmpty() && starts.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "RACE_DATA requires at least one change");
+        }
         return new RaceDataValue(
                 requireNodeId(nodeId),
-                requireReferenceRevision(revision),
-                copyAssignments(assignments));
-    }
-
-    public static UpstreamData.StageStartTimes stageStartTimes(
-            NodeId nodeId,
-            long revision,
-            List<UpstreamData.StageStartDefinition> starts) {
-        return new StageStartTimesValue(
-                requireNodeId(nodeId),
-                requireReferenceRevision(revision),
-                copyStageStarts(starts));
+                requirePositiveSequence(sequence, "RaceData sequence"),
+                reserve,
+                starts);
     }
 
     public static UpstreamData.Sync sync(
             NodeId nodeId,
-            long timingSequence,
-            Long raceDataRevision,
-            Long stageStartTimesRevision) {
+            UpstreamData.Stream stream,
+            long sequence) {
         return new SyncValue(
                 requireNodeId(nodeId),
-                requireSyncSequence(timingSequence),
-                requireSyncRevision(raceDataRevision, "raceDataRevision"),
-                requireSyncRevision(stageStartTimesRevision, "stageStartTimesRevision"));
+                requireStream(stream),
+                requireSyncSequence(sequence));
+    }
+
+    public static UpstreamData.Ack ack(
+            NodeId nodeId,
+            UpstreamData.Stream stream,
+            long sequence) {
+        if (stream != UpstreamData.Stream.RACE_DATA) {
+            throw new IllegalArgumentException(
+                    "public v1 ACK supports RACE_DATA only");
+        }
+        return new AckValue(
+                requireNodeId(nodeId),
+                stream,
+                requirePositiveSequence(sequence, "ACK sequence"));
+    }
+
+    public static UpstreamData.Req req(
+            NodeId nodeId,
+            UpstreamData.Stream stream,
+            long fromSequence) {
+        return new ReqValue(
+                requireNodeId(nodeId),
+                requireStream(stream),
+                requirePositiveSequence(fromSequence, "REQ fromSequence"));
     }
 
     public static UpstreamData.Ping ping(
@@ -76,27 +98,47 @@ public final class DefaultUpstreamData {
         return new PingValue(operation, mode, normalizedId);
     }
 
-    public static UpstreamData.RaceAssignment assignment(
+    public static UpstreamData.ReserveTagMapChange reserveTagSet(
             String registrationId,
             String teamId) {
-        return new UpstreamData.RaceAssignment(
+        return new UpstreamData.ReserveTagMapChange(
+                UpstreamData.ChangeOperation.SET,
                 new RegistrationId(registrationId),
                 new TeamId(teamId));
     }
 
-    public static UpstreamData.StageStartDefinition stageStart(
-            String teamId,
-            LocalTime startTime) {
-        return new UpstreamData.StageStartDefinition(
-                new TeamId(teamId), startTime);
+    public static UpstreamData.ReserveTagMapChange reserveTagDelete(
+            String registrationId) {
+        return new UpstreamData.ReserveTagMapChange(
+                UpstreamData.ChangeOperation.DEL,
+                new RegistrationId(registrationId),
+                null);
     }
 
-    public static UpstreamData.StageStartDefinition stageStart(
+    public static UpstreamData.StageStartTimeChange stageStartSet(
+            String teamId,
+            LocalTime startTime) {
+        return stageStartSet(teamId, startTime, null);
+    }
+
+    public static UpstreamData.StageStartTimeChange stageStartSet(
             String teamId,
             LocalTime startTime,
             LocalDate startDate) {
-        return new UpstreamData.StageStartDefinition(
-                new TeamId(teamId), startTime, startDate);
+        return new UpstreamData.StageStartTimeChange(
+                UpstreamData.ChangeOperation.SET,
+                new TeamId(teamId),
+                startTime,
+                startDate);
+    }
+
+    public static UpstreamData.StageStartTimeChange stageStartDelete(
+            String teamId) {
+        return new UpstreamData.StageStartTimeChange(
+                UpstreamData.ChangeOperation.DEL,
+                new TeamId(teamId),
+                null,
+                null);
     }
 
     private static NodeId requireNodeId(NodeId nodeId) {
@@ -106,32 +148,32 @@ public final class DefaultUpstreamData {
         return nodeId;
     }
 
-    private static long requireReferenceRevision(long revision) {
-        if (revision < 1L || revision > TimingData.MAX_SEQUENCE_NUMBER) {
-            throw new IllegalArgumentException(
-                    "reference revision must be in range 1.."
-                            + TimingData.MAX_SEQUENCE_NUMBER);
+    private static UpstreamData.Stream requireStream(
+            UpstreamData.Stream stream) {
+        if (stream == null) {
+            throw new IllegalArgumentException("stream must not be null");
         }
-        return revision;
+        return stream;
     }
 
-    private static long requireSyncSequence(long sequence) {
-        if (sequence < 0L || sequence > TimingData.MAX_SEQUENCE_NUMBER) {
+    private static long requirePositiveSequence(
+            long sequence,
+            String name) {
+        if (sequence < 1L || sequence > TimingData.MAX_SEQUENCE_NUMBER) {
             throw new IllegalArgumentException(
-                    "timingSequence must be in range 0.."
+                    name + " must be in range 1.."
                             + TimingData.MAX_SEQUENCE_NUMBER);
         }
         return sequence;
     }
 
-    private static Long requireSyncRevision(Long revision, String name) {
-        if (revision != null
-                && (revision.longValue() < 0L
-                        || revision.longValue() > TimingData.MAX_SEQUENCE_NUMBER)) {
+    private static long requireSyncSequence(long sequence) {
+        if (sequence < 0L || sequence > TimingData.MAX_SEQUENCE_NUMBER) {
             throw new IllegalArgumentException(
-                    name + " must be in range 0.." + TimingData.MAX_SEQUENCE_NUMBER);
+                    "SYNC sequence must be in range 0.."
+                            + TimingData.MAX_SEQUENCE_NUMBER);
         }
-        return revision;
+        return sequence;
     }
 
     private static List<TimingData> copyTimingData(
@@ -157,52 +199,49 @@ public final class DefaultUpstreamData {
         return Collections.unmodifiableList(copy);
     }
 
-    private static List<UpstreamData.RaceAssignment> copyAssignments(
-            List<UpstreamData.RaceAssignment> assignments) {
-        if (assignments == null) {
-            throw new IllegalArgumentException("assignments must not be null");
+    private static List<UpstreamData.ReserveTagMapChange>
+            copyReserveTagMapChanges(
+                    List<UpstreamData.ReserveTagMapChange> changes) {
+        if (changes == null) {
+            return Collections.emptyList();
         }
-        List<UpstreamData.RaceAssignment> copy =
-                new ArrayList<UpstreamData.RaceAssignment>(assignments.size());
-        Set<RegistrationId> registrations =
-                new LinkedHashSet<RegistrationId>();
-        Set<TeamId> teams = new LinkedHashSet<TeamId>();
-        for (UpstreamData.RaceAssignment assignment : assignments) {
-            if (assignment == null) {
+        List<UpstreamData.ReserveTagMapChange> copy =
+                new ArrayList<UpstreamData.ReserveTagMapChange>(changes.size());
+        Set<RegistrationId> keys = new LinkedHashSet<RegistrationId>();
+        for (UpstreamData.ReserveTagMapChange change : changes) {
+            if (change == null) {
                 throw new IllegalArgumentException(
-                        "assignments must not contain null");
+                        "reserveTagMapChanges must not contain null");
             }
-            if (!registrations.add(assignment.registrationId())) {
+            if (!keys.add(change.registrationId())) {
                 throw new IllegalArgumentException(
-                        "duplicate RaceData registrationId " + assignment.registrationId());
+                        "duplicate reserveTagMap regId "
+                                + change.registrationId());
             }
-            if (!teams.add(assignment.teamId())) {
-                throw new IllegalArgumentException(
-                        "duplicate RaceData teamId " + assignment.teamId());
-            }
-            copy.add(assignment);
+            copy.add(change);
         }
         return Collections.unmodifiableList(copy);
     }
 
-    private static List<UpstreamData.StageStartDefinition> copyStageStarts(
-            List<UpstreamData.StageStartDefinition> starts) {
-        if (starts == null) {
-            throw new IllegalArgumentException("starts must not be null");
+    private static List<UpstreamData.StageStartTimeChange>
+            copyStageStartTimeChanges(
+                    List<UpstreamData.StageStartTimeChange> changes) {
+        if (changes == null) {
+            return Collections.emptyList();
         }
-        List<UpstreamData.StageStartDefinition> copy =
-                new ArrayList<UpstreamData.StageStartDefinition>(starts.size());
-        Set<TeamId> teams = new LinkedHashSet<TeamId>();
-        for (UpstreamData.StageStartDefinition start : starts) {
-            if (start == null) {
+        List<UpstreamData.StageStartTimeChange> copy =
+                new ArrayList<UpstreamData.StageStartTimeChange>(changes.size());
+        Set<TeamId> keys = new LinkedHashSet<TeamId>();
+        for (UpstreamData.StageStartTimeChange change : changes) {
+            if (change == null) {
                 throw new IllegalArgumentException(
-                        "starts must not contain null");
+                        "stageStartTimeChanges must not contain null");
             }
-            if (!teams.add(start.teamId())) {
+            if (!keys.add(change.teamId())) {
                 throw new IllegalArgumentException(
-                        "duplicate StageStartTimes teamId " + start.teamId());
+                        "duplicate stageStartTimes teamId " + change.teamId());
             }
-            copy.add(start);
+            copy.add(change);
         }
         return Collections.unmodifiableList(copy);
     }
@@ -242,91 +281,76 @@ public final class DefaultUpstreamData {
         }
     }
 
-    private abstract static class ReferenceValue
-            extends NodeValue
-            implements UpstreamData.ReferenceData {
-        private final long revision;
-
-        private ReferenceValue(NodeId nodeId, long revision) {
-            super(nodeId);
-            this.revision = revision;
-        }
-
-        @Override
-        public final Family family() {
-            return Family.REFERENCE_DATA;
-        }
-
-        @Override
-        public final long revision() {
-            return revision;
-        }
-    }
-
     private static final class RaceDataValue
-            extends ReferenceValue
+            extends NodeValue
             implements UpstreamData.RaceData {
-        private final List<UpstreamData.RaceAssignment> assignments;
+        private final long sequence;
+        private final List<UpstreamData.ReserveTagMapChange> reserveTagMapChanges;
+        private final List<UpstreamData.StageStartTimeChange> stageStartTimeChanges;
 
         private RaceDataValue(
                 NodeId nodeId,
-                long revision,
-                List<UpstreamData.RaceAssignment> assignments) {
-            super(nodeId, revision);
-            this.assignments = assignments;
+                long sequence,
+                List<UpstreamData.ReserveTagMapChange> reserveTagMapChanges,
+                List<UpstreamData.StageStartTimeChange> stageStartTimeChanges) {
+            super(nodeId);
+            this.sequence = sequence;
+            this.reserveTagMapChanges = reserveTagMapChanges;
+            this.stageStartTimeChanges = stageStartTimeChanges;
         }
 
         @Override
-        public ReferenceDataset dataset() {
-            return ReferenceDataset.RACE_DATA;
+        public Family family() {
+            return Family.RACE_DATA;
         }
 
         @Override
-        public List<UpstreamData.RaceAssignment> assignments() {
-            return assignments;
+        public long sequence() {
+            return sequence;
+        }
+
+        @Override
+        public List<UpstreamData.ReserveTagMapChange> reserveTagMapChanges() {
+            return reserveTagMapChanges;
+        }
+
+        @Override
+        public List<UpstreamData.StageStartTimeChange> stageStartTimeChanges() {
+            return stageStartTimeChanges;
         }
     }
 
-    private static final class StageStartTimesValue
-            extends ReferenceValue
-            implements UpstreamData.StageStartTimes {
-        private final List<UpstreamData.StageStartDefinition> starts;
+    private abstract static class StreamValue
+            extends NodeValue {
+        private final UpstreamData.Stream stream;
+        private final long sequence;
 
-        private StageStartTimesValue(
+        private StreamValue(
                 NodeId nodeId,
-                long revision,
-                List<UpstreamData.StageStartDefinition> starts) {
-            super(nodeId, revision);
-            this.starts = starts;
+                UpstreamData.Stream stream,
+                long sequence) {
+            super(nodeId);
+            this.stream = stream;
+            this.sequence = sequence;
         }
 
-        @Override
-        public ReferenceDataset dataset() {
-            return ReferenceDataset.STAGE_START_TIMES;
+        final UpstreamData.Stream streamValue() {
+            return stream;
         }
 
-        @Override
-        public List<UpstreamData.StageStartDefinition> starts() {
-            return starts;
+        final long sequenceValue() {
+            return sequence;
         }
     }
 
     private static final class SyncValue
-            extends NodeValue
+            extends StreamValue
             implements UpstreamData.Sync {
-        private final long timingSequence;
-        private final Long raceDataRevision;
-        private final Long stageStartTimesRevision;
-
         private SyncValue(
                 NodeId nodeId,
-                long timingSequence,
-                Long raceDataRevision,
-                Long stageStartTimesRevision) {
-            super(nodeId);
-            this.timingSequence = timingSequence;
-            this.raceDataRevision = raceDataRevision;
-            this.stageStartTimesRevision = stageStartTimesRevision;
+                UpstreamData.Stream stream,
+                long sequence) {
+            super(nodeId, stream, sequence);
         }
 
         @Override
@@ -335,18 +359,70 @@ public final class DefaultUpstreamData {
         }
 
         @Override
-        public long timingSequence() {
-            return timingSequence;
+        public UpstreamData.Stream stream() {
+            return streamValue();
         }
 
         @Override
-        public Long raceDataRevision() {
-            return raceDataRevision;
+        public long sequence() {
+            return sequenceValue();
+        }
+    }
+
+    private static final class AckValue
+            extends StreamValue
+            implements UpstreamData.Ack {
+        private AckValue(
+                NodeId nodeId,
+                UpstreamData.Stream stream,
+                long sequence) {
+            super(nodeId, stream, sequence);
         }
 
         @Override
-        public Long stageStartTimesRevision() {
-            return stageStartTimesRevision;
+        public Family family() {
+            return Family.ACK;
+        }
+
+        @Override
+        public UpstreamData.Stream stream() {
+            return streamValue();
+        }
+
+        @Override
+        public long sequence() {
+            return sequenceValue();
+        }
+    }
+
+    private static final class ReqValue
+            extends NodeValue
+            implements UpstreamData.Req {
+        private final UpstreamData.Stream stream;
+        private final long fromSequence;
+
+        private ReqValue(
+                NodeId nodeId,
+                UpstreamData.Stream stream,
+                long fromSequence) {
+            super(nodeId);
+            this.stream = stream;
+            this.fromSequence = fromSequence;
+        }
+
+        @Override
+        public Family family() {
+            return Family.REQ;
+        }
+
+        @Override
+        public UpstreamData.Stream stream() {
+            return stream;
+        }
+
+        @Override
+        public long fromSequence() {
+            return fromSequence;
         }
     }
 
