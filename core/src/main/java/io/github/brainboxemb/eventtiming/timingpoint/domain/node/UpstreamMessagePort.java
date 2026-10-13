@@ -10,7 +10,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.StageStart
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TeamAssignments;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.UniqueTeamRegistrations;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
+import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Callable;
 
 /**
@@ -108,6 +111,81 @@ public final class UpstreamMessagePort {
     }
 
     /**
+     * Handles one inbound node-scoped upstream message.
+     *
+     * <p>This is the semantic entry point used by the application router. The
+     * router resolves only the target node; this port owns message meaning and
+     * any ACK/REQ/PING response produced by that node.</p>
+     */
+    public List<UpstreamData> handle(
+            UpstreamData.NodeScoped data) {
+        if (data == null) {
+            throw new IllegalArgumentException(
+                    "data must not be null");
+        }
+        if (!timingNode.timingNodeId().equals(
+                data.timingNodeId())) {
+            throw new IllegalArgumentException(
+                    "UpstreamData NodeId does not match TimingNode");
+        }
+
+        switch (data.family()) {
+            case RACE_DATA:
+                if (!(data instanceof UpstreamData.RaceData)) {
+                    throw new IllegalArgumentException(
+                            "RACE_DATA has incompatible semantic type");
+                }
+                return handleRaceData(
+                        (UpstreamData.RaceData) data);
+            case PING:
+                if (!(data instanceof UpstreamData.Ping)) {
+                    throw new IllegalArgumentException(
+                            "PING has incompatible semantic type");
+                }
+                UpstreamData.Ping response =
+                        handlePing(
+                                (UpstreamData.Ping) data);
+                return response == null
+                        ? Collections.<UpstreamData>emptyList()
+                        : Collections.<UpstreamData>singletonList(response);
+            default:
+                throw new UnsupportedOperationException(
+                        "Inbound UpstreamData family is not implemented by TimingNode: "
+                                + data.family());
+        }
+    }
+
+    private List<UpstreamData> handleRaceData(
+            UpstreamData.RaceData raceData) {
+        RaceDataApplyResult apply =
+                applyRaceData(
+                        raceData);
+
+        switch (apply.outcome()) {
+            case APPLIED:
+            case DUPLICATE:
+                return Collections.<UpstreamData>singletonList(
+                        DefaultUpstreamData.ack(
+                                raceData.timingNodeId(),
+                                UpstreamData.Stream.RACE_DATA,
+                                apply.acknowledgeSequence()));
+            case GAP:
+                return Collections.<UpstreamData>singletonList(
+                        DefaultUpstreamData.req(
+                                raceData.timingNodeId(),
+                                UpstreamData.Stream.RACE_DATA,
+                                apply.requestedFromSequence()));
+            case REJECTED:
+                throw new IllegalArgumentException(
+                        apply.message());
+            default:
+                throw new IllegalStateException(
+                        "Unsupported RaceData outcome "
+                                + apply.outcome());
+        }
+    }
+
+    /**
      * One scheduled heartbeat step for this TimingNode.
      *
      * <p>The scheduler may be shared by many nodes. Calling this method always
@@ -165,7 +243,7 @@ public final class UpstreamMessagePort {
         heartbeatPingId =
                 "hb-" + heartbeatRequestsSent;
 
-        return io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData.ping(
+        return DefaultUpstreamData.ping(
                 timingNode.timingNodeId(),
                 UpstreamData.PingOperation.REQ,
                 UpstreamData.PingMode.HB,
