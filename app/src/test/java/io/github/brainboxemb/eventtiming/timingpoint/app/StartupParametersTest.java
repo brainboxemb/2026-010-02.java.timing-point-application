@@ -8,7 +8,6 @@ import java.nio.file.Paths;
 import org.junit.Test;
 import java.util.List;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class StartupParametersTest {
     @Test
@@ -29,5 +28,6 @@ public class StartupParametersTest {
         assertEquals("    NodeId: A", lines.get(4));
         assertEquals("    EventDataProvider: reference", lines.get(5));
         assertEquals("    TimingDataProvider: reference", lines.get(6));
+        assertEquals(7, lines.size());
     }
 }
