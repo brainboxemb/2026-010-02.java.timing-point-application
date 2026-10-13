@@ -5,6 +5,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 
+import java.time.ZoneId;
 import java.util.function.Consumer;
 
 /**
@@ -39,6 +40,26 @@ public final class TimingNodeQueries {
         return new TimingNodeQuery<>(
                 "raceDataAppliedSequence",
                 TimingNodeLogic::raceDataAppliedSequence);
+    }
+
+    public static TimingNodeQuery<StageTiming.Result> stageTiming(
+            long sequenceNumber,
+            ZoneId raceTimeZone) {
+        if (sequenceNumber < 1L
+                || sequenceNumber > TimingData.MAX_SEQUENCE_NUMBER) {
+            throw new IllegalArgumentException(
+                    "sequenceNumber must be in range 1.."
+                            + TimingData.MAX_SEQUENCE_NUMBER);
+        }
+        if (raceTimeZone == null) {
+            throw new IllegalArgumentException(
+                    "raceTimeZone must not be null");
+        }
+        return new TimingNodeQuery<>(
+                "stageTiming",
+                logic -> logic.stageTiming(
+                        sequenceNumber,
+                        raceTimeZone));
     }
 
     public static TimingNodeQuery<TeamId> teamIdFor(
