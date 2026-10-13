@@ -3,64 +3,23 @@ package io.github.brainboxemb.eventtiming.timingpoint.application;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.UpstreamMessagePort;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
-import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
- * Application boundary that resolves semantic UpstreamData to the owning
- * TimingNode without exposing transport adapters to Domain internals.
+ * Application boundary that resolves node-scoped UpstreamData to the owning
+ * TimingNode.
  *
- * <p>A02 implements ordered RACE_DATA ingress. Other semantic families are
- * deliberately rejected here until their Step-7 activity is implemented.</p>
+ * <p>The router deliberately does not interpret protocol families, sequences
+ * or ACK/REQ semantics. After resolving NodeId it delegates the complete
+ * semantic message to the node-owned UpstreamMessagePort.</p>
  */
 public final class UpstreamMessageRouter {
-
-    public enum Outcome {
-        APPLIED,
-        DUPLICATE,
-        GAP,
-        REJECTED,
-        UNKNOWN_NODE,
-        UNSUPPORTED
-    }
-
-    public static final class Result {
-        private final Outcome outcome;
-        private final UpstreamData controlResponse;
-        private final String message;
-
-        private Result(
-                Outcome outcome,
-                UpstreamData controlResponse,
-                String message) {
-            this.outcome = outcome;
-            this.controlResponse = controlResponse;
-            this.message = message;
-        }
-
-        public Outcome outcome() {
-            return outcome;
-        }
-
-        /**
-         * Returns the semantic control response to send upstream, or null when
-         * no ACK/REQ response is defined for this result.
-         */
-        public UpstreamData controlResponse() {
-            return controlResponse;
-        }
-
-        public String message() {
-            return message;
-        }
-    }
-
     private final Map<NodeId, UpstreamMessagePort> nodePorts;
 
     public UpstreamMessageRouter(
@@ -82,83 +41,39 @@ public final class UpstreamMessageRouter {
                                 + nodeId.value());
             }
         }
-        nodePorts = Collections.unmodifiableMap(ports);
+        nodePorts =
+                Collections.unmodifiableMap(
+                        ports);
     }
 
-    public Result route(
+    /**
+     * Routes one node-scoped semantic message and returns any semantic outbound
+     * messages caused by handling it.
+     */
+    public List<UpstreamData> route(
             UpstreamData data) {
         if (data == null) {
             throw new IllegalArgumentException(
                     "data must not be null");
         }
-
-        if (data.family() != UpstreamData.Family.RACE_DATA
-                || !(data instanceof UpstreamData.RaceData)) {
-            return new Result(
-                    Outcome.UNSUPPORTED,
-                    null,
-                    "UpstreamData family is not implemented by A02: "
+        if (!(data instanceof UpstreamData.NodeScoped)) {
+            throw new IllegalArgumentException(
+                    "UpstreamData is not node-scoped: "
                             + data.family());
         }
 
-        UpstreamData.RaceData raceData =
-                (UpstreamData.RaceData) data;
+        UpstreamData.NodeScoped nodeData =
+                (UpstreamData.NodeScoped) data;
         UpstreamMessagePort port =
                 nodePorts.get(
-                        raceData.timingNodeId());
+                        nodeData.timingNodeId());
         if (port == null) {
-            return new Result(
-                    Outcome.UNKNOWN_NODE,
-                    null,
+            throw new IllegalArgumentException(
                     "Unknown TimingNode "
-                            + raceData.timingNodeId().value());
+                            + nodeData.timingNodeId().value());
         }
 
-        TimingNodeTypes.RaceDataApplyResult apply =
-                port.applyRaceData(
-                        raceData);
-
-        switch (apply.outcome()) {
-            case APPLIED:
-                return acknowledged(
-                        Outcome.APPLIED,
-                        raceData.timingNodeId(),
-                        apply.acknowledgeSequence());
-            case DUPLICATE:
-                return acknowledged(
-                        Outcome.DUPLICATE,
-                        raceData.timingNodeId(),
-                        apply.acknowledgeSequence());
-            case GAP:
-                return new Result(
-                        Outcome.GAP,
-                        DefaultUpstreamData.req(
-                                raceData.timingNodeId(),
-                                UpstreamData.Stream.RACE_DATA,
-                                apply.requestedFromSequence()),
-                        null);
-            case REJECTED:
-                return new Result(
-                        Outcome.REJECTED,
-                        null,
-                        apply.message());
-            default:
-                throw new IllegalStateException(
-                        "Unsupported RaceData outcome "
-                                + apply.outcome());
-        }
-    }
-
-    private static Result acknowledged(
-            Outcome outcome,
-            NodeId nodeId,
-            long sequence) {
-        return new Result(
-                outcome,
-                DefaultUpstreamData.ack(
-                        nodeId,
-                        UpstreamData.Stream.RACE_DATA,
-                        sequence),
-                null);
+        return port.handle(
+                nodeData);
     }
 }
