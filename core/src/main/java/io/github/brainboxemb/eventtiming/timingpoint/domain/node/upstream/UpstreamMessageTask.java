@@ -3,10 +3,11 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 /**
  * One upstream turn on the owning TimingNode serial lane.
  *
- * <p>The task carries no message. One turn either processes one queued inbound
- * semantic message or sends one bounded TIMING_DATA replay batch. When more
- * upstream work remains, the port schedules another task at the back of the
- * same lane so registrations and other node work get a turn in between.</p>
+ * <p>The task carries no message. One turn either handles one queued inbound
+ * semantic message or sends one LogBook synchronization batch of at most 256
+ * records. When more upstream work remains, the port schedules another task at
+ * the back of the same lane so registrations and other node work get a turn in
+ * between.</p>
  */
 final class UpstreamMessageTask implements Runnable {
     private final UpstreamMessagePort port;
@@ -22,6 +23,6 @@ final class UpstreamMessageTask implements Runnable {
 
     @Override
     public void run() {
-        port.processNextOnNodeLane();
+        port.handleNextOnNodeLane();
     }
 }
