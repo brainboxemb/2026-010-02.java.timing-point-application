@@ -12,6 +12,9 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /** Handles command-line actions, process logging and application shutdown. */
@@ -57,8 +60,9 @@ final class ApplicationLauncher {
                 out.print(StartupCommandLine.helpText());
                 return 0;
             case VERSION:
-                out.println(buildIdentity.displayName());
-                out.println(buildIdentity.provenance());
+                printLines(
+                        out,
+                        startupIdentityLines(buildIdentity));
                 return 0;
             case GENERATE_CONFIG:
                 return generateExampleConfiguration(
@@ -114,7 +118,9 @@ final class ApplicationLauncher {
             } catch (IOException | RuntimeException ex) {
                 // No configured log sink exists yet, so keep the build identity
                 // visible when loading configuration fails.
-                out.println(startupIdentityLine(buildIdentity));
+                printLines(
+                        out,
+                        startupIdentityLines(buildIdentity));
                 throw ex;
             }
             runConfiguredApplication(buildIdentity, configPath, config, out);
@@ -149,17 +155,19 @@ final class ApplicationLauncher {
                 } catch (IOException | RuntimeException ex) {
                     // Log initialization failed; preserve the original
                     // pre-configuration console fallback for diagnosis.
-                    out.println(startupIdentityLine(buildIdentity));
+                    printLines(
+                            out,
+                            startupIdentityLines(buildIdentity));
                     throw ex;
                 }
             }
+            /*
+             * Queue the complete human-readable startup context before any
+             * LoggingServer, API, antenna or domain/runtime threads are started.
+             * Logging.start() itself owns only the tp-inf-logging writer thread.
+             */
             announceStartupIdentity(buildIdentity, logging, out);
-            String parameters = startupParametersLine(configPath, config);
-            if (logging == null) {
-                out.println(parameters);
-            } else {
-                LOGGER.info(parameters);
-            }
+            announceStartupConfiguration(configPath, config, logging, out);
             if (config.loggingServer() != null) {
                 if (logging == null) {
                     throw new IllegalStateException(
@@ -255,50 +263,112 @@ final class ApplicationLauncher {
             BuildIdentity buildIdentity,
             Logging logging,
             PrintStream out) {
-        String identityLine = startupIdentityLine(buildIdentity);
-        if (logging != null) {
-            LOGGER.info(identityLine);
-        } else {
-            out.println(identityLine);
-        }
+        emitLines(
+                startupIdentityLines(buildIdentity),
+                logging,
+                out,
+                "announceStartupIdentity");
     }
 
-    /**
-     * Safe operator-facing startup summary. Do not print YAML contents,
-     * arbitrary CLI strings, credentials or other deployment secrets.
-     */
-    static String startupParametersLine(Path configPath, Config config) {
-        if (configPath == null || config == null) {
-            throw new IllegalArgumentException("Startup config path and config are required");
-        }
-        StringBuilder info = new StringBuilder("Startup parameters: action=START, config=")
-                .append(configPath.toAbsolutePath().normalize());
-        for (Config.TimingSystemConfig system : config.timingSystems()) {
-            info.append("; SystemId=").append(system.timingSystemId())
-                    .append(" NodeIds=");
-            boolean first = true;
-            for (Config.TimingNodeConfig node : system.timingNodes()) {
-                if (!first) info.append(",");
-                info.append(node.timingNodeId().value());
-                first = false;
-            }
-            info.append(" EventDataProvider=").append(system.eventDataProviderId())
-                    .append(" TimingDataProvider=").append(system.timingDataProviderId());
-        }
-        return info.toString();
+    static void announceStartupConfiguration(
+            Path configPath,
+            Config config,
+            Logging logging,
+            PrintStream out) {
+        emitLines(
+                startupConfigurationLines(configPath, config),
+                logging,
+                out,
+                "announceStartupConfiguration");
     }
 
-    /** Formats the canonical one-line startup identity. */
-    static String startupIdentityLine(
+    static List<String> startupIdentityLines(
             BuildIdentity buildIdentity) {
         if (buildIdentity == null) {
             throw new IllegalArgumentException(
                     "buildIdentity must not be null");
         }
 
-        return buildIdentity.displayName()
-                + " "
-                + buildIdentity.provenance();
+        List<String> lines = new ArrayList<String>();
+        lines.add("Application identity");
+        lines.add("  Application: " + buildIdentity.application());
+        lines.add("  Version: " + buildIdentity.version());
+        lines.add("  API version: " + buildIdentity.apiVersion());
+        lines.add("  Revision: " + buildIdentity.revision());
+        lines.add("  SourceRef: " + buildIdentity.sourceRef());
+        lines.add("  BuildOrigin: " + buildIdentity.buildOrigin());
+        lines.add("  Dirty: " + buildIdentity.dirty());
+        return lines;
+    }
+
+    static List<String> startupConfigurationLines(
+            Path configPath,
+            Config config) {
+        if (configPath == null || config == null) {
+            throw new IllegalArgumentException(
+                    "Startup config path and config are required");
+        }
+
+        List<String> lines = new ArrayList<String>();
+        lines.add("Startup configuration");
+        lines.add("  Action: START");
+        lines.add(
+                "  Config: "
+                        + configPath.toAbsolutePath().normalize());
+
+        for (Config.TimingSystemConfig system
+                : config.timingSystems()) {
+            lines.add(
+                    "  SystemId: "
+                            + system.timingSystemId());
+            for (Config.TimingNodeConfig node
+                    : system.timingNodes()) {
+                lines.add(
+                        "    NodeId: "
+                                + node.timingNodeId().value());
+            }
+            lines.add(
+                    "    EventDataProvider: "
+                            + system.eventDataProviderId());
+            lines.add(
+                    "    TimingDataProvider: "
+                            + system.timingDataProviderId());
+        }
+        return lines;
+    }
+
+    private static void emitLines(
+            List<String> lines,
+            Logging logging,
+            PrintStream out,
+            String sourceMethod) {
+        if (lines == null || out == null) {
+            throw new IllegalArgumentException(
+                    "startup lines and output must not be null");
+        }
+        for (String line : lines) {
+            if (logging != null) {
+                LOGGER.logp(
+                        Level.INFO,
+                        ApplicationLauncher.class.getName(),
+                        sourceMethod,
+                        line);
+            } else {
+                out.println(line);
+            }
+        }
+    }
+
+    private static void printLines(
+            PrintStream out,
+            List<String> lines) {
+        if (out == null || lines == null) {
+            throw new IllegalArgumentException(
+                    "output and startup lines must not be null");
+        }
+        for (String line : lines) {
+            out.println(line);
+        }
     }
 
     private static void runArtifactSmoke(
