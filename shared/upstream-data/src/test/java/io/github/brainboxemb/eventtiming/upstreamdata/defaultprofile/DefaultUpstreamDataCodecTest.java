@@ -2,7 +2,6 @@ package io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -66,64 +65,85 @@ public class DefaultUpstreamDataCodecTest {
     }
 
     @Test
-    public void roundTripsRaceDataSnapshot() throws Exception {
+    public void roundTripsOrderedIncrementalRaceData() throws Exception {
         UpstreamData.RaceData original =
                 DefaultUpstreamData.raceData(
                         new NodeId("A"),
-                        12L,
+                        123L,
                         Arrays.asList(
-                                new UpstreamData.RaceAssignment(
-                                        new RegistrationId("RT-R-0001"),
-                                        new TeamId("0042")),
-                                new UpstreamData.RaceAssignment(
-                                        new RegistrationId("RT-R-0002"),
-                                        new TeamId("0043"))));
-
-        String json = text(codec.encode(original));
-        assertTrue(json.contains("\"dataset\":\"RACE_DATA\""));
-        assertTrue(json.contains("\"rev\":12"));
-
-        UpstreamData.RaceData decoded =
-                (UpstreamData.RaceData) codec.decode(bytes(json));
-        assertEquals(12L, decoded.revision());
-        assertEquals(original.assignments(), decoded.assignments());
-    }
-
-    @Test
-    public void roundTripsStageStartTimesWithOptionalDate() throws Exception {
-        UpstreamData.StageStartTimes original =
-                DefaultUpstreamData.stageStartTimes(
-                        new NodeId("A"),
-                        7L,
+                                DefaultUpstreamData.reserveTagSet(
+                                        "RT-R-0001",
+                                        "0042"),
+                                DefaultUpstreamData.reserveTagDelete(
+                                        "RT-R-0002")),
                         Arrays.asList(
-                                new UpstreamData.StageStartDefinition(
-                                        new TeamId("0042"),
-                                        LocalTime.of(23, 59, 50, 120000000)),
-                                new UpstreamData.StageStartDefinition(
-                                        new TeamId("0043"),
+                                DefaultUpstreamData.stageStartSet(
+                                        "0042",
+                                        LocalTime.of(
+                                                23,
+                                                59,
+                                                50,
+                                                120000000)),
+                                DefaultUpstreamData.stageStartSet(
+                                        "0043",
                                         LocalTime.of(0, 2, 0),
                                         LocalDate.of(2026, 10, 14))));
 
         String json = text(codec.encode(original));
-        assertTrue(json.contains("\"startTime\":\"23:59:50.12\""));
-        assertTrue(json.contains("\"startTime\":\"00:02:00\""));
-        assertTrue(json.contains("\"startDate\":\"2026-10-14\""));
+        assertTrue(json.contains("\"type\":\"RACE_DATA\""));
+        assertTrue(json.contains("\"seq\":123"));
+        assertTrue(json.contains("\"reserveTagMap\""));
+        assertTrue(json.contains("\"stageStartTimes\""));
+        assertTrue(json.contains("\"op\":\"SET\""));
+        assertTrue(json.contains("\"op\":\"DEL\""));
 
-        UpstreamData.StageStartTimes decoded =
-                (UpstreamData.StageStartTimes) codec.decode(bytes(json));
-        assertEquals(original.starts(), decoded.starts());
+        UpstreamData.RaceData decoded =
+                (UpstreamData.RaceData) codec.decode(bytes(json));
+        assertEquals(123L, decoded.sequence());
+        assertEquals(
+                original.reserveTagMapChanges(),
+                decoded.reserveTagMapChanges());
+        assertEquals(
+                original.stageStartTimeChanges(),
+                decoded.stageStartTimeChanges());
+    }
+
+    @Test
+    public void raceDataRequiresAtLeastOneChange() throws Exception {
+        assertInvalid(
+                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
+                        + "\"seq\":1,\"data\":{}}");
+    }
+
+    @Test
+    public void raceDataRejectsInvalidSetAndDeleteShapes() throws Exception {
+        assertInvalid(
+                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
+                        + "\"seq\":1,\"data\":{\"reserveTagMap\":["
+                        + "{\"op\":\"SET\",\"regId\":\"RT-R-0001\"}]}}");
+
+        assertInvalid(
+                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
+                        + "\"seq\":2,\"data\":{\"stageStartTimes\":["
+                        + "{\"op\":\"DEL\",\"teamId\":\"0042\","
+                        + "\"startTime\":\"12:00:00\"}]}}");
     }
 
     @Test
     public void rejectsStageStartTimeFinerThanCentisecondOnEncode() throws Exception {
-        UpstreamData.StageStartTimes data =
-                DefaultUpstreamData.stageStartTimes(
+        UpstreamData.RaceData data =
+                DefaultUpstreamData.raceData(
                         new NodeId("A"),
                         1L,
+                        Collections.<UpstreamData.ReserveTagMapChange>emptyList(),
                         Collections.singletonList(
-                                new UpstreamData.StageStartDefinition(
-                                        new TeamId("0042"),
-                                        LocalTime.of(12, 0, 0, 123000000))));
+                                DefaultUpstreamData.stageStartSet(
+                                        "0042",
+                                        LocalTime.of(
+                                                12,
+                                                0,
+                                                0,
+                                                123000000))));
 
         try {
             codec.encode(data);
@@ -148,8 +168,7 @@ public class DefaultUpstreamDataCodecTest {
                 text(codec.encode(heartbeat)));
 
         UpstreamData.Ping decodedHeartbeat =
-                (UpstreamData.Ping) codec.decode(
-                        codec.encode(heartbeat));
+                (UpstreamData.Ping) codec.decode(codec.encode(heartbeat));
         assertSame(
                 UpstreamData.PingOperation.REQ,
                 decodedHeartbeat.operation());
@@ -167,36 +186,124 @@ public class DefaultUpstreamDataCodecTest {
     }
 
     @Test
-    public void rejectsUnknownPingModeRatherThanTreatingItAsManual() throws Exception {
+    public void rejectsUnknownPingModeRatherThanTreatingItAsManual()
+            throws Exception {
         assertInvalid(
                 "{\"v\":1,\"type\":\"PING\",\"data\":{\"op\":\"REQ\",\"mode\":\"OTHER\"}}");
     }
 
     @Test
-    public void roundTripsSyncProgressAndReferenceRevisions() throws Exception {
-        UpstreamData.Sync original =
+    public void roundTripsSourceHeadSyncInBothDirections() throws Exception {
+        UpstreamData.Sync timing =
                 DefaultUpstreamData.sync(
                         new NodeId("A"),
-                        42L,
-                        Long.valueOf(12L),
-                        Long.valueOf(7L));
+                        UpstreamData.Stream.TIMING_DATA,
+                        42L);
+        UpstreamData.Sync race =
+                DefaultUpstreamData.sync(
+                        new NodeId("A"),
+                        UpstreamData.Stream.RACE_DATA,
+                        123L);
 
-        String json = text(codec.encode(original));
-        assertTrue(json.contains("\"timingSeq\":42"));
-        assertTrue(json.contains("\"RACE_DATA\":12"));
-        assertTrue(json.contains("\"STAGE_START_TIMES\":7"));
+        UpstreamData.Sync decodedTiming =
+                (UpstreamData.Sync) codec.decode(codec.encode(timing));
+        assertSame(
+                UpstreamData.Stream.TIMING_DATA,
+                decodedTiming.stream());
+        assertEquals(42L, decodedTiming.sequence());
 
-        UpstreamData.Sync decoded =
-                (UpstreamData.Sync) codec.decode(bytes(json));
-        assertEquals(42L, decoded.timingSequence());
-        assertEquals(Long.valueOf(12L), decoded.raceDataRevision());
-        assertEquals(Long.valueOf(7L), decoded.stageStartTimesRevision());
+        UpstreamData.Sync decodedRace =
+                (UpstreamData.Sync) codec.decode(codec.encode(race));
+        assertSame(
+                UpstreamData.Stream.RACE_DATA,
+                decodedRace.stream());
+        assertEquals(123L, decodedRace.sequence());
     }
 
     @Test
-    public void reportsUnsupportedVersionTypeAndDatasetSeparately() throws Exception {
+    public void syncAllowsZeroAsEmptySourceHead() throws Exception {
+        UpstreamData.Sync decoded =
+                (UpstreamData.Sync) codec.decode(
+                        bytes("{\"v\":1,\"type\":\"SYNC\",\"nodeId\":\"A\","
+                                + "\"data\":{\"stream\":\"RACE_DATA\",\"seq\":0}}"));
+        assertSame(UpstreamData.Stream.RACE_DATA, decoded.stream());
+        assertEquals(0L, decoded.sequence());
+    }
+
+    @Test
+    public void roundTripsRaceDataAck() throws Exception {
+        UpstreamData.Ack ack =
+                DefaultUpstreamData.ack(
+                        new NodeId("A"),
+                        UpstreamData.Stream.RACE_DATA,
+                        123L);
+
+        assertEquals(
+                "{\"v\":1,\"type\":\"ACK\",\"nodeId\":\"A\","
+                        + "\"data\":{\"stream\":\"RACE_DATA\",\"seq\":123}}",
+                text(codec.encode(ack)));
+
+        UpstreamData.Ack decoded =
+                (UpstreamData.Ack) codec.decode(codec.encode(ack));
+        assertSame(UpstreamData.Stream.RACE_DATA, decoded.stream());
+        assertEquals(123L, decoded.sequence());
+    }
+
+    @Test
+    public void ackDoesNotAcceptTimingDataStreamInV1() throws Exception {
+        assertInvalid(
+                "{\"v\":1,\"type\":\"ACK\",\"nodeId\":\"A\","
+                        + "\"data\":{\"stream\":\"TIMING_DATA\",\"seq\":42}}");
+    }
+
+    @Test
+    public void reqIsBidirectionalAndFromSequenceIsInclusive() throws Exception {
+        UpstreamData.Req timingReq =
+                DefaultUpstreamData.req(
+                        new NodeId("A"),
+                        UpstreamData.Stream.TIMING_DATA,
+                        41L);
+        UpstreamData.Req raceReq =
+                DefaultUpstreamData.req(
+                        new NodeId("A"),
+                        UpstreamData.Stream.RACE_DATA,
+                        121L);
+
+        UpstreamData.Req decodedTiming =
+                (UpstreamData.Req) codec.decode(codec.encode(timingReq));
+        assertSame(
+                UpstreamData.Stream.TIMING_DATA,
+                decodedTiming.stream());
+        assertEquals(41L, decodedTiming.fromSequence());
+
+        UpstreamData.Req decodedRace =
+                (UpstreamData.Req) codec.decode(codec.encode(raceReq));
+        assertSame(UpstreamData.Stream.RACE_DATA, decodedRace.stream());
+        assertEquals(121L, decodedRace.fromSequence());
+    }
+
+    @Test
+    public void reqFromOneIsNormalSemanticReplayFromBeginning() throws Exception {
+        UpstreamData.Req decoded =
+                (UpstreamData.Req) codec.decode(
+                        bytes("{\"v\":1,\"type\":\"REQ\",\"nodeId\":\"A\","
+                                + "\"data\":{\"stream\":\"TIMING_DATA\",\"fromSeq\":1}}"));
+        assertSame(UpstreamData.Stream.TIMING_DATA, decoded.stream());
+        assertEquals(1L, decoded.fromSequence());
+    }
+
+    @Test
+    public void raceDataSequenceIsTopLevelOnly() throws Exception {
+        assertInvalid(
+                "{\"v\":1,\"type\":\"SYNC\",\"nodeId\":\"A\",\"seq\":5,"
+                        + "\"data\":{\"stream\":\"RACE_DATA\",\"seq\":5}}");
+    }
+
+    @Test
+    public void reportsUnsupportedVersionAndTypeSeparately() throws Exception {
         try {
-            codec.decode(bytes("{\"v\":2,\"type\":\"PING\",\"data\":{\"op\":\"REQ\"}}"));
+            codec.decode(
+                    bytes("{\"v\":2,\"type\":\"PING\",\"data\":{\"op\":\"REQ\"}}"));
             fail("expected unsupported version");
         } catch (UpstreamDataCodec.CodecException expected) {
             assertSame(
@@ -205,33 +312,23 @@ public class DefaultUpstreamDataCodecTest {
         }
 
         try {
-            codec.decode(bytes("{\"v\":1,\"type\":\"FUTURE\",\"data\":{}}"));
+            codec.decode(
+                    bytes("{\"v\":1,\"type\":\"FUTURE\",\"data\":{}}"));
             fail("expected unsupported type");
         } catch (UpstreamDataCodec.CodecException expected) {
             assertSame(
                     UpstreamDataCodec.CodecException.Reason.UNSUPPORTED_MESSAGE_TYPE,
                     expected.reason());
         }
-
-        try {
-            codec.decode(bytes(
-                    "{\"v\":1,\"type\":\"REFERENCE_DATA\",\"nodeId\":\"A\","
-                            + "\"data\":{\"dataset\":\"FUTURE\",\"rev\":1,\"items\":[]}}"));
-            fail("expected unsupported dataset");
-        } catch (UpstreamDataCodec.CodecException expected) {
-            assertSame(
-                    UpstreamDataCodec.CodecException.Reason.UNSUPPORTED_DATASET,
-                    expected.reason());
-        }
     }
 
     @Test
-    public void rejectsDuplicateReferenceAssignments() throws Exception {
+    public void rejectsDuplicateRaceDataKeysWithinOneMessage() throws Exception {
         assertInvalid(
-                "{\"v\":1,\"type\":\"REFERENCE_DATA\",\"nodeId\":\"A\","
-                        + "\"data\":{\"dataset\":\"RACE_DATA\",\"rev\":1,\"items\":["
-                        + "{\"regId\":\"RT-R-0001\",\"teamId\":\"0042\"},"
-                        + "{\"regId\":\"RT-R-0002\",\"teamId\":\"0042\"}]}}");
+                "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
+                        + "\"seq\":1,\"data\":{\"reserveTagMap\":["
+                        + "{\"op\":\"SET\",\"regId\":\"RT-R-0001\",\"teamId\":\"0042\"},"
+                        + "{\"op\":\"SET\",\"regId\":\"RT-R-0001\",\"teamId\":\"0043\"}]}}");
     }
 
     @Test
