@@ -10,8 +10,12 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamMessagePort;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamMessageTypes;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
@@ -19,6 +23,11 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
@@ -101,6 +110,122 @@ public class UpstreamMessagePortTest {
             assertTrue(status.answerPending());
         } finally {
             node.deactivate();
+        }
+    }
+
+    @Test
+    public void heartbeatIsAdmittedToTaskLaneWhileDataLaneIsBusy()
+            throws Exception {
+        ExecutorService nodeWorker =
+                Executors.newSingleThreadExecutor();
+        ScheduledThreadPoolExecutor tagWorker =
+                new ScheduledThreadPoolExecutor(1);
+        SerialExecutor dataLane =
+                new SerialExecutor(
+                        4,
+                        "heartbeat-data-test",
+                        nodeWorker);
+        SerialExecutor taskLane =
+                new SerialExecutor(
+                        4,
+                        "heartbeat-task-test",
+                        nodeWorker);
+        SerialScheduledExecutor tagLane =
+                new SerialScheduledExecutor(
+                        4,
+                        "heartbeat-tag-test",
+                        tagWorker);
+
+        CountDownLatch heartbeatSent =
+                new CountDownLatch(1);
+        UpstreamStream stream =
+                new UpstreamStream() {
+                    @Override
+                    public boolean isAvailable() {
+                        return true;
+                    }
+
+                    @Override
+                    public boolean hasMessage() {
+                        return false;
+                    }
+
+                    @Override
+                    public UpstreamData read() {
+                        throw new IllegalStateException(
+                                "no inbound data expected");
+                    }
+
+                    @Override
+                    public void send(
+                            UpstreamData message) {
+                        heartbeatSent.countDown();
+                    }
+                };
+
+        TimingNode node =
+                new TimingNode(
+                        new NodeId("A"),
+                        new MemoryPersistence(
+                                Collections.<TimingData>emptyList()),
+                        new DefaultTimingDataFactory(),
+                        () -> Instant.parse(
+                                "2026-10-13T12:00:00Z"),
+                        ReadOnlyConfiguration.fixed(
+                                TagProcessingPolicy.defaults()),
+                        EventData.empty(),
+                        dataLane,
+                        taskLane,
+                        tagLane,
+                        stream);
+
+        CountDownLatch blockerStarted =
+                new CountDownLatch(1);
+        CountDownLatch releaseBlocker =
+                new CountDownLatch(1);
+
+        node.activate();
+        try {
+            // Barrier behind initial recovery before occupying the Data Lane.
+            node.query(TimingNodeQueries.status());
+
+            SerialExecutor.SubmitResult<Void> blocker =
+                    dataLane.submit(
+                            () -> {
+                                blockerStarted.countDown();
+                                releaseBlocker.await();
+                                return null;
+                            });
+            assertSame(
+                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    blocker.admission());
+            assertTrue(
+                    blockerStarted.await(
+                            1,
+                            TimeUnit.SECONDS));
+
+            node.upstreamMessagePort()
+                    .heartbeatTick();
+
+            assertEquals(
+                    1L,
+                    taskLane.metrics()
+                            .snapshot()
+                            .acceptedCount());
+            assertEquals(
+                    1L,
+                    heartbeatSent.getCount());
+
+            releaseBlocker.countDown();
+            assertTrue(
+                    heartbeatSent.await(
+                            1,
+                            TimeUnit.SECONDS));
+        } finally {
+            releaseBlocker.countDown();
+            node.deactivate();
+            nodeWorker.shutdownNow();
+            tagWorker.shutdownNow();
         }
     }
 
