@@ -2,8 +2,8 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager
 
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.AbstractTask;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.TaskStep;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.time.Duration;
 import java.util.List;
