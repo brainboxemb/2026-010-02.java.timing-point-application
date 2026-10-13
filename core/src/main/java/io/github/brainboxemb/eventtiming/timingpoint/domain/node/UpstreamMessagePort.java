@@ -28,6 +28,17 @@ public final class UpstreamMessagePort {
 
     private long lastAppliedRaceDataSequence;
 
+    /*
+     * Heartbeat scheduling is supplied by runtime composition, but the state
+     * transition itself belongs to this node and therefore lives on the node
+     * serial lane.
+     */
+    private long heartbeatRequestsSent;
+    private long heartbeatAnswersReceived;
+    private long heartbeatMissedIntervals;
+    private boolean heartbeatAnswerPending;
+    private String heartbeatPingId;
+
     UpstreamMessagePort(
             TimingNode timingNode,
             EventData eventData,
@@ -59,6 +70,132 @@ public final class UpstreamMessagePort {
         this.teamAssignments = teamAssignments;
         this.stageStartTimes = stageStartTimes;
         this.uniqueTeamRegistrations = uniqueTeamRegistrations;
+    }
+
+    public static final class HeartbeatStatus {
+        private final long requestsSent;
+        private final long answersReceived;
+        private final long missedIntervals;
+        private final boolean answerPending;
+
+        private HeartbeatStatus(
+                long requestsSent,
+                long answersReceived,
+                long missedIntervals,
+                boolean answerPending) {
+            this.requestsSent = requestsSent;
+            this.answersReceived = answersReceived;
+            this.missedIntervals = missedIntervals;
+            this.answerPending = answerPending;
+        }
+
+        public long requestsSent() {
+            return requestsSent;
+        }
+
+        public long answersReceived() {
+            return answersReceived;
+        }
+
+        public long missedIntervals() {
+            return missedIntervals;
+        }
+
+        public boolean answerPending() {
+            return answerPending;
+        }
+    }
+
+    /**
+     * One scheduled heartbeat step for this TimingNode.
+     *
+     * <p>The scheduler may be shared by many nodes. Calling this method always
+     * serializes the heartbeat decision with this node's registration, LogBook
+     * and upstream state. If the previous heartbeat is still unanswered, one
+     * missed interval is recorded before the next request is created.</p>
+     */
+    public UpstreamData.Ping heartbeatTick() {
+        return onNodeLane(
+                this::heartbeatTickOnNodeLane,
+                "upstreamHeartbeat");
+    }
+
+    /**
+     * Handles one inbound node-scoped PING.
+     *
+     * <p>REQ is answered with ANS using the same mode/pingId. An HB answer that
+     * matches the currently outstanding heartbeat marks that heartbeat as
+     * answered. Answers never trigger another answer.</p>
+     */
+    public UpstreamData.Ping handlePing(
+            UpstreamData.Ping ping) {
+        if (ping == null) {
+            throw new IllegalArgumentException(
+                    "ping must not be null");
+        }
+        return onNodeLane(
+                () -> handlePingOnNodeLane(ping),
+                "upstreamPing");
+    }
+
+    public HeartbeatStatus heartbeatStatus() {
+        return onNodeLane(
+                this::heartbeatStatusOnNodeLane,
+                "upstreamHeartbeatStatus");
+    }
+
+    private UpstreamData.Ping heartbeatTickOnNodeLane() {
+        if (heartbeatAnswerPending) {
+            heartbeatMissedIntervals++;
+        }
+
+        heartbeatRequestsSent++;
+        heartbeatAnswerPending = true;
+        heartbeatPingId =
+                "hb-" + heartbeatRequestsSent;
+
+        return io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData.ping(
+                timingNode.timingNodeId(),
+                UpstreamData.PingOperation.REQ,
+                UpstreamData.PingMode.HB,
+                heartbeatPingId);
+    }
+
+    private UpstreamData.Ping handlePingOnNodeLane(
+            UpstreamData.Ping ping) {
+        if (!timingNode.timingNodeId().equals(
+                ping.timingNodeId())) {
+            throw new IllegalArgumentException(
+                    "PING NodeId does not match TimingNode");
+        }
+
+        if (ping.operation()
+                == UpstreamData.PingOperation.REQ) {
+            return io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData.ping(
+                    timingNode.timingNodeId(),
+                    UpstreamData.PingOperation.ANS,
+                    ping.mode(),
+                    ping.pingId());
+        }
+
+        if (ping.operation()
+                == UpstreamData.PingOperation.ANS
+                && ping.mode() == UpstreamData.PingMode.HB
+                && heartbeatAnswerPending
+                && heartbeatPingId != null
+                && heartbeatPingId.equals(ping.pingId())) {
+            heartbeatAnswerPending = false;
+            heartbeatAnswersReceived++;
+        }
+        return null;
+    }
+
+    private HeartbeatStatus heartbeatStatusOnNodeLane() {
+        return new HeartbeatStatus(
+                heartbeatRequestsSent,
+                heartbeatAnswersReceived,
+                heartbeatMissedIntervals,
+                heartbeatAnswerPending);
     }
 
     public RaceDataApplyResult applyRaceData(
