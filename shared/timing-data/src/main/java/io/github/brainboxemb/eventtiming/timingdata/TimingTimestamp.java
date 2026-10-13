@@ -14,17 +14,17 @@ import java.util.Locale;
 import java.util.Objects;
 
 /**
- * Project-owned timing value.
+ * Project-owned timing value with explicit knowledge about what part of a
+ * timestamp is known.
  *
- * <p>A TimingTimestamp records both <em>what temporal information is known</em>
- * and <em>with what precision it is represented</em>. A value may therefore be
- * time-only, local date/time, or an absolute point on the UTC time line.
- * Missing date, zone or offset information is never invented by this class.</p>
+ * <p>A TimingTimestamp may contain only a local civil time, a local date and
+ * time, or an absolute point on the UTC time line. Missing date/zone knowledge
+ * is never invented by this value object. Domain logic that owns that context
+ * performs the interpretation explicitly.</p>
  *
- * <p>Domain code that owns missing context performs the interpretation. For
- * example StageTiming may resolve a time-only stage start against an event
- * timezone and a registration date; UpstreamData itself can carry the
- * time-only value without requiring that context.</p>
+ * <p>This keeps one timing type across protocols and domain state. An upstream
+ * protocol may therefore supply time-of-day only without being forced to invent
+ * a date, while TimingData can continue to use absolute timestamps.</p>
  */
 public final class TimingTimestamp implements Comparable<TimingTimestamp> {
 
@@ -42,125 +42,75 @@ public final class TimingTimestamp implements Comparable<TimingTimestamp> {
         ABSOLUTE
     }
 
-    /**
-     * Fractional-second precision carried by a TimingTimestamp.
-     *
-     * <p>The generic timing model supports 0..9 decimal fractional digits. The
-     * named constants cover the precisions currently used explicitly by SI-01;
-     * other digit counts remain representable for compatible external data.</p>
-     */
-    public static final class Precision {
-        public static final Precision SECOND = new Precision(0);
-        public static final Precision CENTISECOND = new Precision(2);
-        public static final Precision MILLISECOND = new Precision(3);
-        public static final Precision NANOSECOND = new Precision(9);
+    private static final DateTimeFormatter ABSOLUTE_FORMATTER =
+            new DateTimeFormatterBuilder()
+                    .parseCaseSensitive()
+                    .appendPattern("uuuu-MM-dd'T'HH:mm:ss")
+                    .appendFraction(
+                            ChronoField.NANO_OF_SECOND,
+                            0,
+                            9,
+                            true)
+                    .appendLiteral('Z')
+                    .toFormatter(Locale.ROOT)
+                    .withResolverStyle(ResolverStyle.STRICT);
 
-        private final int fractionalDigits;
+    private static final DateTimeFormatter LOCAL_DATE_TIME_FORMATTER =
+            new DateTimeFormatterBuilder()
+                    .parseCaseSensitive()
+                    .appendPattern("uuuu-MM-dd'T'HH:mm:ss")
+                    .appendFraction(
+                            ChronoField.NANO_OF_SECOND,
+                            0,
+                            9,
+                            true)
+                    .toFormatter(Locale.ROOT)
+                    .withResolverStyle(ResolverStyle.STRICT);
 
-        private Precision(int fractionalDigits) {
-            this.fractionalDigits = fractionalDigits;
-        }
-
-        public static Precision fractionalDigits(
-                int fractionalDigits) {
-            switch (fractionalDigits) {
-                case 0:
-                    return SECOND;
-                case 2:
-                    return CENTISECOND;
-                case 3:
-                    return MILLISECOND;
-                case 9:
-                    return NANOSECOND;
-                default:
-                    if (fractionalDigits < 0 || fractionalDigits > 9) {
-                        throw new IllegalArgumentException(
-                                "fractionalDigits must be in range 0..9");
-                    }
-                    return new Precision(fractionalDigits);
-            }
-        }
-
-        public int fractionalDigits() {
-            return fractionalDigits;
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            return other instanceof Precision
-                    && fractionalDigits
-                    == ((Precision) other).fractionalDigits;
-        }
-
-        @Override
-        public int hashCode() {
-            return fractionalDigits;
-        }
-
-        @Override
-        public String toString() {
-            return "fractionalDigits=" + fractionalDigits;
-        }
-    }
-
-    private static final DateTimeFormatter ABSOLUTE_READER =
-            reader("uuuu-MM-dd'T'HH:mm:ss", true);
-    private static final DateTimeFormatter LOCAL_DATE_TIME_READER =
-            reader("uuuu-MM-dd'T'HH:mm:ss", false);
-    private static final DateTimeFormatter LOCAL_TIME_READER =
-            reader("HH:mm:ss", false);
+    private static final DateTimeFormatter LOCAL_TIME_FORMATTER =
+            new DateTimeFormatterBuilder()
+                    .parseCaseSensitive()
+                    .appendPattern("HH:mm:ss")
+                    .appendFraction(
+                            ChronoField.NANO_OF_SECOND,
+                            0,
+                            9,
+                            true)
+                    .toFormatter(Locale.ROOT)
+                    .withResolverStyle(ResolverStyle.STRICT);
 
     private final Knowledge knowledge;
-    private final Precision precision;
     private final LocalDate date;
     private final LocalTime time;
     private final Instant instant;
 
     /**
-     * Creates an absolute timestamp and derives the minimum precision needed to
-     * represent the Instant exactly.
+     * Creates an absolute timestamp.
      *
-     * <p>Call the precision-aware overload when source precision is known
-     * independently of the numeric value, for example a centisecond source that
-     * happens to report {@code .00}.</p>
+     * <p>This constructor is retained for existing TimingData callers. Code that
+     * has only local civil time must use {@link #localTime(LocalTime)} or
+     * {@link #localDateTime(LocalDate, LocalTime)} rather than inventing an
+     * Instant.</p>
      */
     public TimingTimestamp(Instant instant) {
-        this(
-                requireInstant(instant),
-                inferPrecision(
-                        LocalDateTime.ofInstant(
-                                instant,
-                                ZoneOffset.UTC)
-                                .toLocalTime()));
-    }
+        if (instant == null) {
+            throw new IllegalArgumentException(
+                    "instant must not be null");
+        }
 
-    /**
-     * Creates an absolute timestamp with explicit source precision.
-     */
-    public TimingTimestamp(
-            Instant instant,
-            Precision precision) {
-        Instant requiredInstant =
-                requireInstant(instant);
         LocalDateTime utc =
                 LocalDateTime.ofInstant(
-                        requiredInstant,
+                        instant,
                         ZoneOffset.UTC);
 
-        validatePrecision(
-                utc.toLocalTime(),
-                precision);
-
         this.knowledge = Knowledge.ABSOLUTE;
-        this.precision = precision;
         this.date = utc.toLocalDate();
         this.time = utc.toLocalTime();
-        this.instant = requiredInstant;
+        this.instant = instant;
     }
 
     private TimingTimestamp(
             Knowledge knowledge,
-            Precision precision,
             LocalDate date,
             LocalTime time,
             Instant instant) {
@@ -168,11 +118,10 @@ public final class TimingTimestamp implements Comparable<TimingTimestamp> {
             throw new IllegalArgumentException(
                     "knowledge must not be null");
         }
-        LocalTime requiredTime =
-                requireTime(time);
-        validatePrecision(
-                requiredTime,
-                precision);
+        if (time == null) {
+            throw new IllegalArgumentException(
+                    "time must not be null");
+        }
 
         switch (knowledge) {
             case TIME_ONLY:
@@ -199,114 +148,70 @@ public final class TimingTimestamp implements Comparable<TimingTimestamp> {
         }
 
         this.knowledge = knowledge;
-        this.precision = precision;
         this.date = date;
-        this.time = requiredTime;
+        this.time = time;
         this.instant = instant;
     }
 
-    /**
-     * Creates a local civil time for which no calendar date is known.
-     */
+    /** Creates a local civil time for which no calendar date is known. */
     public static TimingTimestamp localTime(
             LocalTime time) {
-        LocalTime required =
-                requireTime(time);
-        return localTime(
-                required,
-                inferPrecision(required));
-    }
-
-    /**
-     * Creates a local civil time with explicit source precision.
-     */
-    public static TimingTimestamp localTime(
-            LocalTime time,
-            Precision precision) {
         return new TimingTimestamp(
                 Knowledge.TIME_ONLY,
-                precision,
                 null,
-                time,
+                requireTime(time),
                 null);
     }
 
-    /**
-     * Creates a local civil date/time for which no zone or offset is known.
-     */
+    /** Creates a local civil date/time for which no zone or offset is known. */
     public static TimingTimestamp localDateTime(
             LocalDate date,
             LocalTime time) {
-        LocalTime required =
-                requireTime(time);
-        return localDateTime(
-                date,
-                required,
-                inferPrecision(required));
-    }
-
-    /**
-     * Creates a local civil date/time with explicit source precision.
-     */
-    public static TimingTimestamp localDateTime(
-            LocalDate date,
-            LocalTime time,
-            Precision precision) {
         if (date == null) {
             throw new IllegalArgumentException(
                     "date must not be null");
         }
         return new TimingTimestamp(
                 Knowledge.LOCAL_DATE_TIME,
-                precision,
                 date,
-                time,
+                requireTime(time),
                 null);
     }
 
     /**
-     * Parses any canonical TimingTimestamp representation:
-     * time-only, local date/time or absolute UTC.
+     * Parses time-only, local date/time or the canonical absolute UTC form.
      */
-    public static TimingTimestamp parse(
-            String text) {
+    public static TimingTimestamp parse(String text) {
         if (text == null) {
             throw new IllegalArgumentException(
                     "timestamp text must not be null");
         }
-
-        Precision parsedPrecision =
-                Precision.fractionalDigits(
-                        fractionalDigits(text));
 
         try {
             if (text.endsWith("Z")) {
                 LocalDateTime local =
                         LocalDateTime.parse(
                                 text,
-                                ABSOLUTE_READER);
+                                ABSOLUTE_FORMATTER);
                 return new TimingTimestamp(
                         local.toInstant(
-                                ZoneOffset.UTC),
-                        parsedPrecision);
+                                ZoneOffset.UTC));
             }
 
             if (text.indexOf('T') >= 0) {
                 LocalDateTime local =
                         LocalDateTime.parse(
                                 text,
-                                LOCAL_DATE_TIME_READER);
+                                LOCAL_DATE_TIME_FORMATTER);
                 return localDateTime(
                         local.toLocalDate(),
-                        local.toLocalTime(),
-                        parsedPrecision);
+                        local.toLocalTime());
             }
 
             return localTime(
                     LocalTime.parse(
                             text,
-                            LOCAL_TIME_READER),
-                    parsedPrecision);
+                            LOCAL_TIME_FORMATTER));
         } catch (DateTimeParseException ex) {
             throw new IllegalArgumentException(
                     "timestamp must be time, local date/time, or canonical UTC "
@@ -316,10 +221,9 @@ public final class TimingTimestamp implements Comparable<TimingTimestamp> {
     }
 
     /**
-     * Parses a canonical absolute UTC timestamp and rejects incomplete values.
+     * Parses an absolute UTC timestamp and rejects incomplete timestamp forms.
      */
-    public static TimingTimestamp parseAbsolute(
-            String text) {
+    public static TimingTimestamp parseAbsolute(String text) {
         TimingTimestamp parsed =
                 parse(text);
         if (!parsed.isAbsolute()) {
@@ -333,10 +237,6 @@ public final class TimingTimestamp implements Comparable<TimingTimestamp> {
         return knowledge;
     }
 
-    public Precision precision() {
-        return precision;
-    }
-
     public boolean hasDate() {
         return date != null;
     }
@@ -346,9 +246,9 @@ public final class TimingTimestamp implements Comparable<TimingTimestamp> {
     }
 
     /**
-     * Returns the known local/canonical time component.
+     * Returns the known clock-time component.
      *
-     * <p>For an absolute value this is the UTC clock-time component.</p>
+     * <p>For an absolute timestamp this is the UTC clock-time component.</p>
      */
     public LocalTime time() {
         return time;
@@ -380,44 +280,6 @@ public final class TimingTimestamp implements Comparable<TimingTimestamp> {
         return instant;
     }
 
-    /**
-     * Formats the value while preserving its declared fractional precision.
-     *
-     * <p>This is appropriate for generic TimingTimestamp interchange. Existing
-     * profile codecs may deliberately impose their own fixed formatting rules.</p>
-     */
-    public String toPrecisionString() {
-        switch (knowledge) {
-            case TIME_ONLY:
-                return formatter(
-                        "HH:mm:ss",
-                        precision,
-                        false)
-                        .format(time);
-            case LOCAL_DATE_TIME:
-                return formatter(
-                        "uuuu-MM-dd'T'HH:mm:ss",
-                        precision,
-                        false)
-                        .format(
-                                LocalDateTime.of(
-                                        date,
-                                        time));
-            case ABSOLUTE:
-                return formatter(
-                        "uuuu-MM-dd'T'HH:mm:ss",
-                        precision,
-                        true)
-                        .format(
-                                LocalDateTime.ofInstant(
-                                        instant,
-                                        ZoneOffset.UTC));
-            default:
-                throw new IllegalStateException(
-                        "Unsupported timestamp knowledge " + knowledge);
-        }
-    }
-
     @Override
     public int compareTo(TimingTimestamp other) {
         if (other == null) {
@@ -443,7 +305,6 @@ public final class TimingTimestamp implements Comparable<TimingTimestamp> {
         TimingTimestamp that =
                 (TimingTimestamp) other;
         return knowledge == that.knowledge
-                && precision.equals(that.precision)
                 && Objects.equals(date, that.date)
                 && time.equals(that.time)
                 && Objects.equals(instant, that.instant);
@@ -453,175 +314,31 @@ public final class TimingTimestamp implements Comparable<TimingTimestamp> {
     public int hashCode() {
         return Objects.hash(
                 knowledge,
-                precision,
                 date,
                 time,
                 instant);
     }
 
-    /**
-     * Keeps the historical compact text form. Use {@link #toPrecisionString()}
-     * when representation precision itself is part of the interchange value.
-     */
     @Override
     public String toString() {
-        Precision compact =
-                inferPrecision(time);
         switch (knowledge) {
             case TIME_ONLY:
-                return formatter(
-                        "HH:mm:ss",
-                        compact,
-                        false)
-                        .format(time);
+                return LOCAL_TIME_FORMATTER.format(
+                        time);
             case LOCAL_DATE_TIME:
-                return formatter(
-                        "uuuu-MM-dd'T'HH:mm:ss",
-                        compact,
-                        false)
-                        .format(
-                                LocalDateTime.of(
-                                        date,
-                                        time));
+                return LOCAL_DATE_TIME_FORMATTER.format(
+                        LocalDateTime.of(
+                                date,
+                                time));
             case ABSOLUTE:
-                return formatter(
-                        "uuuu-MM-dd'T'HH:mm:ss",
-                        compact,
-                        true)
-                        .format(
-                                LocalDateTime.ofInstant(
-                                        instant,
-                                        ZoneOffset.UTC));
+                return ABSOLUTE_FORMATTER.format(
+                        LocalDateTime.ofInstant(
+                                instant,
+                                ZoneOffset.UTC));
             default:
                 throw new IllegalStateException(
                         "Unsupported timestamp knowledge " + knowledge);
         }
-    }
-
-    private static DateTimeFormatter reader(
-            String basePattern,
-            boolean zulu) {
-        DateTimeFormatterBuilder builder =
-                new DateTimeFormatterBuilder()
-                        .parseCaseSensitive()
-                        .appendPattern(basePattern)
-                        .appendFraction(
-                                ChronoField.NANO_OF_SECOND,
-                                0,
-                                9,
-                                true);
-        if (zulu) {
-            builder.appendLiteral('Z');
-        }
-        return builder
-                .toFormatter(Locale.ROOT)
-                .withResolverStyle(ResolverStyle.STRICT);
-    }
-
-    private static DateTimeFormatter formatter(
-            String basePattern,
-            Precision precision,
-            boolean zulu) {
-        if (precision == null) {
-            throw new IllegalArgumentException(
-                    "precision must not be null");
-        }
-
-        DateTimeFormatterBuilder builder =
-                new DateTimeFormatterBuilder()
-                        .appendPattern(basePattern);
-        if (precision.fractionalDigits() > 0) {
-            builder.appendFraction(
-                    ChronoField.NANO_OF_SECOND,
-                    precision.fractionalDigits(),
-                    precision.fractionalDigits(),
-                    true);
-        }
-        if (zulu) {
-            builder.appendLiteral('Z');
-        }
-        return builder.toFormatter(
-                Locale.ROOT);
-    }
-
-    private static Precision inferPrecision(
-            LocalTime time) {
-        int nanos =
-                requireTime(time)
-                        .getNano();
-        if (nanos == 0) {
-            return Precision.SECOND;
-        }
-
-        int fractionalDigits = 9;
-        while (nanos % 10 == 0) {
-            nanos /= 10;
-            fractionalDigits--;
-        }
-        return Precision.fractionalDigits(
-                fractionalDigits);
-    }
-
-    private static int fractionalDigits(
-            String text) {
-        int dot =
-                text.indexOf('.');
-        if (dot < 0) {
-            return 0;
-        }
-
-        int end =
-                text.endsWith("Z")
-                ? text.length() - 1
-                : text.length();
-        int digits =
-                end - dot - 1;
-        if (digits < 1 || digits > 9) {
-            throw new IllegalArgumentException(
-                    "fractional timestamp precision must contain 1..9 digits");
-        }
-        return digits;
-    }
-
-    private static void validatePrecision(
-            LocalTime time,
-            Precision precision) {
-        if (precision == null) {
-            throw new IllegalArgumentException(
-                    "precision must not be null");
-        }
-
-        int digits =
-                precision.fractionalDigits();
-        int nanos =
-                requireTime(time)
-                        .getNano();
-
-        if (digits == 0) {
-            if (nanos != 0) {
-                throw new IllegalArgumentException(
-                        "SECOND precision cannot represent fractional seconds");
-            }
-            return;
-        }
-
-        int quantum = 1;
-        for (int i = digits; i < 9; i++) {
-            quantum *= 10;
-        }
-        if (nanos % quantum != 0) {
-            throw new IllegalArgumentException(
-                    "timestamp value is finer than declared precision");
-        }
-    }
-
-    private static Instant requireInstant(
-            Instant instant) {
-        if (instant == null) {
-            throw new IllegalArgumentException(
-                    "instant must not be null");
-        }
-        return instant;
     }
 
     private static LocalTime requireTime(
