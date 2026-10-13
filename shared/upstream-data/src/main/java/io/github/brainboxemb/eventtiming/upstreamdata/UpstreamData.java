@@ -1,0 +1,221 @@
+package io.github.brainboxemb.eventtiming.upstreamdata;
+
+import io.github.brainboxemb.eventtiming.eventdata.TeamId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.List;
+import java.util.Objects;
+
+/**
+ * Transport-independent IF-06 semantic message contract.
+ *
+ * <p>TimingData keeps its existing IF-05/LogBook source sequence. RaceData is
+ * the independently ordered Central-System-to-TimingNode stream.</p>
+ */
+public interface UpstreamData {
+
+    Family family();
+
+    enum Family {
+        TIMING_DATA,
+        RACE_DATA,
+        SYNC,
+        ACK,
+        REQ,
+        PING,
+        STATUS
+    }
+
+    enum Stream {
+        TIMING_DATA,
+        RACE_DATA
+    }
+
+    enum ChangeOperation {
+        SET,
+        DEL
+    }
+
+    enum PingOperation {
+        REQ,
+        ANS
+    }
+
+    enum PingMode {
+        HB
+    }
+
+    interface NodeScoped extends UpstreamData {
+        NodeId timingNodeId();
+    }
+
+    interface TimingDataTransfer extends NodeScoped {
+        List<TimingData> records();
+    }
+
+    interface RaceData extends NodeScoped {
+        long sequence();
+
+        List<ReserveTagMapChange> reserveTagMapChanges();
+
+        List<StageStartTimeChange> stageStartTimeChanges();
+    }
+
+    interface Sync extends NodeScoped {
+        Stream stream();
+
+        long sequence();
+    }
+
+    interface Ack extends NodeScoped {
+        Stream stream();
+
+        long sequence();
+    }
+
+    interface Req extends NodeScoped {
+        Stream stream();
+
+        long fromSequence();
+    }
+
+    interface Ping extends UpstreamData {
+        PingOperation operation();
+
+        /** Null denotes the normal/manual form without a mode field. */
+        PingMode mode();
+
+        /** Optional opaque reference correlation token. */
+        String pingId();
+    }
+
+    final class ReserveTagMapChange {
+        private final ChangeOperation operation;
+        private final RegistrationId registrationId;
+        private final TeamId teamId;
+
+        public ReserveTagMapChange(
+                ChangeOperation operation,
+                RegistrationId registrationId,
+                TeamId teamId) {
+            if (operation == null) {
+                throw new IllegalArgumentException("operation must not be null");
+            }
+            if (registrationId == null) {
+                throw new IllegalArgumentException("registrationId must not be null");
+            }
+            if (operation == ChangeOperation.SET && teamId == null) {
+                throw new IllegalArgumentException("SET requires teamId");
+            }
+            if (operation == ChangeOperation.DEL && teamId != null) {
+                throw new IllegalArgumentException("DEL must not carry teamId");
+            }
+            this.operation = operation;
+            this.registrationId = registrationId;
+            this.teamId = teamId;
+        }
+
+        public ChangeOperation operation() {
+            return operation;
+        }
+
+        public RegistrationId registrationId() {
+            return registrationId;
+        }
+
+        public TeamId teamId() {
+            return teamId;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof ReserveTagMapChange)) {
+                return false;
+            }
+            ReserveTagMapChange that = (ReserveTagMapChange) other;
+            return operation == that.operation
+                    && registrationId.equals(that.registrationId)
+                    && Objects.equals(teamId, that.teamId);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(operation, registrationId, teamId);
+        }
+    }
+
+    final class StageStartTimeChange {
+        private final ChangeOperation operation;
+        private final TeamId teamId;
+        private final LocalTime startTime;
+        private final LocalDate startDate;
+
+        public StageStartTimeChange(
+                ChangeOperation operation,
+                TeamId teamId,
+                LocalTime startTime,
+                LocalDate startDate) {
+            if (operation == null) {
+                throw new IllegalArgumentException("operation must not be null");
+            }
+            if (teamId == null) {
+                throw new IllegalArgumentException("teamId must not be null");
+            }
+            if (operation == ChangeOperation.SET && startTime == null) {
+                throw new IllegalArgumentException("SET requires startTime");
+            }
+            if (operation == ChangeOperation.DEL
+                    && (startTime != null || startDate != null)) {
+                throw new IllegalArgumentException(
+                        "DEL must not carry startTime/startDate");
+            }
+            this.operation = operation;
+            this.teamId = teamId;
+            this.startTime = startTime;
+            this.startDate = startDate;
+        }
+
+        public ChangeOperation operation() {
+            return operation;
+        }
+
+        public TeamId teamId() {
+            return teamId;
+        }
+
+        public LocalTime startTime() {
+            return startTime;
+        }
+
+        public LocalDate startDate() {
+            return startDate;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof StageStartTimeChange)) {
+                return false;
+            }
+            StageStartTimeChange that = (StageStartTimeChange) other;
+            return operation == that.operation
+                    && teamId.equals(that.teamId)
+                    && Objects.equals(startTime, that.startTime)
+                    && Objects.equals(startDate, that.startDate);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(operation, teamId, startTime, startDate);
+        }
+    }
+}

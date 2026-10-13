@@ -1,6 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 
 import java.util.function.Consumer;
@@ -31,6 +33,24 @@ public final class TimingNodeQueries {
 
     public static TimingNodeQuery<Integer> timingDataCount() {
         return TIMING_DATA_COUNT;
+    }
+
+    public static TimingNodeQuery<Long> raceDataAppliedSequence() {
+        return new TimingNodeQuery<>(
+                "raceDataAppliedSequence",
+                TimingNodeLogic::raceDataAppliedSequence);
+    }
+
+    public static TimingNodeQuery<TeamId> teamIdFor(
+            RegistrationId registrationId) {
+        if (registrationId == null) {
+            throw new IllegalArgumentException(
+                    "registrationId must not be null");
+        }
+        return new TimingNodeQuery<>(
+                "teamIdFor",
+                logic -> logic.teamIdFor(
+                        registrationId));
     }
 
     /**

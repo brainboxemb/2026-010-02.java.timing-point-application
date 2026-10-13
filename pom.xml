@@ -15,6 +15,7 @@
   <modules>
     <module>shared/timing-data</module>
     <module>shared/event-data</module>
+    <module>shared/upstream-data</module>
     <module>core</module>
     <module>app</module>
   </modules>
