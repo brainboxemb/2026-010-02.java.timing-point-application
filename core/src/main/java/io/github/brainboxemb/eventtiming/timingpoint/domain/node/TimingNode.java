@@ -343,7 +343,8 @@ public final class TimingNode {
         this.upstreamMessagePort =
                 new UpstreamMessagePort(
                         timingNodeId(),
-                        upstreamNodeLane(),
+                        upstreamDataLane(),
+                        upstreamTaskLane(),
                         upstreamStream,
                         eventData,
                         logic.logBook(),
@@ -442,7 +443,8 @@ public final class TimingNode {
         this.upstreamMessagePort =
                 new UpstreamMessagePort(
                         timingNodeId(),
-                        upstreamNodeLane(),
+                        upstreamDataLane(),
+                        upstreamTaskLane(),
                         upstreamStream,
                         eventData,
                         logic.logBook(),
@@ -467,14 +469,13 @@ public final class TimingNode {
     }
 
     /**
-     * Gives the upstream child its temporary Data Lane execution seam.
+     * Gives upstream data/replay helpers only the Data Lane operations they need.
      *
      * <p>UpstreamDataSync and LogBookSync still directly use Data Lane-owned
-     * mutable objects. Moving this adapter to the Task Lane before explicit
-     * bounded asynchronous handoffs exist would create two writers.</p>
+     * mutable state during this migration slice.</p>
      */
-    private UpstreamMessagePort.NodeLane upstreamNodeLane() {
-        return new UpstreamMessagePort.NodeLane() {
+    private UpstreamMessagePort.DataLane upstreamDataLane() {
+        return new UpstreamMessagePort.DataLane() {
             @Override
             public boolean offer(
                     Runnable task) {
@@ -489,6 +490,22 @@ public final class TimingNode {
             @Override
             public <R> R run(Callable<R> task, String operation) {
                 return runDataLaneTask(task, operation);
+            }
+        };
+    }
+
+    /**
+     * Gives heartbeat processing a non-blocking Task Lane handoff only.
+     *
+     * <p>No synchronous Task-to-Data or Data-to-Task wait is exposed because
+     * both logical lanes may share the same physical worker.</p>
+     */
+    private UpstreamMessagePort.TaskLane upstreamTaskLane() {
+        return new UpstreamMessagePort.TaskLane() {
+            @Override
+            public boolean offer(
+                    Runnable task) {
+                return offerTaskLaneTask(task);
             }
         };
     }
@@ -528,8 +545,8 @@ public final class TimingNode {
 
         /*
          * Recovery is already first in Data Lane order before the independent
-         * Task Lane becomes active. Upstream deliberately still targets Data
-         * Lane in this scaffold until explicit cross-lane handoffs exist.
+         * Task Lane becomes active. Heartbeat protocol work may then use the
+         * Task Lane while mutable TimingData/RaceData state remains Data-owned.
          */
         try {
             taskLane.start();
@@ -603,9 +620,9 @@ public final class TimingNode {
         RuntimeException firstFailure = null;
 
         /*
-         * Stop/drain tag ingress before either TimingNode lane. Upstream is
-         * still Data Lane-bound in this scaffold, so Task Lane has no mutable
-         * node-data work to drain yet.
+         * Stop/drain tag ingress before either TimingNode lane. Task Lane-owned
+         * heartbeat work is drained before the Data Lane so no later PING task
+         * can be admitted during Data Lane shutdown.
          */
         if (tagProcessor != null) {
             try {
@@ -936,6 +953,22 @@ public final class TimingNode {
                     "task must not be null");
         }
         return dataLane.offer(task)
+                == SerialExecutor.AdmissionResult.ACCEPTED;
+    }
+
+    /**
+     * Admits one fire-and-forget Task Lane operation.
+     *
+     * <p>This is intentionally the only Task Lane execution seam exposed to the
+     * upstream child in this slice: cross-lane synchronous waits are forbidden.</p>
+     */
+    boolean offerTaskLaneTask(
+            Runnable task) {
+        if (task == null) {
+            throw new IllegalArgumentException(
+                    "task must not be null");
+        }
+        return taskLane.offer(task)
                 == SerialExecutor.AdmissionResult.ACCEPTED;
     }
 

@@ -11,9 +11,10 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Owns heartbeat protocol state for one TimingNode.
  *
  * <p>This helper has no worker or timer. Runtime scheduling decides when a
- * heartbeat tick occurs; the owning TimingNode serial lane calls {@link #tick()}
- * and {@link #handle(UpstreamData.Ping)} so heartbeat state cannot race with
- * other node-scoped upstream work.</p>
+ * heartbeat tick occurs; the owning TimingNode Task Lane calls {@link #tick()}
+ * and {@link #handle(UpstreamData.Ping)}. Mutable heartbeat protocol state
+ * therefore has one serial owner even though its immutable status snapshot may
+ * be read directly.</p>
  */
 final class UpstreamHeartbeat {
     private final NodeId nodeId;
@@ -24,6 +25,14 @@ final class UpstreamHeartbeat {
     private long missedIntervals;
     private boolean answerPending;
     private String pendingPingId;
+
+    /** Latest immutable Task Lane-owned heartbeat state for direct reads. */
+    private volatile UpstreamMessageTypes.HeartbeatStatus publishedStatus =
+            new UpstreamMessageTypes.HeartbeatStatus(
+                    0L,
+                    0L,
+                    0L,
+                    false);
 
     UpstreamHeartbeat(NodeId nodeId, UpstreamStream stream) {
         checkArgument(nodeId != null, "nodeId must not be null");
@@ -51,6 +60,7 @@ final class UpstreamHeartbeat {
         answerPending = true;
         pendingPingId = "hb-" + requestsSent;
 
+        publishStatus();
         stream.send(DefaultUpstreamData.ping(
                 nodeId,
                 UpstreamData.PingOperation.REQ,
@@ -80,14 +90,20 @@ final class UpstreamHeartbeat {
                 && pendingPingId.equals(ping.pingId())) {
             answerPending = false;
             answersReceived++;
+            publishStatus();
         }
     }
 
     UpstreamMessageTypes.HeartbeatStatus status() {
-        return new UpstreamMessageTypes.HeartbeatStatus(
-                requestsSent,
-                answersReceived,
-                missedIntervals,
-                answerPending);
+        return publishedStatus;
+    }
+
+    private void publishStatus() {
+        publishedStatus =
+                new UpstreamMessageTypes.HeartbeatStatus(
+                        requestsSent,
+                        answersReceived,
+                        missedIntervals,
+                        answerPending);
     }
 }

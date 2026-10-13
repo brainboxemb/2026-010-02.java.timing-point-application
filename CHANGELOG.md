@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Move TimingNode heartbeat protocol state onto the bounded Task Lane: heartbeat ticks and inbound PING handling use non-blocking Task Lane admission, while heartbeat status is published as an immutable direct-read snapshot; RACE_DATA and LogBook processing remain Data Lane-owned for the next migration slices.
+
 - Introduce distinct bounded TimingNode Data and Task `SerialExecutor` lanes on the same Runtime-owned physical node worker; current mutable node/upstream state deliberately remains on the Data Lane until explicit asynchronous cross-lane handoffs are implemented.
 
 - Organize Platform execution classes into `execution.tasks`, `execution.executors` and `execution.taskrunners`; update all Java imports and package-local tests without changing lane behaviour. Package names are changed for Java consumers.
