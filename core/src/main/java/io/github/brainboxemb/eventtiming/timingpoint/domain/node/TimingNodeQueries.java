@@ -11,8 +11,8 @@ import java.util.function.Consumer;
 /**
  * Standard read operations supported by TimingNode.
  *
- * <p>Status supports both CURRENT published-state reads and ORDERED reads.
- * Mutable LogBook reads remain ORDERED only.</p>
+ * <p>Status and the published LogBook source head support CURRENT direct reads
+ * as well as ORDERED reads. Mutable LogBook record/range access remains ORDERED.</p>
  */
 public final class TimingNodeQueries {
     private static final TimingNodeQuery<Status> STATUS =
@@ -24,6 +24,11 @@ public final class TimingNodeQueries {
             new TimingNodeQuery<>(
                     "timingDataCount",
                     TimingNodeLogic::timingDataCount);
+    private static final TimingNodeQuery<Long> TIMING_DATA_HEAD =
+            new TimingNodeQuery<>(
+                    "timingDataHead",
+                    TimingNodeLogic::timingDataHead,
+                    TimingNode::currentTimingDataHead);
 
     private TimingNodeQueries() {
     }
@@ -35,6 +40,17 @@ public final class TimingNodeQueries {
     public static TimingNodeQuery<Integer> timingDataCount() {
         return TIMING_DATA_COUNT;
     }
+
+    /**
+     * Returns the highest committed TimingData sequence, or 0 when the LogBook is empty.
+     *
+     * <p>CURRENT reads use the LogBook's published scalar head directly. ORDERED
+     * reads enter the TimingNode lane and therefore observe work accepted earlier.</p>
+     */
+    public static TimingNodeQuery<Long> timingDataHead() {
+        return TIMING_DATA_HEAD;
+    }
+
 
     /**
      * Returns the current resolved stage-time ranking for this TimingNode.
@@ -52,7 +68,7 @@ public final class TimingNodeQueries {
     }
 
     /**
-     * Visits a bounded LogBook range on the TimingNode serial lane.
+     * Visits at most {@code limit} LogBook records on the TimingNode serial lane.
      *
      * <p>The visitor must be short/non-blocking and must not make a result-bearing
      * ORDERED call back into the same TimingNode. CURRENT status reads are safe.</p>
@@ -70,7 +86,7 @@ public final class TimingNodeQueries {
     }
 
     /**
-     * Visits a bounded newest LogBook range on the TimingNode serial lane.
+     * Visits at most {@code limit} newest LogBook records on the TimingNode serial lane.
      */
     public static TimingNodeQuery<Integer> visitLatestTimingData(
             int limit,

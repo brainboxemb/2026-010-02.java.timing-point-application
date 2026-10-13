@@ -10,12 +10,20 @@ import java.util.function.Consumer;
 /**
  * Passive committed TimingData history owned by one TimingNode serial lane.
  *
- * <p>The LogBook has no worker or independent synchronization. Its owner decides
- * when mutations and reads occur.</p>
+ * <p>The LogBook has no worker or independent synchronization. Its record
+ * collection is owned by the TimingNode serial lane. Only the committed source
+ * head is published separately as a volatile value so a DIRECT/CURRENT query
+ * can read that scalar without entering the lane.</p>
  */
 public final class LogBook {
     private final NodeId timingNodeId;
     private final List<TimingData> records = new ArrayList<>();
+
+    /*
+     * Published after records.add(...). Readers may inspect this scalar directly;
+     * they must not use it as permission to access the mutable records list.
+     */
+    private volatile long headSequence;
 
     public LogBook(NodeId timingNodeId) {
         if (timingNodeId == null) {
@@ -24,25 +32,28 @@ public final class LogBook {
         this.timingNodeId = timingNodeId;
     }
 
-    /** Returns the highest committed source sequence, or 0 when empty. */
+    /**
+     * Returns the highest committed source sequence, or 0 when empty.
+     *
+     * <p>This scalar is safe for a direct read. The LogBook record collection
+     * itself remains TimingNode-lane owned.</p>
+     */
     public long headSequence() {
-        return records.isEmpty()
-                ? 0L
-                : records.get(records.size() - 1).sequenceNumber();
+        return headSequence;
     }
 
     /**
      * Returns the next sequence implied by committed state without consuming it.
      */
     public long nextSequence() {
-        if (records.isEmpty()) {
+        long head = headSequence;
+        if (head == 0L) {
             return 1L;
         }
-        long last = records.get(records.size() - 1).sequenceNumber();
-        if (last >= TimingData.MAX_SEQUENCE_NUMBER) {
+        if (head >= TimingData.MAX_SEQUENCE_NUMBER) {
             throw new IllegalStateException("TimingData sequence space is exhausted");
         }
-        return last + 1L;
+        return head + 1L;
     }
 
     /**
@@ -64,6 +75,9 @@ public final class LogBook {
                             + " but was " + data.sequenceNumber());
         }
         records.add(data);
+
+        // Publish only after the committed record is present in the lane-owned list.
+        headSequence = data.sequenceNumber();
     }
 
     public int size() {

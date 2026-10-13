@@ -157,6 +157,11 @@ final class TimingNodeLogic {
         return logBook;
     }
 
+    long timingDataHead() {
+        return logBook.headSequence();
+    }
+
+
     TeamAssignments teamAssignments() {
         return teamAssignments;
     }

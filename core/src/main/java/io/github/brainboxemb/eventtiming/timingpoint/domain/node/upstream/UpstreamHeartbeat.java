@@ -12,7 +12,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  *
  * <p>This helper has no worker or timer. Runtime scheduling decides when a
  * heartbeat tick occurs; the owning TimingNode serial lane calls {@link #tick()}
- * and {@link #process(UpstreamData.Ping)} so heartbeat state cannot race with
+ * and {@link #handle(UpstreamData.Ping)} so heartbeat state cannot race with
  * other node-scoped upstream work.</p>
  */
 final class UpstreamHeartbeat {
@@ -61,7 +61,7 @@ final class UpstreamHeartbeat {
     /**
      * Handles both peer PING requests and answers to our heartbeat request.
      */
-    void process(UpstreamData.Ping ping) {
+    void handle(UpstreamData.Ping ping) {
         checkArgument(ping != null, "ping must not be null");
 
         if (ping.operation() == UpstreamData.PingOperation.REQ) {

@@ -237,7 +237,7 @@ public class UpstreamMessagePortTest {
     }
 
     @Test
-    public void timingDataReqReplaysOriginalRecordsFromInclusiveSequence() {
+    public void timingDataReqSendsOriginalRecordsFromInclusiveSequence() {
         List<TimingData> records =
                 timingData("A", 5);
         InMemoryUpstreamStream stream =
@@ -278,7 +278,7 @@ public class UpstreamMessagePortTest {
     }
 
     @Test
-    public void timingDataReqUsesBoundedReplayBatches() {
+    public void timingDataReqSendsAtMost256RecordsPerBatch() {
         List<TimingData> records =
                 timingData("A", 257);
         InMemoryUpstreamStream stream =
@@ -325,7 +325,7 @@ public class UpstreamMessagePortTest {
     }
 
     @Test
-    public void timingDataReplayStopsAtCapturedHeadWhenLogBookGrowsBetweenBatches() {
+    public void timingDataSynchronizationStopsAtCapturedHeadWhenLogBookGrowsBetweenBatches() {
         List<TimingData> records =
                 timingData("A", 257);
         InMemoryUpstreamStream stream =
@@ -368,8 +368,10 @@ public class UpstreamMessagePortTest {
                     second.records().get(0).sequenceNumber());
             assertEquals(
                     258L,
-                    node.upstreamMessagePort()
-                            .timingDataHead());
+                    node.query(
+                            TimingNodeQueries.timingDataHead(),
+                            TimingNodeQuery.ReadConsistency.CURRENT)
+                            .longValue());
             assertEquals(0, stream.sentCount());
         } finally {
             node.deactivate();
@@ -456,7 +458,7 @@ public class UpstreamMessagePortTest {
     }
 
     @Test
-    public void timingDataReplayRemainsNodeScoped() {
+    public void timingDataSynchronizationRemainsNodeScoped() {
         InMemoryUpstreamStream streamA =
                 new InMemoryUpstreamStream();
         InMemoryUpstreamStream streamB =

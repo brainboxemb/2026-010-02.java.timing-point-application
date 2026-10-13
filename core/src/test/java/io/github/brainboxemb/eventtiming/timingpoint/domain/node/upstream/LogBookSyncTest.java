@@ -19,7 +19,7 @@ public class LogBookSyncTest {
                 new LogBookSync(nodeId, new TestUpstreamStream(), new LogBook(nodeId));
 
         try {
-            sync.processReq(
+            sync.handleReq(
                     DefaultUpstreamData.req(
                             nodeId,
                             UpstreamData.Stream.RACE_DATA,

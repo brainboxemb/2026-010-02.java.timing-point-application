@@ -38,7 +38,7 @@ public final class UpstreamMessagePort {
     /*
      * inputAvailable() may be called by an I/O thread. This flag prevents a
      * burst of notifications from enqueueing duplicate node tasks. The flag is
-     * released only when no inbound message or replay turn remains.
+     * released only when no inbound message or LogBook synchronization batch remains.
      */
     private final AtomicBoolean inputTaskScheduled = new AtomicBoolean();
 
@@ -89,26 +89,27 @@ public final class UpstreamMessagePort {
     }
 
     /**
-     * Executes one bounded upstream turn on the TimingNode serial lane.
+     * Executes one upstream turn on the TimingNode serial lane.
      *
-     * <p>A turn handles either one inbound message or one LogBook replay batch.
-     * Remaining work is appended to the back of the same lane so upstream
-     * recovery cannot starve registrations or other node work.</p>
+     * <p>A turn handles either one inbound message or sends one LogBook
+     * synchronization batch. Each batch contains at most 256 records. Remaining
+     * work is appended to the back of the same lane so synchronization cannot
+     * starve registrations or other node work.</p>
      */
-    void processNextOnNodeLane() {
+    void handleNextOnNodeLane() {
         try {
             if (!stream.isAvailable()) {
-                logBookSync.cancelReplay();
+                logBookSync.cancelSync();
                 return;
             }
 
-            if (logBookSync.replayPending()) {
-                logBookSync.processReplayBatch();
+            if (logBookSync.syncPending()) {
+                logBookSync.sendNextBatch();
                 return;
             }
 
             if (stream.hasMessage()) {
-                dispatch(stream.read());
+                handleMessage(stream.read());
             }
         } finally {
             scheduleNextTurnOrRelease();
@@ -116,9 +117,10 @@ public final class UpstreamMessagePort {
     }
 
     /**
-     * Dispatches semantic message families to the helper that owns their state.
+     * Handles one semantic upstream message by delegating it to the helper that
+     * owns that message family's state and rules.
      */
-    private void dispatch(UpstreamData data) {
+    private void handleMessage(UpstreamData data) {
         checkArgument(data instanceof UpstreamData.NodeScoped,
                 "UpstreamData is not node-scoped: %s", data.family());
 
@@ -130,25 +132,25 @@ public final class UpstreamMessagePort {
             case RACE_DATA:
                 checkArgument(data instanceof UpstreamData.RaceData,
                         "RACE_DATA has incompatible semantic type");
-                upstreamDataSync.processRaceData((UpstreamData.RaceData) data);
+                upstreamDataSync.handleRaceData((UpstreamData.RaceData) data);
                 return;
 
             case SYNC:
                 checkArgument(data instanceof UpstreamData.Sync,
                         "SYNC has incompatible semantic type");
-                upstreamDataSync.processSync((UpstreamData.Sync) data);
+                upstreamDataSync.handleSync((UpstreamData.Sync) data);
                 return;
 
             case REQ:
                 checkArgument(data instanceof UpstreamData.Req,
                         "REQ has incompatible semantic type");
-                logBookSync.processReq((UpstreamData.Req) data);
+                logBookSync.handleReq((UpstreamData.Req) data);
                 return;
 
             case PING:
                 checkArgument(data instanceof UpstreamData.Ping,
                         "PING has incompatible semantic type");
-                heartbeat.process((UpstreamData.Ping) data);
+                heartbeat.handle((UpstreamData.Ping) data);
                 return;
 
             default:
@@ -157,27 +159,22 @@ public final class UpstreamMessagePort {
         }
     }
 
-    /** Sends a TIMING_DATA SYNC using the current committed LogBook head. */
+    /**
+     * Sends a TIMING_DATA SYNC using the directly published LogBook head.
+     *
+     * <p>No TimingNode-lane hop is needed: LogBook publishes its scalar head for
+     * direct reads and UpstreamStream.send only enqueues into the local Messaging
+     * mailbox.</p>
+     */
     public void sendTimingDataSync() {
-        onNodeLane(() -> {
-            logBookSync.sendSync();
-            return null;
-        }, "sendTimingDataSync");
-    }
-
-    /** Returns the current committed TIMING_DATA source head. */
-    public long timingDataHead() {
-        return onNodeLane(() -> Long.valueOf(logBookSync.headSequence()), "timingDataHead").longValue();
+        logBookSync.sendSync();
     }
 
     /**
      * Runs one externally scheduled heartbeat tick on the TimingNode serial lane.
      */
     public void heartbeatTick() {
-        onNodeLane(() -> {
-            heartbeat.tick();
-            return null;
-        }, "upstreamHeartbeat");
+        onNodeLane(heartbeat::tick, "upstreamHeartbeat");
     }
 
     /** Returns a consistent heartbeat snapshot from the TimingNode serial lane. */
@@ -213,13 +210,17 @@ public final class UpstreamMessagePort {
      */
     private void scheduleNextTurnOrRelease() {
         boolean workRemaining =
-                stream.isAvailable() && (logBookSync.replayPending() || stream.hasMessage());
+                stream.isAvailable() && (logBookSync.syncPending() || stream.hasMessage());
 
         if (workRemaining && nodeLane.offer(new UpstreamMessageTask(this))) {
             return;
         }
 
         inputTaskScheduled.set(false);
+    }
+
+    private void onNodeLane(Runnable task, String operation) {
+        nodeLane.run(task, operation);
     }
 
     private <R> R onNodeLane(Callable<R> task, String operation) {
@@ -234,6 +235,8 @@ public final class UpstreamMessagePort {
      */
     public interface NodeLane {
         boolean offer(Runnable task);
+
+        void run(Runnable task, String operation);
 
         <R> R run(Callable<R> task, String operation);
     }

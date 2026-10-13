@@ -444,12 +444,13 @@ public final class TimingNode {
             }
 
             @Override
-            public <R> R run(
-                    Callable<R> task,
-                    String operation) {
-                return runNodeTask(
-                        task,
-                        operation);
+            public void run(Runnable task, String operation) {
+                runNodeTask(task, operation);
+            }
+
+            @Override
+            public <R> R run(Callable<R> task, String operation) {
+                return runNodeTask(task, operation);
             }
         };
     }
@@ -773,6 +774,16 @@ public final class TimingNode {
     /**
      * Returns the activation-complete immutable Status used by CURRENT status queries.
      */
+    /**
+     * Direct reader used by TimingNodeQueries.timingDataHead().
+     *
+     * <p>LogBook publishes only this scalar outside its serial-lane-owned record
+     * collection, so CURRENT reads do not enter the TimingNode lane.</p>
+     */
+    long currentTimingDataHead() {
+        return logic.timingDataHead();
+    }
+
     Status publishedStatus() {
         SerialExecutor.State executorState = serialExecutor.state();
         if (executorState == SerialExecutor.State.FAILED) {
@@ -862,6 +873,22 @@ public final class TimingNode {
         }
         return serialExecutor.offer(task)
                 == SerialExecutor.AdmissionResult.ACCEPTED;
+    }
+
+    /**
+     * Runs one synchronous void operation on the node lane.
+     *
+     * <p>The lambda only adapts Runnable to the Callable-based serial executor.
+     * Keeping that conversion here avoids return-null boilerplate in callers.</p>
+     */
+    void runNodeTask(Runnable task, String operation) {
+        if (task == null) {
+            throw new IllegalArgumentException("task must not be null");
+        }
+        runSerialized(() -> {
+            task.run();
+            return null;
+        }, operation);
     }
 
     <R> R runNodeTask(
