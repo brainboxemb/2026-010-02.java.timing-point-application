@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.data.StageTiming;
 
 import java.time.ZoneId;
 import java.util.function.Consumer;
@@ -34,7 +35,7 @@ public final class TimingNodeQueries {
         return TIMING_DATA_COUNT;
     }
 
-    public static TimingNodeQuery<StageTiming.Result> stageTiming(
+    public static TimingNodeQuery<StageTiming> stageTiming(
             long sequenceNumber,
             ZoneId raceTimeZone) {
         if (sequenceNumber < 1L
