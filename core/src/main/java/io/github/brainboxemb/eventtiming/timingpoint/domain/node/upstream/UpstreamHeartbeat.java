@@ -83,21 +83,11 @@ final class UpstreamHeartbeat {
         }
     }
 
-    Snapshot snapshot() {
-        return new Snapshot(requestsSent, answersReceived, missedIntervals, answerPending);
-    }
-
-    static final class Snapshot {
-        final long requestsSent;
-        final long answersReceived;
-        final long missedIntervals;
-        final boolean answerPending;
-
-        Snapshot(long requestsSent, long answersReceived, long missedIntervals, boolean answerPending) {
-            this.requestsSent = requestsSent;
-            this.answersReceived = answersReceived;
-            this.missedIntervals = missedIntervals;
-            this.answerPending = answerPending;
-        }
+    UpstreamMessageTypes.HeartbeatStatus status() {
+        return new UpstreamMessageTypes.HeartbeatStatus(
+                requestsSent,
+                answersReceived,
+                missedIntervals,
+                answerPending);
     }
 }
