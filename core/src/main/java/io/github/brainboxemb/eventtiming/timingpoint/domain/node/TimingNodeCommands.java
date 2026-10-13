@@ -7,6 +7,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RaceDataApplyResult;
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 /**
  * Standard state-changing commands supported by TimingNode.
@@ -33,6 +35,19 @@ public final class TimingNodeCommands {
 
     public static TimingNodeCommand<CloseResult> close() {
         return CLOSE;
+    }
+
+    public static TimingNodeCommand<RaceDataApplyResult>
+            applyRaceData(
+                    UpstreamData.RaceData raceData) {
+        if (raceData == null) {
+            throw new IllegalArgumentException(
+                    "raceData must not be null");
+        }
+        return simple(
+                "applyRaceData",
+                logic -> logic.applyRaceData(
+                        raceData));
     }
 
     public static TimingNodeCommand<RegistrationResult>
