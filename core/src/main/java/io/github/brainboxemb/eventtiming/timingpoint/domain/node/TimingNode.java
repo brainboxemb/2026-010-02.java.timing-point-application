@@ -96,6 +96,22 @@ public final class TimingNode {
             TimeSource timeSource,
             EventData eventData) {
         this(
+                timingNodeId,
+                timingDataPersistence,
+                timingDataFactory,
+                timeSource,
+                eventData,
+                UnavailableUpstreamStream.INSTANCE);
+    }
+
+    TimingNode(
+            NodeId timingNodeId,
+            TimingDataPersistence timingDataPersistence,
+            TimingDataFactory timingDataFactory,
+            TimeSource timeSource,
+            EventData eventData,
+            UpstreamStream upstreamStream) {
+        this(
                 new TimingNodeLogic(
                         timingNodeId,
                         timingDataPersistence,
@@ -111,7 +127,8 @@ public final class TimingNode {
                 DEFAULT_OPERATION_TIMEOUT_MILLIS,
                 SystemMonotonicClock.INSTANCE,
                 null,
-                eventData);
+                eventData,
+                upstreamStream);
     }
 
     /**
@@ -141,7 +158,33 @@ public final class TimingNode {
                 tagProcessorExecutor,
                 SystemMonotonicClock.INSTANCE,
                 new TimingNodeMetrics(),
-                new TagProcessingMetrics());
+                new TagProcessingMetrics(),
+                UnavailableUpstreamStream.INSTANCE);
+    }
+
+    public TimingNode(
+            NodeId timingNodeId,
+            TimingDataPersistence timingDataPersistence,
+            TimingDataFactory timingDataFactory,
+            TimeSource timeSource,
+            ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
+            EventData eventData,
+            SerialExecutor serialExecutor,
+            SerialScheduledExecutor tagProcessorExecutor,
+            UpstreamStream upstreamStream) {
+        this(
+                timingNodeId,
+                timingDataPersistence,
+                timingDataFactory,
+                timeSource,
+                tagProcessingConfiguration,
+                eventData,
+                serialExecutor,
+                tagProcessorExecutor,
+                SystemMonotonicClock.INSTANCE,
+                new TimingNodeMetrics(),
+                new TagProcessingMetrics(),
+                upstreamStream);
     }
 
     public TimingNode(
@@ -165,7 +208,8 @@ public final class TimingNode {
                 tagProcessorExecutor,
                 monotonicClock,
                 new TimingNodeMetrics(),
-                new TagProcessingMetrics());
+                new TagProcessingMetrics(),
+                UnavailableUpstreamStream.INSTANCE);
     }
 
     /**
@@ -184,6 +228,34 @@ public final class TimingNode {
             MonotonicClock monotonicClock,
             TimingNodeMetrics timingNodeMetrics,
             TagProcessingMetrics tagProcessingMetrics) {
+        this(
+                timingNodeId,
+                timingDataPersistence,
+                timingDataFactory,
+                timeSource,
+                tagProcessingConfiguration,
+                eventData,
+                serialExecutor,
+                tagProcessorExecutor,
+                monotonicClock,
+                timingNodeMetrics,
+                tagProcessingMetrics,
+                UnavailableUpstreamStream.INSTANCE);
+    }
+
+    public TimingNode(
+            NodeId timingNodeId,
+            TimingDataPersistence timingDataPersistence,
+            TimingDataFactory timingDataFactory,
+            TimeSource timeSource,
+            ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
+            EventData eventData,
+            SerialExecutor serialExecutor,
+            SerialScheduledExecutor tagProcessorExecutor,
+            MonotonicClock monotonicClock,
+            TimingNodeMetrics timingNodeMetrics,
+            TagProcessingMetrics tagProcessingMetrics,
+            UpstreamStream upstreamStream) {
         if (serialExecutor == null) {
             throw new IllegalArgumentException("serialExecutor must not be null");
         }
@@ -207,6 +279,9 @@ public final class TimingNode {
         }
         if (tagProcessingMetrics == null) {
             throw new IllegalArgumentException("tagProcessingMetrics must not be null");
+        }
+        if (upstreamStream == null) {
+            throw new IllegalArgumentException("upstreamStream must not be null");
         }
 
         this.logic = new TimingNodeLogic(
@@ -246,6 +321,7 @@ public final class TimingNode {
         this.upstreamMessagePort =
                 new UpstreamMessagePort(
                         this,
+                        upstreamStream,
                         eventData,
                         logic.teamAssignments(),
                         logic.stageStartTimes(),
@@ -270,7 +346,8 @@ public final class TimingNode {
                 operationTimeoutMillis,
                 SystemMonotonicClock.INSTANCE,
                 null,
-                EventData.empty());
+                EventData.empty(),
+                UnavailableUpstreamStream.INSTANCE);
     }
 
     TimingNode(
@@ -284,7 +361,8 @@ public final class TimingNode {
                 operationTimeoutMillis,
                 monotonicClock,
                 null,
-                EventData.empty());
+                EventData.empty(),
+                UnavailableUpstreamStream.INSTANCE);
     }
 
     private TimingNode(
@@ -293,7 +371,8 @@ public final class TimingNode {
             long operationTimeoutMillis,
             MonotonicClock monotonicClock,
             TagProcessor tagProcessor,
-            EventData eventData) {
+            EventData eventData,
+            UpstreamStream upstreamStream) {
         if (logic == null) {
             throw new IllegalArgumentException("logic must not be null");
         }
@@ -309,6 +388,9 @@ public final class TimingNode {
         if (eventData == null) {
             throw new IllegalArgumentException("eventData must not be null");
         }
+        if (upstreamStream == null) {
+            throw new IllegalArgumentException("upstreamStream must not be null");
+        }
         this.logic = logic;
         this.serialExecutor = serialExecutor;
         this.tagProcessor = tagProcessor;
@@ -318,6 +400,7 @@ public final class TimingNode {
         this.upstreamMessagePort =
                 new UpstreamMessagePort(
                         this,
+                        upstreamStream,
                         eventData,
                         logic.teamAssignments(),
                         logic.stageStartTimes(),
@@ -331,8 +414,8 @@ public final class TimingNode {
     /**
      * Returns the TimingNode-owned semantic upstream port.
      *
-     * <p>Application routing uses this port so upstream connectors never call
-     * internal TimingNode logic directly.</p>
+     * <p>The port owns the node-scoped UpstreamStream boundary and keeps
+     * transport adapters away from internal TimingNode logic.</p>
      */
     public UpstreamMessagePort upstreamMessagePort() {
         return upstreamMessagePort;
@@ -732,6 +815,22 @@ public final class TimingNode {
      * <p>UpstreamMessagePort uses this seam so upstream processing cannot race
      * with registration commits or other TimingNode state changes.</p>
      */
+    /**
+     * Admits one fire-and-forget node-owned task to the same serial lane.
+     *
+     * <p>Upstream stream notifications use this non-blocking seam. The task
+     * itself is short and performs no transport I/O.</p>
+     */
+    boolean offerNodeTask(
+            Runnable task) {
+        if (task == null) {
+            throw new IllegalArgumentException(
+                    "task must not be null");
+        }
+        return serialExecutor.offer(task)
+                == SerialExecutor.AdmissionResult.ACCEPTED;
+    }
+
     <R> R runNodeTask(
             Callable<R> task,
             String operation) {
