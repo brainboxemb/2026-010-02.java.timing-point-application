@@ -159,16 +159,20 @@ public class DefaultUpstreamDataCodecTest {
     public void roundTripsHeartbeatAndManualPing() throws Exception {
         UpstreamData.Ping heartbeat =
                 DefaultUpstreamData.ping(
+                        new NodeId("A"),
                         UpstreamData.PingOperation.REQ,
                         UpstreamData.PingMode.HB,
                         "p-0001");
 
         assertEquals(
-                "{\"v\":1,\"type\":\"PING\",\"data\":{\"op\":\"REQ\",\"mode\":\"HB\",\"pingId\":\"p-0001\"}}",
+                "{\"v\":1,\"type\":\"PING\",\"nodeId\":\"A\",\"data\":{\"op\":\"REQ\",\"mode\":\"HB\",\"pingId\":\"p-0001\"}}",
                 text(codec.encode(heartbeat)));
 
         UpstreamData.Ping decodedHeartbeat =
                 (UpstreamData.Ping) codec.decode(codec.encode(heartbeat));
+        assertEquals(
+                new NodeId("A"),
+                decodedHeartbeat.timingNodeId());
         assertSame(
                 UpstreamData.PingOperation.REQ,
                 decodedHeartbeat.operation());
@@ -179,7 +183,7 @@ public class DefaultUpstreamDataCodecTest {
 
         UpstreamData.Ping manual =
                 (UpstreamData.Ping) codec.decode(
-                        bytes("{\"v\":1,\"type\":\"PING\",\"data\":{\"op\":\"ANS\"}}"));
+                        bytes("{\"v\":1,\"type\":\"PING\",\"nodeId\":\"A\",\"data\":{\"op\":\"ANS\"}}"));
         assertSame(UpstreamData.PingOperation.ANS, manual.operation());
         assertNull(manual.mode());
         assertNull(manual.pingId());
@@ -189,7 +193,13 @@ public class DefaultUpstreamDataCodecTest {
     public void rejectsUnknownPingModeRatherThanTreatingItAsManual()
             throws Exception {
         assertInvalid(
-                "{\"v\":1,\"type\":\"PING\",\"data\":{\"op\":\"REQ\",\"mode\":\"OTHER\"}}");
+                "{\"v\":1,\"type\":\"PING\",\"nodeId\":\"A\",\"data\":{\"op\":\"REQ\",\"mode\":\"OTHER\"}}");
+    }
+
+    @Test
+    public void pingRequiresNodeId() throws Exception {
+        assertInvalid(
+                "{\"v\":1,\"type\":\"PING\",\"data\":{\"op\":\"REQ\",\"mode\":\"HB\"}}");
     }
 
     @Test
