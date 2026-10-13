@@ -1,0 +1,103 @@
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
+
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
+import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
+
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
+/**
+ * Owns heartbeat protocol state for one TimingNode.
+ *
+ * <p>This helper has no worker or timer. Runtime scheduling decides when a
+ * heartbeat tick occurs; the owning TimingNode serial lane calls {@link #tick()}
+ * and {@link #process(UpstreamData.Ping)} so heartbeat state cannot race with
+ * other node-scoped upstream work.</p>
+ */
+final class UpstreamHeartbeat {
+    private final NodeId nodeId;
+    private final UpstreamStream stream;
+
+    private long requestsSent;
+    private long answersReceived;
+    private long missedIntervals;
+    private boolean answerPending;
+    private String pendingPingId;
+
+    UpstreamHeartbeat(NodeId nodeId, UpstreamStream stream) {
+        checkArgument(nodeId != null, "nodeId must not be null");
+        checkArgument(stream != null, "stream must not be null");
+        this.nodeId = nodeId;
+        this.stream = stream;
+    }
+
+    /**
+     * Sends one heartbeat request when communication is available.
+     *
+     * <p>An unanswered previous request counts as one missed interval before the
+     * next request replaces its ping id.</p>
+     */
+    void tick() {
+        if (!stream.isAvailable()) {
+            return;
+        }
+
+        if (answerPending) {
+            missedIntervals++;
+        }
+
+        requestsSent++;
+        answerPending = true;
+        pendingPingId = "hb-" + requestsSent;
+
+        stream.send(DefaultUpstreamData.ping(
+                nodeId,
+                UpstreamData.PingOperation.REQ,
+                UpstreamData.PingMode.HB,
+                pendingPingId));
+    }
+
+    /**
+     * Handles both peer PING requests and answers to our heartbeat request.
+     */
+    void process(UpstreamData.Ping ping) {
+        checkArgument(ping != null, "ping must not be null");
+
+        if (ping.operation() == UpstreamData.PingOperation.REQ) {
+            stream.send(DefaultUpstreamData.ping(
+                    nodeId,
+                    UpstreamData.PingOperation.ANS,
+                    ping.mode(),
+                    ping.pingId()));
+            return;
+        }
+
+        if (ping.operation() == UpstreamData.PingOperation.ANS
+                && ping.mode() == UpstreamData.PingMode.HB
+                && answerPending
+                && pendingPingId != null
+                && pendingPingId.equals(ping.pingId())) {
+            answerPending = false;
+            answersReceived++;
+        }
+    }
+
+    Snapshot snapshot() {
+        return new Snapshot(requestsSent, answersReceived, missedIntervals, answerPending);
+    }
+
+    static final class Snapshot {
+        final long requestsSent;
+        final long answersReceived;
+        final long missedIntervals;
+        final boolean answerPending;
+
+        Snapshot(long requestsSent, long answersReceived, long missedIntervals, boolean answerPending) {
+            this.requestsSent = requestsSent;
+            this.answersReceived = answersReceived;
+            this.missedIntervals = missedIntervals;
+            this.answerPending = answerPending;
+        }
+    }
+}
