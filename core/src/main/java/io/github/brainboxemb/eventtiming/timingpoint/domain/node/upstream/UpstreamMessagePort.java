@@ -1,0 +1,275 @@
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
+
+import io.github.brainboxemb.eventtiming.eventdata.EventData;
+import io.github.brainboxemb.eventtiming.eventdata.TeamId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.logbook.LogBook;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.StageStartTimes;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TeamAssignments;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.UniqueTeamRegistrations;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
+
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
+/**
+ * TimingNode-owned semantic boundary for node-scoped upstream communication.
+ *
+ * <p>The port owns only dispatch and admission to the TimingNode serial lane.
+ * Protocol state is deliberately split into {@link UpstreamHeartbeat},
+ * {@link UpstreamDataSync} and {@link LogBookSync}. Transport/session I/O belongs
+ * to the I/O-layer {@link UpstreamStream}; none of these domain helpers owns a
+ * transport thread or executor.</p>
+ */
+public final class UpstreamMessagePort {
+    private final NodeId nodeId;
+    private final NodeLane nodeLane;
+    private final UpstreamStream stream;
+    private final UpstreamHeartbeat heartbeat;
+    private final UpstreamDataSync upstreamDataSync;
+    private final LogBookSync logBookSync;
+    private final UniqueTeamRegistrations uniqueTeamRegistrations;
+
+    /*
+     * inputAvailable() may be called by an I/O thread. This flag prevents a
+     * burst of notifications from enqueueing duplicate node tasks. The flag is
+     * released only when no inbound message or replay turn remains.
+     */
+    private final AtomicBoolean inputTaskScheduled = new AtomicBoolean();
+
+    public UpstreamMessagePort(
+            NodeId nodeId,
+            NodeLane nodeLane,
+            UpstreamStream stream,
+            EventData eventData,
+            LogBook logBook,
+            TeamAssignments teamAssignments,
+            StageStartTimes stageStartTimes,
+            UniqueTeamRegistrations uniqueTeamRegistrations) {
+        checkArgument(nodeId != null, "nodeId must not be null");
+        checkArgument(nodeLane != null, "nodeLane must not be null");
+        checkArgument(stream != null, "stream must not be null");
+        checkArgument(uniqueTeamRegistrations != null, "uniqueTeamRegistrations must not be null");
+
+        this.nodeId = nodeId;
+        this.nodeLane = nodeLane;
+        this.stream = stream;
+        this.heartbeat = new UpstreamHeartbeat(nodeId, stream);
+        this.upstreamDataSync =
+                new UpstreamDataSync(nodeId, stream, eventData, teamAssignments, stageStartTimes);
+        this.logBookSync = new LogBookSync(nodeId, stream, logBook);
+        this.uniqueTeamRegistrations = uniqueTeamRegistrations;
+    }
+
+    /**
+     * Signals that the node-scoped stream may contain inbound data.
+     *
+     * <p>The caller never performs semantic work or waits for the TimingNode.
+     * At most one upstream task is pending/running for this port.</p>
+     */
+    public boolean inputAvailable() {
+        if (!stream.isAvailable() || !stream.hasMessage()) {
+            return false;
+        }
+        if (!inputTaskScheduled.compareAndSet(false, true)) {
+            return true;
+        }
+
+        if (nodeLane.offer(new UpstreamMessageTask(this))) {
+            return true;
+        }
+
+        inputTaskScheduled.set(false);
+        return false;
+    }
+
+    /**
+     * Executes one bounded upstream turn on the TimingNode serial lane.
+     *
+     * <p>A turn handles either one inbound message or one LogBook replay batch.
+     * Remaining work is appended to the back of the same lane so upstream
+     * recovery cannot starve registrations or other node work.</p>
+     */
+    void processNextOnNodeLane() {
+        try {
+            if (!stream.isAvailable()) {
+                logBookSync.cancelReplay();
+                return;
+            }
+
+            if (logBookSync.replayPending()) {
+                logBookSync.processReplayBatch();
+                return;
+            }
+
+            if (stream.hasMessage()) {
+                dispatch(stream.read());
+            }
+        } finally {
+            scheduleNextTurnOrRelease();
+        }
+    }
+
+    /**
+     * Dispatches semantic message families to the helper that owns their state.
+     */
+    private void dispatch(UpstreamData data) {
+        checkArgument(data instanceof UpstreamData.NodeScoped,
+                "UpstreamData is not node-scoped: %s", data.family());
+
+        UpstreamData.NodeScoped nodeData = (UpstreamData.NodeScoped) data;
+        checkArgument(nodeId.equals(nodeData.timingNodeId()),
+                "UpstreamData NodeId does not match node-scoped stream");
+
+        switch (data.family()) {
+            case RACE_DATA:
+                checkArgument(data instanceof UpstreamData.RaceData,
+                        "RACE_DATA has incompatible semantic type");
+                upstreamDataSync.processRaceData((UpstreamData.RaceData) data);
+                return;
+
+            case SYNC:
+                checkArgument(data instanceof UpstreamData.Sync,
+                        "SYNC has incompatible semantic type");
+                upstreamDataSync.processSync((UpstreamData.Sync) data);
+                return;
+
+            case REQ:
+                checkArgument(data instanceof UpstreamData.Req,
+                        "REQ has incompatible semantic type");
+                logBookSync.processReq((UpstreamData.Req) data);
+                return;
+
+            case PING:
+                checkArgument(data instanceof UpstreamData.Ping,
+                        "PING has incompatible semantic type");
+                heartbeat.process((UpstreamData.Ping) data);
+                return;
+
+            default:
+                throw new UnsupportedOperationException(
+                        "Inbound UpstreamData family is not implemented by TimingNode: " + data.family());
+        }
+    }
+
+    /** Sends a TIMING_DATA SYNC using the current committed LogBook head. */
+    public void sendTimingDataSync() {
+        onNodeLane(() -> {
+            logBookSync.sendSync();
+            return null;
+        }, "sendTimingDataSync");
+    }
+
+    /** Returns the current committed TIMING_DATA source head. */
+    public long timingDataHead() {
+        return onNodeLane(() -> Long.valueOf(logBookSync.headSequence()), "timingDataHead").longValue();
+    }
+
+    /**
+     * Runs one externally scheduled heartbeat tick on the TimingNode serial lane.
+     */
+    public void heartbeatTick() {
+        onNodeLane(() -> {
+            heartbeat.tick();
+            return null;
+        }, "upstreamHeartbeat");
+    }
+
+    /** Returns a consistent heartbeat snapshot from the TimingNode serial lane. */
+    public HeartbeatStatus heartbeatStatus() {
+        UpstreamHeartbeat.Snapshot snapshot =
+                onNodeLane(heartbeat::snapshot, "upstreamHeartbeatStatus");
+        return new HeartbeatStatus(
+                snapshot.requestsSent,
+                snapshot.answersReceived,
+                snapshot.missedIntervals,
+                snapshot.answerPending);
+    }
+
+    /** Resolves current TeamId using EventData first and live assignments as fallback. */
+    public TeamId teamIdFor(RegistrationId registrationId) {
+        return onNodeLane(() -> upstreamDataSync.teamIdFor(registrationId), "upstreamTeamIdFor");
+    }
+
+    /** Reads the current Central-provided stage start on the owning node lane. */
+    public TimingTimestamp stageStartTimeFor(TeamId teamId) {
+        return onNodeLane(() -> upstreamDataSync.stageStartTimeFor(teamId), "upstreamStageStartTimeFor");
+    }
+
+    /** Returns the unique-team count derived from active registrations and current assignments. */
+    public int uniqueTeamRegistrationCount() {
+        return onNodeLane(
+                () -> Integer.valueOf(uniqueTeamRegistrations.uniqueTeamCount(upstreamDataSync::teamIdFor)),
+                "uniqueTeamRegistrationCount").intValue();
+    }
+
+    /**
+     * Keeps exactly one upstream task pending while work remains.
+     */
+    private void scheduleNextTurnOrRelease() {
+        boolean workRemaining =
+                stream.isAvailable() && (logBookSync.replayPending() || stream.hasMessage());
+
+        if (workRemaining && nodeLane.offer(new UpstreamMessageTask(this))) {
+            return;
+        }
+
+        inputTaskScheduled.set(false);
+    }
+
+    private <R> R onNodeLane(Callable<R> task, String operation) {
+        return nodeLane.run(task, operation);
+    }
+
+    /**
+     * Narrow execution boundary supplied by the owning TimingNode.
+     *
+     * <p>The upstream package never receives the SerialExecutor itself. Both
+     * operations target the existing TimingNode serial lane.</p>
+     */
+    public interface NodeLane {
+        boolean offer(Runnable task);
+
+        <R> R run(Callable<R> task, String operation);
+    }
+
+    /** Immutable public heartbeat snapshot. */
+    public static final class HeartbeatStatus {
+        private final long requestsSent;
+        private final long answersReceived;
+        private final long missedIntervals;
+        private final boolean answerPending;
+
+        private HeartbeatStatus(
+                long requestsSent,
+                long answersReceived,
+                long missedIntervals,
+                boolean answerPending) {
+            this.requestsSent = requestsSent;
+            this.answersReceived = answersReceived;
+            this.missedIntervals = missedIntervals;
+            this.answerPending = answerPending;
+        }
+
+        public long requestsSent() {
+            return requestsSent;
+        }
+
+        public long answersReceived() {
+            return answersReceived;
+        }
+
+        public long missedIntervals() {
+            return missedIntervals;
+        }
+
+        public boolean answerPending() {
+            return answerPending;
+        }
+    }
+}

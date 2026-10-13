@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
+package io.github.brainboxemb.eventtiming.timingpoint.io.messaging;
 
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
@@ -11,6 +11,11 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
  * inbound/outbound queues owned by the adapter.</p>
  */
 public interface UpstreamStream {
+
+    /** Returns the default unavailable stream used when no transport is composed. */
+    static UpstreamStream unavailable() {
+        return UnavailableUpstreamStream.INSTANCE;
+    }
 
     /** Returns whether the upstream communication/session is currently usable. */
     boolean isAvailable();

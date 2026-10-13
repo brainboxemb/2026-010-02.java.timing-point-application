@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
+package io.github.brainboxemb.eventtiming.timingpoint.io.messaging;
 
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 

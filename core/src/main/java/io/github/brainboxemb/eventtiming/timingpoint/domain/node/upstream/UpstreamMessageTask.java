@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
 /**
  * One upstream turn on the owning TimingNode serial lane.
