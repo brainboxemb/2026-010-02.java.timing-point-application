@@ -26,6 +26,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
@@ -56,6 +57,7 @@ final class TimingNodeLogic {
     private final TimingNodeMetrics metrics;
     private final ReserveTagMap reserveTagMap = new ReserveTagMap();
     private final StageStartTimes stageStartTimes = new StageStartTimes();
+    private final StageTiming stageTiming;
 
     private long lastAppliedRaceDataSequence;
 
@@ -136,6 +138,11 @@ final class TimingNodeLogic {
         this.monotonicClock = monotonicClock;
         this.metrics = metrics;
         this.logBook = new LogBook(timingNodeId);
+        this.stageTiming =
+                new StageTiming(
+                        eventData,
+                        reserveTagMap,
+                        stageStartTimes);
     }
 
     NodeId timingNodeId() {
@@ -269,6 +276,37 @@ final class TimingNodeLogic {
         }
         return stageStartTimes.startFor(
                 teamId);
+    }
+
+    StageTiming.Result stageTiming(
+            long sequenceNumber,
+            ZoneId raceTimeZone) {
+        ensureOperational();
+        if (sequenceNumber < 1L
+                || sequenceNumber > TimingData.MAX_SEQUENCE_NUMBER) {
+            throw new IllegalArgumentException(
+                    "sequenceNumber must be in range 1.."
+                            + TimingData.MAX_SEQUENCE_NUMBER);
+        }
+        if (raceTimeZone == null) {
+            throw new IllegalArgumentException(
+                    "raceTimeZone must not be null");
+        }
+
+        final TimingData[] record =
+                new TimingData[1];
+        logBook.visitRange(
+                sequenceNumber,
+                1,
+                data -> record[0] = data);
+
+        if (record[0] == null) {
+            return StageTiming.Result.timingDataNotFound(
+                    sequenceNumber);
+        }
+        return stageTiming.calculate(
+                record[0],
+                raceTimeZone);
     }
 
     OpenResult open(LocationId newLocationId)
