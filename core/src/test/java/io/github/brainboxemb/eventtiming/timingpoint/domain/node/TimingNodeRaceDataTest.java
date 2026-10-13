@@ -162,6 +162,47 @@ public class TimingNodeRaceDataTest {
     }
 
     @Test
+    public void stageStartTimesApplyIncrementallyWithRaceDataSequence() {
+        TimingNodeLogic logic = logic();
+
+        TimingNodeTypes.RaceDataApplyResult set =
+                logic.applyRaceData(
+                        DefaultUpstreamData.raceData(
+                                new NodeId("A"),
+                                1L,
+                                Collections.<UpstreamData.ReserveTagMapChange>emptyList(),
+                                Collections.singletonList(
+                                        DefaultUpstreamData.stageStartSet(
+                                                "0042",
+                                                LocalTime.of(12, 30)))));
+
+        assertSame(
+                TimingNodeTypes.RaceDataApplyResult.Outcome.APPLIED,
+                set.outcome());
+        assertEquals(
+                LocalTime.of(12, 30),
+                logic.stageStartTimeFor(
+                        new TeamId("0042"))
+                        .startTime());
+
+        TimingNodeTypes.RaceDataApplyResult delete =
+                logic.applyRaceData(
+                        DefaultUpstreamData.raceData(
+                                new NodeId("A"),
+                                2L,
+                                Collections.<UpstreamData.ReserveTagMapChange>emptyList(),
+                                Collections.singletonList(
+                                        DefaultUpstreamData.stageStartDelete(
+                                                "0042"))));
+
+        assertSame(
+                TimingNodeTypes.RaceDataApplyResult.Outcome.APPLIED,
+                delete.outcome());
+        assertEquals(2L, logic.raceDataAppliedSequence());
+        assertNull(logic.stageStartTimeFor(new TeamId("0042")));
+    }
+
+    @Test
     public void timingNodeCommandUsesOrderedNodeBoundary() {
         TimingNode node =
                 new TimingNode(
