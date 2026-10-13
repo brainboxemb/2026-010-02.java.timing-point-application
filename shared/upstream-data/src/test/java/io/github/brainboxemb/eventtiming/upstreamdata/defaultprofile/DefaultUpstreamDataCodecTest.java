@@ -71,10 +71,10 @@ public class DefaultUpstreamDataCodecTest {
                         new NodeId("A"),
                         123L,
                         Arrays.asList(
-                                DefaultUpstreamData.reserveTagSet(
+                                DefaultUpstreamData.teamAssignmentSet(
                                         "RT-R-0001",
                                         "0042"),
-                                DefaultUpstreamData.reserveTagDelete(
+                                DefaultUpstreamData.teamAssignmentDelete(
                                         "RT-R-0002")),
                         Arrays.asList(
                                 DefaultUpstreamData.stageStartSet(
@@ -92,7 +92,7 @@ public class DefaultUpstreamDataCodecTest {
         String json = text(codec.encode(original));
         assertTrue(json.contains("\"type\":\"RACE_DATA\""));
         assertTrue(json.contains("\"seq\":123"));
-        assertTrue(json.contains("\"reserveTagMap\""));
+        assertTrue(json.contains("\"teamAssignments\""));
         assertTrue(json.contains("\"stageStartTimes\""));
         assertTrue(json.contains("\"op\":\"SET\""));
         assertTrue(json.contains("\"op\":\"DEL\""));
@@ -101,8 +101,8 @@ public class DefaultUpstreamDataCodecTest {
                 (UpstreamData.RaceData) codec.decode(bytes(json));
         assertEquals(123L, decoded.sequence());
         assertEquals(
-                original.reserveTagMapChanges(),
-                decoded.reserveTagMapChanges());
+                original.teamAssignmentChanges(),
+                decoded.teamAssignmentChanges());
         assertEquals(
                 original.stageStartTimeChanges(),
                 decoded.stageStartTimeChanges());
@@ -119,7 +119,7 @@ public class DefaultUpstreamDataCodecTest {
     public void raceDataRejectsInvalidSetAndDeleteShapes() throws Exception {
         assertInvalid(
                 "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
-                        + "\"seq\":1,\"data\":{\"reserveTagMap\":["
+                        + "\"seq\":1,\"data\":{\"teamAssignments\":["
                         + "{\"op\":\"SET\",\"regId\":\"RT-R-0001\"}]}}");
 
         assertInvalid(
@@ -135,7 +135,7 @@ public class DefaultUpstreamDataCodecTest {
                 DefaultUpstreamData.raceData(
                         new NodeId("A"),
                         1L,
-                        Collections.<UpstreamData.ReserveTagMapChange>emptyList(),
+                        Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
                         Collections.singletonList(
                                 DefaultUpstreamData.stageStartSet(
                                         "0042",
@@ -326,7 +326,7 @@ public class DefaultUpstreamDataCodecTest {
     public void rejectsDuplicateRaceDataKeysWithinOneMessage() throws Exception {
         assertInvalid(
                 "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
-                        + "\"seq\":1,\"data\":{\"reserveTagMap\":["
+                        + "\"seq\":1,\"data\":{\"teamAssignments\":["
                         + "{\"op\":\"SET\",\"regId\":\"RT-R-0001\",\"teamId\":\"0042\"},"
                         + "{\"op\":\"SET\",\"regId\":\"RT-R-0001\",\"teamId\":\"0043\"}]}}");
     }
