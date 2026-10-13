@@ -2,9 +2,10 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.data.StageTiming;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 
 import java.time.ZoneId;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -35,15 +36,11 @@ public final class TimingNodeQueries {
         return TIMING_DATA_COUNT;
     }
 
-    public static TimingNodeQuery<StageTiming> stageTiming(
-            long sequenceNumber,
+    /**
+     * Returns the current resolved stage-time ranking for this TimingNode.
+     */
+    public static TimingNodeQuery<List<StageTime>> stageTiming(
             ZoneId raceTimeZone) {
-        if (sequenceNumber < 1L
-                || sequenceNumber > TimingData.MAX_SEQUENCE_NUMBER) {
-            throw new IllegalArgumentException(
-                    "sequenceNumber must be in range 1.."
-                            + TimingData.MAX_SEQUENCE_NUMBER);
-        }
         if (raceTimeZone == null) {
             throw new IllegalArgumentException(
                     "raceTimeZone must not be null");
@@ -51,7 +48,6 @@ public final class TimingNodeQueries {
         return new TimingNodeQuery<>(
                 "stageTiming",
                 logic -> logic.stageTiming(
-                        sequenceNumber,
                         raceTimeZone));
     }
 
