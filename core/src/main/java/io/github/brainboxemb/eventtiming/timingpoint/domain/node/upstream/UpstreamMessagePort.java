@@ -150,7 +150,7 @@ public final class UpstreamMessagePort {
             case PING:
                 checkArgument(data instanceof UpstreamData.Ping,
                         "PING has incompatible semantic type");
-                heartbeat.process((UpstreamData.Ping) data);
+                heartbeat.handle((UpstreamData.Ping) data);
                 return;
 
             default:
@@ -161,25 +161,19 @@ public final class UpstreamMessagePort {
 
     /** Sends a TIMING_DATA SYNC using the current committed LogBook head. */
     public void sendTimingDataSync() {
-        onNodeLane(() -> {
-            logBookSync.sendSync();
-            return null;
-        }, "sendTimingDataSync");
+        onNodeLane(logBookSync::sendSync, "sendTimingDataSync");
     }
 
     /** Returns the current committed TIMING_DATA source head. */
     public long timingDataHead() {
-        return onNodeLane(() -> Long.valueOf(logBookSync.headSequence()), "timingDataHead").longValue();
+        return onNodeLane(logBookSync::headSequence, "timingDataHead");
     }
 
     /**
      * Runs one externally scheduled heartbeat tick on the TimingNode serial lane.
      */
     public void heartbeatTick() {
-        onNodeLane(() -> {
-            heartbeat.tick();
-            return null;
-        }, "upstreamHeartbeat");
+        onNodeLane(heartbeat::tick, "upstreamHeartbeat");
     }
 
     /** Returns a consistent heartbeat snapshot from the TimingNode serial lane. */
@@ -224,6 +218,10 @@ public final class UpstreamMessagePort {
         inputTaskScheduled.set(false);
     }
 
+    private void onNodeLane(Runnable task, String operation) {
+        nodeLane.run(task, operation);
+    }
+
     private <R> R onNodeLane(Callable<R> task, String operation) {
         return nodeLane.run(task, operation);
     }
@@ -236,6 +234,8 @@ public final class UpstreamMessagePort {
      */
     public interface NodeLane {
         boolean offer(Runnable task);
+
+        void run(Runnable task, String operation);
 
         <R> R run(Callable<R> task, String operation);
     }
