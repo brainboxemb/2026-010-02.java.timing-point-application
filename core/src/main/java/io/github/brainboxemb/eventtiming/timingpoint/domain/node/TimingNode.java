@@ -774,6 +774,16 @@ public final class TimingNode {
     /**
      * Returns the activation-complete immutable Status used by CURRENT status queries.
      */
+    /**
+     * Direct reader used by TimingNodeQueries.timingDataHead().
+     *
+     * <p>LogBook publishes only this scalar outside its serial-lane-owned record
+     * collection, so CURRENT reads do not enter the TimingNode lane.</p>
+     */
+    long currentTimingDataHead() {
+        return logic.timingDataHead();
+    }
+
     Status publishedStatus() {
         SerialExecutor.State executorState = serialExecutor.state();
         if (executorState == SerialExecutor.State.FAILED) {
