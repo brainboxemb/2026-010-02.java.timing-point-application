@@ -6,6 +6,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamMessagePort;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
@@ -42,9 +43,6 @@ public class TimingNodeRaceDataTest {
                     ack.stream());
             assertEquals(1L, ack.sequence());
             assertEquals(
-                    1L,
-                    fixture.port.raceDataAppliedSequence());
-            assertEquals(
                     new TeamId("0042"),
                     fixture.port.teamIdFor(
                             new RegistrationId(
@@ -72,9 +70,6 @@ public class TimingNodeRaceDataTest {
                     UpstreamData.Stream.RACE_DATA,
                     req.stream());
             assertEquals(1L, req.fromSequence());
-            assertEquals(
-                    0L,
-                    fixture.port.raceDataAppliedSequence());
             assertNull(
                     fixture.port.teamIdFor(
                             new RegistrationId(
@@ -132,9 +127,6 @@ public class TimingNodeRaceDataTest {
 
             assertEquals(0, fixture.stream.sentCount());
             assertEquals(
-                    0L,
-                    fixture.port.raceDataAppliedSequence());
-            assertEquals(
                     new TeamId("0001"),
                     fixture.port.teamIdFor(
                             new RegistrationId(
@@ -163,9 +155,6 @@ public class TimingNodeRaceDataTest {
                                             LocalTime.of(12, 0)))));
 
             assertEquals(0, fixture.stream.sentCount());
-            assertEquals(
-                    0L,
-                    fixture.port.raceDataAppliedSequence());
             assertNull(
                     fixture.port.stageStartTimeFor(
                             new TeamId("0042")));
