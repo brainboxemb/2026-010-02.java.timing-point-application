@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
+package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
 
 import java.time.Duration;
 
