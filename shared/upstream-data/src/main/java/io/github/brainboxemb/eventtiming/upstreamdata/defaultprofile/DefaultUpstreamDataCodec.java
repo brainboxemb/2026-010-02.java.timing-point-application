@@ -1145,7 +1145,7 @@ public final class DefaultUpstreamDataCodec
 
     private static String requireFieldName(
             JsonParser parser)
-            throws CodecException {
+            throws CodecException, IOException {
         if (parser.getCurrentToken()
                 != JsonToken.FIELD_NAME) {
             throw invalid(
