@@ -207,7 +207,7 @@ public class TimingNodeRaceDataTest {
                     LocalTime.of(12, 30),
                     port.stageStartTimeFor(
                             new TeamId("0042"))
-                            .startTime());
+                            .time());
 
             TimingNodeTypes.RaceDataApplyResult delete =
                     port.applyRaceData(

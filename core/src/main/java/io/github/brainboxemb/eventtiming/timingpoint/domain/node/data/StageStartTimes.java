@@ -1,33 +1,38 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.data;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 
-import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Objects;
 
-/** Active TeamId-to-stage-start data for one TimingNode. */
+/**
+ * Active TeamId-to-stage-start data for one TimingNode.
+ *
+ * <p>The value is a TimingTimestamp rather than separate LocalTime/LocalDate
+ * fields. The timestamp itself records whether only local time, local date/time
+ * or an absolute instant is known. This state object does not invent missing
+ * date or zone context.</p>
+ */
 public final class StageStartTimes {
-    private final Map<TeamId, StartDefinition> starts;
+    private final Map<TeamId, TimingTimestamp> starts;
 
     public StageStartTimes() {
         this.starts =
-                new LinkedHashMap<TeamId, StartDefinition>();
+                new LinkedHashMap<TeamId, TimingTimestamp>();
     }
 
     private StageStartTimes(
-            Map<TeamId, StartDefinition> starts) {
+            Map<TeamId, TimingTimestamp> starts) {
         this.starts =
-                new LinkedHashMap<TeamId, StartDefinition>(starts);
+                new LinkedHashMap<TeamId, TimingTimestamp>(starts);
     }
 
     public StageStartTimes copy() {
         return new StageStartTimes(starts);
     }
 
-    public StartDefinition startFor(
+    public TimingTimestamp startFor(
             TeamId teamId) {
         if (teamId == null) {
             throw new IllegalArgumentException(
@@ -38,17 +43,18 @@ public final class StageStartTimes {
 
     public void set(
             TeamId teamId,
-            LocalTime startTime,
-            LocalDate startDate) {
+            TimingTimestamp start) {
         if (teamId == null) {
             throw new IllegalArgumentException(
                     "teamId must not be null");
         }
+        if (start == null) {
+            throw new IllegalArgumentException(
+                    "start must not be null");
+        }
         starts.put(
                 teamId,
-                new StartDefinition(
-                        startTime,
-                        startDate));
+                start);
     }
 
     public void remove(
@@ -68,52 +74,5 @@ public final class StageStartTimes {
         }
         starts.clear();
         starts.putAll(updatedStartTimes.starts);
-    }
-
-    public static final class StartDefinition {
-        private final LocalTime startTime;
-        private final LocalDate startDate;
-
-        public StartDefinition(
-                LocalTime startTime,
-                LocalDate startDate) {
-            if (startTime == null) {
-                throw new IllegalArgumentException(
-                        "startTime must not be null");
-            }
-            this.startTime = startTime;
-            this.startDate = startDate;
-        }
-
-        public LocalTime startTime() {
-            return startTime;
-        }
-
-        public LocalDate startDate() {
-            return startDate;
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (this == other) {
-                return true;
-            }
-            if (!(other instanceof StartDefinition)) {
-                return false;
-            }
-            StartDefinition that =
-                    (StartDefinition) other;
-            return startTime.equals(that.startTime)
-                    && Objects.equals(
-                            startDate,
-                            that.startDate);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(
-                    startTime,
-                    startDate);
-        }
     }
 }

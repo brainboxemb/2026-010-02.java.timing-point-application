@@ -9,18 +9,12 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamDataCodec;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeFormatterBuilder;
-import java.time.format.DateTimeParseException;
-import java.time.format.ResolverStyle;
-import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -30,24 +24,6 @@ public final class DefaultUpstreamDataCodec
         implements UpstreamDataCodec {
     private static final int VERSION = 1;
 
-    private static final DateTimeFormatter START_TIME_READER =
-            new DateTimeFormatterBuilder()
-                    .appendPattern("HH:mm:ss")
-                    .optionalStart()
-                    .appendFraction(
-                            ChronoField.NANO_OF_SECOND,
-                            2,
-                            2,
-                            true)
-                    .optionalEnd()
-                    .toFormatter(Locale.ROOT)
-                    .withResolverStyle(ResolverStyle.STRICT);
-    private static final DateTimeFormatter START_TIME_SECONDS =
-            DateTimeFormatter.ofPattern("HH:mm:ss", Locale.ROOT);
-    private static final DateTimeFormatter START_TIME_CENTISECONDS =
-            DateTimeFormatter.ofPattern("HH:mm:ss.SS", Locale.ROOT);
-    private static final DateTimeFormatter START_DATE =
-            DateTimeFormatter.ISO_LOCAL_DATE;
 
     private final JsonFactory jsonFactory = new JsonFactory();
     private final TimingDataCodec timingDataCodec;
@@ -242,23 +218,18 @@ public final class DefaultUpstreamDataCodec
                 generator.writeStringField("op", change.operation().name());
                 generator.writeStringField("teamId", change.teamId().value());
                 if (change.operation() == UpstreamData.ChangeOperation.SET) {
-                    if (change.startTime() == null) {
+                    TimingTimestamp start = change.start();
+                    if (start == null) {
                         throw encodeFailure(
-                                "stageStartTimes SET requires startTime",
+                                "stageStartTimes SET requires start timestamp",
                                 null);
                     }
                     generator.writeStringField(
-                            "startTime",
-                            formatStartTime(change.startTime()));
-                    if (change.startDate() != null) {
-                        generator.writeStringField(
-                                "startDate",
-                                START_DATE.format(change.startDate()));
-                    }
-                } else if (change.startTime() != null
-                        || change.startDate() != null) {
+                            "start",
+                            start.toString());
+                } else if (change.start() != null) {
                     throw encodeFailure(
-                            "stageStartTimes DEL must not carry startTime/startDate",
+                            "stageStartTimes DEL must not carry start timestamp",
                             null);
                 }
                 generator.writeEndObject();
@@ -663,10 +634,8 @@ public final class DefaultUpstreamDataCodec
 
             String op = null;
             String teamId = null;
-            String startTime = null;
-            String startDate = null;
-            boolean startTimeSeen = false;
-            boolean startDateSeen = false;
+            String start = null;
+            boolean startSeen = false;
 
             while (parser.nextToken() != JsonToken.END_OBJECT) {
                 String field = requireFieldName(parser);
@@ -681,18 +650,12 @@ public final class DefaultUpstreamDataCodec
                         throw invalid("Duplicate stageStartTimes teamId", null);
                     }
                     teamId = readString(parser, value, "teamId");
-                } else if ("startTime".equals(field)) {
-                    if (startTimeSeen) {
-                        throw invalid("Duplicate startTime", null);
+                } else if ("start".equals(field)) {
+                    if (startSeen) {
+                        throw invalid("Duplicate stageStartTimes start", null);
                     }
-                    startTimeSeen = true;
-                    startTime = readString(parser, value, "startTime");
-                } else if ("startDate".equals(field)) {
-                    if (startDateSeen) {
-                        throw invalid("Duplicate startDate", null);
-                    }
-                    startDateSeen = true;
-                    startDate = readString(parser, value, "startDate");
+                    startSeen = true;
+                    start = readString(parser, value, "start");
                 } else {
                     parser.skipChildren();
                 }
@@ -706,17 +669,23 @@ public final class DefaultUpstreamDataCodec
 
             UpstreamData.ChangeOperation operation =
                     parseChangeOperation(op);
-            LocalTime parsedTime =
-                    startTime == null ? null : parseStartTime(startTime);
-            LocalDate parsedDate =
-                    startDate == null ? null : parseStartDate(startDate);
+            TimingTimestamp parsedStart = null;
+            if (start != null) {
+                try {
+                    parsedStart =
+                            TimingTimestamp.parse(start);
+                } catch (IllegalArgumentException ex) {
+                    throw invalid(
+                            "Invalid stageStartTimes start " + start,
+                            ex);
+                }
+            }
 
             result.add(
                     new UpstreamData.StageStartTimeChange(
                             operation,
                             new TeamId(teamId),
-                            parsedTime,
-                            parsedDate));
+                            parsedStart));
         }
         return result;
     }
@@ -1019,40 +988,6 @@ public final class DefaultUpstreamDataCodec
         }
     }
 
-    private static String formatStartTime(LocalTime time)
-            throws CodecException {
-        if (time == null) {
-            throw encodeFailure("startTime must not be null", null);
-        }
-        int nanos = time.getNano();
-        if (nanos == 0) {
-            return START_TIME_SECONDS.format(time);
-        }
-        if (nanos % 10000000 != 0) {
-            throw encodeFailure(
-                    "startTime finer than centisecond precision is not representable",
-                    null);
-        }
-        return START_TIME_CENTISECONDS.format(time);
-    }
-
-    private static LocalTime parseStartTime(String text)
-            throws CodecException {
-        try {
-            return LocalTime.parse(text, START_TIME_READER);
-        } catch (DateTimeParseException ex) {
-            throw invalid("Invalid startTime " + text, ex);
-        }
-    }
-
-    private static LocalDate parseStartDate(String text)
-            throws CodecException {
-        try {
-            return LocalDate.parse(text, START_DATE);
-        } catch (DateTimeParseException ex) {
-            throw invalid("Invalid startDate " + text, ex);
-        }
-    }
 
     private static boolean hasUtf8Bom(byte[] data) {
         return data.length >= 3
