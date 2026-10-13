@@ -15,7 +15,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeMetri
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.DefaultTimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.DefaultTimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
