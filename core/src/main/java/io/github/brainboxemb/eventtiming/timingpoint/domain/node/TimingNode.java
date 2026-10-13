@@ -320,7 +320,8 @@ public final class TimingNode {
                         this,
                         eventData,
                         logic.teamAssignments(),
-                        logic.stageStartTimes());
+                        logic.stageStartTimes(),
+                        logic.uniqueTeamRegistrations());
     }
 
     public NodeId timingNodeId() {
