@@ -24,210 +24,199 @@ import static org.junit.Assert.assertTrue;
 public class TimingNodeRaceDataTest {
 
     @Test
-    public void firstRaceDataSequenceAppliesAndBecomesAcknowledgeable() {
-        TimingNode node = node();
-        node.activate();
+    public void firstRaceDataSequenceAppliesAndSendsAck() {
+        Fixture fixture = fixture();
+        fixture.node.activate();
         try {
-            UpstreamMessagePort port =
-                    node.upstreamMessagePort();
-
-            TimingNodeTypes.RaceDataApplyResult result =
-                    port.applyRaceData(
-                            raceDataSet(
-                                    1L,
-                                    "RT-R-0001",
-                                    "0042"));
-
-            assertSame(
-                    TimingNodeTypes.RaceDataApplyResult.Outcome.APPLIED,
-                    result.outcome());
-            assertTrue(result.shouldAcknowledge());
-            assertEquals(1L, result.acknowledgeSequence());
-            assertEquals(1L, port.raceDataAppliedSequence());
-            assertEquals(
-                    new TeamId("0042"),
-                    port.teamIdFor(
-                            new RegistrationId("RT-R-0001")));
-        } finally {
-            node.deactivate();
-        }
-    }
-
-    @Test
-    public void gapDoesNotApplyAndRequestsFirstMissingSequence() {
-        TimingNode node = node();
-        node.activate();
-        try {
-            UpstreamMessagePort port =
-                    node.upstreamMessagePort();
-
-            TimingNodeTypes.RaceDataApplyResult result =
-                    port.applyRaceData(
-                            raceDataSet(
-                                    2L,
-                                    "RT-R-0001",
-                                    "0042"));
-
-            assertSame(
-                    TimingNodeTypes.RaceDataApplyResult.Outcome.GAP,
-                    result.outcome());
-            assertTrue(result.requiresRaceDataRequest());
-            assertEquals(1L, result.requestedFromSequence());
-            assertEquals(0L, port.raceDataAppliedSequence());
-            assertNull(
-                    port.teamIdFor(
-                            new RegistrationId("RT-R-0001")));
-        } finally {
-            node.deactivate();
-        }
-    }
-
-    @Test
-    public void duplicateSequenceIsNotAppliedAgain() {
-        TimingNode node = node();
-        node.activate();
-        try {
-            UpstreamMessagePort port =
-                    node.upstreamMessagePort();
-
-            port.applyRaceData(
+            fixture.receive(
                     raceDataSet(
                             1L,
                             "RT-R-0001",
                             "0042"));
 
-            TimingNodeTypes.RaceDataApplyResult duplicate =
-                    port.applyRaceData(
-                            DefaultUpstreamData.raceData(
-                                    new NodeId("A"),
-                                    1L,
-                                    Collections.singletonList(
-                                            DefaultUpstreamData.teamAssignmentDelete(
-                                                    "RT-R-0001")),
-                                    Collections.<UpstreamData.StageStartTimeChange>emptyList()));
-
+            UpstreamData.Ack ack =
+                    (UpstreamData.Ack)
+                            fixture.stream.takeSent();
             assertSame(
-                    TimingNodeTypes.RaceDataApplyResult.Outcome.DUPLICATE,
-                    duplicate.outcome());
-            assertEquals(1L, duplicate.acknowledgeSequence());
+                    UpstreamData.Stream.RACE_DATA,
+                    ack.stream());
+            assertEquals(1L, ack.sequence());
+            assertEquals(
+                    1L,
+                    fixture.port.raceDataAppliedSequence());
             assertEquals(
                     new TeamId("0042"),
-                    port.teamIdFor(
-                            new RegistrationId("RT-R-0001")));
+                    fixture.port.teamIdFor(
+                            new RegistrationId(
+                                    "RT-R-0001")));
         } finally {
-            node.deactivate();
+            fixture.node.deactivate();
         }
     }
 
     @Test
-    public void fixedEventDataTeamCannotBeOverridden() {
-        TimingNode node = node();
-        node.activate();
+    public void gapDoesNotApplyAndSendsReqForFirstMissingSequence() {
+        Fixture fixture = fixture();
+        fixture.node.activate();
         try {
-            UpstreamMessagePort port =
-                    node.upstreamMessagePort();
+            fixture.receive(
+                    raceDataSet(
+                            2L,
+                            "RT-R-0001",
+                            "0042"));
 
-            TimingNodeTypes.RaceDataApplyResult result =
-                    port.applyRaceData(
-                            raceDataSet(
-                                    1L,
-                                    "RT-A-0001",
-                                    "9999"));
-
+            UpstreamData.Req req =
+                    (UpstreamData.Req)
+                            fixture.stream.takeSent();
             assertSame(
-                    TimingNodeTypes.RaceDataApplyResult.Outcome.REJECTED,
-                    result.outcome());
-            assertEquals(0L, port.raceDataAppliedSequence());
+                    UpstreamData.Stream.RACE_DATA,
+                    req.stream());
+            assertEquals(1L, req.fromSequence());
+            assertEquals(
+                    0L,
+                    fixture.port.raceDataAppliedSequence());
+            assertNull(
+                    fixture.port.teamIdFor(
+                            new RegistrationId(
+                                    "RT-R-0001")));
+        } finally {
+            fixture.node.deactivate();
+        }
+    }
+
+    @Test
+    public void duplicateSequenceSendsCumulativeAckWithoutApplyingAgain() {
+        Fixture fixture = fixture();
+        fixture.node.activate();
+        try {
+            fixture.receive(
+                    raceDataSet(
+                            1L,
+                            "RT-R-0001",
+                            "0042"));
+            fixture.stream.takeSent();
+
+            fixture.receive(
+                    DefaultUpstreamData.raceData(
+                            new NodeId("A"),
+                            1L,
+                            Collections.singletonList(
+                                    DefaultUpstreamData.teamAssignmentDelete(
+                                            "RT-R-0001")),
+                            Collections.<UpstreamData.StageStartTimeChange>emptyList()));
+
+            UpstreamData.Ack ack =
+                    (UpstreamData.Ack)
+                            fixture.stream.takeSent();
+            assertEquals(1L, ack.sequence());
+            assertEquals(
+                    new TeamId("0042"),
+                    fixture.port.teamIdFor(
+                            new RegistrationId(
+                                    "RT-R-0001")));
+        } finally {
+            fixture.node.deactivate();
+        }
+    }
+
+    @Test
+    public void invalidFixedTeamOverrideDoesNotAdvanceOrRespond() {
+        Fixture fixture = fixture();
+        fixture.node.activate();
+        try {
+            fixture.receive(
+                    raceDataSet(
+                            1L,
+                            "RT-A-0001",
+                            "9999"));
+
+            assertEquals(0, fixture.stream.sentCount());
+            assertEquals(
+                    0L,
+                    fixture.port.raceDataAppliedSequence());
             assertEquals(
                     new TeamId("0001"),
-                    port.teamIdFor(
-                            new RegistrationId("RT-A-0001")));
+                    fixture.port.teamIdFor(
+                            new RegistrationId(
+                                    "RT-A-0001")));
         } finally {
-            node.deactivate();
+            fixture.node.deactivate();
         }
     }
 
     @Test
-    public void rejectedMessageIsAtomicAcrossRaceDataSections() {
-        TimingNode node = node();
-        node.activate();
+    public void invalidRaceDataIsAtomicAcrossSections() {
+        Fixture fixture = fixture();
+        fixture.node.activate();
         try {
-            UpstreamMessagePort port =
-                    node.upstreamMessagePort();
+            fixture.receive(
+                    DefaultUpstreamData.raceData(
+                            new NodeId("A"),
+                            1L,
+                            Collections.singletonList(
+                                    DefaultUpstreamData.teamAssignmentSet(
+                                            "RT-A-0001",
+                                            "9999")),
+                            Collections.singletonList(
+                                    DefaultUpstreamData.stageStartSet(
+                                            "0042",
+                                            LocalTime.of(12, 0)))));
 
-            TimingNodeTypes.RaceDataApplyResult result =
-                    port.applyRaceData(
-                            DefaultUpstreamData.raceData(
-                                    new NodeId("A"),
-                                    1L,
-                                    Collections.singletonList(
-                                            DefaultUpstreamData.teamAssignmentSet(
-                                                    "RT-A-0001",
-                                                    "9999")),
-                                    Collections.singletonList(
-                                            DefaultUpstreamData.stageStartSet(
-                                                    "0042",
-                                                    LocalTime.of(12, 0)))));
-
-            assertSame(
-                    TimingNodeTypes.RaceDataApplyResult.Outcome.REJECTED,
-                    result.outcome());
-            assertEquals(0L, port.raceDataAppliedSequence());
+            assertEquals(0, fixture.stream.sentCount());
+            assertEquals(
+                    0L,
+                    fixture.port.raceDataAppliedSequence());
             assertNull(
-                    port.stageStartTimeFor(
+                    fixture.port.stageStartTimeFor(
                             new TeamId("0042")));
         } finally {
-            node.deactivate();
+            fixture.node.deactivate();
         }
     }
 
     @Test
-    public void stageStartTimesApplyIncrementallyWithRaceDataSequence() {
-        TimingNode node = node();
-        node.activate();
+    public void stageStartTimesFollowRaceDataSequence() {
+        Fixture fixture = fixture();
+        fixture.node.activate();
         try {
-            UpstreamMessagePort port =
-                    node.upstreamMessagePort();
-
-            TimingNodeTypes.RaceDataApplyResult set =
-                    port.applyRaceData(
-                            DefaultUpstreamData.raceData(
-                                    new NodeId("A"),
-                                    1L,
-                                    Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
-                                    Collections.singletonList(
-                                            DefaultUpstreamData.stageStartSet(
-                                                    "0042",
-                                                    LocalTime.of(12, 30)))));
-
-            assertSame(
-                    TimingNodeTypes.RaceDataApplyResult.Outcome.APPLIED,
-                    set.outcome());
+            fixture.receive(
+                    DefaultUpstreamData.raceData(
+                            new NodeId("A"),
+                            1L,
+                            Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
+                            Collections.singletonList(
+                                    DefaultUpstreamData.stageStartSet(
+                                            "0042",
+                                            LocalTime.of(12, 30)))));
+            assertEquals(
+                    1L,
+                    ((UpstreamData.Ack)
+                            fixture.stream.takeSent())
+                            .sequence());
             assertEquals(
                     LocalTime.of(12, 30),
-                    port.stageStartTimeFor(
+                    fixture.port.stageStartTimeFor(
                             new TeamId("0042"))
                             .time());
 
-            TimingNodeTypes.RaceDataApplyResult delete =
-                    port.applyRaceData(
-                            DefaultUpstreamData.raceData(
-                                    new NodeId("A"),
-                                    2L,
-                                    Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
-                                    Collections.singletonList(
-                                            DefaultUpstreamData.stageStartDelete(
-                                                    "0042"))));
-
-            assertSame(
-                    TimingNodeTypes.RaceDataApplyResult.Outcome.APPLIED,
-                    delete.outcome());
-            assertEquals(2L, port.raceDataAppliedSequence());
+            fixture.receive(
+                    DefaultUpstreamData.raceData(
+                            new NodeId("A"),
+                            2L,
+                            Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
+                            Collections.singletonList(
+                                    DefaultUpstreamData.stageStartDelete(
+                                            "0042"))));
+            assertEquals(
+                    2L,
+                    ((UpstreamData.Ack)
+                            fixture.stream.takeSent())
+                            .sequence());
             assertNull(
-                    port.stageStartTimeFor(
+                    fixture.port.stageStartTimeFor(
                             new TeamId("0042")));
         } finally {
-            node.deactivate();
+            fixture.node.deactivate();
         }
     }
 
@@ -245,13 +234,43 @@ public class TimingNodeRaceDataTest {
                 Collections.<UpstreamData.StageStartTimeChange>emptyList());
     }
 
-    private static TimingNode node() {
-        return new TimingNode(
-                new NodeId("A"),
-                new EmptyPersistence(),
-                new DefaultTimingDataFactory(),
-                () -> Instant.parse("2026-10-13T12:00:00Z"),
-                new DefaultEventData());
+    private static Fixture fixture() {
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
+        TimingNode node =
+                new TimingNode(
+                        new NodeId("A"),
+                        new EmptyPersistence(),
+                        new DefaultTimingDataFactory(),
+                        () -> Instant.parse(
+                                "2026-10-13T12:00:00Z"),
+                        new DefaultEventData(),
+                        stream);
+        return new Fixture(
+                node,
+                stream);
+    }
+
+    private static final class Fixture {
+        private final TimingNode node;
+        private final InMemoryUpstreamStream stream;
+        private final UpstreamMessagePort port;
+
+        private Fixture(
+                TimingNode node,
+                InMemoryUpstreamStream stream) {
+            this.node = node;
+            this.stream = stream;
+            this.port =
+                    node.upstreamMessagePort();
+        }
+
+        private void receive(
+                UpstreamData data) {
+            stream.receive(data);
+            assertTrue(
+                    port.inputAvailable());
+        }
     }
 
     private static final class EmptyPersistence
@@ -265,7 +284,7 @@ public class TimingNodeRaceDataTest {
 
         @Override
         public void append(TimingData data) {
-            // RaceData-only tests do not commit TimingData.
+            // RACE_DATA-only tests do not commit TimingData.
         }
     }
 }
