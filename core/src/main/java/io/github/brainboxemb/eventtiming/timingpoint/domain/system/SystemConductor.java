@@ -2,11 +2,11 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeQuery.ReadConsistency;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.CooperativeTask;
