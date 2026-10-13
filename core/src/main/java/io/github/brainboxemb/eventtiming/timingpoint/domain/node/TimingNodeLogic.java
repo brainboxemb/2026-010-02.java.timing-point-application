@@ -13,8 +13,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.StageStartTimes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TeamAssignments;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.UniqueTeamRegistrations;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTimingCalculator;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.data.StageTiming;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
@@ -30,6 +30,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.Monoto
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
@@ -59,7 +60,7 @@ final class TimingNodeLogic {
     private final StageStartTimes stageStartTimes = new StageStartTimes();
     private final UniqueTeamRegistrations uniqueTeamRegistrations =
             new UniqueTeamRegistrations();
-    private final StageTimingCalculator stageTimingCalculator;
+    private final StageTiming stageTiming;
 
     private State state = State.CLOSED;
     private LocationId locationId;
@@ -137,8 +138,8 @@ final class TimingNodeLogic {
         this.monotonicClock = monotonicClock;
         this.metrics = metrics;
         this.logBook = new LogBook(timingNodeId);
-        this.stageTimingCalculator =
-                new StageTimingCalculator(
+        this.stageTiming =
+                new StageTiming(
                         eventData,
                         teamAssignments,
                         stageStartTimes);
@@ -164,34 +165,30 @@ final class TimingNodeLogic {
         return uniqueTeamRegistrations;
     }
 
-    StageTiming stageTiming(
-            long sequenceNumber,
+    List<StageTime> stageTiming(
             ZoneId raceTimeZone) {
         ensureOperational();
-        if (sequenceNumber < 1L
-                || sequenceNumber > TimingData.MAX_SEQUENCE_NUMBER) {
-            throw new IllegalArgumentException(
-                    "sequenceNumber must be in range 1.."
-                            + TimingData.MAX_SEQUENCE_NUMBER);
-        }
         if (raceTimeZone == null) {
             throw new IllegalArgumentException(
                     "raceTimeZone must not be null");
         }
 
-        final TimingData[] record =
-                new TimingData[1];
-        logBook.visitRange(
-                sequenceNumber,
-                1,
-                data -> record[0] = data);
-
-        if (record[0] == null) {
-            return StageTiming.timingDataNotFound(
-                    sequenceNumber);
+        /*
+         * StageTiming is a read-side view of the committed history. Keep the
+         * LogBook passive: capture the current records on the owning node lane
+         * and let StageTiming derive the ranking from that snapshot.
+         */
+        List<TimingData> committed =
+                new ArrayList<TimingData>(
+                        logBook.size());
+        if (logBook.size() > 0) {
+            logBook.visitRange(
+                    1L,
+                    logBook.size(),
+                    committed::add);
         }
-        return stageTimingCalculator.calculate(
-                record[0],
+        return stageTiming.ranking(
+                committed,
                 raceTimeZone);
     }
 

@@ -11,9 +11,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.StageStartTimes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TeamAssignments;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTimingCalculator;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.data.StageTiming;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.data.StageTimingStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
@@ -24,14 +23,13 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class StageTimingTest {
@@ -41,6 +39,61 @@ public class StageTimingTest {
             new DefaultTimingDataFactory();
 
     @Test
+    public void rankingOrdersResolvedElapsedTimes() {
+        Fixture fixture = fixture();
+        fixture.setStart("0001", LocalTime.NOON, null);
+        fixture.setStart("0002", LocalTime.NOON, null);
+
+        List<StageTime> ranking =
+                fixture.stageTiming.ranking(
+                        Arrays.<TimingData>asList(
+                                automatic(
+                                        1L,
+                                        "RT-A-0001",
+                                        Instant.parse("2026-10-13T12:00:20Z"),
+                                        TimingData.RegistrationAction.ADD),
+                                automatic(
+                                        2L,
+                                        "RT-A-0002",
+                                        Instant.parse("2026-10-13T12:00:10Z"),
+                                        TimingData.RegistrationAction.ADD)),
+                        ZoneOffset.UTC);
+
+        assertEquals(2, ranking.size());
+        assertEquals(1, ranking.get(0).rank());
+        assertEquals(new TeamId("0002"), ranking.get(0).teamId());
+        assertEquals(Duration.ofSeconds(10), ranking.get(0).elapsed());
+        assertEquals(2, ranking.get(1).rank());
+        assertEquals(new TeamId("0001"), ranking.get(1).teamId());
+        assertEquals(Duration.ofSeconds(20), ranking.get(1).elapsed());
+    }
+
+    @Test
+    public void equalElapsedTimesShareRank() {
+        Fixture fixture = fixture();
+        fixture.setStart("0001", LocalTime.NOON, null);
+        fixture.setStart("0002", LocalTime.NOON, null);
+
+        List<StageTime> ranking =
+                fixture.stageTiming.ranking(
+                        Arrays.<TimingData>asList(
+                                automatic(
+                                        1L,
+                                        "RT-A-0001",
+                                        Instant.parse("2026-10-13T12:00:10Z"),
+                                        TimingData.RegistrationAction.ADD),
+                                automatic(
+                                        2L,
+                                        "RT-A-0002",
+                                        Instant.parse("2026-10-13T12:00:10Z"),
+                                        TimingData.RegistrationAction.ADD)),
+                        ZoneOffset.UTC);
+
+        assertEquals(1, ranking.get(0).rank());
+        assertEquals(1, ranking.get(1).rank());
+    }
+
+    @Test
     public void timeOnlyStartUsesPreviousCivilDayAcrossMidnight() {
         Fixture fixture = fixture();
         fixture.setStart(
@@ -48,22 +101,18 @@ public class StageTimingTest {
                 LocalTime.of(23, 59, 50),
                 null);
 
-        StageTiming result =
-                fixture.stageTiming.calculate(
-                        automatic(
-                                1L,
-                                "RT-A-0001",
-                                Instant.parse("2026-10-13T22:00:10Z"),
-                                TimingData.RegistrationAction.ADD),
+        List<StageTime> ranking =
+                fixture.stageTiming.ranking(
+                        Collections.<TimingData>singletonList(
+                                automatic(
+                                        1L,
+                                        "RT-A-0001",
+                                        Instant.parse("2026-10-13T22:00:10Z"),
+                                        TimingData.RegistrationAction.ADD)),
                         ZoneId.of("Europe/Amsterdam"));
 
-        assertSame(StageTimingStatus.RESOLVED, result.status());
-        assertTrue(result.resolved());
-        assertEquals(new TeamId("0001"), result.teamId());
-        assertEquals(
-                Instant.parse("2026-10-13T21:59:50Z"),
-                result.start().instant());
-        assertEquals(Duration.ofSeconds(20), result.elapsed());
+        assertEquals(1, ranking.size());
+        assertEquals(Duration.ofSeconds(20), ranking.get(0).elapsed());
     }
 
     @Test
@@ -74,148 +123,91 @@ public class StageTimingTest {
                 LocalTime.of(23, 59, 50),
                 LocalDate.of(2026, 10, 13));
 
-        StageTiming result =
-                fixture.stageTiming.calculate(
-                        automatic(
-                                1L,
-                                "RT-A-0001",
-                                Instant.parse("2026-10-13T22:00:10Z"),
-                                TimingData.RegistrationAction.ADD),
+        List<StageTime> ranking =
+                fixture.stageTiming.ranking(
+                        Collections.<TimingData>singletonList(
+                                automatic(
+                                        1L,
+                                        "RT-A-0001",
+                                        Instant.parse("2026-10-13T22:00:10Z"),
+                                        TimingData.RegistrationAction.ADD)),
                         ZoneId.of("Europe/Amsterdam"));
 
-        assertSame(StageTimingStatus.RESOLVED, result.status());
-        assertEquals(
-                Instant.parse("2026-10-13T21:59:50Z"),
-                result.start().instant());
-        assertEquals(Duration.ofSeconds(20), result.elapsed());
+        assertEquals(Duration.ofSeconds(20), ranking.get(0).elapsed());
     }
 
     @Test
-    public void activeTeamAssignmentIsFallbackWhenEventDataHasNoTeam() {
+    public void liveTeamAssignmentResolvesReserveRegistration() {
         Fixture fixture = fixture();
         fixture.assignTeam(
                 "RT-R-0001",
                 "0042");
         fixture.setStart(
                 "0042",
-                LocalTime.of(12, 0),
+                LocalTime.NOON,
                 null);
 
-        StageTiming result =
-                fixture.stageTiming.calculate(
-                        automatic(
-                                1L,
-                                "RT-R-0001",
-                                Instant.parse("2026-10-13T12:00:30Z"),
-                                TimingData.RegistrationAction.ADD),
+        List<StageTime> ranking =
+                fixture.stageTiming.ranking(
+                        Collections.<TimingData>singletonList(
+                                automatic(
+                                        1L,
+                                        "RT-R-0001",
+                                        Instant.parse("2026-10-13T12:00:30Z"),
+                                        TimingData.RegistrationAction.ADD)),
                         ZoneOffset.UTC);
 
-        assertSame(StageTimingStatus.RESOLVED, result.status());
-        assertEquals(new TeamId("0042"), result.teamId());
-        assertEquals(Duration.ofSeconds(30), result.elapsed());
-    }
-
-    @Test
-    public void manualRegistrationUsesSameStageTimingSemantics() {
-        Fixture fixture = fixture();
-        fixture.setStart(
-                "0001",
-                LocalTime.of(12, 0),
-                null);
-
-        TimingData record =
-                FACTORY.createManualRegistration(
-                        context(
-                                1L,
-                                Instant.parse("2026-10-13T12:00:15Z")),
-                        new RegistrationId("RT-A-0001"),
-                        TimingData.ManualTimeSource.OPERATOR_ENTERED);
-
-        StageTiming result =
-                fixture.stageTiming.calculate(
-                        record,
-                        ZoneOffset.UTC);
-
-        assertSame(StageTimingStatus.RESOLVED, result.status());
-        assertEquals(Duration.ofSeconds(15), result.elapsed());
-    }
-
-    @Test
-    public void missingTeamAndStartAreExplicitlyUnresolved() {
-        Fixture fixture = fixture();
-
-        StageTiming missingTeam =
-                fixture.stageTiming.calculate(
-                        automatic(
-                                1L,
-                                "RT-R-0001",
-                                Instant.parse("2026-10-13T12:00:00Z"),
-                                TimingData.RegistrationAction.ADD),
-                        ZoneOffset.UTC);
-
-        assertSame(
-                StageTimingStatus.TEAM_UNRESOLVED,
-                missingTeam.status());
-        assertFalse(missingTeam.resolved());
+        assertEquals(1, ranking.size());
+        assertEquals(new TeamId("0042"), ranking.get(0).teamId());
         assertEquals(
                 new RegistrationId("RT-R-0001"),
-                missingTeam.registrationId());
-        assertNull(missingTeam.teamId());
-
-        StageTiming missingStart =
-                fixture.stageTiming.calculate(
-                        automatic(
-                                2L,
-                                "RT-A-0001",
-                                Instant.parse("2026-10-13T12:00:00Z"),
-                                TimingData.RegistrationAction.ADD),
-                        ZoneOffset.UTC);
-
-        assertSame(
-                StageTimingStatus.START_UNRESOLVED,
-                missingStart.status());
-        assertEquals(new TeamId("0001"), missingStart.teamId());
-        assertNull(missingStart.elapsed());
+                ranking.get(0).registrationId());
+        assertEquals(Duration.ofSeconds(30), ranking.get(0).elapsed());
     }
 
     @Test
-    public void revokeAndLifecycleRecordsAreNotActiveStagePassages() {
+    public void lifecycleRevokedAndUnresolvedInputDoNotBecomeRankingRows() {
         Fixture fixture = fixture();
-        fixture.setStart(
-                "0001",
-                LocalTime.of(12, 0),
-                null);
+        fixture.setStart("0001", LocalTime.NOON, null);
 
-        StageTiming revoked =
-                fixture.stageTiming.calculate(
-                        automatic(
-                                1L,
-                                "RT-A-0001",
-                                Instant.parse("2026-10-13T12:00:10Z"),
-                                TimingData.RegistrationAction.REV),
-                        ZoneOffset.UTC);
-
-        assertSame(StageTimingStatus.REVOKED, revoked.status());
-        assertNull(revoked.elapsed());
-
-        TimingData open =
+        TimingData add =
+                automatic(
+                        1L,
+                        "RT-A-0001",
+                        Instant.parse("2026-10-13T12:00:10Z"),
+                        TimingData.RegistrationAction.ADD);
+        TimingData lifecycle =
                 FACTORY.createNodeOpen(
                         context(
                                 2L,
                                 Instant.parse("2026-10-13T12:00:00Z")));
+        TimingData revoke =
+                automatic(
+                        3L,
+                        "RT-A-0001",
+                        Instant.parse("2026-10-13T12:00:10Z"),
+                        TimingData.RegistrationAction.REV);
+        TimingData unresolved =
+                automatic(
+                        4L,
+                        "RT-R-0001",
+                        Instant.parse("2026-10-13T12:00:15Z"),
+                        TimingData.RegistrationAction.ADD);
 
-        StageTiming lifecycle =
-                fixture.stageTiming.calculate(
-                        open,
+        List<StageTime> ranking =
+                fixture.stageTiming.ranking(
+                        Arrays.asList(
+                                add,
+                                lifecycle,
+                                revoke,
+                                unresolved),
                         ZoneOffset.UTC);
 
-        assertSame(
-                StageTimingStatus.NOT_REGISTRATION,
-                lifecycle.status());
+        assertTrue(ranking.isEmpty());
     }
 
     @Test
-    public void currentStartStateRecalculatesWithoutChangingTimingData() {
+    public void currentStartStateRecalculatesRankingWithoutChangingTimingData() {
         Fixture fixture = fixture();
         TimingData record =
                 automatic(
@@ -226,24 +218,24 @@ public class StageTimingTest {
 
         fixture.setStart(
                 "0001",
-                LocalTime.of(12, 0),
+                LocalTime.NOON,
                 null);
-        StageTiming first =
-                fixture.stageTiming.calculate(
-                        record,
+        List<StageTime> first =
+                fixture.stageTiming.ranking(
+                        Collections.singletonList(record),
                         ZoneOffset.UTC);
 
         fixture.setStart(
                 "0001",
                 LocalTime.of(12, 0, 30),
                 null);
-        StageTiming second =
-                fixture.stageTiming.calculate(
-                        record,
+        List<StageTime> second =
+                fixture.stageTiming.ranking(
+                        Collections.singletonList(record),
                         ZoneOffset.UTC);
 
-        assertEquals(Duration.ofSeconds(60), first.elapsed());
-        assertEquals(Duration.ofSeconds(30), second.elapsed());
+        assertEquals(Duration.ofSeconds(60), first.get(0).elapsed());
+        assertEquals(Duration.ofSeconds(30), second.get(0).elapsed());
         assertEquals(1L, record.sequenceNumber());
         assertEquals(
                 Instant.parse("2026-10-13T12:01:00Z"),
@@ -251,7 +243,7 @@ public class StageTimingTest {
     }
 
     @Test
-    public void nodeQueryUsesCommittedLogBookAndCurrentUpstreamData()
+    public void nodeQueryReturnsCurrentRankingFromCommittedLogBook()
             throws Exception {
         TimingData committed =
                 automatic(
@@ -278,25 +270,17 @@ public class StageTimingTest {
                                     Collections.singletonList(
                                             DefaultUpstreamData.stageStartSet(
                                                     "0001",
-                                                    LocalTime.of(12, 0)))));
+                                                    LocalTime.NOON))));
 
-            StageTiming resolved =
+            List<StageTime> ranking =
                     node.query(
                             TimingNodeQueries.stageTiming(
-                                    1L,
-                                    ZoneOffset.UTC));
-            StageTiming missing =
-                    node.query(
-                            TimingNodeQueries.stageTiming(
-                                    2L,
                                     ZoneOffset.UTC));
 
-            assertSame(StageTimingStatus.RESOLVED, resolved.status());
-            assertEquals(Duration.ofSeconds(20), resolved.elapsed());
-            assertSame(
-                    StageTimingStatus.TIMING_DATA_NOT_FOUND,
-                    missing.status());
-            assertEquals(2L, missing.sequenceNumber());
+            assertEquals(1, ranking.size());
+            assertEquals(1, ranking.get(0).rank());
+            assertEquals(new TeamId("0001"), ranking.get(0).teamId());
+            assertEquals(Duration.ofSeconds(20), ranking.get(0).elapsed());
         } finally {
             node.deactivate();
         }
@@ -335,8 +319,8 @@ public class StageTimingTest {
                 new TeamAssignments();
         private final StageStartTimes stageStartTimes =
                 new StageStartTimes();
-        private final StageTimingCalculator stageTiming =
-                new StageTimingCalculator(
+        private final StageTiming stageTiming =
+                new StageTiming(
                         new DefaultEventData(),
                         teamAssignments,
                         stageStartTimes);
