@@ -4,14 +4,14 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
-import io.github.brainboxemb.eventtiming.eventdata.TeamId;
-import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory.Context;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.logbook.LogBook;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.StageStartTimes;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TeamAssignments;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
@@ -21,7 +21,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ProblemCode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ProblemSeverity;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RaceDataApplyResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 
@@ -30,7 +29,6 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 
 import org.slf4j.Logger;
@@ -52,14 +50,11 @@ final class TimingNodeLogic {
     private final TimingDataPersistence timingDataPersistence;
     private final TimingDataFactory timingDataFactory;
     private final TimeSource timeSource;
-    private final EventData eventData;
     private final MonotonicClock monotonicClock;
     private final TimingNodeMetrics metrics;
-    private final ReserveTagMap reserveTagMap = new ReserveTagMap();
+    private final TeamAssignments teamAssignments = new TeamAssignments();
     private final StageStartTimes stageStartTimes = new StageStartTimes();
     private final StageTiming stageTiming;
-
-    private long lastAppliedRaceDataSequence;
 
     private State state = State.CLOSED;
     private LocationId locationId;
@@ -134,14 +129,13 @@ final class TimingNodeLogic {
         this.timingDataPersistence = timingDataPersistence;
         this.timingDataFactory = timingDataFactory;
         this.timeSource = timeSource;
-        this.eventData = eventData;
         this.monotonicClock = monotonicClock;
         this.metrics = metrics;
         this.logBook = new LogBook(timingNodeId);
         this.stageTiming =
                 new StageTiming(
                         eventData,
-                        reserveTagMap,
+                        teamAssignments,
                         stageStartTimes);
     }
 
@@ -153,129 +147,12 @@ final class TimingNodeLogic {
         return metrics;
     }
 
-    RaceDataApplyResult applyRaceData(
-            UpstreamData.RaceData raceData) {
-        if (raceData == null) {
-            throw new IllegalArgumentException(
-                    "raceData must not be null");
-        }
-
-        long receivedSequence = raceData.sequence();
-        if (receivedSequence < 1L
-                || receivedSequence > TimingData.MAX_SEQUENCE_NUMBER) {
-            return RaceDataApplyResult.rejected(
-                    receivedSequence,
-                    lastAppliedRaceDataSequence,
-                    "RACE_DATA sequence is outside the supported range");
-        }
-
-        if (!timingNodeId.equals(raceData.timingNodeId())) {
-            return RaceDataApplyResult.rejected(
-                    receivedSequence,
-                    lastAppliedRaceDataSequence,
-                    "RACE_DATA NodeId does not match TimingNode");
-        }
-
-        if (receivedSequence <= lastAppliedRaceDataSequence) {
-            return RaceDataApplyResult.duplicate(
-                    receivedSequence,
-                    lastAppliedRaceDataSequence);
-        }
-
-        long expectedSequence =
-                lastAppliedRaceDataSequence + 1L;
-        if (receivedSequence != expectedSequence) {
-            return RaceDataApplyResult.gap(
-                    receivedSequence,
-                    lastAppliedRaceDataSequence,
-                    expectedSequence);
-        }
-
-        if (raceData.reserveTagMapChanges() == null
-                || raceData.stageStartTimeChanges() == null) {
-            return RaceDataApplyResult.rejected(
-                    receivedSequence,
-                    lastAppliedRaceDataSequence,
-                    "RACE_DATA change lists must not be null");
-        }
-
-        for (UpstreamData.ReserveTagMapChange change
-                : raceData.reserveTagMapChanges()) {
-            if (change == null) {
-                return RaceDataApplyResult.rejected(
-                        receivedSequence,
-                        lastAppliedRaceDataSequence,
-                        "reserveTagMap change must not be null");
-            }
-            if (change.operation()
-                    == UpstreamData.ChangeOperation.SET) {
-                TeamId stableTeamId =
-                        eventData.teamIdFor(
-                                change.registrationId());
-                if (stableTeamId != null) {
-                    return RaceDataApplyResult.rejected(
-                            receivedSequence,
-                            lastAppliedRaceDataSequence,
-                            "reserveTagMap cannot override stable EventData TeamId for "
-                                    + change.registrationId());
-                }
-            }
-        }
-
-        final Map<RegistrationId, TeamId> reserveCandidate;
-        final Map<TeamId, StageStartTimes.StartDefinition> startsCandidate;
-        try {
-            reserveCandidate =
-                    reserveTagMap.candidateAfter(
-                            raceData.reserveTagMapChanges());
-            startsCandidate =
-                    stageStartTimes.candidateAfter(
-                            raceData.stageStartTimeChanges());
-        } catch (IllegalArgumentException ex) {
-            return RaceDataApplyResult.rejected(
-                    receivedSequence,
-                    lastAppliedRaceDataSequence,
-                    ex.getMessage());
-        }
-
-        reserveTagMap.replaceWith(
-                reserveCandidate);
-        stageStartTimes.replaceWith(
-                startsCandidate);
-        lastAppliedRaceDataSequence =
-                receivedSequence;
-
-        return RaceDataApplyResult.applied(
-                receivedSequence);
+    TeamAssignments teamAssignments() {
+        return teamAssignments;
     }
 
-    long raceDataAppliedSequence() {
-        return lastAppliedRaceDataSequence;
-    }
-
-    TeamId teamIdFor(
-            RegistrationId registrationId) {
-        if (registrationId == null) {
-            throw new IllegalArgumentException(
-                    "registrationId must not be null");
-        }
-        TeamId stable =
-                eventData.teamIdFor(
-                        registrationId);
-        return stable != null
-                ? stable
-                : reserveTagMap.teamIdFor(
-                        registrationId);
-    }
-
-    StageStartTimes.StartDefinition stageStartTimeFor(
-            TeamId teamId) {
-        if (teamId == null) {
-            throw new IllegalArgumentException(
-                    "teamId must not be null");
-        }
-        return stageStartTimes.startFor(
-                teamId);
+    StageStartTimes stageStartTimes() {
+        return stageStartTimes;
     }
 
     StageTiming.Result stageTiming(
