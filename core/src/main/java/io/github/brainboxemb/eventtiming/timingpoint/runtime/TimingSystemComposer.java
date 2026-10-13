@@ -112,7 +112,8 @@ final class TimingSystemComposer {
                     timeSource,
                     configuration.timingNode(nodeConfig.timingNodeId()).tagProcessing(),
                     system.eventData(),
-                    nodeExecutors.timingNode(),
+                    nodeExecutors.dataLane(),
+                    nodeExecutors.taskLane(),
                     nodeExecutors.tagProcessor(),
                     platform.monotonicClock());
             nodes.add(node);

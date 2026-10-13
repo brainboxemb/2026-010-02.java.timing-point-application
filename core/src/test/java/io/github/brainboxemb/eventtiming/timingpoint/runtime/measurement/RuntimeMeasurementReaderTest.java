@@ -49,10 +49,15 @@ public class RuntimeMeasurementReaderTest {
         tagWorker.setRemoveOnCancelPolicy(
                 true);
 
-        SerialExecutor nodeLane =
+        SerialExecutor dataLane =
                 new SerialExecutor(
                         8,
-                        "measurement-node",
+                        "measurement-node-data",
+                        nodeWorker);
+        SerialExecutor taskLane =
+                new SerialExecutor(
+                        8,
+                        "measurement-node-task",
                         nodeWorker);
         SerialScheduledExecutor tagLane =
                 new SerialScheduledExecutor(
@@ -77,7 +82,8 @@ public class RuntimeMeasurementReaderTest {
                         ReadOnlyConfiguration.fixed(
                                 TagProcessingPolicy.defaults()),
                         EventData.empty(),
-                        nodeLane,
+                        dataLane,
+                        taskLane,
                         tagLane,
                         SystemMonotonicClock.INSTANCE,
                         nodeMetrics,
@@ -85,7 +91,7 @@ public class RuntimeMeasurementReaderTest {
 
         RuntimeMeasurementReader reader =
                 new RuntimeMeasurementReader(
-                        nodeLane.metrics(),
+                        dataLane.metrics(),
                         nodeMetrics,
                         tagMetrics);
 

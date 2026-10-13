@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Introduce distinct bounded TimingNode Data and Task `SerialExecutor` lanes on the same Runtime-owned physical node worker; current mutable node/upstream state deliberately remains on the Data Lane until explicit asynchronous cross-lane handoffs are implemented.
+
 - Organize Platform execution classes into `execution.tasks`, `execution.executors` and `execution.taskrunners`; update all Java imports and package-local tests without changing lane behaviour. Package names are changed for Java consumers.
 
 - Restore clear BentoFX tab affordance: the strip has its own surface, every tab has a raised fill plus subtle separator, selected tabs use a dedicated light selection fill (#dbeaf9), and only the active leaf adds the accent underline.

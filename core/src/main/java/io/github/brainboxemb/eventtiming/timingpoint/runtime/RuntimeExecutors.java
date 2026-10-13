@@ -25,7 +25,8 @@ import java.util.concurrent.TimeUnit;
  * and progress never depend on priority.</p>
  */
 final class RuntimeExecutors implements AutoCloseable {
-    static final int TIMING_NODE_QUEUE_CAPACITY = 32;
+    static final int TIMING_NODE_DATA_QUEUE_CAPACITY = 32;
+    static final int TIMING_NODE_TASK_QUEUE_CAPACITY = 32;
     static final int TAG_PROCESSOR_LANE_QUEUE_CAPACITY = 32;
     static final int ANTENNA_CONTROL_QUEUE_CAPACITY = 8;
     static final int SIMULATION_QUEUE_CAPACITY = 32;
@@ -40,18 +41,25 @@ final class RuntimeExecutors implements AutoCloseable {
     private static final int SHARED_IO_WORKERS = 1;
 
     static final class TimingNodeExecutors {
-        private final SerialExecutor timingNode;
+        private final SerialExecutor dataLane;
+        private final SerialExecutor taskLane;
         private final SerialScheduledExecutor tagProcessor;
 
         private TimingNodeExecutors(
-                SerialExecutor timingNode,
+                SerialExecutor dataLane,
+                SerialExecutor taskLane,
                 SerialScheduledExecutor tagProcessor) {
-            this.timingNode = timingNode;
+            this.dataLane = dataLane;
+            this.taskLane = taskLane;
             this.tagProcessor = tagProcessor;
         }
 
-        SerialExecutor timingNode() {
-            return timingNode;
+        SerialExecutor dataLane() {
+            return dataLane;
+        }
+
+        SerialExecutor taskLane() {
+            return taskLane;
         }
 
         SerialScheduledExecutor tagProcessor() {
@@ -147,17 +155,22 @@ final class RuntimeExecutors implements AutoCloseable {
     }
 
     /**
-     * Creates one node-local pair of logical serial lanes on the two shared
-     * Domain role workers.
+     * Creates one node-local set of logical lanes on shared Runtime workers.
      *
-     * <p>Runtime execution knows the functional roles, not Domain identities.
-     * Every invocation returns distinct lane objects, while all returned lanes
-     * use the same role workers.</p>
+     * <p>The Data Lane and Task Lane are distinct SerialExecutor instances with
+     * independent bounded queues and FIFO ordering, but they deliberately share
+     * the same physical node worker. TagProcessor keeps its separately scheduled
+     * role worker. Logical responsibility therefore does not imply another
+     * Java thread.</p>
      */
     synchronized TimingNodeExecutors createTimingNodeExecutors() {
-        SerialExecutor timingNode = new SerialExecutor(
-                TIMING_NODE_QUEUE_CAPACITY,
-                "TimingNode",
+        SerialExecutor dataLane = new SerialExecutor(
+                TIMING_NODE_DATA_QUEUE_CAPACITY,
+                "TimingNodeData",
+                timingNodeWorker);
+        SerialExecutor taskLane = new SerialExecutor(
+                TIMING_NODE_TASK_QUEUE_CAPACITY,
+                "TimingNodeTask",
                 timingNodeWorker);
 
         SerialScheduledExecutor tagProcessor =
@@ -166,10 +179,12 @@ final class RuntimeExecutors implements AutoCloseable {
                         "TagProcessor",
                         tagProcessorWorker);
 
-        serialLanes.add(timingNode);
+        serialLanes.add(dataLane);
+        serialLanes.add(taskLane);
         serialLanes.add(tagProcessor);
         return new TimingNodeExecutors(
-                timingNode,
+                dataLane,
+                taskLane,
                 tagProcessor);
     }
 

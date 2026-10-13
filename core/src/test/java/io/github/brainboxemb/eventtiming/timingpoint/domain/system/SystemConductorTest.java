@@ -253,6 +253,8 @@ public class SystemConductorTest {
     }
 
     private TimingNode newTimingNode(String id) {
+        ExecutorService nodeWorker =
+                newWorker("conductor-node-worker");
         return new TimingNode(
                 new NodeId(id),
                 new NoOpPersistence(),
@@ -260,13 +262,25 @@ public class SystemConductorTest {
                 SystemConductorTest::now,
                 ReadOnlyConfiguration.fixed(TagProcessingPolicy.defaults()),
                 EventData.empty(),
-                new SerialExecutor(8, "conductor-node-test", newWorker("conductor-node-test")),
-                new SerialScheduledExecutor(8, "conductor-tag-test", newScheduledWorker("conductor-tag-test")));
+                new SerialExecutor(
+                        8,
+                        "conductor-node-data",
+                        nodeWorker),
+                new SerialExecutor(
+                        8,
+                        "conductor-node-task",
+                        nodeWorker),
+                new SerialScheduledExecutor(
+                        8,
+                        "conductor-tag-test",
+                        newScheduledWorker("conductor-tag-test")));
     }
 
     private TimingNode newTimingNode(
             String id,
             TimingDataPersistence persistence) {
+        ExecutorService nodeWorker =
+                newWorker("conductor-node-startup-worker");
         return new TimingNode(
                 new NodeId(id),
                 persistence,
@@ -276,8 +290,12 @@ public class SystemConductorTest {
                 EventData.empty(),
                 new SerialExecutor(
                         8,
-                        "conductor-node-startup-test",
-                        newWorker("conductor-node-startup-worker")),
+                        "conductor-node-startup-data",
+                        nodeWorker),
+                new SerialExecutor(
+                        8,
+                        "conductor-node-startup-task",
+                        nodeWorker),
                 new SerialScheduledExecutor(
                         8,
                         "conductor-tag-startup-test",
