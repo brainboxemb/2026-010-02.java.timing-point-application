@@ -10,6 +10,7 @@ import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpst
 
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 
 import org.junit.Test;
 
@@ -21,6 +22,40 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class UpstreamMessagePortTest {
+
+    @Test
+    public void genericHandleOwnsRaceDataAckSemantics() {
+        TimingNode node = node("A");
+        node.activate();
+        try {
+            UpstreamMessagePort port =
+                    node.upstreamMessagePort();
+
+            List<UpstreamData> responses =
+                    port.handle(
+                            DefaultUpstreamData.raceData(
+                                    new NodeId("A"),
+                                    1L,
+                                    Collections.singletonList(
+                                            DefaultUpstreamData.teamAssignmentSet(
+                                                    "RT-R-0001",
+                                                    "0042")),
+                                    Collections.<UpstreamData.StageStartTimeChange>emptyList()));
+
+            assertEquals(
+                    1,
+                    responses.size());
+            assertTrue(
+                    responses.get(0)
+                            instanceof UpstreamData.Ack);
+            assertEquals(
+                    1L,
+                    ((UpstreamData.Ack) responses.get(0))
+                            .sequence());
+        } finally {
+            node.deactivate();
+        }
+    }
 
     @Test
     public void heartbeatTickIsNodeScopedAndTracksMissedIntervals() {

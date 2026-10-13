@@ -11,18 +11,19 @@ import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpst
 
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class UpstreamMessageRouterTest {
 
     @Test
-    public void appliedRaceDataReturnsAckForAppliedSequence() {
+    public void raceDataIsDispatchedToOwningNode() {
         TimingNode node = node("A");
         node.activate();
         try {
@@ -30,31 +31,27 @@ public class UpstreamMessageRouterTest {
                     new UpstreamMessageRouter(
                             nodes(node));
 
-            UpstreamMessageRouter.Result result =
+            List<UpstreamData> responses =
                     router.route(
-                            DefaultUpstreamData.raceData(
-                                    new NodeId("A"),
-                                    1L,
-                                    Collections.singletonList(
-                                            DefaultUpstreamData.teamAssignmentSet(
-                                                    "RT-R-0001",
-                                                    "0042")),
-                                    Collections.<UpstreamData.StageStartTimeChange>emptyList()));
+                            raceData(
+                                    "A",
+                                    1L));
 
-            assertSame(
-                    UpstreamMessageRouter.Outcome.APPLIED,
-                    result.outcome());
-            assertNull(result.message());
+            assertEquals(
+                    1,
+                    responses.size());
             assertTrue(
-                    result.controlResponse()
+                    responses.get(0)
                             instanceof UpstreamData.Ack);
 
             UpstreamData.Ack ack =
-                    (UpstreamData.Ack) result.controlResponse();
+                    (UpstreamData.Ack) responses.get(0);
             assertSame(
                     UpstreamData.Stream.RACE_DATA,
                     ack.stream());
-            assertEquals(1L, ack.sequence());
+            assertEquals(
+                    1L,
+                    ack.sequence());
             assertEquals(
                     new NodeId("A"),
                     ack.timingNodeId());
@@ -64,7 +61,7 @@ public class UpstreamMessageRouterTest {
     }
 
     @Test
-    public void gapReturnsRaceDataReqFromFirstMissingSequence() {
+    public void raceDataGapResponseComesFromNodePort() {
         TimingNode node = node("A");
         node.activate();
         try {
@@ -72,74 +69,64 @@ public class UpstreamMessageRouterTest {
                     new UpstreamMessageRouter(
                             nodes(node));
 
-            UpstreamMessageRouter.Result result =
+            List<UpstreamData> responses =
                     router.route(
-                            DefaultUpstreamData.raceData(
-                                    new NodeId("A"),
-                                    2L,
-                                    Collections.singletonList(
-                                            DefaultUpstreamData.teamAssignmentSet(
-                                                    "RT-R-0001",
-                                                    "0042")),
-                                    Collections.<UpstreamData.StageStartTimeChange>emptyList()));
+                            raceData(
+                                    "A",
+                                    2L));
 
-            assertSame(
-                    UpstreamMessageRouter.Outcome.GAP,
-                    result.outcome());
+            assertEquals(
+                    1,
+                    responses.size());
             assertTrue(
-                    result.controlResponse()
+                    responses.get(0)
                             instanceof UpstreamData.Req);
 
             UpstreamData.Req req =
-                    (UpstreamData.Req) result.controlResponse();
+                    (UpstreamData.Req) responses.get(0);
             assertSame(
                     UpstreamData.Stream.RACE_DATA,
                     req.stream());
-            assertEquals(1L, req.fromSequence());
             assertEquals(
-                    new NodeId("A"),
-                    req.timingNodeId());
+                    1L,
+                    req.fromSequence());
         } finally {
             node.deactivate();
         }
     }
 
     @Test
-    public void duplicateReturnsCumulativeAckWithoutReapply() {
+    public void duplicateRaceDataStillReturnsCumulativeAck() {
         TimingNode node = node("A");
         node.activate();
         try {
             UpstreamMessageRouter router =
                     new UpstreamMessageRouter(
                             nodes(node));
-
             UpstreamData.RaceData first =
-                    DefaultUpstreamData.raceData(
-                            new NodeId("A"),
-                            1L,
-                            Collections.singletonList(
-                                    DefaultUpstreamData.teamAssignmentSet(
-                                            "RT-R-0001",
-                                            "0042")),
-                            Collections.<UpstreamData.StageStartTimeChange>emptyList());
-            router.route(first);
+                    raceData(
+                            "A",
+                            1L);
 
-            UpstreamMessageRouter.Result duplicate =
+            router.route(first);
+            List<UpstreamData> responses =
                     router.route(first);
 
-            assertSame(
-                    UpstreamMessageRouter.Outcome.DUPLICATE,
-                    duplicate.outcome());
+            assertEquals(
+                    1,
+                    responses.size());
             UpstreamData.Ack ack =
-                    (UpstreamData.Ack) duplicate.controlResponse();
-            assertEquals(1L, ack.sequence());
+                    (UpstreamData.Ack) responses.get(0);
+            assertEquals(
+                    1L,
+                    ack.sequence());
         } finally {
             node.deactivate();
         }
     }
 
     @Test
-    public void unknownNodeDoesNotCreateControlResponse() {
+    public void pingIsDispatchedWithoutRouterProtocolLogic() {
         TimingNode node = node("A");
         node.activate();
         try {
@@ -147,49 +134,92 @@ public class UpstreamMessageRouterTest {
                     new UpstreamMessageRouter(
                             nodes(node));
 
-            UpstreamMessageRouter.Result result =
+            List<UpstreamData> responses =
                     router.route(
-                            DefaultUpstreamData.raceData(
-                                    new NodeId("B"),
-                                    1L,
-                                    Collections.singletonList(
-                                            DefaultUpstreamData.teamAssignmentSet(
-                                                    "RT-R-0001",
-                                                    "0042")),
-                                    Collections.<UpstreamData.StageStartTimeChange>emptyList()));
-
-            assertSame(
-                    UpstreamMessageRouter.Outcome.UNKNOWN_NODE,
-                    result.outcome());
-            assertNull(result.controlResponse());
-        } finally {
-            node.deactivate();
-        }
-    }
-
-    @Test
-    public void nonRaceDataFamilyIsDeferredToLaterStep7Activity() {
-        TimingNode node = node("A");
-        node.activate();
-        try {
-            UpstreamMessageRouter router =
-                    new UpstreamMessageRouter(
-                            nodes(node));
-
-            UpstreamMessageRouter.Result result =
-                    router.route(
-                            DefaultUpstreamData.sync(
+                            DefaultUpstreamData.ping(
                                     new NodeId("A"),
-                                    UpstreamData.Stream.TIMING_DATA,
-                                    0L));
+                                    UpstreamData.PingOperation.REQ,
+                                    UpstreamData.PingMode.HB,
+                                    "peer-42"));
 
+            assertEquals(
+                    1,
+                    responses.size());
+            UpstreamData.Ping answer =
+                    (UpstreamData.Ping) responses.get(0);
             assertSame(
-                    UpstreamMessageRouter.Outcome.UNSUPPORTED,
-                    result.outcome());
-            assertNull(result.controlResponse());
+                    UpstreamData.PingOperation.ANS,
+                    answer.operation());
+            assertEquals(
+                    "peer-42",
+                    answer.pingId());
         } finally {
             node.deactivate();
         }
+    }
+
+    @Test
+    public void unknownNodeFailsBeforeSemanticHandling() {
+        TimingNode node = node("A");
+        node.activate();
+        try {
+            UpstreamMessageRouter router =
+                    new UpstreamMessageRouter(
+                            nodes(node));
+
+            try {
+                router.route(
+                        raceData(
+                                "B",
+                                1L));
+                fail("expected unknown node");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(
+                        expected.getMessage()
+                                .contains("Unknown TimingNode"));
+            }
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
+    public void unsupportedFamilyIsA_nodePortConcern() {
+        TimingNode node = node("A");
+        node.activate();
+        try {
+            UpstreamMessageRouter router =
+                    new UpstreamMessageRouter(
+                            nodes(node));
+
+            try {
+                router.route(
+                        DefaultUpstreamData.sync(
+                                new NodeId("A"),
+                                UpstreamData.Stream.TIMING_DATA,
+                                0L));
+                fail("expected unsupported family");
+            } catch (UnsupportedOperationException expected) {
+                assertTrue(
+                        expected.getMessage()
+                                .contains("SYNC"));
+            }
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    private static UpstreamData.RaceData raceData(
+            String nodeId,
+            long sequence) {
+        return DefaultUpstreamData.raceData(
+                new NodeId(nodeId),
+                sequence,
+                Collections.singletonList(
+                        DefaultUpstreamData.teamAssignmentSet(
+                                "RT-R-0001",
+                                "0042")),
+                Collections.<UpstreamData.StageStartTimeChange>emptyList());
     }
 
     private static TimingNode node(String id) {
@@ -199,8 +229,10 @@ public class UpstreamMessageRouterTest {
                 () -> Instant.parse("2026-10-13T12:00:00Z"));
     }
 
-    private static TimingNodeList nodes(TimingNode node) {
-        return new TimingNodeList().add(node);
+    private static TimingNodeList nodes(
+            TimingNode node) {
+        return new TimingNodeList()
+                .add(node);
     }
 
     private static final class EmptyPersistence
@@ -214,7 +246,7 @@ public class UpstreamMessageRouterTest {
 
         @Override
         public void append(TimingData data) {
-            // RaceData tests do not commit TimingData.
+            // Router tests do not commit TimingData.
         }
     }
 }
