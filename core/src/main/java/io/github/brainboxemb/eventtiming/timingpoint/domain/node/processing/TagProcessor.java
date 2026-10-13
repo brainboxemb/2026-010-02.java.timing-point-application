@@ -10,7 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeComma
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
 
 import java.util.ArrayList;
 import java.util.Collections;
