@@ -271,7 +271,7 @@ public class StageTimingTest {
                             DefaultUpstreamData.raceData(
                                     NODE_ID,
                                     1L,
-                                    Collections.<UpstreamData.ReserveTagMapChange>emptyList(),
+                                    Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
                                     Collections.singletonList(
                                             DefaultUpstreamData.stageStartSet(
                                                     "0001",

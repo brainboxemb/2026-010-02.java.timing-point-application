@@ -14,7 +14,8 @@ import java.util.Objects;
  * Transport-independent IF-06 semantic message contract.
  *
  * <p>TimingData keeps its existing IF-05/LogBook source sequence. RaceData is
- * the independently ordered Central-System-to-TimingNode stream.</p>
+ * the independently ordered Central-System-to-TimingNode stream. All v1
+ * messages that describe or probe node state, including PING, are node-scoped.</p>
  */
 public interface UpstreamData {
 
@@ -60,7 +61,7 @@ public interface UpstreamData {
     interface RaceData extends NodeScoped {
         long sequence();
 
-        List<ReserveTagMapChange> reserveTagMapChanges();
+        List<TeamAssignmentChange> teamAssignmentChanges();
 
         List<StageStartTimeChange> stageStartTimeChanges();
     }
@@ -83,22 +84,29 @@ public interface UpstreamData {
         long fromSequence();
     }
 
-    interface Ping extends UpstreamData {
+    interface Ping extends NodeScoped {
         PingOperation operation();
 
         /** Null denotes the normal/manual form without a mode field. */
         PingMode mode();
 
-        /** Optional opaque reference correlation token. */
+        /** Optional opaque correlation token. */
         String pingId();
     }
 
-    final class ReserveTagMapChange {
+    /**
+     * One incremental active RegistrationId-to-TeamId assignment change.
+     *
+     * <p>This contract is intentionally generic. Whether a RegistrationId came
+     * from a historical "reserve tag" or another dynamically assigned source is
+     * not part of IF-06 semantics.</p>
+     */
+    final class TeamAssignmentChange {
         private final ChangeOperation operation;
         private final RegistrationId registrationId;
         private final TeamId teamId;
 
-        public ReserveTagMapChange(
+        public TeamAssignmentChange(
                 ChangeOperation operation,
                 RegistrationId registrationId,
                 TeamId teamId) {
@@ -136,10 +144,11 @@ public interface UpstreamData {
             if (this == other) {
                 return true;
             }
-            if (!(other instanceof ReserveTagMapChange)) {
+            if (!(other instanceof TeamAssignmentChange)) {
                 return false;
             }
-            ReserveTagMapChange that = (ReserveTagMapChange) other;
+            TeamAssignmentChange that =
+                    (TeamAssignmentChange) other;
             return operation == that.operation
                     && registrationId.equals(that.registrationId)
                     && Objects.equals(teamId, that.teamId);
@@ -206,7 +215,8 @@ public interface UpstreamData {
             if (!(other instanceof StageStartTimeChange)) {
                 return false;
             }
-            StageStartTimeChange that = (StageStartTimeChange) other;
+            StageStartTimeChange that =
+                    (StageStartTimeChange) other;
             return operation == that.operation
                     && teamId.equals(that.teamId)
                     && Objects.equals(startTime, that.startTime)

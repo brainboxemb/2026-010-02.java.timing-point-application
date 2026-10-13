@@ -36,7 +36,7 @@ public class UpstreamMessageRouterTest {
                                     new NodeId("A"),
                                     1L,
                                     Collections.singletonList(
-                                            DefaultUpstreamData.reserveTagSet(
+                                            DefaultUpstreamData.teamAssignmentSet(
                                                     "RT-R-0001",
                                                     "0042")),
                                     Collections.<UpstreamData.StageStartTimeChange>emptyList()));
@@ -78,7 +78,7 @@ public class UpstreamMessageRouterTest {
                                     new NodeId("A"),
                                     2L,
                                     Collections.singletonList(
-                                            DefaultUpstreamData.reserveTagSet(
+                                            DefaultUpstreamData.teamAssignmentSet(
                                                     "RT-R-0001",
                                                     "0042")),
                                     Collections.<UpstreamData.StageStartTimeChange>emptyList()));
@@ -118,7 +118,7 @@ public class UpstreamMessageRouterTest {
                             new NodeId("A"),
                             1L,
                             Collections.singletonList(
-                                    DefaultUpstreamData.reserveTagSet(
+                                    DefaultUpstreamData.teamAssignmentSet(
                                             "RT-R-0001",
                                             "0042")),
                             Collections.<UpstreamData.StageStartTimeChange>emptyList());
@@ -153,7 +153,7 @@ public class UpstreamMessageRouterTest {
                                     new NodeId("B"),
                                     1L,
                                     Collections.singletonList(
-                                            DefaultUpstreamData.reserveTagSet(
+                                            DefaultUpstreamData.teamAssignmentSet(
                                                     "RT-R-0001",
                                                     "0042")),
                                     Collections.<UpstreamData.StageStartTimeChange>emptyList()));
