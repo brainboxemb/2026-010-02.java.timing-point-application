@@ -390,7 +390,16 @@ public final class TagProcessor {
              * unnecessary timed state.
              */
             observationFilter.discard(registrationId);
+
+            /*
+             * Publish the accepted-handoff metric before the empty passage
+             * snapshot. Engineering/characterization readers use an empty
+             * snapshot as the visible "filter settled" fact; they must not see
+             * that fact before admitted() includes this completed handoff.
+             */
+            metrics.recordAdmission(admission);
             publishPassageSnapshots();
+            return;
         }
 
         metrics.recordAdmission(admission);
