@@ -2,14 +2,20 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 import org.junit.Test;
 
@@ -17,6 +23,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class UpstreamMessagePortTest {
 
@@ -183,30 +190,496 @@ public class UpstreamMessagePortTest {
         }
     }
 
+    @Test
+    public void timingDataSyncAdvertisesEmptyAndCommittedSourceHead() {
+        InMemoryUpstreamStream emptyStream =
+                new InMemoryUpstreamStream();
+        InMemoryUpstreamStream populatedStream =
+                new InMemoryUpstreamStream();
+        TimingNode empty =
+                node(
+                        "A",
+                        emptyStream,
+                        Collections.<TimingData>emptyList());
+        TimingNode populated =
+                node(
+                        "B",
+                        populatedStream,
+                        timingData("B", 3));
+        empty.activate();
+        populated.activate();
+        try {
+            empty.upstreamMessagePort()
+                    .sendTimingDataSync();
+            populated.upstreamMessagePort()
+                    .sendTimingDataSync();
+
+            UpstreamData.Sync emptySync =
+                    (UpstreamData.Sync)
+                            emptyStream.takeSent();
+            UpstreamData.Sync populatedSync =
+                    (UpstreamData.Sync)
+                            populatedStream.takeSent();
+
+            assertSame(
+                    UpstreamData.Stream.TIMING_DATA,
+                    emptySync.stream());
+            assertEquals(0L, emptySync.sequence());
+            assertEquals(
+                    new NodeId("B"),
+                    populatedSync.timingNodeId());
+            assertEquals(3L, populatedSync.sequence());
+        } finally {
+            empty.deactivate();
+            populated.deactivate();
+        }
+    }
+
+    @Test
+    public void timingDataReqReplaysOriginalRecordsFromInclusiveSequence() {
+        List<TimingData> records =
+                timingData("A", 5);
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
+        TimingNode node =
+                node(
+                        "A",
+                        stream,
+                        records);
+        node.activate();
+        try {
+            stream.receive(
+                    DefaultUpstreamData.req(
+                            new NodeId("A"),
+                            UpstreamData.Stream.TIMING_DATA,
+                            3L));
+
+            assertTrue(
+                    node.upstreamMessagePort()
+                            .inputAvailable());
+
+            UpstreamData.TimingDataTransfer transfer =
+                    (UpstreamData.TimingDataTransfer)
+                            stream.takeSent();
+            assertEquals(3, transfer.records().size());
+            assertSame(
+                    records.get(2),
+                    transfer.records().get(0));
+            assertSame(
+                    records.get(4),
+                    transfer.records().get(2));
+            assertEquals(
+                    0,
+                    stream.sentCount());
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
+    public void timingDataReqUsesBoundedReplayBatches() {
+        List<TimingData> records =
+                timingData("A", 257);
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
+        TimingNode node =
+                node(
+                        "A",
+                        stream,
+                        records);
+        node.activate();
+        try {
+            stream.receive(
+                    DefaultUpstreamData.req(
+                            new NodeId("A"),
+                            UpstreamData.Stream.TIMING_DATA,
+                            1L));
+
+            assertTrue(
+                    node.upstreamMessagePort()
+                            .inputAvailable());
+
+            UpstreamData.TimingDataTransfer first =
+                    (UpstreamData.TimingDataTransfer)
+                            stream.takeSent();
+            UpstreamData.TimingDataTransfer second =
+                    (UpstreamData.TimingDataTransfer)
+                            stream.takeSent();
+
+            assertEquals(256, first.records().size());
+            assertEquals(
+                    1L,
+                    first.records().get(0).sequenceNumber());
+            assertEquals(
+                    256L,
+                    first.records().get(255).sequenceNumber());
+            assertEquals(1, second.records().size());
+            assertEquals(
+                    257L,
+                    second.records().get(0).sequenceNumber());
+            assertEquals(0, stream.sentCount());
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
+    public void timingDataReplayStopsAtCapturedHeadWhenLogBookGrowsBetweenBatches() {
+        List<TimingData> records =
+                timingData("A", 257);
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
+        TimingNode node =
+                node(
+                        "A",
+                        stream,
+                        records);
+        node.activate();
+        try {
+            stream.onNextSend(
+                    () -> assertSame(
+                            TimingNodeTypes.CommandAdmission.ACCEPTED,
+                            node.offer(
+                                    TimingNodeCommands.open(
+                                            new LocationId(24)))));
+
+            stream.receive(
+                    DefaultUpstreamData.req(
+                            new NodeId("A"),
+                            UpstreamData.Stream.TIMING_DATA,
+                            1L));
+
+            assertTrue(
+                    node.upstreamMessagePort()
+                            .inputAvailable());
+
+            UpstreamData.TimingDataTransfer first =
+                    (UpstreamData.TimingDataTransfer)
+                            stream.takeSent();
+            UpstreamData.TimingDataTransfer second =
+                    (UpstreamData.TimingDataTransfer)
+                            stream.takeSent();
+
+            assertEquals(256, first.records().size());
+            assertEquals(1, second.records().size());
+            assertEquals(
+                    257L,
+                    second.records().get(0).sequenceNumber());
+            assertEquals(
+                    258L,
+                    node.upstreamMessagePort()
+                            .timingDataHead());
+            assertEquals(0, stream.sentCount());
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
+    public void requestPastTimingDataHeadSendsNothing() {
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
+        TimingNode node =
+                node(
+                        "A",
+                        stream,
+                        timingData("A", 2));
+        node.activate();
+        try {
+            stream.receive(
+                    DefaultUpstreamData.req(
+                            new NodeId("A"),
+                            UpstreamData.Stream.TIMING_DATA,
+                            3L));
+
+            assertTrue(
+                    node.upstreamMessagePort()
+                            .inputAvailable());
+            assertEquals(0, stream.sentCount());
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
+    public void raceDataSyncAheadRequestsFirstMissingSequenceAndEqualIsQuiet() {
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
+        TimingNode node =
+                node("A", stream);
+        node.activate();
+        try {
+            stream.receive(
+                    DefaultUpstreamData.sync(
+                            new NodeId("A"),
+                            UpstreamData.Stream.RACE_DATA,
+                            2L));
+            assertTrue(
+                    node.upstreamMessagePort()
+                            .inputAvailable());
+
+            UpstreamData.Req req =
+                    (UpstreamData.Req)
+                            stream.takeSent();
+            assertSame(
+                    UpstreamData.Stream.RACE_DATA,
+                    req.stream());
+            assertEquals(1L, req.fromSequence());
+
+            stream.receive(
+                    DefaultUpstreamData.raceData(
+                            new NodeId("A"),
+                            1L,
+                            Collections.singletonList(
+                                    DefaultUpstreamData.teamAssignmentSet(
+                                            "RT-R-0001",
+                                            "0042")),
+                            Collections.<UpstreamData.StageStartTimeChange>emptyList()));
+            assertTrue(
+                    node.upstreamMessagePort()
+                            .inputAvailable());
+            stream.takeSent(); // cumulative RACE_DATA ACK
+
+            stream.receive(
+                    DefaultUpstreamData.sync(
+                            new NodeId("A"),
+                            UpstreamData.Stream.RACE_DATA,
+                            1L));
+            assertTrue(
+                    node.upstreamMessagePort()
+                            .inputAvailable());
+            assertEquals(0, stream.sentCount());
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
+    public void raceDataSyncBehindAppliedSequenceIsRejected() {
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
+        TimingNode node =
+                node("A", stream);
+        node.activate();
+        try {
+            UpstreamMessagePort port =
+                    node.upstreamMessagePort();
+
+            stream.receive(
+                    DefaultUpstreamData.raceData(
+                            new NodeId("A"),
+                            1L,
+                            Collections.singletonList(
+                                    DefaultUpstreamData.teamAssignmentSet(
+                                            "RT-R-0001",
+                                            "0042")),
+                            Collections.<UpstreamData.StageStartTimeChange>emptyList()));
+            assertTrue(port.inputAvailable());
+            stream.takeSent();
+
+            stream.receive(
+                    DefaultUpstreamData.sync(
+                            new NodeId("A"),
+                            UpstreamData.Stream.RACE_DATA,
+                            0L));
+
+            try {
+                /*
+                 * Call the package-private task turn directly so the semantic
+                 * exception is observable instead of being logged by the
+                 * fire-and-forget SerialExecutor path.
+                 */
+                port.processNextOnNodeLane();
+                fail("expected RACE_DATA source-head conflict");
+            } catch (IllegalStateException expected) {
+                assertTrue(
+                        expected.getMessage()
+                                .contains("behind"));
+            }
+            assertEquals(0, stream.sentCount());
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
+    public void wrongDirectionReqAndSyncAreRejected() {
+        InMemoryUpstreamStream stream =
+                new InMemoryUpstreamStream();
+        TimingNode node =
+                node("A", stream);
+        node.activate();
+        try {
+            UpstreamMessagePort port =
+                    node.upstreamMessagePort();
+
+            stream.receive(
+                    DefaultUpstreamData.req(
+                            new NodeId("A"),
+                            UpstreamData.Stream.RACE_DATA,
+                            1L));
+            try {
+                port.processNextOnNodeLane();
+                fail("expected unsupported REQ direction");
+            } catch (UnsupportedOperationException expected) {
+                assertTrue(
+                        expected.getMessage()
+                                .contains("TIMING_DATA"));
+            }
+
+            stream.receive(
+                    DefaultUpstreamData.sync(
+                            new NodeId("A"),
+                            UpstreamData.Stream.TIMING_DATA,
+                            0L));
+            try {
+                port.processNextOnNodeLane();
+                fail("expected unsupported SYNC direction");
+            } catch (UnsupportedOperationException expected) {
+                assertTrue(
+                        expected.getMessage()
+                                .contains("RACE_DATA"));
+            }
+            assertEquals(0, stream.sentCount());
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
+    public void timingDataReplayRemainsNodeScoped() {
+        InMemoryUpstreamStream streamA =
+                new InMemoryUpstreamStream();
+        InMemoryUpstreamStream streamB =
+                new InMemoryUpstreamStream();
+        List<TimingData> recordsA =
+                timingData("A", 2);
+        List<TimingData> recordsB =
+                timingData("B", 3);
+        TimingNode nodeA =
+                node("A", streamA, recordsA);
+        TimingNode nodeB =
+                node("B", streamB, recordsB);
+        nodeA.activate();
+        nodeB.activate();
+        try {
+            streamA.receive(
+                    DefaultUpstreamData.req(
+                            new NodeId("A"),
+                            UpstreamData.Stream.TIMING_DATA,
+                            1L));
+            assertTrue(
+                    nodeA.upstreamMessagePort()
+                            .inputAvailable());
+
+            UpstreamData.TimingDataTransfer transferA =
+                    (UpstreamData.TimingDataTransfer)
+                            streamA.takeSent();
+            assertEquals(2, transferA.records().size());
+            assertEquals(
+                    new NodeId("A"),
+                    transferA.timingNodeId());
+            assertEquals(0, streamB.sentCount());
+
+            streamB.receive(
+                    DefaultUpstreamData.req(
+                            new NodeId("B"),
+                            UpstreamData.Stream.TIMING_DATA,
+                            2L));
+            assertTrue(
+                    nodeB.upstreamMessagePort()
+                            .inputAvailable());
+
+            UpstreamData.TimingDataTransfer transferB =
+                    (UpstreamData.TimingDataTransfer)
+                            streamB.takeSent();
+            assertEquals(2, transferB.records().size());
+            assertEquals(
+                    new NodeId("B"),
+                    transferB.timingNodeId());
+        } finally {
+            nodeA.deactivate();
+            nodeB.deactivate();
+        }
+    }
+
     private static TimingNode node(
             String nodeId,
             UpstreamStream stream) {
+        return node(
+                nodeId,
+                stream,
+                Collections.<TimingData>emptyList());
+    }
+
+    private static TimingNode node(
+            String nodeId,
+            UpstreamStream stream,
+            List<TimingData> initialTimingData) {
         return new TimingNode(
                 new NodeId(nodeId),
-                new EmptyPersistence(),
+                new MemoryPersistence(initialTimingData),
                 new DefaultTimingDataFactory(),
                 () -> Instant.parse("2026-10-13T12:00:00Z"),
                 EventData.empty(),
                 stream);
     }
 
-    private static final class EmptyPersistence
+    private static List<TimingData> timingData(
+            String nodeId,
+            int count) {
+        DefaultTimingDataFactory factory =
+                new DefaultTimingDataFactory();
+        List<TimingData> records =
+                new ArrayList<TimingData>(
+                        count);
+        Instant base =
+                Instant.parse(
+                        "2026-10-13T12:00:00Z");
+
+        for (int index = 1;
+                index <= count;
+                index++) {
+            TimingTimestamp timestamp =
+                    new TimingTimestamp(
+                            base.plusMillis(index));
+            records.add(
+                    factory.createAutomaticRegistration(
+                            new TimingDataFactory.Context(
+                                    new NodeId(nodeId),
+                                    index,
+                                    new LocationId(1),
+                                    timestamp,
+                                    timestamp),
+                            new RegistrationId(
+                                    "RT-A-0001")));
+        }
+        return records;
+    }
+
+    private static final class MemoryPersistence
             implements TimingDataPersistence {
+        private final List<TimingData> records =
+                new ArrayList<TimingData>();
+
+        private MemoryPersistence(
+                List<TimingData> initialTimingData) {
+            records.addAll(
+                    initialTimingData);
+        }
+
         @Override
-        public LoadResult load() {
+        public synchronized LoadResult load() {
             return new LoadResult(
-                    Collections.<TimingData>emptyList(),
+                    new ArrayList<TimingData>(
+                            records),
                     false);
         }
 
         @Override
-        public void append(TimingData data) {
-            // Upstream-only tests do not commit TimingData.
+        public synchronized void append(
+                TimingData data) {
+            records.add(data);
         }
     }
 }

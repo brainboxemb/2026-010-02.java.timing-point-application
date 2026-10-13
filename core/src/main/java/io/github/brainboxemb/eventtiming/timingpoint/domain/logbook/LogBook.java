@@ -24,6 +24,13 @@ public final class LogBook {
         this.timingNodeId = timingNodeId;
     }
 
+    /** Returns the highest committed source sequence, or 0 when empty. */
+    public long headSequence() {
+        return records.isEmpty()
+                ? 0L
+                : records.get(records.size() - 1).sequenceNumber();
+    }
+
     /**
      * Returns the next sequence implied by committed state without consuming it.
      */

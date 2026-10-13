@@ -153,6 +153,10 @@ final class TimingNodeLogic {
         return metrics;
     }
 
+    LogBook logBook() {
+        return logBook;
+    }
+
     TeamAssignments teamAssignments() {
         return teamAssignments;
     }

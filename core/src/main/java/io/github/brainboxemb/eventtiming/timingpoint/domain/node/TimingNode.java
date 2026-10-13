@@ -323,6 +323,7 @@ public final class TimingNode {
                         this,
                         upstreamStream,
                         eventData,
+                        logic.logBook(),
                         logic.teamAssignments(),
                         logic.stageStartTimes(),
                         logic.uniqueTeamRegistrations());
@@ -402,6 +403,7 @@ public final class TimingNode {
                         this,
                         upstreamStream,
                         eventData,
+                        logic.logBook(),
                         logic.teamAssignments(),
                         logic.stageStartTimes(),
                         logic.uniqueTeamRegistrations());

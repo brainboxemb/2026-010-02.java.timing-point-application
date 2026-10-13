@@ -14,6 +14,7 @@ final class InMemoryUpstreamStream implements UpstreamStream {
     private final Queue<UpstreamData> outbound =
             new ArrayDeque<UpstreamData>();
     private boolean available = true;
+    private Runnable onNextSend;
 
     @Override
     public boolean isAvailable() {
@@ -43,6 +44,12 @@ final class InMemoryUpstreamStream implements UpstreamStream {
                     "message must not be null");
         }
         outbound.add(message);
+
+        Runnable action = onNextSend;
+        onNextSend = null;
+        if (action != null) {
+            action.run();
+        }
     }
 
     void receive(
@@ -61,6 +68,15 @@ final class InMemoryUpstreamStream implements UpstreamStream {
                     "no outbound UpstreamData available");
         }
         return data;
+    }
+
+    void onNextSend(
+            Runnable action) {
+        if (action == null) {
+            throw new IllegalArgumentException(
+                    "action must not be null");
+        }
+        onNextSend = action;
     }
 
     int sentCount() {
