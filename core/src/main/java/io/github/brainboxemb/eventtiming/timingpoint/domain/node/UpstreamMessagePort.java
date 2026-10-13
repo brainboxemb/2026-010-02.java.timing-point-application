@@ -264,6 +264,14 @@ public final class UpstreamMessagePort {
                 "upstreamHeartbeatStatus");
     }
 
+    private HeartbeatStatus heartbeatStatusOnNodeLane() {
+        return new HeartbeatStatus(
+                heartbeatRequestsSent,
+                heartbeatAnswersReceived,
+                heartbeatMissedIntervals,
+                heartbeatAnswerPending);
+    }
+
     private void heartbeatTickOnNodeLane() {
         if (!stream.isAvailable()) {
             return;
