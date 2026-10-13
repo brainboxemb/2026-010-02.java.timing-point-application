@@ -222,7 +222,11 @@ public final class TimingNode {
                         tagProcessor::onPolicyConfigurationChanged);
 
         this.upstreamMessagePort =
-                new UpstreamMessagePort(this);
+                new UpstreamMessagePort(
+                        this,
+                        eventData,
+                        logic.teamAssignments(),
+                        logic.stageStartTimes());
     }
 
     /**
@@ -282,7 +286,12 @@ public final class TimingNode {
         this.operationTimeoutMillis = operationTimeoutMillis;
         this.monotonicClock = monotonicClock;
         this.metrics = logic.metrics();
-        this.upstreamMessagePort = new UpstreamMessagePort(this);
+        this.upstreamMessagePort =
+                new UpstreamMessagePort(
+                        this,
+                        EventData.empty(),
+                        logic.teamAssignments(),
+                        logic.stageStartTimes());
     }
 
     public NodeId timingNodeId() {
@@ -684,6 +693,18 @@ public final class TimingNode {
                             + data.sequenceNumber(),
                     delivery.failures().get(0));
         }
+    }
+
+    <R> R runNodeTask(
+            Callable<R> task,
+            String operation) {
+        if (task == null) {
+            throw new IllegalArgumentException(
+                    "task must not be null");
+        }
+        return runSerialized(
+                task,
+                operation);
     }
 
     private <R> R runSerialized(Callable<R> work, String operation) {
