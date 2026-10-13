@@ -40,6 +40,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -441,12 +442,27 @@ final class RuntimeCharacterizationHarness
                 },
                 "burst processing to settle");
 
+        /*
+         * Metrics and published filter snapshots are deliberately non-blocking
+         * observations. A final TagProcessor callback may therefore still be
+         * completing when the settled predicate first becomes visible.
+         *
+         * Put a barrier behind all currently admitted TagProcessor work before
+         * taking the final admitted-count snapshot. Then wait for those accepted
+         * registrations to commit and put a second barrier behind the TimingNode
+         * lane. The following ORDERED history query can then be admitted against
+         * a genuinely drained lane instead of racing the tail of the burst.
+         */
+        awaitTagProcessorBarrier();
+
         TagProcessingMetrics.Snapshot settled =
                 measurements.tagProcessing();
         awaitCommitted(
                 INITIAL_LIFECYCLE_RECORD_COUNT
                         + preloadedCount
                         + settled.admitted());
+
+        awaitTimingNodeBarrier();
     }
 
     private void awaitCommitted(
@@ -455,6 +471,35 @@ final class RuntimeCharacterizationHarness
         await(
                 () -> committedCount.get() >= expected,
                 "TimingData commit count " + expected);
+    }
+
+    private void awaitTagProcessorBarrier()
+            throws InterruptedException {
+        CountDownLatch barrier = new CountDownLatch(1);
+        await(
+                () -> tagLane.execute(barrier::countDown),
+                "TagProcessor barrier admission");
+        if (!barrier.await(
+                COMPLETION_TIMEOUT_MILLIS,
+                TimeUnit.MILLISECONDS)) {
+            throw new IllegalStateException(
+                    "Timed out waiting for TagProcessor barrier");
+        }
+    }
+
+    private void awaitTimingNodeBarrier()
+            throws InterruptedException {
+        CountDownLatch barrier = new CountDownLatch(1);
+        await(
+                () -> nodeLane.offer(barrier::countDown)
+                        == SerialExecutor.AdmissionResult.ACCEPTED,
+                "TimingNode barrier admission");
+        if (!barrier.await(
+                COMPLETION_TIMEOUT_MILLIS,
+                TimeUnit.MILLISECONDS)) {
+            throw new IllegalStateException(
+                    "Timed out waiting for TimingNode barrier");
+        }
     }
 
     private static void await(
