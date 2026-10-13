@@ -1,64 +1,96 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.data;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 /**
- * Counts TeamIds with one or more active registrations for one TimingNode.
+ * Active registration multiplicity for one TimingNode.
  *
- * <p>The registration multiplicity is private so duplicate registrations for
- * the same TeamId do not increase the public unique-team count. Revoking one
- * of several active registrations keeps that TeamId counted until its last
- * active registration is revoked.</p>
+ * <p>This data object deliberately stores RegistrationIds rather than resolved
+ * TeamIds. A live TeamAssignment may change later; resolving TeamId only when
+ * the unique-team count is requested keeps the count consistent with current
+ * EventData/TeamAssignments state.</p>
+ *
+ * <p>The internal multiplicity is needed because one RegistrationId can have
+ * more than one active registration. A single REV therefore removes the
+ * RegistrationId only when its last active registration has been revoked.</p>
  */
 public final class UniqueTeamRegistrations {
-    private final Map<TeamId, Integer> registrations =
-            new LinkedHashMap<TeamId, Integer>();
+    private final Map<RegistrationId, Integer> activeRegistrations =
+            new LinkedHashMap<RegistrationId, Integer>();
 
-    public void registered(TeamId teamId) {
-        requireTeamId(teamId);
+    public void registered(RegistrationId registrationId) {
+        requireRegistrationId(registrationId);
         Integer current =
-                registrations.get(teamId);
-        registrations.put(
-                teamId,
+                activeRegistrations.get(registrationId);
+        activeRegistrations.put(
+                registrationId,
                 Integer.valueOf(
                         current == null
                                 ? 1
                                 : current.intValue() + 1));
     }
 
-    public void revoked(TeamId teamId) {
-        requireTeamId(teamId);
+    public void revoked(RegistrationId registrationId) {
+        requireRegistrationId(registrationId);
         Integer current =
-                registrations.get(teamId);
+                activeRegistrations.get(registrationId);
         if (current == null) {
             return;
         }
+
         if (current.intValue() <= 1) {
-            registrations.remove(teamId);
+            activeRegistrations.remove(registrationId);
         } else {
-            registrations.put(
-                    teamId,
+            activeRegistrations.put(
+                    registrationId,
                     Integer.valueOf(
                             current.intValue() - 1));
         }
     }
 
-    public int count() {
-        return registrations.size();
-    }
-
-    public boolean contains(TeamId teamId) {
-        requireTeamId(teamId);
-        return registrations.containsKey(teamId);
-    }
-
-    private static void requireTeamId(TeamId teamId) {
-        if (teamId == null) {
+    /**
+     * Returns the number of currently resolvable unique TeamIds.
+     *
+     * <p>Unresolved RegistrationIds are intentionally not counted. If a later
+     * active assignment resolves one of them, the next call immediately sees
+     * that TeamId without rewriting registration history.</p>
+     */
+    public int uniqueTeamCount(
+            Function<RegistrationId, TeamId> teamResolver) {
+        if (teamResolver == null) {
             throw new IllegalArgumentException(
-                    "teamId must not be null");
+                    "teamResolver must not be null");
+        }
+
+        Set<TeamId> uniqueTeams =
+                new LinkedHashSet<TeamId>();
+        for (RegistrationId registrationId
+                : activeRegistrations.keySet()) {
+            TeamId teamId =
+                    teamResolver.apply(registrationId);
+            if (teamId != null) {
+                uniqueTeams.add(teamId);
+            }
+        }
+        return uniqueTeams.size();
+    }
+
+    public int activeRegistrationIdCount() {
+        return activeRegistrations.size();
+    }
+
+    private static void requireRegistrationId(
+            RegistrationId registrationId) {
+        if (registrationId == null) {
+            throw new IllegalArgumentException(
+                    "registrationId must not be null");
         }
     }
 }
