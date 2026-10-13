@@ -197,7 +197,7 @@ public final class DefaultUpstreamDataCodec
             UpstreamData.RaceData raceData)
             throws IOException, CodecException {
         requirePositiveSequence(raceData.sequence(), "RACE_DATA seq");
-        if (raceData.reserveTagMapChanges().isEmpty()
+        if (raceData.teamAssignmentChanges().isEmpty()
                 && raceData.stageStartTimeChanges().isEmpty()) {
             throw encodeFailure(
                     "RACE_DATA requires at least one change",
@@ -206,10 +206,10 @@ public final class DefaultUpstreamDataCodec
 
         generator.writeStartObject();
 
-        if (!raceData.reserveTagMapChanges().isEmpty()) {
-            generator.writeArrayFieldStart("reserveTagMap");
-            for (UpstreamData.ReserveTagMapChange change
-                    : raceData.reserveTagMapChanges()) {
+        if (!raceData.teamAssignmentChanges().isEmpty()) {
+            generator.writeArrayFieldStart("teamAssignments");
+            for (UpstreamData.TeamAssignmentChange change
+                    : raceData.teamAssignmentChanges()) {
                 generator.writeStartObject();
                 generator.writeStringField("op", change.operation().name());
                 generator.writeStringField(
@@ -218,7 +218,7 @@ public final class DefaultUpstreamDataCodec
                 if (change.operation() == UpstreamData.ChangeOperation.SET) {
                     if (change.teamId() == null) {
                         throw encodeFailure(
-                                "reserveTagMap SET requires teamId",
+                                "teamAssignments SET requires teamId",
                                 null);
                     }
                     generator.writeStringField(
@@ -226,7 +226,7 @@ public final class DefaultUpstreamDataCodec
                             change.teamId().value());
                 } else if (change.teamId() != null) {
                     throw encodeFailure(
-                            "reserveTagMap DEL must not carry teamId",
+                            "teamAssignments DEL must not carry teamId",
                             null);
                 }
                 generator.writeEndObject();
@@ -488,10 +488,9 @@ public final class DefaultUpstreamDataCodec
         }
         if ("PING".equals(type)) {
             rejectTopSequence(topSequence, type);
-            if (nodeId != null) {
-                throw invalid("PING must not contain nodeId", null);
-            }
-            return decodePing(payload);
+            return decodePing(
+                    requireNodeId(nodeId, type),
+                    payload);
         }
 
         throw CodecException.unsupportedMessageType(
@@ -545,18 +544,18 @@ public final class DefaultUpstreamDataCodec
                 throw invalid("RACE_DATA data must be an object", null);
             }
 
-            List<UpstreamData.ReserveTagMapChange> reserveChanges = null;
+            List<UpstreamData.TeamAssignmentChange> reserveChanges = null;
             List<UpstreamData.StageStartTimeChange> startChanges = null;
 
             while (parser.nextToken() != JsonToken.END_OBJECT) {
                 String field = requireFieldName(parser);
                 JsonToken value = parser.nextToken();
-                if ("reserveTagMap".equals(field)) {
+                if ("teamAssignments".equals(field)) {
                     if (reserveChanges != null) {
                         parser.close();
-                        throw invalid("Duplicate reserveTagMap", null);
+                        throw invalid("Duplicate teamAssignments", null);
                     }
-                    reserveChanges = readReserveTagMapChanges(parser, value);
+                    reserveChanges = readTeamAssignmentChanges(parser, value);
                 } else if ("stageStartTimes".equals(field)) {
                     if (startChanges != null) {
                         parser.close();
@@ -581,21 +580,21 @@ public final class DefaultUpstreamDataCodec
         }
     }
 
-    private List<UpstreamData.ReserveTagMapChange>
-            readReserveTagMapChanges(
+    private List<UpstreamData.TeamAssignmentChange>
+            readTeamAssignmentChanges(
                     JsonParser parser,
                     JsonToken token)
                     throws IOException, CodecException {
         if (token != JsonToken.START_ARRAY) {
-            throw invalid("reserveTagMap must be an array", null);
+            throw invalid("teamAssignments must be an array", null);
         }
 
-        List<UpstreamData.ReserveTagMapChange> result =
-                new ArrayList<UpstreamData.ReserveTagMapChange>();
+        List<UpstreamData.TeamAssignmentChange> result =
+                new ArrayList<UpstreamData.TeamAssignmentChange>();
         while (parser.nextToken() != JsonToken.END_ARRAY) {
             if (parser.getCurrentToken() != JsonToken.START_OBJECT) {
                 throw invalid(
-                        "reserveTagMap item must be an object",
+                        "teamAssignments item must be an object",
                         null);
             }
 
@@ -609,7 +608,7 @@ public final class DefaultUpstreamDataCodec
                 JsonToken value = parser.nextToken();
                 if ("op".equals(field)) {
                     if (op != null) {
-                        throw invalid("Duplicate reserveTagMap op", null);
+                        throw invalid("Duplicate teamAssignments op", null);
                     }
                     op = readString(parser, value, "op");
                 } else if ("regId".equals(field)) {
@@ -630,13 +629,13 @@ public final class DefaultUpstreamDataCodec
 
             if (op == null || registrationId == null) {
                 throw invalid(
-                        "reserveTagMap item requires op and regId",
+                        "teamAssignments item requires op and regId",
                         null);
             }
             UpstreamData.ChangeOperation operation =
                     parseChangeOperation(op);
             result.add(
-                    new UpstreamData.ReserveTagMapChange(
+                    new UpstreamData.TeamAssignmentChange(
                             operation,
                             new RegistrationId(registrationId),
                             teamId == null ? null : new TeamId(teamId)));
@@ -835,7 +834,9 @@ public final class DefaultUpstreamDataCodec
         }
     }
 
-    private UpstreamData.Ping decodePing(byte[] payload)
+    private UpstreamData.Ping decodePing(
+            NodeId nodeId,
+            byte[] payload)
             throws CodecException {
         try {
             JsonParser parser = jsonFactory.createParser(payload);
@@ -900,6 +901,7 @@ public final class DefaultUpstreamDataCodec
             }
 
             return DefaultUpstreamData.ping(
+                    nodeId,
                     parsedOperation,
                     parsedMode,
                     pingId);
