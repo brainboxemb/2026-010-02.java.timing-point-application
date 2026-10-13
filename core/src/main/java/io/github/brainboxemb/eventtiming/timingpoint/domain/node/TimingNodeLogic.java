@@ -13,6 +13,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.StageStartTimes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TeamAssignments;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.UniqueTeamRegistrations;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTimingCalculator;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.data.StageTiming;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.timingdata.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
@@ -57,7 +59,7 @@ final class TimingNodeLogic {
     private final StageStartTimes stageStartTimes = new StageStartTimes();
     private final UniqueTeamRegistrations uniqueTeamRegistrations =
             new UniqueTeamRegistrations();
-    private final StageTiming stageTiming;
+    private final StageTimingCalculator stageTimingCalculator;
 
     private State state = State.CLOSED;
     private LocationId locationId;
@@ -135,8 +137,8 @@ final class TimingNodeLogic {
         this.monotonicClock = monotonicClock;
         this.metrics = metrics;
         this.logBook = new LogBook(timingNodeId);
-        this.stageTiming =
-                new StageTiming(
+        this.stageTimingCalculator =
+                new StageTimingCalculator(
                         eventData,
                         teamAssignments,
                         stageStartTimes);
@@ -162,7 +164,7 @@ final class TimingNodeLogic {
         return uniqueTeamRegistrations;
     }
 
-    StageTiming.Result stageTiming(
+    StageTiming stageTiming(
             long sequenceNumber,
             ZoneId raceTimeZone) {
         ensureOperational();
@@ -185,10 +187,10 @@ final class TimingNodeLogic {
                 data -> record[0] = data);
 
         if (record[0] == null) {
-            return StageTiming.Result.timingDataNotFound(
+            return StageTiming.timingDataNotFound(
                     sequenceNumber);
         }
-        return stageTiming.calculate(
+        return stageTimingCalculator.calculate(
                 record[0],
                 raceTimeZone);
     }
