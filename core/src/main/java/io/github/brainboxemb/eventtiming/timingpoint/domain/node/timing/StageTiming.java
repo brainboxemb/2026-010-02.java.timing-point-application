@@ -5,8 +5,8 @@ import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.StageStartTimes;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TeamAssignments;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.StageStartTimes;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.TeamAssignments;
 
 import java.time.Duration;
 import java.time.LocalDate;

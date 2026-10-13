@@ -2,8 +2,8 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.StageStartTimes;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TeamAssignments;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.StageStartTimes;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.TeamAssignments;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
