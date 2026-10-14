@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Remove unused `LogBookState` getters and its unused convenience constructor, and document every remaining state/helper method plus the missing `LogBookData` constructor/size contracts.
+
 - Document `LogBookQuery` ORDERED/CURRENT construction and read contracts, including why CURRENT reads go through safely published `LogBook` state.
 
 - Document the remaining non-trivial `LogBook` execution lambdas at their call sites, including what `()` and `->` mean and which work the `SerialLane` executes later.

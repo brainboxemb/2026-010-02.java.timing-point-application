@@ -10,7 +10,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
@@ -58,21 +57,7 @@ final class LogBookState {
     private Throwable timingDataCommitFailure;
     private List<Problem> problems = Collections.emptyList();
 
-    LogBookState(
-            NodeId timingNodeId,
-            TimingDataPersistence timingDataPersistence,
-            TimingDataFactory timingDataFactory,
-            TimeSource timeSource,
-            MonotonicClock monotonicClock) {
-        this(
-                timingNodeId,
-                timingDataPersistence,
-                timingDataFactory,
-                timeSource,
-                monotonicClock,
-                new LogBookMetrics());
-    }
-
+    /** Creates the passive mutable state owned by one LogBook SerialLane. */
     LogBookState(
             NodeId timingNodeId,
             TimingDataPersistence timingDataPersistence,
@@ -100,23 +85,17 @@ final class LogBookState {
         this.logBookData = new LogBookData(timingNodeId);
     }
 
+    /** Returns the immutable identity of the owning TimingNode. */
     NodeId timingNodeId() {
         return timingNodeId;
     }
 
-    LogBookMetrics metrics() {
-        return metrics;
-    }
-
-    LogBookData logBookData() {
-        return logBookData;
-    }
-
+    /** Returns the safely published committed TimingData source head. */
     long timingDataHead() {
         return logBookData.headSequence();
     }
 
-
+    /** Opens the node at the requested location and commits the lifecycle record first. */
     OpenResult open(LocationId newLocationId)
             throws TimingDataPersistence.PersistenceException {
         checkArgument(newLocationId != null, "locationId must not be null");
@@ -140,6 +119,7 @@ final class LogBookState {
         return OpenResult.OPENED;
     }
 
+    /** Closes the node and durably commits its lifecycle record before changing state. */
     CloseResult close()
             throws TimingDataPersistence.PersistenceException {
         ensureOperational();
@@ -194,6 +174,7 @@ final class LogBookState {
                 TimingData.AutomaticTimeSource.NODE);
     }
 
+    /** Commits one automatic registration after validating node and commit availability. */
     private RegistrationResult commitAutomaticRegistration(
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
@@ -216,6 +197,7 @@ final class LogBookState {
         return commitRegistration(data);
     }
 
+    /** Commits one manually entered registration using the supplied effective-time source. */
     RegistrationResult commitManualRegistration(
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
@@ -235,6 +217,7 @@ final class LogBookState {
         return commitRegistration(data);
     }
 
+    /** Commits a revocation record for one earlier automatic registration. */
     RegistrationResult revokeAutomaticRegistration(
             LocationId originalLocationId,
             RegistrationId registrationId,
@@ -255,6 +238,7 @@ final class LogBookState {
         return commitRegistration(data);
     }
 
+    /** Commits a revocation record for one earlier manual registration. */
     RegistrationResult revokeManualRegistration(
             LocationId originalLocationId,
             RegistrationId registrationId,
@@ -275,6 +259,7 @@ final class LogBookState {
         return commitRegistration(data);
     }
 
+    /** Returns the committed TimingData count while the LogBook is operational. */
     int timingDataCount() {
         ensureOperational();
         return logBookData.size();
@@ -292,6 +277,7 @@ final class LogBookState {
         return Collections.unmodifiableList(records);
     }
 
+    /** Visits a bounded committed range and returns the current total record count. */
     int visitTimingDataRange(
             long fromSequence,
             int limit,
@@ -301,6 +287,7 @@ final class LogBookState {
         return logBookData.size();
     }
 
+    /** Visits the newest committed records and returns the current total record count. */
     int visitLatestTimingData(
             int limit,
             Consumer<TimingData> visitor) {
@@ -309,6 +296,7 @@ final class LogBookState {
         return logBookData.size();
     }
 
+    /** Builds the current immutable node status from this passive mutable state. */
     Status status() {
         return new Status(
                 timingNodeId,
@@ -318,6 +306,7 @@ final class LogBookState {
                 problems);
     }
 
+    /** Loads persisted TimingData into committed in-memory history during activation. */
     TimingDataPersistence.LoadResult loadPersistedTimingData()
             throws TimingDataPersistence.PersistenceException {
         TimingDataPersistence.LoadResult loadResult = timingDataPersistence.load();
@@ -328,6 +317,7 @@ final class LogBookState {
         return loadResult;
     }
 
+    /** Moves the node into ERROR state after persisted TimingData recovery fails. */
     void markTimingDataLoadFailed(Throwable failure) {
         checkArgument(failure != null, "failure must not be null");
         state = State.ERROR;
@@ -346,12 +336,14 @@ final class LogBookState {
                         message));
     }
 
+    /** Builds the next registration context using the node's current location. */
     private Context nextRegistrationContext(TimingTimestamp effectiveTime) {
         return nextRegistrationContext(
                 locationId,
                 effectiveTime);
     }
 
+    /** Builds the next registration context with explicit location and recorded time. */
     private Context nextRegistrationContext(
             LocationId recordLocationId,
             TimingTimestamp effectiveTime) {
@@ -363,6 +355,7 @@ final class LogBookState {
                 currentRecordedTime());
     }
 
+    /** Builds the next automatic-registration context including source provenance. */
     private Context nextRegistrationContext(
             LocationId recordLocationId,
             TimingTimestamp effectiveTime,
@@ -378,6 +371,7 @@ final class LogBookState {
                 timeProvenance);
     }
 
+    /** Builds the next lifecycle-record context at the supplied effective time. */
     private Context nextLifecycleContext(
             LocationId lifecycleLocation,
             TimingTimestamp effectiveTime) {
@@ -411,6 +405,7 @@ final class LogBookState {
                 time.instant());
     }
 
+    /** Truncates an Instant to the configured centisecond effective-time precision. */
     private static TimingTimestamp atCentisecond(
             Instant instant) {
         long nanos =
@@ -429,10 +424,12 @@ final class LogBookState {
                         ChronoUnit.MILLIS));
     }
 
+    /** Returns the committed record count without repeating operational validation. */
     int committedTimingDataCount() {
         return logBookData.size();
     }
 
+    /** Returns the newest committed TimingData record or fails when history is empty. */
     TimingData latestCommittedTimingData() {
         final TimingData[] latest = new TimingData[1];
         logBookData.visitLatest(
@@ -445,6 +442,7 @@ final class LogBookState {
         return latest[0];
     }
 
+    /** Rejects normal LogBook operations after this node entered ERROR state. */
     private void ensureOperational() {
         if (state != State.ERROR) {
             return;
@@ -455,6 +453,7 @@ final class LogBookState {
         throw new IllegalStateException(detail);
     }
 
+    /** Blocks further commits after an earlier persistence or in-memory commit failure. */
     private void ensureTimingDataCommitAvailable() {
         if (timingDataCommitFailure != null) {
             throw new IllegalStateException(
@@ -463,12 +462,14 @@ final class LogBookState {
         }
     }
 
+    /** Commits one registration record and wraps the committed value in its domain result. */
     private RegistrationResult commitRegistration(TimingData data)
             throws TimingDataPersistence.PersistenceException {
         commitTimingData(data);
         return RegistrationResult.committed(data);
     }
 
+    /** Persists one TimingData record before exposing it as committed in memory. */
     private void commitTimingData(TimingData data)
             throws TimingDataPersistence.PersistenceException {
         if (data == null) {
@@ -500,6 +501,7 @@ final class LogBookState {
         logCommittedTimingData(data);
     }
 
+    /** Logs one successfully committed TimingData record with type-specific context. */
     private void logCommittedTimingData(TimingData data) {
         String type = timingDataType(data);
         String location = data.locationId() == null
@@ -550,6 +552,7 @@ final class LogBookState {
                 data.effectiveTime());
     }
 
+    /** Returns the compact diagnostic record-family label used in commit logging. */
     private static String timingDataType(TimingData data) {
         if (data instanceof TimingData.AutomaticRegistration) {
             return "AUTO_REG";
