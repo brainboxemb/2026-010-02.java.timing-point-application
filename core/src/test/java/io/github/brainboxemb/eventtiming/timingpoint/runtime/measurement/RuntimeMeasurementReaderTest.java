@@ -17,7 +17,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persist
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.ArrayList;
@@ -59,8 +58,8 @@ public class RuntimeMeasurementReaderTest {
                         8,
                         "measurement-node-task",
                         nodeWorker);
-        SerialScheduledLane tagLane =
-                new SerialScheduledLane(
+        SerialLane tagLane =
+                new SerialLane(
                         8,
                         "measurement-tag",
                         tagWorker);
@@ -85,6 +84,7 @@ public class RuntimeMeasurementReaderTest {
                         dataLane,
                         taskLane,
                         tagLane,
+                        tagWorker,
                         SystemMonotonicClock.INSTANCE,
                         nodeMetrics,
                         tagMetrics);

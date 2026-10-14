@@ -19,7 +19,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persist
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
@@ -134,8 +133,8 @@ public class UpstreamHandlerTest {
                         4,
                         "heartbeat-task-test",
                         nodeWorker);
-        SerialScheduledLane tagLane =
-                new SerialScheduledLane(
+        SerialLane tagLane =
+                new SerialLane(
                         4,
                         "heartbeat-tag-test",
                         tagWorker);
@@ -181,6 +180,7 @@ public class UpstreamHandlerTest {
                         dataLane,
                         taskLane,
                         tagLane,
+                        tagWorker,
                         stream);
 
         CountDownLatch blockerStarted =
