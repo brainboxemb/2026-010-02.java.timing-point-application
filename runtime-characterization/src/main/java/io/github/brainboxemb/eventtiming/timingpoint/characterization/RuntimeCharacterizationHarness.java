@@ -11,10 +11,13 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.DefaultTimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
@@ -22,6 +25,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.ClockTimeSource;
@@ -168,8 +172,16 @@ final class RuntimeCharacterizationHarness
         TimingDataProvider timingDataProvider =
                 new DefaultTimingDataProvider();
 
-        node =
-                new TimingNode(
+        EventData nodeEventData =
+                eventData(
+                        config.warmupCount()
+                                + config.measuredCount());
+        ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
+                ReadOnlyConfiguration.fixed(
+                        TagProcessingPolicy.defaults());
+
+        LogBookProcessor logBookProcessor =
+                new LogBookProcessor(
                         NODE_ID,
                         new DefaultTimingDataPersistence(
                                 new FileAppendOnlyRecordStore(
@@ -181,18 +193,34 @@ final class RuntimeCharacterizationHarness
                         timingDataProvider.createFactory(),
                         new ClockTimeSource(
                                 Clock.systemUTC()),
-                        ReadOnlyConfiguration.fixed(
-                                TagProcessingPolicy.defaults()),
-                        eventData(
-                                config.warmupCount()
-                                        + config.measuredCount()),
-                        dataLane,
-                        taskLane,
-                        tagLane,
-                        tagWorker,
                         SystemMonotonicClock.INSTANCE,
                         nodeMetrics,
-                        tagMetrics);
+                        dataLane);
+
+        NodeTaskProcessor taskProcessor =
+                new NodeTaskProcessor(
+                        logBookProcessor,
+                        taskLane,
+                        nodeEventData,
+                        UpstreamStream.unavailable());
+
+        TagProcessor tagProcessor =
+                new TagProcessor(
+                        nodeEventData,
+                        tagConfiguration,
+                        SystemMonotonicClock.INSTANCE,
+                        tagMetrics,
+                        tagLane,
+                        tagWorker);
+        tagConfiguration.changes()
+                .subscribe(
+                        tagProcessor::onPolicyConfigurationChanged);
+
+        node =
+                new TimingNode(
+                        logBookProcessor,
+                        taskProcessor,
+                        tagProcessor);
 
         antenna =
                 new SimulatedAntenna();

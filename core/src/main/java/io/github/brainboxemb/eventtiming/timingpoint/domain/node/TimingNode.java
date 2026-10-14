@@ -12,8 +12,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
@@ -21,10 +19,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTim
 
 import java.time.ZoneId;
 import java.util.List;
-import java.util.concurrent.ScheduledExecutorService;
-import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
@@ -134,207 +129,34 @@ public final class TimingNode {
     }
 
     /**
-     * Constructs one complete production TimingNode with runtime-supplied lanes.
+     * Creates one TimingNode from its already-composed child components.
+     *
+     * <p>Runtime composition owns construction of the Data, Task and tag
+     * processors. TimingNode owns only their lifecycle/facade relationship and
+     * the registration event handoff between TagProcessor and LogBookProcessor.</p>
      */
     public TimingNode(
-            NodeId timingNodeId,
-            TimingDataPersistence timingDataPersistence,
-            TimingDataFactory timingDataFactory,
-            TimeSource timeSource,
-            ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
-            EventData eventData,
-            SerialLane dataLane,
-            SerialLane taskLane,
-            SerialLane tagProcessorLane,
-            ScheduledExecutorService tagProcessorScheduler) {
-        this(
-                timingNodeId,
-                timingDataPersistence,
-                timingDataFactory,
-                timeSource,
-                tagProcessingConfiguration,
-                eventData,
-                dataLane,
-                taskLane,
-                tagProcessorLane,
-                tagProcessorScheduler,
-                SystemMonotonicClock.INSTANCE,
-                new LogBookProcessorMetrics(),
-                new TagProcessingMetrics(),
-                UpstreamStream.unavailable());
-    }
-
-    public TimingNode(
-            NodeId timingNodeId,
-            TimingDataPersistence timingDataPersistence,
-            TimingDataFactory timingDataFactory,
-            TimeSource timeSource,
-            ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
-            EventData eventData,
-            SerialLane dataLane,
-            SerialLane taskLane,
-            SerialLane tagProcessorLane,
-            ScheduledExecutorService tagProcessorScheduler,
-            UpstreamStream upstreamStream) {
-        this(
-                timingNodeId,
-                timingDataPersistence,
-                timingDataFactory,
-                timeSource,
-                tagProcessingConfiguration,
-                eventData,
-                dataLane,
-                taskLane,
-                tagProcessorLane,
-                tagProcessorScheduler,
-                SystemMonotonicClock.INSTANCE,
-                new LogBookProcessorMetrics(),
-                new TagProcessingMetrics(),
-                upstreamStream);
-    }
-
-    public TimingNode(
-            NodeId timingNodeId,
-            TimingDataPersistence timingDataPersistence,
-            TimingDataFactory timingDataFactory,
-            TimeSource timeSource,
-            ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
-            EventData eventData,
-            SerialLane dataLane,
-            SerialLane taskLane,
-            SerialLane tagProcessorLane,
-            ScheduledExecutorService tagProcessorScheduler,
-            MonotonicClock monotonicClock) {
-        this(
-                timingNodeId,
-                timingDataPersistence,
-                timingDataFactory,
-                timeSource,
-                tagProcessingConfiguration,
-                eventData,
-                dataLane,
-                taskLane,
-                tagProcessorLane,
-                tagProcessorScheduler,
-                monotonicClock,
-                new LogBookProcessorMetrics(),
-                new TagProcessingMetrics(),
-                UpstreamStream.unavailable());
-    }
-
-    /**
-     * Engineering-composition constructor retaining component-owned metrics.
-     */
-    public TimingNode(
-            NodeId timingNodeId,
-            TimingDataPersistence timingDataPersistence,
-            TimingDataFactory timingDataFactory,
-            TimeSource timeSource,
-            ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
-            EventData eventData,
-            SerialLane dataLane,
-            SerialLane taskLane,
-            SerialLane tagProcessorLane,
-            ScheduledExecutorService tagProcessorScheduler,
-            MonotonicClock monotonicClock,
-            LogBookProcessorMetrics timingNodeMetrics,
-            TagProcessingMetrics tagProcessingMetrics) {
-        this(
-                timingNodeId,
-                timingDataPersistence,
-                timingDataFactory,
-                timeSource,
-                tagProcessingConfiguration,
-                eventData,
-                dataLane,
-                taskLane,
-                tagProcessorLane,
-                tagProcessorScheduler,
-                monotonicClock,
-                timingNodeMetrics,
-                tagProcessingMetrics,
-                UpstreamStream.unavailable());
-    }
-
-    public TimingNode(
-            NodeId timingNodeId,
-            TimingDataPersistence timingDataPersistence,
-            TimingDataFactory timingDataFactory,
-            TimeSource timeSource,
-            ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
-            EventData eventData,
-            SerialLane dataLane,
-            SerialLane taskLane,
-            SerialLane tagProcessorLane,
-            ScheduledExecutorService tagProcessorScheduler,
-            MonotonicClock monotonicClock,
-            LogBookProcessorMetrics timingNodeMetrics,
-            TagProcessingMetrics tagProcessingMetrics,
-            UpstreamStream upstreamStream) {
-        if (tagProcessingConfiguration == null) {
+            LogBookProcessor logBookProcessor,
+            NodeTaskProcessor taskProcessor,
+            TagProcessor tagProcessor) {
+        if (logBookProcessor == null) {
             throw new IllegalArgumentException(
-                    "tagProcessingConfiguration must not be null");
+                    "logBookProcessor must not be null");
         }
-        if (eventData == null) {
+        if (taskProcessor == null) {
             throw new IllegalArgumentException(
-                    "eventData must not be null");
+                    "taskProcessor must not be null");
         }
-        if (taskLane == null) {
+        if (tagProcessor == null) {
             throw new IllegalArgumentException(
-                    "taskLane must not be null");
-        }
-        if (tagProcessorLane == null) {
-            throw new IllegalArgumentException(
-                    "tagProcessorLane must not be null");
-        }
-        if (tagProcessorScheduler == null) {
-            throw new IllegalArgumentException(
-                    "tagProcessorScheduler must not be null");
-        }
-        if (monotonicClock == null) {
-            throw new IllegalArgumentException(
-                    "monotonicClock must not be null");
-        }
-        if (timingNodeMetrics == null) {
-            throw new IllegalArgumentException(
-                    "timingNodeMetrics must not be null");
-        }
-        if (tagProcessingMetrics == null) {
-            throw new IllegalArgumentException(
-                    "tagProcessingMetrics must not be null");
+                    "tagProcessor must not be null");
         }
 
-        LogBookProcessor processor =
-                new LogBookProcessor(
-                        requireId(timingNodeId),
-                        timingDataPersistence,
-                        timingDataFactory,
-                        timeSource,
-                        monotonicClock,
-                        timingNodeMetrics,
-                        dataLane);
+        this.logBookProcessor = logBookProcessor;
+        this.taskProcessor = taskProcessor;
+        this.tagProcessor = tagProcessor;
 
-        TagProcessor processorChild =
-                new TagProcessor(
-                        eventData,
-                        tagProcessingConfiguration,
-                        monotonicClock,
-                        tagProcessingMetrics,
-                        tagProcessorLane,
-                        tagProcessorScheduler);
-
-        this.logBookProcessor = processor;
-        this.taskProcessor = new NodeTaskProcessor(
-                processor,
-                taskLane,
-                eventData,
-                upstreamStream);
-        this.tagProcessor = processorChild;
-
-        tagProcessingConfiguration.changes()
-                .subscribe(
-                        processorChild::onPolicyConfigurationChanged);
-        processorChild.newRegistrationEvent()
+        tagProcessor.newRegistrationEvent()
                 .subscribe(
                         this::onNewRegistration);
     }

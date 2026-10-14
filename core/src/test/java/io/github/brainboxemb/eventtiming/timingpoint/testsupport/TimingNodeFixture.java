@@ -6,11 +6,17 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -73,27 +79,53 @@ public final class TimingNodeFixture {
             TimingDataFactory timingDataFactory,
             TimeSource timeSource) {
         String suffix = nodeId == null ? "missing" : nodeId.value();
-        return new TimingNode(
-                nodeId,
-                persistence,
-                timingDataFactory,
-                timeSource,
+        EventData eventData =
+                EventData.empty();
+        ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
                 ReadOnlyConfiguration.fixed(
-                        TagProcessingPolicy.defaults()),
-                EventData.empty(),
-                new SerialLane(
-                        32,
-                        "test-node-data-" + suffix,
-                        NODE_WORKER),
-                new SerialLane(
-                        32,
-                        "test-node-task-" + suffix,
-                        NODE_WORKER),
-                new SerialLane(
-                        32,
-                        "test-tag-" + suffix,
-                        TAG_WORKER),
-                TAG_WORKER,
-                SystemMonotonicClock.INSTANCE);
+                        TagProcessingPolicy.defaults());
+
+        LogBookProcessor logBookProcessor =
+                new LogBookProcessor(
+                        nodeId,
+                        persistence,
+                        timingDataFactory,
+                        timeSource,
+                        SystemMonotonicClock.INSTANCE,
+                        new LogBookProcessorMetrics(),
+                        new SerialLane(
+                                32,
+                                "test-node-data-" + suffix,
+                                NODE_WORKER));
+
+        NodeTaskProcessor taskProcessor =
+                new NodeTaskProcessor(
+                        logBookProcessor,
+                        new SerialLane(
+                                32,
+                                "test-node-task-" + suffix,
+                                NODE_WORKER),
+                        eventData,
+                        UpstreamStream.unavailable());
+
+        TagProcessor tagProcessor =
+                new TagProcessor(
+                        eventData,
+                        tagConfiguration,
+                        SystemMonotonicClock.INSTANCE,
+                        new TagProcessingMetrics(),
+                        new SerialLane(
+                                32,
+                                "test-tag-" + suffix,
+                                TAG_WORKER),
+                        TAG_WORKER);
+        tagConfiguration.changes()
+                .subscribe(
+                        tagProcessor::onPolicyConfigurationChanged);
+
+        return new TimingNode(
+                logBookProcessor,
+                taskProcessor,
+                tagProcessor);
     }
 }
