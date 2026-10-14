@@ -39,7 +39,7 @@ public class LogBookSyncTest {
         }
     }
 
-    private static LogBook emptyProcessor(NodeId nodeId) {
+    private static LogBook emptyLogBook(NodeId nodeId) {
         return new LogBook(
                 nodeId,
                 new TimingDataPersistence() {
