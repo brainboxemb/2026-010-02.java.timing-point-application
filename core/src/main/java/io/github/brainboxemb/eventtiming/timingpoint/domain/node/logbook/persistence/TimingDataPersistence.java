@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * TimingData-specific persistence contract used by TimingNode.
  *
@@ -26,15 +28,10 @@ public interface TimingDataPersistence {
         public LoadResult(
                 List<TimingData> records,
                 boolean repairedIncompleteTail) {
-            if (records == null) {
-                throw new IllegalArgumentException("records must not be null");
-            }
+            checkArgument(records != null, "records must not be null");
             List<TimingData> copy = new ArrayList<>(records.size());
             for (TimingData record : records) {
-                if (record == null) {
-                    throw new IllegalArgumentException(
-                            "records must not contain null");
-                }
+                checkArgument(record != null, "records must not contain null");
                 copy.add(record);
             }
             this.records = Collections.unmodifiableList(copy);
