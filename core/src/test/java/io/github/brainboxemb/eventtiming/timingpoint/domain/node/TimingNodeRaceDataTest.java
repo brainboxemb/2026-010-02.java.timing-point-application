@@ -1,4 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
+import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventData;
@@ -227,7 +228,7 @@ public class TimingNodeRaceDataTest {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
         TimingNode node =
-                new TimingNode(
+                TimingNodeFixture.create(
                         new NodeId("A"),
                         new EmptyPersistence(),
                         new DefaultTimingDataFactory(),

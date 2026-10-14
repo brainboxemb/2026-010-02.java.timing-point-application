@@ -1,4 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
+import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventData;
@@ -254,7 +255,7 @@ public class StageTimingTest {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
         TimingNode node =
-                new TimingNode(
+                TimingNodeFixture.create(
                         NODE_ID,
                         new StaticPersistence(committed),
                         FACTORY,
