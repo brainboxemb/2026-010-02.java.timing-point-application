@@ -20,7 +20,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.Upstre
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTasks;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
@@ -67,7 +67,7 @@ public class UpstreamHandlerTest {
                             Collections.<UpstreamData.StageStartTimeChange>emptyList()));
 
             assertTrue(
-                    node.taskProcessor().upstreamHandler()
+                    node.nodeService().upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.Ack ack =
@@ -90,7 +90,7 @@ public class UpstreamHandlerTest {
         node.node().activate();
         try {
             UpstreamHandler port =
-                    node.taskProcessor().upstreamHandler();
+                    node.nodeService().upstreamHandler();
 
             port.heartbeatTick();
             UpstreamData.Ping first =
@@ -188,8 +188,8 @@ public class UpstreamHandlerTest {
                         SystemMonotonicClock.INSTANCE,
                         new LogBookMetrics(),
                         dataLane);
-        NodeTasks tasks =
-                new NodeTasks(
+        NodeService tasks =
+                new NodeService(
                         logBook,
                         taskLane,
                         eventData,
@@ -275,7 +275,7 @@ public class UpstreamHandlerTest {
         node.node().activate();
         try {
             UpstreamHandler port =
-                    node.taskProcessor().upstreamHandler();
+                    node.nodeService().upstreamHandler();
             port.heartbeatTick();
             UpstreamData.Ping request =
                     (UpstreamData.Ping) stream.takeSent();
@@ -315,7 +315,7 @@ public class UpstreamHandlerTest {
                             "peer-42"));
 
             assertTrue(
-                    node.taskProcessor().upstreamHandler()
+                    node.nodeService().upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.Ping answer =
@@ -346,7 +346,7 @@ public class UpstreamHandlerTest {
         node.node().activate();
         try {
             assertFalse(
-                    node.taskProcessor().upstreamHandler()
+                    node.nodeService().upstreamHandler()
                             .inputAvailable());
             assertEquals(0, stream.sentCount());
         } finally {
@@ -373,10 +373,10 @@ public class UpstreamHandlerTest {
         empty.node().activate();
         populated.node().activate();
         try {
-            empty.taskProcessor()
+            empty.nodeService()
                     .upstreamHandler()
                     .sendTimingDataSync();
-            populated.taskProcessor()
+            populated.nodeService()
                     .upstreamHandler()
                     .sendTimingDataSync();
 
@@ -421,7 +421,7 @@ public class UpstreamHandlerTest {
                             3L));
 
             assertTrue(
-                    node.taskProcessor().upstreamHandler()
+                    node.nodeService().upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.TimingDataTransfer transfer =
@@ -462,7 +462,7 @@ public class UpstreamHandlerTest {
                             1L));
 
             assertTrue(
-                    node.taskProcessor().upstreamHandler()
+                    node.nodeService().upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.TimingDataTransfer first =
@@ -516,7 +516,7 @@ public class UpstreamHandlerTest {
                             1L));
 
             assertTrue(
-                    node.taskProcessor().upstreamHandler()
+                    node.nodeService().upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.TimingDataTransfer first =
@@ -561,7 +561,7 @@ public class UpstreamHandlerTest {
                             3L));
 
             assertTrue(
-                    node.taskProcessor().upstreamHandler()
+                    node.nodeService().upstreamHandler()
                             .inputAvailable());
             assertEquals(0, stream.sentCount());
         } finally {
@@ -583,7 +583,7 @@ public class UpstreamHandlerTest {
                             UpstreamData.Stream.RACE_DATA,
                             2L));
             assertTrue(
-                    node.taskProcessor().upstreamHandler()
+                    node.nodeService().upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.Req req =
@@ -604,7 +604,7 @@ public class UpstreamHandlerTest {
                                             "0042")),
                             Collections.<UpstreamData.StageStartTimeChange>emptyList()));
             assertTrue(
-                    node.taskProcessor().upstreamHandler()
+                    node.nodeService().upstreamHandler()
                             .inputAvailable());
             stream.takeSent(); // cumulative RACE_DATA ACK
 
@@ -614,7 +614,7 @@ public class UpstreamHandlerTest {
                             UpstreamData.Stream.RACE_DATA,
                             1L));
             assertTrue(
-                    node.taskProcessor().upstreamHandler()
+                    node.nodeService().upstreamHandler()
                             .inputAvailable());
             assertEquals(0, stream.sentCount());
         } finally {
@@ -645,7 +645,7 @@ public class UpstreamHandlerTest {
                             UpstreamData.Stream.TIMING_DATA,
                             1L));
             assertTrue(
-                    nodeA.taskProcessor().upstreamHandler()
+                    nodeA.nodeService().upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.TimingDataTransfer transferA =
@@ -663,7 +663,7 @@ public class UpstreamHandlerTest {
                             UpstreamData.Stream.TIMING_DATA,
                             2L));
             assertTrue(
-                    nodeB.taskProcessor().upstreamHandler()
+                    nodeB.nodeService().upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.TimingDataTransfer transferB =
