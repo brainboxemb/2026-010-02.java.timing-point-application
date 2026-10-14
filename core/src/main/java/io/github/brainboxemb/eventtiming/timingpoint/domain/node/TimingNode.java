@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandSubmissionResult;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandQueueResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
@@ -105,14 +105,14 @@ public final class TimingNode {
      * the synchronous source event callback.
      */
     private void onNewRegistration(TagProcessor.NewRegistration registration) {
-        CommandSubmissionResult submissionResult =
-                logBook.submit(
+        CommandQueueResult queueResult =
+                logBook.queue(
                         LogBookCommands.addAutomaticRegistration(
                                 registration.registrationId(),
                                 registration.observedAt()));
 
-        switch (submissionResult) {
-            case ACCEPTED:
+        switch (queueResult) {
+            case QUEUED:
                 return;
             case QUEUE_FULL:
                 LOG.error(
@@ -128,7 +128,7 @@ public final class TimingNode {
                 return;
             default:
                 throw new IllegalStateException(
-                        "Unsupported LogBook submission result " + submissionResult);
+                        "Unsupported LogBook queue result " + queueResult);
         }
     }
 }
