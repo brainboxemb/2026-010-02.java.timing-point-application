@@ -72,12 +72,12 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void activationQueuesRecoveryOnNodeLaneAndReturnsBeforeRecoveryCompletes()
+    public void activationLoadsPersistedDataOnDataLaneAndReturnsBeforeLoadCompletes()
             throws Exception {
         SerialLane executor =
                 newSerialLane(
                         4,
-                        "timing-node-recovery-worker");
+                        "timing-node-load-worker");
         BlockingPersistence persistence =
                 new BlockingPersistence(executor);
         TimingNode node =
@@ -104,24 +104,24 @@ public class TimingNodeTest {
         activationCaller.start();
         try {
             assertTrue(
-                    "recovery did not start",
+                    "persisted-data load did not start",
                     persistence.loadStarted.await(
                             1L,
                             TimeUnit.SECONDS));
             activationCaller.join(250L);
             assertFalse(
-                    "activate() waited for persistence recovery",
+                    "activate() waited for persisted-data load",
                     activationCaller.isAlive());
             assertNull(activationFailure[0]);
             assertTrue(
-                    "persistence recovery did not run on the TimingNode lane",
+                    "persisted-data load did not run on the Data Lane",
                     persistence.executedOnNodeLane);
 
             try {
                 node.logBook().query(
                         LogBookQueries.status(),
                         ReadConsistency.CURRENT);
-                fail("CURRENT status must remain unavailable during recovery");
+                fail("CURRENT status must remain unavailable during persisted-data load");
             } catch (TimingNodeTypes.OperationException expected) {
                 assertEquals(
                         TimingNodeTypes.OperationException.Reason.UNAVAILABLE,
@@ -136,7 +136,7 @@ public class TimingNodeTest {
 
             persistence.releaseLoad.countDown();
             assertTrue(
-                    "initial status was not published after recovery",
+                    "initial status was not published after persisted-data load",
                     firstStatusPublished.await(
                             1L,
                             TimeUnit.SECONDS));
@@ -738,7 +738,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void activationFailsWhenInitialRecoveryCannotBeAdmitted() {
+    public void activationFailsWhenPersistedDataLoadCannotBeAdmitted() {
         SerialLane executor =
                 new SerialLane(
                         2,
@@ -755,7 +755,7 @@ public class TimingNodeTest {
         } catch (IllegalStateException expected) {
             assertTrue(
                     expected.getMessage()
-                            .contains("initial recovery"));
+                            .contains("persisted-data load"));
         } finally {
             node.deactivate();
         }
@@ -862,7 +862,7 @@ public class TimingNodeTest {
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
                 throw new PersistenceException(
-                        "test recovery interrupted",
+                        "test persisted-data load interrupted",
                         ex);
             }
             return new LoadResult(
@@ -872,7 +872,7 @@ public class TimingNodeTest {
 
         @Override
         public void append(TimingData data) {
-            // Recovery/lane ownership test only.
+            // Startup-load/lane ownership test only.
         }
     }
 
