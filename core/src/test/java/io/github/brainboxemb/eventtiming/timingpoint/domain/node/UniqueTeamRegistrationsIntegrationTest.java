@@ -31,8 +31,8 @@ public class UniqueTeamRegistrationsIntegrationTest {
     public void recoveredAndLaterAssignedRegistrationsUseCurrentTeamResolution() {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
-        TimingNode node =
-                TimingNodeFixture.createDirect(
+        TimingNodeFixture.Components components =
+                TimingNodeFixture.createDirectComponents(
                         new NodeId("A"),
                         new StaticPersistence(
                                 registration(1L, "RT-A-0001"),
@@ -41,11 +41,14 @@ public class UniqueTeamRegistrationsIntegrationTest {
                         () -> Instant.parse("2026-10-13T12:05:00Z"),
                         new DefaultEventData(),
                         stream);
+        TimingNode node =
+                components.node();
 
         node.activate();
         try {
             UpstreamHandler port =
-                    node.upstreamHandler();
+                    components.taskProcessor()
+                            .upstreamHandler();
 
             // RT-A-0001 is fixed by EventData. RT-R-0001 is still unresolved.
             assertEquals(
@@ -72,7 +75,7 @@ public class UniqueTeamRegistrationsIntegrationTest {
                     port.uniqueTeamRegistrationCount());
             assertEquals(
                     Integer.valueOf(2),
-                    node.query(
+                    node.logBook().query(
                             LogBookQueries.timingDataCount()));
         } finally {
             node.deactivate();

@@ -360,22 +360,24 @@ public class UpstreamHandlerTest {
                 new InMemoryUpstreamStream();
         InMemoryUpstreamStream populatedStream =
                 new InMemoryUpstreamStream();
-        TimingNode empty =
+        TimingNodeFixture.Components empty =
                 node(
                         "A",
                         emptyStream,
                         Collections.<TimingData>emptyList());
-        TimingNode populated =
+        TimingNodeFixture.Components populated =
                 node(
                         "B",
                         populatedStream,
                         timingData("B", 3));
-        empty.activate();
-        populated.activate();
+        empty.node().activate();
+        populated.node().activate();
         try {
-            empty.upstreamHandler()
+            empty.taskProcessor()
+                    .upstreamHandler()
                     .sendTimingDataSync();
-            populated.upstreamHandler()
+            populated.taskProcessor()
+                    .upstreamHandler()
                     .sendTimingDataSync();
 
             UpstreamData.Sync emptySync =
@@ -394,8 +396,8 @@ public class UpstreamHandlerTest {
                     populatedSync.timingNodeId());
             assertEquals(3L, populatedSync.sequence());
         } finally {
-            empty.deactivate();
-            populated.deactivate();
+            empty.node().deactivate();
+            populated.node().deactivate();
         }
     }
 
