@@ -155,7 +155,7 @@ public final class TagProcessor {
             state = State.INACTIVE;
             closeHousekeepingLocked();
             drainRemaining = !inputQueue.isEmpty();
-            if (drainRemaining && !offer(this::drainAll)) {
+            if (drainRemaining && !trySubmitToTagLane(this::drainAll)) {
                 inputQueue.clear();
             }
         }
@@ -208,7 +208,7 @@ public final class TagProcessor {
         if (!drainScheduled.compareAndSet(false, true)) {
             return;
         }
-        if (!offer(this::drainBatch)) {
+        if (!trySubmitToTagLane(this::drainBatch)) {
             drainScheduled.set(false);
             metrics.recordProcessorNotRunning();
         }
@@ -311,7 +311,7 @@ public final class TagProcessor {
             if (state != State.ACTIVE) {
                 return;
             }
-            if (!offer(() -> applyPolicyChange(change))) {
+            if (!trySubmitToTagLane(() -> applyPolicyChange(change))) {
                 LOG.warn("Could not queue TagProcessor policy change");
             }
         }
@@ -378,7 +378,13 @@ public final class TagProcessor {
         }
     }
 
-    private boolean offer(
+    /**
+     * Tries to queue one fire-and-forget operation on the TagProcessor lane.
+     *
+     * <p>Returns {@code true} only when the work was queued for later serial
+     * execution; it does not report the eventual operation outcome.</p>
+     */
+    private boolean trySubmitToTagLane(
             Runnable operation) {
         return lane.offer(operation)
                 == SerialLane.AdmissionResult.ACCEPTED;
