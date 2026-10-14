@@ -478,9 +478,9 @@ public class TimingNodeRegistrationTest {
     }
 
     @Test
-    public void recoveryDoesNotReplayNewTimingDataEvent() {
+    public void startupLoadDoesNotReplayNewTimingDataEvent() {
         RecordingStore store = new RecordingStore();
-        store.loaded.add(recoveredData(1L, 11));
+        store.loaded.add(loadedData(1L, 11));
         TimingNode node = node(store);
         List<TimingData> delivered = new ArrayList<>();
         node.logBook().newDataEntryEvent().subscribe(delivered::add);
@@ -495,10 +495,10 @@ public class TimingNodeRegistrationTest {
     }
 
     @Test
-    public void startupRecoversCommittedLogBookAndContinuesSequence() {
+    public void startupLoadsCommittedLogBookAndContinuesSequence() {
         RecordingStore store = new RecordingStore();
-        store.loaded.add(recoveredData(1L, 11));
-        store.loaded.add(recoveredData(2L, 12));
+        store.loaded.add(loadedData(1L, 11));
+        store.loaded.add(loadedData(2L, 12));
         TimingNode node = node(store);
 
         node.activate();
@@ -506,7 +506,7 @@ public class TimingNodeRegistrationTest {
             TimingNodeTypes.Status status = node.logBook().query(LogBookQueries.status());
             assertEquals(TimingNodeTypes.State.CLOSED, status.state());
             assertFalse(status.hasLocation());
-            assertFalse(status.timingDataTailRecovered());
+            assertFalse(status.timingDataTailRepaired());
             assertEquals(2, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
 
             assertEquals(
@@ -526,13 +526,13 @@ public class TimingNodeRegistrationTest {
     @Test
     public void startupReportsRepairedIncompleteTailInStatus() {
         RecordingStore store = new RecordingStore();
-        store.loaded.add(recoveredData(1L, 11));
+        store.loaded.add(loadedData(1L, 11));
         store.repairedIncompleteTail = true;
         TimingNode node = node(store);
 
         node.activate();
         try {
-            assertTrue(node.logBook().query(LogBookQueries.status()).timingDataTailRecovered());
+            assertTrue(node.logBook().query(LogBookQueries.status()).timingDataTailRepaired());
             assertEquals(1, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
         } finally {
             node.deactivate();
@@ -540,7 +540,7 @@ public class TimingNodeRegistrationTest {
     }
 
     @Test
-    public void recoveryFailureLeavesWorkerQueryableInErrorAndRejectsNormalOperations() {
+    public void startupLoadFailureLeavesWorkerQueryableInErrorAndRejectsNormalOperations() {
         RecordingStore store = new RecordingStore();
         store.failLoad = true;
         TimingNode node = node(store);
@@ -552,13 +552,13 @@ public class TimingNodeRegistrationTest {
             assertFalse(status.hasLocation());
             assertEquals(1, status.problems().size());
             assertEquals(
-                    TimingNodeTypes.ProblemCode.TIMING_DATA_RECOVERY_FAILED,
+                    TimingNodeTypes.ProblemCode.TIMING_DATA_LOAD_FAILED,
                     status.problems().get(0).code());
             assertEquals(
                     TimingNodeTypes.ProblemSeverity.ERROR,
                     status.problems().get(0).severity());
             assertTrue(status.problems().get(0).message().contains(
-                    "expected recovery failure"));
+                    "expected persisted-data load failure"));
 
             try {
                 node.logBook().invoke(LogBookCommands.open(new LocationId(24)));
@@ -568,7 +568,7 @@ public class TimingNodeRegistrationTest {
                         TimingNodeTypes.OperationException.Reason.FAILED,
                         expected.reason());
                 assertTrue(expected.getMessage().contains(
-                        "expected recovery failure"));
+                        "expected persisted-data load failure"));
             }
 
             try {
@@ -591,7 +591,7 @@ public class TimingNodeRegistrationTest {
         }
     }
 
-    private static TimingData recoveredData(long sequence, int locationId) {
+    private static TimingData loadedData(long sequence, int locationId) {
         return new DefaultTimingDataFactory().createManualRegistration(
                 new Context(
                         new NodeId("A"),
@@ -599,7 +599,7 @@ public class TimingNodeRegistrationTest {
                         new LocationId(locationId),
                         EFFECTIVE_TIME,
                         RECORDED_AT),
-                new RegistrationId("recovered-" + sequence),
+                new RegistrationId("loaded-" + sequence),
                 ManualTimeSource.AUTOMATIC);
     }
 
@@ -623,7 +623,7 @@ public class TimingNodeRegistrationTest {
         @Override
         public LoadResult load() throws PersistenceException {
             if (failLoad) {
-                throw new PersistenceException("expected recovery failure");
+                throw new PersistenceException("expected persisted-data load failure");
             }
             return new LoadResult(loaded, repairedIncompleteTail);
         }
