@@ -8,6 +8,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.storage.AppendOnlyRecord
 import java.util.ArrayList;
 import java.util.List;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * Default TimingData persistence mapping over a generic append-only record store.
  *
@@ -24,15 +26,9 @@ public final class DefaultTimingDataPersistence implements TimingDataPersistence
             AppendOnlyRecordStore recordStore,
             NodeId timingNodeId,
             TimingDataCodec codec) {
-        if (recordStore == null) {
-            throw new IllegalArgumentException("recordStore must not be null");
-        }
-        if (timingNodeId == null) {
-            throw new IllegalArgumentException("timingNodeId must not be null");
-        }
-        if (codec == null) {
-            throw new IllegalArgumentException("codec must not be null");
-        }
+        checkArgument(recordStore != null, "recordStore must not be null");
+        checkArgument(timingNodeId != null, "timingNodeId must not be null");
+        checkArgument(codec != null, "codec must not be null");
         this.recordStore = recordStore;
         this.timingNodeId = timingNodeId;
         this.codec = codec;
@@ -61,9 +57,7 @@ public final class DefaultTimingDataPersistence implements TimingDataPersistence
 
     @Override
     public void append(TimingData data) throws PersistenceException {
-        if (data == null) {
-            throw new IllegalArgumentException("data must not be null");
-        }
+        checkArgument(data != null, "data must not be null");
         if (!timingNodeId.equals(data.timingNodeId())) {
             throw new PersistenceException(
                     "TimingData belongs to " + data.timingNodeId()
