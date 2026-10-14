@@ -3,8 +3,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixtu
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
@@ -20,7 +20,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.Upstre
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTasks;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
@@ -177,8 +177,8 @@ public class UpstreamHandlerTest {
         ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
                 ReadOnlyConfiguration.fixed(
                         TagProcessingPolicy.defaults());
-        LogBookProcessor logBook =
-                new LogBookProcessor(
+        LogBook logBook =
+                new LogBook(
                         new NodeId("A"),
                         new MemoryPersistence(
                                 Collections.<TimingData>emptyList()),
@@ -186,10 +186,10 @@ public class UpstreamHandlerTest {
                         () -> Instant.parse(
                                 "2026-10-13T12:00:00Z"),
                         SystemMonotonicClock.INSTANCE,
-                        new LogBookProcessorMetrics(),
+                        new LogBookMetrics(),
                         dataLane);
-        NodeTaskProcessor tasks =
-                new NodeTaskProcessor(
+        NodeTasks tasks =
+                new NodeTasks(
                         logBook,
                         taskLane,
                         eventData,
@@ -504,8 +504,8 @@ public class UpstreamHandlerTest {
         try {
             stream.onNextSend(
                     () -> assertSame(
-                            TimingNodeTypes.CommandAdmission.ACCEPTED,
-                            node.node().logBook().offer(
+                            TimingNodeTypes.CommandQueueResult.QUEUED,
+                            node.node().logBook().queue(
                                     LogBookCommands.open(
                                             new LocationId(24)))));
 
