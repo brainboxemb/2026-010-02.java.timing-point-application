@@ -15,7 +15,7 @@ public final class LogBookQueries {
             new LogBookQuery<>(
                     "status",
                     LogBookState::status,
-                    LogBookProcessor::publishedStatus);
+                    LogBook::publishedStatus);
     private static final LogBookQuery<Integer> TIMING_DATA_COUNT =
             new LogBookQuery<>(
                     "timingDataCount",
@@ -24,7 +24,7 @@ public final class LogBookQueries {
             new LogBookQuery<>(
                     "timingDataHead",
                     LogBookState::timingDataHead,
-                    LogBookProcessor::currentTimingDataHead);
+                    LogBook::currentTimingDataHead);
 
     private LogBookQueries() {
     }
@@ -60,7 +60,7 @@ public final class LogBookQueries {
             Consumer<TimingData> visitor) {
         return new LogBookQuery<>(
                 "visitTimingDataRange",
-                logic -> logic.visitTimingDataRange(
+                logBookState -> logBookState.visitTimingDataRange(
                         fromSequence,
                         limit,
                         visitor));
@@ -74,6 +74,6 @@ public final class LogBookQueries {
             Consumer<TimingData> visitor) {
         return new LogBookQuery<>(
                 "visitLatestTimingData",
-                logic -> logic.visitLatestTimingData(limit, visitor));
+                logBookState -> logBookState.visitLatestTimingData(limit, visitor));
     }
 }
