@@ -243,6 +243,7 @@ public class StageTimingTest {
                 record.effectiveTime().instant());
     }
 
+    /** Verifies NodeService ranking reacts to upstream stage-start data. */
     @Test
     public void nodeQueryReturnsCurrentRankingFromCommittedLogBook()
             throws Exception {
