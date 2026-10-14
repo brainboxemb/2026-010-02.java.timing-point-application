@@ -27,6 +27,7 @@ import static org.junit.Assert.assertEquals;
 
 public class UniqueTeamRegistrationsIntegrationTest {
 
+    /** Verifies recovered registrations are recounted against current team assignments. */
     @Test
     public void recoveredAndLaterAssignedRegistrationsUseCurrentTeamResolution() {
         InMemoryUpstreamStream stream =
@@ -47,13 +48,12 @@ public class UniqueTeamRegistrationsIntegrationTest {
         node.activate();
         try {
             UpstreamHandler port =
-                    components.nodeService()
-                            .upstreamHandler();
+                    components.upstreamHandler();
 
             // RT-A-0001 is fixed by EventData. RT-R-0001 is still unresolved.
             assertEquals(
                     1,
-                    port.uniqueTeamRegistrationCount());
+                    components.upstreamTaskState().uniqueTeamRegistrationCount());
 
             stream.receive(
                     DefaultUpstreamData.raceData(
@@ -72,7 +72,7 @@ public class UniqueTeamRegistrationsIntegrationTest {
             // second active RegistrationId to a second unique TeamId.
             assertEquals(
                     2,
-                    port.uniqueTeamRegistrationCount());
+                    components.upstreamTaskState().uniqueTeamRegistrationCount());
             assertEquals(
                     Integer.valueOf(2),
                     node.logBook().query(
@@ -82,6 +82,7 @@ public class UniqueTeamRegistrationsIntegrationTest {
         }
     }
 
+    /** Builds one persisted automatic registration for the recovery fixture. */
     private static TimingData registration(
             long sequence,
             String registrationId) {
@@ -104,12 +105,14 @@ public class UniqueTeamRegistrationsIntegrationTest {
             implements TimingDataPersistence {
         private final List<TimingData> records;
 
+        /** Creates immutable persistence containing the supplied recovered records. */
         private StaticPersistence(
                 TimingData... records) {
             this.records =
                     Arrays.asList(records);
         }
 
+        /** Returns the configured persisted records without repair. */
         @Override
         public LoadResult load() {
             return new LoadResult(
@@ -117,6 +120,7 @@ public class UniqueTeamRegistrationsIntegrationTest {
                     false);
         }
 
+        /** Rejects commits because this test only verifies recovery and live assignment changes. */
         @Override
         public void append(TimingData data) {
             throw new AssertionError(
