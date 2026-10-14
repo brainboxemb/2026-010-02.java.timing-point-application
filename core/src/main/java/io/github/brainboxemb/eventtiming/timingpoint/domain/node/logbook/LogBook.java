@@ -564,7 +564,7 @@ public final class LogBook
                         operation);
             default:
                 throw new IllegalStateException(
-                        "Unsupported submission result "
+                        "Unsupported Data Lane queue result "
                                 + queueResult);
         }
     }
