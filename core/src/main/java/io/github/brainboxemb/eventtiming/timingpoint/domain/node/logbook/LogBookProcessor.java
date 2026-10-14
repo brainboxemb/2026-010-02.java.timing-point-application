@@ -3,7 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandAdmission;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandSubmissionResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
@@ -152,13 +152,13 @@ public final class LogBookProcessor
         publishedStatus = null;
         dataLane.start();
 
-        SerialLane.AdmissionResult initialization =
+        SerialLane.AdmissionResult loadSubmissionResult =
                 dataLane.offer(this::loadPersistedDataOnDataLane);
-        if (initialization != SerialLane.AdmissionResult.ACCEPTED) {
+        if (loadSubmissionResult != SerialLane.AdmissionResult.ACCEPTED) {
             dataLane.close();
             throw new IllegalStateException(
-                    "TimingNode persisted-data load could not be admitted: "
-                            + initialization);
+                    "Persisted TimingData load could not be queued on the Data Lane: "
+                            + loadSubmissionResult);
         }
     }
 
@@ -173,7 +173,7 @@ public final class LogBookProcessor
             throw new IllegalArgumentException(
                     "command must not be null");
         }
-        return runSerialized(
+        return executeOnDataLaneAndWait(
                 () -> applyCommand(command),
                 command.name());
     }
@@ -225,7 +225,7 @@ public final class LogBookProcessor
             case CURRENT:
                 return query.readCurrent(this);
             case ORDERED:
-                return runSerialized(
+                return executeOnDataLaneAndWait(
                         () -> query.readOrdered(logic),
                         query.name());
             default:
@@ -253,8 +253,13 @@ public final class LogBookProcessor
         return initialDataLoadedEvent;
     }
 
-    /** Admits one fire-and-forget operation to the Data Lane. */
-    public boolean offerOperation(
+    /**
+     * Tries to queue one fire-and-forget operation on the Data Lane.
+     *
+     * <p>Returns {@code true} only when the operation was queued. The caller
+     * does not wait for execution or receive the operation result.</p>
+     */
+    public boolean trySubmitOperation(
             Runnable operation) {
         if (operation == null) {
             throw new IllegalArgumentException(
@@ -362,13 +367,13 @@ public final class LogBookProcessor
                 initialStatus);
     }
 
-    private <R> void applySubmitted(
+    private <R> void executeSubmittedCommand(
             LogBookCommand<R> command) {
         try {
             applyCommand(command);
         } catch (Exception ex) {
             LOG.warn(
-                    "Submitted TimingNode command {} failed after admission",
+                    "Queued TimingNode command {} failed during Data Lane execution",
                     command.name(),
                     ex);
         }
@@ -509,7 +514,11 @@ public final class LogBookProcessor
         }
     }
 
-    private <R> R runSerialized(
+    /**
+     * Queues one result-bearing operation on the Data Lane and waits for its
+     * ordered execution result.
+     */
+    private <R> R executeOnDataLaneAndWait(
             Callable<R> work,
             String operation) {
         if (dataLane.isExecutingOnCurrentThread()) {
@@ -526,7 +535,7 @@ public final class LogBookProcessor
                 throw new OperationException(
                         OperationException.Reason.BUSY,
                         operation
-                                + " could not be admitted because the TimingNode Data Lane is full");
+                                + " could not be queued because the TimingNode Data Lane is full");
             case NOT_RUNNING:
                 if (dataLane.state()
                         == SerialLane.State.FAILED) {
@@ -539,7 +548,7 @@ public final class LogBookProcessor
                 throw new OperationException(
                         OperationException.Reason.UNAVAILABLE,
                         operation
-                                + " could not be admitted because the TimingNode Data Lane is not running");
+                                + " could not be queued because the TimingNode Data Lane is not running");
             case ACCEPTED:
                 return await(
                         submitResult.futureResult(),
