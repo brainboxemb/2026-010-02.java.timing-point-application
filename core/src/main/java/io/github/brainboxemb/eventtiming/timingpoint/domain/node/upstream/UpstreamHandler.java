@@ -150,7 +150,7 @@ public final class UpstreamHandler {
                         "SYNC has incompatible semantic type");
                 UpstreamData.Sync sync = (UpstreamData.Sync) data;
                 if (sync.stream() == UpstreamData.Stream.RACE_DATA) {
-                    offerProtocolOperation(
+                    submitProtocolOperationToTaskLane(
                             "RACE_DATA SYNC",
                             () -> upstreamDataSync.handleSync(sync));
                 } else {
@@ -224,7 +224,7 @@ public final class UpstreamHandler {
 
     /** Reads the current Central-provided stage start on the Task Lane. */
     public TimingTimestamp stageStartTimeFor(TeamId teamId) {
-        return onTaskLane(
+        return executeOnTaskLaneAndWait(
                 () -> taskState.stageStartTimeFor(teamId),
                 "upstreamStageStartTimeFor");
     }
