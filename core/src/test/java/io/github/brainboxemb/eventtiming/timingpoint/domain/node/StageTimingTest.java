@@ -1,7 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQueries;
-
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
@@ -15,7 +13,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.StageS
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.TeamAssignments;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
@@ -281,9 +279,7 @@ public class StageTimingTest {
             stream.takeSent();
 
             List<StageTime> ranking =
-                    node.query(
-                            TimingNodeQueries.stageTiming(
-                                    ZoneOffset.UTC));
+                    node.stageTiming(ZoneOffset.UTC);
 
             assertEquals(1, ranking.size());
             assertEquals(1, ranking.get(0).rank());
