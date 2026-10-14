@@ -132,7 +132,7 @@ public class WebSocketOutboundDeliveryTest {
                                 .instant());
         node.activate();
         try {
-            node.newDataEntryEvent()
+            node.logBook().newDataEntryEvent()
                     .subscribe(
                             data -> {
                                 delivery.send(
@@ -140,12 +140,12 @@ public class WebSocketOutboundDeliveryTest {
                                         "seq-" + data.sequenceNumber());
                             });
 
-            node.invoke(
+            node.logBook().invoke(
                     LogBookCommands.open(
                             new LocationId(24)));
 
             for (int index = 1; index <= 10; index++) {
-                node.invoke(
+                node.logBook().invoke(
                         LogBookCommands.addAutomaticRegistration(
                                 new RegistrationId(
                                         String.format(
@@ -160,7 +160,7 @@ public class WebSocketOutboundDeliveryTest {
             assertEquals(
                     "all TimingNode commits must complete even after the slow client is disconnected",
                     11,
-                    node.query(
+                    node.logBook().query(
                             LogBookQueries.timingDataCount())
                             .intValue());
             assertEquals(

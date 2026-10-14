@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Tighten the `TimingNode` boundary: child lifecycle now uses `ComponentLifecycleManager`, LogBook commands/queries/events are exposed through `LogBookAccessor`, and child/test-only passthrough getters are removed in favor of explicit runtime/test composition.
+
 - Keep TimingNode timing-history ownership explicit under `domain.node.logbook`, with persistence under `domain.node.logbook.persistence`; keep live race state separate under `domain.node.racedata`.
 
 - Move TimingNode heartbeat protocol state onto the bounded Task Lane: heartbeat ticks and inbound PING handling use non-blocking Task Lane admission, while heartbeat status is published as an immutable direct-read snapshot.

@@ -40,15 +40,15 @@ public class TimingNodeRegistrationTest {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
         List<TimingData> delivered = new ArrayList<>();
-        node.newDataEntryEvent().subscribe(delivered::add);
+        node.logBook().newDataEntryEvent().subscribe(delivered::add);
 
         node.activate();
         try {
-            node.invoke(LogBookCommands.open(new LocationId(24)));
+            node.logBook().invoke(LogBookCommands.open(new LocationId(24)));
 
             RegistrationId registrationId = new RegistrationId("1001");
             TimingNodeTypes.RegistrationResult result =
-                    node.invoke(LogBookCommands.addAutomaticRegistration(registrationId, EFFECTIVE_TIME));
+                    node.logBook().invoke(LogBookCommands.addAutomaticRegistration(registrationId, EFFECTIVE_TIME));
 
             assertTrue(result.committed());
             assertTrue(result.timingData() instanceof AutomaticRegistration);
@@ -63,7 +63,7 @@ public class TimingNodeRegistrationTest {
 
             assertEquals(2, store.appended.size());
             assertSame(data, store.appended.get(1));
-            assertEquals(2, node.query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(2, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
             assertSame(data, delivered.get(1));
         } finally {
             node.deactivate();
@@ -76,8 +76,8 @@ public class TimingNodeRegistrationTest {
         TimingNode node = node(store);
         node.activate();
         try {
-            node.invoke(LogBookCommands.open(new LocationId(24)));
-            AutomaticRegistration implicit = (AutomaticRegistration) node.invoke(
+            node.logBook().invoke(LogBookCommands.open(new LocationId(24)));
+            AutomaticRegistration implicit = (AutomaticRegistration) node.logBook().invoke(
                     LogBookCommands.simulateAutomaticRegistrationNow(
                             new RegistrationId("RT-A-0001"))).timingData();
             assertEquals(RECORDED_AT, implicit.effectiveTime());
@@ -86,7 +86,7 @@ public class TimingNodeRegistrationTest {
             assertEquals(TimingData.AutomaticTimeSource.NODE,
                     implicit.registrationTimeSource());
 
-            AutomaticRegistration explicit = (AutomaticRegistration) node.invoke(
+            AutomaticRegistration explicit = (AutomaticRegistration) node.logBook().invoke(
                     LogBookCommands.simulateAutomaticRegistration(
                             new RegistrationId("RT-A-0002"), EFFECTIVE_TIME)).timingData();
             assertEquals(EFFECTIVE_TIME, explicit.effectiveTime());
@@ -94,7 +94,7 @@ public class TimingNodeRegistrationTest {
             assertEquals(TimingData.AutomaticTimeSource.API,
                     explicit.registrationTimeSource());
 
-            AutomaticRegistration antenna = (AutomaticRegistration) node.invoke(
+            AutomaticRegistration antenna = (AutomaticRegistration) node.logBook().invoke(
                     LogBookCommands.addAutomaticRegistration(
                             new RegistrationId("RT-A-0003"), EFFECTIVE_TIME)).timingData();
             assertEquals(TimingData.TagSource.ANT, antenna.tagSource());
@@ -112,18 +112,18 @@ public class TimingNodeRegistrationTest {
 
         node.activate();
         try {
-            node.invoke(
+            node.logBook().invoke(
                     LogBookCommands.open(
                             new LocationId(24)));
 
             TimingNodeTypes.RegistrationResult automatic =
-                    node.invoke(
+                    node.logBook().invoke(
                             LogBookCommands.addAutomaticRegistration(
                                     new RegistrationId("1001"),
                                     TimingTimestamp.parse(
                                             "2026-10-01T12:00:00.129876543Z")));
             TimingNodeTypes.RegistrationResult manual =
-                    node.invoke(
+                    node.logBook().invoke(
                             LogBookCommands.commitManualRegistration(
                                     new RegistrationId("1002"),
                                     TimingTimestamp.parse(
@@ -152,7 +152,7 @@ public class TimingNodeRegistrationTest {
         try {
 
             TimingNodeTypes.RegistrationResult rejected =
-                    node.invoke(LogBookCommands.addAutomaticRegistration(
+                    node.logBook().invoke(LogBookCommands.addAutomaticRegistration(
                             new RegistrationId("1001"),
                             EFFECTIVE_TIME));
 
@@ -160,11 +160,11 @@ public class TimingNodeRegistrationTest {
                     TimingNodeTypes.RegistrationResult.Outcome.NODE_NOT_OPEN,
                     rejected.outcome());
             assertEquals(0, store.attempts);
-            assertEquals(0, node.query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(0, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
 
-            node.invoke(LogBookCommands.open(new LocationId(24)));
+            node.logBook().invoke(LogBookCommands.open(new LocationId(24)));
             TimingNodeTypes.RegistrationResult committed =
-                    node.invoke(LogBookCommands.addAutomaticRegistration(
+                    node.logBook().invoke(LogBookCommands.addAutomaticRegistration(
                             new RegistrationId("1002"),
                             EFFECTIVE_TIME));
             assertEquals(2L, committed.timingData().sequenceNumber());
@@ -180,9 +180,9 @@ public class TimingNodeRegistrationTest {
 
         node.activate();
         try {
-            assertEquals(TimingNodeTypes.OpenResult.OPENED, node.invoke(LogBookCommands.open(new LocationId(24))));
+            assertEquals(TimingNodeTypes.OpenResult.OPENED, node.logBook().invoke(LogBookCommands.open(new LocationId(24))));
 
-            TimingNodeTypes.RegistrationResult result = node.invoke(LogBookCommands.commitManualRegistration(
+            TimingNodeTypes.RegistrationResult result = node.logBook().invoke(LogBookCommands.commitManualRegistration(
                     new RegistrationId("1001"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.OPERATOR_ENTERED));
@@ -195,7 +195,7 @@ public class TimingNodeRegistrationTest {
             assertSame(result.timingData(), store.appended.get(1));
 
             TimingData[] visited = new TimingData[1];
-            int totalCount = node.query(
+            int totalCount = node.logBook().query(
                     LogBookQueries.visitTimingDataRange(
                             2L,
                             1,
@@ -226,19 +226,19 @@ public class TimingNodeRegistrationTest {
 
         node.activate();
         try {
-            node.invoke(LogBookCommands.open(new LocationId(24)));
+            node.logBook().invoke(LogBookCommands.open(new LocationId(24)));
 
-            TimingNodeTypes.RegistrationResult first = node.invoke(LogBookCommands.addAutomaticRegistration(
+            TimingNodeTypes.RegistrationResult first = node.logBook().invoke(LogBookCommands.addAutomaticRegistration(
                     new RegistrationId("1001"),
                     EFFECTIVE_TIME));
-            TimingNodeTypes.RegistrationResult second = node.invoke(LogBookCommands.commitManualRegistration(
+            TimingNodeTypes.RegistrationResult second = node.logBook().invoke(LogBookCommands.commitManualRegistration(
                     new RegistrationId("1002"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.AUTOMATIC));
 
             assertEquals(2L, first.timingData().sequenceNumber());
             assertEquals(3L, second.timingData().sequenceNumber());
-            assertEquals(3, node.query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(3, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
         } finally {
             node.deactivate();
         }
@@ -252,7 +252,7 @@ public class TimingNodeRegistrationTest {
         node.activate();
         try {
 
-            TimingNodeTypes.RegistrationResult rejected = node.invoke(LogBookCommands.commitManualRegistration(
+            TimingNodeTypes.RegistrationResult rejected = node.logBook().invoke(LogBookCommands.commitManualRegistration(
                     new RegistrationId("1001"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.OPERATOR_ENTERED));
@@ -261,10 +261,10 @@ public class TimingNodeRegistrationTest {
                     TimingNodeTypes.RegistrationResult.Outcome.NODE_NOT_OPEN,
                     rejected.outcome());
             assertEquals(0, store.appended.size());
-            assertEquals(0, node.query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(0, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
 
-            node.invoke(LogBookCommands.open(new LocationId(24)));
-            TimingNodeTypes.RegistrationResult committed = node.invoke(LogBookCommands.commitManualRegistration(
+            node.logBook().invoke(LogBookCommands.open(new LocationId(24)));
+            TimingNodeTypes.RegistrationResult committed = node.logBook().invoke(LogBookCommands.commitManualRegistration(
                     new RegistrationId("1002"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.OPERATOR_ENTERED));
@@ -281,11 +281,11 @@ public class TimingNodeRegistrationTest {
 
         node.activate();
         try {
-            node.invoke(LogBookCommands.open(new LocationId(24)));
+            node.logBook().invoke(LogBookCommands.open(new LocationId(24)));
             store.failNext = true;
 
             try {
-                node.invoke(LogBookCommands.commitManualRegistration(
+                node.logBook().invoke(LogBookCommands.commitManualRegistration(
                         new RegistrationId("1001"),
                         EFFECTIVE_TIME,
                         ManualTimeSource.OPERATOR_ENTERED));
@@ -296,11 +296,11 @@ public class TimingNodeRegistrationTest {
                         expected.reason());
             }
 
-            assertEquals(1, node.query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(1, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
             assertEquals(2, store.attempts);
 
             try {
-                node.invoke(LogBookCommands.commitManualRegistration(
+                node.logBook().invoke(LogBookCommands.commitManualRegistration(
                         new RegistrationId("1002"),
                         EFFECTIVE_TIME,
                         ManualTimeSource.OPERATOR_ENTERED));
@@ -312,7 +312,7 @@ public class TimingNodeRegistrationTest {
             }
 
             assertEquals(2, store.attempts);
-            assertEquals(1, node.query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(1, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
         } finally {
             node.deactivate();
         }
@@ -325,12 +325,12 @@ public class TimingNodeRegistrationTest {
         List<TimingData> delivered = new ArrayList<>();
         Consumer<TimingData> listener = delivered::add;
 
-        assertTrue(node.newDataEntryEvent().subscribe(listener));
+        assertTrue(node.logBook().newDataEntryEvent().subscribe(listener));
 
         node.activate();
         try {
 
-            TimingNodeTypes.RegistrationResult rejected = node.invoke(LogBookCommands.commitManualRegistration(
+            TimingNodeTypes.RegistrationResult rejected = node.logBook().invoke(LogBookCommands.commitManualRegistration(
                     new RegistrationId("1001"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.OPERATOR_ENTERED));
@@ -339,14 +339,14 @@ public class TimingNodeRegistrationTest {
                     rejected.outcome());
             assertTrue(delivered.isEmpty());
 
-            node.invoke(LogBookCommands.open(new LocationId(24)));
-            TimingNodeTypes.RegistrationResult committed = node.invoke(LogBookCommands.commitManualRegistration(
+            node.logBook().invoke(LogBookCommands.open(new LocationId(24)));
+            TimingNodeTypes.RegistrationResult committed = node.logBook().invoke(LogBookCommands.commitManualRegistration(
                     new RegistrationId("1002"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.OPERATOR_ENTERED));
 
             assertEquals(2, store.appended.size());
-            assertEquals(2, node.query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(2, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
             assertEquals(2, delivered.size());
             assertSame(committed.timingData(), delivered.get(1));
 
@@ -360,16 +360,16 @@ public class TimingNodeRegistrationTest {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
         List<TimingData> delivered = new ArrayList<>();
-        node.newDataEntryEvent().subscribe(delivered::add);
+        node.logBook().newDataEntryEvent().subscribe(delivered::add);
 
         node.activate();
         try {
-            node.invoke(LogBookCommands.open(new LocationId(24)));
+            node.logBook().invoke(LogBookCommands.open(new LocationId(24)));
             delivered.clear();
             store.failNext = true;
 
             try {
-                node.invoke(LogBookCommands.commitManualRegistration(
+                node.logBook().invoke(LogBookCommands.commitManualRegistration(
                         new RegistrationId("1001"),
                         EFFECTIVE_TIME,
                         ManualTimeSource.OPERATOR_ENTERED));
@@ -381,7 +381,7 @@ public class TimingNodeRegistrationTest {
             }
 
             assertTrue(delivered.isEmpty());
-            assertEquals(1, node.query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(1, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
         } finally {
             node.deactivate();
         }
@@ -393,24 +393,24 @@ public class TimingNodeRegistrationTest {
         TimingNode node = node(store);
         List<TimingData> delivered = new ArrayList<>();
 
-        node.newDataEntryEvent().subscribe(data -> {
+        node.logBook().newDataEntryEvent().subscribe(data -> {
             throw new IllegalStateException("expected listener failure");
         });
-        node.newDataEntryEvent().subscribe(delivered::add);
+        node.logBook().newDataEntryEvent().subscribe(delivered::add);
 
         node.activate();
         try {
-            node.invoke(LogBookCommands.open(new LocationId(24)));
+            node.logBook().invoke(LogBookCommands.open(new LocationId(24)));
             delivered.clear();
 
-            TimingNodeTypes.RegistrationResult committed = node.invoke(LogBookCommands.commitManualRegistration(
+            TimingNodeTypes.RegistrationResult committed = node.logBook().invoke(LogBookCommands.commitManualRegistration(
                     new RegistrationId("1001"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.AUTOMATIC));
 
             assertTrue(committed.committed());
             assertEquals(2, store.appended.size());
-            assertEquals(2, node.query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(2, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
             assertEquals(1, delivered.size());
             assertSame(committed.timingData(), delivered.get(0));
         } finally {
@@ -426,7 +426,7 @@ public class TimingNodeRegistrationTest {
         node.activate();
         try {
             TimingNodeTypes.RegistrationResult result =
-                    node.invoke(
+                    node.logBook().invoke(
                             LogBookCommands.revokeAutomaticRegistration(
                                     new LocationId(24),
                                     new RegistrationId("1001"),
@@ -455,7 +455,7 @@ public class TimingNodeRegistrationTest {
         node.activate();
         try {
             TimingNodeTypes.RegistrationResult result =
-                    node.invoke(
+                    node.logBook().invoke(
                             LogBookCommands.revokeManualRegistration(
                                     new LocationId(24),
                                     new RegistrationId("1001"),
@@ -483,11 +483,11 @@ public class TimingNodeRegistrationTest {
         store.loaded.add(recoveredData(1L, 11));
         TimingNode node = node(store);
         List<TimingData> delivered = new ArrayList<>();
-        node.newDataEntryEvent().subscribe(delivered::add);
+        node.logBook().newDataEntryEvent().subscribe(delivered::add);
 
         node.activate();
         try {
-            assertEquals(1, node.query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(1, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
             assertTrue(delivered.isEmpty());
         } finally {
             node.deactivate();
@@ -503,16 +503,16 @@ public class TimingNodeRegistrationTest {
 
         node.activate();
         try {
-            TimingNodeTypes.Status status = node.query(LogBookQueries.status());
+            TimingNodeTypes.Status status = node.logBook().query(LogBookQueries.status());
             assertEquals(TimingNodeTypes.State.CLOSED, status.state());
             assertFalse(status.hasLocation());
             assertFalse(status.timingDataTailRecovered());
-            assertEquals(2, node.query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(2, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
 
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
-                    node.invoke(LogBookCommands.open(new LocationId(24))));
-            TimingNodeTypes.RegistrationResult committed = node.invoke(LogBookCommands.commitManualRegistration(
+                    node.logBook().invoke(LogBookCommands.open(new LocationId(24))));
+            TimingNodeTypes.RegistrationResult committed = node.logBook().invoke(LogBookCommands.commitManualRegistration(
                     new RegistrationId("1003"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.AUTOMATIC));
@@ -532,8 +532,8 @@ public class TimingNodeRegistrationTest {
 
         node.activate();
         try {
-            assertTrue(node.query(LogBookQueries.status()).timingDataTailRecovered());
-            assertEquals(1, node.query(LogBookQueries.timingDataCount()).intValue());
+            assertTrue(node.logBook().query(LogBookQueries.status()).timingDataTailRecovered());
+            assertEquals(1, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
         } finally {
             node.deactivate();
         }
@@ -547,7 +547,7 @@ public class TimingNodeRegistrationTest {
 
         node.activate();
         try {
-            TimingNodeTypes.Status status = node.query(LogBookQueries.status());
+            TimingNodeTypes.Status status = node.logBook().query(LogBookQueries.status());
             assertEquals(TimingNodeTypes.State.ERROR, status.state());
             assertFalse(status.hasLocation());
             assertEquals(1, status.problems().size());
@@ -561,7 +561,7 @@ public class TimingNodeRegistrationTest {
                     "expected recovery failure"));
 
             try {
-                node.invoke(LogBookCommands.open(new LocationId(24)));
+                node.logBook().invoke(LogBookCommands.open(new LocationId(24)));
                 fail("expected ERROR node to reject OPEN");
             } catch (TimingNodeTypes.OperationException expected) {
                 assertEquals(
@@ -572,7 +572,7 @@ public class TimingNodeRegistrationTest {
             }
 
             try {
-                node.query(LogBookQueries.timingDataCount());
+                node.logBook().query(LogBookQueries.timingDataCount());
                 fail("expected ERROR node to reject LogBook query");
             } catch (TimingNodeTypes.OperationException expected) {
                 assertEquals(

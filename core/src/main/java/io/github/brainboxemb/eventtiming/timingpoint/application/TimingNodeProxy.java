@@ -7,6 +7,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
@@ -42,38 +43,40 @@ public final class TimingNodeProxy {
         MAN_REG
     }
 
-    private final TimingNode timingNode;
+    private final NodeId timingNodeId;
+    private final LogBookAccessor logBook;
     private final Event<TimingNodeStatus> statusChangedEvent = new Event<>();
 
     TimingNodeProxy(TimingNode timingNode) {
         if (timingNode == null) {
             throw new IllegalArgumentException("timingNode must not be null");
         }
-        this.timingNode = timingNode;
-        timingNode.statusChangedEvent().subscribe(this::updateStatus);
+        this.timingNodeId = timingNode.timingNodeId();
+        this.logBook = timingNode.logBook();
+        logBook.statusChangedEvent().subscribe(this::updateStatus);
     }
 
     /** Returns the stable identity of the proxied TimingNode. */
     public NodeId timingNodeId() {
-        return timingNode.timingNodeId();
+        return timingNodeId;
     }
 
     /** Returns the current authoritative node status. */
     public TimingNodeStatus status() {
         return timingNodeStatus(
-                timingNode.query(
+                logBook.query(
                         LogBookQueries.status(),
                         ReadConsistency.CURRENT));
     }
 
     /** Opens the node at the requested LocationId. */
     public OpenResult open(LocationId locationId) {
-        return timingNode.invoke(LogBookCommands.open(locationId));
+        return logBook.invoke(LogBookCommands.open(locationId));
     }
 
     /** Closes the node. */
     public CloseResult close() {
-        return timingNode.invoke(LogBookCommands.close());
+        return logBook.invoke(LogBookCommands.close());
     }
 
     /**
@@ -92,7 +95,7 @@ public final class TimingNodeProxy {
         }
         switch (action) {
             case ADD:
-                return timingNode.invoke(
+                return logBook.invoke(
                         LogBookCommands.addAutomaticRegistration(
                                 registrationId,
                                 time));
@@ -105,14 +108,14 @@ public final class TimingNodeProxy {
     /** Engineering-only accepted registration with an explicit API timestamp. */
     public RegistrationResult simulateAutomaticRegistration(
             RegistrationId registrationId, TimingTimestamp time) {
-        return timingNode.invoke(
+        return logBook.invoke(
                 LogBookCommands.simulateAutomaticRegistration(registrationId, time));
     }
 
     /** Engineering-only accepted registration using this node's own TimeSource. */
     public RegistrationResult simulateAutomaticRegistrationNow(
             RegistrationId registrationId) {
-        return timingNode.invoke(
+        return logBook.invoke(
                 LogBookCommands.simulateAutomaticRegistrationNow(registrationId));
     }
 
@@ -136,7 +139,7 @@ public final class TimingNodeProxy {
             throw new IllegalArgumentException(
                     "timeSource must not be null");
         }
-        return timingNode.invoke(
+        return logBook.invoke(
                 LogBookCommands.commitManualRegistration(
                         registrationId,
                         effectiveTime,
@@ -180,7 +183,7 @@ public final class TimingNodeProxy {
                     throw new IllegalArgumentException(
                             "AUTO_REG revoke must not carry originalTimeSource");
                 }
-                return timingNode.invoke(
+                return logBook.invoke(
                         LogBookCommands.revokeAutomaticRegistration(
                                 originalLocationId,
                                 registrationId,
@@ -190,7 +193,7 @@ public final class TimingNodeProxy {
                     throw new IllegalArgumentException(
                             "MAN_REG revoke requires originalTimeSource");
                 }
-                return timingNode.invoke(
+                return logBook.invoke(
                         LogBookCommands.revokeManualRegistration(
                                 originalLocationId,
                                 registrationId,
@@ -204,7 +207,7 @@ public final class TimingNodeProxy {
 
     /** Returns the number of committed records in this node LogBook. */
     public int logBookCount() {
-        return timingNode.query(LogBookQueries.timingDataCount());
+        return logBook.query(LogBookQueries.timingDataCount());
     }
 
     /**
@@ -216,7 +219,7 @@ public final class TimingNodeProxy {
             long fromSequence,
             int limit,
             Consumer<TimingData> visitor) {
-        return timingNode.query(
+        return logBook.query(
                 LogBookQueries.visitTimingDataRange(
                         fromSequence,
                         limit,
@@ -231,7 +234,7 @@ public final class TimingNodeProxy {
     public int visitLatestLogBook(
             int limit,
             Consumer<TimingData> visitor) {
-        return timingNode.query(
+        return logBook.query(
                 LogBookQueries.visitLatestTimingData(limit, visitor));
     }
 
@@ -247,7 +250,7 @@ public final class TimingNodeProxy {
 
     /** Returns the subscription-only post-commit new-data event. */
     public EventSource<TimingData> newDataEntryEvent() {
-        return timingNode.newDataEntryEvent();
+        return logBook.newDataEntryEvent();
     }
 
     private void updateStatus(Status status) {

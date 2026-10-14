@@ -52,9 +52,9 @@ public class UpstreamHandlerTest {
     public void raceDataIsReadFromStreamAndAckIsSentToStream() {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
-        TimingNode node =
+        TimingNodeFixture.Components node =
                 node("A", stream);
-        node.activate();
+        node.node().activate();
         try {
             stream.receive(
                     DefaultUpstreamData.raceData(
@@ -67,7 +67,7 @@ public class UpstreamHandlerTest {
                             Collections.<UpstreamData.StageStartTimeChange>emptyList()));
 
             assertTrue(
-                    node.upstreamHandler()
+                    node.taskProcessor().upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.Ack ack =
@@ -77,7 +77,7 @@ public class UpstreamHandlerTest {
                     ack.stream());
             assertEquals(1L, ack.sequence());
         } finally {
-            node.deactivate();
+            node.node().deactivate();
         }
     }
 
@@ -85,12 +85,12 @@ public class UpstreamHandlerTest {
     public void heartbeatUsesSameOutboundStreamAndTracksMissedIntervals() {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
-        TimingNode node =
+        TimingNodeFixture.Components node =
                 node("A", stream);
-        node.activate();
+        node.node().activate();
         try {
             UpstreamHandler port =
-                    node.upstreamHandler();
+                    node.taskProcessor().upstreamHandler();
 
             port.heartbeatTick();
             UpstreamData.Ping first =
@@ -119,7 +119,7 @@ public class UpstreamHandlerTest {
             assertEquals(1L, status.missedIntervals());
             assertTrue(status.answerPending());
         } finally {
-            node.deactivate();
+            node.node().deactivate();
         }
     }
 
@@ -205,7 +205,7 @@ public class UpstreamHandlerTest {
         tagConfiguration.changes()
                 .subscribe(
                         tags::onPolicyConfigurationChanged);
-        TimingNode node =
+        TimingNode timingNode =
                 new TimingNode(
                         logBook,
                         tasks,
@@ -216,10 +216,10 @@ public class UpstreamHandlerTest {
         CountDownLatch releaseBlocker =
                 new CountDownLatch(1);
 
-        node.activate();
+        timingNode.activate();
         try {
             // Barrier behind initial recovery before occupying the Data Lane.
-            node.query(LogBookQueries.status());
+            timingNode.logBook().query(LogBookQueries.status());
 
             SerialLane.SubmitResult<Void> blocker =
                     dataLane.submit(
@@ -241,7 +241,7 @@ public class UpstreamHandlerTest {
                             .snapshot()
                             .acceptedCount();
 
-            node.upstreamHandler()
+            tasks.upstreamHandler()
                     .heartbeatTick();
 
             assertEquals(
@@ -260,7 +260,7 @@ public class UpstreamHandlerTest {
                             TimeUnit.SECONDS));
         } finally {
             releaseBlocker.countDown();
-            node.deactivate();
+            timingNode.deactivate();
             nodeWorker.shutdownNow();
             tagWorker.shutdownNow();
         }
@@ -270,12 +270,12 @@ public class UpstreamHandlerTest {
     public void matchingHeartbeatAnswerIsReadFromStream() {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
-        TimingNode node =
+        TimingNodeFixture.Components node =
                 node("A", stream);
-        node.activate();
+        node.node().activate();
         try {
             UpstreamHandler port =
-                    node.upstreamHandler();
+                    node.taskProcessor().upstreamHandler();
             port.heartbeatTick();
             UpstreamData.Ping request =
                     (UpstreamData.Ping) stream.takeSent();
@@ -295,7 +295,7 @@ public class UpstreamHandlerTest {
             assertFalse(status.answerPending());
             assertEquals(0, stream.sentCount());
         } finally {
-            node.deactivate();
+            node.node().deactivate();
         }
     }
 
@@ -303,9 +303,9 @@ public class UpstreamHandlerTest {
     public void inboundPingRequestProducesAnswerOnSameStream() {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
-        TimingNode node =
+        TimingNodeFixture.Components node =
                 node("A", stream);
-        node.activate();
+        node.node().activate();
         try {
             stream.receive(
                     DefaultUpstreamData.ping(
@@ -315,7 +315,7 @@ public class UpstreamHandlerTest {
                             "peer-42"));
 
             assertTrue(
-                    node.upstreamHandler()
+                    node.taskProcessor().upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.Ping answer =
@@ -325,7 +325,7 @@ public class UpstreamHandlerTest {
                     answer.operation());
             assertEquals("peer-42", answer.pingId());
         } finally {
-            node.deactivate();
+            node.node().deactivate();
         }
     }
 
@@ -341,16 +341,16 @@ public class UpstreamHandlerTest {
                         null,
                         "manual-1"));
 
-        TimingNode node =
+        TimingNodeFixture.Components node =
                 node("A", stream);
-        node.activate();
+        node.node().activate();
         try {
             assertFalse(
-                    node.upstreamHandler()
+                    node.taskProcessor().upstreamHandler()
                             .inputAvailable());
             assertEquals(0, stream.sentCount());
         } finally {
-            node.deactivate();
+            node.node().deactivate();
         }
     }
 
@@ -360,22 +360,24 @@ public class UpstreamHandlerTest {
                 new InMemoryUpstreamStream();
         InMemoryUpstreamStream populatedStream =
                 new InMemoryUpstreamStream();
-        TimingNode empty =
+        TimingNodeFixture.Components empty =
                 node(
                         "A",
                         emptyStream,
                         Collections.<TimingData>emptyList());
-        TimingNode populated =
+        TimingNodeFixture.Components populated =
                 node(
                         "B",
                         populatedStream,
                         timingData("B", 3));
-        empty.activate();
-        populated.activate();
+        empty.node().activate();
+        populated.node().activate();
         try {
-            empty.upstreamHandler()
+            empty.taskProcessor()
+                    .upstreamHandler()
                     .sendTimingDataSync();
-            populated.upstreamHandler()
+            populated.taskProcessor()
+                    .upstreamHandler()
                     .sendTimingDataSync();
 
             UpstreamData.Sync emptySync =
@@ -394,8 +396,8 @@ public class UpstreamHandlerTest {
                     populatedSync.timingNodeId());
             assertEquals(3L, populatedSync.sequence());
         } finally {
-            empty.deactivate();
-            populated.deactivate();
+            empty.node().deactivate();
+            populated.node().deactivate();
         }
     }
 
@@ -405,12 +407,12 @@ public class UpstreamHandlerTest {
                 timingData("A", 5);
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
-        TimingNode node =
+        TimingNodeFixture.Components node =
                 node(
                         "A",
                         stream,
                         records);
-        node.activate();
+        node.node().activate();
         try {
             stream.receive(
                     DefaultUpstreamData.req(
@@ -419,7 +421,7 @@ public class UpstreamHandlerTest {
                             3L));
 
             assertTrue(
-                    node.upstreamHandler()
+                    node.taskProcessor().upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.TimingDataTransfer transfer =
@@ -436,7 +438,7 @@ public class UpstreamHandlerTest {
                     0,
                     stream.sentCount());
         } finally {
-            node.deactivate();
+            node.node().deactivate();
         }
     }
 
@@ -446,12 +448,12 @@ public class UpstreamHandlerTest {
                 timingData("A", 257);
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
-        TimingNode node =
+        TimingNodeFixture.Components node =
                 node(
                         "A",
                         stream,
                         records);
-        node.activate();
+        node.node().activate();
         try {
             stream.receive(
                     DefaultUpstreamData.req(
@@ -460,7 +462,7 @@ public class UpstreamHandlerTest {
                             1L));
 
             assertTrue(
-                    node.upstreamHandler()
+                    node.taskProcessor().upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.TimingDataTransfer first =
@@ -483,7 +485,7 @@ public class UpstreamHandlerTest {
                     second.records().get(0).sequenceNumber());
             assertEquals(0, stream.sentCount());
         } finally {
-            node.deactivate();
+            node.node().deactivate();
         }
     }
 
@@ -493,17 +495,17 @@ public class UpstreamHandlerTest {
                 timingData("A", 257);
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
-        TimingNode node =
+        TimingNodeFixture.Components node =
                 node(
                         "A",
                         stream,
                         records);
-        node.activate();
+        node.node().activate();
         try {
             stream.onNextSend(
                     () -> assertSame(
                             TimingNodeTypes.CommandAdmission.ACCEPTED,
-                            node.offer(
+                            node.node().logBook().offer(
                                     LogBookCommands.open(
                                             new LocationId(24)))));
 
@@ -514,7 +516,7 @@ public class UpstreamHandlerTest {
                             1L));
 
             assertTrue(
-                    node.upstreamHandler()
+                    node.taskProcessor().upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.TimingDataTransfer first =
@@ -531,13 +533,13 @@ public class UpstreamHandlerTest {
                     second.records().get(0).sequenceNumber());
             assertEquals(
                     258L,
-                    node.query(
+                    node.node().logBook().query(
                             LogBookQueries.timingDataHead(),
                             LogBookQuery.ReadConsistency.CURRENT)
                             .longValue());
             assertEquals(0, stream.sentCount());
         } finally {
-            node.deactivate();
+            node.node().deactivate();
         }
     }
 
@@ -545,12 +547,12 @@ public class UpstreamHandlerTest {
     public void requestPastTimingDataHeadSendsNothing() {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
-        TimingNode node =
+        TimingNodeFixture.Components node =
                 node(
                         "A",
                         stream,
                         timingData("A", 2));
-        node.activate();
+        node.node().activate();
         try {
             stream.receive(
                     DefaultUpstreamData.req(
@@ -559,11 +561,11 @@ public class UpstreamHandlerTest {
                             3L));
 
             assertTrue(
-                    node.upstreamHandler()
+                    node.taskProcessor().upstreamHandler()
                             .inputAvailable());
             assertEquals(0, stream.sentCount());
         } finally {
-            node.deactivate();
+            node.node().deactivate();
         }
     }
 
@@ -571,9 +573,9 @@ public class UpstreamHandlerTest {
     public void raceDataSyncAheadRequestsFirstMissingSequenceAndEqualIsQuiet() {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
-        TimingNode node =
+        TimingNodeFixture.Components node =
                 node("A", stream);
-        node.activate();
+        node.node().activate();
         try {
             stream.receive(
                     DefaultUpstreamData.sync(
@@ -581,7 +583,7 @@ public class UpstreamHandlerTest {
                             UpstreamData.Stream.RACE_DATA,
                             2L));
             assertTrue(
-                    node.upstreamHandler()
+                    node.taskProcessor().upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.Req req =
@@ -602,7 +604,7 @@ public class UpstreamHandlerTest {
                                             "0042")),
                             Collections.<UpstreamData.StageStartTimeChange>emptyList()));
             assertTrue(
-                    node.upstreamHandler()
+                    node.taskProcessor().upstreamHandler()
                             .inputAvailable());
             stream.takeSent(); // cumulative RACE_DATA ACK
 
@@ -612,11 +614,11 @@ public class UpstreamHandlerTest {
                             UpstreamData.Stream.RACE_DATA,
                             1L));
             assertTrue(
-                    node.upstreamHandler()
+                    node.taskProcessor().upstreamHandler()
                             .inputAvailable());
             assertEquals(0, stream.sentCount());
         } finally {
-            node.deactivate();
+            node.node().deactivate();
         }
     }
 
@@ -630,12 +632,12 @@ public class UpstreamHandlerTest {
                 timingData("A", 2);
         List<TimingData> recordsB =
                 timingData("B", 3);
-        TimingNode nodeA =
+        TimingNodeFixture.Components nodeA =
                 node("A", streamA, recordsA);
-        TimingNode nodeB =
+        TimingNodeFixture.Components nodeB =
                 node("B", streamB, recordsB);
-        nodeA.activate();
-        nodeB.activate();
+        nodeA.node().activate();
+        nodeB.node().activate();
         try {
             streamA.receive(
                     DefaultUpstreamData.req(
@@ -643,7 +645,7 @@ public class UpstreamHandlerTest {
                             UpstreamData.Stream.TIMING_DATA,
                             1L));
             assertTrue(
-                    nodeA.upstreamHandler()
+                    nodeA.taskProcessor().upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.TimingDataTransfer transferA =
@@ -661,7 +663,7 @@ public class UpstreamHandlerTest {
                             UpstreamData.Stream.TIMING_DATA,
                             2L));
             assertTrue(
-                    nodeB.upstreamHandler()
+                    nodeB.taskProcessor().upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.TimingDataTransfer transferB =
@@ -672,12 +674,12 @@ public class UpstreamHandlerTest {
                     new NodeId("B"),
                     transferB.timingNodeId());
         } finally {
-            nodeA.deactivate();
-            nodeB.deactivate();
+            nodeA.node().deactivate();
+            nodeB.node().deactivate();
         }
     }
 
-    private static TimingNode node(
+    private static TimingNodeFixture.Components node(
             String nodeId,
             UpstreamStream stream) {
         return node(
@@ -686,11 +688,11 @@ public class UpstreamHandlerTest {
                 Collections.<TimingData>emptyList());
     }
 
-    private static TimingNode node(
+    private static TimingNodeFixture.Components node(
             String nodeId,
             UpstreamStream stream,
             List<TimingData> initialTimingData) {
-        return TimingNodeFixture.createDirect(
+        return TimingNodeFixture.createDirectComponents(
                 new NodeId(nodeId),
                 new MemoryPersistence(initialTimingData),
                 new DefaultTimingDataFactory(),

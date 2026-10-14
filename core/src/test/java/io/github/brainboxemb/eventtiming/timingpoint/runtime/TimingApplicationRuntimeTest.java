@@ -420,7 +420,7 @@ public class TimingApplicationRuntimeTest {
                                     new AntennaId("1"))
                             .operation());
 
-            application.timingNode().invoke(
+            application.timingNode().logBook().invoke(
                     LogBookCommands.open(
                             new LocationId(24)));
 
@@ -454,7 +454,7 @@ public class TimingApplicationRuntimeTest {
                     "Reference EventData passage should commit through the antenna path",
                     simulatedCommit.await(3L, TimeUnit.SECONDS));
 
-            application.timingNode().invoke(
+            application.timingNode().logBook().invoke(
                     LogBookCommands.close());
 
             await(
@@ -660,14 +660,14 @@ public class TimingApplicationRuntimeTest {
         try {
             assertFalse(antenna.inventoryRunning());
 
-            application.timingNode().invoke(
+            application.timingNode().logBook().invoke(
                     LogBookCommands.open(new LocationId(24)));
             await(antenna::inventoryRunning, 1000L);
 
             CountDownLatch committed = new CountDownLatch(1);
             AtomicReference<AutomaticRegistration> automatic =
                     new AtomicReference<>();
-            application.timingNode().newDataEntryEvent().subscribe(data -> {
+            application.timingNode().logBook().newDataEntryEvent().subscribe(data -> {
                 if (data instanceof AutomaticRegistration) {
                     automatic.set((AutomaticRegistration) data);
                     committed.countDown();
@@ -689,7 +689,7 @@ public class TimingApplicationRuntimeTest {
                     automatic.get().registrationId());
             assertEquals(observedAt, automatic.get().effectiveTime());
 
-            application.timingNode().invoke(
+            application.timingNode().logBook().invoke(
                     LogBookCommands.close());
             await(() -> !antenna.inventoryRunning(), 1000L);
         } finally {

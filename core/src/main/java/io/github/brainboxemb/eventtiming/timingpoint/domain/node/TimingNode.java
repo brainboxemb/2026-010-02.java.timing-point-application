@@ -1,44 +1,29 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandAdmission;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommand;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 
-import java.time.ZoneId;
-import java.util.List;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 /**
- * Top-level component boundary for one logical timing node.
+ * Top-level owner for one logical timing node.
  *
- * <p>TimingNode is deliberately a small lifecycle/facade component. Its child
- * processors are composed by runtime code before construction. LogBook/TimingData
- * state belongs to {@link LogBookProcessor}; task/protocol state belongs to
- * {@link NodeTaskProcessor}; tag processing belongs to {@link TagProcessor}.
- * TimingNode only connects the selected-registration event to its Data child and
- * coordinates child lifecycle.</p>
+ * <p>Runtime composes the LogBook, Task and Tag children before construction.
+ * TimingNode owns their lifecycle and the one-way registration link from
+ * TagProcessor to LogBookProcessor. Child-specific operations stay on their
+ * explicit access boundaries rather than being copied onto this class.</p>
  */
 public final class TimingNode {
-    private final LogBookProcessor logBookProcessor;
+    private final NodeId timingNodeId;
+    private final LogBookAccessor logBook;
     private final NodeTaskProcessor taskProcessor;
-    private final TagProcessor tagProcessor;
+    private final ComponentLifecycleManager lifecycle =
+            new ComponentLifecycleManager();
 
-    /**
-     * Creates one TimingNode from its already-composed child components.
-     *
-     * <p>Runtime composition owns construction of the Data, Task and tag
-     * processors. TimingNode owns only their lifecycle/facade relationship and
-     * the registration event handoff between TagProcessor and LogBookProcessor.</p>
-     */
     public TimingNode(
             LogBookProcessor logBookProcessor,
             NodeTaskProcessor taskProcessor,
@@ -56,133 +41,49 @@ public final class TimingNode {
                     "tagProcessor must not be null");
         }
 
-        this.logBookProcessor = logBookProcessor;
+        this.timingNodeId =
+                logBookProcessor.timingNodeId();
+        this.logBook = logBookProcessor;
         this.taskProcessor = taskProcessor;
-        this.tagProcessor = tagProcessor;
+
+        lifecycle.register(
+                "LogBookProcessor",
+                logBookProcessor::activate,
+                logBookProcessor::deactivate);
+        lifecycle.register(
+                "NodeTaskProcessor",
+                taskProcessor::activate,
+                taskProcessor::deactivate);
+        lifecycle.register(
+                "TagProcessor",
+                tagProcessor::activate,
+                tagProcessor::deactivate);
 
         tagProcessor.newRegistrationEvent()
                 .subscribe(
-                        this::onNewRegistration);
-    }
-
-    private void onNewRegistration(
-            TagProcessor.NewRegistration registration) {
-        logBookProcessor.offer(
-                LogBookCommands.addAutomaticRegistration(
-                        registration.registrationId(),
-                        registration.observedAt()));
+                        registration ->
+                                logBook.offer(
+                                        LogBookCommands.addAutomaticRegistration(
+                                                registration.registrationId(),
+                                                registration.observedAt())));
     }
 
     public NodeId timingNodeId() {
-        return logBookProcessor.timingNodeId();
+        return timingNodeId;
     }
 
-    /** Returns the TimingNode-owned semantic upstream boundary. */
-    public UpstreamHandler upstreamHandler() {
-        return taskProcessor.upstreamHandler();
+    /** Returns the node's intentional LogBook command/query/event boundary. */
+    public LogBookAccessor logBook() {
+        return logBook;
     }
 
-    /**
-     * Activates children in ownership order: Data Lane/recovery first, then
-     * Task Lane, then TagProcessor ingress.
-     */
     public void activate() {
         taskProcessor.ensureCanActivate();
-
-        logBookProcessor.activate();
-
-        try {
-            taskProcessor.activate();
-        } catch (RuntimeException ex) {
-            logBookProcessor.deactivate();
-            throw ex;
-        }
-
-        try {
-            tagProcessor.activate();
-        } catch (RuntimeException ex) {
-            taskProcessor.deactivate();
-            logBookProcessor.deactivate();
-            throw ex;
-        }
+        lifecycle.activateAll();
     }
 
-    /**
-     * Stops ingress before task coordination and finally the Data Lane.
-     */
     public void deactivate() {
-        RuntimeException firstFailure =
-                null;
-
-        try {
-            tagProcessor.deactivate();
-        } catch (RuntimeException ex) {
-            firstFailure = ex;
-        }
-
-        try {
-            taskProcessor.deactivate();
-        } catch (RuntimeException ex) {
-            if (firstFailure == null) {
-                firstFailure = ex;
-            }
-        }
-
-        try {
-            logBookProcessor.deactivate();
-        } catch (RuntimeException ex) {
-            if (firstFailure == null) {
-                firstFailure = ex;
-            }
-        }
-
-        if (firstFailure != null) {
-            throw firstFailure;
-        }
-    }
-
-    /** Returns the node-local TagProcessor child for runtime I/O wiring. */
-    public TagProcessor tagProcessor() {
-        return tagProcessor;
-    }
-
-    /** Delegates one result-bearing LogBook command to LogBookProcessor. */
-    public <R> R invoke(
-            LogBookCommand<R> command) {
-        return logBookProcessor.invoke(
-                command);
-    }
-
-    /** Delegates one admission-only LogBook command to LogBookProcessor. */
-    public CommandAdmission offer(
-            LogBookCommand<?> command) {
-        return logBookProcessor.offer(
-                command);
-    }
-
-    /** Delegates an ordered/current LogBook query to LogBookProcessor. */
-    public <R> R query(LogBookQuery<R> query) {
-        return logBookProcessor.query(query);
-    }
-
-    public <R> R query(
-            LogBookQuery<R> query,
-            ReadConsistency consistency) {
-        return logBookProcessor.query(query, consistency);
-    }
-
-    /** Task Lane-owned derived timing query; deliberately not a LogBookQuery. */
-    public List<StageTime> stageTiming(ZoneId raceTimeZone) {
-        return taskProcessor.stageTiming(raceTimeZone);
-    }
-
-    public EventSource<TimingNodeTypes.Status> statusChangedEvent() {
-        return logBookProcessor.statusChangedEvent();
-    }
-
-    /** Post-commit TimingData fact published by the Data component. */
-    public EventSource<TimingData> newDataEntryEvent() {
-        return logBookProcessor.newDataEntryEvent();
+        lifecycle.deactivateAll();
     }
 
 }

@@ -227,8 +227,8 @@ public class TimingNodeRaceDataTest {
     private static Fixture fixture() {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
-        TimingNode node =
-                TimingNodeFixture.createDirect(
+        TimingNodeFixture.Components components =
+                TimingNodeFixture.createDirectComponents(
                         new NodeId("A"),
                         new EmptyPersistence(),
                         new DefaultTimingDataFactory(),
@@ -237,8 +237,10 @@ public class TimingNodeRaceDataTest {
                         new DefaultEventData(),
                         stream);
         return new Fixture(
-                node,
-                stream);
+                components.node(),
+                stream,
+                components.taskProcessor()
+                        .upstreamHandler());
     }
 
     private static final class Fixture {
@@ -248,11 +250,11 @@ public class TimingNodeRaceDataTest {
 
         private Fixture(
                 TimingNode node,
-                InMemoryUpstreamStream stream) {
+                InMemoryUpstreamStream stream,
+                UpstreamHandler port) {
             this.node = node;
             this.stream = stream;
-            this.port =
-                    node.upstreamHandler();
+            this.port = port;
         }
 
         private void receive(

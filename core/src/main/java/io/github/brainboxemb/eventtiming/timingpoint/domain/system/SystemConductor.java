@@ -104,7 +104,7 @@ public final class SystemConductor extends AbstractConductor implements Yielding
         for (TimingNode node : nodes) {
             final Status status;
             try {
-                status = node.query(
+                status = node.logBook().query(
                         LogBookQueries.status(),
                         ReadConsistency.CURRENT);
             } catch (OperationException ex) {

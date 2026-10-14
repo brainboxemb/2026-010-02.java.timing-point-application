@@ -135,14 +135,14 @@ public class TagProcessorTest {
                 execution.scheduler);
         connectToNode(processor, node);
         CountDownLatch committed = new CountDownLatch(1);
-        node.newDataEntryEvent().subscribe(data -> {
+        node.logBook().newDataEntryEvent().subscribe(data -> {
             if (data instanceof AutomaticRegistration) {
                 committed.countDown();
             }
         });
 
         node.activate();
-        node.invoke(LogBookCommands.open(new LocationId(24)));
+        node.logBook().invoke(LogBookCommands.open(new LocationId(24)));
         processor.activate();
         try {
             processor.onTagObserved(
@@ -207,14 +207,14 @@ public class TagProcessorTest {
                 execution.scheduler);
         connectToNode(processor, node);
         CountDownLatch committed = new CountDownLatch(1);
-        node.newDataEntryEvent().subscribe(data -> {
+        node.logBook().newDataEntryEvent().subscribe(data -> {
             if (data instanceof AutomaticRegistration) {
                 committed.countDown();
             }
         });
 
         node.activate();
-        node.invoke(LogBookCommands.open(new LocationId(24)));
+        node.logBook().invoke(LogBookCommands.open(new LocationId(24)));
         processor.activate();
         try {
             processor.onTagObserved(
@@ -330,14 +330,14 @@ public class TagProcessorTest {
                 .changes()
                 .subscribe(processor::onPolicyConfigurationChanged);
         CountDownLatch committed = new CountDownLatch(1);
-        node.newDataEntryEvent().subscribe(data -> {
+        node.logBook().newDataEntryEvent().subscribe(data -> {
             if (data instanceof AutomaticRegistration) {
                 committed.countDown();
             }
         });
 
         node.activate();
-        node.invoke(LogBookCommands.open(new LocationId(24)));
+        node.logBook().invoke(LogBookCommands.open(new LocationId(24)));
         processor.activate();
         try {
             processor.onTagObserved(
@@ -562,7 +562,7 @@ public class TagProcessorTest {
         processor.newRegistrationEvent()
                 .subscribe(
                         registration ->
-                                node.offer(
+                                node.logBook().offer(
                                         LogBookCommands.addAutomaticRegistration(
                                                 registration.registrationId(),
                                                 registration.observedAt())));

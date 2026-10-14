@@ -38,7 +38,7 @@ final class TimingNodeComposer {
         this.monotonicClock = monotonicClock;
     }
 
-    TimingNode compose(
+    TimingNodeComponents compose(
             Config.TimingNodeConfig nodeConfig,
             TimingSystemResolvedData system,
             TimeSource timeSource) {
@@ -86,9 +86,13 @@ final class TimingNodeComposer {
                 .subscribe(
                         tags::onPolicyConfigurationChanged);
 
-        return new TimingNode(
-                logBook,
-                tasks,
+        TimingNode node =
+                new TimingNode(
+                        logBook,
+                        tasks,
+                        tags);
+        return new TimingNodeComponents(
+                node,
                 tags);
     }
 }
