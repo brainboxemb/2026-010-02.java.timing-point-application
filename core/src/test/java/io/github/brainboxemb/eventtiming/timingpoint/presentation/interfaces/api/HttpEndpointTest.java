@@ -9,7 +9,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGat
 import io.github.brainboxemb.eventtiming.timingpoint.application.SimulationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGatewayFixture;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;

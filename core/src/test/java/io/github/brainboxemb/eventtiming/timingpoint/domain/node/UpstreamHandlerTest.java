@@ -1,8 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQueries;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQuery;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
@@ -15,7 +15,7 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandlerTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
@@ -191,7 +191,7 @@ public class UpstreamHandlerTest {
         node.activate();
         try {
             // Barrier behind initial recovery before occupying the Data Lane.
-            node.query(TimingNodeQueries.status());
+            node.query(LogBookQueries.status());
 
             SerialExecutor.SubmitResult<Void> blocker =
                     dataLane.submit(
@@ -476,7 +476,7 @@ public class UpstreamHandlerTest {
                     () -> assertSame(
                             TimingNodeTypes.CommandAdmission.ACCEPTED,
                             node.offer(
-                                    TimingNodeCommands.open(
+                                    LogBookCommands.open(
                                             new LocationId(24)))));
 
             stream.receive(
@@ -504,8 +504,8 @@ public class UpstreamHandlerTest {
             assertEquals(
                     258L,
                     node.query(
-                            TimingNodeQueries.timingDataHead(),
-                            TimingNodeQuery.ReadConsistency.CURRENT)
+                            LogBookQueries.timingDataHead(),
+                            LogBookQuery.ReadConsistency.CURRENT)
                             .longValue());
             assertEquals(0, stream.sentCount());
         } finally {

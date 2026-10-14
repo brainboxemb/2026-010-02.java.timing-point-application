@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 
 import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
@@ -11,7 +11,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
@@ -72,7 +72,7 @@ public class UniqueTeamRegistrationsIntegrationTest {
             assertEquals(
                     Integer.valueOf(2),
                     node.query(
-                            TimingNodeQueries.timingDataCount()));
+                            LogBookQueries.timingDataCount()));
         } finally {
             node.deactivate();
         }

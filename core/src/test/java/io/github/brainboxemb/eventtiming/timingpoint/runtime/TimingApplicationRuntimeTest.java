@@ -13,7 +13,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
@@ -421,7 +421,7 @@ public class TimingApplicationRuntimeTest {
                             .operation());
 
             application.timingNode().invoke(
-                    TimingNodeCommands.open(
+                    LogBookCommands.open(
                             new LocationId(24)));
 
             await(
@@ -455,7 +455,7 @@ public class TimingApplicationRuntimeTest {
                     simulatedCommit.await(3L, TimeUnit.SECONDS));
 
             application.timingNode().invoke(
-                    TimingNodeCommands.close());
+                    LogBookCommands.close());
 
             await(
                     () -> application
@@ -661,7 +661,7 @@ public class TimingApplicationRuntimeTest {
             assertFalse(antenna.inventoryRunning());
 
             application.timingNode().invoke(
-                    TimingNodeCommands.open(new LocationId(24)));
+                    LogBookCommands.open(new LocationId(24)));
             await(antenna::inventoryRunning, 1000L);
 
             CountDownLatch committed = new CountDownLatch(1);
@@ -690,7 +690,7 @@ public class TimingApplicationRuntimeTest {
             assertEquals(observedAt, automatic.get().effectiveTime());
 
             application.timingNode().invoke(
-                    TimingNodeCommands.close());
+                    LogBookCommands.close());
             await(() -> !antenna.inventoryRunning(), 1000L);
         } finally {
             application.deactivate();
