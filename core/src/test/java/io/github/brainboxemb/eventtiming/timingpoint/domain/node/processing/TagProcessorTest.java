@@ -14,6 +14,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
@@ -587,34 +588,11 @@ public class TagProcessorTest {
 
     private TimingNode node(RecordingStore store) {
         TimeSource timeSource = () -> RECORDED_AT.instant();
-        ExecutorService nodeWorker =
-                Executors.newSingleThreadExecutor(
-                        runnable -> new Thread(
-                                runnable,
-                                "tag-processor-test-node-worker"));
-        ownedWorkers.add(nodeWorker);
-        TagExecution tagExecution =
-                newTagExecution(
-                        "tag-processor-test-owned-tag");
-
-        return new TimingNode(
+        return TimingNodeFixture.create(
                 new NodeId("A"),
                 store,
                 new DefaultTimingDataFactory(),
-                timeSource,
-                ReadOnlyConfiguration.fixed(
-                        TagProcessingPolicy.defaults()),
-                EventData.empty(),
-                new SerialLane(
-                        32,
-                        "tag-processor-test-node-data",
-                        nodeWorker),
-                new SerialLane(
-                        32,
-                        "tag-processor-test-node-task",
-                        nodeWorker),
-                tagExecution.lane,
-                tagExecution.scheduler);
+                timeSource);
     }
 
     private static final class TagExecution {

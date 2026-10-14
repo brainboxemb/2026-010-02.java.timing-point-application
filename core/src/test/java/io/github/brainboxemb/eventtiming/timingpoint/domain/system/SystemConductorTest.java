@@ -9,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
+import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
@@ -252,59 +253,21 @@ public class SystemConductorTest {
     }
 
     private TimingNode newTimingNode(String id) {
-        ExecutorService nodeWorker =
-                newWorker("conductor-node-worker");
-        ScheduledExecutorService tagWorker =
-                newScheduledWorker("conductor-tag-test");
-        return new TimingNode(
+        return TimingNodeFixture.create(
                 new NodeId(id),
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),
-                SystemConductorTest::now,
-                ReadOnlyConfiguration.fixed(TagProcessingPolicy.defaults()),
-                EventData.empty(),
-                new SerialLane(
-                        8,
-                        "conductor-node-data",
-                        nodeWorker),
-                new SerialLane(
-                        8,
-                        "conductor-node-task",
-                        nodeWorker),
-                new SerialLane(
-                        8,
-                        "conductor-tag-test",
-                        tagWorker),
-                tagWorker);
+                SystemConductorTest::now);
     }
 
     private TimingNode newTimingNode(
             String id,
             TimingDataPersistence persistence) {
-        ExecutorService nodeWorker =
-                newWorker("conductor-node-startup-worker");
-        ScheduledExecutorService tagWorker =
-                newScheduledWorker("conductor-tag-startup-worker");
-        return new TimingNode(
+        return TimingNodeFixture.create(
                 new NodeId(id),
                 persistence,
                 new DefaultTimingDataFactory(),
-                SystemConductorTest::now,
-                ReadOnlyConfiguration.fixed(TagProcessingPolicy.defaults()),
-                EventData.empty(),
-                new SerialLane(
-                        8,
-                        "conductor-node-startup-data",
-                        nodeWorker),
-                new SerialLane(
-                        8,
-                        "conductor-node-startup-task",
-                        nodeWorker),
-                new SerialLane(
-                        8,
-                        "conductor-tag-startup-test",
-                        tagWorker),
-                tagWorker);
+                SystemConductorTest::now);
     }
 
     private AntennaManager newAntennaManager(SimulatedAntenna antenna) {
