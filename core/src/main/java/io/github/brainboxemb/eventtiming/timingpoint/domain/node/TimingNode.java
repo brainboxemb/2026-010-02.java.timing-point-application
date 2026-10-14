@@ -49,17 +49,17 @@ public final class TimingNode {
                 logBookProcessor.timingNodeId();
         this.logBook = logBookProcessor;
         lifecycle.register(
-                "NodeTaskProcessor",
-                taskProcessor::activate,
-                taskProcessor::deactivate);
+                taskProcessor,
+                NodeTaskProcessor::activate,
+                NodeTaskProcessor::deactivate);
         lifecycle.register(
-                "LogBookProcessor",
-                logBookProcessor::activate,
-                logBookProcessor::deactivate);
+                logBookProcessor,
+                LogBookProcessor::activate,
+                LogBookProcessor::deactivate);
         lifecycle.register(
-                "TagProcessor",
-                tagProcessor::activate,
-                tagProcessor::deactivate);
+                tagProcessor,
+                TagProcessor::activate,
+                TagProcessor::deactivate);
 
         /*
          * TagProcessor emits synchronously on its own lane. The named handler
