@@ -23,6 +23,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.Monoto
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -277,6 +278,18 @@ final class LogBookState {
     int timingDataCount() {
         ensureOperational();
         return logBookData.size();
+    }
+
+    /**
+     * Returns a bounded copy of committed TimingData in source-sequence order.
+     */
+    List<TimingData> timingDataRange(
+            long fromSequence,
+            int limit) {
+        ensureOperational();
+        List<TimingData> records = new ArrayList<TimingData>();
+        logBookData.visitRange(fromSequence, limit, records::add);
+        return Collections.unmodifiableList(records);
     }
 
     int visitTimingDataRange(
