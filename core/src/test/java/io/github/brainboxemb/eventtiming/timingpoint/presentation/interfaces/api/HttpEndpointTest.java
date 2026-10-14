@@ -585,11 +585,11 @@ public class HttpEndpointTest {
     }
 
     @Test
-    public void exposesContainedRecoveryFailureAndRejectsNormalNodeOperation()
+    public void exposesContainedTimingDataLoadFailureAndRejectsNormalNodeOperation()
             throws Exception {
         TimingNode node = TimingNodeFixture.create(
                 new NodeId("A"),
-                new FailingRecoveryStore(),
+                new FailingLoadStore(),
                 () -> RECORDED_AT.instant());
         PresentationGateway handler =
                 new PresentationGateway(
@@ -609,10 +609,10 @@ public class HttpEndpointTest {
             assertTrue(status.body.contains("\"locationId\":null"));
             assertTrue(status.body.contains("\"state\":\"ERROR\""));
             assertTrue(status.body.contains(
-                    "\"code\":\"TIMING_DATA_RECOVERY_FAILED\""));
+                    "\"code\":\"TIMING_DATA_LOAD_FAILED\""));
             assertTrue(status.body.contains("\"severity\":\"ERROR\""));
             assertTrue(status.body.contains("\"nodeId\":\"A\""));
-            assertTrue(status.body.contains("expected recovery failure"));
+            assertTrue(status.body.contains("expected persisted-data load failure"));
 
             Response open = request(
                     server.boundPort(),
@@ -621,7 +621,7 @@ public class HttpEndpointTest {
                     "{\"locationId\":24}");
             assertEquals(503, open.status);
             assertTrue(open.body.contains("\"code\":\"OPERATION_FAILED\""));
-            assertTrue(open.body.contains("expected recovery failure"));
+            assertTrue(open.body.contains("expected persisted-data load failure"));
 
             Response unchanged =
                     request(server.boundPort(), "GET", "/api/v1/status", null);
@@ -773,11 +773,11 @@ public class HttpEndpointTest {
         }
     }
 
-    private static final class FailingRecoveryStore
+    private static final class FailingLoadStore
             implements TimingDataPersistence {
         @Override
         public LoadResult load() throws PersistenceException {
-            throw new PersistenceException("expected recovery failure");
+            throw new PersistenceException("expected persisted-data load failure");
         }
 
         @Override
