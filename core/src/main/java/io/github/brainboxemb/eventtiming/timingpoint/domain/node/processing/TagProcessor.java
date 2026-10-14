@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
@@ -155,8 +156,12 @@ public final class TagProcessor {
             state = State.INACTIVE;
             closeHousekeepingLocked();
             drainRemaining = !inputQueue.isEmpty();
-            if (drainRemaining && !tryQueueOnTagLane(this::drainAll)) {
-                inputQueue.clear();
+            if (drainRemaining) {
+                try {
+                    lane.execute(this::drainAll);
+                } catch (RejectedExecutionException ex) {
+                    inputQueue.clear();
+                }
             }
         }
 
@@ -205,16 +210,20 @@ public final class TagProcessor {
         return newRegistrationEvent;
     }
 
+    /** Schedules one TagProcessor-lane drain when no drain turn is already pending. */
     private void scheduleDrainLocked() {
         if (!drainScheduled.compareAndSet(false, true)) {
             return;
         }
-        if (!tryQueueOnTagLane(this::drainBatch)) {
+        try {
+            lane.execute(this::drainBatch);
+        } catch (RejectedExecutionException ex) {
             drainScheduled.set(false);
             metrics.recordProcessorNotRunning();
         }
     }
 
+    /** Processes the observations that were queued when this lane turn started. */
     private void drainBatch() {
         try {
             int count = inputQueue.size();
@@ -235,6 +244,7 @@ public final class TagProcessor {
         }
     }
 
+    /** Processes all remaining observations during orderly deactivation. */
     private void drainAll() {
         TagObservation observation;
         while ((observation = inputQueue.poll()) != null) {
@@ -312,12 +322,15 @@ public final class TagProcessor {
             if (state != State.ACTIVE) {
                 return;
             }
-            if (!tryQueueOnTagLane(() -> applyPolicyChange(change))) {
-                LOG.warn("Could not queue TagProcessor policy change");
+            try {
+                lane.execute(() -> applyPolicyChange(change));
+            } catch (RejectedExecutionException ex) {
+                LOG.warn("Could not queue TagProcessor policy change", ex);
             }
         }
     }
 
+    /** Applies one accepted tag-processing policy change on the owning serial lane. */
     private void applyPolicyChange(
             ConfigurationChange<TagProcessingPolicy> change) {
         duplicateFilter.onPolicyChanged();
@@ -379,18 +392,7 @@ public final class TagProcessor {
         }
     }
 
-    /**
-     * Tries to queue one fire-and-forget operation on the TagProcessor lane.
-     *
-     * <p>Returns {@code true} only when the work was queued for later serial
-     * execution; it does not report the eventual operation outcome.</p>
-     */
-    private boolean tryQueueOnTagLane(
-            Runnable operation) {
-        return lane.offer(operation)
-                == SerialLane.AdmissionResult.ACCEPTED;
-    }
-
+    /** Converts one filter-approved observation into a registration event. */
     private void processValidObservation(
             RegistrationId registrationId,
             TimingTimestamp observedAt) {
