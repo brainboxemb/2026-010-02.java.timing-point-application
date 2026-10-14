@@ -8,12 +8,12 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeMetrics;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
@@ -39,7 +39,7 @@ public class RuntimeMeasurementReaderTest {
                     "2026-10-04T12:00:01.000000000Z");
 
     @Test
-    public void readsComponentOwnedSnapshotsWithoutTimingNodeMetricsApi()
+    public void readsComponentOwnedSnapshotsWithoutLogBookProcessorMetricsApi()
             throws Exception {
         ExecutorService nodeWorker =
                 Executors.newSingleThreadExecutor();
@@ -64,8 +64,8 @@ public class RuntimeMeasurementReaderTest {
                         8,
                         "measurement-tag",
                         tagWorker);
-        TimingNodeMetrics nodeMetrics =
-                new TimingNodeMetrics();
+        LogBookProcessorMetrics nodeMetrics =
+                new LogBookProcessorMetrics();
         TagProcessingMetrics tagMetrics =
                 new TagProcessingMetrics();
         RecordingPersistence persistence =
@@ -104,11 +104,11 @@ public class RuntimeMeasurementReaderTest {
         node.activate();
         try {
             node.invoke(
-                    TimingNodeCommands.open(
+                    LogBookCommands.open(
                             new LocationId(24)));
             assertTrue(
                     node.invoke(
-                                    TimingNodeCommands.addAutomaticRegistration(
+                                    LogBookCommands.addAutomaticRegistration(
                                             new RegistrationId("N0001"),
                                             EVENT_TIME))
                             .committed());
@@ -120,7 +120,7 @@ public class RuntimeMeasurementReaderTest {
             assertEquals(
                     2,
                     node.query(
-                                    TimingNodeQueries.timingDataCount())
+                                    LogBookQueries.timingDataCount())
                             .intValue());
 
             TimingNodeRuntimeSnapshot nodeSnapshot =
