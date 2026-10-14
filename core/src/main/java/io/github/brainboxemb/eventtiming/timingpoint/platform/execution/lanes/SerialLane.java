@@ -54,7 +54,7 @@ public final class SerialLane implements Executor, AutoCloseable {
         TaskTiming timing();
 
         /** Cancels work that exposes a Future; fire-and-forget work is a no-op. */
-        void cancel();
+        void cancelQueuedTask();
     }
 
     /**
@@ -408,7 +408,7 @@ public final class SerialLane implements Executor, AutoCloseable {
     private void cancelQueuedTasks() {
         TrackedTask queued;
         while ((queued = removeNextTaskFromQueue()) != null) {
-            queued.cancel();
+            queued.cancelQueuedTask();
         }
     }
 
@@ -439,7 +439,7 @@ public final class SerialLane implements Executor, AutoCloseable {
 
         /** Fire-and-forget work has no Future that can be cancelled. */
         @Override
-        public void cancel() {
+        public void cancelQueuedTask() {
             // Nothing to cancel for fire-and-forget work.
         }
 
@@ -493,9 +493,9 @@ public final class SerialLane implements Executor, AutoCloseable {
             return timing;
         }
 
-        /** Cancels a queued FutureTask that cannot run after lane failure. */
+        /** Cancels this queued FutureTask when lane failure prevents later execution. */
         @Override
-        public void cancel() {
+        public void cancelQueuedTask() {
             cancel(false);
         }
 
