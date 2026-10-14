@@ -44,6 +44,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -198,7 +199,8 @@ final class RuntimeCharacterizationHarness
                                 Clock.systemUTC()),
                         SystemMonotonicClock.INSTANCE,
                         logBookMetrics,
-                        dataLane);
+                        dataLane,
+                        LogBook.DEFAULT_OPERATION_TIMEOUT_MILLIS);
 
         nodeService =
                 new NodeService(
@@ -498,33 +500,47 @@ final class RuntimeCharacterizationHarness
                 "TimingData commit count " + expected);
     }
 
+    /** Waits until all TagProcessor work queued before this barrier has completed. */
     private void awaitTagProcessorBarrier()
             throws InterruptedException {
-        CountDownLatch barrier = new CountDownLatch(1);
-        await(
-                () -> tagLane.offer(barrier::countDown)
-                        == SerialLane.AdmissionResult.ACCEPTED,
-                "TagProcessor barrier admission");
-        if (!barrier.await(
-                COMPLETION_TIMEOUT_MILLIS,
-                TimeUnit.MILLISECONDS)) {
-            throw new IllegalStateException(
-                    "Timed out waiting for TagProcessor barrier");
-        }
+        awaitLaneBarrier(
+                tagLane,
+                "TagProcessor");
     }
 
+    /** Waits until all Data Lane work queued before this barrier has completed. */
     private void awaitDataLaneBarrier()
+            throws InterruptedException {
+        awaitLaneBarrier(
+                dataLane,
+                "TimingNode Data Lane");
+    }
+
+    /**
+     * Queues one barrier using standard Executor rejection semantics and waits
+     * until that barrier reaches the front of the supplied serial lane.
+     */
+    private void awaitLaneBarrier(
+            SerialLane lane,
+            String laneName)
             throws InterruptedException {
         CountDownLatch barrier = new CountDownLatch(1);
         await(
-                () -> dataLane.offer(barrier::countDown)
-                        == SerialLane.AdmissionResult.ACCEPTED,
-                "TimingNode Data Lane barrier admission");
+                () -> {
+                    try {
+                        lane.execute(barrier::countDown);
+                        return true;
+                    } catch (RejectedExecutionException ex) {
+                        return false;
+                    }
+                },
+                laneName + " barrier execution");
+
         if (!barrier.await(
                 COMPLETION_TIMEOUT_MILLIS,
                 TimeUnit.MILLISECONDS)) {
             throw new IllegalStateException(
-                    "Timed out waiting for TimingNode Data Lane barrier");
+                    "Timed out waiting for " + laneName + " barrier");
         }
     }
 
