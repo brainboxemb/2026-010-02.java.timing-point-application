@@ -1,22 +1,22 @@
 package io.github.brainboxemb.eventtiming.timingpoint.testsupport;
 
+import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
-import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -25,22 +25,20 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 /**
  * Test-only complete TimingNode construction with explicit execution lanes.
  *
- * <p>Production code receives these lanes from runtime composition. Presentation
- * and processing tests use this fixture so they do not duplicate runtime
- * executor wiring or fall back to hidden component-owned thread creation.</p>
+ * <p>Production code receives these lanes from runtime composition. Tests that
+ * intentionally verify child-specific behaviour can request {@link Components}
+ * instead of widening the production TimingNode API.</p>
  */
 public final class TimingNodeFixture {
     private static final long DEFAULT_OPERATION_TIMEOUT_MILLIS = 5000L;
-    /*
-     * Test-suite-owned workers. They are daemon threads so a failed test cannot
-     * keep the JVM alive; individual logical lanes still close with their node.
-     */
+
     private static final ExecutorService NODE_WORKER =
             Executors.newSingleThreadExecutor(
                     runnable -> {
-                        Thread thread = new Thread(
-                                runnable,
-                                "test-node-worker");
+                        Thread thread =
+                                new Thread(
+                                        runnable,
+                                        "test-node-worker");
                         thread.setDaemon(true);
                         return thread;
                     });
@@ -49,9 +47,10 @@ public final class TimingNodeFixture {
             new ScheduledThreadPoolExecutor(
                     1,
                     runnable -> {
-                        Thread thread = new Thread(
-                                runnable,
-                                "test-tag-worker");
+                        Thread thread =
+                                new Thread(
+                                        runnable,
+                                        "test-tag-worker");
                         thread.setDaemon(true);
                         return thread;
                     });
@@ -61,6 +60,43 @@ public final class TimingNodeFixture {
     }
 
     private TimingNodeFixture() {
+    }
+
+    /**
+     * Test-only references to one fully composed node and its owned children.
+     */
+    public static final class Components {
+        private final TimingNode node;
+        private final LogBookProcessor logBookProcessor;
+        private final NodeTaskProcessor taskProcessor;
+        private final TagProcessor tagProcessor;
+
+        private Components(
+                TimingNode node,
+                LogBookProcessor logBookProcessor,
+                NodeTaskProcessor taskProcessor,
+                TagProcessor tagProcessor) {
+            this.node = node;
+            this.logBookProcessor = logBookProcessor;
+            this.taskProcessor = taskProcessor;
+            this.tagProcessor = tagProcessor;
+        }
+
+        public TimingNode node() {
+            return node;
+        }
+
+        public LogBookProcessor logBookProcessor() {
+            return logBookProcessor;
+        }
+
+        public NodeTaskProcessor taskProcessor() {
+            return taskProcessor;
+        }
+
+        public TagProcessor tagProcessor() {
+            return tagProcessor;
+        }
     }
 
     public static TimingNode create(
@@ -79,7 +115,11 @@ public final class TimingNodeFixture {
             TimingDataPersistence persistence,
             TimingDataFactory timingDataFactory,
             TimeSource timeSource) {
-        String suffix = nodeId == null ? "missing" : nodeId.value();
+        String suffix =
+                nodeId == null
+                        ? "missing"
+                        : nodeId.value();
+
         return compose(
                 nodeId,
                 persistence,
@@ -99,7 +139,8 @@ public final class TimingNodeFixture {
                         32,
                         "test-tag-" + suffix,
                         TAG_WORKER),
-                DEFAULT_OPERATION_TIMEOUT_MILLIS);
+                DEFAULT_OPERATION_TIMEOUT_MILLIS)
+                .node();
     }
 
     public static TimingNode createDirect(
@@ -123,7 +164,28 @@ public final class TimingNodeFixture {
             TimeSource timeSource,
             EventData eventData,
             UpstreamStream upstreamStream) {
-        String suffix = nodeId == null ? "missing" : nodeId.value();
+        return createDirectComponents(
+                nodeId,
+                persistence,
+                timingDataFactory,
+                timeSource,
+                eventData,
+                upstreamStream)
+                .node();
+    }
+
+    public static Components createDirectComponents(
+            NodeId nodeId,
+            TimingDataPersistence persistence,
+            TimingDataFactory timingDataFactory,
+            TimeSource timeSource,
+            EventData eventData,
+            UpstreamStream upstreamStream) {
+        String suffix =
+                nodeId == null
+                        ? "missing"
+                        : nodeId.value();
+
         return compose(
                 nodeId,
                 persistence,
@@ -153,7 +215,11 @@ public final class TimingNodeFixture {
             TimeSource timeSource,
             SerialLane dataLane,
             long operationTimeoutMillis) {
-        String suffix = nodeId == null ? "missing" : nodeId.value();
+        String suffix =
+                nodeId == null
+                        ? "missing"
+                        : nodeId.value();
+
         return compose(
                 nodeId,
                 persistence,
@@ -170,10 +236,11 @@ public final class TimingNodeFixture {
                         32,
                         "test-tag-direct-" + suffix,
                         Runnable::run),
-                operationTimeoutMillis);
+                operationTimeoutMillis)
+                .node();
     }
 
-    private static TimingNode compose(
+    private static Components compose(
             NodeId nodeId,
             TimingDataPersistence persistence,
             TimingDataFactory timingDataFactory,
@@ -214,14 +281,21 @@ public final class TimingNodeFixture {
                         new TagProcessingMetrics(),
                         tagLane,
                         TAG_WORKER);
+
         tagConfiguration.changes()
                 .subscribe(
                         tagProcessor::onPolicyConfigurationChanged);
 
-        return new TimingNode(
+        TimingNode node =
+                new TimingNode(
+                        logBookProcessor,
+                        taskProcessor,
+                        tagProcessor);
+
+        return new Components(
+                node,
                 logBookProcessor,
                 taskProcessor,
                 tagProcessor);
     }
-
 }
