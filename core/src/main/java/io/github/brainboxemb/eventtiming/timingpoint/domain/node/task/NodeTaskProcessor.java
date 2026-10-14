@@ -36,7 +36,7 @@ import org.slf4j.LoggerFactory;
  * <p>The Task Lane is a bounded logical serial queue, not a dedicated thread:
  * the supplied executor may share Runtime's physical worker with the Data Lane.
  * Mutable TeamAssignments, StageStartTimes and UniqueTeamRegistrations never
- * leave this lane. The Data Lane supplies only immutable recovered/committed
+ * leave this lane. The Data Lane supplies only immutable initial-loaded/committed
  * TimingData facts and bounded LogBook reads.</p>
  */
 public final class NodeTaskProcessor implements UpstreamTaskState {
@@ -109,25 +109,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
                         this);
     }
 
-    /**
-     * Validates that the Task Lane can activate before LogBook recovery starts.
-     *
-     * <p>TimingNode calls this before the lifecycle manager activates the
-     * LogBook child because LogBook activation immediately admits asynchronous
-     * recovery. This is a side-effect preflight only; actual Task Lane startup
-     * still happens in {@link #activate()} under normal lifecycle management.</p>
-     */
-    public void validateActivationBeforeRecovery() {
-        SerialLane.State state = taskLane.state();
-        if (state != SerialLane.State.NEW
-                && state != SerialLane.State.STOPPED) {
-            throw new IllegalStateException(
-                    "TimingNode cannot activate with Task Lane state=" + state);
-        }
-    }
-
     public void activate() {
-        validateActivationBeforeRecovery();
         taskLane.start();
         flushPendingDataFacts();
     }
