@@ -374,7 +374,7 @@ final class RuntimeCharacterizationHarness
                     new TimingTimestamp(
                             INPUT_TIME_BASE.minusSeconds(
                                     count - index));
-            if (!node.invoke(
+            if (!logBook.invoke(
                             LogBookCommands.addAutomaticRegistration(
                                     new RegistrationId(
                                             String.format(
@@ -428,7 +428,7 @@ final class RuntimeCharacterizationHarness
         long started =
                 System.nanoTime();
         int total =
-                node.query(
+                logBook.query(
                         LogBookQueries.visitLatestTimingData(
                                 config.queryLimit(),
                                 ignored ->
