@@ -283,7 +283,8 @@ public class StageTimingTest {
             stream.takeSent();
 
             List<StageTime> ranking =
-                    node.stageTiming(ZoneOffset.UTC);
+                    components.taskProcessor()
+                            .stageTiming(ZoneOffset.UTC);
 
             assertEquals(1, ranking.size());
             assertEquals(1, ranking.get(0).rank());

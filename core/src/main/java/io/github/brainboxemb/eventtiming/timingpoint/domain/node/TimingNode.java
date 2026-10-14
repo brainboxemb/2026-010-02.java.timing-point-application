@@ -6,11 +6,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 
-import java.time.ZoneId;
-import java.util.List;
 
 /**
  * Top-level owner for one logical timing node.
@@ -89,10 +86,4 @@ public final class TimingNode {
         lifecycle.deactivateAll();
     }
 
-    /** Task Lane-owned derived timing query; deliberately not a LogBook query. */
-    public List<StageTime> stageTiming(
-            ZoneId raceTimeZone) {
-        return taskProcessor.stageTiming(
-                raceTimeZone);
-    }
 }
