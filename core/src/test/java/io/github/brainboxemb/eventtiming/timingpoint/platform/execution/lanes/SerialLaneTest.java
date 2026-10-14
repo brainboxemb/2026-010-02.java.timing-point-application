@@ -9,6 +9,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -25,6 +27,7 @@ public class SerialLaneTest {
     private final List<ExecutorService> ownedWorkers =
             new ArrayList<ExecutorService>();
 
+    /** Stops physical test workers that are deliberately owned by this test fixture. */
     @After
     public void stopOwnedWorkers() {
         for (ExecutorService worker : ownedWorkers) {
@@ -32,6 +35,7 @@ public class SerialLaneTest {
         }
     }
 
+    /** Creates one bounded SerialLane on a dedicated test worker. */
     private SerialLane newLane(
             int capacity,
             String threadName) {
@@ -51,17 +55,13 @@ public class SerialLaneTest {
     public void rejectsWorkBeforeStartAndAfterStop() {
         SerialLane executor = newLane(1, "serial-executor-test");
 
-        assertEquals(
-                SerialLane.AdmissionResult.NOT_RUNNING,
-                executor.offer(() -> { }));
+        expectRejected(() -> executor.execute(() -> { }));
 
         executor.start();
         executor.close();
 
         assertEquals(SerialLane.State.STOPPED, executor.state());
-        assertEquals(
-                SerialLane.AdmissionResult.NOT_RUNNING,
-                executor.offer(() -> { }));
+        expectRejected(() -> executor.execute(() -> { }));
     }
 
     @Test
@@ -71,12 +71,12 @@ public class SerialLaneTest {
         CountDownLatch second = new CountDownLatch(1);
 
         executor.start();
-        assertEquals(SerialLane.AdmissionResult.ACCEPTED, executor.offer(first::countDown));
+        executor.execute(first::countDown);
         assertTrue(first.await(1, TimeUnit.SECONDS));
         executor.close();
 
         executor.start();
-        assertEquals(SerialLane.AdmissionResult.ACCEPTED, executor.offer(second::countDown));
+        executor.execute(second::countDown);
         assertTrue(second.await(1, TimeUnit.SECONDS));
         executor.close();
 
@@ -92,7 +92,7 @@ public class SerialLaneTest {
 
         executor.start();
         try {
-            SerialLane.SubmitResult<Integer> first = executor.submit(() -> {
+            Future<Integer> first = executor.submit(() -> {
                 firstStarted.countDown();
                 releaseFirst.await();
                 order.add(1);
@@ -100,14 +100,14 @@ public class SerialLaneTest {
             });
             assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
 
-            SerialLane.SubmitResult<Integer> second = executor.submit(() -> {
+            Future<Integer> second = executor.submit(() -> {
                 order.add(2);
                 return 20;
             });
             releaseFirst.countDown();
 
-            assertEquals(Integer.valueOf(10), first.futureResult().get(1, TimeUnit.SECONDS));
-            assertEquals(Integer.valueOf(20), second.futureResult().get(1, TimeUnit.SECONDS));
+            assertEquals(Integer.valueOf(10), first.get(1, TimeUnit.SECONDS));
+            assertEquals(Integer.valueOf(20), second.get(1, TimeUnit.SECONDS));
             assertEquals(Arrays.asList(1, 2), order);
         } finally {
             releaseFirst.countDown();
@@ -130,12 +130,8 @@ public class SerialLaneTest {
             });
             assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
 
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    executor.offer(() -> { }));
-            assertEquals(
-                    SerialLane.AdmissionResult.FULL,
-                    executor.offer(() -> { }));
+            executor.execute(() -> { });
+            expectRejected(() -> executor.execute(() -> { }));
             assertTrue(executor.metrics().snapshot().queueHighWaterMark() >= 1);
         } finally {
             releaseFirst.countDown();
@@ -151,7 +147,7 @@ public class SerialLaneTest {
         CountDownLatch secondDone = new CountDownLatch(1);
 
         executor.start();
-        executor.offer(() -> {
+        executor.execute(() -> {
             firstStarted.countDown();
             try {
                 releaseFirst.await();
@@ -160,7 +156,7 @@ public class SerialLaneTest {
             }
         });
         assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
-        executor.offer(secondDone::countDown);
+        executor.execute(secondDone::countDown);
 
         Thread closer = new Thread(executor::close);
         closer.start();
@@ -179,19 +175,19 @@ public class SerialLaneTest {
         SerialLane executor = newLane(2, "serial-executor-test");
         executor.start();
         try {
-            SerialLane.SubmitResult<Integer> failing = executor.submit(() -> {
+            Future<Integer> failing = executor.submit(() -> {
                 throw new IllegalStateException("expected");
             });
-            SerialLane.SubmitResult<Integer> next = executor.submit(() -> 42);
+            Future<Integer> next = executor.submit(() -> 42);
 
             try {
-                failing.futureResult().get(1, TimeUnit.SECONDS);
+                failing.get(1, TimeUnit.SECONDS);
                 fail("expected ExecutionException");
             } catch (ExecutionException expected) {
                 assertTrue(expected.getCause() instanceof IllegalStateException);
             }
 
-            assertEquals(Integer.valueOf(42), next.futureResult().get(1, TimeUnit.SECONDS));
+            assertEquals(Integer.valueOf(42), next.get(1, TimeUnit.SECONDS));
             assertEquals(SerialLane.State.RUNNING, executor.state());
         } finally {
             executor.close();
@@ -207,11 +203,11 @@ public class SerialLaneTest {
 
         assertEquals(
                 SerialLane.AdmissionResult.NOT_RUNNING,
-                executor.offer(() -> { }));
+                executor.execute(() -> { }));
 
         executor.start();
         try {
-            executor.offer(() -> {
+            executor.execute(() -> {
                 firstStarted.countDown();
                 try {
                     releaseFirst.await();
@@ -221,12 +217,8 @@ public class SerialLaneTest {
             });
             assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
 
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    executor.offer(queuedDone::countDown));
-            assertEquals(
-                    SerialLane.AdmissionResult.FULL,
-                    executor.offer(() -> { }));
+            executor.execute(queuedDone::countDown);
+            expectRejected(() -> executor.execute(() -> { }));
 
             Thread.sleep(10L);
             releaseFirst.countDown();
@@ -289,7 +281,7 @@ public class SerialLaneTest {
         first.start();
         second.start();
         try {
-            first.offer(() -> {
+            first.execute(() -> {
                 workerNames.add(
                         Thread.currentThread().getName());
                 order.add("A1");
@@ -311,13 +303,13 @@ public class SerialLaneTest {
              * token directly on the shared role executor. When A1 completes,
              * A's next drain token is appended behind B's already waiting token.
              */
-            first.offer(() -> {
+            first.execute(() -> {
                 workerNames.add(
                         Thread.currentThread().getName());
                 order.add("A2");
                 allDone.countDown();
             });
-            second.offer(() -> {
+            second.execute(() -> {
                 workerNames.add(
                         Thread.currentThread().getName());
                 order.add("B1");
@@ -377,9 +369,7 @@ public class SerialLaneTest {
                     SerialLane.State.STOPPED,
                     first.state());
             assertFalse(shared.isShutdown());
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    second.offer(secondDone::countDown));
+            second.execute(secondDone::countDown);
             assertTrue(
                     secondDone.await(
                             1,
@@ -420,16 +410,10 @@ public class SerialLaneTest {
         failing.start();
         healthy.start();
         try {
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    failing.offer(() -> {
-                        throw new AssertionError(
-                                "expected lane failure");
-                    }));
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    healthy.offer(
-                            healthyDone::countDown));
+            failing.execute(() -> {
+                throw new AssertionError("expected lane failure");
+            });
+            healthy.execute(healthyDone::countDown);
 
             assertTrue(
                     healthyDone.await(
@@ -469,17 +453,17 @@ public class SerialLaneTest {
         CountDownLatch releaseFatal = new CountDownLatch(1);
         executor.start();
 
-        SerialLane.SubmitResult<Void> fatal = executor.submit(() -> {
+        Future<Void> fatal = executor.submit(() -> {
             fatalStarted.countDown();
             releaseFatal.await();
             throw new AssertionError("fatal");
         });
         assertTrue(fatalStarted.await(1, TimeUnit.SECONDS));
-        SerialLane.SubmitResult<Integer> queued = executor.submit(() -> 42);
+        Future<Integer> queued = executor.submit(() -> 42);
         releaseFatal.countDown();
 
         try {
-            fatal.futureResult().get(1, TimeUnit.SECONDS);
+            fatal.get(1, TimeUnit.SECONDS);
             fail("expected ExecutionException");
         } catch (ExecutionException expected) {
             assertTrue(expected.getCause() instanceof AssertionError);
@@ -493,10 +477,20 @@ public class SerialLaneTest {
         assertTrue(executor.failure() instanceof AssertionError);
 
         try {
-            queued.futureResult().get();
+            queued.get();
             fail("expected queued work to be cancelled");
         } catch (CancellationException expected) {
             // Expected after executor fault.
         }
     }
+    /** Verifies that standard executor rejection is reported immediately to the caller. */
+    private static void expectRejected(Runnable action) {
+        try {
+            action.run();
+            fail("expected RejectedExecutionException");
+        } catch (RejectedExecutionException expected) {
+            // Expected when the bounded SerialLane cannot accept more work.
+        }
+    }
+
 }
