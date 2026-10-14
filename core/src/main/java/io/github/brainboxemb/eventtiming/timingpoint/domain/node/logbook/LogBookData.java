@@ -27,6 +27,7 @@ public final class LogBookData {
      */
     private volatile long headSequence;
 
+    /** Creates empty committed history for one TimingNode identity. */
     public LogBookData(NodeId timingNodeId) {
         checkArgument(timingNodeId != null, "timingNodeId must not be null");
         this.timingNodeId = timingNodeId;
@@ -78,6 +79,7 @@ public final class LogBookData {
         headSequence = data.sequenceNumber();
     }
 
+    /** Returns the number of committed TimingData records in lane-owned history. */
     public int size() {
         return records.size();
     }
