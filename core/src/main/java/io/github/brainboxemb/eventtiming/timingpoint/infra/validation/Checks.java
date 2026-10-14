@@ -6,9 +6,12 @@ import java.util.Locale;
  * Compact programming-contract checks used to keep normal control flow readable.
  */
 public final class Checks {
+
+    /** Prevents construction of this stateless validation utility. */
     private Checks() {
     }
 
+    /** Throws IllegalStateException when the required program state is not present. */
     public static void checkState(
             boolean condition,
             String message,
@@ -21,6 +24,7 @@ public final class Checks {
         }
     }
 
+    /** Throws IllegalArgumentException when a supplied argument violates its contract. */
     public static void checkArgument(
             boolean condition,
             String message,
@@ -33,6 +37,7 @@ public final class Checks {
         }
     }
 
+    /** Formats a contract-check message using locale-independent formatting. */
     private static String format(
             String message,
             Object... arguments) {
