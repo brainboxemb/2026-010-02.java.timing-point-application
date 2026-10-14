@@ -212,7 +212,7 @@ final class RuntimeCharacterizationHarness
                         ANTENNA_ID)
                 .subscribe(
                         node.tagProcessor()::onTagObserved);
-        node.newDataEvent()
+        node.newDataEntryEvent()
                 .subscribe(
                         ignored ->
                                 committedCount.incrementAndGet());
