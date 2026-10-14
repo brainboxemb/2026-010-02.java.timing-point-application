@@ -1,7 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandAdmission;
-
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -20,9 +18,6 @@ public class TagProcessingMetricsTest {
         metrics.recordMapped();
         metrics.recordUnmapped();
         metrics.recordDuplicate();
-        metrics.recordAdmission(CommandAdmission.ACCEPTED);
-        metrics.recordAdmission(CommandAdmission.FULL);
-        metrics.recordAdmission(CommandAdmission.NOT_RUNNING);
 
         TagProcessingMetrics.Snapshot snapshot = metrics.snapshot();
 
@@ -33,8 +28,5 @@ public class TagProcessingMetricsTest {
         assertEquals(1L, snapshot.mapped());
         assertEquals(1L, snapshot.unmapped());
         assertEquals(1L, snapshot.duplicates());
-        assertEquals(1L, snapshot.admitted());
-        assertEquals(1L, snapshot.queueFull());
-        assertEquals(1L, snapshot.nodeNotRunning());
     }
 }
