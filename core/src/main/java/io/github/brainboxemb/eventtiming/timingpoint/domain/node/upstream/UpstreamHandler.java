@@ -133,8 +133,8 @@ public final class UpstreamHandler {
         checkArgument(data instanceof UpstreamData.NodeScoped,
                 "UpstreamData is not node-scoped: %s", data.family());
 
-        UpstreamData.NodeScoped timingDataHistory = (UpstreamData.NodeScoped) data;
-        checkArgument(nodeId.equals(timingDataHistory.timingNodeId()),
+        UpstreamData.NodeScoped nodeScoped = (UpstreamData.NodeScoped) data;
+        checkArgument(nodeId.equals(nodeScoped.timingNodeId()),
                 "UpstreamData NodeId does not match node-scoped stream");
 
         switch (data.family()) {
