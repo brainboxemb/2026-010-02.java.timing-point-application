@@ -239,7 +239,7 @@ public class TimingNodeRaceDataTest {
         return new Fixture(
                 components.node(),
                 stream,
-                components.nodeTasks()
+                components.nodeService()
                         .upstreamHandler());
     }
 
