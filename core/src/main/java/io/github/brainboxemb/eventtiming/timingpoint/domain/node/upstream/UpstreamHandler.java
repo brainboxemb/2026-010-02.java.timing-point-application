@@ -37,7 +37,6 @@ public final class UpstreamHandler {
     private final UpstreamHeartbeat heartbeat;
     private final UpstreamDataSync upstreamDataSync;
     private final LogBookSync logBookSync;
-    private final UpstreamTaskState taskState;
 
     /*
      * inputAvailable() may be called by an I/O thread. This flag prevents a
@@ -65,7 +64,6 @@ public final class UpstreamHandler {
         this.dataSerialLane = dataSerialLane;
         this.taskSerialLane = taskSerialLane;
         this.stream = stream;
-        this.taskState = taskState;
         this.heartbeat = new UpstreamHeartbeat(nodeId, stream);
         this.upstreamDataSync =
                 new UpstreamDataSync(nodeId, stream, taskState);
@@ -87,7 +85,7 @@ public final class UpstreamHandler {
         }
 
         try {
-            dataSerialLane.execute(this::handleNextOnDataLane);
+            dataSerialLane.execute(this::handleNextTurn);
             return true;
         } catch (RejectedExecutionException ex) {
             inputOperationScheduled.set(false);
@@ -96,14 +94,14 @@ public final class UpstreamHandler {
     }
 
     /**
-     * Executes one existing upstream data/replay turn on the TimingNode Data Lane.
+     * Handles one queued upstream data/replay turn.
      *
      * <p>A turn handles either one inbound message or sends one LogBook
      * synchronization batch. Each batch contains at most 256 records. Remaining
      * work is appended to the back of the same lane so synchronization cannot
      * starve registrations or other node work.</p>
      */
-    void handleNextOnDataLane() {
+    void handleNextTurn() {
         try {
             if (!stream.isAvailable()) {
                 logBookSync.cancelSync();
@@ -139,7 +137,7 @@ public final class UpstreamHandler {
             case RACE_DATA:
                 checkArgument(data instanceof UpstreamData.RaceData,
                         "RACE_DATA has incompatible semantic type");
-                queueProtocolOperationOnTaskLane(
+                executeTaskOrWarn(
                         "RACE_DATA",
                         () -> upstreamDataSync.handleRaceData(
                                 (UpstreamData.RaceData) data));
@@ -150,7 +148,7 @@ public final class UpstreamHandler {
                         "SYNC has incompatible semantic type");
                 UpstreamData.Sync sync = (UpstreamData.Sync) data;
                 if (sync.stream() == UpstreamData.Stream.RACE_DATA) {
-                    queueProtocolOperationOnTaskLane(
+                    executeTaskOrWarn(
                             "RACE_DATA SYNC",
                             () -> upstreamDataSync.handleSync(sync));
                 } else {
@@ -170,7 +168,7 @@ public final class UpstreamHandler {
                         "PING has incompatible semantic type");
                 UpstreamData.Ping ping =
                         (UpstreamData.Ping) data;
-                executeOnTaskLaneOrWarn(
+                executeTaskOrWarn(
                         () -> heartbeat.handle(ping),
                         "PING");
                 return;
@@ -200,7 +198,7 @@ public final class UpstreamHandler {
      * heartbeat tick has executed.</p>
      */
     public void heartbeatTick() {
-        executeOnTaskLaneOrWarn(heartbeat::tick, "heartbeat tick");
+        executeTaskOrWarn(heartbeat::tick, "heartbeat tick");
     }
 
     /** Returns the latest immutable heartbeat snapshot without a lane hop. */
@@ -208,15 +206,8 @@ public final class UpstreamHandler {
         return heartbeat.status();
     }
 
-    /** Executes one fire-and-forget protocol operation on the Task Lane, containing queue rejection locally. */
-    private void queueProtocolOperationOnTaskLane(
-            String operation,
-            Runnable task) {
-        executeOnTaskLaneOrWarn(task, operation);
-    }
-
-    /** Contains Task Lane rejection at the upstream boundary so it cannot escape through an I/O callback. */
-    private void executeOnTaskLaneOrWarn(
+    /** Executes one Task Lane operation and contains rejection at the upstream callback boundary. */
+    private void executeTaskOrWarn(
             Runnable task,
             String operation) {
         try {
@@ -239,7 +230,7 @@ public final class UpstreamHandler {
 
         if (workRemaining) {
             try {
-                dataSerialLane.execute(this::handleNextOnDataLane);
+                dataSerialLane.execute(this::handleNextTurn);
                 return;
             } catch (RejectedExecutionException ex) {
                 LOG.debug("Data Lane rejected another upstream turn for node {}", nodeId.value(), ex);
