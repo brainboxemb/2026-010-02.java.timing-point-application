@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Separate `NodeService` composition from Task Lane state: new passive `NodeServiceState` owns RaceData/derived state and implements the narrow `UpstreamTaskState` port; `NodeService` no longer implements an upstream child interface.
+
 - Refine `domain.node` readability: rename the active `LogBookProcessor` component to `LogBook`, passive committed history to `LogBookData`, `NodeTaskProcessor` to `NodeService`, and use plain queue/queued vocabulary for non-blocking lane handoffs.
 
 - Add type-safe default lifecycle registration: `ComponentLifecycleManager` derives the diagnostic class name while activation/deactivation remain explicit compile-time method references; no reflection or common lifecycle interface is required.
