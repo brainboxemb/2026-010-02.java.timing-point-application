@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Simplify `SerialLane` internals: per-task queue/execution timestamps live in a dedicated `TaskTiming` object, queue-capacity failure throws directly, and helper names describe intent instead of synchronization mechanics.
+
 - Align `SerialLane` with standard Java execution semantics: lane users call `execute(Runnable)` or `submit(Callable) -> Future`, rejection uses `RejectedExecutionException`, bounded queue `offer`/`poll` remains internal to the lane, and `LogBook` now has one explicit constructor.
 
 - Remove the separate `LogBookReader` port: internal upstream synchronization now uses the same `LogBookAccessor` query boundary as other LogBook consumers, including a bounded `timingDataRange(...)` query.
