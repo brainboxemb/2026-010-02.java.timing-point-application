@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.task;
 
-import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
@@ -43,7 +42,6 @@ public final class NodeService {
     private final NodeServiceState state;
     private final StageTiming stageTiming;
 
-
     /** Creates the Task Lane service around explicitly composed passive state. */
     public NodeService(
             LogBook logBook,
@@ -70,7 +68,6 @@ public final class NodeService {
                 .subscribe(this::onInitialTimingDataLoaded);
         logBook.newDataEntryEvent()
                 .subscribe(this::onTimingDataCommitted);
-
     }
 
     /**
