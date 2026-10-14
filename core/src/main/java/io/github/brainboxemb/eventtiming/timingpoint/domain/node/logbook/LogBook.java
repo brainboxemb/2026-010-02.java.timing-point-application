@@ -189,10 +189,7 @@ public final class LogBook
      */
     public CommandQueueResult queue(
             LogBookCommand<?> command) {
-        if (command == null) {
-            throw new IllegalArgumentException(
-                    "command must not be null");
-        }
+        checkArgument(command != null, "command must not be null");
 
         SerialLane.AdmissionResult laneQueueResult =
                 dataLane.offer(
