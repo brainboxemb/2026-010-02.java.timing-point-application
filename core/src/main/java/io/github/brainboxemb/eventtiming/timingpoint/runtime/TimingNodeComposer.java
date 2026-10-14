@@ -38,6 +38,7 @@ final class TimingNodeComposer {
         this.monotonicClock = monotonicClock;
     }
 
+    /** Builds one complete TimingNode child-component set from resolved runtime configuration. */
     TimingNodeComponents compose(
             Config.TimingNodeConfig nodeConfig,
             TimingSystemResolvedData system,
