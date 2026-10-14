@@ -105,28 +105,29 @@ public final class TimingNode {
      * the synchronous source event callback.
      */
     private void onNewRegistration(TagProcessor.NewRegistration registration) {
-        CommandAdmission admission = logBook.offer(
-                LogBookCommands.addAutomaticRegistration(
-                        registration.registrationId(),
-                        registration.observedAt()));
+        CommandSubmissionResult submissionResult =
+                logBook.submit(
+                        LogBookCommands.addAutomaticRegistration(
+                                registration.registrationId(),
+                                registration.observedAt()));
 
-        switch (admission) {
+        switch (submissionResult) {
             case ACCEPTED:
                 return;
-            case FULL:
+            case QUEUE_FULL:
                 LOG.error(
-                        "LogBook Data Lane is full for node {}; automatic registration {} was not accepted",
+                        "LogBook Data Lane queue is full for node {}; automatic registration {} was not queued",
                         timingNodeId.value(),
                         registration.registrationId().value());
                 return;
             case NOT_RUNNING:
                 LOG.warn(
-                        "LogBook Data Lane is not running for node {}; automatic registration {} was not accepted",
+                        "LogBook Data Lane is not running for node {}; automatic registration {} was not queued",
                         timingNodeId.value(),
                         registration.registrationId().value());
                 return;
             default:
-                throw new IllegalStateException("Unsupported LogBook admission result " + admission);
+                throw new IllegalStateException(
+                        "Unsupported LogBook submission result " + submissionResult);
         }
-    }
-}
+    }}
