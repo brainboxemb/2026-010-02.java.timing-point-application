@@ -31,6 +31,7 @@ final class TimingNodeComposer {
     private final RuntimeExecutors executors;
     private final MonotonicClock monotonicClock;
 
+    /** Creates the runtime composer with resolved configuration and execution resources. */
     TimingNodeComposer(
             ApplicationConfiguration configuration,
             RuntimeExecutors executors,
