@@ -314,7 +314,7 @@ final class LogBookState {
                 problems);
     }
 
-    TimingDataPersistence.LoadResult recoverTimingData()
+    TimingDataPersistence.LoadResult loadPersistedTimingData()
             throws TimingDataPersistence.PersistenceException {
         TimingDataPersistence.LoadResult loadResult = timingDataPersistence.load();
         for (TimingData data : loadResult.records()) {
@@ -324,7 +324,7 @@ final class LogBookState {
         return loadResult;
     }
 
-    void markTimingDataRecoveryFailed(Throwable failure) {
+    void markTimingDataLoadFailed(Throwable failure) {
         if (failure == null) {
             throw new IllegalArgumentException("failure must not be null");
         }
@@ -333,7 +333,7 @@ final class LogBookState {
         timingDataTailRecovered = false;
 
         String detail = failure.getMessage();
-        String message = "TimingData recovery failed for " + timingNodeId.value();
+        String message = "Persisted TimingData load failed for " + timingNodeId.value();
         if (detail != null && !detail.trim().isEmpty()) {
             message += ": " + detail.trim();
         }
