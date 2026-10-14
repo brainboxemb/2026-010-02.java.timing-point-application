@@ -1,11 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.data;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
-import io.github.brainboxemb.eventtiming.eventdata.TeamId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamNodeData;
-import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -20,6 +16,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executor
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
@@ -55,6 +52,8 @@ public final class NodeDataProcessor implements UpstreamNodeData {
             new Event<Status>();
     private final Event<TimingData> timingDataCommittedEvent =
             new Event<TimingData>();
+    private final Event<List<TimingData>> timingDataRecoveredEvent =
+            new Event<List<TimingData>>();
 
     /** Latest activation-complete immutable Status visible to CURRENT queries. */
     private volatile Status publishedStatus;
@@ -249,6 +248,16 @@ public final class NodeDataProcessor implements UpstreamNodeData {
         return timingDataCommittedEvent;
     }
 
+    /**
+     * Publishes one immutable recovered TimingData history after Data Lane recovery.
+     *
+     * <p>Task Lane-derived state can rebuild from this fact without receiving the
+     * mutable LogBook itself.</p>
+     */
+    public EventSource<List<TimingData>> timingDataRecoveredEvent() {
+        return timingDataRecoveredEvent;
+    }
+
     /** Admits one fire-and-forget operation to the Data Lane. */
     public boolean offerTask(
             Runnable task) {
@@ -289,13 +298,10 @@ public final class NodeDataProcessor implements UpstreamNodeData {
     }
 
     /**
-     * Narrow protocol-facing operations. The only exposed data values are
-     * immutable records, scalar heads and resolved identifiers. Mutable LogBook
-     * and RaceData collaborators never leave the Data component.
+     * Narrow LogBook operations used by upstream TIMING_DATA synchronization.
      *
-     * <p>Only timingDataHead() is a cross-thread CURRENT read. All remaining
-     * methods run during an accepted Data Lane turn. No Task Lane caller may
-     * invoke a blocking Data Lane operation here.</p>
+     * <p>The scalar head is safely published by LogBook. Bounded history access
+     * remains Data Lane-only.</p>
      */
     @Override
     public long timingDataHead() {
@@ -308,30 +314,6 @@ public final class NodeDataProcessor implements UpstreamNodeData {
         List<TimingData> records = new ArrayList<TimingData>(limit);
         logic.logBook().visitRange(fromSequence, limit, records::add);
         return records;
-    }
-
-    @Override
-    public void applyRaceData(UpstreamData.RaceData message) {
-        requireDataLane("applyRaceData");
-        logic.applyRaceData(message);
-    }
-
-    @Override
-    public TeamId teamIdFor(RegistrationId registrationId) {
-        requireDataLane("teamIdFor");
-        return logic.teamIdFor(registrationId);
-    }
-
-    @Override
-    public TimingTimestamp stageStartTimeFor(TeamId teamId) {
-        requireDataLane("stageStartTimeFor");
-        return logic.stageStartTimeFor(teamId);
-    }
-
-    @Override
-    public int uniqueTeamRegistrationCount() {
-        requireDataLane("uniqueTeamRegistrationCount");
-        return logic.uniqueTeamRegistrationCount();
     }
 
     private void requireDataLane(String operation) {
@@ -400,6 +382,7 @@ public final class NodeDataProcessor implements UpstreamNodeData {
                     timingNodeId().value());
         }
 
+        publishTimingDataRecovered(recovery.records());
         publishRecoveredStatus();
     }
 
@@ -518,6 +501,23 @@ public final class NodeDataProcessor implements UpstreamNodeData {
                     "status must not be null");
         }
         publishedStatus = status;
+    }
+
+    private void publishTimingDataRecovered(
+            List<TimingData> recovered) {
+        List<TimingData> snapshot =
+                Collections.unmodifiableList(
+                        new ArrayList<TimingData>(recovered));
+        Event.DeliveryReport delivery =
+                timingDataRecoveredEvent.emit(snapshot);
+        if (!delivery.successful()) {
+            LOG.warn(
+                    "TimingData recovered but "
+                            + delivery.failureCount()
+                            + " timingDataRecoveredEvent listener(s) failed for "
+                            + timingNodeId().value(),
+                    delivery.failures().get(0));
+        }
     }
 
     private void publishTimingDataCommitted(

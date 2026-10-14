@@ -19,21 +19,21 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 final class UpstreamDataSync {
     private final NodeId nodeId;
     private final UpstreamStream stream;
-    private final UpstreamNodeData nodeData;
+    private final UpstreamTaskState taskState;
 
     /*
      * Highest contiguous Central sequence committed to live TeamAssignments and
-     * StageStartTimes. This protocol state only changes on the node serial lane.
+     * StageStartTimes. This protocol state only changes on the Task Lane.
      */
     private long appliedSequence;
 
-    UpstreamDataSync(NodeId nodeId, UpstreamStream stream, UpstreamNodeData nodeData) {
+    UpstreamDataSync(NodeId nodeId, UpstreamStream stream, UpstreamTaskState taskState) {
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(stream != null, "stream must not be null");
-        checkArgument(nodeData != null, "nodeData must not be null");
+        checkArgument(taskState != null, "taskState must not be null");
         this.nodeId = nodeId;
         this.stream = stream;
-        this.nodeData = nodeData;
+        this.taskState = taskState;
     }
 
     /**
@@ -64,9 +64,9 @@ final class UpstreamDataSync {
             return;
         }
 
-        // Only the Data component can validate and atomically mutate RaceData.
-        // Do not acknowledge until that mutation has completed successfully.
-        nodeData.applyRaceData(raceData);
+        // RaceData is Task Lane-owned. ACK only after the complete change set
+        // validated and was atomically applied to the current task state.
+        taskState.applyRaceData(raceData);
         appliedSequence = receivedSequence;
         sendAck(receivedSequence);
     }

@@ -208,11 +208,16 @@ public class UpstreamHandlerTest {
                             1,
                             TimeUnit.SECONDS));
 
+            long acceptedBeforeHeartbeat =
+                    taskLane.metrics()
+                            .snapshot()
+                            .acceptedCount();
+
             node.upstreamHandler()
                     .heartbeatTick();
 
             assertEquals(
-                    1L,
+                    acceptedBeforeHeartbeat + 1L,
                     taskLane.metrics()
                             .snapshot()
                             .acceptedCount());

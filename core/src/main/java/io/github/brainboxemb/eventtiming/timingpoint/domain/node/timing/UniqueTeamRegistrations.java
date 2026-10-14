@@ -86,6 +86,11 @@ public final class UniqueTeamRegistrations {
         return activeRegistrations.size();
     }
 
+    /** Clears the derived state before rebuilding it from recovered TimingData. */
+    public void reset() {
+        activeRegistrations.clear();
+    }
+
     private static void requireRegistrationId(
             RegistrationId registrationId) {
         if (registrationId == null) {

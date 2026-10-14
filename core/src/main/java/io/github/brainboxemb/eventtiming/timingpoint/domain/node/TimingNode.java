@@ -318,6 +318,7 @@ public final class TimingNode {
         this.taskProcessor = new NodeTaskProcessor(
                 processor,
                 taskLane,
+                eventData,
                 upstreamStream);
         this.tagProcessor = processorChild;
     }
@@ -348,6 +349,7 @@ public final class TimingNode {
         this.taskProcessor = new NodeTaskProcessor(
                 dataProcessor,
                 taskLane,
+                eventData,
                 upstreamStream);
         this.tagProcessor = tagProcessor;
     }
@@ -449,13 +451,32 @@ public final class TimingNode {
 
     public <R> R query(
             TimingNodeQuery<R> query) {
-        return dataProcessor.query(
-                query);
+        if (query == null) {
+            throw new IllegalArgumentException("query must not be null");
+        }
+        return query.isTaskOwned()
+                ? taskProcessor.query(query)
+                : dataProcessor.query(query);
     }
 
     public <R> R query(
             TimingNodeQuery<R> query,
             ReadConsistency consistency) {
+        if (query == null) {
+            throw new IllegalArgumentException("query must not be null");
+        }
+        if (consistency == null) {
+            throw new IllegalArgumentException("consistency must not be null");
+        }
+        if (query.isTaskOwned()) {
+            if (consistency != ReadConsistency.ORDERED) {
+                throw new IllegalArgumentException(
+                        "Task Lane query "
+                                + query.name()
+                                + " supports ORDERED consistency only");
+            }
+            return taskProcessor.query(query);
+        }
         return dataProcessor.query(
                 query,
                 consistency);

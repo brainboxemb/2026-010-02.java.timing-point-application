@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
-import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
@@ -58,6 +57,6 @@ public class UpstreamDataSyncTest {
         return new UpstreamDataSync(
                 new NodeId("A"),
                 stream,
-                new TestUpstreamNodeData());
+                new TestUpstreamTaskState());
     }
 }

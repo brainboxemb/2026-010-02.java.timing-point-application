@@ -4,17 +4,11 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
-import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory.Context;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
-import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.UniqueTeamRegistrations;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
@@ -29,9 +23,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 
 import java.time.Instant;
-import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
@@ -57,10 +49,6 @@ final class TimingNodeLogic {
     private final TimeSource timeSource;
     private final MonotonicClock monotonicClock;
     private final TimingNodeMetrics metrics;
-    private final RaceDataState raceData;
-    private final UniqueTeamRegistrations uniqueTeamRegistrations =
-            new UniqueTeamRegistrations();
-    private final StageTiming stageTiming;
 
     private State state = State.CLOSED;
     private LocationId locationId;
@@ -138,12 +126,6 @@ final class TimingNodeLogic {
         this.monotonicClock = monotonicClock;
         this.metrics = metrics;
         this.logBook = new LogBook(timingNodeId);
-        this.raceData = new RaceDataState(eventData);
-        this.stageTiming =
-                new StageTiming(
-                        eventData,
-                        raceData.teamAssignments(),
-                        raceData.stageStartTimes());
     }
 
     NodeId timingNodeId() {
@@ -162,50 +144,6 @@ final class TimingNodeLogic {
         return logBook.headSequence();
     }
 
-
-    /** Commits validated RaceData changes; caller must own the Data Lane. */
-    void applyRaceData(UpstreamData.RaceData message) {
-        raceData.applyChanges(message);
-    }
-
-    TeamId teamIdFor(RegistrationId registrationId) {
-        return raceData.teamIdFor(registrationId);
-    }
-
-    TimingTimestamp stageStartTimeFor(TeamId teamId) {
-        return raceData.stageStartTimeFor(teamId);
-    }
-
-    int uniqueTeamRegistrationCount() {
-        return uniqueTeamRegistrations.uniqueTeamCount(raceData::teamIdFor);
-    }
-
-    List<StageTime> stageTiming(
-            ZoneId raceTimeZone) {
-        ensureOperational();
-        if (raceTimeZone == null) {
-            throw new IllegalArgumentException(
-                    "raceTimeZone must not be null");
-        }
-
-        /*
-         * StageTiming is a read-side view of the committed history. Keep the
-         * LogBook passive: capture the current records on the owning node lane
-         * and let StageTiming derive the ranking from that snapshot.
-         */
-        List<TimingData> committed =
-                new ArrayList<TimingData>(
-                        logBook.size());
-        if (logBook.size() > 0) {
-            logBook.visitRange(
-                    1L,
-                    logBook.size(),
-                    committed::add);
-        }
-        return stageTiming.ranking(
-                committed,
-                raceTimeZone);
-    }
 
     OpenResult open(LocationId newLocationId)
             throws TimingDataPersistence.PersistenceException {
@@ -403,7 +341,6 @@ final class TimingNodeLogic {
         TimingDataPersistence.LoadResult loadResult = timingDataPersistence.load();
         for (TimingData data : loadResult.records()) {
             logBook.add(data);
-            updateUniqueTeamRegistrations(data);
         }
         timingDataTailRecovered = loadResult.repairedIncompleteTail();
         return loadResult;
@@ -577,7 +514,6 @@ final class TimingNodeLogic {
 
         try {
             logBook.add(data);
-            updateUniqueTeamRegistrations(data);
         } catch (RuntimeException ex) {
             timingDataCommitFailure = ex;
             throw ex;
@@ -585,46 +521,6 @@ final class TimingNodeLogic {
 
         metrics.recordCommit();
         logCommittedTimingData(data);
-    }
-
-    /**
-     * Mirrors committed registration ADD/REV semantics into the compact
-     * registration data used for current unique-team counts.
-     *
-     * <p>No TeamId is resolved here. Team resolution belongs to the current
-     * EventData/TeamAssignments view and may change after the registration was
-     * committed.</p>
-     */
-    private void updateUniqueTeamRegistrations(
-            TimingData data) {
-        if (data instanceof TimingData.AutomaticRegistration) {
-            TimingData.AutomaticRegistration registration =
-                    (TimingData.AutomaticRegistration) data;
-            updateUniqueTeamRegistrations(
-                    registration.registrationId(),
-                    registration.action());
-            return;
-        }
-
-        if (data instanceof TimingData.ManualRegistration) {
-            TimingData.ManualRegistration registration =
-                    (TimingData.ManualRegistration) data;
-            updateUniqueTeamRegistrations(
-                    registration.registrationId(),
-                    registration.action());
-        }
-    }
-
-    private void updateUniqueTeamRegistrations(
-            RegistrationId registrationId,
-            TimingData.RegistrationAction action) {
-        if (action == TimingData.RegistrationAction.ADD) {
-            uniqueTeamRegistrations.registered(
-                    registrationId);
-        } else if (action == TimingData.RegistrationAction.REV) {
-            uniqueTeamRegistrations.revoked(
-                    registrationId);
-        }
     }
 
     private void logCommittedTimingData(TimingData data) {

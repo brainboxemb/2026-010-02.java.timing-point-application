@@ -18,9 +18,10 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * TimingNode-owned semantic boundary for node-scoped upstream communication.
  *
- * <p>The port coordinates two TimingNode-owned logical lanes. Existing
- * RACE_DATA/LogBook work remains on the Data Lane while heartbeat protocol state
- * is owned by the Task Lane. Protocol state is deliberately split into
+ * <p>The handler coordinates two TimingNode-owned logical lanes. Stream turns
+ * are currently admitted on the Data Lane so TIMING_DATA LogBook access stays
+ * ordered there. RACE_DATA, heartbeat and their live protocol/state work are
+ * handed to the Task Lane. Protocol state is deliberately split into
  * {@link UpstreamHeartbeat}, {@link UpstreamDataSync} and {@link LogBookSync}.
  * Transport/session I/O belongs to the I/O-layer {@link UpstreamStream}; none of
  * these domain helpers owns a transport thread or executor.</p>
@@ -37,6 +38,7 @@ public final class UpstreamHandler {
     private final UpstreamDataSync upstreamDataSync;
     private final LogBookSync logBookSync;
     private final UpstreamNodeData nodeData;
+    private final UpstreamTaskState taskState;
 
     /*
      * inputAvailable() may be called by an I/O thread. This flag prevents a
@@ -50,21 +52,24 @@ public final class UpstreamHandler {
             DataLane dataLane,
             TaskLane taskLane,
             UpstreamStream stream,
-            UpstreamNodeData nodeData) {
+            UpstreamNodeData nodeData,
+            UpstreamTaskState taskState) {
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(dataLane != null, "dataLane must not be null");
         checkArgument(taskLane != null, "taskLane must not be null");
         checkArgument(stream != null, "stream must not be null");
         checkArgument(nodeData != null, "nodeData must not be null");
+        checkArgument(taskState != null, "taskState must not be null");
 
         this.nodeId = nodeId;
         this.dataLane = dataLane;
         this.taskLane = taskLane;
         this.stream = stream;
         this.nodeData = nodeData;
+        this.taskState = taskState;
         this.heartbeat = new UpstreamHeartbeat(nodeId, stream);
         this.upstreamDataSync =
-                new UpstreamDataSync(nodeId, stream, nodeData);
+                new UpstreamDataSync(nodeId, stream, taskState);
         this.logBookSync = new LogBookSync(nodeId, stream, nodeData);
     }
 
@@ -134,13 +139,24 @@ public final class UpstreamHandler {
             case RACE_DATA:
                 checkArgument(data instanceof UpstreamData.RaceData,
                         "RACE_DATA has incompatible semantic type");
-                upstreamDataSync.handleRaceData((UpstreamData.RaceData) data);
+                offerTaskProtocol(
+                        "RACE_DATA",
+                        () -> upstreamDataSync.handleRaceData(
+                                (UpstreamData.RaceData) data));
                 return;
 
             case SYNC:
                 checkArgument(data instanceof UpstreamData.Sync,
                         "SYNC has incompatible semantic type");
-                upstreamDataSync.handleSync((UpstreamData.Sync) data);
+                UpstreamData.Sync sync = (UpstreamData.Sync) data;
+                if (sync.stream() == UpstreamData.Stream.RACE_DATA) {
+                    offerTaskProtocol(
+                            "RACE_DATA SYNC",
+                            () -> upstreamDataSync.handleSync(sync));
+                } else {
+                    throw new UnsupportedOperationException(
+                            "Inbound SYNC supports RACE_DATA only");
+                }
                 return;
 
             case REQ:
@@ -198,21 +214,34 @@ public final class UpstreamHandler {
         return heartbeat.status();
     }
 
-    /** Resolves current TeamId using EventData first and live assignments as fallback. */
+    /** Resolves current TeamId on the Task Lane. */
     public TeamId teamIdFor(RegistrationId registrationId) {
-        return onDataLane(() -> nodeData.teamIdFor(registrationId), "upstreamTeamIdFor");
+        return onTaskLane(
+                () -> taskState.teamIdFor(registrationId),
+                "upstreamTeamIdFor");
     }
 
-    /** Reads the current Central-provided stage start on the owning node lane. */
+    /** Reads the current Central-provided stage start on the Task Lane. */
     public TimingTimestamp stageStartTimeFor(TeamId teamId) {
-        return onDataLane(() -> nodeData.stageStartTimeFor(teamId), "upstreamStageStartTimeFor");
+        return onTaskLane(
+                () -> taskState.stageStartTimeFor(teamId),
+                "upstreamStageStartTimeFor");
     }
 
-    /** Returns the unique-team count derived from active registrations and current assignments. */
+    /** Returns the Task Lane-owned unique-team count. */
     public int uniqueTeamRegistrationCount() {
-        return onDataLane(
-                () -> Integer.valueOf(nodeData.uniqueTeamRegistrationCount()),
+        return onTaskLane(
+                () -> Integer.valueOf(taskState.uniqueTeamRegistrationCount()),
                 "uniqueTeamRegistrationCount").intValue();
+    }
+
+    private void offerTaskProtocol(String operation, Runnable task) {
+        if (!taskLane.offer(task)) {
+            LOG.warn(
+                    "Dropped upstream {} for node {} because the Task Lane could not accept it; no ACK is sent",
+                    operation,
+                    nodeId.value());
+        }
     }
 
     /**
@@ -229,12 +258,8 @@ public final class UpstreamHandler {
         inputTaskScheduled.set(false);
     }
 
-    private void onDataLane(Runnable task, String operation) {
-        dataLane.run(task, operation);
-    }
-
-    private <R> R onDataLane(Callable<R> task, String operation) {
-        return dataLane.run(task, operation);
+    private <R> R onTaskLane(Callable<R> task, String operation) {
+        return taskLane.run(task, operation);
     }
 
     /** Narrow Data Lane execution boundary supplied by the owning TimingNode. */
@@ -254,6 +279,10 @@ public final class UpstreamHandler {
      */
     public interface TaskLane {
         boolean offer(Runnable task);
+
+        void run(Runnable task, String operation);
+
+        <R> R run(Callable<R> task, String operation);
     }
 
 }
