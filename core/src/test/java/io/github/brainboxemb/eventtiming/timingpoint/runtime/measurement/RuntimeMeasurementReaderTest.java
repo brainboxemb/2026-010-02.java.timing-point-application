@@ -95,7 +95,7 @@ public class RuntimeMeasurementReaderTest {
                         nodeMetrics,
                         tagMetrics);
 
-        node.timingDataCommittedEvent()
+        node.newDataEvent()
                 .subscribe(
                         ignored -> {
                             // Keep one ordinary listener in the measured path.
