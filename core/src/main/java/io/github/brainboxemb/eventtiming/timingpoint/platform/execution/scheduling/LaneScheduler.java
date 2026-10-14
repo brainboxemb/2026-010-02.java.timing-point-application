@@ -38,6 +38,7 @@ public final class LaneScheduler {
     private final SerialLane lane;
     private final ScheduledExecutorService scheduler;
 
+    /** Creates delayed admission support for one existing SerialLane. */
     public LaneScheduler(
             SerialLane lane,
             ScheduledExecutorService scheduler) {
@@ -51,6 +52,7 @@ public final class LaneScheduler {
         this.scheduler = scheduler;
     }
 
+    /** Schedules one Callable for later admission to the owning serial lane. */
     public <R> ScheduledOperation<R> submitAfter(
             Callable<R> operation,
             long delayNanos) {
@@ -76,6 +78,7 @@ public final class LaneScheduler {
      * on the owning serial lane. If that bounded lane is temporarily full, the
      * next normal delay is used rather than creating a second queue.</p>
      */
+    /** Schedules recurring fire-and-forget work with delay measured after each lane turn. */
     public ScheduledRegistration scheduleWithFixedDelay(
             Runnable operation,
             long delayNanos) {
@@ -105,6 +108,7 @@ public final class LaneScheduler {
 
         private volatile ScheduledFuture<?> trigger;
 
+        /** Creates one delayed one-shot operation and its public completion handles. */
         private DelayedOperation(
                 Callable<R> operation,
                 long delayNanos) {
@@ -173,16 +177,19 @@ public final class LaneScheduler {
         }
 
         @Override
+        /** Returns the Future representing this delayed operation's final result. */
         public Future<R> futureResult() {
             return completion;
         }
 
         @Override
+        /** Returns the completion-stage view used by asynchronous consumers. */
         public CompletionStage<R> completion() {
             return completion;
         }
 
         @Override
+        /** Cancels this delayed operation and any trigger or lane Future still active. */
         public void close() {
             completion.cancel(true);
             cancelActive();
@@ -212,6 +219,7 @@ public final class LaneScheduler {
         private boolean closed;
         private ScheduledFuture<?> trigger;
 
+        /** Creates one fixed-delay registration around the supplied operation. */
         private RepeatingOperation(
                 Runnable operation,
                 long delayNanos) {
