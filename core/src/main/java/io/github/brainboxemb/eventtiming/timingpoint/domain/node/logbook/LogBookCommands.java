@@ -27,7 +27,7 @@ public final class LogBookCommands {
         }
         return simple(
                 "open",
-                logic -> logic.open(locationId));
+                logBookState -> logBookState.open(locationId));
     }
 
     public static LogBookCommand<CloseResult> close() {
@@ -47,7 +47,7 @@ public final class LogBookCommands {
 
         return simple(
                 "addAutomaticRegistration",
-                logic -> logic.addAutomaticRegistration(
+                logBookState -> logBookState.addAutomaticRegistration(
                         registrationId,
                         time));
     }
@@ -62,7 +62,7 @@ public final class LogBookCommands {
         }
         return simple(
                 "simulateAutomaticRegistration",
-                logic -> logic.simulateAutomaticRegistration(registrationId, time));
+                logBookState -> logBookState.simulateAutomaticRegistration(registrationId, time));
     }
 
     /** Direct IF-03 simulation; capture TimeSource on the node's serial lane. */
@@ -73,7 +73,7 @@ public final class LogBookCommands {
         }
         return simple(
                 "simulateAutomaticRegistrationNow",
-                logic -> logic.simulateAutomaticRegistrationNow(registrationId));
+                logBookState -> logBookState.simulateAutomaticRegistrationNow(registrationId));
     }
 
     public static LogBookCommand<RegistrationResult>
@@ -94,7 +94,7 @@ public final class LogBookCommands {
 
         return simple(
                 "commitManualRegistration",
-                logic -> logic.commitManualRegistration(
+                logBookState -> logBookState.commitManualRegistration(
                         registrationId,
                         effectiveTime,
                         registrationTimeSource));
@@ -111,7 +111,7 @@ public final class LogBookCommands {
                 originalTime);
         return simple(
                 "revokeAutomaticRegistration",
-                logic -> logic.revokeAutomaticRegistration(
+                logBookState -> logBookState.revokeAutomaticRegistration(
                         originalLocationId,
                         registrationId,
                         originalTime));
@@ -133,7 +133,7 @@ public final class LogBookCommands {
         }
         return simple(
                 "revokeManualRegistration",
-                logic -> logic.revokeManualRegistration(
+                logBookState -> logBookState.revokeManualRegistration(
                         originalLocationId,
                         registrationId,
                         originalTime,
