@@ -45,18 +45,14 @@ public class RuntimeExecutorsTest {
         first.dataLane().start();
         second.dataLane().start();
         try {
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    first.dataLane().offer(() -> {
+            first.dataLane().execute(() -> {
                         firstThread.set(
-                                Thread.currentThread().getName());
+                                Thread.currentThread().getName();
                         done.countDown();
                     }));
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    second.dataLane().offer(() -> {
+            second.dataLane().execute(() -> {
                         secondThread.set(
-                                Thread.currentThread().getName());
+                                Thread.currentThread().getName();
                         done.countDown();
                     }));
 
@@ -91,18 +87,14 @@ public class RuntimeExecutorsTest {
         lanes.dataLane().start();
         lanes.taskLane().start();
         try {
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    lanes.dataLane().offer(() -> {
+            lanes.dataLane().execute(() -> {
                         dataThread.set(
-                                Thread.currentThread().getName());
+                                Thread.currentThread().getName();
                         done.countDown();
                     }));
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    lanes.taskLane().offer(() -> {
+            lanes.taskLane().execute(() -> {
                         taskThread.set(
-                                Thread.currentThread().getName());
+                                Thread.currentThread().getName();
                         done.countDown();
                     }));
 
@@ -135,11 +127,9 @@ public class RuntimeExecutorsTest {
 
         conductor.start();
         try {
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    conductor.offer(() -> {
+            conductor.execute(() -> {
                         threadName.set(
-                                Thread.currentThread().getName());
+                                Thread.currentThread().getName();
                         done.countDown();
                     }));
 
@@ -178,11 +168,9 @@ public class RuntimeExecutorsTest {
         first.start();
         second.start();
         try {
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    first.offer(() -> {
+            first.execute(() -> {
                         firstThread.set(
-                                Thread.currentThread().getName());
+                                Thread.currentThread().getName();
                         firstDone.countDown();
                     }));
             assertTrue(
@@ -195,11 +183,9 @@ public class RuntimeExecutorsTest {
 
             first.close();
 
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    second.offer(() -> {
+            second.execute(() -> {
                         secondThread.set(
-                                Thread.currentThread().getName());
+                                Thread.currentThread().getName();
                         secondDone.countDown();
                     }));
             assertTrue(
@@ -235,18 +221,14 @@ public class RuntimeExecutorsTest {
         first.tagProcessor().start();
         second.tagProcessor().start();
         try {
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    first.tagProcessor().offer(() -> {
+            first.tagProcessor().execute(() -> {
                         firstThread.set(
-                                Thread.currentThread().getName());
+                                Thread.currentThread().getName();
                         done.countDown();
                     }));
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    second.tagProcessor().offer(() -> {
+            second.tagProcessor().execute(() -> {
                         secondThread.set(
-                                Thread.currentThread().getName());
+                                Thread.currentThread().getName();
                         done.countDown();
                     }));
 
