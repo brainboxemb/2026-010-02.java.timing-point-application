@@ -358,7 +358,7 @@ public final class NodeTasks implements UpstreamTaskState {
 
     private final class UpstreamTaskLane implements UpstreamHandler.TaskLane {
         @Override
-        public boolean trySubmit(Runnable task) {
+        public boolean tryQueue(Runnable task) {
             return tryQueueOnTaskLane(task);
         }
 
