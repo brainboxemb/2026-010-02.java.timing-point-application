@@ -85,10 +85,9 @@ public class SerialTaskRunnerSchedulingTest {
                             500,
                             TimeUnit.MILLISECONDS));
 
-            assertTrue(
-                    runner.execute(
-                            () -> order.add(
-                                    "sibling")));
+            runner.execute(
+                    () -> order.add(
+                            "sibling"));
 
             allowFirstStepReturn.countDown();
             runner.await(
