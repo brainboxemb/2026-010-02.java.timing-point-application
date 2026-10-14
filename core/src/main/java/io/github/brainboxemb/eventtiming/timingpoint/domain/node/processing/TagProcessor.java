@@ -252,6 +252,7 @@ public final class TagProcessor {
         }
     }
 
+    /** Contains one observation-processing failure so later antenna observations can continue. */
     private void processObservationSafely(TagObservation observation) {
         try {
             processObservation(observation);
@@ -263,6 +264,7 @@ public final class TagProcessor {
         }
     }
 
+    /** Maps and filters one queued antenna observation on the TagProcessor lane. */
     private void processObservation(TagObservation observation) {
         LOG.trace(
                 "Tag observation: tagId={}, rssi={}, observedAt={}",
@@ -294,6 +296,7 @@ public final class TagProcessor {
         ensureHousekeeping();
     }
 
+    /** Ensures one periodic housekeeping registration exists while timed filter state is active. */
     private void ensureHousekeeping() {
         if (!hasTimedState()) {
             return;
@@ -351,6 +354,7 @@ public final class TagProcessor {
         ensureHousekeeping();
     }
 
+    /** Advances timeout-based tag filtering and republishes the engineering snapshot. */
     private void housekeeping() {
         try {
             observationFilter.periodic();
@@ -368,6 +372,7 @@ public final class TagProcessor {
         }
     }
 
+    /** Publishes an immutable engineering snapshot of the current passage-filter state. */
     private void publishPassageSnapshots() {
         List<TagPassageSnapshot> current =
                 observationFilter.snapshots();
@@ -379,11 +384,13 @@ public final class TagProcessor {
                                         current));
     }
 
+    /** Returns whether filter state still needs periodic timeout housekeeping. */
     private boolean hasTimedState() {
         return observationFilter.hasPendingState()
                 || duplicateFilter.hasPendingState();
     }
 
+    /** Cancels the current housekeeping registration while holding the lifecycle lock. */
     private void closeHousekeepingLocked() {
         LaneScheduler.ScheduledRegistration task = housekeepingTask;
         housekeepingTask = null;
@@ -428,10 +435,12 @@ public final class TagProcessor {
             this.observedAt = observedAt;
         }
 
+        /** Returns the registration selected from the completed tag passage. */
         public RegistrationId registrationId() {
             return registrationId;
         }
 
+        /** Returns the observation time retained for the automatic registration. */
         public TimingTimestamp observedAt() {
             return observedAt;
         }
