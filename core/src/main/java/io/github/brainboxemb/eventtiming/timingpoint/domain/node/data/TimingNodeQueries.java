@@ -61,9 +61,9 @@ public final class TimingNodeQueries {
             throw new IllegalArgumentException(
                     "raceTimeZone must not be null");
         }
-        return new TimingNodeQuery<>(
+        return TimingNodeQuery.taskOwned(
                 "stageTiming",
-                logic -> logic.stageTiming(
+                processor -> processor.stageTiming(
                         raceTimeZone));
     }
 
