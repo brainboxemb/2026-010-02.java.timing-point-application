@@ -95,13 +95,17 @@ public final class NodeService {
      */
     public List<StageTime> stageTiming(ZoneId raceTimeZone) {
         checkArgument(raceTimeZone != null, "raceTimeZone must not be null");
-        return executeOnTaskLaneAndWait(
-                () -> stageTimingOnTaskLane(raceTimeZone),
+        return submitAndWait(
+                /*
+                 * The no-argument lambda defers ranking calculation until the
+                 * SerialLane executes this submitted operation in order.
+                 */
+                () -> buildStageTiming(raceTimeZone),
                 "stageTiming");
     }
 
     /** Builds the derived stage ranking while the Task Lane owns mutable derived state. */
-    private List<StageTime> stageTimingOnTaskLane(ZoneId raceTimeZone) {
+    private List<StageTime> buildStageTiming(ZoneId raceTimeZone) {
         requireTaskLane("stageTiming");
         return stageTiming.ranking(
                 state.committedTimingDataSnapshot(),
@@ -111,26 +115,33 @@ public final class NodeService {
     /** Hands the immutable startup history from the Data Lane to Task Lane-derived state. */
     private void onInitialTimingDataLoaded(List<TimingData> loadedData) {
         List<TimingData> snapshot = new ArrayList<TimingData>(loadedData);
-        queueTimingFactOnTaskLane(
-                () -> rebuildDerivedTimingOnTaskLane(snapshot),
+        handoffTimingFact(
+                /*
+                 * Defer rebuilding until the SerialLane owns the passive
+                 * NodeServiceState.
+                 */
+                () -> rebuildDerivedTiming(snapshot),
                 "initial TimingData");
     }
 
     /** Hands one committed TimingData fact from the Data Lane to Task Lane-derived state. */
     private void onTimingDataCommitted(TimingData data) {
-        queueTimingFactOnTaskLane(
-                () -> applyCommittedTimingDataOnTaskLane(data),
+        handoffTimingFact(
+                /*
+                 * Defer the derived-state update to preserve Task Lane order.
+                 */
+                () -> applyCommittedTimingData(data),
                 "committed TimingData");
     }
 
     /**
-     * Queues one immutable TimingData fact from the Data Lane onto the Task Lane.
+     * Hands one immutable TimingData fact from the Data Lane to this service.
      *
      * <p>The handoff is non-blocking because both logical lanes may share one
      * physical worker. Failure to queue the fact makes derived timing state
      * explicitly stale rather than silently losing synchronization.</p>
      */
-    private void queueTimingFactOnTaskLane(
+    private void handoffTimingFact(
             Runnable operation,
             String fact) {
         try {
@@ -145,15 +156,15 @@ public final class NodeService {
         }
     }
 
-    /** Rebuilds Task Lane-derived timing from the immutable startup history. */
-    private void rebuildDerivedTimingOnTaskLane(
+    /** Rebuilds derived timing while this service owns the SerialLane turn. */
+    private void rebuildDerivedTiming(
             List<TimingData> loadedData) {
         requireTaskLane("rebuildDerivedTiming");
         state.rebuildDerivedTiming(loadedData);
     }
 
-    /** Applies one newly committed TimingData fact to Task Lane-derived state. */
-    private void applyCommittedTimingDataOnTaskLane(
+    /** Applies one newly committed TimingData fact during the owned SerialLane turn. */
+    private void applyCommittedTimingData(
             TimingData data) {
         requireTaskLane("applyCommittedTimingData");
         state.applyCommittedTimingData(data);
@@ -168,12 +179,12 @@ public final class NodeService {
     }
 
     /**
-     * Executes one result-bearing operation on the Task Lane and waits for it.
+     * Submits one result-bearing operation and waits for its ordered result.
      *
      * <p>If already on the Task Lane, the work executes directly to avoid
      * self-queueing and waiting on the same serial lane.</p>
      */
-    private <R> R executeOnTaskLaneAndWait(
+    private <R> R submitAndWait(
             Callable<R> work,
             String operation) {
         if (serialLane.isExecutingOnCurrentThread()) {
