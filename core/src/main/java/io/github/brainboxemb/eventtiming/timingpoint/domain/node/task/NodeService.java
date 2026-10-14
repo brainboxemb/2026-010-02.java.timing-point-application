@@ -78,7 +78,7 @@ public final class NodeService {
         this.upstreamHandler =
                 new UpstreamHandler(
                         logBook.timingNodeId(),
-                        logBook::queueOperation,
+                        logBook::executeOnDataLane,
                         new UpstreamTaskLane(),
                         upstreamStream,
                         logBook,
