@@ -7,6 +7,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.NodeDataProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQuery;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
@@ -132,6 +133,16 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
 
     public UpstreamHandler upstreamHandler() {
         return upstreamHandler;
+    }
+
+    /** Executes one Task Lane-owned TimingNode query. */
+    public <R> R query(TimingNodeQuery<R> query) {
+        if (query == null) {
+            throw new IllegalArgumentException("query must not be null");
+        }
+        return runTask(
+                () -> query.readTask(this),
+                query.name());
     }
 
     /** Returns the current derived stage ranking on the Task Lane. */
