@@ -35,7 +35,8 @@ import org.slf4j.LoggerFactory;
  * {@link SerialLane} may share a Runtime-owned worker with other logical
  * lanes.</p>
  */
-public final class LogBookProcessor implements LogBookReader {
+public final class LogBookProcessor
+        implements LogBookReader, LogBookAccessor {
     private static final Logger LOG =
             LoggerFactory.getLogger(LogBookProcessor.class);
     public static final long DEFAULT_OPERATION_TIMEOUT_MILLIS = 2000L;
