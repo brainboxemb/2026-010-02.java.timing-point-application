@@ -30,9 +30,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Transport/session I/O belongs to the I/O-layer {@link UpstreamStream}; none of
  * these domain helpers owns a transport thread or executor.</p>
  */
-public final class UpstreamMessagePort {
+public final class UpstreamHandler {
     private static final Logger LOG =
-            LoggerFactory.getLogger(UpstreamMessagePort.class);
+            LoggerFactory.getLogger(UpstreamHandler.class);
 
     private final NodeId nodeId;
     private final DataLane dataLane;
@@ -50,7 +50,7 @@ public final class UpstreamMessagePort {
      */
     private final AtomicBoolean inputTaskScheduled = new AtomicBoolean();
 
-    public UpstreamMessagePort(
+    public UpstreamHandler(
             NodeId nodeId,
             DataLane dataLane,
             TaskLane taskLane,
@@ -91,7 +91,7 @@ public final class UpstreamMessagePort {
             return true;
         }
 
-        if (dataLane.offer(new UpstreamMessageTask(this))) {
+        if (dataLane.offer(new UpstreamHandlerTask(this))) {
             return true;
         }
 
@@ -203,7 +203,7 @@ public final class UpstreamMessagePort {
     }
 
     /** Returns the latest immutable heartbeat snapshot without a lane hop. */
-    public UpstreamMessageTypes.HeartbeatStatus heartbeatStatus() {
+    public UpstreamHandlerTypes.HeartbeatStatus heartbeatStatus() {
         return heartbeat.status();
     }
 
@@ -231,7 +231,7 @@ public final class UpstreamMessagePort {
         boolean workRemaining =
                 stream.isAvailable() && (logBookSync.syncPending() || stream.hasMessage());
 
-        if (workRemaining && dataLane.offer(new UpstreamMessageTask(this))) {
+        if (workRemaining && dataLane.offer(new UpstreamHandlerTask(this))) {
             return;
         }
 

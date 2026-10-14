@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamMessagePort;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
@@ -243,7 +243,7 @@ public class TimingNodeRaceDataTest {
     private static final class Fixture {
         private final TimingNode node;
         private final InMemoryUpstreamStream stream;
-        private final UpstreamMessagePort port;
+        private final UpstreamHandler port;
 
         private Fixture(
                 TimingNode node,
@@ -251,7 +251,7 @@ public class TimingNodeRaceDataTest {
             this.node = node;
             this.stream = stream;
             this.port =
-                    node.upstreamMessagePort();
+                    node.upstreamHandler();
         }
 
         private void receive(

@@ -12,8 +12,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamMessagePort;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamMessageTypes;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandlerTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
@@ -40,7 +40,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
-public class UpstreamMessagePortTest {
+public class UpstreamHandlerTest {
 
     @Test
     public void raceDataIsReadFromStreamAndAckIsSentToStream() {
@@ -61,7 +61,7 @@ public class UpstreamMessagePortTest {
                             Collections.<UpstreamData.StageStartTimeChange>emptyList()));
 
             assertTrue(
-                    node.upstreamMessagePort()
+                    node.upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.Ack ack =
@@ -83,8 +83,8 @@ public class UpstreamMessagePortTest {
                 node("A", stream);
         node.activate();
         try {
-            UpstreamMessagePort port =
-                    node.upstreamMessagePort();
+            UpstreamHandler port =
+                    node.upstreamHandler();
 
             port.heartbeatTick();
             UpstreamData.Ping first =
@@ -106,7 +106,7 @@ public class UpstreamMessagePortTest {
                     (UpstreamData.Ping) stream.takeSent();
             assertEquals("hb-2", second.pingId());
 
-            UpstreamMessageTypes.HeartbeatStatus status =
+            UpstreamHandlerTypes.HeartbeatStatus status =
                     port.heartbeatStatus();
             assertEquals(2L, status.requestsSent());
             assertEquals(0L, status.answersReceived());
@@ -208,7 +208,7 @@ public class UpstreamMessagePortTest {
                             1,
                             TimeUnit.SECONDS));
 
-            node.upstreamMessagePort()
+            node.upstreamHandler()
                     .heartbeatTick();
 
             assertEquals(
@@ -241,8 +241,8 @@ public class UpstreamMessagePortTest {
                 node("A", stream);
         node.activate();
         try {
-            UpstreamMessagePort port =
-                    node.upstreamMessagePort();
+            UpstreamHandler port =
+                    node.upstreamHandler();
             port.heartbeatTick();
             UpstreamData.Ping request =
                     (UpstreamData.Ping) stream.takeSent();
@@ -255,7 +255,7 @@ public class UpstreamMessagePortTest {
                             request.pingId()));
             assertTrue(port.inputAvailable());
 
-            UpstreamMessageTypes.HeartbeatStatus status =
+            UpstreamHandlerTypes.HeartbeatStatus status =
                     port.heartbeatStatus();
             assertEquals(1L, status.answersReceived());
             assertEquals(0L, status.missedIntervals());
@@ -282,7 +282,7 @@ public class UpstreamMessagePortTest {
                             "peer-42"));
 
             assertTrue(
-                    node.upstreamMessagePort()
+                    node.upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.Ping answer =
@@ -313,7 +313,7 @@ public class UpstreamMessagePortTest {
         node.activate();
         try {
             assertFalse(
-                    node.upstreamMessagePort()
+                    node.upstreamHandler()
                             .inputAvailable());
             assertEquals(0, stream.sentCount());
         } finally {
@@ -340,9 +340,9 @@ public class UpstreamMessagePortTest {
         empty.activate();
         populated.activate();
         try {
-            empty.upstreamMessagePort()
+            empty.upstreamHandler()
                     .sendTimingDataSync();
-            populated.upstreamMessagePort()
+            populated.upstreamHandler()
                     .sendTimingDataSync();
 
             UpstreamData.Sync emptySync =
@@ -386,7 +386,7 @@ public class UpstreamMessagePortTest {
                             3L));
 
             assertTrue(
-                    node.upstreamMessagePort()
+                    node.upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.TimingDataTransfer transfer =
@@ -427,7 +427,7 @@ public class UpstreamMessagePortTest {
                             1L));
 
             assertTrue(
-                    node.upstreamMessagePort()
+                    node.upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.TimingDataTransfer first =
@@ -481,7 +481,7 @@ public class UpstreamMessagePortTest {
                             1L));
 
             assertTrue(
-                    node.upstreamMessagePort()
+                    node.upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.TimingDataTransfer first =
@@ -526,7 +526,7 @@ public class UpstreamMessagePortTest {
                             3L));
 
             assertTrue(
-                    node.upstreamMessagePort()
+                    node.upstreamHandler()
                             .inputAvailable());
             assertEquals(0, stream.sentCount());
         } finally {
@@ -548,7 +548,7 @@ public class UpstreamMessagePortTest {
                             UpstreamData.Stream.RACE_DATA,
                             2L));
             assertTrue(
-                    node.upstreamMessagePort()
+                    node.upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.Req req =
@@ -569,7 +569,7 @@ public class UpstreamMessagePortTest {
                                             "0042")),
                             Collections.<UpstreamData.StageStartTimeChange>emptyList()));
             assertTrue(
-                    node.upstreamMessagePort()
+                    node.upstreamHandler()
                             .inputAvailable());
             stream.takeSent(); // cumulative RACE_DATA ACK
 
@@ -579,7 +579,7 @@ public class UpstreamMessagePortTest {
                             UpstreamData.Stream.RACE_DATA,
                             1L));
             assertTrue(
-                    node.upstreamMessagePort()
+                    node.upstreamHandler()
                             .inputAvailable());
             assertEquals(0, stream.sentCount());
         } finally {
@@ -610,7 +610,7 @@ public class UpstreamMessagePortTest {
                             UpstreamData.Stream.TIMING_DATA,
                             1L));
             assertTrue(
-                    nodeA.upstreamMessagePort()
+                    nodeA.upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.TimingDataTransfer transferA =
@@ -628,7 +628,7 @@ public class UpstreamMessagePortTest {
                             UpstreamData.Stream.TIMING_DATA,
                             2L));
             assertTrue(
-                    nodeB.upstreamMessagePort()
+                    nodeB.upstreamHandler()
                             .inputAvailable());
 
             UpstreamData.TimingDataTransfer transferB =

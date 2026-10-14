@@ -16,7 +16,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistenc
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamMessagePort;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
@@ -359,8 +359,8 @@ public final class TimingNode {
     }
 
     /** Returns the TimingNode-owned semantic upstream boundary. */
-    public UpstreamMessagePort upstreamMessagePort() {
-        return taskProcessor.upstreamMessagePort();
+    public UpstreamHandler upstreamHandler() {
+        return taskProcessor.upstreamHandler();
     }
 
     /**

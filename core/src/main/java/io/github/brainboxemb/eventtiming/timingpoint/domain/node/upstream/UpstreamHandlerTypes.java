@@ -6,8 +6,8 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
  * <p>This class is only a Java source-code grouping. It has no runtime state,
  * worker or protocol responsibility of its own.</p>
  */
-public final class UpstreamMessageTypes {
-    private UpstreamMessageTypes() {
+public final class UpstreamHandlerTypes {
+    private UpstreamHandlerTypes() {
     }
 
     /**
