@@ -19,12 +19,10 @@ public final class LogBookCommand<R> {
     LogBookCommand(
             String name,
             Action<R> action) {
-        if (name == null || name.trim().isEmpty()) {
-            throw new IllegalArgumentException("name must not be blank");
-        }
-        if (action == null) {
-            throw new IllegalArgumentException("action must not be null");
-        }
+        checkArgument(
+                name != null && !name.trim().isEmpty(),
+                "name must not be blank");
+        checkArgument(action != null, "action must not be null");
         this.name = name;
         this.action = action;
     }
