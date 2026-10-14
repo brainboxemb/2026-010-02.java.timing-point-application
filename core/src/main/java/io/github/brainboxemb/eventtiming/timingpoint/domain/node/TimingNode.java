@@ -486,8 +486,9 @@ public final class TimingNode {
         return dataProcessor.statusChangedEvent();
     }
 
-    public EventSource<TimingData> timingDataCommittedEvent() {
-        return dataProcessor.timingDataCommittedEvent();
+    /** Post-commit TimingData fact published by the Data component. */
+    public EventSource<TimingData> newDataEvent() {
+        return dataProcessor.newDataEvent();
     }
 
     private static NodeId requireId(
