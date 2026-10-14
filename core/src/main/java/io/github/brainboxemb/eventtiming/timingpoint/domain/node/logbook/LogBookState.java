@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node.data;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
@@ -9,7 +9,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory.Context;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
@@ -31,15 +31,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Internal mutable logic of one TimingNode.
+ * Passive mutable state behind one LogBookProcessor.
  *
- * <p>This object contains the node state and domain decisions. It has no queue,
+ * <p>This object contains lifecycle state, LogBook state and commit decisions. It has no queue,
  * timeout or event-delivery responsibility; those belong to the owning
- * {@link NodeDataProcessor} component.</p>
+ * {@link LogBookProcessor} component.</p>
  */
-final class TimingNodeLogic {
+final class LogBookState {
     private static final Logger LOG =
-            LoggerFactory.getLogger(TimingNodeLogic.class);
+            LoggerFactory.getLogger(LogBookState.class);
 
     private final NodeId timingNodeId;
     private final LogBook logBook;
@@ -47,7 +47,7 @@ final class TimingNodeLogic {
     private final TimingDataFactory timingDataFactory;
     private final TimeSource timeSource;
     private final MonotonicClock monotonicClock;
-    private final TimingNodeMetrics metrics;
+    private final LogBookProcessorMetrics metrics;
 
     private State state = State.CLOSED;
     private LocationId locationId;
@@ -55,7 +55,7 @@ final class TimingNodeLogic {
     private Throwable timingDataCommitFailure;
     private List<Problem> problems = Collections.emptyList();
 
-    TimingNodeLogic(
+    LogBookState(
             NodeId timingNodeId,
             TimingDataPersistence timingDataPersistence,
             TimingDataFactory timingDataFactory,
@@ -67,16 +67,16 @@ final class TimingNodeLogic {
                 timingDataFactory,
                 timeSource,
                 monotonicClock,
-                new TimingNodeMetrics());
+                new LogBookProcessorMetrics());
     }
 
-    TimingNodeLogic(
+    LogBookState(
             NodeId timingNodeId,
             TimingDataPersistence timingDataPersistence,
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
             MonotonicClock monotonicClock,
-            TimingNodeMetrics metrics) {
+            LogBookProcessorMetrics metrics) {
         if (timingNodeId == null) {
             throw new IllegalArgumentException("timingNodeId must not be null");
         }
@@ -110,7 +110,7 @@ final class TimingNodeLogic {
         return timingNodeId;
     }
 
-    TimingNodeMetrics metrics() {
+    LogBookProcessorMetrics metrics() {
         return metrics;
     }
 

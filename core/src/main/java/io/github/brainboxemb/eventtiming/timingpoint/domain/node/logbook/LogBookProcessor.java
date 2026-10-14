@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node.data;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -29,22 +29,22 @@ import org.slf4j.LoggerFactory;
 /**
  * Owns one TimingNode's mutable data and its Data Lane.
  *
- * <p>This component is the single execution boundary for ordered node commands,
+ * <p>This component is the single execution boundary for ordered LogBook commands,
  * ORDERED queries, recovery, committed TimingData and publication of immutable
  * CURRENT data views. It owns no physical thread: the supplied
  * {@link SerialExecutor} may share a Runtime-owned worker with other logical
  * lanes.</p>
  */
-public final class NodeDataProcessor implements TimingDataHistory {
+public final class LogBookProcessor {
     private static final Logger LOG =
-            LoggerFactory.getLogger(NodeDataProcessor.class);
+            LoggerFactory.getLogger(LogBookProcessor.class);
     public static final long DEFAULT_OPERATION_TIMEOUT_MILLIS = 2000L;
 
-    private final TimingNodeLogic logic;
+    private final LogBookState logic;
     private final SerialExecutor dataLane;
     private final long operationTimeoutMillis;
     private final MonotonicClock monotonicClock;
-    private final TimingNodeMetrics metrics;
+    private final LogBookProcessorMetrics metrics;
 
     private final Event<Status> statusChangedEvent =
             new Event<Status>();
@@ -56,16 +56,16 @@ public final class NodeDataProcessor implements TimingDataHistory {
     /** Latest activation-complete immutable Status visible to CURRENT queries. */
     private volatile Status publishedStatus;
 
-    public NodeDataProcessor(
+    public LogBookProcessor(
             NodeId timingNodeId,
             TimingDataPersistence timingDataPersistence,
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
             MonotonicClock monotonicClock,
-            TimingNodeMetrics metrics,
+            LogBookProcessorMetrics metrics,
             SerialExecutor dataLane) {
         this(
-                new TimingNodeLogic(
+                new LogBookState(
                         timingNodeId,
                         timingDataPersistence,
                         timingDataFactory,
@@ -77,17 +77,17 @@ public final class NodeDataProcessor implements TimingDataHistory {
                 monotonicClock);
     }
 
-    public NodeDataProcessor(
+    public LogBookProcessor(
             NodeId timingNodeId,
             TimingDataPersistence timingDataPersistence,
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
             MonotonicClock monotonicClock,
-            TimingNodeMetrics metrics,
+            LogBookProcessorMetrics metrics,
             SerialExecutor dataLane,
             long operationTimeoutMillis) {
         this(
-                new TimingNodeLogic(
+                new LogBookState(
                         timingNodeId,
                         timingDataPersistence,
                         timingDataFactory,
@@ -99,8 +99,8 @@ public final class NodeDataProcessor implements TimingDataHistory {
                 monotonicClock);
     }
 
-    NodeDataProcessor(
-            TimingNodeLogic logic,
+    LogBookProcessor(
+            LogBookState logic,
             SerialExecutor dataLane,
             long operationTimeoutMillis,
             MonotonicClock monotonicClock) {
@@ -129,7 +129,7 @@ public final class NodeDataProcessor implements TimingDataHistory {
         return logic.timingNodeId();
     }
 
-    public TimingNodeMetrics metrics() {
+    public LogBookProcessorMetrics metrics() {
         return metrics;
     }
 
@@ -144,7 +144,7 @@ public final class NodeDataProcessor implements TimingDataHistory {
         if (state != SerialExecutor.State.NEW
                 && state != SerialExecutor.State.STOPPED) {
             throw new IllegalStateException(
-                    "NodeDataProcessor cannot activate with Data Lane state="
+                    "LogBookProcessor cannot activate with Data Lane state="
                             + state);
         }
 
@@ -167,7 +167,7 @@ public final class NodeDataProcessor implements TimingDataHistory {
     }
 
     public <R> R invoke(
-            TimingNodeCommand<R> command) {
+            LogBookCommand<R> command) {
         if (command == null) {
             throw new IllegalArgumentException(
                     "command must not be null");
@@ -178,7 +178,7 @@ public final class NodeDataProcessor implements TimingDataHistory {
     }
 
     public CommandAdmission offer(
-            TimingNodeCommand<?> command) {
+            LogBookCommand<?> command) {
         if (command == null) {
             throw new IllegalArgumentException(
                     "command must not be null");
@@ -202,15 +202,15 @@ public final class NodeDataProcessor implements TimingDataHistory {
     }
 
     public <R> R query(
-            TimingNodeQuery<R> query) {
+            LogBookQuery<R> query) {
         return query(
                 query,
-                TimingNodeQuery.ReadConsistency.ORDERED);
+                LogBookQuery.ReadConsistency.ORDERED);
     }
 
     public <R> R query(
-            TimingNodeQuery<R> query,
-            TimingNodeQuery.ReadConsistency consistency) {
+            LogBookQuery<R> query,
+            LogBookQuery.ReadConsistency consistency) {
         if (query == null) {
             throw new IllegalArgumentException(
                     "query must not be null");
@@ -298,12 +298,9 @@ public final class NodeDataProcessor implements TimingDataHistory {
      * remains Data Lane-only. Upstream/post-processing may depend on this data
      * contract; this component never depends on those consumers.</p>
      */
-    @Override
     public long timingDataHead() {
         return logic.timingDataHead();
     }
-
-    @Override
     public List<TimingData> timingDataRange(long fromSequence, int limit) {
         requireDataLane("timingDataRange");
         List<TimingData> records = new ArrayList<TimingData>(limit);
@@ -334,7 +331,7 @@ public final class NodeDataProcessor implements TimingDataHistory {
         if (state != SerialExecutor.State.RUNNING) {
             throw new OperationException(
                     OperationException.Reason.UNAVAILABLE,
-                    "status CURRENT result is unavailable because the TimingNode data component is not active");
+                    "status CURRENT result is unavailable because the LogBook component is not active");
         }
 
         Status status = publishedStatus;
@@ -391,7 +388,7 @@ public final class NodeDataProcessor implements TimingDataHistory {
     }
 
     private <R> void applySubmitted(
-            TimingNodeCommand<R> command) {
+            LogBookCommand<R> command) {
         try {
             applyCommand(command);
         } catch (Exception ex) {
@@ -403,7 +400,7 @@ public final class NodeDataProcessor implements TimingDataHistory {
     }
 
     private <R> R applyCommand(
-            TimingNodeCommand<R> command)
+            LogBookCommand<R> command)
             throws Exception {
         Status before =
                 logic.status();

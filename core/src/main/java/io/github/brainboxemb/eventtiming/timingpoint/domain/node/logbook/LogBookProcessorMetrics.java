@@ -1,14 +1,14 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node.data;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 /**
- * Component-owned engineering counters for the TimingNode commit/event path.
+ * Component-owned engineering counters for the LogBook commit/event path.
  *
- * <p>All writes occur on the TimingNode serial lane, so recording uses simple
+ * <p>All writes occur on the Data Lane, so recording uses simple
  * primitive fields. Fields are volatile only so an engineering reader on
  * another thread can take a safe non-transactional snapshot without locking the
  * registration path.</p>
  */
-public final class TimingNodeMetrics {
+public final class LogBookProcessorMetrics {
     private volatile long timingDataAppendAttempts;
     private volatile long timingDataAppendFailures;
     private volatile long timingDataCommitCount;
