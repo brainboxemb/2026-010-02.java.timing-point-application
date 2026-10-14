@@ -47,7 +47,7 @@ final class LogBookState {
     private final TimingDataFactory timingDataFactory;
     private final TimeSource timeSource;
     private final MonotonicClock monotonicClock;
-    private final LogBookProcessorMetrics metrics;
+    private final LogBookMetrics metrics;
 
     private State state = State.CLOSED;
     private LocationId locationId;
@@ -67,7 +67,7 @@ final class LogBookState {
                 timingDataFactory,
                 timeSource,
                 monotonicClock,
-                new LogBookProcessorMetrics());
+                new LogBookMetrics());
     }
 
     LogBookState(
@@ -76,7 +76,7 @@ final class LogBookState {
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
             MonotonicClock monotonicClock,
-            LogBookProcessorMetrics metrics) {
+            LogBookMetrics metrics) {
         if (timingNodeId == null) {
             throw new IllegalArgumentException("timingNodeId must not be null");
         }
@@ -110,7 +110,7 @@ final class LogBookState {
         return timingNodeId;
     }
 
-    LogBookProcessorMetrics metrics() {
+    LogBookMetrics metrics() {
         return metrics;
     }
 
