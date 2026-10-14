@@ -64,7 +64,8 @@ final class TimingNodeComposer {
                         timeSource,
                         monotonicClock,
                         new LogBookMetrics(),
-                        lanes.dataLane());
+                        lanes.dataLane(),
+                        LogBook.DEFAULT_OPERATION_TIMEOUT_MILLIS);
 
         NodeService nodeService =
                 new NodeService(
