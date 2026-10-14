@@ -37,8 +37,10 @@ public final class RaceDataState {
 
     public TeamId teamIdFor(RegistrationId registrationId) {
         checkArgument(registrationId != null, "registrationId must not be null");
-        TeamId fixed = eventData.teamIdFor(registrationId);
-        return fixed != null ? fixed : teamAssignments.teamIdFor(registrationId);
+        TeamId configuredTeamId = eventData.teamIdFor(registrationId);
+        return configuredTeamId != null
+                ? configuredTeamId
+                : teamAssignments.teamIdFor(registrationId);
     }
 
     public TimingTimestamp stageStartTimeFor(TeamId teamId) {

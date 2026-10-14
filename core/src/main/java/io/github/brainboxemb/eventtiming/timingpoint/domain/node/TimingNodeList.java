@@ -7,6 +7,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * Ordered collection of distinct TimingNode instances belonging to a system.
  *
@@ -20,10 +22,10 @@ public final class TimingNodeList implements Iterable<TimingNode> {
             new IdentityHashMap<TimingNode, Boolean>();
 
     public TimingNodeList add(TimingNode node) {
-        if (node == null || members.containsKey(node)) {
-            throw new IllegalArgumentException(
-                    "TimingNodes must be distinct non-null instances");
-        }
+        checkArgument(node != null, "TimingNode must not be null");
+        checkArgument(
+                !members.containsKey(node),
+                "TimingNode instance is already present");
 
         nodes.add(node);
         members.put(node, Boolean.TRUE);

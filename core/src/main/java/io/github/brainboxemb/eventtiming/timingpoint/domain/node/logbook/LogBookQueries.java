@@ -29,10 +29,12 @@ public final class LogBookQueries {
     private LogBookQueries() {
     }
 
+    /** Returns the node's logical status snapshot. */
     public static LogBookQuery<Status> status() {
         return STATUS;
     }
 
+    /** Returns the number of committed TimingData records. */
     public static LogBookQuery<Integer> timingDataCount() {
         return TIMING_DATA_COUNT;
     }

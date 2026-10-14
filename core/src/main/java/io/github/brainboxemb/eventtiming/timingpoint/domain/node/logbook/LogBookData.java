@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * Passive committed TimingData history owned by one TimingNode Data Lane.
  *
@@ -26,9 +28,7 @@ public final class LogBookData {
     private volatile long headSequence;
 
     public LogBookData(NodeId timingNodeId) {
-        if (timingNodeId == null) {
-            throw new IllegalArgumentException("timingNodeId must not be null");
-        }
+        checkArgument(timingNodeId != null, "timingNodeId must not be null");
         this.timingNodeId = timingNodeId;
     }
 
@@ -60,9 +60,7 @@ public final class LogBookData {
      * Adds one already committed TimingData value.
      */
     public void add(TimingData data) {
-        if (data == null) {
-            throw new IllegalArgumentException("data must not be null");
-        }
+        checkArgument(data != null, "data must not be null");
         if (!timingNodeId.equals(data.timingNodeId())) {
             throw new IllegalArgumentException(
                     "TimingData belongs to a different TimingNode: " + data.timingNodeId());
@@ -88,22 +86,16 @@ public final class LogBookData {
      * Visits at most {@code limit} committed records starting at the inclusive
      * source sequence.
      *
-     * <p>The owner must call this only while it owns the LogBook. The visitor is
+     * <p>The owner calls this while the Data Lane is current. The visitor is
      * invoked synchronously and must remain short/non-blocking.</p>
      */
     public void visitRange(
             long fromSequence,
             int limit,
             Consumer<TimingData> visitor) {
-        if (fromSequence < 1L) {
-            throw new IllegalArgumentException("fromSequence must be >= 1");
-        }
-        if (limit < 1) {
-            throw new IllegalArgumentException("limit must be >= 1");
-        }
-        if (visitor == null) {
-            throw new IllegalArgumentException("visitor must not be null");
-        }
+        checkArgument(fromSequence >= 1L, "fromSequence must be >= 1");
+        checkArgument(limit >= 1, "limit must be >= 1");
+        checkArgument(visitor != null, "visitor must not be null");
 
         long startLong = fromSequence - 1L;
         if (startLong >= records.size()) {
@@ -121,12 +113,8 @@ public final class LogBookData {
      * Visits at most {@code limit} newest committed records in source order.
      */
     public void visitLatest(int limit, Consumer<TimingData> visitor) {
-        if (limit < 1) {
-            throw new IllegalArgumentException("limit must be >= 1");
-        }
-        if (visitor == null) {
-            throw new IllegalArgumentException("visitor must not be null");
-        }
+        checkArgument(limit >= 1, "limit must be >= 1");
+        checkArgument(visitor != null, "visitor must not be null");
 
         int start = Math.max(0, records.size() - limit);
         for (int index = start; index < records.size(); index++) {

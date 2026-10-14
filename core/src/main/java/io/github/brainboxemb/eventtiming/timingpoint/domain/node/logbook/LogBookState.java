@@ -25,6 +25,8 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
+
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 import java.util.function.Consumer;
 
 import org.slf4j.Logger;
@@ -77,25 +79,16 @@ final class LogBookState {
             TimeSource timeSource,
             MonotonicClock monotonicClock,
             LogBookMetrics metrics) {
-        if (timingNodeId == null) {
-            throw new IllegalArgumentException("timingNodeId must not be null");
-        }
-
-        if (timingDataPersistence == null) {
-            throw new IllegalArgumentException("timingDataPersistence must not be null");
-        }
-        if (timingDataFactory == null) {
-            throw new IllegalArgumentException("timingDataFactory must not be null");
-        }
-        if (timeSource == null) {
-            throw new IllegalArgumentException("timeSource must not be null");
-        }
-        if (monotonicClock == null) {
-            throw new IllegalArgumentException("monotonicClock must not be null");
-        }
-        if (metrics == null) {
-            throw new IllegalArgumentException("metrics must not be null");
-        }
+        checkArgument(timingNodeId != null, "timingNodeId must not be null");
+        checkArgument(
+                timingDataPersistence != null,
+                "timingDataPersistence must not be null");
+        checkArgument(
+                timingDataFactory != null,
+                "timingDataFactory must not be null");
+        checkArgument(timeSource != null, "timeSource must not be null");
+        checkArgument(monotonicClock != null, "monotonicClock must not be null");
+        checkArgument(metrics != null, "metrics must not be null");
 
         this.timingNodeId = timingNodeId;
         this.timingDataPersistence = timingDataPersistence;
@@ -125,9 +118,7 @@ final class LogBookState {
 
     OpenResult open(LocationId newLocationId)
             throws TimingDataPersistence.PersistenceException {
-        if (newLocationId == null) {
-            throw new IllegalArgumentException("locationId must not be null");
-        }
+        checkArgument(newLocationId != null, "locationId must not be null");
         ensureOperational();
         if (state == State.OPEN) {
             return OpenResult.ALREADY_OPEN;
@@ -325,9 +316,7 @@ final class LogBookState {
     }
 
     void markTimingDataLoadFailed(Throwable failure) {
-        if (failure == null) {
-            throw new IllegalArgumentException("failure must not be null");
-        }
+        checkArgument(failure != null, "failure must not be null");
         state = State.ERROR;
         locationId = null;
         timingDataTailRepaired = false;
@@ -404,10 +393,7 @@ final class LogBookState {
      */
     private static TimingTimestamp normalizeRegistrationTime(
             TimingTimestamp time) {
-        if (time == null) {
-            throw new IllegalArgumentException(
-                    "registration time must not be null");
-        }
+        checkArgument(time != null, "registration time must not be null");
         return atCentisecond(
                 time.instant());
     }

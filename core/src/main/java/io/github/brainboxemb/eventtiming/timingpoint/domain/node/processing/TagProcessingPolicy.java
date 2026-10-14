@@ -2,6 +2,8 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing;
 
 import java.time.Duration;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * Policy used while converting repeated antenna reads into registrations.
  *
@@ -38,10 +40,9 @@ public final class TagProcessingPolicy {
         duplicateWindowNanos =
                 nonNegativeNanos(duplicateWindow, "duplicateWindow");
         sweepCadenceNanos = positiveNanos(sweepCadence, "sweepCadence");
-        if (observationQueueCapacity < 1) {
-            throw new IllegalArgumentException(
-                    "observationQueueCapacity must be positive");
-        }
+        checkArgument(
+                observationQueueCapacity > 0,
+                "observationQueueCapacity must be positive");
         this.observationQueueCapacity = observationQueueCapacity;
     }
 
@@ -106,19 +107,13 @@ public final class TagProcessingPolicy {
 
     private static long positiveNanos(Duration value, String name) {
         long nanos = nonNegativeNanos(value, name);
-        if (nanos == 0L) {
-            throw new IllegalArgumentException(name + " must be positive");
-        }
+        checkArgument(nanos > 0L, "%s must be positive", name);
         return nanos;
     }
 
     private static long nonNegativeNanos(Duration value, String name) {
-        if (value == null) {
-            throw new IllegalArgumentException(name + " must not be null");
-        }
-        if (value.isNegative()) {
-            throw new IllegalArgumentException(name + " must not be negative");
-        }
+        checkArgument(value != null, "%s must not be null", name);
+        checkArgument(!value.isNegative(), "%s must not be negative", name);
         try {
             return value.toNanos();
         } catch (ArithmeticException ex) {

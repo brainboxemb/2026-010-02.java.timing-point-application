@@ -23,6 +23,8 @@ import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * Node-local service for Task Lane-owned RaceData, derived timing and upstream operations.
  *
@@ -49,18 +51,10 @@ public final class NodeService {
             SerialLane taskLane,
             EventData eventData,
             UpstreamStream upstreamStream) {
-        if (logBook == null) {
-            throw new IllegalArgumentException("logBook must not be null");
-        }
-        if (taskLane == null) {
-            throw new IllegalArgumentException("taskLane must not be null");
-        }
-        if (eventData == null) {
-            throw new IllegalArgumentException("eventData must not be null");
-        }
-        if (upstreamStream == null) {
-            throw new IllegalArgumentException("upstreamStream must not be null");
-        }
+        checkArgument(logBook != null, "logBook must not be null");
+        checkArgument(taskLane != null, "taskLane must not be null");
+        checkArgument(eventData != null, "eventData must not be null");
+        checkArgument(upstreamStream != null, "upstreamStream must not be null");
 
         this.logBook = logBook;
         this.taskLane = taskLane;
@@ -119,9 +113,7 @@ public final class NodeService {
      * <p>The call waits for ordered Task Lane execution.</p>
      */
     public List<StageTime> stageTiming(ZoneId raceTimeZone) {
-        if (raceTimeZone == null) {
-            throw new IllegalArgumentException("raceTimeZone must not be null");
-        }
+        checkArgument(raceTimeZone != null, "raceTimeZone must not be null");
         return executeOnTaskLaneAndWait(
                 () -> stageTimingOnTaskLane(raceTimeZone),
                 "stageTiming");

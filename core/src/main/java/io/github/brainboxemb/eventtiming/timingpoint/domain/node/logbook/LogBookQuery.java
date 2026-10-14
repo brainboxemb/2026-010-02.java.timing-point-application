@@ -2,6 +2,8 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import java.util.function.Function;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * Typed read operation for the LogBook/Data Lane component.
  *
@@ -10,8 +12,12 @@ import java.util.function.Function;
  */
 public final class LogBookQuery<R> {
 
+    /** Determines whether a query reads published state or enters the Data Lane. */
     public enum ReadConsistency {
+        /** Read the latest safely published immutable/scalar view without a lane hop. */
         CURRENT,
+
+        /** Execute after earlier queued Data Lane work and return that ordered view. */
         ORDERED
     }
 
@@ -29,12 +35,10 @@ public final class LogBookQuery<R> {
             String name,
             Function<LogBookState, R> orderedReader,
             Function<LogBook, R> currentReader) {
-        if (name == null || name.trim().isEmpty()) {
-            throw new IllegalArgumentException("name must not be blank");
-        }
-        if (orderedReader == null) {
-            throw new IllegalArgumentException("orderedReader must not be null");
-        }
+        checkArgument(
+                name != null && !name.trim().isEmpty(),
+                "name must not be blank");
+        checkArgument(orderedReader != null, "orderedReader must not be null");
         this.name = name;
         this.orderedReader = orderedReader;
         this.currentReader = currentReader;
@@ -48,11 +52,11 @@ public final class LogBookQuery<R> {
         return orderedReader.apply(state);
     }
 
-    R readCurrent(LogBook processor) {
+    R readCurrent(LogBook logBook) {
         if (currentReader == null) {
             throw new IllegalArgumentException(
                     "LogBook query " + name + " does not support CURRENT consistency");
         }
-        return currentReader.apply(processor);
+        return currentReader.apply(logBook);
     }
 }

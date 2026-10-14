@@ -12,9 +12,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Synchronizes Central-owned RACE_DATA into one TimingNode.
  *
  * <p>The helper owns the highest contiguous RACE_DATA sequence applied locally.
- * It does not own a worker: every method is called while the TimingNode serial
- * lane is current. TIMING_DATA/LogBook synchronization is deliberately handled
- * by {@link LogBookSync}.</p>
+ * It does not own a worker: every state-changing method is called while the
+ * NodeService Task Lane is current. TIMING_DATA/LogBook synchronization is
+ * deliberately handled by {@link LogBookSync} on the Data Lane.</p>
  */
 final class UpstreamDataSync {
     private final NodeId nodeId;

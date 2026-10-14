@@ -21,6 +21,12 @@ public final class LogBookCommands {
     private LogBookCommands() {
     }
 
+    /**
+     * Opens the node for the supplied timing location.
+     *
+     * <p>The command is idempotent; executing it while already open returns
+     * {@code ALREADY_OPEN} rather than creating a second open transition.</p>
+     */
     public static LogBookCommand<OpenResult> open(LocationId locationId) {
         if (locationId == null) {
             throw new IllegalArgumentException("locationId must not be null");
@@ -30,10 +36,18 @@ public final class LogBookCommands {
                 logBookState -> logBookState.open(locationId));
     }
 
+    /**
+     * Closes the currently open timing location.
+     *
+     * <p>The command is idempotent when the node is already closed.</p>
+     */
     public static LogBookCommand<CloseResult> close() {
         return CLOSE;
     }
 
+    /**
+     * Commits one automatic registration using the already observed effective time.
+     */
     public static LogBookCommand<RegistrationResult>
             addAutomaticRegistration(
                     RegistrationId registrationId,
@@ -76,6 +90,9 @@ public final class LogBookCommands {
                 logBookState -> logBookState.simulateAutomaticRegistrationNow(registrationId));
     }
 
+    /**
+     * Commits one operator/manual registration with its explicit time source.
+     */
     public static LogBookCommand<RegistrationResult>
             commitManualRegistration(
                     RegistrationId registrationId,
@@ -100,6 +117,9 @@ public final class LogBookCommands {
                         registrationTimeSource));
     }
 
+    /**
+     * Appends a REV for the identified previously committed automatic registration.
+     */
     public static LogBookCommand<RegistrationResult>
             revokeAutomaticRegistration(
                     LocationId originalLocationId,
@@ -117,6 +137,9 @@ public final class LogBookCommands {
                         originalTime));
     }
 
+    /**
+     * Appends a REV for the identified previously committed manual registration.
+     */
     public static LogBookCommand<RegistrationResult>
             revokeManualRegistration(
                     LocationId originalLocationId,

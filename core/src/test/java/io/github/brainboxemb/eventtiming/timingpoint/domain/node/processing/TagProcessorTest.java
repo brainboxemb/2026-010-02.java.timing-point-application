@@ -142,7 +142,7 @@ public class TagProcessorTest {
         });
 
         node.activate();
-        node.logBook().invoke(LogBookCommands.open(new LocationId(24)));
+        node.logBook().execute(LogBookCommands.open(new LocationId(24)));
         processor.activate();
         try {
             processor.onTagObserved(
@@ -214,7 +214,7 @@ public class TagProcessorTest {
         });
 
         node.activate();
-        node.logBook().invoke(LogBookCommands.open(new LocationId(24)));
+        node.logBook().execute(LogBookCommands.open(new LocationId(24)));
         processor.activate();
         try {
             processor.onTagObserved(
@@ -337,7 +337,7 @@ public class TagProcessorTest {
         });
 
         node.activate();
-        node.logBook().invoke(LogBookCommands.open(new LocationId(24)));
+        node.logBook().execute(LogBookCommands.open(new LocationId(24)));
         processor.activate();
         try {
             processor.onTagObserved(

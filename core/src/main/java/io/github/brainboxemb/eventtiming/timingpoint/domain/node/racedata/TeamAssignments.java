@@ -8,6 +8,8 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * Active RegistrationId-to-TeamId assignments for one TimingNode.
  *
@@ -34,24 +36,15 @@ public final class TeamAssignments {
 
     public TeamId teamIdFor(
             RegistrationId registrationId) {
-        if (registrationId == null) {
-            throw new IllegalArgumentException(
-                    "registrationId must not be null");
-        }
+        checkArgument(registrationId != null, "registrationId must not be null");
         return assignments.get(registrationId);
     }
 
     public void assign(
             RegistrationId registrationId,
             TeamId teamId) {
-        if (registrationId == null) {
-            throw new IllegalArgumentException(
-                    "registrationId must not be null");
-        }
-        if (teamId == null) {
-            throw new IllegalArgumentException(
-                    "teamId must not be null");
-        }
+        checkArgument(registrationId != null, "registrationId must not be null");
+        checkArgument(teamId != null, "teamId must not be null");
         assignments.put(
                 registrationId,
                 teamId);
@@ -59,10 +52,7 @@ public final class TeamAssignments {
 
     public void remove(
             RegistrationId registrationId) {
-        if (registrationId == null) {
-            throw new IllegalArgumentException(
-                    "registrationId must not be null");
-        }
+        checkArgument(registrationId != null, "registrationId must not be null");
         assignments.remove(registrationId);
     }
 
@@ -80,10 +70,7 @@ public final class TeamAssignments {
 
     public void replaceWith(
             TeamAssignments updatedAssignments) {
-        if (updatedAssignments == null) {
-            throw new IllegalArgumentException(
-                    "updatedAssignments must not be null");
-        }
+        checkArgument(updatedAssignments != null, "updatedAssignments must not be null");
         updatedAssignments.validate();
         assignments.clear();
         assignments.putAll(

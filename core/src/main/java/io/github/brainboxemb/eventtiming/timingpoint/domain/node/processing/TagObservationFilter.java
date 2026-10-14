@@ -18,6 +18,8 @@ import java.util.function.BiConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * Passive passage state owned and called only by the TagProcessor execution lane.
  */
@@ -52,20 +54,14 @@ final class TagObservationFilter {
             TagProcessingMetrics metrics,
             BiConsumer<RegistrationId, TimingTimestamp>
                     validObservationCallback) {
-        if (policyConfiguration == null) {
-            throw new IllegalArgumentException(
-                    "policyConfiguration must not be null");
-        }
-        if (monotonicClock == null) {
-            throw new IllegalArgumentException("monotonicClock must not be null");
-        }
-        if (metrics == null) {
-            throw new IllegalArgumentException("metrics must not be null");
-        }
-        if (validObservationCallback == null) {
-            throw new IllegalArgumentException(
-                    "validObservationCallback must not be null");
-        }
+        checkArgument(
+                policyConfiguration != null,
+                "policyConfiguration must not be null");
+        checkArgument(monotonicClock != null, "monotonicClock must not be null");
+        checkArgument(metrics != null, "metrics must not be null");
+        checkArgument(
+                validObservationCallback != null,
+                "validObservationCallback must not be null");
         this.policyConfiguration = policyConfiguration;
         this.monotonicClock = monotonicClock;
         this.metrics = metrics;
@@ -75,13 +71,8 @@ final class TagObservationFilter {
     void add(
             RegistrationId registrationId,
             TagObservation observation) {
-        if (registrationId == null) {
-            throw new IllegalArgumentException(
-                    "registrationId must not be null");
-        }
-        if (observation == null) {
-            throw new IllegalArgumentException("observation must not be null");
-        }
+        checkArgument(registrationId != null, "registrationId must not be null");
+        checkArgument(observation != null, "observation must not be null");
 
         ClosedBurst closedBurst = null;
         long now = monotonicClock.nowNanos();
@@ -137,10 +128,7 @@ final class TagObservationFilter {
      * starts, retaining that burst would be wasted work.</p>
      */
     boolean discard(RegistrationId registrationId) {
-        if (registrationId == null) {
-            throw new IllegalArgumentException(
-                    "registrationId must not be null");
-        }
+        checkArgument(registrationId != null, "registrationId must not be null");
         return bursts.remove(registrationId) != null;
     }
 

@@ -16,6 +16,8 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import java.util.ArrayList;
 import java.util.List;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * Passive Task Lane-owned state behind {@link NodeService}.
  *
@@ -44,10 +46,7 @@ final class NodeServiceState implements UpstreamTaskState {
     private volatile boolean derivedTimingStale;
 
     NodeServiceState(EventData eventData) {
-        if (eventData == null) {
-            throw new IllegalArgumentException(
-                    "eventData must not be null");
-        }
+        checkArgument(eventData != null, "eventData must not be null");
         this.raceData = new RaceDataState(eventData);
     }
 
@@ -73,10 +72,7 @@ final class NodeServiceState implements UpstreamTaskState {
     }
 
     void rebuildDerivedTiming(List<TimingData> loadedData) {
-        if (loadedData == null) {
-            throw new IllegalArgumentException(
-                    "loadedData must not be null");
-        }
+        checkArgument(loadedData != null, "loadedData must not be null");
 
         committedTimingData.clear();
         uniqueTeamRegistrations.reset();
@@ -91,10 +87,7 @@ final class NodeServiceState implements UpstreamTaskState {
     }
 
     void applyCommittedTimingData(TimingData data) {
-        if (data == null) {
-            throw new IllegalArgumentException(
-                    "data must not be null");
-        }
+        checkArgument(data != null, "data must not be null");
         if (!derivedTimingReady) {
             derivedTimingStale = true;
             return;
