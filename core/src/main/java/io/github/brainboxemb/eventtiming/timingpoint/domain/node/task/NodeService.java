@@ -17,6 +17,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -77,7 +78,7 @@ public final class NodeService {
         this.upstreamHandler =
                 new UpstreamHandler(
                         logBook.timingNodeId(),
-                        logBook::tryQueueOperation,
+                        logBook::queueOperation,
                         new UpstreamTaskLane(),
                         upstreamStream,
                         logBook,
@@ -126,17 +127,6 @@ public final class NodeService {
                 raceTimeZone);
     }
 
-    /**
-     * Tries to queue fire-and-forget work on the Task Lane without waiting.
-     *
-     * <p>Returns {@code true} only when the work was queued for later serial
-     * execution.</p>
-     */
-    private boolean tryQueueOnTaskLane(Runnable operation) {
-        return taskLane.offer(operation)
-                == SerialLane.AdmissionResult.ACCEPTED;
-    }
-
     private void onInitialTimingDataLoaded(List<TimingData> loadedData) {
         List<TimingData> snapshot = new ArrayList<TimingData>(loadedData);
         queueTimingFactOnTaskLane(
@@ -160,18 +150,16 @@ public final class NodeService {
     private void queueTimingFactOnTaskLane(
             Runnable operation,
             String fact) {
-        SerialLane.AdmissionResult queueResult =
-                taskLane.offer(operation);
-        if (queueResult == SerialLane.AdmissionResult.ACCEPTED) {
-            return;
+        try {
+            taskLane.execute(operation);
+        } catch (RejectedExecutionException ex) {
+            state.markDerivedTimingStale();
+            LOG.error(
+                    "Task Lane rejected {} for node {}; derived timing state is stale",
+                    fact,
+                    logBook.timingNodeId().value(),
+                    ex);
         }
-
-        state.markDerivedTimingStale();
-        LOG.error(
-                "Task Lane could not queue {} for node {}; queueResult={}, derived timing state is stale",
-                fact,
-                logBook.timingNodeId().value(),
-                queueResult);
     }
 
     private void rebuildDerivedTimingOnTaskLane(
@@ -215,37 +203,16 @@ public final class NodeService {
             }
         }
 
-        SerialLane.SubmitResult<R> queuedWork =
-                taskLane.submit(work);
-        SerialLane.AdmissionResult queueResult =
-                queuedWork.admission();
-        switch (queueResult) {
-            case FULL:
-                throw new OperationException(
-                        OperationException.Reason.BUSY,
-                        operation
-                                + " could not be queued because the TimingNode Task Lane is full");
-            case NOT_RUNNING:
-                if (taskLane.state() == SerialLane.State.FAILED) {
-                    throw new OperationException(
-                            OperationException.Reason.FAILED,
-                            operation
-                                    + " could not run because the TimingNode Task Lane failed",
-                            taskLane.failure());
-                }
-                throw new OperationException(
-                        OperationException.Reason.UNAVAILABLE,
-                        operation
-                                + " could not be queued because the TimingNode Task Lane is not running");
-            case ACCEPTED:
-                return await(queuedWork.futureResult(), operation);
-            default:
-                throw new IllegalStateException(
-                        "Unsupported Task Lane queue result "
-                                + queueResult);
+        final Future<R> future;
+        try {
+            future = taskLane.submit(work);
+        } catch (RejectedExecutionException ex) {
+            throw rejectedOperation(operation, ex);
         }
+        return await(future, operation);
     }
 
+    /** Converts Future completion into the stable Task Lane operation exception contract. */
     private <R> R await(Future<R> future, String operation) {
         try {
             return future.get(
@@ -276,12 +243,37 @@ public final class NodeService {
         }
     }
 
+    /** Maps standard Task Lane rejection to the result-bearing domain operation categories. */
+    private OperationException rejectedOperation(
+            String operation,
+            RejectedExecutionException rejection) {
+        if (taskLane.state() == SerialLane.State.FAILED) {
+            return new OperationException(
+                    OperationException.Reason.FAILED,
+                    operation + " could not run because the TimingNode Task Lane failed",
+                    taskLane.failure() == null ? rejection : taskLane.failure());
+        }
+        if (taskLane.state() != SerialLane.State.RUNNING) {
+            return new OperationException(
+                    OperationException.Reason.UNAVAILABLE,
+                    operation + " could not be queued because the TimingNode Task Lane is not running",
+                    rejection);
+        }
+        return new OperationException(
+                OperationException.Reason.BUSY,
+                operation + " could not be queued because the TimingNode Task Lane is full",
+                rejection);
+    }
+
+    /** Adapts the owned Task Lane to the narrow upstream execution boundary. */
     private final class UpstreamTaskLane implements UpstreamHandler.TaskLane {
+        /** Queues one upstream Task Lane operation without waiting for its later result. */
         @Override
-        public boolean tryQueue(Runnable task) {
-            return tryQueueOnTaskLane(task);
+        public void execute(Runnable task) {
+            taskLane.execute(task);
         }
 
+        /** Executes one result-bearing upstream Task Lane operation and waits for completion. */
         @Override
         public <R> R executeAndWait(
                 Callable<R> task,
