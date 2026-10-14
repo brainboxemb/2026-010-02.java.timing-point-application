@@ -166,20 +166,20 @@ public final class NodeTasks implements UpstreamTaskState {
      * <p>Returns {@code true} only when the work was queued for later serial
      * execution.</p>
      */
-    private boolean trySubmitToTaskLane(Runnable operation) {
+    private boolean tryQueueOnTaskLane(Runnable operation) {
         return taskLane.offer(operation)
                 == SerialLane.AdmissionResult.ACCEPTED;
     }
 
     private void onInitialTimingDataLoaded(List<TimingData> loadedData) {
         List<TimingData> snapshot = new ArrayList<TimingData>(loadedData);
-        submitTimingFactToTaskLane(
+        queueTimingFactOnTaskLane(
                 () -> rebuildDerivedTiming(snapshot),
                 "initial TimingData");
     }
 
     private void onTimingDataCommitted(TimingData data) {
-        submitTimingFactToTaskLane(
+        queueTimingFactOnTaskLane(
                 () -> applyCommittedTimingData(data),
                 "committed TimingData");
     }
@@ -191,21 +191,21 @@ public final class NodeTasks implements UpstreamTaskState {
      * physical worker. Failure to queue the fact makes derived timing state
      * explicitly stale rather than silently losing synchronization.</p>
      */
-    private void submitTimingFactToTaskLane(
+    private void queueTimingFactOnTaskLane(
             Runnable operation,
             String fact) {
-        SerialLane.AdmissionResult submissionResult =
+        SerialLane.AdmissionResult queueResult =
                 taskLane.offer(operation);
-        if (submissionResult == SerialLane.AdmissionResult.ACCEPTED) {
+        if (queueResult == SerialLane.AdmissionResult.ACCEPTED) {
             return;
         }
 
         derivedTimingStale = true;
         LOG.error(
-                "Task Lane could not queue {} for node {}; submission={}, derived timing state is stale",
+                "Task Lane could not queue {} for node {}; queueResult={}, derived timing state is stale",
                 fact,
                 logBook.timingNodeId().value(),
-                submissionResult);
+                queueResult);
     }
 
     private void rebuildDerivedTiming(List<TimingData> loadedData) {
@@ -295,11 +295,11 @@ public final class NodeTasks implements UpstreamTaskState {
             }
         }
 
-        SerialLane.SubmitResult<R> submittedWork =
+        SerialLane.SubmitResult<R> queuedWork =
                 taskLane.submit(work);
-        SerialLane.AdmissionResult submissionResult =
-                submittedWork.admission();
-        switch (submissionResult) {
+        SerialLane.AdmissionResult queueResult =
+                queuedWork.admission();
+        switch (queueResult) {
             case FULL:
                 throw new OperationException(
                         OperationException.Reason.BUSY,
@@ -318,11 +318,11 @@ public final class NodeTasks implements UpstreamTaskState {
                         operation
                                 + " could not be queued because the TimingNode Task Lane is not running");
             case ACCEPTED:
-                return await(submittedWork.futureResult(), operation);
+                return await(queuedWork.futureResult(), operation);
             default:
                 throw new IllegalStateException(
-                        "Unsupported submission result "
-                                + submissionResult);
+                        "Unsupported Task Lane queue result "
+                                + queueResult);
         }
     }
 
@@ -359,7 +359,7 @@ public final class NodeTasks implements UpstreamTaskState {
     private final class UpstreamTaskLane implements UpstreamHandler.TaskLane {
         @Override
         public boolean trySubmit(Runnable task) {
-            return trySubmitToTaskLane(task);
+            return tryQueueOnTaskLane(task);
         }
 
         @Override
