@@ -131,7 +131,7 @@ public class SystemConductorTest {
                     0L,
                     manager.settings().revision());
 
-            node.logBook().queue(
+            node.logBook().execute(
                     LogBookCommands.open(
                             new LocationId(24)));
 
