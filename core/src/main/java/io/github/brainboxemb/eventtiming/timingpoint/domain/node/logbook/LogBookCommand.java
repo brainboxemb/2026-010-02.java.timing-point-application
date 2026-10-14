@@ -3,10 +3,10 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 /**
  * Typed state-changing operation for the node LogBook component.
  *
- * <p>A command is a value describing one domain action. Public callers obtain
- * commands from {@link LogBookCommands}; only this data component binds a
- * command to package-private {@link LogBookState}. {@link LogBook}
- * supplies serial execution, timeout and failure handling.</p>
+ * <p>A command is an immutable description of one state-changing domain action.
+ * Public callers create commands through {@link LogBookCommands}; only the
+ * logbook package can apply them to package-private {@link LogBookState}.
+ * {@link LogBook} owns ordered execution, timeout and failure handling.</p>
  */
 public final class LogBookCommand<R> {
     interface Action<R> {
