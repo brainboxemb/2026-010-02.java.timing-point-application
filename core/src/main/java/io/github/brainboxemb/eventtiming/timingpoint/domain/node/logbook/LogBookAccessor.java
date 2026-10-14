@@ -17,11 +17,12 @@ public interface LogBookAccessor {
     <R> R process(LogBookCommand<R> command);
 
     /**
-     * Queues one command for later Data Lane execution and returns immediately.
+     * Executes one command asynchronously and returns after it is queued.
      *
-     * <p>Rejection propagates as the standard execution exception from the owning lane.</p>
+     * <p>Like {@code Executor.execute}, queue rejection propagates immediately
+     * as RejectedExecutionException; later command execution has no caller result.</p>
      */
-    void queue(LogBookCommand<?> command);
+    void execute(LogBookCommand<?> command);
 
     /** Executes one ordered query and waits for its result. */
     <R> R query(LogBookQuery<R> query);
