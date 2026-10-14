@@ -245,8 +245,8 @@ public final class TimingNodeProxy {
         return statusChangedEvent;
     }
 
-    /** Returns the subscription-only committed TimingData event. */
-    public EventSource<TimingData> timingDataCommittedEvent() {
+    /** Returns the subscription-only post-commit new-data event. */
+    public EventSource<TimingData> newDataEvent() {
         return timingNode.newDataEvent();
     }
 
