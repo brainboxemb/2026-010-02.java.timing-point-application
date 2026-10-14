@@ -1,14 +1,9 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
-import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.LogBook;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.StageStartTimes;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.TeamAssignments;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.UniqueTeamRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
@@ -41,7 +36,7 @@ public final class UpstreamHandler {
     private final UpstreamHeartbeat heartbeat;
     private final UpstreamDataSync upstreamDataSync;
     private final LogBookSync logBookSync;
-    private final UniqueTeamRegistrations uniqueTeamRegistrations;
+    private final UpstreamNodeData nodeData;
 
     /*
      * inputAvailable() may be called by an I/O thread. This flag prevents a
@@ -55,26 +50,22 @@ public final class UpstreamHandler {
             DataLane dataLane,
             TaskLane taskLane,
             UpstreamStream stream,
-            EventData eventData,
-            LogBook logBook,
-            TeamAssignments teamAssignments,
-            StageStartTimes stageStartTimes,
-            UniqueTeamRegistrations uniqueTeamRegistrations) {
+            UpstreamNodeData nodeData) {
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(dataLane != null, "dataLane must not be null");
         checkArgument(taskLane != null, "taskLane must not be null");
         checkArgument(stream != null, "stream must not be null");
-        checkArgument(uniqueTeamRegistrations != null, "uniqueTeamRegistrations must not be null");
+        checkArgument(nodeData != null, "nodeData must not be null");
 
         this.nodeId = nodeId;
         this.dataLane = dataLane;
         this.taskLane = taskLane;
         this.stream = stream;
+        this.nodeData = nodeData;
         this.heartbeat = new UpstreamHeartbeat(nodeId, stream);
         this.upstreamDataSync =
-                new UpstreamDataSync(nodeId, stream, eventData, teamAssignments, stageStartTimes);
-        this.logBookSync = new LogBookSync(nodeId, stream, logBook);
-        this.uniqueTeamRegistrations = uniqueTeamRegistrations;
+                new UpstreamDataSync(nodeId, stream, nodeData);
+        this.logBookSync = new LogBookSync(nodeId, stream, nodeData);
     }
 
     /**
@@ -209,18 +200,18 @@ public final class UpstreamHandler {
 
     /** Resolves current TeamId using EventData first and live assignments as fallback. */
     public TeamId teamIdFor(RegistrationId registrationId) {
-        return onDataLane(() -> upstreamDataSync.teamIdFor(registrationId), "upstreamTeamIdFor");
+        return onDataLane(() -> nodeData.teamIdFor(registrationId), "upstreamTeamIdFor");
     }
 
     /** Reads the current Central-provided stage start on the owning node lane. */
     public TimingTimestamp stageStartTimeFor(TeamId teamId) {
-        return onDataLane(() -> upstreamDataSync.stageStartTimeFor(teamId), "upstreamStageStartTimeFor");
+        return onDataLane(() -> nodeData.stageStartTimeFor(teamId), "upstreamStageStartTimeFor");
     }
 
     /** Returns the unique-team count derived from active registrations and current assignments. */
     public int uniqueTeamRegistrationCount() {
         return onDataLane(
-                () -> Integer.valueOf(uniqueTeamRegistrations.uniqueTeamCount(upstreamDataSync::teamIdFor)),
+                () -> Integer.valueOf(nodeData.uniqueTeamRegistrationCount()),
                 "uniqueTeamRegistrationCount").intValue();
     }
 

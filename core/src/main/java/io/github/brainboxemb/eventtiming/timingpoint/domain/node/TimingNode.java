@@ -318,7 +318,6 @@ public final class TimingNode {
         this.taskProcessor = new NodeTaskProcessor(
                 processor,
                 taskLane,
-                eventData,
                 upstreamStream);
         this.tagProcessor = processorChild;
     }
@@ -349,7 +348,6 @@ public final class TimingNode {
         this.taskProcessor = new NodeTaskProcessor(
                 dataProcessor,
                 taskLane,
-                eventData,
                 upstreamStream);
         this.tagProcessor = tagProcessor;
     }

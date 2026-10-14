@@ -1,13 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
-import io.github.brainboxemb.eventtiming.eventdata.EventData;
-import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.StageStartTimes;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.TeamAssignments;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
@@ -25,9 +19,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 final class UpstreamDataSync {
     private final NodeId nodeId;
     private final UpstreamStream stream;
-    private final EventData eventData;
-    private final TeamAssignments teamAssignments;
-    private final StageStartTimes stageStartTimes;
+    private final UpstreamNodeData nodeData;
 
     /*
      * Highest contiguous Central sequence committed to live TeamAssignments and
@@ -35,22 +27,13 @@ final class UpstreamDataSync {
      */
     private long appliedSequence;
 
-    UpstreamDataSync(
-            NodeId nodeId,
-            UpstreamStream stream,
-            EventData eventData,
-            TeamAssignments teamAssignments,
-            StageStartTimes stageStartTimes) {
+    UpstreamDataSync(NodeId nodeId, UpstreamStream stream, UpstreamNodeData nodeData) {
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(stream != null, "stream must not be null");
-        checkArgument(eventData != null, "eventData must not be null");
-        checkArgument(teamAssignments != null, "teamAssignments must not be null");
-        checkArgument(stageStartTimes != null, "stageStartTimes must not be null");
+        checkArgument(nodeData != null, "nodeData must not be null");
         this.nodeId = nodeId;
         this.stream = stream;
-        this.eventData = eventData;
-        this.teamAssignments = teamAssignments;
-        this.stageStartTimes = stageStartTimes;
+        this.nodeData = nodeData;
     }
 
     /**
@@ -81,15 +64,9 @@ final class UpstreamDataSync {
             return;
         }
 
-        TeamAssignments updatedAssignments = teamAssignments.copy();
-        StageStartTimes updatedStartTimes = stageStartTimes.copy();
-
-        applyTeamAssignmentChanges(updatedAssignments, raceData);
-        applyStageStartChanges(updatedStartTimes, raceData);
-        updatedAssignments.validate();
-
-        teamAssignments.replaceWith(updatedAssignments);
-        stageStartTimes.replaceWith(updatedStartTimes);
+        // Only the Data component can validate and atomically mutate RaceData.
+        // Do not acknowledge until that mutation has completed successfully.
+        nodeData.applyRaceData(raceData);
         appliedSequence = receivedSequence;
         sendAck(receivedSequence);
     }
@@ -124,16 +101,6 @@ final class UpstreamDataSync {
                         + " is behind already applied sequence " + appliedSequence);
     }
 
-    TeamId teamIdFor(RegistrationId registrationId) {
-        checkArgument(registrationId != null, "registrationId must not be null");
-        TeamId fixed = eventData.teamIdFor(registrationId);
-        return fixed != null ? fixed : teamAssignments.teamIdFor(registrationId);
-    }
-
-    TimingTimestamp stageStartTimeFor(TeamId teamId) {
-        return stageStartTimes.startFor(teamId);
-    }
-
     private void sendAck(long sequence) {
         stream.send(DefaultUpstreamData.ack(
                 nodeId,
@@ -141,56 +108,4 @@ final class UpstreamDataSync {
                 sequence));
     }
 
-    private void applyTeamAssignmentChanges(
-            TeamAssignments updatedAssignments,
-            UpstreamData.RaceData raceData) {
-        checkArgument(raceData.teamAssignmentChanges() != null,
-                "team assignment changes must not be null");
-
-        for (UpstreamData.TeamAssignmentChange change : raceData.teamAssignmentChanges()) {
-            checkArgument(change != null, "team assignment change must not be null");
-
-            switch (change.operation()) {
-                case SET:
-                    checkArgument(eventData.teamIdFor(change.registrationId()) == null,
-                            "active assignment cannot override fixed EventData TeamId for %s",
-                            change.registrationId());
-                    updatedAssignments.assign(change.registrationId(), change.teamId());
-                    break;
-
-                case DEL:
-                    updatedAssignments.remove(change.registrationId());
-                    break;
-
-                default:
-                    throw new IllegalArgumentException(
-                            "unsupported team assignment operation " + change.operation());
-            }
-        }
-    }
-
-    private static void applyStageStartChanges(
-            StageStartTimes updatedStartTimes,
-            UpstreamData.RaceData raceData) {
-        checkArgument(raceData.stageStartTimeChanges() != null,
-                "stage start changes must not be null");
-
-        for (UpstreamData.StageStartTimeChange change : raceData.stageStartTimeChanges()) {
-            checkArgument(change != null, "stage start change must not be null");
-
-            switch (change.operation()) {
-                case SET:
-                    updatedStartTimes.set(change.teamId(), change.start());
-                    break;
-
-                case DEL:
-                    updatedStartTimes.remove(change.teamId());
-                    break;
-
-                default:
-                    throw new IllegalArgumentException(
-                            "unsupported stage start operation " + change.operation());
-            }
-        }
-    }
 }

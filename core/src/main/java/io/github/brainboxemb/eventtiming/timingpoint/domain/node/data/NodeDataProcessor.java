@@ -1,6 +1,11 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.data;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
+import io.github.brainboxemb.eventtiming.eventdata.TeamId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamNodeData;
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -8,15 +13,14 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.StageStartTimes;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.TeamAssignments;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.UniqueTeamRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -36,7 +40,7 @@ import org.slf4j.LoggerFactory;
  * {@link SerialExecutor} may share a Runtime-owned worker with other logical
  * lanes.</p>
  */
-public final class NodeDataProcessor {
+public final class NodeDataProcessor implements UpstreamNodeData {
     private static final Logger LOG =
             LoggerFactory.getLogger(NodeDataProcessor.class);
     public static final long DEFAULT_OPERATION_TIMEOUT_MILLIS = 2000L;
@@ -284,26 +288,57 @@ public final class NodeDataProcessor {
                 operation);
     }
 
-    /*
-     * Temporary migration accessors for UpstreamDataSync/LogBookSync. They keep
-     * mutable state owned by this component while those helpers are converted to
-     * explicit asynchronous Data Lane commands. Do not use them as general read
-     * APIs.
+    /**
+     * Narrow protocol-facing operations. The only exposed data values are
+     * immutable records, scalar heads and resolved identifiers. Mutable LogBook
+     * and RaceData collaborators never leave the Data component.
+     *
+     * <p>Only timingDataHead() is a cross-thread CURRENT read. All remaining
+     * methods run during an accepted Data Lane turn. No Task Lane caller may
+     * invoke a blocking Data Lane operation here.</p>
      */
-    public LogBook logBookForUpstream() {
-        return logic.logBook();
+    @Override
+    public long timingDataHead() {
+        return logic.timingDataHead();
     }
 
-    public TeamAssignments teamAssignmentsForUpstream() {
-        return logic.teamAssignments();
+    @Override
+    public List<TimingData> timingDataRange(long fromSequence, int limit) {
+        requireDataLane("timingDataRange");
+        List<TimingData> records = new ArrayList<TimingData>(limit);
+        logic.logBook().visitRange(fromSequence, limit, records::add);
+        return records;
     }
 
-    public StageStartTimes stageStartTimesForUpstream() {
-        return logic.stageStartTimes();
+    @Override
+    public void applyRaceData(UpstreamData.RaceData message) {
+        requireDataLane("applyRaceData");
+        logic.applyRaceData(message);
     }
 
-    public UniqueTeamRegistrations uniqueTeamRegistrationsForUpstream() {
-        return logic.uniqueTeamRegistrations();
+    @Override
+    public TeamId teamIdFor(RegistrationId registrationId) {
+        requireDataLane("teamIdFor");
+        return logic.teamIdFor(registrationId);
+    }
+
+    @Override
+    public TimingTimestamp stageStartTimeFor(TeamId teamId) {
+        requireDataLane("stageStartTimeFor");
+        return logic.stageStartTimeFor(teamId);
+    }
+
+    @Override
+    public int uniqueTeamRegistrationCount() {
+        requireDataLane("uniqueTeamRegistrationCount");
+        return logic.uniqueTeamRegistrationCount();
+    }
+
+    private void requireDataLane(String operation) {
+        if (!dataLane.isExecutingOnCurrentThread()) {
+            throw new IllegalStateException(
+                    operation + " requires the TimingNode Data Lane");
+        }
     }
 
     long currentTimingDataHead() {

@@ -4,13 +4,14 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
+import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory.Context;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.StageStartTimes;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.TeamAssignments;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.UniqueTeamRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
@@ -56,8 +57,7 @@ final class TimingNodeLogic {
     private final TimeSource timeSource;
     private final MonotonicClock monotonicClock;
     private final TimingNodeMetrics metrics;
-    private final TeamAssignments teamAssignments = new TeamAssignments();
-    private final StageStartTimes stageStartTimes = new StageStartTimes();
+    private final RaceDataState raceData;
     private final UniqueTeamRegistrations uniqueTeamRegistrations =
             new UniqueTeamRegistrations();
     private final StageTiming stageTiming;
@@ -138,11 +138,12 @@ final class TimingNodeLogic {
         this.monotonicClock = monotonicClock;
         this.metrics = metrics;
         this.logBook = new LogBook(timingNodeId);
+        this.raceData = new RaceDataState(eventData);
         this.stageTiming =
                 new StageTiming(
                         eventData,
-                        teamAssignments,
-                        stageStartTimes);
+                        raceData.teamAssignments(),
+                        raceData.stageStartTimes());
     }
 
     NodeId timingNodeId() {
@@ -162,16 +163,21 @@ final class TimingNodeLogic {
     }
 
 
-    TeamAssignments teamAssignments() {
-        return teamAssignments;
+    /** Commits validated RaceData changes; caller must own the Data Lane. */
+    void applyRaceData(UpstreamData.RaceData message) {
+        raceData.applyChanges(message);
     }
 
-    StageStartTimes stageStartTimes() {
-        return stageStartTimes;
+    TeamId teamIdFor(RegistrationId registrationId) {
+        return raceData.teamIdFor(registrationId);
     }
 
-    UniqueTeamRegistrations uniqueTeamRegistrations() {
-        return uniqueTeamRegistrations;
+    TimingTimestamp stageStartTimeFor(TeamId teamId) {
+        return raceData.stageStartTimeFor(teamId);
+    }
+
+    int uniqueTeamRegistrationCount() {
+        return uniqueTeamRegistrations.uniqueTeamCount(raceData::teamIdFor);
     }
 
     List<StageTime> stageTiming(
