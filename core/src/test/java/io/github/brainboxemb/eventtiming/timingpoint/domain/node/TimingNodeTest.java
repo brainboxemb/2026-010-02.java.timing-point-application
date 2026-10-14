@@ -6,9 +6,10 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeQuery.ReadConsistency;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQuery.ReadConsistency;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -809,13 +810,13 @@ public class TimingNodeTest {
             NodeId id,
             SerialExecutor executor,
             long timeoutMillis) {
-        TimingNodeLogic logic = new TimingNodeLogic(
+        return new TimingNode(
                 id,
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),
                 TimingNodeTest::now,
-                SystemMonotonicClock.INSTANCE);
-        return new TimingNode(logic, executor, timeoutMillis);
+                executor,
+                timeoutMillis);
     }
 
     private static TimingNode node(
@@ -823,13 +824,13 @@ public class TimingNodeTest {
             TimingDataPersistence persistence,
             SerialExecutor executor,
             long timeoutMillis) {
-        TimingNodeLogic logic = new TimingNodeLogic(
+        return new TimingNode(
                 id,
                 persistence,
                 new DefaultTimingDataFactory(),
                 TimingNodeTest::now,
-                SystemMonotonicClock.INSTANCE);
-        return new TimingNode(logic, executor, timeoutMillis);
+                executor,
+                timeoutMillis);
     }
 
     private static Instant now() {

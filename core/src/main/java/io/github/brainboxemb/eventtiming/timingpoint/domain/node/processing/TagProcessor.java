@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ConfigurationChange;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
@@ -30,7 +30,7 @@ import org.slf4j.LoggerFactory;
  * suppression happens after tag-to-registration mapping and before passage
  * aggregation so recently accepted registrations do not create unnecessary
  * burst/RSSI/housekeeping state. Completed passages are handed off with
- * {@link TimingNode#offer(io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeCommand)};
+ * {@link TimingNode#offer(io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeCommand)};
  * TagProcessor never waits for lower-priority TimingNode processing.</p>
  */
 public final class TagProcessor {

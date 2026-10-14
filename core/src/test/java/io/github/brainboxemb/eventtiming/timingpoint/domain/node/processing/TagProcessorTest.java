@@ -14,7 +14,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;

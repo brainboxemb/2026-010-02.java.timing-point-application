@@ -1,5 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQueries;
+
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;

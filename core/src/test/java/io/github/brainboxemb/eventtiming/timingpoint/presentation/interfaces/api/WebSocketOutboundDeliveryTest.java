@@ -6,8 +6,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 

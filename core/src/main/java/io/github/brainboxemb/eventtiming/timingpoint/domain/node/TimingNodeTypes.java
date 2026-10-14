@@ -49,7 +49,7 @@ public final class TimingNodeTypes {
         private final ProblemSeverity severity;
         private final String message;
 
-        Problem(
+        public Problem(
                 ProblemCode code,
                 ProblemSeverity severity,
                 String message) {
@@ -127,11 +127,11 @@ public final class TimingNodeTypes {
             this.timingData = timingData;
         }
 
-        static RegistrationResult committed(TimingData timingData) {
+        public static RegistrationResult committed(TimingData timingData) {
             return new RegistrationResult(Outcome.COMMITTED, timingData);
         }
 
-        static RegistrationResult nodeNotOpen() {
+        public static RegistrationResult nodeNotOpen() {
             return new RegistrationResult(Outcome.NODE_NOT_OPEN, null);
         }
 
@@ -159,7 +159,7 @@ public final class TimingNodeTypes {
         private final boolean timingDataTailRecovered;
         private final List<Problem> problems;
 
-        Status(
+        public Status(
                 NodeId timingNodeId,
                 State state,
                 LocationId locationId,
@@ -172,7 +172,7 @@ public final class TimingNodeTypes {
                     Collections.<Problem>emptyList());
         }
 
-        Status(
+        public Status(
                 NodeId timingNodeId,
                 State state,
                 LocationId locationId,
@@ -240,12 +240,12 @@ public final class TimingNodeTypes {
 
         private final Reason reason;
 
-        OperationException(Reason reason, String message) {
+        public OperationException(Reason reason, String message) {
             super(message);
             this.reason = reason;
         }
 
-        OperationException(Reason reason, String message, Throwable cause) {
+        public OperationException(Reason reason, String message, Throwable cause) {
             super(message, cause);
             this.reason = reason;
         }

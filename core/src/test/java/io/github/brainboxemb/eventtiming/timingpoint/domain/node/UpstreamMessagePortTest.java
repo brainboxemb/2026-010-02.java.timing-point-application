@@ -1,5 +1,9 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQuery;
+
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;

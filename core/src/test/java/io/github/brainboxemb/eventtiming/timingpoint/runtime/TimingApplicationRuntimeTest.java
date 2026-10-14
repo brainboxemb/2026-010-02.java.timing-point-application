@@ -13,7 +13,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
