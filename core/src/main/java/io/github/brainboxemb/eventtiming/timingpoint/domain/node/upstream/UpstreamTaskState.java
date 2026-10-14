@@ -14,11 +14,15 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
  * TeamAssignments, StageStartTimes or UniqueTeamRegistrations objects.</p>
  */
 public interface UpstreamTaskState {
+    /** Applies one ordered RACE_DATA change set on the Task Lane. */
     void applyRaceData(UpstreamData.RaceData changes);
 
+    /** Resolves the current TeamId for one registration. */
     TeamId teamIdFor(RegistrationId registrationId);
 
+    /** Resolves the current stage start for one team. */
     TimingTimestamp stageStartTimeFor(TeamId teamId);
 
+    /** Returns the number of unique currently registered teams. */
     int uniqueTeamRegistrationCount();
 }

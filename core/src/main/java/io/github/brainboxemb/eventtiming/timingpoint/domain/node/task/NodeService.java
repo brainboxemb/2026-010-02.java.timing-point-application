@@ -1,13 +1,10 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.task;
 
-import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
 import java.time.ZoneId;
@@ -27,7 +24,7 @@ import org.slf4j.LoggerFactory;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 /**
- * Node-local service for Task Lane-owned RaceData, derived timing and upstream operations.
+ * Node-local service for Task Lane-owned RaceData and derived timing.
  *
  * <p>The Task Lane is a bounded logical serial queue, not a dedicated thread:
  * the supplied executor may share Runtime's physical worker with the Data Lane.
@@ -41,29 +38,25 @@ public final class NodeService {
     private static final long TASK_QUERY_TIMEOUT_MILLIS = 2000L;
 
     private final LogBook logBook;
-    private final SerialLane taskLane;
+    private final SerialLane serialLane;
     private final NodeServiceState state;
     private final StageTiming stageTiming;
 
-    private final UpstreamHandler upstreamHandler;
-
-    /** Creates the Task Lane service and wires immutable LogBook facts into derived state. */
+    /** Creates the Task Lane service around explicitly composed passive state. */
     public NodeService(
             LogBook logBook,
-            SerialLane taskLane,
-            EventData eventData,
-            UpstreamStream upstreamStream) {
+            SerialLane serialLane,
+            NodeServiceState state) {
         checkArgument(logBook != null, "logBook must not be null");
-        checkArgument(taskLane != null, "taskLane must not be null");
-        checkArgument(eventData != null, "eventData must not be null");
-        checkArgument(upstreamStream != null, "upstreamStream must not be null");
+        checkArgument(serialLane != null, "serialLane must not be null");
+        checkArgument(state != null, "state must not be null");
 
         this.logBook = logBook;
-        this.taskLane = taskLane;
-        this.state = new NodeServiceState(eventData);
+        this.serialLane = serialLane;
+        this.state = state;
         this.stageTiming =
                 new StageTiming(
-                        eventData,
+                        state.eventData(),
                         state.teamAssignments(),
                         state.stageStartTimes());
 
@@ -75,15 +68,6 @@ public final class NodeService {
                 .subscribe(this::onInitialTimingDataLoaded);
         logBook.newDataEntryEvent()
                 .subscribe(this::onTimingDataCommitted);
-
-        this.upstreamHandler =
-                new UpstreamHandler(
-                        logBook.timingNodeId(),
-                        logBook::executeOnDataLane,
-                        new UpstreamTaskLane(),
-                        upstreamStream,
-                        logBook,
-                        state);
     }
 
     /**
@@ -93,20 +77,15 @@ public final class NodeService {
      * available only after the initial TimingData snapshot arrives.</p>
      */
     public void activate() {
-        taskLane.start();
+        serialLane.start();
     }
 
     /**
      * Stops Task Lane work and marks derived timing unavailable.
      */
     public void deactivate() {
-        taskLane.close();
+        serialLane.close();
         state.markDerivedTimingUnavailable();
-    }
-
-    /** Returns the Task Lane-owned upstream protocol boundary for this node. */
-    public UpstreamHandler upstreamHandler() {
-        return upstreamHandler;
     }
 
     /**
@@ -155,7 +134,7 @@ public final class NodeService {
             Runnable operation,
             String fact) {
         try {
-            taskLane.execute(operation);
+            serialLane.execute(operation);
         } catch (RejectedExecutionException ex) {
             state.markDerivedTimingStale();
             LOG.error(
@@ -182,7 +161,7 @@ public final class NodeService {
 
     /** Fails fast when a helper that owns mutable Task Lane state runs outside that lane. */
     private void requireTaskLane(String operation) {
-        if (!taskLane.isExecutingOnCurrentThread()) {
+        if (!serialLane.isExecutingOnCurrentThread()) {
             throw new IllegalStateException(
                     operation + " requires the TimingNode Task Lane");
         }
@@ -197,7 +176,7 @@ public final class NodeService {
     private <R> R executeOnTaskLaneAndWait(
             Callable<R> work,
             String operation) {
-        if (taskLane.isExecutingOnCurrentThread()) {
+        if (serialLane.isExecutingOnCurrentThread()) {
             try {
                 return work.call();
             } catch (RuntimeException ex) {
@@ -212,7 +191,7 @@ public final class NodeService {
 
         final Future<R> future;
         try {
-            future = taskLane.submit(work);
+            future = serialLane.submit(work);
         } catch (RejectedExecutionException ex) {
             throw rejectedOperation(operation, ex);
         }
@@ -254,13 +233,13 @@ public final class NodeService {
     private OperationException rejectedOperation(
             String operation,
             RejectedExecutionException rejection) {
-        if (taskLane.state() == SerialLane.State.FAILED) {
+        if (serialLane.state() == SerialLane.State.FAILED) {
             return new OperationException(
                     OperationException.Reason.FAILED,
                     operation + " could not run because the TimingNode Task Lane failed",
-                    taskLane.failure() == null ? rejection : taskLane.failure());
+                    serialLane.failure() == null ? rejection : serialLane.failure());
         }
-        if (taskLane.state() != SerialLane.State.RUNNING) {
+        if (serialLane.state() != SerialLane.State.RUNNING) {
             return new OperationException(
                     OperationException.Reason.UNAVAILABLE,
                     operation + " could not be queued because the TimingNode Task Lane is not running",
@@ -272,20 +251,5 @@ public final class NodeService {
                 rejection);
     }
 
-    /** Adapts the owned Task Lane to the narrow upstream execution boundary. */
-    private final class UpstreamTaskLane implements UpstreamHandler.TaskLane {
-        /** Queues one upstream Task Lane operation without waiting for its later result. */
-        @Override
-        public void execute(Runnable task) {
-            taskLane.execute(task);
-        }
 
-        /** Executes one result-bearing upstream Task Lane operation and waits for completion. */
-        @Override
-        public <R> R executeAndWait(
-                Callable<R> task,
-                String operation) {
-            return executeOnTaskLaneAndWait(task, operation);
-        }
-    }
 }

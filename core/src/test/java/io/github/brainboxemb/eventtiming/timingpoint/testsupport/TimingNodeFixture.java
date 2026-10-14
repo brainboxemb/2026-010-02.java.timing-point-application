@@ -12,6 +12,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServiceState;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamTaskState;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
@@ -59,6 +62,7 @@ public final class TimingNodeFixture {
         TAG_WORKER.setRemoveOnCancelPolicy(true);
     }
 
+    /** Prevents construction of this static test fixture. */
     private TimingNodeFixture() {
     }
 
@@ -70,35 +74,62 @@ public final class TimingNodeFixture {
         private final LogBook logBook;
         private final NodeService nodeService;
         private final TagProcessor tagProcessor;
+        private final UpstreamHandler upstreamHandler;
+        private final UpstreamTaskState upstreamTaskState;
 
+        /** Creates test-only references to one fully composed TimingNode graph. */
         private Components(
                 TimingNode node,
                 LogBook logBook,
                 NodeService nodeService,
-                TagProcessor tagProcessor) {
+                TagProcessor tagProcessor,
+                UpstreamHandler upstreamHandler,
+                UpstreamTaskState upstreamTaskState) {
             this.node = node;
             this.logBook = logBook;
             this.nodeService = nodeService;
             this.tagProcessor = tagProcessor;
+            this.upstreamHandler = upstreamHandler;
+            this.upstreamTaskState = upstreamTaskState;
         }
 
+        /** Returns the composed TimingNode owner. */
         public TimingNode node() {
             return node;
         }
 
+        /** Returns the concrete LogBook for child-specific tests. */
         public LogBook logBook() {
             return logBook;
         }
 
+        /** Returns the NodeService for child-specific tests. */
         public NodeService nodeService() {
             return nodeService;
         }
 
+        /** Returns the TagProcessor for child-specific tests. */
         public TagProcessor tagProcessor() {
             return tagProcessor;
         }
+
+        /** Returns the separately composed upstream protocol boundary. */
+        public UpstreamHandler upstreamHandler() {
+            return upstreamHandler;
+        }
+
+        /**
+         * Returns the test-only passive upstream state view.
+         *
+         * <p>Use only after the direct fixture has completed the corresponding
+         * Task Lane operation; production code never exposes this state.</p>
+         */
+        public UpstreamTaskState upstreamTaskState() {
+            return upstreamTaskState;
+        }
     }
 
+    /** Creates one test TimingNode with default profile data and shared test workers. */
     public static TimingNode create(
             NodeId nodeId,
             TimingDataPersistence persistence,
@@ -110,6 +141,7 @@ public final class TimingNodeFixture {
                 timeSource);
     }
 
+    /** Creates one test TimingNode with an explicit TimingDataFactory. */
     public static TimingNode create(
             NodeId nodeId,
             TimingDataPersistence persistence,
@@ -143,6 +175,7 @@ public final class TimingNodeFixture {
                 .node();
     }
 
+    /** Creates one same-thread TimingNode for deterministic child execution tests. */
     public static TimingNode createDirect(
             NodeId nodeId,
             TimingDataPersistence persistence,
@@ -157,6 +190,7 @@ public final class TimingNodeFixture {
                 UpstreamStream.unavailable());
     }
 
+    /** Creates one same-thread TimingNode with explicit EventData and upstream stream. */
     public static TimingNode createDirect(
             NodeId nodeId,
             TimingDataPersistence persistence,
@@ -174,6 +208,7 @@ public final class TimingNodeFixture {
                 .node();
     }
 
+    /** Creates same-thread TimingNode components for child-specific tests. */
     public static Components createDirectComponents(
             NodeId nodeId,
             TimingDataPersistence persistence,
@@ -208,6 +243,7 @@ public final class TimingNodeFixture {
                 DEFAULT_OPERATION_TIMEOUT_MILLIS);
     }
 
+    /** Creates one TimingNode using a caller-supplied Data Lane and timeout. */
     public static TimingNode createWithDataLane(
             NodeId nodeId,
             TimingDataPersistence persistence,
@@ -240,6 +276,7 @@ public final class TimingNodeFixture {
                 .node();
     }
 
+    /** Composes one complete test TimingNode graph from explicit logical lanes. */
     private static Components compose(
             NodeId nodeId,
             TimingDataPersistence persistence,
@@ -266,12 +303,24 @@ public final class TimingNodeFixture {
                         dataLane,
                         operationTimeoutMillis);
 
+        NodeServiceState nodeServiceState =
+                new NodeServiceState(
+                        eventData);
+
         NodeService nodeService =
                 new NodeService(
                         logBook,
                         taskLane,
-                        eventData,
-                        upstreamStream);
+                        nodeServiceState);
+
+        UpstreamHandler upstreamHandler =
+                new UpstreamHandler(
+                        nodeId,
+                        dataLane,
+                        taskLane,
+                        upstreamStream,
+                        logBook,
+                        nodeServiceState);
 
         TagProcessor tagProcessor =
                 new TagProcessor(
@@ -296,6 +345,8 @@ public final class TimingNodeFixture {
                 node,
                 logBook,
                 nodeService,
-                tagProcessor);
+                tagProcessor,
+                upstreamHandler,
+                nodeServiceState);
     }
 }

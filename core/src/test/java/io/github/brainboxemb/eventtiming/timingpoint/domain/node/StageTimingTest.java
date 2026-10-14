@@ -243,6 +243,7 @@ public class StageTimingTest {
                 record.effectiveTime().instant());
     }
 
+    /** Verifies NodeService ranking reacts to upstream stage-start data. */
     @Test
     public void nodeQueryReturnsCurrentRankingFromCommittedLogBook()
             throws Exception {
@@ -277,8 +278,7 @@ public class StageTimingTest {
                                             "0001",
                                             LocalTime.NOON))));
             assertTrue(
-                    components.nodeService()
-                            .upstreamHandler()
+                    components.upstreamHandler()
                             .inputAvailable());
             stream.takeSent();
 
