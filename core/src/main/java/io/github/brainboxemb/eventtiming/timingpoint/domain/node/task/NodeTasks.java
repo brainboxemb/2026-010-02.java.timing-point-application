@@ -295,9 +295,11 @@ public final class NodeTasks implements UpstreamTaskState {
             }
         }
 
-        SerialLane.SubmitResult<R> submitResult =
+        SerialLane.SubmitResult<R> submittedWork =
                 taskLane.submit(work);
-        switch (submitResult.admission()) {
+        SerialLane.AdmissionResult submissionResult =
+                submittedWork.admission();
+        switch (submissionResult) {
             case FULL:
                 throw new OperationException(
                         OperationException.Reason.BUSY,
@@ -316,11 +318,11 @@ public final class NodeTasks implements UpstreamTaskState {
                         operation
                                 + " could not be queued because the TimingNode Task Lane is not running");
             case ACCEPTED:
-                return await(submitResult.futureResult(), operation);
+                return await(submittedWork.futureResult(), operation);
             default:
                 throw new IllegalStateException(
                         "Unsupported submission result "
-                                + submitResult.admission());
+                                + submissionResult);
         }
     }
 
