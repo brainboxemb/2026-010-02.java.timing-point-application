@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.logBook.logbook.LogBookMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLaneMetrics;
 
 /**
@@ -8,13 +8,13 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.Se
  */
 public final class TimingNodeRuntimeSnapshot {
     private final SerialLaneMetrics.Snapshot lane;
-    private final LogBookProcessorMetrics.Snapshot node;
+    private final LogBookMetrics.Snapshot logBook;
 
     TimingNodeRuntimeSnapshot(
             SerialLaneMetrics.Snapshot lane,
-            LogBookProcessorMetrics.Snapshot node) {
+            LogBookMetrics.Snapshot logBook) {
         this.lane = lane;
-        this.node = node;
+        this.logBook = logBook;
     }
 
     public int queueDepth() { return lane.queueDepth(); }
@@ -28,13 +28,13 @@ public final class TimingNodeRuntimeSnapshot {
     public long totalExecutionNanos() { return lane.totalExecutionNanos(); }
     public long maxExecutionNanos() { return lane.maxExecutionNanos(); }
 
-    public long timingDataAppendAttempts() { return node.timingDataAppendAttempts(); }
-    public long timingDataAppendFailures() { return node.timingDataAppendFailures(); }
-    public long timingDataCommitCount() { return node.timingDataCommitCount(); }
-    public long totalTimingDataAppendNanos() { return node.totalTimingDataAppendNanos(); }
-    public long maxTimingDataAppendNanos() { return node.maxTimingDataAppendNanos(); }
-    public long timingDataEventDeliveries() { return node.timingDataEventDeliveries(); }
-    public long timingDataEventListenerFailures() { return node.timingDataEventListenerFailures(); }
-    public long totalTimingDataEventNanos() { return node.totalTimingDataEventNanos(); }
-    public long maxTimingDataEventNanos() { return node.maxTimingDataEventNanos(); }
+    public long timingDataAppendAttempts() { return logBook.timingDataAppendAttempts(); }
+    public long timingDataAppendFailures() { return logBook.timingDataAppendFailures(); }
+    public long timingDataCommitCount() { return logBook.timingDataCommitCount(); }
+    public long totalTimingDataAppendNanos() { return logBook.totalTimingDataAppendNanos(); }
+    public long maxTimingDataAppendNanos() { return logBook.maxTimingDataAppendNanos(); }
+    public long timingDataEventDeliveries() { return logBook.timingDataEventDeliveries(); }
+    public long timingDataEventListenerFailures() { return logBook.timingDataEventListenerFailures(); }
+    public long totalTimingDataEventNanos() { return logBook.totalTimingDataEventNanos(); }
+    public long maxTimingDataEventNanos() { return logBook.maxTimingDataEventNanos(); }
 }
