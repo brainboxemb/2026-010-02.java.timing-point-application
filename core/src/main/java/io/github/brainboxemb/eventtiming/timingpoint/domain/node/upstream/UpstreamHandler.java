@@ -39,7 +39,7 @@ public final class UpstreamHandler {
     private final UpstreamHeartbeat heartbeat;
     private final UpstreamDataSync upstreamDataSync;
     private final LogBookSync logBookSync;
-    private final LogBookProcessor timingDataHistory;
+    private final LogBookProcessor logBookProcessor;
     private final UpstreamTaskState taskState;
 
     /*
@@ -54,25 +54,25 @@ public final class UpstreamHandler {
             DataLane dataLane,
             TaskLane taskLane,
             UpstreamStream stream,
-            LogBookProcessor timingDataHistory,
+            LogBookProcessor logBookProcessor,
             UpstreamTaskState taskState) {
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(dataLane != null, "dataLane must not be null");
         checkArgument(taskLane != null, "taskLane must not be null");
         checkArgument(stream != null, "stream must not be null");
-        checkArgument(timingDataHistory != null, "timingDataHistory must not be null");
+        checkArgument(logBookProcessor != null, "logBookProcessor must not be null");
         checkArgument(taskState != null, "taskState must not be null");
 
         this.nodeId = nodeId;
         this.dataLane = dataLane;
         this.taskLane = taskLane;
         this.stream = stream;
-        this.timingDataHistory = timingDataHistory;
+        this.logBookProcessor = logBookProcessor;
         this.taskState = taskState;
         this.heartbeat = new UpstreamHeartbeat(nodeId, stream);
         this.upstreamDataSync =
                 new UpstreamDataSync(nodeId, stream, taskState);
-        this.logBookSync = new LogBookSync(nodeId, stream, timingDataHistory);
+        this.logBookSync = new LogBookSync(nodeId, stream, logBookProcessor);
     }
 
     /**
