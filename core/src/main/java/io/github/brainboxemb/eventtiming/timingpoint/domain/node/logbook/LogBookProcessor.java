@@ -609,8 +609,8 @@ public final class LogBookProcessor
                 != right.state()) {
             return false;
         }
-        if (left.timingDataTailRecovered()
-                != right.timingDataTailRecovered()) {
+        if (left.timingDataTailRepaired()
+                != right.timingDataTailRepaired()) {
             return false;
         }
         if (!left.problems()
