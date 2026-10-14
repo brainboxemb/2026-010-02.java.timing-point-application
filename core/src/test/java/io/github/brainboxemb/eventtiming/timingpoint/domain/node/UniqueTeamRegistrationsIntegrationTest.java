@@ -47,7 +47,7 @@ public class UniqueTeamRegistrationsIntegrationTest {
         node.activate();
         try {
             UpstreamHandler port =
-                    components.taskProcessor()
+                    components.nodeService()
                             .upstreamHandler();
 
             // RT-A-0001 is fixed by EventData. RT-R-0001 is still unresolved.
