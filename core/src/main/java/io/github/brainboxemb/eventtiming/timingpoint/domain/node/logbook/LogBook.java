@@ -3,7 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandSubmissionResult;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandQueueResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
@@ -179,33 +179,33 @@ public final class LogBook
     }
 
     /**
-     * Submits one fire-and-forget command to the Data Lane.
+     * Queues one fire-and-forget command on the Data Lane.
      *
-     * <p>This method never waits for command execution. {@code ACCEPTED} means
+     * <p>This method never waits for command execution. {@code QUEUED} means
      * only that the command was queued; execution and any later failure happen
      * asynchronously on the Data Lane.</p>
      */
-    public CommandSubmissionResult submit(
+    public CommandQueueResult queue(
             LogBookCommand<?> command) {
         if (command == null) {
             throw new IllegalArgumentException(
                     "command must not be null");
         }
 
-        SerialLane.AdmissionResult laneSubmissionResult =
+        SerialLane.AdmissionResult laneQueueResult =
                 dataLane.offer(
                         () -> executeSubmittedCommand(command));
-        switch (laneSubmissionResult) {
+        switch (laneQueueResult) {
             case ACCEPTED:
-                return CommandSubmissionResult.ACCEPTED;
+                return CommandQueueResult.QUEUED;
             case FULL:
-                return CommandSubmissionResult.QUEUE_FULL;
+                return CommandQueueResult.QUEUE_FULL;
             case NOT_RUNNING:
-                return CommandSubmissionResult.NOT_RUNNING;
+                return CommandQueueResult.NOT_RUNNING;
             default:
                 throw new IllegalStateException(
-                        "Unsupported Data Lane submission result "
-                                + laneSubmissionResult);
+                        "Unsupported Data Lane queue result "
+                                + laneQueueResult);
         }
     }
 
@@ -266,7 +266,7 @@ public final class LogBook
      * <p>Returns {@code true} only when the operation was queued. The caller
      * does not wait for execution or receive the operation result.</p>
      */
-    public boolean trySubmitOperation(
+    public boolean tryQueueOperation(
             Runnable operation) {
         if (operation == null) {
             throw new IllegalArgumentException(
@@ -535,11 +535,11 @@ public final class LogBook
                             + " cannot wait for the same Data Lane");
         }
 
-        SerialLane.SubmitResult<R> submittedWork =
+        SerialLane.SubmitResult<R> queuedWork =
                 dataLane.submit(work);
-        SerialLane.AdmissionResult submissionResult =
-                submittedWork.admission();
-        switch (submissionResult) {
+        SerialLane.AdmissionResult queueResult =
+                queuedWork.admission();
+        switch (queueResult) {
             case FULL:
                 throw new OperationException(
                         OperationException.Reason.BUSY,
@@ -560,12 +560,12 @@ public final class LogBook
                                 + " could not be queued because the TimingNode Data Lane is not running");
             case ACCEPTED:
                 return await(
-                        submittedWork.futureResult(),
+                        queuedWork.futureResult(),
                         operation);
             default:
                 throw new IllegalStateException(
                         "Unsupported submission result "
-                                + submissionResult);
+                                + queueResult);
         }
     }
 
