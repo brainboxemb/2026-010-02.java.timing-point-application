@@ -21,7 +21,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * TimingNode-owned semantic boundary for node-scoped upstream communication.
  *
  * <p>The handler coordinates two TimingNode-owned logical lanes. Stream turns
- * are currently admitted on the Data Lane so TIMING_DATA LogBook access stays
+ * are currently queued on the Data Lane so TIMING_DATA LogBook access stays
  * ordered there. RACE_DATA, heartbeat and their live protocol/state work are
  * handed to the Task Lane. Protocol state is deliberately split into
  * {@link UpstreamHeartbeat}, {@link UpstreamDataSync} and {@link LogBookSync}.
@@ -87,7 +87,7 @@ public final class UpstreamHandler {
             return true;
         }
 
-        if (dataLane.offer(this::handleNextOnDataLane)) {
+        if (dataLane.trySubmit(this::handleNextOnDataLane)) {
             return true;
         }
 
@@ -139,7 +139,7 @@ public final class UpstreamHandler {
             case RACE_DATA:
                 checkArgument(data instanceof UpstreamData.RaceData,
                         "RACE_DATA has incompatible semantic type");
-                offerProtocolOperation(
+                submitProtocolOperationToTaskLane(
                         "RACE_DATA",
                         () -> upstreamDataSync.handleRaceData(
                                 (UpstreamData.RaceData) data));
@@ -170,7 +170,7 @@ public final class UpstreamHandler {
                         "PING has incompatible semantic type");
                 UpstreamData.Ping ping =
                         (UpstreamData.Ping) data;
-                if (!taskLane.offer(
+                if (!taskLane.trySubmit(
                         () -> heartbeat.handle(ping))) {
                     LOG.warn(
                             "Dropped upstream PING for node {} because the Task Lane could not accept it",
@@ -196,13 +196,14 @@ public final class UpstreamHandler {
     }
 
     /**
-     * Offers one externally scheduled heartbeat tick to the TimingNode Task Lane.
+     * Submits one externally scheduled heartbeat tick to the Task Lane.
      *
      * <p>This handoff is deliberately non-blocking because Data and Task Lane may
-     * share one physical worker.</p>
+     * share one physical worker. Returning from this method does not mean the
+     * heartbeat tick has executed.</p>
      */
     public void heartbeatTick() {
-        if (!taskLane.offer(heartbeat::tick)) {
+        if (!taskLane.trySubmit(heartbeat::tick)) {
             LOG.warn(
                     "Skipped heartbeat tick for node {} because the Task Lane could not accept it",
                     nodeId.value());
@@ -216,7 +217,7 @@ public final class UpstreamHandler {
 
     /** Resolves current TeamId on the Task Lane. */
     public TeamId teamIdFor(RegistrationId registrationId) {
-        return onTaskLane(
+        return executeOnTaskLaneAndWait(
                 () -> taskState.teamIdFor(registrationId),
                 "upstreamTeamIdFor");
     }
@@ -251,33 +252,42 @@ public final class UpstreamHandler {
         boolean workRemaining =
                 stream.isAvailable() && (logBookSync.syncPending() || stream.hasMessage());
 
-        if (workRemaining && dataLane.offer(this::handleNextOnDataLane)) {
+        if (workRemaining && dataLane.trySubmit(this::handleNextOnDataLane)) {
             return;
         }
 
         inputOperationScheduled.set(false);
     }
 
-    private <R> R onTaskLane(Callable<R> task, String operation) {
-        return taskLane.run(task, operation);
-    }
-
-    /** Non-blocking handoff to the owning TimingNode Data Lane. */
-    @FunctionalInterface
-    public interface DataLane {
-        boolean offer(Runnable operation);
+    private <R> R executeOnTaskLaneAndWait(
+            Callable<R> task,
+            String operation) {
+        return taskLane.executeAndWait(task, operation);
     }
 
     /**
-     * Narrow non-blocking Task Lane boundary.
+     * Non-blocking handoff to the owning TimingNode Data Lane.
      *
-     * <p>Upstream code may only offer work here; it cannot synchronously wait
-     * across lanes that may share the same physical worker.</p>
+     * <p>{@code true} means the work was queued, not executed.</p>
+     */
+    @FunctionalInterface
+    public interface DataLane {
+        boolean trySubmit(Runnable operation);
+    }
+
+    /**
+     * Task Lane boundary used by upstream protocol code.
+     *
+     * <p>{@link #trySubmit(Runnable)} is fire-and-forget queue submission.
+     * {@link #executeAndWait(Callable, String)} is reserved for result-bearing
+     * calls made from outside a conflicting lane context.</p>
      */
     public interface TaskLane {
-        boolean offer(Runnable task);
+        boolean trySubmit(Runnable task);
 
-        <R> R run(Callable<R> task, String operation);
+        <R> R executeAndWait(
+                Callable<R> task,
+                String operation);
     }
 
 }
