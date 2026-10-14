@@ -295,6 +295,7 @@ final class CharacterizationEvidenceWriter {
         json.writeEndObject();
     }
 
+    /** Writes TimingNode lane and LogBook measurement deltas to characterization evidence. */
     private static void writeTimingNode(
             JsonGenerator json,
             TimingNodeRuntimeSnapshot before,
@@ -312,10 +313,10 @@ final class CharacterizationEvidenceWriter {
                 "queueHighWaterAfter",
                 after.queueHighWaterMark());
         json.writeNumberField(
-                "queueAcceptedDelta",
+                "queuedTaskDelta",
                 delta(
-                        before.queueAcceptedCount(),
-                        after.queueAcceptedCount()));
+                        before.queuedTaskCount(),
+                        after.queuedTaskCount()));
         json.writeNumberField(
                 "queueFullDelta",
                 delta(
