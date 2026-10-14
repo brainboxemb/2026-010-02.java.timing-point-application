@@ -9,9 +9,9 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 /**
- * Node-local current race/reference data, owned exclusively by Data Lane.
+ * Node-local current race/reference data, owned exclusively by the Task Lane.
  *
- * <p>Each RACE_DATA message is validated against copies of the current data.
+ * <p>Each RACE_DATA message is validated on the Task Lane against copies of the current data.
  * Both sets are replaced only if the whole message is valid, before the
  * upstream protocol can acknowledge the accepted sequence. This component is
  * passive; it owns neither an executor nor an upstream transport.</p>
