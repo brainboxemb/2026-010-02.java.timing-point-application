@@ -15,12 +15,12 @@ import org.slf4j.LoggerFactory;
  *
  * <p>A {@code SerialLane} is a logical lane, not necessarily a Java thread.
  * Production runtime composition gives multiple lanes one shared role worker.
- * Each lane still owns its own bounded queue, admission result, FIFO ordering
- * and lifecycle. The shared worker only executes short drain tokens submitted by
- * those lanes.</p>
+ * Each lane still owns its own bounded queue, FIFO ordering and lifecycle.
+ * Callers use the standard Java execute/submit/rejection model; the shared worker
+ * only runs short lane turns that execute one queued task at a time.</p>
  *
  * <p>The physical worker is supplied from outside this lane. The lane uses it
- * only to execute drain tokens; it never creates, configures or shuts down the
+ * only to execute queued lane turns; it never creates, configures or shuts down the
  * underlying worker. Runtime composition therefore owns physical worker
  * lifecycle while this class owns only lane-local execution behaviour.</p>
  */
@@ -78,10 +78,10 @@ public final class SerialLane implements Executor, AutoCloseable {
     private Throwable failure;
 
     /**
-     * True while this lane has a drain token running or waiting on the worker.
-     * At most one drain token per lane is scheduled at a time.
+     * True while this lane has a queued execution turn running or waiting on the worker.
+     * At most one execution turn per lane is scheduled at a time.
      */
-    private boolean drainScheduled;
+    private boolean executionScheduled;
 
     /** True only while one queue item from this lane is executing. */
     private boolean taskRunning;
@@ -183,8 +183,8 @@ public final class SerialLane implements Executor, AutoCloseable {
                 throw new RejectedExecutionException("Serial lane " + laneName + " queue is full");
             }
 
-            if (!drainScheduled) {
-                drainScheduled = true;
+            if (!executionScheduled) {
+                executionScheduled = true;
                 scheduleNextExecutionLocked();
             }
 
@@ -209,7 +209,7 @@ public final class SerialLane implements Executor, AutoCloseable {
         } catch (RejectedExecutionException ex) {
             failure = ex;
             state = State.FAILED;
-            drainScheduled = false;
+            executionScheduled = false;
             cancelQueuedLocked();
             notifyAll();
             throw ex;
@@ -227,14 +227,14 @@ public final class SerialLane implements Executor, AutoCloseable {
         final TrackedTask task;
         synchronized (this) {
             if (state == State.FAILED) {
-                drainScheduled = false;
+                executionScheduled = false;
                 notifyAll();
                 return;
             }
 
             task = nextQueuedTaskLocked();
             if (task == null) {
-                drainScheduled = false;
+                executionScheduled = false;
                 notifyAll();
                 return;
             }
@@ -257,13 +257,13 @@ public final class SerialLane implements Executor, AutoCloseable {
 
                 if (state == State.FAILED) {
                     cancelQueuedLocked();
-                    drainScheduled = false;
+                    executionScheduled = false;
                     notifyAll();
                     return;
                 }
 
                 if (queue.isEmpty()) {
-                    drainScheduled = false;
+                    executionScheduled = false;
                     notifyAll();
                     return;
                 }
@@ -318,7 +318,7 @@ public final class SerialLane implements Executor, AutoCloseable {
 
         if (state != State.FAILED) {
             boolean interrupted = false;
-            while (drainScheduled
+            while (executionScheduled
                     || taskRunning
                     || !queue.isEmpty()) {
                 try {
@@ -342,7 +342,7 @@ public final class SerialLane implements Executor, AutoCloseable {
         failure = cause;
         state = State.FAILED;
         cancelQueuedLocked();
-        drainScheduled = false;
+        executionScheduled = false;
         notifyAll();
     }
 
