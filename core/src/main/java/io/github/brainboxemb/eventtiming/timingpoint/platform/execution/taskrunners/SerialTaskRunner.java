@@ -38,6 +38,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
             extends RuntimeException {
         private final FailureReason reason;
 
+        /** Creates one task-runner failure with a stable reason and original cause. */
         public OperationException(
                 FailureReason reason,
                 String message,
@@ -59,6 +60,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
         private final AtomicReference<Future<?>> active =
                 new AtomicReference<Future<?>>();
 
+        /** Creates one cooperative task execution bound to this runner. */
         private TaskRun(
                 YieldingTask task) {
             this.task = task;
@@ -73,6 +75,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
             return result;
         }
 
+        /** Completes the public result after the task reaches DONE or fails. */
         private void runCompleted(
                 Void ignored,
                 Throwable ignoredFailure) {
@@ -87,6 +90,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
             }
         }
 
+        /** Chooses immediate or delayed execution for the next cooperative task step. */
         private void scheduleStep(
                 long delayNanos) {
             if (result.isDone()) {
@@ -129,6 +133,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
                     this::stepCompleted);
         }
 
+        /** Schedules one delayed task step through the lane scheduler. */
         private void scheduleDelayedStep(
                 long delayNanos) {
             if (scheduler == null) {
@@ -162,6 +167,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
                             this::stepCompleted);
         }
 
+        /** Executes one task step and completes its step Future with the returned instruction. */
         private TaskStep executeStep(
                 Callable<TaskStep> operation,
                 CompletableFuture<TaskStep> completion)
@@ -187,6 +193,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
             }
         }
 
+        /** Interprets one completed TaskStep and schedules or completes the task accordingly. */
         private void stepCompleted(
                 TaskStep step,
                 Throwable stepFailure) {
@@ -229,6 +236,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
             }
         }
 
+        /** Registers the next task step after the requested cooperative delay. */
         private void scheduleAfter(
                 Duration delay) {
             if (delay == null) {
@@ -291,6 +299,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
                 timeoutNanos(timeout));
     }
 
+    /** Creates the runner around an existing lane with optional scheduling and wait timeout. */
     private SerialTaskRunner(
             SerialLane lane,
             LaneScheduler scheduler,
@@ -301,6 +310,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
     }
 
     @Override
+    /** Starts one cooperative task and returns a Future completed when the task finishes. */
     public CompletableFuture<Void> runTask(
             YieldingTask task) {
         if (task == null) {
@@ -403,6 +413,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
         lane.close();
     }
 
+    /** Validates the mandatory serial lane dependency. */
     private static SerialLane requireLane(
             SerialLane lane) {
         if (lane == null) {
@@ -412,6 +423,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
         return lane;
     }
 
+    /** Validates the scheduler dependency when delayed task steps are enabled. */
     private static ScheduledExecutorService requireScheduler(
             ScheduledExecutorService scheduler) {
         if (scheduler == null) {
@@ -421,6 +433,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
         return scheduler;
     }
 
+    /** Converts and validates the optional public wait timeout. */
     private static long timeoutNanos(
             Duration timeout) {
         if (timeout == null
@@ -438,6 +451,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
         }
     }
 
+    /** Creates one stable task-runner operation failure. */
     private static OperationException failure(
             FailureReason reason,
             String message,
