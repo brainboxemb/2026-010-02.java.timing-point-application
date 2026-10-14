@@ -6,6 +6,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * Active TeamId-to-stage-start data for one TimingNode.
  *
@@ -34,24 +36,15 @@ public final class StageStartTimes {
 
     public TimingTimestamp startFor(
             TeamId teamId) {
-        if (teamId == null) {
-            throw new IllegalArgumentException(
-                    "teamId must not be null");
-        }
+        checkArgument(teamId != null, "teamId must not be null");
         return starts.get(teamId);
     }
 
     public void set(
             TeamId teamId,
             TimingTimestamp start) {
-        if (teamId == null) {
-            throw new IllegalArgumentException(
-                    "teamId must not be null");
-        }
-        if (start == null) {
-            throw new IllegalArgumentException(
-                    "start must not be null");
-        }
+        checkArgument(teamId != null, "teamId must not be null");
+        checkArgument(start != null, "start must not be null");
         starts.put(
                 teamId,
                 start);
@@ -59,19 +52,13 @@ public final class StageStartTimes {
 
     public void remove(
             TeamId teamId) {
-        if (teamId == null) {
-            throw new IllegalArgumentException(
-                    "teamId must not be null");
-        }
+        checkArgument(teamId != null, "teamId must not be null");
         starts.remove(teamId);
     }
 
     public void replaceWith(
             StageStartTimes updatedStartTimes) {
-        if (updatedStartTimes == null) {
-            throw new IllegalArgumentException(
-                    "updatedStartTimes must not be null");
-        }
+        checkArgument(updatedStartTimes != null, "updatedStartTimes must not be null");
         starts.clear();
         starts.putAll(updatedStartTimes.starts);
     }
