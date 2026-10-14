@@ -24,7 +24,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.Si
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.ClockTimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement.JvmRuntimeSnapshot;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement.RuntimeMeasurementReader;
@@ -85,8 +84,8 @@ final class RuntimeCharacterizationHarness
     private ScheduledThreadPoolExecutor ioWorker;
     private SerialLane dataLane;
     private SerialLane taskLane;
-    private SerialScheduledLane tagLane;
-    private SerialScheduledLane antennaLane;
+    private SerialLane tagLane;
+    private SerialLane antennaLane;
     private SimulatedAntenna antenna;
     private AntennaManager antennaManager;
     private TimingNode node;
@@ -151,12 +150,12 @@ final class RuntimeCharacterizationHarness
                         "TimingNodeTask",
                         nodeWorker);
         tagLane =
-                new SerialScheduledLane(
+                new SerialLane(
                         TAG_PROCESSOR_QUEUE_CAPACITY,
                         "TagProcessor",
                         tagWorker);
         antennaLane =
-                new SerialScheduledLane(
+                new SerialLane(
                         ANTENNA_CONTROL_QUEUE_CAPACITY,
                         "AntennaManager",
                         ioWorker);
@@ -190,6 +189,7 @@ final class RuntimeCharacterizationHarness
                         dataLane,
                         taskLane,
                         tagLane,
+                        tagWorker,
                         SystemMonotonicClock.INSTANCE,
                         nodeMetrics,
                         tagMetrics);
@@ -205,6 +205,7 @@ final class RuntimeCharacterizationHarness
                 new AntennaManager(
                         antennaSet,
                         antennaLane,
+                        ioWorker,
                         ANTENNA_CONTROL_TIMEOUT);
 
         antennaManager
