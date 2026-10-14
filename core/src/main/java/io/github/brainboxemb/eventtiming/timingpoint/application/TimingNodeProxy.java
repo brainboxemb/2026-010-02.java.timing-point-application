@@ -246,8 +246,8 @@ public final class TimingNodeProxy {
     }
 
     /** Returns the subscription-only post-commit new-data event. */
-    public EventSource<TimingData> newDataEvent() {
-        return timingNode.newDataEvent();
+    public EventSource<TimingData> newDataEntryEvent() {
+        return timingNode.newDataEntryEvent();
     }
 
     private void updateStatus(Status status) {

@@ -133,7 +133,7 @@ public class TagProcessorTest {
                 metrics,
                 executor);
         CountDownLatch committed = new CountDownLatch(1);
-        node.newDataEvent().subscribe(data -> {
+        node.newDataEntryEvent().subscribe(data -> {
             if (data instanceof AutomaticRegistration) {
                 committed.countDown();
             }
@@ -205,7 +205,7 @@ public class TagProcessorTest {
                 metrics,
                 executor);
         CountDownLatch committed = new CountDownLatch(1);
-        node.newDataEvent().subscribe(data -> {
+        node.newDataEntryEvent().subscribe(data -> {
             if (data instanceof AutomaticRegistration) {
                 committed.countDown();
             }
@@ -322,7 +322,7 @@ public class TagProcessorTest {
                 .changes()
                 .subscribe(processor::onPolicyConfigurationChanged);
         CountDownLatch committed = new CountDownLatch(1);
-        node.newDataEvent().subscribe(data -> {
+        node.newDataEntryEvent().subscribe(data -> {
             if (data instanceof AutomaticRegistration) {
                 committed.countDown();
             }

@@ -469,8 +469,8 @@ public final class TimingNode {
     }
 
     /** Post-commit TimingData fact published by the Data component. */
-    public EventSource<TimingData> newDataEvent() {
-        return logBookProcessor.newDataEvent();
+    public EventSource<TimingData> newDataEntryEvent() {
+        return logBookProcessor.newDataEntryEvent();
     }
 
     private static NodeId requireId(

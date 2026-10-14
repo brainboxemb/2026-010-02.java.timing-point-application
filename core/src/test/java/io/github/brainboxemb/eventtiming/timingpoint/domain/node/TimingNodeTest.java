@@ -197,7 +197,7 @@ public class TimingNodeTest {
                 new DefaultTimingDataFactory(),
                 TimingNodeTest::now);
         List<TimingData> committedEvents = new ArrayList<TimingData>();
-        node.newDataEvent().subscribe(committedEvents::add);
+        node.newDataEntryEvent().subscribe(committedEvents::add);
 
         node.activate();
         try {
@@ -296,7 +296,7 @@ public class TimingNodeTest {
                 new DefaultTimingDataFactory(),
                 TimingNodeTest::now);
         List<TimingData> committedEvents = new ArrayList<TimingData>();
-        node.newDataEvent().subscribe(committedEvents::add);
+        node.newDataEntryEvent().subscribe(committedEvents::add);
 
         node.activate();
         try {
@@ -589,7 +589,7 @@ public class TimingNodeTest {
                                     node.query(
                                             LogBookQueries.status(),
                                             ReadConsistency.CURRENT));
-            node.newDataEvent().subscribe(
+            node.newDataEntryEvent().subscribe(
                     ignored ->
                             timingDataEventCurrent[0] =
                                     node.query(

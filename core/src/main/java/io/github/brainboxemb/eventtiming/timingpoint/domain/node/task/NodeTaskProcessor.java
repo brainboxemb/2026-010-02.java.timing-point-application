@@ -96,7 +96,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
          */
         logBookProcessor.recoveredDataEvent()
                 .subscribe(this::onTimingDataRecovered);
-        logBookProcessor.newDataEvent()
+        logBookProcessor.newDataEntryEvent()
                 .subscribe(this::onTimingDataCommitted);
 
         this.upstreamHandler =

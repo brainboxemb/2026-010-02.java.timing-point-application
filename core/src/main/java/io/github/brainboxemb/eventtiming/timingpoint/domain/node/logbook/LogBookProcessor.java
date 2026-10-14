@@ -48,7 +48,7 @@ public final class LogBookProcessor {
 
     private final Event<Status> statusChangedEvent =
             new Event<Status>();
-    private final Event<TimingData> newDataEvent =
+    private final Event<TimingData> newDataEntryEvent =
             new Event<TimingData>();
     private final Event<List<TimingData>> recoveredDataEvent =
             new Event<List<TimingData>>();
@@ -238,8 +238,8 @@ public final class LogBookProcessor {
         return statusChangedEvent;
     }
 
-    public EventSource<TimingData> newDataEvent() {
-        return newDataEvent;
+    public EventSource<TimingData> newDataEntryEvent() {
+        return newDataEntryEvent;
     }
 
     /**
@@ -517,7 +517,7 @@ public final class LogBookProcessor {
         long eventStartedNanos =
                 monotonicClock.nowNanos();
         Event.DeliveryReport delivery =
-                newDataEvent.emit(data);
+                newDataEntryEvent.emit(data);
         metrics.recordEventDelivery(
                 monotonicClock.nowNanos()
                         - eventStartedNanos,
@@ -526,7 +526,7 @@ public final class LogBookProcessor {
             LOG.warn(
                     "TimingData committed but "
                             + delivery.failureCount()
-                            + " newDataEvent listener(s) failed for "
+                            + " newDataEntryEvent listener(s) failed for "
                             + timingNodeId().value()
                             + ":"
                             + data.sequenceNumber(),

@@ -132,7 +132,7 @@ public class WebSocketOutboundDeliveryTest {
                                 .instant());
         node.activate();
         try {
-            node.newDataEvent()
+            node.newDataEntryEvent()
                     .subscribe(
                             data -> {
                                 delivery.send(
