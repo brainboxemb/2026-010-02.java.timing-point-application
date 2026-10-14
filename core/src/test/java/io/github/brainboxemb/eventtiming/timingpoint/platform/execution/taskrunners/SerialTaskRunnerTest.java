@@ -81,11 +81,9 @@ public class SerialTaskRunnerTest {
                     firstStepEntered.await(
                             500L,
                             TimeUnit.MILLISECONDS));
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    lane.offer(
+            lane.execute(
                             () -> order.add(
-                                    "sibling")));
+                                    "sibling"));
 
             releaseFirstStep.countDown();
             completion.get(
