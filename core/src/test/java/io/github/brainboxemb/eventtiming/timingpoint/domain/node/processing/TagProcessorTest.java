@@ -558,7 +558,7 @@ public class TagProcessorTest {
         processor.newRegistrationEvent()
                 .subscribe(
                         registration ->
-                                node.logBook().queue(
+                                node.logBook().execute(
                                         LogBookCommands.addAutomaticRegistration(
                                                 registration.registrationId(),
                                                 registration.observedAt())));
