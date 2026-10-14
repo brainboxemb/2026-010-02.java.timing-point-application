@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -157,10 +158,12 @@ public final class SimulatedTagScenarioRunner
         return StartResult.ACCEPTED;
     }
 
+    /** Returns the number of simulated scenarios that have not finished yet. */
     synchronized int activeScenarioCount() {
         return activeScenarios;
     }
 
+    /** Schedules one scenario step immediately or after its relative delay. */
     private boolean scheduleStep(
             Scenario scenario,
             int index,
@@ -181,8 +184,8 @@ public final class SimulatedTagScenarioRunner
 
         try {
             if (delayNanos == 0L) {
-                return lane.offer(work)
-                        == SerialLane.AdmissionResult.ACCEPTED;
+                lane.execute(work);
+                return true;
             }
             scheduler.submitAfter(
                     () -> {
@@ -191,11 +194,12 @@ public final class SimulatedTagScenarioRunner
                     },
                     delayNanos);
             return true;
-        } catch (IllegalStateException ex) {
+        } catch (RejectedExecutionException | IllegalStateException ex) {
             return false;
         }
     }
 
+    /** Emits one simulated observation and schedules the next scenario step when present. */
     private void runStep(
             Scenario scenario,
             int index,
