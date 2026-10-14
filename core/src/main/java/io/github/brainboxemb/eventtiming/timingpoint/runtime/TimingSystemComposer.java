@@ -5,20 +5,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationCond
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.SystemConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.DefaultTimingDataPersistence;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
-import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.AntennaManagerConfig;
@@ -46,6 +37,7 @@ final class TimingSystemComposer {
     private final RuntimeExecutors executors;
     private final PlatformEnvironment platform;
     private final ApplicationConductor applicationConductor;
+    private final TimingNodeComposer nodeComposer;
 
     TimingSystemComposer(
             ApplicationConfiguration configuration,
@@ -56,6 +48,11 @@ final class TimingSystemComposer {
         this.executors = executors;
         this.platform = platform;
         this.applicationConductor = applicationConductor;
+        this.nodeComposer =
+                new TimingNodeComposer(
+                        configuration,
+                        executors,
+                        platform);
     }
 
     TimingSystemComponents compose(
@@ -105,52 +102,13 @@ final class TimingSystemComposer {
             TimingSystemResolvedData system,
             TimeSource timeSource) {
         TimingNodeList nodes = new TimingNodeList();
-        for (Config.TimingNodeConfig nodeConfig : system.configuration().timingNodes()) {
-            RuntimeExecutors.TimingNodeLanes nodeLanes =
-                    executors.createTimingNodeLanes();
-            TimingDataPersistence persistence = new DefaultTimingDataPersistence(
-                    new FileAppendOnlyRecordStore(nodeConfig.timingDataPath()),
-                    nodeConfig.timingNodeId(),
-                    system.timingDataCodec());
-            LogBookProcessor logBookProcessor =
-                    new LogBookProcessor(
-                            nodeConfig.timingNodeId(),
-                            persistence,
-                            system.timingDataFactory(),
-                            timeSource,
-                            platform.monotonicClock(),
-                            new LogBookProcessorMetrics(),
-                            nodeLanes.dataLane());
-
-            NodeTaskProcessor taskProcessor =
-                    new NodeTaskProcessor(
-                            logBookProcessor,
-                            nodeLanes.taskLane(),
-                            system.eventData(),
-                            UpstreamStream.unavailable());
-
-            TagProcessor tagProcessor =
-                    new TagProcessor(
-                            system.eventData(),
-                            configuration.timingNode(
-                                    nodeConfig.timingNodeId())
-                                    .tagProcessing(),
-                            platform.monotonicClock(),
-                            new TagProcessingMetrics(),
-                            nodeLanes.tagProcessor(),
-                            nodeLanes.tagProcessorScheduler());
-            configuration.timingNode(
-                    nodeConfig.timingNodeId())
-                    .tagProcessing()
-                    .changes()
-                    .subscribe(
-                            tagProcessor::onPolicyConfigurationChanged);
-
+        for (Config.TimingNodeConfig nodeConfig
+                : system.configuration().timingNodes()) {
             nodes.add(
-                    new TimingNode(
-                            logBookProcessor,
-                            taskProcessor,
-                            tagProcessor));
+                    nodeComposer.compose(
+                            nodeConfig,
+                            system,
+                            timeSource));
         }
         return nodes;
     }
