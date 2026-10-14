@@ -55,7 +55,7 @@ public class DefaultTimingDataPersistenceTest {
     }
 
     @Test
-    public void corruptCompleteRecordStopsRecovery() throws Exception {
+    public void corruptCompleteRecordStopsLoad() throws Exception {
         Path file = file();
         Files.write(file, "{not-json}\n".getBytes(StandardCharsets.UTF_8));
 
@@ -63,7 +63,7 @@ public class DefaultTimingDataPersistenceTest {
     }
 
     @Test
-    public void sequenceGapStopsRecovery() throws Exception {
+    public void sequenceGapStopsLoad() throws Exception {
         Path file = file();
         Files.write(
                 file,
@@ -77,7 +77,7 @@ public class DefaultTimingDataPersistenceTest {
     }
 
     @Test
-    public void duplicateSequenceStopsRecovery() throws Exception {
+    public void duplicateSequenceStopsLoad() throws Exception {
         Path file = file();
         Files.write(
                 file,
@@ -91,7 +91,7 @@ public class DefaultTimingDataPersistenceTest {
     }
 
     @Test
-    public void regressedSequenceStopsRecovery() throws Exception {
+    public void regressedSequenceStopsLoad() throws Exception {
         Path file = file();
         Files.write(
                 file,
@@ -107,7 +107,7 @@ public class DefaultTimingDataPersistenceTest {
     }
 
     @Test
-    public void differentTimingNodeStopsRecovery() throws Exception {
+    public void differentTimingNodeStopsLoad() throws Exception {
         Path file = file();
         Files.write(
                 file,
@@ -174,7 +174,7 @@ public class DefaultTimingDataPersistenceTest {
     private void assertLoadFails(Path file, String expectedMessage) throws Exception {
         try {
             persistence(file).load();
-            fail("expected recovery failure");
+            fail("expected load failure");
         } catch (TimingDataPersistence.PersistenceException expected) {
             assertTrue(expected.getMessage(), expected.getMessage().contains(expectedMessage));
         }
