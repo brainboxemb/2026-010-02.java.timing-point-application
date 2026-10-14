@@ -48,6 +48,7 @@ public final class SimulatedTagScenarioRunner
     private boolean active;
     private int activeScenarios;
 
+    /** Creates the deterministic simulation runner over the supplied antenna and execution lane. */
     public SimulatedTagScenarioRunner(
             SimulatedAntenna antenna,
             EventData eventData,
@@ -105,6 +106,7 @@ public final class SimulatedTagScenarioRunner
     }
 
     @Override
+    /** Starts one named simulated registration scenario when runtime simulation is active. */
     public StartResult startRegistration(
             RegistrationId registrationId,
             String profileId) {
@@ -259,6 +261,7 @@ public final class SimulatedTagScenarioRunner
         }
     }
 
+    /** Resolves one configured simulation profile into its deterministic observation sequence. */
     private static Scenario scenario(
             RegistrationId registrationId,
             String profileId,
@@ -282,6 +285,7 @@ public final class SimulatedTagScenarioRunner
         return null;
     }
 
+    /** Builds the short single-tag simulation profile. */
     private static Scenario simple(
             List<TagId> tags) {
         List<ObservationStep> steps =
@@ -295,6 +299,7 @@ public final class SimulatedTagScenarioRunner
                 steps);
     }
 
+    /** Builds the normal multi-observation simulation profile. */
     private static Scenario normal(
             List<TagId> tags) {
         TagId first =
@@ -318,6 +323,7 @@ public final class SimulatedTagScenarioRunner
                 steps);
     }
 
+    /** Builds the edge-case simulation profile used for timing/filter stress. */
     private static Scenario edge(
             RegistrationId registrationId,
             List<TagId> tags) {
@@ -372,6 +378,7 @@ public final class SimulatedTagScenarioRunner
                 steps);
     }
 
+    /** Creates one observation step at the supplied relative offset. */
     private static ObservationStep step(
             TagId tagId,
             int rssi,
@@ -386,6 +393,7 @@ public final class SimulatedTagScenarioRunner
     private static final class Scenario {
         private final List<ObservationStep> steps;
 
+        /** Stores one immutable ordered sequence of simulated observation steps. */
         private Scenario(
                 List<ObservationStep> steps) {
             this.steps = steps;
@@ -397,6 +405,7 @@ public final class SimulatedTagScenarioRunner
         private final int rssi;
         private final long offsetNanos;
 
+        /** Stores one immutable simulated observation and its relative offset. */
         private ObservationStep(
                 TagId tagId,
                 int rssi,
