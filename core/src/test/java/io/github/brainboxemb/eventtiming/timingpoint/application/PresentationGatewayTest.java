@@ -96,7 +96,7 @@ public class PresentationGatewayTest {
         try {
             awaitStatus(proxy);
             proxy.statusChangedEvent().subscribe(statusChanges::add);
-            proxy.newDataEvent().subscribe(committed::add);
+            proxy.newDataEntryEvent().subscribe(committed::add);
 
             PresentationGateway.Capabilities capabilities = gateway.capabilities();
             assertTrue(capabilities.directRegistrationSimulationSupported());
