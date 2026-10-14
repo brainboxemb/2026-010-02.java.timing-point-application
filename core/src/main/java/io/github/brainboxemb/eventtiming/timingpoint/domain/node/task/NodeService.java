@@ -95,11 +95,16 @@ public final class NodeService {
      */
     public List<StageTime> stageTiming(ZoneId raceTimeZone) {
         checkArgument(raceTimeZone != null, "raceTimeZone must not be null");
+
+        /*
+         * A query already running on this SerialLane can read the owned state
+         * directly; otherwise submit the no-argument ranking operation and wait
+         * for its ordered result.
+         */
+        if (serialLane.isExecutingOnCurrentThread()) {
+            return buildStageTiming(raceTimeZone);
+        }
         return submitAndWait(
-                /*
-                 * The no-argument lambda defers ranking calculation until the
-                 * SerialLane executes this submitted operation in order.
-                 */
                 () -> buildStageTiming(raceTimeZone),
                 "stageTiming");
     }
@@ -181,25 +186,12 @@ public final class NodeService {
     /**
      * Submits one result-bearing operation and waits for its ordered result.
      *
-     * <p>If already on the Task Lane, the work executes directly to avoid
-     * self-queueing and waiting on the same serial lane.</p>
+     * <p>Callers already executing on the SerialLane must use their direct
+     * read path instead of self-submitting and waiting.</p>
      */
     private <R> R submitAndWait(
             Callable<R> work,
             String operation) {
-        if (serialLane.isExecutingOnCurrentThread()) {
-            try {
-                return work.call();
-            } catch (RuntimeException ex) {
-                throw ex;
-            } catch (Exception ex) {
-                throw new OperationException(
-                        OperationException.Reason.FAILED,
-                        operation + " failed on the TimingNode Task Lane",
-                        ex);
-            }
-        }
-
         final Future<R> future;
         try {
             future = serialLane.submit(work);
