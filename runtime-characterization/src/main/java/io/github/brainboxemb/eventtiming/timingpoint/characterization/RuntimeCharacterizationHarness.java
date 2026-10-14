@@ -10,12 +10,12 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeMetrics;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.DefaultTimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.DefaultTimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
@@ -161,8 +161,8 @@ final class RuntimeCharacterizationHarness
                         "AntennaManager",
                         ioWorker);
 
-        TimingNodeMetrics nodeMetrics =
-                new TimingNodeMetrics();
+        LogBookProcessorMetrics nodeMetrics =
+                new LogBookProcessorMetrics();
         TagProcessingMetrics tagMetrics =
                 new TagProcessingMetrics();
 
@@ -212,7 +212,7 @@ final class RuntimeCharacterizationHarness
                         ANTENNA_ID)
                 .subscribe(
                         node.tagProcessor()::onTagObserved);
-        node.timingDataCommittedEvent()
+        node.newDataEvent()
                 .subscribe(
                         ignored ->
                                 committedCount.incrementAndGet());
@@ -237,7 +237,7 @@ final class RuntimeCharacterizationHarness
         node.activate();
         nodeActive = true;
         node.invoke(
-                TimingNodeCommands.open(
+                LogBookCommands.open(
                         LOCATION_ID));
 
         preloadHistory(
@@ -278,7 +278,7 @@ final class RuntimeCharacterizationHarness
 
         int historyAtMeasurementStart =
                 node.query(
-                        TimingNodeQueries.timingDataCount());
+                        LogBookQueries.timingDataCount());
 
         TimingNodeRuntimeSnapshot nodeBefore =
                 measurements.timingNode();
@@ -343,7 +343,7 @@ final class RuntimeCharacterizationHarness
                             INPUT_TIME_BASE.minusSeconds(
                                     count - index));
             if (!node.invoke(
-                            TimingNodeCommands.addAutomaticRegistration(
+                            LogBookCommands.addAutomaticRegistration(
                                     new RegistrationId(
                                             String.format(
                                                     "P%05d",
@@ -397,7 +397,7 @@ final class RuntimeCharacterizationHarness
                 System.nanoTime();
         int total =
                 node.query(
-                        TimingNodeQueries.visitLatestTimingData(
+                        LogBookQueries.visitLatestTimingData(
                                 config.queryLimit(),
                                 ignored ->
                                         visited.incrementAndGet()));
