@@ -98,8 +98,8 @@ public final class NodeService {
 
         /*
          * A query already running on this SerialLane can read the owned state
-         * directly; otherwise submit the no-argument ranking operation and wait
-         * for its ordered result.
+         * directly. Otherwise, () means the Callable has no arguments and ->
+         * introduces the ranking code that SerialLane executes later in order.
          */
         if (serialLane.isExecutingOnCurrentThread()) {
             return buildStageTiming(raceTimeZone);
