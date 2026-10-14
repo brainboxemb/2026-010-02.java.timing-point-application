@@ -14,6 +14,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServiceState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamTaskState;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
@@ -74,6 +75,7 @@ public final class TimingNodeFixture {
         private final NodeService nodeService;
         private final TagProcessor tagProcessor;
         private final UpstreamHandler upstreamHandler;
+        private final UpstreamTaskState upstreamTaskState;
 
         /** Creates test-only references to one fully composed TimingNode graph. */
         private Components(
@@ -81,12 +83,14 @@ public final class TimingNodeFixture {
                 LogBook logBook,
                 NodeService nodeService,
                 TagProcessor tagProcessor,
-                UpstreamHandler upstreamHandler) {
+                UpstreamHandler upstreamHandler,
+                UpstreamTaskState upstreamTaskState) {
             this.node = node;
             this.logBook = logBook;
             this.nodeService = nodeService;
             this.tagProcessor = tagProcessor;
             this.upstreamHandler = upstreamHandler;
+            this.upstreamTaskState = upstreamTaskState;
         }
 
         /** Returns the composed TimingNode owner. */
@@ -112,6 +116,16 @@ public final class TimingNodeFixture {
         /** Returns the separately composed upstream protocol boundary. */
         public UpstreamHandler upstreamHandler() {
             return upstreamHandler;
+        }
+
+        /**
+         * Returns the test-only passive upstream state view.
+         *
+         * <p>Use only after the direct fixture has completed the corresponding
+         * Task Lane operation; production code never exposes this state.</p>
+         */
+        public UpstreamTaskState upstreamTaskState() {
+            return upstreamTaskState;
         }
     }
 
@@ -332,6 +346,7 @@ public final class TimingNodeFixture {
                 logBook,
                 nodeService,
                 tagProcessor,
-                upstreamHandler);
+                upstreamHandler,
+                nodeServiceState);
     }
 }
