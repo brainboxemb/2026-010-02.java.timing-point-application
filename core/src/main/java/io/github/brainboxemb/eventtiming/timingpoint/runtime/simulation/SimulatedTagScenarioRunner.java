@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -47,6 +48,7 @@ public final class SimulatedTagScenarioRunner
     private boolean active;
     private int activeScenarios;
 
+    /** Creates the deterministic simulation runner over the supplied antenna and execution lane. */
     public SimulatedTagScenarioRunner(
             SimulatedAntenna antenna,
             EventData eventData,
@@ -83,6 +85,7 @@ public final class SimulatedTagScenarioRunner
                         scheduledExecutor);
     }
 
+    /** Enables acceptance and scheduling of new deterministic simulation scenarios. */
     public synchronized void activate() {
         if (active) {
             throw new IllegalStateException(
@@ -92,6 +95,7 @@ public final class SimulatedTagScenarioRunner
         active = true;
     }
 
+    /** Stops new simulation scenarios and clears runtime-owned active-scenario state. */
     public synchronized void deactivate() {
         if (!active) {
             return;
@@ -102,6 +106,7 @@ public final class SimulatedTagScenarioRunner
     }
 
     @Override
+    /** Starts one named simulated registration scenario when runtime simulation is active. */
     public StartResult startRegistration(
             RegistrationId registrationId,
             String profileId) {
@@ -157,10 +162,12 @@ public final class SimulatedTagScenarioRunner
         return StartResult.ACCEPTED;
     }
 
+    /** Returns the number of simulated scenarios that have not finished yet. */
     synchronized int activeScenarioCount() {
         return activeScenarios;
     }
 
+    /** Schedules one scenario step immediately or after its relative delay. */
     private boolean scheduleStep(
             Scenario scenario,
             int index,
@@ -181,8 +188,8 @@ public final class SimulatedTagScenarioRunner
 
         try {
             if (delayNanos == 0L) {
-                return lane.offer(work)
-                        == SerialLane.AdmissionResult.ACCEPTED;
+                lane.execute(work);
+                return true;
             }
             scheduler.submitAfter(
                     () -> {
@@ -191,11 +198,12 @@ public final class SimulatedTagScenarioRunner
                     },
                     delayNanos);
             return true;
-        } catch (IllegalStateException ex) {
+        } catch (RejectedExecutionException | IllegalStateException ex) {
             return false;
         }
     }
 
+    /** Emits one simulated observation and schedules the next scenario step when present. */
     private void runStep(
             Scenario scenario,
             int index,
@@ -241,16 +249,19 @@ public final class SimulatedTagScenarioRunner
         }
     }
 
+    /** Returns whether simulation work may still emit observations. */
     private synchronized boolean isActive() {
         return active;
     }
 
+    /** Decrements the active-scenario count after its final step or early stop. */
     private synchronized void finishScenario() {
         if (activeScenarios > 0) {
             activeScenarios--;
         }
     }
 
+    /** Resolves one configured simulation profile into its deterministic observation sequence. */
     private static Scenario scenario(
             RegistrationId registrationId,
             String profileId,
@@ -274,6 +285,7 @@ public final class SimulatedTagScenarioRunner
         return null;
     }
 
+    /** Builds the short single-tag simulation profile. */
     private static Scenario simple(
             List<TagId> tags) {
         List<ObservationStep> steps =
@@ -287,6 +299,7 @@ public final class SimulatedTagScenarioRunner
                 steps);
     }
 
+    /** Builds the normal multi-observation simulation profile. */
     private static Scenario normal(
             List<TagId> tags) {
         TagId first =
@@ -310,6 +323,7 @@ public final class SimulatedTagScenarioRunner
                 steps);
     }
 
+    /** Builds the edge-case simulation profile used for timing/filter stress. */
     private static Scenario edge(
             RegistrationId registrationId,
             List<TagId> tags) {
@@ -364,6 +378,7 @@ public final class SimulatedTagScenarioRunner
                 steps);
     }
 
+    /** Creates one observation step at the supplied relative offset. */
     private static ObservationStep step(
             TagId tagId,
             int rssi,
@@ -378,6 +393,7 @@ public final class SimulatedTagScenarioRunner
     private static final class Scenario {
         private final List<ObservationStep> steps;
 
+        /** Stores one immutable ordered sequence of simulated observation steps. */
         private Scenario(
                 List<ObservationStep> steps) {
             this.steps = steps;
@@ -389,6 +405,7 @@ public final class SimulatedTagScenarioRunner
         private final int rssi;
         private final long offsetNanos;
 
+        /** Stores one immutable simulated observation and its relative offset. */
         private ObservationStep(
                 TagId tagId,
                 int rssi,

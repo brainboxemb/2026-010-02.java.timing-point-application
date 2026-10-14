@@ -20,24 +20,6 @@ public final class TimingNodeTypes {
     private TimingNodeTypes() {
     }
 
-    /**
-     * Immediate result of trying to queue a LogBook command.
-     *
-     * <p>{@code QUEUED} means the command is waiting for later Data Lane
-     * execution. It does not mean that the command has already executed or
-     * succeeded.</p>
-     */
-    public enum CommandQueueResult {
-        /** The command is waiting for later Data Lane execution. */
-        QUEUED,
-
-        /** The bounded Data Lane queue cannot accept more work. */
-        QUEUE_FULL,
-
-        /** The LogBook Data Lane is not currently accepting work. */
-        NOT_RUNNING
-    }
-
     /** Logical operating state published by the LogBook. */
     public enum State {
         /** No timing location is currently open. */

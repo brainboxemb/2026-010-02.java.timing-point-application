@@ -131,11 +131,9 @@ public class SystemConductorTest {
                     0L,
                     manager.settings().revision());
 
-            assertEquals(
-                    io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandQueueResult.QUEUED,
-                    node.logBook().queue(
-                            LogBookCommands.open(
-                                    new LocationId(24))));
+            node.logBook().queue(
+                    LogBookCommands.open(
+                            new LocationId(24)));
 
             persistence.releaseLoad.countDown();
             await(
@@ -168,12 +166,12 @@ public class SystemConductorTest {
         CountDownLatch release = new CountDownLatch(1);
         try {
             await(() -> lane.metrics().snapshot().queueDepth() == 0, 1000L);
-            assertEquals(SerialLane.AdmissionResult.ACCEPTED, lane.offer(() -> {
+            lane.execute(() -> {
                 started.countDown();
                 try { release.await(); } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                 }
-            }));
+            });
             assertTrue(started.await(1L, TimeUnit.SECONDS));
             node.logBook().execute(LogBookCommands.open(new LocationId(24)));
             assertFalse("Node event only wakes the Conductor", manager.settings().inventoryEnabled());
@@ -202,12 +200,12 @@ public class SystemConductorTest {
         CountDownLatch release = new CountDownLatch(1);
         try {
             await(() -> lane.metrics().snapshot().queueDepth() == 0, 1000L);
-            assertEquals(SerialLane.AdmissionResult.ACCEPTED, lane.offer(() -> {
+            lane.execute(() -> {
                 started.countDown();
                 try { release.await(); } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                 }
-            }));
+            });
             assertTrue(started.await(1L, TimeUnit.SECONDS));
             node.logBook().execute(LogBookCommands.open(new LocationId(24)));
             node.logBook().execute(LogBookCommands.close());

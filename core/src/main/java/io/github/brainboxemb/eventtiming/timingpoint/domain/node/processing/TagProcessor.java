@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
@@ -60,6 +61,7 @@ public final class TagProcessor {
     private volatile List<TagPassageSnapshot> passageSnapshots =
             Collections.emptyList();
 
+    /** Creates a TagProcessor with one fixed startup policy. */
     public TagProcessor(
             EventData eventData,
             TagProcessingPolicy policy,
@@ -76,6 +78,7 @@ public final class TagProcessor {
                 scheduledExecutor);
     }
 
+    /** Creates a TagProcessor backed by the supplied live read-only policy configuration. */
     public TagProcessor(
             EventData eventData,
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
@@ -155,8 +158,12 @@ public final class TagProcessor {
             state = State.INACTIVE;
             closeHousekeepingLocked();
             drainRemaining = !inputQueue.isEmpty();
-            if (drainRemaining && !tryQueueOnTagLane(this::drainAll)) {
-                inputQueue.clear();
+            if (drainRemaining) {
+                try {
+                    lane.execute(this::drainAll);
+                } catch (RejectedExecutionException ex) {
+                    inputQueue.clear();
+                }
             }
         }
 
@@ -171,6 +178,7 @@ public final class TagProcessor {
      * Mapping, duplicate checks and passage selection run later on the
      * TagProcessor lane.</p>
      */
+    /** Accepts one antenna observation into the bounded processor ingress queue. */
     public void onTagObserved(TagObservation observation) {
         checkArgument(observation != null, "observation must not be null");
 
@@ -196,6 +204,7 @@ public final class TagProcessor {
      * never read the mutable filter state directly and no worker round-trip is
      * required merely to inspect diagnostics.</p>
      */
+    /** Returns the latest immutable engineering snapshot of active tag passages. */
     public List<TagPassageSnapshot> passageSnapshots() {
         return passageSnapshots;
     }
@@ -205,16 +214,20 @@ public final class TagProcessor {
         return newRegistrationEvent;
     }
 
+    /** Schedules one TagProcessor-lane drain when no drain turn is already pending. */
     private void scheduleDrainLocked() {
         if (!drainScheduled.compareAndSet(false, true)) {
             return;
         }
-        if (!tryQueueOnTagLane(this::drainBatch)) {
+        try {
+            lane.execute(this::drainBatch);
+        } catch (RejectedExecutionException ex) {
             drainScheduled.set(false);
             metrics.recordProcessorNotRunning();
         }
     }
 
+    /** Processes the observations that were queued when this lane turn started. */
     private void drainBatch() {
         try {
             int count = inputQueue.size();
@@ -235,6 +248,7 @@ public final class TagProcessor {
         }
     }
 
+    /** Processes all remaining observations during orderly deactivation. */
     private void drainAll() {
         TagObservation observation;
         while ((observation = inputQueue.poll()) != null) {
@@ -242,6 +256,7 @@ public final class TagProcessor {
         }
     }
 
+    /** Contains one observation-processing failure so later antenna observations can continue. */
     private void processObservationSafely(TagObservation observation) {
         try {
             processObservation(observation);
@@ -253,6 +268,7 @@ public final class TagProcessor {
         }
     }
 
+    /** Maps and filters one queued antenna observation on the TagProcessor lane. */
     private void processObservation(TagObservation observation) {
         LOG.trace(
                 "Tag observation: tagId={}, rssi={}, observedAt={}",
@@ -284,6 +300,7 @@ public final class TagProcessor {
         ensureHousekeeping();
     }
 
+    /** Ensures one periodic housekeeping registration exists while timed filter state is active. */
     private void ensureHousekeeping() {
         if (!hasTimedState()) {
             return;
@@ -306,18 +323,22 @@ public final class TagProcessor {
      * child. The event graph is not changed during component activation or
      * deactivation.</p>
      */
+    /** Queues one accepted processing-policy change onto the TagProcessor lane. */
     public void onPolicyConfigurationChanged(
             ConfigurationChange<TagProcessingPolicy> change) {
         synchronized (lifecycleLock) {
             if (state != State.ACTIVE) {
                 return;
             }
-            if (!tryQueueOnTagLane(() -> applyPolicyChange(change))) {
-                LOG.warn("Could not queue TagProcessor policy change");
+            try {
+                lane.execute(() -> applyPolicyChange(change));
+            } catch (RejectedExecutionException ex) {
+                LOG.warn("Could not queue TagProcessor policy change", ex);
             }
         }
     }
 
+    /** Applies one accepted tag-processing policy change on the owning serial lane. */
     private void applyPolicyChange(
             ConfigurationChange<TagProcessingPolicy> change) {
         duplicateFilter.onPolicyChanged();
@@ -338,6 +359,7 @@ public final class TagProcessor {
         ensureHousekeeping();
     }
 
+    /** Advances timeout-based tag filtering and republishes the engineering snapshot. */
     private void housekeeping() {
         try {
             observationFilter.periodic();
@@ -355,6 +377,7 @@ public final class TagProcessor {
         }
     }
 
+    /** Publishes an immutable engineering snapshot of the current passage-filter state. */
     private void publishPassageSnapshots() {
         List<TagPassageSnapshot> current =
                 observationFilter.snapshots();
@@ -366,11 +389,13 @@ public final class TagProcessor {
                                         current));
     }
 
+    /** Returns whether filter state still needs periodic timeout housekeeping. */
     private boolean hasTimedState() {
         return observationFilter.hasPendingState()
                 || duplicateFilter.hasPendingState();
     }
 
+    /** Cancels the current housekeeping registration while holding the lifecycle lock. */
     private void closeHousekeepingLocked() {
         LaneScheduler.ScheduledRegistration task = housekeepingTask;
         housekeepingTask = null;
@@ -379,18 +404,7 @@ public final class TagProcessor {
         }
     }
 
-    /**
-     * Tries to queue one fire-and-forget operation on the TagProcessor lane.
-     *
-     * <p>Returns {@code true} only when the work was queued for later serial
-     * execution; it does not report the eventual operation outcome.</p>
-     */
-    private boolean tryQueueOnTagLane(
-            Runnable operation) {
-        return lane.offer(operation)
-                == SerialLane.AdmissionResult.ACCEPTED;
-    }
-
+    /** Converts one filter-approved observation into a registration event. */
     private void processValidObservation(
             RegistrationId registrationId,
             TimingTimestamp observedAt) {
@@ -417,6 +431,7 @@ public final class TagProcessor {
         private final RegistrationId registrationId;
         private final TimingTimestamp observedAt;
 
+        /** Creates the immutable registration fact emitted after passage selection. */
         public NewRegistration(
                 RegistrationId registrationId,
                 TimingTimestamp observedAt) {
@@ -426,10 +441,12 @@ public final class TagProcessor {
             this.observedAt = observedAt;
         }
 
+        /** Returns the registration selected from the completed tag passage. */
         public RegistrationId registrationId() {
             return registrationId;
         }
 
+        /** Returns the observation time retained for the automatic registration. */
         public TimingTimestamp observedAt() {
             return observedAt;
         }

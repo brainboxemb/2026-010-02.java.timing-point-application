@@ -88,7 +88,8 @@ public class RuntimeMeasurementReaderTest {
                         timeSource,
                         SystemMonotonicClock.INSTANCE,
                         logBookMetrics,
-                        dataLane);
+                        dataLane,
+                        LogBook.DEFAULT_OPERATION_TIMEOUT_MILLIS);
         NodeService nodeService =
                 new NodeService(
                         logBook,

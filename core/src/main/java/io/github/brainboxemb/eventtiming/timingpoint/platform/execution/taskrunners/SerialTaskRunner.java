@@ -38,6 +38,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
             extends RuntimeException {
         private final FailureReason reason;
 
+        /** Creates one task-runner failure with a stable reason and original cause. */
         public OperationException(
                 FailureReason reason,
                 String message,
@@ -46,6 +47,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
             this.reason = reason;
         }
 
+        /** Returns the stable category for this task-runner operation failure. */
         public FailureReason reason() {
             return reason;
         }
@@ -58,6 +60,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
         private final AtomicReference<Future<?>> active =
                 new AtomicReference<Future<?>>();
 
+        /** Creates one cooperative task execution bound to this runner. */
         private TaskRun(
                 YieldingTask task) {
             this.task = task;
@@ -65,12 +68,14 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
                     this::runCompleted);
         }
 
+        /** Starts the first cooperative task step and returns the completion handle. */
         private CompletableFuture<Void> start() {
             scheduleStep(
                     0L);
             return result;
         }
 
+        /** Completes the public result after the task reaches DONE or fails. */
         private void runCompleted(
                 Void ignored,
                 Throwable ignoredFailure) {
@@ -85,6 +90,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
             }
         }
 
+        /** Chooses immediate or delayed execution for the next cooperative task step. */
         private void scheduleStep(
                 long delayNanos) {
             if (result.isDone()) {
@@ -99,26 +105,23 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
             }
         }
 
+        /** Submits the next cooperative task step immediately to the serial lane. */
         private void scheduleImmediateStep() {
             CompletableFuture<TaskStep> completion =
                     new CompletableFuture<TaskStep>();
 
-            SerialLane.SubmitResult<TaskStep> submitted =
-                    lane.submit(
-                            () -> executeStep(
-                                    task::runStep,
-                                    completion));
-
-            if (submitted.admission()
-                    != SerialLane.AdmissionResult.ACCEPTED) {
-                result.completeExceptionally(
-                        rejected(
-                                submitted.admission()));
+            final Future<TaskStep> future;
+            try {
+                future =
+                        lane.submit(
+                                () -> executeStep(
+                                        task::runStep,
+                                        completion));
+            } catch (RejectedExecutionException ex) {
+                result.completeExceptionally(ex);
                 return;
             }
 
-            Future<TaskStep> future =
-                    submitted.futureResult();
             active.set(
                     future);
             if (result.isCancelled()) {
@@ -130,6 +133,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
                     this::stepCompleted);
         }
 
+        /** Schedules one delayed task step through the lane scheduler. */
         private void scheduleDelayedStep(
                 long delayNanos) {
             if (scheduler == null) {
@@ -163,6 +167,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
                             this::stepCompleted);
         }
 
+        /** Executes one task step and completes its step Future with the returned instruction. */
         private TaskStep executeStep(
                 Callable<TaskStep> operation,
                 CompletableFuture<TaskStep> completion)
@@ -188,6 +193,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
             }
         }
 
+        /** Interprets one completed TaskStep and schedules or completes the task accordingly. */
         private void stepCompleted(
                 TaskStep step,
                 Throwable stepFailure) {
@@ -230,6 +236,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
             }
         }
 
+        /** Registers the next task step after the requested cooperative delay. */
         private void scheduleAfter(
                 Duration delay) {
             if (delay == null) {
@@ -292,6 +299,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
                 timeoutNanos(timeout));
     }
 
+    /** Creates the runner around an existing lane with optional scheduling and wait timeout. */
     private SerialTaskRunner(
             SerialLane lane,
             LaneScheduler scheduler,
@@ -302,6 +310,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
     }
 
     @Override
+    /** Starts one cooperative task and returns a Future completed when the task finishes. */
     public CompletableFuture<Void> runTask(
             YieldingTask task) {
         if (task == null) {
@@ -314,18 +323,18 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
                 .start();
     }
 
+    /** Starts the owned serial lane before tasks or ordinary operations are submitted. */
     public void start() {
         lane.start();
     }
 
-    /** Admits one ordinary short operation to the same serial lane. */
-    public boolean execute(
+    /** Queues one ordinary short operation on the same serial lane without waiting. */
+    public void execute(
             Runnable operation) {
-        return lane.offer(
-                operation)
-                == SerialLane.AdmissionResult.ACCEPTED;
+        lane.execute(operation);
     }
 
+    /** Waits for one cooperative task completion using this runner's configured timeout. */
     public void await(
             CompletableFuture<Void> future) {
         if (timeoutNanos <= 0L) {
@@ -382,31 +391,29 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
         }
     }
 
+    /** Returns whether the underlying serial lane has never been started. */
     public boolean isNew() {
         return lane.state()
                 == SerialLane.State.NEW;
     }
 
+    /** Returns whether the underlying serial lane currently accepts work. */
     public boolean isRunning() {
         return lane.state()
                 == SerialLane.State.RUNNING;
     }
 
+    /** Returns the terminal lane failure used for task-runner diagnostics. */
     public Throwable failure() {
         return lane.failure();
     }
 
+    /** Stops new serial-lane work after accepted work has drained. */
     public void close() {
         lane.close();
     }
 
-    private static RejectedExecutionException rejected(
-            SerialLane.AdmissionResult admission) {
-        return new RejectedExecutionException(
-                "Serial lane rejected yielding task step: "
-                        + admission);
-    }
-
+    /** Validates the mandatory serial lane dependency. */
     private static SerialLane requireLane(
             SerialLane lane) {
         if (lane == null) {
@@ -416,6 +423,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
         return lane;
     }
 
+    /** Validates the scheduler dependency when delayed task steps are enabled. */
     private static ScheduledExecutorService requireScheduler(
             ScheduledExecutorService scheduler) {
         if (scheduler == null) {
@@ -425,6 +433,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
         return scheduler;
     }
 
+    /** Converts and validates the optional public wait timeout. */
     private static long timeoutNanos(
             Duration timeout) {
         if (timeout == null
@@ -442,6 +451,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
         }
     }
 
+    /** Creates one stable task-runner operation failure. */
     private static OperationException failure(
             FailureReason reason,
             String message,

@@ -85,10 +85,9 @@ public class SerialTaskRunnerSchedulingTest {
                             500,
                             TimeUnit.MILLISECONDS));
 
-            assertTrue(
-                    runner.execute(
-                            () -> order.add(
-                                    "sibling")));
+            runner.execute(
+                    () -> order.add(
+                            "sibling"));
 
             allowFirstStepReturn.countDown();
             runner.await(
@@ -160,10 +159,8 @@ public class SerialTaskRunnerSchedulingTest {
 
             CountDownLatch siblingRan =
                     new CountDownLatch(1);
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    siblingLane.offer(
-                            siblingRan::countDown));
+            siblingLane.execute(
+                            siblingRan::countDown);
             assertTrue(
                     "yielding delay must release the shared worker",
                     siblingRan.await(

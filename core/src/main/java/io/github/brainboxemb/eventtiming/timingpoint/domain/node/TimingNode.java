@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandQueueResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
@@ -11,6 +10,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLi
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.RejectedExecutionException;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
@@ -30,6 +31,7 @@ public final class TimingNode {
     private final ComponentLifecycleManager lifecycle =
             new ComponentLifecycleManager();
 
+    /** Creates the top-level node owner around its already composed child components. */
     public TimingNode(
             LogBook logBook,
             NodeService nodeService,
@@ -61,6 +63,7 @@ public final class TimingNode {
         tagProcessor.newRegistrationEvent().subscribe(this::onNewRegistration);
     }
 
+    /** Returns the immutable identity of this logical timing node. */
     public NodeId timingNodeId() {
         return timingNodeId;
     }
@@ -89,6 +92,7 @@ public final class TimingNode {
         lifecycle.activateAll();
     }
 
+    /** Deactivates all owned child components in reverse lifecycle order. */
     public void deactivate() {
         lifecycle.deactivateAll();
     }
@@ -98,30 +102,17 @@ public final class TimingNode {
      * the synchronous source event callback.
      */
     private void onNewRegistration(TagProcessor.NewRegistration registration) {
-        CommandQueueResult queueResult =
-                logBook.queue(
-                        LogBookCommands.addAutomaticRegistration(
-                                registration.registrationId(),
-                                registration.observedAt()));
-
-        switch (queueResult) {
-            case QUEUED:
-                return;
-            case QUEUE_FULL:
-                LOG.error(
-                        "LogBook Data Lane queue is full for node {}; automatic registration {} was not queued",
-                        timingNodeId.value(),
-                        registration.registrationId().value());
-                return;
-            case NOT_RUNNING:
-                LOG.warn(
-                        "LogBook Data Lane is not running for node {}; automatic registration {} was not queued",
-                        timingNodeId.value(),
-                        registration.registrationId().value());
-                return;
-            default:
-                throw new IllegalStateException(
-                        "Unsupported LogBook queue result " + queueResult);
+        try {
+            logBook.queue(
+                    LogBookCommands.addAutomaticRegistration(
+                            registration.registrationId(),
+                            registration.observedAt()));
+        } catch (RejectedExecutionException ex) {
+            LOG.warn(
+                    "Automatic registration {} for node {} could not be queued on the LogBook Data Lane",
+                    registration.registrationId().value(),
+                    timingNodeId.value(),
+                    ex);
         }
     }
 }

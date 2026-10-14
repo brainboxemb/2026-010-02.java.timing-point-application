@@ -38,6 +38,7 @@ final class TimingNodeComposer {
         this.monotonicClock = monotonicClock;
     }
 
+    /** Builds one complete TimingNode child-component set from resolved runtime configuration. */
     TimingNodeComponents compose(
             Config.TimingNodeConfig nodeConfig,
             TimingSystemResolvedData system,
@@ -64,7 +65,8 @@ final class TimingNodeComposer {
                         timeSource,
                         monotonicClock,
                         new LogBookMetrics(),
-                        lanes.dataLane());
+                        lanes.dataLane(),
+                        LogBook.DEFAULT_OPERATION_TIMEOUT_MILLIS);
 
         NodeService nodeService =
                 new NodeService(

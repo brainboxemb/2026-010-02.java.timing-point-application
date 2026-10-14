@@ -236,10 +236,8 @@ public class AntennaManagerTest {
 
             CountDownLatch duringSelfTestDelay =
                     new CountDownLatch(1);
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    sibling.offer(
-                            duringSelfTestDelay::countDown));
+            sibling.execute(
+                            duringSelfTestDelay::countDown);
             assertTrue(
                     "self-test stabilization must not occupy the shared worker",
                     duringSelfTestDelay.await(
@@ -261,10 +259,8 @@ public class AntennaManagerTest {
 
             CountDownLatch duringInitializeDelay =
                     new CountDownLatch(1);
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    sibling.offer(
-                            duringInitializeDelay::countDown));
+            sibling.execute(
+                            duringInitializeDelay::countDown);
             assertTrue(
                     "initialize stabilization must not occupy the shared worker",
                     duringInitializeDelay.await(

@@ -10,6 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 import java.util.concurrent.Callable;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
@@ -48,6 +49,7 @@ public final class UpstreamHandler {
      */
     private final AtomicBoolean inputOperationScheduled = new AtomicBoolean();
 
+    /** Creates the node-scoped upstream coordinator over the supplied Data and Task Lane boundaries. */
     public UpstreamHandler(
             NodeId nodeId,
             DataLane dataLane,
@@ -87,12 +89,13 @@ public final class UpstreamHandler {
             return true;
         }
 
-        if (dataLane.tryQueue(this::handleNextOnDataLane)) {
+        try {
+            dataLane.execute(this::handleNextOnDataLane);
             return true;
+        } catch (RejectedExecutionException ex) {
+            inputOperationScheduled.set(false);
+            return false;
         }
-
-        inputOperationScheduled.set(false);
-        return false;
     }
 
     /**
@@ -170,12 +173,9 @@ public final class UpstreamHandler {
                         "PING has incompatible semantic type");
                 UpstreamData.Ping ping =
                         (UpstreamData.Ping) data;
-                if (!taskLane.tryQueue(
-                        () -> heartbeat.handle(ping))) {
-                    LOG.warn(
-                            "Dropped upstream PING for node {} because the Task Lane could not accept it",
-                            nodeId.value());
-                }
+                executeOnTaskLaneOrWarn(
+                        () -> heartbeat.handle(ping),
+                        "PING");
                 return;
 
             default:
@@ -203,11 +203,7 @@ public final class UpstreamHandler {
      * heartbeat tick has executed.</p>
      */
     public void heartbeatTick() {
-        if (!taskLane.tryQueue(heartbeat::tick)) {
-            LOG.warn(
-                    "Skipped heartbeat tick for node {} because the Task Lane could not accept it",
-                    nodeId.value());
-        }
+        executeOnTaskLaneOrWarn(heartbeat::tick, "heartbeat tick");
     }
 
     /** Returns the latest immutable heartbeat snapshot without a lane hop. */
@@ -236,14 +232,25 @@ public final class UpstreamHandler {
                 "uniqueTeamRegistrationCount").intValue();
     }
 
+    /** Executes one fire-and-forget protocol operation on the Task Lane, containing queue rejection locally. */
     private void queueProtocolOperationOnTaskLane(
             String operation,
             Runnable task) {
-        if (!taskLane.tryQueue(task)) {
+        executeOnTaskLaneOrWarn(task, operation);
+    }
+
+    /** Contains Task Lane rejection at the upstream boundary so it cannot escape through an I/O callback. */
+    private void executeOnTaskLaneOrWarn(
+            Runnable task,
+            String operation) {
+        try {
+            taskLane.execute(task);
+        } catch (RejectedExecutionException ex) {
             LOG.warn(
-                    "Dropped upstream {} for node {} because the Task Lane could not accept it; no ACK is sent",
+                    "Dropped upstream {} for node {} because the Task Lane rejected execution",
                     operation,
-                    nodeId.value());
+                    nodeId.value(),
+                    ex);
         }
     }
 
@@ -254,13 +261,19 @@ public final class UpstreamHandler {
         boolean workRemaining =
                 stream.isAvailable() && (logBookSync.syncPending() || stream.hasMessage());
 
-        if (workRemaining && dataLane.tryQueue(this::handleNextOnDataLane)) {
-            return;
+        if (workRemaining) {
+            try {
+                dataLane.execute(this::handleNextOnDataLane);
+                return;
+            } catch (RejectedExecutionException ex) {
+                LOG.debug("Data Lane rejected another upstream turn for node {}", nodeId.value(), ex);
+            }
         }
 
         inputOperationScheduled.set(false);
     }
 
+    /** Delegates one result-bearing upstream query to the Task Lane and waits for completion. */
     private <R> R executeOnTaskLaneAndWait(
             Callable<R> task,
             String operation) {
@@ -268,25 +281,28 @@ public final class UpstreamHandler {
     }
 
     /**
-     * Non-blocking handoff to the owning TimingNode Data Lane.
+     * Non-blocking execution boundary for work owned by the TimingNode Data Lane.
      *
-     * <p>{@code true} means the work was queued, not executed.</p>
+     * <p>The method follows Java Executor semantics: it returns after queueing
+     * and throws RejectedExecutionException if the lane cannot accept the work.</p>
      */
     @FunctionalInterface
     public interface DataLane {
-        boolean tryQueue(Runnable operation);
+        void execute(Runnable operation);
     }
 
     /**
      * Task Lane boundary used by upstream protocol code.
      *
-     * <p>{@link #tryQueue(Runnable)} is fire-and-forget queueing.
+     * <p>{@link #execute(Runnable)} is fire-and-forget execution.
      * {@link #executeAndWait(Callable, String)} is reserved for result-bearing
      * calls made from outside a conflicting lane context.</p>
      */
     public interface TaskLane {
-        boolean tryQueue(Runnable task);
+        /** Queues one fire-and-forget upstream task on the Task Lane. */
+        void execute(Runnable task);
 
+        /** Executes one result-bearing Task Lane operation and waits for its result. */
         <R> R executeAndWait(
                 Callable<R> task,
                 String operation);

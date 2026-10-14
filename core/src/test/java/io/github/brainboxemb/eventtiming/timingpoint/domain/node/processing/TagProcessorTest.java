@@ -446,12 +446,10 @@ public class TagProcessorTest {
 
         processor.activate();
         try {
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    execution.lane.offer(() -> {
+            execution.lane.execute(() -> {
                         blockerStarted.countDown();
                         await(releaseBlocker);
-                    }));
+                    });
             assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
             processor.onTagObserved(
@@ -488,12 +486,10 @@ public class TagProcessorTest {
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
         processor.activate();
-        assertEquals(
-                SerialLane.AdmissionResult.ACCEPTED,
-                execution.lane.offer(() -> {
+        execution.lane.execute(() -> {
                     blockerStarted.countDown();
                     await(releaseBlocker);
-                }));
+                });
         assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
         processor.onTagObserved(
@@ -571,9 +567,7 @@ public class TagProcessorTest {
     private static void awaitLane(SerialLane lane)
             throws Exception {
         CountDownLatch barrier = new CountDownLatch(1);
-        assertEquals(
-                SerialLane.AdmissionResult.ACCEPTED,
-                lane.offer(barrier::countDown));
+        lane.execute(barrier::countDown);
         assertTrue(barrier.await(1, TimeUnit.SECONDS));
     }
 

@@ -15,16 +15,16 @@ import org.slf4j.LoggerFactory;
  *
  * <p>A {@code SerialLane} is a logical lane, not necessarily a Java thread.
  * Production runtime composition gives multiple lanes one shared role worker.
- * Each lane still owns its own bounded queue, admission result, FIFO ordering
- * and lifecycle. The shared worker only executes short drain tokens submitted by
- * those lanes.</p>
+ * Each lane still owns its own bounded queue, FIFO ordering and lifecycle.
+ * Callers use the standard Java execute/submit/rejection model; the shared worker
+ * only runs short lane turns that execute one queued task at a time.</p>
  *
  * <p>The physical worker is supplied from outside this lane. The lane uses it
- * only to execute drain tokens; it never creates, configures or shuts down the
+ * only to execute queued lane turns; it never creates, configures or shuts down the
  * underlying worker. Runtime composition therefore owns physical worker
  * lifecycle while this class owns only lane-local execution behaviour.</p>
  */
-public final class SerialLane implements AutoCloseable {
+public final class SerialLane implements Executor, AutoCloseable {
     private static final Logger LOG =
             LoggerFactory.getLogger(SerialLane.class);
 
@@ -46,44 +46,14 @@ public final class SerialLane implements AutoCloseable {
         FAILED
     }
 
-    /** Result of non-blocking admission to this lane's bounded queue. */
-    public enum AdmissionResult {
-        ACCEPTED,
-        FULL,
-        NOT_RUNNING
-    }
-
-    /** Admission result plus Future for result-bearing work when accepted. */
-    public static final class SubmitResult<R> {
-        private final AdmissionResult admission;
-        private final Future<R> futureResult;
-
-        SubmitResult(
-                AdmissionResult admission,
-                Future<R> futureResult) {
-            this.admission = admission;
-            this.futureResult = futureResult;
-        }
-
-        public AdmissionResult admission() {
-            return admission;
-        }
-
-        public Future<R> futureResult() {
-            if (futureResult == null) {
-                throw new IllegalStateException(
-                        "futureResult is unavailable because the work was not accepted");
-            }
-            return futureResult;
-        }
-    }
-
     /**
      * Internal queue entry that adds timing/cancellation hooks around Runnable/FutureTask.
      */
     private interface TrackedTask extends Runnable {
+        /** Records when the lane accepted this task for queue-wait metrics. */
         void markAccepted(long acceptedAtNanos);
 
+        /** Cancels result-bearing work when the lane fails before execution. */
         void cancelIfFuture();
     }
 
@@ -108,10 +78,10 @@ public final class SerialLane implements AutoCloseable {
     private Throwable failure;
 
     /**
-     * True while this lane has a drain token running or waiting on the worker.
-     * At most one drain token per lane is scheduled at a time.
+     * True while this lane has a queued execution turn running or waiting on the worker.
+     * At most one execution turn per lane is scheduled at a time.
      */
-    private boolean drainScheduled;
+    private boolean executionScheduled;
 
     /** True only while one queue item from this lane is executing. */
     private boolean taskRunning;
@@ -138,6 +108,7 @@ public final class SerialLane implements AutoCloseable {
         this.metrics = new SerialLaneMetrics(queue::size);
     }
 
+    /** Rejects an invalid bounded queue capacity during construction. */
     private static void validateCapacity(int capacity) {
         if (capacity < 1) {
             throw new IllegalArgumentException(
@@ -145,6 +116,7 @@ public final class SerialLane implements AutoCloseable {
         }
     }
 
+    /** Validates and normalizes the diagnostic lane name. */
     private static String requireLaneName(String laneName) {
         if (laneName == null || laneName.trim().isEmpty()) {
             throw new IllegalArgumentException(
@@ -162,99 +134,107 @@ public final class SerialLane implements AutoCloseable {
     }
 
     /**
-     * Attempts to admit result-bearing work without waiting for queue space.
+     * Queues fire-and-forget work for serial execution.
      *
-     * <p>The returned Future is available only when admission is ACCEPTED.</p>
+     * <p>This follows {@link Executor#execute(Runnable)} semantics: the call
+     * returns after queueing and throws {@link RejectedExecutionException} when
+     * the lane cannot accept the work. It does not report the later task result.</p>
      */
-    public <R> SubmitResult<R> submit(Callable<R> work) {
+    @Override
+    public void execute(Runnable work) {
         if (work == null) {
-            throw new IllegalArgumentException(
-                    "work must not be null");
+            throw new IllegalArgumentException("work must not be null");
         }
-
-        TrackedFutureTask<R> task =
-                new TrackedFutureTask<R>(work);
-        AdmissionResult admission = admit(task);
-        return new SubmitResult<R>(
-                admission,
-                admission == AdmissionResult.ACCEPTED
-                        ? task
-                        : null);
+        enqueue(new TrackedRunnable(work));
     }
 
     /**
-     * Attempts to admit fire-and-forget work without waiting for queue space.
+     * Queues result-bearing work and returns the standard Java {@link Future}.
+     *
+     * <p>The method does not wait for execution. Queue rejection is reported
+     * immediately with {@link RejectedExecutionException}.</p>
      */
-    public AdmissionResult offer(Runnable work) {
+    public <R> Future<R> submit(Callable<R> work) {
         if (work == null) {
-            throw new IllegalArgumentException(
-                    "work must not be null");
+            throw new IllegalArgumentException("work must not be null");
         }
-        return admit(new TrackedRunnable(work));
+
+        TrackedFutureTask<R> task = new TrackedFutureTask<R>(work);
+        enqueue(task);
+        return task;
     }
 
-    private AdmissionResult admit(TrackedTask task) {
+    /**
+     * Adds one tracked task to the bounded lane queue or rejects it immediately.
+     *
+     * <p>Queue implementation details stay inside SerialLane; callers only see
+     * the standard execute/submit and rejection model.</p>
+     */
+    private void enqueue(TrackedTask task) {
         synchronized (this) {
             if (state != State.RUNNING) {
                 metrics.recordNotRunning();
-                return AdmissionResult.NOT_RUNNING;
+                throw new RejectedExecutionException("Serial lane " + laneName + " is not running");
             }
 
             task.markAccepted(System.nanoTime());
-            if (!queue.offer(task)) {
+            if (!enqueueTaskLocked(task)) {
                 metrics.recordFull();
-                return AdmissionResult.FULL;
+                throw new RejectedExecutionException("Serial lane " + laneName + " queue is full");
             }
 
-            if (!drainScheduled) {
-                drainScheduled = true;
-                if (!scheduleDrainLocked()) {
-                    queue.remove(task);
-                    task.cancelIfFuture();
-                    metrics.recordNotRunning();
-                    return AdmissionResult.NOT_RUNNING;
-                }
+            if (!executionScheduled) {
+                executionScheduled = true;
+                scheduleNextExecutionLocked();
             }
 
             metrics.recordAccepted(queue.size());
-            return AdmissionResult.ACCEPTED;
         }
     }
 
-    private boolean scheduleDrainLocked() {
+    /** Adds one task to the bounded internal queue without waiting for capacity. */
+    private boolean enqueueTaskLocked(TrackedTask task) {
+        return queue.offer(task);
+    }
+
+    /**
+     * Asks the externally owned Executor to run the next SerialLane turn.
+     *
+     * <p>If the worker rejects the turn, this lane becomes FAILED and all work
+     * still waiting in its private queue is cancelled.</p>
+     */
+    private void scheduleNextExecutionLocked() {
         try {
-            workerExecutor.execute(this::drainOne);
-            return true;
+            workerExecutor.execute(this::executeNextTask);
         } catch (RejectedExecutionException ex) {
             failure = ex;
             state = State.FAILED;
-            drainScheduled = false;
+            executionScheduled = false;
             cancelQueuedLocked();
             notifyAll();
-            return false;
+            throw ex;
         }
     }
 
     /**
-     * Executes one lane item and resubmits one drain token when more work exists.
+     * Executes one queued lane item and schedules another turn when work remains.
      *
-     * <p>Processing one item per token is intentional: on a shared one-worker
-     * role executor, another lane already waiting in the role queue can run
-     * before this lane resubmits its next item. One busy TimingNode therefore
-     * does not drain its complete backlog before another node gets a turn.</p>
+     * <p>Processing one item per worker turn is intentional: on a shared
+     * one-worker Executor, a sibling lane already waiting can run before this
+     * lane schedules its next item.</p>
      */
-    private void drainOne() {
+    private void executeNextTask() {
         final TrackedTask task;
         synchronized (this) {
             if (state == State.FAILED) {
-                drainScheduled = false;
+                executionScheduled = false;
                 notifyAll();
                 return;
             }
 
-            task = queue.poll();
+            task = nextQueuedTaskLocked();
             if (task == null) {
-                drainScheduled = false;
+                executionScheduled = false;
                 notifyAll();
                 return;
             }
@@ -277,28 +257,33 @@ public final class SerialLane implements AutoCloseable {
 
                 if (state == State.FAILED) {
                     cancelQueuedLocked();
-                    drainScheduled = false;
+                    executionScheduled = false;
                     notifyAll();
                     return;
                 }
 
                 if (queue.isEmpty()) {
-                    drainScheduled = false;
+                    executionScheduled = false;
                     notifyAll();
                     return;
                 }
 
-                if (!scheduleDrainLocked()) {
-                    notifyAll();
-                }
+                scheduleNextExecutionLocked();
             }
         }
     }
 
+    /** Removes and returns the next queued task, or {@code null} when none remains. */
+    private TrackedTask nextQueuedTaskLocked() {
+        return queue.poll();
+    }
+
+    /** Returns the current logical lane lifecycle state. */
     public synchronized State state() {
         return state;
     }
 
+    /** Returns the first fatal lane/worker failure, or {@code null} when healthy. */
     public synchronized Throwable failure() {
         return failure;
     }
@@ -333,7 +318,7 @@ public final class SerialLane implements AutoCloseable {
 
         if (state != State.FAILED) {
             boolean interrupted = false;
-            while (drainScheduled
+            while (executionScheduled
                     || taskRunning
                     || !queue.isEmpty()) {
                 try {
@@ -349,6 +334,7 @@ public final class SerialLane implements AutoCloseable {
         }
     }
 
+    /** Marks a fatal task error as the terminal failure of this logical lane. */
     private synchronized void markFailed(Error cause) {
         if (state == State.FAILED) {
             return;
@@ -356,17 +342,19 @@ public final class SerialLane implements AutoCloseable {
         failure = cause;
         state = State.FAILED;
         cancelQueuedLocked();
-        drainScheduled = false;
+        executionScheduled = false;
         notifyAll();
     }
 
+    /** Cancels all work still waiting in the private lane queue. */
     private void cancelQueuedLocked() {
         TrackedTask queued;
-        while ((queued = queue.poll()) != null) {
+        while ((queued = nextQueuedTaskLocked()) != null) {
             queued.cancelIfFuture();
         }
     }
 
+    /** Returns a non-negative elapsed duration for lane metrics. */
     private static long elapsedNanos(
             long startedNanos,
             long finishedNanos) {
@@ -379,20 +367,24 @@ public final class SerialLane implements AutoCloseable {
         private final Runnable delegate;
         private long acceptedAtNanos;
 
+        /** Wraps fire-and-forget work with lane timing/failure tracking. */
         private TrackedRunnable(Runnable delegate) {
             this.delegate = delegate;
         }
 
+        /** Stores the admission timestamp used when this Runnable eventually starts. */
         @Override
         public void markAccepted(long acceptedAtNanos) {
             this.acceptedAtNanos = acceptedAtNanos;
         }
 
+        /** Fire-and-forget work has no Future that can be cancelled. */
         @Override
         public void cancelIfFuture() {
             // Fire-and-forget work has no Future to cancel.
         }
 
+        /** Runs one fire-and-forget task while recording timing and containing runtime failures. */
         @Override
         public void run() {
             long startedNanos = System.nanoTime();
@@ -424,26 +416,31 @@ public final class SerialLane implements AutoCloseable {
         private final FatalTrackingCallable<R> trackedCallable;
         private long acceptedAtNanos;
 
+        /** Wraps result-bearing work in the FutureTask used as the public Future. */
         private TrackedFutureTask(Callable<R> work) {
             this(new FatalTrackingCallable<R>(work));
         }
 
+        /** Initializes FutureTask and retains fatal-error tracking for lane failure propagation. */
         private TrackedFutureTask(
                 FatalTrackingCallable<R> trackedCallable) {
             super(trackedCallable);
             this.trackedCallable = trackedCallable;
         }
 
+        /** Stores the admission timestamp used when this FutureTask eventually starts. */
         @Override
         public void markAccepted(long acceptedAtNanos) {
             this.acceptedAtNanos = acceptedAtNanos;
         }
 
+        /** Cancels an accepted FutureTask that cannot run after lane failure. */
         @Override
         public void cancelIfFuture() {
             cancel(false);
         }
 
+        /** Runs one FutureTask, records timing and promotes fatal Errors to lane failure. */
         @Override
         public void run() {
             long startedNanos = System.nanoTime();
@@ -470,10 +467,12 @@ public final class SerialLane implements AutoCloseable {
         private final Callable<R> delegate;
         private volatile Error fatalError;
 
+        /** Wraps a Callable so fatal Errors can be observed after FutureTask execution. */
         private FatalTrackingCallable(Callable<R> delegate) {
             this.delegate = delegate;
         }
 
+        /** Delegates the Callable while retaining any fatal Error for the owning lane. */
         @Override
         public R call() throws Exception {
             try {
@@ -484,6 +483,7 @@ public final class SerialLane implements AutoCloseable {
             }
         }
 
+        /** Returns the fatal Error captured during the delegated call, if any. */
         private Error fatalError() {
             return fatalError;
         }
