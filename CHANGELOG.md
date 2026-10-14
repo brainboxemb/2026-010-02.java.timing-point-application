@@ -2,9 +2,11 @@
 
 ## Unreleased
 
+- Rename the generic execution guard to `SafeExecute.run(...)` and document the LogBook startup lambda/method-reference arguments explicitly at the call site.
+
 - Compose `UpstreamHandler` beside `LogBook` and `NodeService`, pass the real Data/Task `SerialLane`s directly, remove the LogBook execution passthrough and custom lane adapter interfaces, and share one explicitly composed `NodeServiceState`.
 
-- Simplify LogBook activation: use a generic `serialLane` name, let `SerialLane.start()` own start-state validation, load persisted data through intent-based naming, and centralize rejection boilerplate in `SafeExecute.onRejected(...)`.
+- Simplify LogBook activation: use a generic `serialLane` name, let `SerialLane.start()` own start-state validation, load persisted data through intent-based naming, and centralize rejection boilerplate in `SafeExecute.run(...)`.
 
 - Replace the remaining SerialLane `accepted` metric vocabulary with queued-work terminology (`queuedCount`, `queuedTaskCount`, `queuedTaskDelta`) and bump runtime-characterization evidence schema to version 2 for the renamed JSON field.
 

@@ -22,7 +22,7 @@ public class SafeExecuteTest {
         AtomicBoolean cleaned =
                 new AtomicBoolean();
 
-        SafeExecute.onRejected(
+        SafeExecute.run(
                 () -> executed.set(true),
                 () -> cleaned.set(true),
                 "should not fail");
@@ -41,7 +41,7 @@ public class SafeExecuteTest {
                         "queue rejected work");
 
         try {
-            SafeExecute.onRejected(
+            SafeExecute.run(
                     () -> {
                         throw rejection;
                     },
@@ -69,7 +69,7 @@ public class SafeExecuteTest {
                         "ordinary failure");
 
         try {
-            SafeExecute.onRejected(
+            SafeExecute.run(
                     () -> {
                         throw failure;
                     },
