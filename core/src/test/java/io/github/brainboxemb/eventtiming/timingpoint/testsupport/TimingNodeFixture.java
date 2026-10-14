@@ -5,13 +5,13 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTasks;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
@@ -67,18 +67,18 @@ public final class TimingNodeFixture {
      */
     public static final class Components {
         private final TimingNode node;
-        private final LogBookProcessor logBookProcessor;
-        private final NodeTaskProcessor taskProcessor;
+        private final LogBook logBook;
+        private final NodeTasks nodeTasks;
         private final TagProcessor tagProcessor;
 
         private Components(
                 TimingNode node,
-                LogBookProcessor logBookProcessor,
-                NodeTaskProcessor taskProcessor,
+                LogBook logBook,
+                NodeTasks nodeTasks,
                 TagProcessor tagProcessor) {
             this.node = node;
-            this.logBookProcessor = logBookProcessor;
-            this.taskProcessor = taskProcessor;
+            this.logBook = logBook;
+            this.nodeTasks = nodeTasks;
             this.tagProcessor = tagProcessor;
         }
 
@@ -86,12 +86,12 @@ public final class TimingNodeFixture {
             return node;
         }
 
-        public LogBookProcessor logBookProcessor() {
-            return logBookProcessor;
+        public LogBook logBook() {
+            return logBook;
         }
 
-        public NodeTaskProcessor taskProcessor() {
-            return taskProcessor;
+        public NodeTasks nodeTasks() {
+            return nodeTasks;
         }
 
         public TagProcessor tagProcessor() {
@@ -255,20 +255,20 @@ public final class TimingNodeFixture {
                 ReadOnlyConfiguration.fixed(
                         TagProcessingPolicy.defaults());
 
-        LogBookProcessor logBookProcessor =
-                new LogBookProcessor(
+        LogBook logBook =
+                new LogBook(
                         nodeId,
                         persistence,
                         timingDataFactory,
                         timeSource,
                         SystemMonotonicClock.INSTANCE,
-                        new LogBookProcessorMetrics(),
+                        new LogBookMetrics(),
                         dataLane,
                         operationTimeoutMillis);
 
-        NodeTaskProcessor taskProcessor =
-                new NodeTaskProcessor(
-                        logBookProcessor,
+        NodeTasks nodeTasks =
+                new NodeTasks(
+                        logBook,
                         taskLane,
                         eventData,
                         upstreamStream);
@@ -288,14 +288,14 @@ public final class TimingNodeFixture {
 
         TimingNode node =
                 new TimingNode(
-                        logBookProcessor,
-                        taskProcessor,
+                        logBook,
+                        nodeTasks,
                         tagProcessor);
 
         return new Components(
                 node,
-                logBookProcessor,
-                taskProcessor,
+                logBook,
+                nodeTasks,
                 tagProcessor);
     }
 }
