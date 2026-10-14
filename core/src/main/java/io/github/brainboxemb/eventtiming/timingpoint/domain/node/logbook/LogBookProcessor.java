@@ -135,7 +135,7 @@ public final class LogBookProcessor
     }
 
     /**
-     * Starts the Data Lane and admits persisted TimingData loading as its first task.
+     * Starts the Data Lane and queues persisted TimingData loading as its first task.
      *
      * <p>The call does not wait for file I/O. CURRENT status remains unavailable
      * until that first ordered task has rebuilt the LogBook and published status.</p>
@@ -178,27 +178,34 @@ public final class LogBookProcessor
                 command.name());
     }
 
-    public CommandAdmission offer(
+    /**
+     * Submits one fire-and-forget command to the Data Lane.
+     *
+     * <p>This method never waits for command execution. {@code ACCEPTED} means
+     * only that the command was queued; execution and any later failure happen
+     * asynchronously on the Data Lane.</p>
+     */
+    public CommandSubmissionResult submit(
             LogBookCommand<?> command) {
         if (command == null) {
             throw new IllegalArgumentException(
                     "command must not be null");
         }
 
-        SerialLane.AdmissionResult admission =
+        SerialLane.AdmissionResult laneSubmissionResult =
                 dataLane.offer(
-                        () -> applySubmitted(command));
-        switch (admission) {
+                        () -> executeSubmittedCommand(command));
+        switch (laneSubmissionResult) {
             case ACCEPTED:
-                return CommandAdmission.ACCEPTED;
+                return CommandSubmissionResult.ACCEPTED;
             case FULL:
-                return CommandAdmission.FULL;
+                return CommandSubmissionResult.QUEUE_FULL;
             case NOT_RUNNING:
-                return CommandAdmission.NOT_RUNNING;
+                return CommandSubmissionResult.NOT_RUNNING;
             default:
                 throw new IllegalStateException(
-                        "Unsupported admission result "
-                                + admission);
+                        "Unsupported Data Lane submission result "
+                                + laneSubmissionResult);
         }
     }
 
