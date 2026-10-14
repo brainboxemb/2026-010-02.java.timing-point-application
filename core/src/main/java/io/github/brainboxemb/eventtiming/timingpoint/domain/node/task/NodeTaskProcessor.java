@@ -112,23 +112,27 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
         derivedTimingReady = false;
     }
 
+    /** Returns the Task Lane-owned upstream protocol boundary for this node. */
     public UpstreamHandler upstreamHandler() {
         return upstreamHandler;
     }
 
-    /** Returns the current derived stage ranking on the Task Lane. */
+    /** Returns the current derived stage ranking through the Task Lane. */
     public List<StageTime> stageTiming(ZoneId raceTimeZone) {
         if (raceTimeZone == null) {
             throw new IllegalArgumentException("raceTimeZone must not be null");
         }
         return callOperation(
-                () -> {
-                    ensureDerivedTimingAvailable();
-                    return stageTiming.ranking(
-                            new ArrayList<TimingData>(committedTimingData),
-                            raceTimeZone);
-                },
+                () -> stageTimingOnTaskLane(raceTimeZone),
                 "stageTiming");
+    }
+
+    private List<StageTime> stageTimingOnTaskLane(ZoneId raceTimeZone) {
+        requireTaskLane("stageTiming");
+        ensureDerivedTimingAvailable();
+        return stageTiming.ranking(
+                new ArrayList<TimingData>(committedTimingData),
+                raceTimeZone);
     }
 
     @Override
