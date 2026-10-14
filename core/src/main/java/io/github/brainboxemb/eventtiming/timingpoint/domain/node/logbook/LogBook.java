@@ -45,7 +45,7 @@ public final class LogBook
     private final SerialLane dataLane;
     private final long operationTimeoutMillis;
     private final MonotonicClock monotonicClock;
-    private final LogBookProcessorMetrics metrics;
+    private final LogBookMetrics metrics;
 
     private final Event<Status> statusChangedEvent =
             new Event<Status>();
@@ -63,7 +63,7 @@ public final class LogBook
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
             MonotonicClock monotonicClock,
-            LogBookProcessorMetrics metrics,
+            LogBookMetrics metrics,
             SerialLane dataLane) {
         this(
                 new LogBookState(
@@ -84,7 +84,7 @@ public final class LogBook
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
             MonotonicClock monotonicClock,
-            LogBookProcessorMetrics metrics,
+            LogBookMetrics metrics,
             SerialLane dataLane,
             long operationTimeoutMillis) {
         this(
@@ -130,7 +130,7 @@ public final class LogBook
         return logBookState.timingNodeId();
     }
 
-    public LogBookProcessorMetrics metrics() {
+    public LogBookMetrics metrics() {
         return metrics;
     }
 
