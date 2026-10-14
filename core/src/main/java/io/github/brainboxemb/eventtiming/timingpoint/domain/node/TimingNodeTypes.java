@@ -19,14 +19,14 @@ public final class TimingNodeTypes {
     }
 
     /**
-     * Immediate result of a non-blocking LogBook command submission.
+     * Immediate result of trying to queue a LogBook command.
      *
-     * <p>{@code ACCEPTED} means the command was queued for later Data Lane
+     * <p>{@code QUEUED} means the command is waiting for later Data Lane
      * execution. It does not mean that the command has already executed or
      * succeeded.</p>
      */
-    public enum CommandSubmissionResult {
-        ACCEPTED,
+    public enum CommandQueueResult {
+        QUEUED,
         QUEUE_FULL,
         NOT_RUNNING
     }
