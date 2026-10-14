@@ -33,9 +33,7 @@ import java.util.Map;
 final class TimingSystemComposer {
     private static final Duration ANTENNA_CONTROL_TIMEOUT = Duration.ofSeconds(2);
 
-    private final ApplicationConfiguration configuration;
     private final RuntimeExecutors executors;
-    private final PlatformEnvironment platform;
     private final ApplicationConductor applicationConductor;
     private final TimingNodeComposer nodeComposer;
 
@@ -44,15 +42,13 @@ final class TimingSystemComposer {
             RuntimeExecutors executors,
             PlatformEnvironment platform,
             ApplicationConductor applicationConductor) {
-        this.configuration = configuration;
         this.executors = executors;
-        this.platform = platform;
         this.applicationConductor = applicationConductor;
         this.nodeComposer =
                 new TimingNodeComposer(
                         configuration,
                         executors,
-                        platform);
+                        platform.monotonicClock());
     }
 
     TimingSystemComponents compose(

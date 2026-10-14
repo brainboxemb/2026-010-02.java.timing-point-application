@@ -6,14 +6,16 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.DefaultTimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 
 /**
  * Composes the child components owned by one {@link TimingNode}.
@@ -25,15 +27,15 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.Appli
 final class TimingNodeComposer {
     private final ApplicationConfiguration configuration;
     private final RuntimeExecutors executors;
-    private final PlatformEnvironment platform;
+    private final MonotonicClock monotonicClock;
 
     TimingNodeComposer(
             ApplicationConfiguration configuration,
             RuntimeExecutors executors,
-            PlatformEnvironment platform) {
+            MonotonicClock monotonicClock) {
         this.configuration = configuration;
         this.executors = executors;
-        this.platform = platform;
+        this.monotonicClock = monotonicClock;
     }
 
     TimingNode compose(
@@ -42,6 +44,10 @@ final class TimingNodeComposer {
             TimeSource timeSource) {
         RuntimeExecutors.TimingNodeLanes lanes =
                 executors.createTimingNodeLanes();
+        ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
+                        configuration.timingNode(
+                                nodeConfig.timingNodeId())
+                                .tagProcessing();
 
         TimingDataPersistence persistence =
                 new DefaultTimingDataPersistence(
@@ -56,7 +62,7 @@ final class TimingNodeComposer {
                         persistence,
                         system.timingDataFactory(),
                         timeSource,
-                        platform.monotonicClock(),
+                        monotonicClock,
                         new LogBookProcessorMetrics(),
                         lanes.dataLane());
 
@@ -70,18 +76,13 @@ final class TimingNodeComposer {
         TagProcessor tags =
                 new TagProcessor(
                         system.eventData(),
-                        configuration.timingNode(
-                                nodeConfig.timingNodeId())
-                                .tagProcessing(),
-                        platform.monotonicClock(),
+                        tagConfiguration,
+                        monotonicClock,
                         new TagProcessingMetrics(),
                         lanes.tagProcessor(),
                         lanes.tagProcessorScheduler());
 
-        configuration.timingNode(
-                nodeConfig.timingNodeId())
-                .tagProcessing()
-                .changes()
+        tagConfiguration.changes()
                 .subscribe(
                         tags::onPolicyConfigurationChanged);
 
