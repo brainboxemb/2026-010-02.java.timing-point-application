@@ -1,5 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingDataHistory;
+
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
@@ -37,7 +39,7 @@ public final class UpstreamHandler {
     private final UpstreamHeartbeat heartbeat;
     private final UpstreamDataSync upstreamDataSync;
     private final LogBookSync logBookSync;
-    private final UpstreamNodeData nodeData;
+    private final TimingDataHistory timingDataHistory;
     private final UpstreamTaskState taskState;
 
     /*
@@ -52,25 +54,25 @@ public final class UpstreamHandler {
             DataLane dataLane,
             TaskLane taskLane,
             UpstreamStream stream,
-            UpstreamNodeData nodeData,
+            TimingDataHistory timingDataHistory,
             UpstreamTaskState taskState) {
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(dataLane != null, "dataLane must not be null");
         checkArgument(taskLane != null, "taskLane must not be null");
         checkArgument(stream != null, "stream must not be null");
-        checkArgument(nodeData != null, "nodeData must not be null");
+        checkArgument(timingDataHistory != null, "timingDataHistory must not be null");
         checkArgument(taskState != null, "taskState must not be null");
 
         this.nodeId = nodeId;
         this.dataLane = dataLane;
         this.taskLane = taskLane;
         this.stream = stream;
-        this.nodeData = nodeData;
+        this.timingDataHistory = timingDataHistory;
         this.taskState = taskState;
         this.heartbeat = new UpstreamHeartbeat(nodeId, stream);
         this.upstreamDataSync =
                 new UpstreamDataSync(nodeId, stream, taskState);
-        this.logBookSync = new LogBookSync(nodeId, stream, nodeData);
+        this.logBookSync = new LogBookSync(nodeId, stream, timingDataHistory);
     }
 
     /**
@@ -131,8 +133,8 @@ public final class UpstreamHandler {
         checkArgument(data instanceof UpstreamData.NodeScoped,
                 "UpstreamData is not node-scoped: %s", data.family());
 
-        UpstreamData.NodeScoped nodeData = (UpstreamData.NodeScoped) data;
-        checkArgument(nodeId.equals(nodeData.timingNodeId()),
+        UpstreamData.NodeScoped timingDataHistory = (UpstreamData.NodeScoped) data;
+        checkArgument(nodeId.equals(timingDataHistory.timingNodeId()),
                 "UpstreamData NodeId does not match node-scoped stream");
 
         switch (data.family()) {
