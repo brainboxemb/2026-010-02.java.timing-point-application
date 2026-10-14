@@ -96,7 +96,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
         this.upstreamHandler =
                 new UpstreamHandler(
                         logBookProcessor.timingNodeId(),
-                        logBookProcessor::offerOperation,
+                        logBookProcessor::trySubmitOperation,
                         new UpstreamTaskLane(),
                         upstreamStream,
                         logBookProcessor,
@@ -122,7 +122,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
         if (raceTimeZone == null) {
             throw new IllegalArgumentException("raceTimeZone must not be null");
         }
-        return callOperation(
+        return executeOnTaskLaneAndWait(
                 () -> stageTimingOnTaskLane(raceTimeZone),
                 "stageTiming");
     }
@@ -160,43 +160,52 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
         return uniqueTeamRegistrations.uniqueTeamCount(raceData::teamIdFor);
     }
 
-    /** A full Task Lane rejects new work rather than blocking an ingress caller. */
-    private boolean offerOperation(Runnable operation) {
-        return taskLane.offer(operation) == SerialLane.AdmissionResult.ACCEPTED;
+    /**
+     * Tries to queue fire-and-forget work on the Task Lane without waiting.
+     *
+     * <p>Returns {@code true} only when the work was queued for later serial
+     * execution.</p>
+     */
+    private boolean trySubmitToTaskLane(Runnable operation) {
+        return taskLane.offer(operation)
+                == SerialLane.AdmissionResult.ACCEPTED;
     }
 
     private void onInitialTimingDataLoaded(List<TimingData> loadedData) {
         List<TimingData> snapshot = new ArrayList<TimingData>(loadedData);
-        admitTimingFact(
+        submitTimingFactToTaskLane(
                 () -> rebuildDerivedTiming(snapshot),
                 "initial TimingData");
     }
 
     private void onTimingDataCommitted(TimingData data) {
-        admitTimingFact(
+        submitTimingFactToTaskLane(
                 () -> applyCommittedTimingData(data),
                 "committed TimingData");
     }
 
     /**
-     * Performs the bounded Data Lane -> Task Lane handoff.
+     * Queues one immutable TimingData fact from the Data Lane onto the Task Lane.
      *
-     * <p>The Task Lane is activated before LogBookProcessor, so normal startup
-     * does not need an intermediate pending-data buffer. Rejected admission is
-     * an explicit degraded-state condition rather than deferred hidden work.</p>
+     * <p>The handoff is non-blocking because both logical lanes may share one
+     * physical worker. Failure to queue the fact makes derived timing state
+     * explicitly stale rather than silently losing synchronization.</p>
      */
-    private void admitTimingFact(Runnable operation, String fact) {
-        SerialLane.AdmissionResult admission = taskLane.offer(operation);
-        if (admission == SerialLane.AdmissionResult.ACCEPTED) {
+    private void submitTimingFactToTaskLane(
+            Runnable operation,
+            String fact) {
+        SerialLane.AdmissionResult submissionResult =
+                taskLane.offer(operation);
+        if (submissionResult == SerialLane.AdmissionResult.ACCEPTED) {
             return;
         }
 
         derivedTimingStale = true;
         LOG.error(
-                "Task Lane rejected {} for node {}; admission={}, derived timing state is stale",
+                "Task Lane could not queue {} for node {}; submission={}, derived timing state is stale",
                 fact,
                 logBookProcessor.timingNodeId().value(),
-                admission);
+                submissionResult);
     }
 
     private void rebuildDerivedTiming(List<TimingData> loadedData) {
@@ -264,7 +273,15 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
         }
     }
 
-    private <R> R callOperation(Callable<R> work, String operation) {
+    /**
+     * Executes one result-bearing operation on the Task Lane and waits for it.
+     *
+     * <p>If already on the Task Lane, the work executes directly to avoid
+     * self-queueing and waiting on the same serial lane.</p>
+     */
+    private <R> R executeOnTaskLaneAndWait(
+            Callable<R> work,
+            String operation) {
         if (taskLane.isExecutingOnCurrentThread()) {
             try {
                 return work.call();
@@ -285,7 +302,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
                 throw new OperationException(
                         OperationException.Reason.BUSY,
                         operation
-                                + " could not be admitted because the TimingNode Task Lane is full");
+                                + " could not be queued because the TimingNode Task Lane is full");
             case NOT_RUNNING:
                 if (taskLane.state() == SerialLane.State.FAILED) {
                     throw new OperationException(
@@ -297,7 +314,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
                 throw new OperationException(
                         OperationException.Reason.UNAVAILABLE,
                         operation
-                                + " could not be admitted because the TimingNode Task Lane is not running");
+                                + " could not be queued because the TimingNode Task Lane is not running");
             case ACCEPTED:
                 return await(submitResult.futureResult(), operation);
             default:
@@ -339,13 +356,15 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
 
     private final class UpstreamTaskLane implements UpstreamHandler.TaskLane {
         @Override
-        public boolean offer(Runnable task) {
-            return offerOperation(task);
+        public boolean trySubmit(Runnable task) {
+            return trySubmitToTaskLane(task);
         }
 
         @Override
-        public <R> R run(Callable<R> task, String operation) {
-            return callOperation(task, operation);
+        public <R> R executeAndWait(
+                Callable<R> task,
+                String operation) {
+            return executeOnTaskLaneAndWait(task, operation);
         }
     }
 }
