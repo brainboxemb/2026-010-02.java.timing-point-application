@@ -26,26 +26,48 @@ public final class TimingNodeTypes {
      * succeeded.</p>
      */
     public enum CommandQueueResult {
+        /** The command is waiting for later Data Lane execution. */
         QUEUED,
+
+        /** The bounded Data Lane queue cannot accept more work. */
         QUEUE_FULL,
+
+        /** The LogBook Data Lane is not currently accepting work. */
         NOT_RUNNING
     }
 
+    /** Logical operating state published by the LogBook. */
     public enum State {
+        /** No timing location is currently open. */
         CLOSED,
+
+        /** A timing location is open for timing operations. */
         OPEN,
+
+        /** A reported LogBook problem prevents normal state from being represented. */
         ERROR
     }
 
+    /** Severity attached to a machine-readable node problem. */
     public enum ProblemSeverity {
         WARNING,
         ERROR
     }
 
+    /**
+     * Stable machine-readable problem categories exposed through node status.
+     */
     public enum ProblemCode {
+        /** Existing persisted TimingData could not be loaded or validated at startup. */
         TIMING_DATA_LOAD_FAILED
     }
 
+    /**
+     * Immutable problem entry included in a published node status.
+     *
+     * <p>The code is intended for programmatic handling; the message is
+     * diagnostic text for operators and logs.</p>
+     */
     public static final class Problem {
         private final ProblemCode code;
         private final ProblemSeverity severity;
@@ -104,20 +126,37 @@ public final class TimingNodeTypes {
         }
     }
 
+    /** Result of the idempotent LogBook open command. */
     public enum OpenResult {
+        /** The command changed the LogBook to OPEN. */
         OPENED,
+
+        /** The LogBook was already open; no second open transition occurred. */
         ALREADY_OPEN
     }
 
+    /** Result of the idempotent LogBook close command. */
     public enum CloseResult {
+        /** The command changed the LogBook to CLOSED. */
         CLOSED,
+
+        /** The LogBook was already closed; no second close transition occurred. */
         ALREADY_CLOSED
     }
 
-
+    /**
+     * Domain result of an automatic or manual registration command.
+     *
+     * <p>A committed result contains the immutable TimingData record that was
+     * durably committed. A rejected result contains no TimingData.</p>
+     */
     public static final class RegistrationResult {
+        /** Why the registration command did or did not produce TimingData. */
         public enum Outcome {
+            /** The registration was durably committed as TimingData. */
             COMMITTED,
+
+            /** No registration was committed because the node is not open. */
             NODE_NOT_OPEN
         }
 
@@ -145,6 +184,12 @@ public final class TimingNodeTypes {
             return outcome == Outcome.COMMITTED;
         }
 
+        /**
+         * Returns the committed TimingData.
+         *
+         * @throws IllegalStateException when {@link #outcome()} is not
+         *         {@link Outcome#COMMITTED}
+         */
         public TimingData timingData() {
             if (timingData == null) {
                 throw new IllegalStateException(
@@ -154,6 +199,13 @@ public final class TimingNodeTypes {
         }
     }
 
+    /**
+     * Immutable status snapshot published by the LogBook.
+     *
+     * <p>The snapshot combines logical OPEN/CLOSED/ERROR state, the optional
+     * active location, startup tail-repair information and immutable problem
+     * entries. It is safe to expose outside the Data Lane.</p>
+     */
     public static final class Status {
         private final NodeId timingNodeId;
         private final State state;
@@ -208,6 +260,10 @@ public final class TimingNodeTypes {
             return locationId != null;
         }
 
+        /**
+         * Returns the active location, or {@code null} when no location is
+         * present. Callers may use {@link #hasLocation()} before reading it.
+         */
         public LocationId locationId() {
             return locationId;
         }
@@ -225,18 +281,41 @@ public final class TimingNodeTypes {
         }
     }
 
+    /**
+     * Signals that node startup failed before normal command handling became
+     * available.
+     */
     public static final class StartupException extends RuntimeException {
         StartupException(String message, Throwable cause) {
             super(message, cause);
         }
     }
 
+    /**
+     * Caller-visible failure while executing a node operation.
+     *
+     * <p>The reason is a stable category for application/presentation handling;
+     * the exception message and cause provide diagnostics.</p>
+     */
     public static class OperationException extends RuntimeException {
+        /** Stable reason why an operation could not return its normal result. */
         public enum Reason {
+            /** The bounded owner-lane queue could not accept more work. */
             BUSY,
+
+            /** The required component/state is not currently available. */
             UNAVAILABLE,
+
+            /** Execution or its owner lane failed. */
             FAILED,
+
+            /** The caller thread was interrupted while waiting for a result. */
             INTERRUPTED,
+
+            /**
+             * Waiting exceeded the operation timeout; the final operation
+             * outcome may be unknown to the caller.
+             */
             TIMEOUT
         }
 
