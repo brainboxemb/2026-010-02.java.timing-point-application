@@ -12,7 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
  * Standard state-changing commands committed through the LogBook component.
  *
  * <p>The factory validates command input at creation time. Execution belongs to
- * {@link LogBookProcessor}, which applies the command on the Data Lane.</p>
+ * {@link LogBook}, which applies the command on the Data Lane.</p>
  */
 public final class LogBookCommands {
     private static final LogBookCommand<CloseResult> CLOSE =
