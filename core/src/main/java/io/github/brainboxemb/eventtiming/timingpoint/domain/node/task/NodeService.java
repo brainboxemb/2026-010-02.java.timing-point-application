@@ -47,6 +47,7 @@ public final class NodeService {
 
     private final UpstreamHandler upstreamHandler;
 
+    /** Creates the Task Lane service and wires immutable LogBook facts into derived state. */
     public NodeService(
             LogBook logBook,
             SerialLane taskLane,
@@ -165,12 +166,14 @@ public final class NodeService {
         }
     }
 
+    /** Rebuilds Task Lane-derived timing from the immutable startup history. */
     private void rebuildDerivedTimingOnTaskLane(
             List<TimingData> loadedData) {
         requireTaskLane("rebuildDerivedTiming");
         state.rebuildDerivedTiming(loadedData);
     }
 
+    /** Applies one newly committed TimingData fact to Task Lane-derived state. */
     private void applyCommittedTimingDataOnTaskLane(
             TimingData data) {
         requireTaskLane("applyCommittedTimingData");
