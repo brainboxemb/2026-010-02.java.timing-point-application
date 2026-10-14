@@ -118,7 +118,7 @@ public class RuntimeMeasurementReaderTest {
                         nodeMetrics,
                         tagMetrics);
 
-        node.newDataEntryEvent()
+        node.logBook().newDataEntryEvent()
                 .subscribe(
                         ignored -> {
                             // Keep one ordinary listener in the measured path.
@@ -126,11 +126,11 @@ public class RuntimeMeasurementReaderTest {
 
         node.activate();
         try {
-            node.invoke(
+            node.logBook().invoke(
                     LogBookCommands.open(
                             new LocationId(24)));
             assertTrue(
-                    node.invoke(
+                    node.logBook().invoke(
                                     LogBookCommands.addAutomaticRegistration(
                                             new RegistrationId("N0001"),
                                             EVENT_TIME))
@@ -142,7 +142,7 @@ public class RuntimeMeasurementReaderTest {
              */
             assertEquals(
                     2,
-                    node.query(
+                    node.logBook().query(
                                     LogBookQueries.timingDataCount())
                             .intValue());
 

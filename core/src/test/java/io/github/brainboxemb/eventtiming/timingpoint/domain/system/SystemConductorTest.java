@@ -59,21 +59,21 @@ public class SystemConductorTest {
         SerialLane lane = new SerialLane(8, "system-conductor-test", newWorker("worker"));
         SystemConductor conductor = new SystemConductor(
                 new TimingNodeList().add(first).add(second), manager.settings(), lane);
-        first.statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(first, status));
-        second.statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(second, status));
+        first.logBook().statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(first, status));
+        second.logBook().statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(second, status));
 
         manager.activate();
         conductor.activate();
         try {
-            first.invoke(LogBookCommands.open(new LocationId(24)));
+            first.logBook().invoke(LogBookCommands.open(new LocationId(24)));
             await(antenna::inventoryRunning, 1000L);
 
-            second.invoke(LogBookCommands.open(new LocationId(25)));
-            first.invoke(LogBookCommands.close());
+            second.logBook().invoke(LogBookCommands.open(new LocationId(25)));
+            first.logBook().invoke(LogBookCommands.close());
             await(() -> manager.settings().inventoryEnabled(), 1000L);
             assertTrue(antenna.inventoryRunning());
 
-            second.invoke(LogBookCommands.close());
+            second.logBook().invoke(LogBookCommands.close());
             await(() -> !antenna.inventoryRunning(), 1000L);
         } finally {
             conductor.deactivate();
@@ -98,7 +98,7 @@ public class SystemConductorTest {
                         new TimingNodeList().add(node),
                         manager.settings(),
                         lane);
-        node.statusChangedEvent().subscribe(
+        node.logBook().statusChangedEvent().subscribe(
                 status -> conductor.onTimingNodeStatusChanged(node, status));
 
         manager.activate();
@@ -133,7 +133,7 @@ public class SystemConductorTest {
 
             assertEquals(
                     io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandAdmission.ACCEPTED,
-                    node.offer(
+                    node.logBook().offer(
                             LogBookCommands.open(
                                     new LocationId(24))));
 
@@ -160,7 +160,7 @@ public class SystemConductorTest {
         SerialLane lane = new SerialLane(4, "conductor-event-test", newWorker("conductor-event-worker"));
         SystemConductor conductor = new SystemConductor(
                 new TimingNodeList().add(node), manager.settings(), lane);
-        node.statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(node, status));
+        node.logBook().statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(node, status));
 
         manager.activate();
         conductor.activate();
@@ -175,7 +175,7 @@ public class SystemConductorTest {
                 }
             }));
             assertTrue(started.await(1L, TimeUnit.SECONDS));
-            node.invoke(LogBookCommands.open(new LocationId(24)));
+            node.logBook().invoke(LogBookCommands.open(new LocationId(24)));
             assertFalse("Node event only wakes the Conductor", manager.settings().inventoryEnabled());
             release.countDown();
             await(antenna::inventoryRunning, 1000L);
@@ -194,7 +194,7 @@ public class SystemConductorTest {
         SerialLane lane = new SerialLane(4, "conductor-coalesce-test", newWorker("coalesce-worker"));
         SystemConductor conductor = new SystemConductor(
                 new TimingNodeList().add(node), manager.settings(), lane);
-        node.statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(node, status));
+        node.logBook().statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(node, status));
 
         manager.activate();
         conductor.activate();
@@ -209,9 +209,9 @@ public class SystemConductorTest {
                 }
             }));
             assertTrue(started.await(1L, TimeUnit.SECONDS));
-            node.invoke(LogBookCommands.open(new LocationId(24)));
-            node.invoke(LogBookCommands.close());
-            node.invoke(LogBookCommands.open(new LocationId(25)));
+            node.logBook().invoke(LogBookCommands.open(new LocationId(24)));
+            node.logBook().invoke(LogBookCommands.close());
+            node.logBook().invoke(LogBookCommands.open(new LocationId(25)));
             assertFalse(manager.settings().inventoryEnabled());
             assertEquals("one coalesced pending reconciliation", 1,
                     lane.metrics().snapshot().queueDepth());
