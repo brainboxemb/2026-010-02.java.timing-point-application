@@ -118,6 +118,7 @@ public final class LaneScheduler {
                     });
         }
 
+        /** Schedules the timer trigger that later submits this one-shot operation to the lane. */
         private void schedule() {
             try {
                 trigger =
@@ -130,33 +131,28 @@ public final class LaneScheduler {
             }
         }
 
+        /** Submits the triggered one-shot operation to the owning serial lane. */
         private void admit() {
             trigger = null;
             if (completion.isDone()) {
                 return;
             }
 
-            SerialLane.SubmitResult<R> submitted =
-                    lane.submit(
-                            this::execute);
-
-            if (submitted.admission()
-                    != SerialLane.AdmissionResult.ACCEPTED) {
-                completion.completeExceptionally(
-                        new RejectedExecutionException(
-                                "Serial lane rejected scheduled operation: "
-                                        + submitted.admission()));
+            final Future<R> future;
+            try {
+                future = lane.submit(this::execute);
+            } catch (RejectedExecutionException ex) {
+                completion.completeExceptionally(ex);
                 return;
             }
 
-            Future<R> future =
-                    submitted.futureResult();
             admitted.set(future);
             if (completion.isCancelled()) {
                 future.cancel(true);
             }
         }
 
+        /** Executes the one-shot callable on the serial lane and completes its public result. */
         private R execute()
                 throws Exception {
             try {
@@ -222,6 +218,7 @@ public final class LaneScheduler {
             this.delayNanos = delayNanos;
         }
 
+        /** Schedules the next fixed-delay trigger unless this registration is closed. */
         private void scheduleNext() {
             synchronized (this) {
                 if (closed) {
@@ -239,6 +236,7 @@ public final class LaneScheduler {
             }
         }
 
+        /** Submits one fixed-delay turn to the owning serial lane. */
         private void admit() {
             synchronized (this) {
                 trigger = null;
@@ -247,18 +245,16 @@ public final class LaneScheduler {
                 }
             }
 
-            SerialLane.AdmissionResult admission =
-                    lane.offer(
-                            () -> {
-                                try {
-                                    operation.run();
-                                } finally {
-                                    scheduleNext();
-                                }
-                            });
-
-            if (admission
-                    != SerialLane.AdmissionResult.ACCEPTED) {
+            try {
+                lane.execute(
+                        () -> {
+                            try {
+                                operation.run();
+                            } finally {
+                                scheduleNext();
+                            }
+                        });
+            } catch (RejectedExecutionException ex) {
                 scheduleNext();
             }
         }
