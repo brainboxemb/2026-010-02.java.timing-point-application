@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.LogBook;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
@@ -16,7 +15,7 @@ public class LogBookSyncTest {
     public void raceDataReqIsNotOwnedByLogBookSync() {
         NodeId nodeId = new NodeId("A");
         LogBookSync sync =
-                new LogBookSync(nodeId, new TestUpstreamStream(), new LogBook(nodeId));
+                new LogBookSync(nodeId, new TestUpstreamStream(), new TestUpstreamNodeData());
 
         try {
             sync.handleReq(
