@@ -96,7 +96,7 @@ final class PresentationRuntime {
                 timingNode.statusChangedEvent()
                         .subscribe(
                                 webSocket::onTimingNodeStatusChanged);
-                timingNode.timingDataCommittedEvent()
+                timingNode.newDataEvent()
                         .subscribe(
                                 webSocket::onTimingDataCommitted);
             }
