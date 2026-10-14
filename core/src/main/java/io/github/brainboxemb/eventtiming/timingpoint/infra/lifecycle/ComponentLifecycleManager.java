@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,10 +48,41 @@ public final class ComponentLifecycleManager {
     private State state = State.NEW;
 
     /**
-     * Registers one component in activation order.
+     * Registers one component using its concrete class name for diagnostics.
      *
-     * <p>Registration is intentionally available only before activation. The
-     * reverse of this order is used for rollback and normal deactivation.</p>
+     * <p>The lifecycle methods remain explicit compile-time method references.
+     * This avoids requiring a common lifecycle interface while also avoiding
+     * reflection-based discovery of activate/deactivate methods.</p>
+     */
+    public synchronized <T> void register(
+            T component,
+            Consumer<T> activate,
+            Consumer<T> deactivate) {
+        if (component == null) {
+            throw new IllegalArgumentException(
+                    "component must not be null");
+        }
+        if (activate == null) {
+            throw new IllegalArgumentException(
+                    "activate must not be null");
+        }
+        if (deactivate == null) {
+            throw new IllegalArgumentException(
+                    "deactivate must not be null");
+        }
+
+        register(
+                componentName(component),
+                () -> activate.accept(component),
+                () -> deactivate.accept(component));
+    }
+
+    /**
+     * Registers one component in activation order with an explicit diagnostic
+     * name.
+     *
+     * <p>Use this overload when the class name alone is not sufficiently
+     * descriptive, for example when several TimingNodes participate.</p>
      */
     public synchronized void register(
             String name,
@@ -187,6 +219,15 @@ public final class ComponentLifecycleManager {
                 originalFailure.addSuppressed(error);
             }
         }
+    }
+
+    private static String componentName(Object component) {
+        String simpleName =
+                component.getClass().getSimpleName();
+        if (simpleName == null || simpleName.trim().isEmpty()) {
+            return component.getClass().getName();
+        }
+        return simpleName;
     }
 
     private static Throwable appendFailure(
