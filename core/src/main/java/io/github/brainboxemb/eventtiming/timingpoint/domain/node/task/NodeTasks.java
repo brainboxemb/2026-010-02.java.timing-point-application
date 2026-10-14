@@ -96,7 +96,7 @@ public final class NodeTasks implements UpstreamTaskState {
         this.upstreamHandler =
                 new UpstreamHandler(
                         logBook.timingNodeId(),
-                        logBook::trySubmitOperation,
+                        logBook::tryQueueOperation,
                         new UpstreamTaskLane(),
                         upstreamStream,
                         logBook,
