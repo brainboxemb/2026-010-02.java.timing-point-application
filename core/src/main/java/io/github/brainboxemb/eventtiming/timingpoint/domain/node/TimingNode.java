@@ -85,7 +85,6 @@ public final class TimingNode {
                         timingDataPersistence,
                         timingDataFactory,
                         timeSource,
-                        eventData,
                         SystemMonotonicClock.INSTANCE,
                         new TimingNodeMetrics(),
                         new SerialExecutor(
@@ -118,7 +117,6 @@ public final class TimingNode {
                         timingDataPersistence,
                         timingDataFactory,
                         timeSource,
-                        EventData.empty(),
                         SystemMonotonicClock.INSTANCE,
                         new TimingNodeMetrics(),
                         dataLane,
@@ -296,7 +294,6 @@ public final class TimingNode {
                         timingDataPersistence,
                         timingDataFactory,
                         timeSource,
-                        eventData,
                         monotonicClock,
                         timingNodeMetrics,
                         dataLane);
