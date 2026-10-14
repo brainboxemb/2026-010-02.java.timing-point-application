@@ -303,9 +303,15 @@ public class SystemConductorTest {
     }
 
     private AntennaManager newAntennaManager(SimulatedAntenna antenna) {
+        ScheduledExecutorService worker =
+                newScheduledWorker("conductor-antenna-test");
         return new AntennaManager(
                 new AntennaSet().add(new AntennaId("1"), antenna),
-                new SerialScheduledLane(8, "conductor-antenna-test", newScheduledWorker("conductor-antenna-test")),
+                new SerialLane(
+                        8,
+                        "conductor-antenna-test",
+                        worker),
+                worker,
                 Duration.ofSeconds(1));
     }
 

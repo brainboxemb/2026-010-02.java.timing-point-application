@@ -144,10 +144,11 @@ public class ApplicationConductorTest {
                             new AntennaSet().add(
                                     new AntennaId("1"),
                                     new SimulatedAntenna()),
-                            new SerialScheduledLane(
+                            new SerialLane(
                                     8,
                                     "app-antenna-" + label,
                                     ioWorker),
+                            ioWorker,
                             Duration.ofSeconds(1));
 
             TimingNodeList timingNodes =

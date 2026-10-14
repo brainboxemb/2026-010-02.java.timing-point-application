@@ -261,8 +261,9 @@ public class AntennaManagerTest {
 
             CountDownLatch duringInitializeDelay =
                     new CountDownLatch(1);
-            assertTrue(
-                    sibling.execute(
+            assertEquals(
+                    SerialLane.AdmissionResult.ACCEPTED,
+                    sibling.offer(
                             duringInitializeDelay::countDown));
             assertTrue(
                     "initialize stabilization must not occupy the shared worker",
