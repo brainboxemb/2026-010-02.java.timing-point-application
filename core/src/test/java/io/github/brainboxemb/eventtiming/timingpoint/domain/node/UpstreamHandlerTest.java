@@ -219,7 +219,7 @@ public class UpstreamHandlerTest {
         node.activate();
         try {
             // Barrier behind initial recovery before occupying the Data Lane.
-            node.query(LogBookQueries.status());
+            node.logBook().query(LogBookQueries.status());
 
             SerialLane.SubmitResult<Void> blocker =
                     dataLane.submit(
@@ -503,7 +503,7 @@ public class UpstreamHandlerTest {
             stream.onNextSend(
                     () -> assertSame(
                             TimingNodeTypes.CommandAdmission.ACCEPTED,
-                            node.offer(
+                            node.logBook().offer(
                                     LogBookCommands.open(
                                             new LocationId(24)))));
 
@@ -531,7 +531,7 @@ public class UpstreamHandlerTest {
                     second.records().get(0).sequenceNumber());
             assertEquals(
                     258L,
-                    node.query(
+                    node.logBook().query(
                             LogBookQueries.timingDataHead(),
                             LogBookQuery.ReadConsistency.CURRENT)
                             .longValue());
