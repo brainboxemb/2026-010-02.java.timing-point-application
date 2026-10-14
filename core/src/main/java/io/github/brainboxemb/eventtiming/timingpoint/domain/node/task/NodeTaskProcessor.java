@@ -7,7 +7,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
@@ -46,7 +45,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
     private static final long TASK_QUERY_TIMEOUT_MILLIS = 2000L;
     private static final int MAX_PENDING_FACTS = 256;
 
-    private final LogBookProcessor dataProcessor;
+    private final LogBookProcessor logBookProcessor;
     private final SerialExecutor taskLane;
     private final RaceDataState raceData;
     private final UniqueTeamRegistrations uniqueTeamRegistrations =
@@ -65,12 +64,12 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
     private final UpstreamHandler upstreamHandler;
 
     public NodeTaskProcessor(
-            LogBookProcessor dataProcessor,
+            LogBookProcessor logBookProcessor,
             SerialExecutor taskLane,
             EventData eventData,
             UpstreamStream upstreamStream) {
-        if (dataProcessor == null) {
-            throw new IllegalArgumentException("dataProcessor must not be null");
+        if (logBookProcessor == null) {
+            throw new IllegalArgumentException("logBookProcessor must not be null");
         }
         if (taskLane == null) {
             throw new IllegalArgumentException("taskLane must not be null");
@@ -82,7 +81,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
             throw new IllegalArgumentException("upstreamStream must not be null");
         }
 
-        this.dataProcessor = dataProcessor;
+        this.logBookProcessor = logBookProcessor;
         this.taskLane = taskLane;
         this.raceData = new RaceDataState(eventData);
         this.stageTiming =
@@ -95,18 +94,18 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
          * Composition-time wiring. Event delivery itself is synchronous on the
          * Data Lane; these listeners only perform a bounded Task Lane handoff.
          */
-        dataProcessor.recoveredDataEvent()
+        logBookProcessor.recoveredDataEvent()
                 .subscribe(this::onTimingDataRecovered);
-        dataProcessor.newDataEvent()
+        logBookProcessor.newDataEvent()
                 .subscribe(this::onTimingDataCommitted);
 
         this.upstreamHandler =
                 new UpstreamHandler(
-                        dataProcessor.timingNodeId(),
-                        new UpstreamDataLane(dataProcessor),
+                        logBookProcessor.timingNodeId(),
+                        new UpstreamDataLane(logBookProcessor),
                         new UpstreamTaskLane(),
                         upstreamStream,
-                        dataProcessor,
+                        logBookProcessor,
                         this);
     }
 
@@ -133,16 +132,6 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
 
     public UpstreamHandler upstreamHandler() {
         return upstreamHandler;
-    }
-
-    /** Executes one Task Lane-owned TimingNode query. */
-    public <R> R query(LogBookQuery<R> query) {
-        if (query == null) {
-            throw new IllegalArgumentException("query must not be null");
-        }
-        return runTask(
-                () -> query.readTask(this),
-                query.name());
     }
 
     /** Returns the current derived stage ranking on the Task Lane. */
@@ -216,7 +205,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
                 derivedTimingStale = true;
                 LOG.error(
                         "Task Lane TimingData handoff buffer is full for node {}; derived timing state is stale",
-                        dataProcessor.timingNodeId().value());
+                        logBookProcessor.timingNodeId().value());
                 return;
             }
             pendingCommits.add(data);
@@ -252,7 +241,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
             derivedTimingStale = true;
             LOG.error(
                     "Task Lane could not accept recovered/committed TimingData facts for node {}; derived timing state is stale",
-                    dataProcessor.timingNodeId().value());
+                    logBookProcessor.timingNodeId().value());
         }
     }
 
@@ -401,25 +390,25 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
      * protocol work that needs history is still scheduled onto the Data Lane.</p>
      */
     private static final class UpstreamDataLane implements UpstreamHandler.DataLane {
-        private final LogBookProcessor dataProcessor;
+        private final LogBookProcessor logBookProcessor;
 
-        UpstreamDataLane(LogBookProcessor dataProcessor) {
-            this.dataProcessor = dataProcessor;
+        UpstreamDataLane(LogBookProcessor logBookProcessor) {
+            this.logBookProcessor = logBookProcessor;
         }
 
         @Override
         public boolean offer(Runnable task) {
-            return dataProcessor.offerTask(task);
+            return logBookProcessor.offerTask(task);
         }
 
         @Override
         public void run(Runnable task, String operation) {
-            dataProcessor.runTask(task, operation);
+            logBookProcessor.runTask(task, operation);
         }
 
         @Override
         public <R> R run(Callable<R> task, String operation) {
-            return dataProcessor.runTask(task, operation);
+            return logBookProcessor.runTask(task, operation);
         }
     }
 
