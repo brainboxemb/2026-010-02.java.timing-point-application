@@ -95,9 +95,9 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
          * Composition-time wiring. Event delivery itself is synchronous on the
          * Data Lane; these listeners only perform a bounded Task Lane handoff.
          */
-        dataProcessor.timingDataRecoveredEvent()
+        dataProcessor.recoveredDataEvent()
                 .subscribe(this::onTimingDataRecovered);
-        dataProcessor.timingDataCommittedEvent()
+        dataProcessor.newDataEvent()
                 .subscribe(this::onTimingDataCommitted);
 
         this.upstreamHandler =
