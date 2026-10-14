@@ -21,6 +21,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServiceState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
@@ -191,12 +192,22 @@ public class UpstreamHandlerTest {
                         new LogBookMetrics(),
                         dataLane,
                         LogBook.DEFAULT_OPERATION_TIMEOUT_MILLIS);
+        NodeServiceState taskState =
+                new NodeServiceState(
+                        eventData);
         NodeService tasks =
                 new NodeService(
                         logBook,
                         taskLane,
-                        eventData,
-                        stream);
+                        taskState);
+        UpstreamHandler upstreamHandler =
+                new UpstreamHandler(
+                        new NodeId("A"),
+                        dataLane,
+                        taskLane,
+                        stream,
+                        logBook,
+                        taskState);
         TagProcessor tags =
                 new TagProcessor(
                         eventData,
@@ -241,8 +252,7 @@ public class UpstreamHandlerTest {
                             .snapshot()
                             .queuedCount();
 
-            tasks.upstreamHandler()
-                    .heartbeatTick();
+            upstreamHandler.heartbeatTick();
 
             assertEquals(
                     queuedBeforeHeartbeat + 1L,
