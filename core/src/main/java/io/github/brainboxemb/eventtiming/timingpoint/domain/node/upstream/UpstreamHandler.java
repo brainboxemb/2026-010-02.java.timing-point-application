@@ -87,7 +87,7 @@ public final class UpstreamHandler {
             return true;
         }
 
-        if (dataLane.trySubmit(this::handleNextOnDataLane)) {
+        if (dataLane.tryQueue(this::handleNextOnDataLane)) {
             return true;
         }
 
@@ -139,7 +139,7 @@ public final class UpstreamHandler {
             case RACE_DATA:
                 checkArgument(data instanceof UpstreamData.RaceData,
                         "RACE_DATA has incompatible semantic type");
-                submitProtocolOperationToTaskLane(
+                queueProtocolOperationOnTaskLane(
                         "RACE_DATA",
                         () -> upstreamDataSync.handleRaceData(
                                 (UpstreamData.RaceData) data));
@@ -150,7 +150,7 @@ public final class UpstreamHandler {
                         "SYNC has incompatible semantic type");
                 UpstreamData.Sync sync = (UpstreamData.Sync) data;
                 if (sync.stream() == UpstreamData.Stream.RACE_DATA) {
-                    submitProtocolOperationToTaskLane(
+                    queueProtocolOperationOnTaskLane(
                             "RACE_DATA SYNC",
                             () -> upstreamDataSync.handleSync(sync));
                 } else {
@@ -170,7 +170,7 @@ public final class UpstreamHandler {
                         "PING has incompatible semantic type");
                 UpstreamData.Ping ping =
                         (UpstreamData.Ping) data;
-                if (!taskLane.trySubmit(
+                if (!taskLane.tryQueue(
                         () -> heartbeat.handle(ping))) {
                     LOG.warn(
                             "Dropped upstream PING for node {} because the Task Lane could not accept it",
@@ -203,7 +203,7 @@ public final class UpstreamHandler {
      * heartbeat tick has executed.</p>
      */
     public void heartbeatTick() {
-        if (!taskLane.trySubmit(heartbeat::tick)) {
+        if (!taskLane.tryQueue(heartbeat::tick)) {
             LOG.warn(
                     "Skipped heartbeat tick for node {} because the Task Lane could not accept it",
                     nodeId.value());
@@ -252,7 +252,7 @@ public final class UpstreamHandler {
         boolean workRemaining =
                 stream.isAvailable() && (logBookSync.syncPending() || stream.hasMessage());
 
-        if (workRemaining && dataLane.trySubmit(this::handleNextOnDataLane)) {
+        if (workRemaining && dataLane.tryQueue(this::handleNextOnDataLane)) {
             return;
         }
 
@@ -272,18 +272,18 @@ public final class UpstreamHandler {
      */
     @FunctionalInterface
     public interface DataLane {
-        boolean trySubmit(Runnable operation);
+        boolean tryQueue(Runnable operation);
     }
 
     /**
      * Task Lane boundary used by upstream protocol code.
      *
-     * <p>{@link #trySubmit(Runnable)} is fire-and-forget queue submission.
+     * <p>{@link #tryQueue(Runnable)} is fire-and-forget queue submission.
      * {@link #executeAndWait(Callable, String)} is reserved for result-bearing
      * calls made from outside a conflicting lane context.</p>
      */
     public interface TaskLane {
-        boolean trySubmit(Runnable task);
+        boolean tryQueue(Runnable task);
 
         <R> R executeAndWait(
                 Callable<R> task,
