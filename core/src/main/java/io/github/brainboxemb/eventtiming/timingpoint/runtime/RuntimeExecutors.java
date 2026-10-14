@@ -1,12 +1,12 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -43,15 +43,18 @@ final class RuntimeExecutors implements AutoCloseable {
     static final class TimingNodeLanes {
         private final SerialLane dataLane;
         private final SerialLane taskLane;
-        private final SerialScheduledLane tagProcessor;
+        private final SerialLane tagProcessor;
+        private final ScheduledExecutorService tagProcessorScheduler;
 
         private TimingNodeLanes(
                 SerialLane dataLane,
                 SerialLane taskLane,
-                SerialScheduledLane tagProcessor) {
+                SerialLane tagProcessor,
+                ScheduledExecutorService tagProcessorScheduler) {
             this.dataLane = dataLane;
             this.taskLane = taskLane;
             this.tagProcessor = tagProcessor;
+            this.tagProcessorScheduler = tagProcessorScheduler;
         }
 
         SerialLane dataLane() {
@@ -62,8 +65,12 @@ final class RuntimeExecutors implements AutoCloseable {
             return taskLane;
         }
 
-        SerialScheduledLane tagProcessor() {
+        SerialLane tagProcessor() {
             return tagProcessor;
+        }
+
+        ScheduledExecutorService tagProcessorScheduler() {
+            return tagProcessorScheduler;
         }
     }
 
@@ -173,8 +180,8 @@ final class RuntimeExecutors implements AutoCloseable {
                 "TimingNodeTask",
                 timingNodeWorker);
 
-        SerialScheduledLane tagProcessor =
-                new SerialScheduledLane(
+        SerialLane tagProcessor =
+                new SerialLane(
                         TAG_PROCESSOR_LANE_QUEUE_CAPACITY,
                         "TagProcessor",
                         tagProcessorWorker);
@@ -185,7 +192,8 @@ final class RuntimeExecutors implements AutoCloseable {
         return new TimingNodeLanes(
                 dataLane,
                 taskLane,
-                tagProcessor);
+                tagProcessor,
+                tagProcessorWorker);
     }
 
     /**
@@ -205,14 +213,14 @@ final class RuntimeExecutors implements AutoCloseable {
     }
 
     /**
-     * Creates one AntennaManager control lane on the shared scheduled I/O worker.
+     * Creates one ordinary serial AntennaManager control lane.
      *
-     * <p>The manager sees only the project SerialScheduledLane abstraction.
-     * The JDK ScheduledExecutorService remains a Runtime implementation detail.</p>
+     * <p>Delayed work is scheduled separately and later admitted to this same
+     * lane, so timing does not create a second kind of lane.</p>
      */
-    synchronized SerialScheduledLane createAntennaControlLane() {
-        SerialScheduledLane antennaControl =
-                new SerialScheduledLane(
+    synchronized SerialLane createAntennaControlLane() {
+        SerialLane antennaControl =
+                new SerialLane(
                         ANTENNA_CONTROL_QUEUE_CAPACITY,
                         "AntennaManager",
                         sharedIoWorker);
@@ -220,14 +228,18 @@ final class RuntimeExecutors implements AutoCloseable {
         return antennaControl;
     }
 
+    ScheduledExecutorService sharedIoScheduler() {
+        return sharedIoWorker;
+    }
+
     /**
      * Creates the engineering simulated-tag lane on the shared scheduled I/O
      * worker. Scenario delays therefore release the physical worker while still
      * keeping a bounded logical execution lane.
      */
-    synchronized SerialScheduledLane createSimulationLane() {
-        SerialScheduledLane simulation =
-                new SerialScheduledLane(
+    synchronized SerialLane createSimulationLane() {
+        SerialLane simulation =
+                new SerialLane(
                         SIMULATION_QUEUE_CAPACITY,
                         "SimulatedTagScenario",
                         sharedIoWorker);

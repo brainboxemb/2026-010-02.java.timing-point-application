@@ -9,16 +9,19 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 
 import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
@@ -59,8 +62,8 @@ public class RuntimeMeasurementReaderTest {
                         8,
                         "measurement-node-task",
                         nodeWorker);
-        SerialScheduledLane tagLane =
-                new SerialScheduledLane(
+        SerialLane tagLane =
+                new SerialLane(
                         8,
                         "measurement-tag",
                         tagWorker);
@@ -73,21 +76,41 @@ public class RuntimeMeasurementReaderTest {
         TimeSource timeSource =
                 () -> RECORDED_AT.instant();
 
-        TimingNode node =
-                new TimingNode(
+        EventData eventData = EventData.empty();
+        ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
+                ReadOnlyConfiguration.fixed(
+                        TagProcessingPolicy.defaults());
+        LogBookProcessor logBook =
+                new LogBookProcessor(
                         new NodeId("A"),
                         persistence,
                         new DefaultTimingDataFactory(),
                         timeSource,
-                        ReadOnlyConfiguration.fixed(
-                                TagProcessingPolicy.defaults()),
-                        EventData.empty(),
-                        dataLane,
-                        taskLane,
-                        tagLane,
                         SystemMonotonicClock.INSTANCE,
                         nodeMetrics,
-                        tagMetrics);
+                        dataLane);
+        NodeTaskProcessor tasks =
+                new NodeTaskProcessor(
+                        logBook,
+                        taskLane,
+                        eventData,
+                        UpstreamStream.unavailable());
+        TagProcessor tags =
+                new TagProcessor(
+                        eventData,
+                        tagConfiguration,
+                        SystemMonotonicClock.INSTANCE,
+                        tagMetrics,
+                        tagLane,
+                        tagWorker);
+        tagConfiguration.changes()
+                .subscribe(
+                        tags::onPolicyConfigurationChanged);
+        TimingNode node =
+                new TimingNode(
+                        logBook,
+                        tasks,
+                        tags);
 
         RuntimeMeasurementReader reader =
                 new RuntimeMeasurementReader(

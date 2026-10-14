@@ -5,14 +5,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationCond
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.SystemConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.DefaultTimingDataPersistence;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
-import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.AntennaManagerConfig;
@@ -30,26 +27,29 @@ import java.util.Map;
  * Nodes, their persistence, logical lanes, antenna set and AntennaManager are
  * built independently for each system. Runtime passes the shared
  * AntennaSettings to the Domain Conductor, not AntennaManager itself.
- * This class also installs event subscriptions before activation; component
- * constructors do not hide cross-component event wiring. It has no lifecycle.</p>
+ * This class installs only system-level event routing before activation.
+ * Node-internal child composition belongs to {@link TimingNodeComposer}.
+ * It has no lifecycle.</p>
  */
 final class TimingSystemComposer {
     private static final Duration ANTENNA_CONTROL_TIMEOUT = Duration.ofSeconds(2);
 
-    private final ApplicationConfiguration configuration;
     private final RuntimeExecutors executors;
-    private final PlatformEnvironment platform;
     private final ApplicationConductor applicationConductor;
+    private final TimingNodeComposer nodeComposer;
 
     TimingSystemComposer(
             ApplicationConfiguration configuration,
             RuntimeExecutors executors,
             PlatformEnvironment platform,
             ApplicationConductor applicationConductor) {
-        this.configuration = configuration;
         this.executors = executors;
-        this.platform = platform;
         this.applicationConductor = applicationConductor;
+        this.nodeComposer =
+                new TimingNodeComposer(
+                        configuration,
+                        executors,
+                        platform.monotonicClock());
     }
 
     TimingSystemComponents compose(
@@ -69,6 +69,7 @@ final class TimingSystemComposer {
                 ? null : new AntennaManager(
                         antennaSet,
                         executors.createAntennaControlLane(),
+                        executors.sharedIoScheduler(),
                         ANTENNA_CONTROL_TIMEOUT,
                         antennaSettings);
 
@@ -98,25 +99,13 @@ final class TimingSystemComposer {
             TimingSystemResolvedData system,
             TimeSource timeSource) {
         TimingNodeList nodes = new TimingNodeList();
-        for (Config.TimingNodeConfig nodeConfig : system.configuration().timingNodes()) {
-            RuntimeExecutors.TimingNodeLanes nodeLanes =
-                    executors.createTimingNodeLanes();
-            TimingDataPersistence persistence = new DefaultTimingDataPersistence(
-                    new FileAppendOnlyRecordStore(nodeConfig.timingDataPath()),
-                    nodeConfig.timingNodeId(),
-                    system.timingDataCodec());
-            TimingNode node = new TimingNode(
-                    nodeConfig.timingNodeId(),
-                    persistence,
-                    system.timingDataFactory(),
-                    timeSource,
-                    configuration.timingNode(nodeConfig.timingNodeId()).tagProcessing(),
-                    system.eventData(),
-                    nodeLanes.dataLane(),
-                    nodeLanes.taskLane(),
-                    nodeLanes.tagProcessor(),
-                    platform.monotonicClock());
-            nodes.add(node);
+        for (Config.TimingNodeConfig nodeConfig
+                : system.configuration().timingNodes()) {
+            nodes.add(
+                    nodeComposer.compose(
+                            nodeConfig,
+                            system,
+                            timeSource));
         }
         return nodes;
     }

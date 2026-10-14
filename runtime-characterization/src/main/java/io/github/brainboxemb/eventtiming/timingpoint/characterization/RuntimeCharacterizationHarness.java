@@ -11,10 +11,13 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.DefaultTimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
@@ -22,9 +25,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
+import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.ClockTimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement.JvmRuntimeSnapshot;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement.RuntimeMeasurementReader;
@@ -85,8 +88,8 @@ final class RuntimeCharacterizationHarness
     private ScheduledThreadPoolExecutor ioWorker;
     private SerialLane dataLane;
     private SerialLane taskLane;
-    private SerialScheduledLane tagLane;
-    private SerialScheduledLane antennaLane;
+    private SerialLane tagLane;
+    private SerialLane antennaLane;
     private SimulatedAntenna antenna;
     private AntennaManager antennaManager;
     private TimingNode node;
@@ -151,12 +154,12 @@ final class RuntimeCharacterizationHarness
                         "TimingNodeTask",
                         nodeWorker);
         tagLane =
-                new SerialScheduledLane(
+                new SerialLane(
                         TAG_PROCESSOR_QUEUE_CAPACITY,
                         "TagProcessor",
                         tagWorker);
         antennaLane =
-                new SerialScheduledLane(
+                new SerialLane(
                         ANTENNA_CONTROL_QUEUE_CAPACITY,
                         "AntennaManager",
                         ioWorker);
@@ -169,8 +172,16 @@ final class RuntimeCharacterizationHarness
         TimingDataProvider timingDataProvider =
                 new DefaultTimingDataProvider();
 
-        node =
-                new TimingNode(
+        EventData nodeEventData =
+                eventData(
+                        config.warmupCount()
+                                + config.measuredCount());
+        ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
+                ReadOnlyConfiguration.fixed(
+                        TagProcessingPolicy.defaults());
+
+        LogBookProcessor logBookProcessor =
+                new LogBookProcessor(
                         NODE_ID,
                         new DefaultTimingDataPersistence(
                                 new FileAppendOnlyRecordStore(
@@ -182,17 +193,34 @@ final class RuntimeCharacterizationHarness
                         timingDataProvider.createFactory(),
                         new ClockTimeSource(
                                 Clock.systemUTC()),
-                        ReadOnlyConfiguration.fixed(
-                                TagProcessingPolicy.defaults()),
-                        eventData(
-                                config.warmupCount()
-                                        + config.measuredCount()),
-                        dataLane,
-                        taskLane,
-                        tagLane,
                         SystemMonotonicClock.INSTANCE,
                         nodeMetrics,
-                        tagMetrics);
+                        dataLane);
+
+        NodeTaskProcessor taskProcessor =
+                new NodeTaskProcessor(
+                        logBookProcessor,
+                        taskLane,
+                        nodeEventData,
+                        UpstreamStream.unavailable());
+
+        TagProcessor tagProcessor =
+                new TagProcessor(
+                        nodeEventData,
+                        tagConfiguration,
+                        SystemMonotonicClock.INSTANCE,
+                        tagMetrics,
+                        tagLane,
+                        tagWorker);
+        tagConfiguration.changes()
+                .subscribe(
+                        tagProcessor::onPolicyConfigurationChanged);
+
+        node =
+                new TimingNode(
+                        logBookProcessor,
+                        taskProcessor,
+                        tagProcessor);
 
         antenna =
                 new SimulatedAntenna();
@@ -205,6 +233,7 @@ final class RuntimeCharacterizationHarness
                 new AntennaManager(
                         antennaSet,
                         antennaLane,
+                        ioWorker,
                         ANTENNA_CONTROL_TIMEOUT);
 
         antennaManager
@@ -421,8 +450,8 @@ final class RuntimeCharacterizationHarness
      * The harness therefore must not assume every observation becomes committed
      * TimingData. It first waits until every emitted observation was either
      * processed or rejected at TagProcessor ingress, then until no active
-     * passage remains. Finally it waits only for the registrations that were
-     * actually admitted to TimingNode.</p>
+     * passage remains. Finally it drains TagProcessor and then the Data Lane,
+     * so every registration event already handed to TimingNode has completed.</p>
      */
     private void awaitBurstSettled(
             long preloadedCount,
@@ -451,19 +480,10 @@ final class RuntimeCharacterizationHarness
 
         /*
          * Metrics and filter snapshots are observations, not lane barriers.
-         * Drain TagProcessor first, then snapshot admitted handoffs, wait for
-         * those commits, and finally drain the TimingNode Data Lane. This keeps
+         * Drain TagProcessor first and then the TimingNode Data Lane. This keeps
          * the subsequent ORDERED history query out of the burst tail.
          */
         awaitTagProcessorBarrier();
-
-        TagProcessingMetrics.Snapshot settled =
-                measurements.tagProcessing();
-        awaitCommitted(
-                INITIAL_LIFECYCLE_RECORD_COUNT
-                        + preloadedCount
-                        + settled.admitted());
-
         awaitDataLaneBarrier();
     }
 
@@ -479,7 +499,8 @@ final class RuntimeCharacterizationHarness
             throws InterruptedException {
         CountDownLatch barrier = new CountDownLatch(1);
         await(
-                () -> tagLane.execute(barrier::countDown),
+                () -> tagLane.offer(barrier::countDown)
+                        == SerialLane.AdmissionResult.ACCEPTED,
                 "TagProcessor barrier admission");
         if (!barrier.await(
                 COMPLETION_TIMEOUT_MILLIS,

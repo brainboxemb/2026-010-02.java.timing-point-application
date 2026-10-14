@@ -445,21 +445,6 @@ final class CharacterizationEvidenceWriter {
                 delta(
                         before.duplicates(),
                         after.duplicates()));
-        json.writeNumberField(
-                "timingNodeAdmittedDelta",
-                delta(
-                        before.admitted(),
-                        after.admitted()));
-        json.writeNumberField(
-                "timingNodeQueueFullDelta",
-                delta(
-                        before.queueFull(),
-                        after.queueFull()));
-        json.writeNumberField(
-                "timingNodeNotRunningDelta",
-                delta(
-                        before.nodeNotRunning(),
-                        after.nodeNotRunning()));
         json.writeEndObject();
     }
 

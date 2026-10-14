@@ -1,4 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
+import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
@@ -604,7 +605,7 @@ public class TimingNodeRegistrationTest {
 
     private static TimingNode node(RecordingStore store) {
         TimeSource timeSource = () -> RECORDED_AT.instant();
-        return new TimingNode(
+        return TimingNodeFixture.createDirect(
                 new NodeId("A"),
                 store,
                 new DefaultTimingDataFactory(),

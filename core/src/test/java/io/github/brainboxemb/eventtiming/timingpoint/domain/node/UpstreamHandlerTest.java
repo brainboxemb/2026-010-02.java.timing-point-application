@@ -1,7 +1,10 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
+import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
@@ -15,11 +18,14 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandlerTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
@@ -134,8 +140,8 @@ public class UpstreamHandlerTest {
                         4,
                         "heartbeat-task-test",
                         nodeWorker);
-        SerialScheduledLane tagLane =
-                new SerialScheduledLane(
+        SerialLane tagLane =
+                new SerialLane(
                         4,
                         "heartbeat-tag-test",
                         tagWorker);
@@ -167,21 +173,43 @@ public class UpstreamHandlerTest {
                     }
                 };
 
-        TimingNode node =
-                new TimingNode(
+        EventData eventData = EventData.empty();
+        ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
+                ReadOnlyConfiguration.fixed(
+                        TagProcessingPolicy.defaults());
+        LogBookProcessor logBook =
+                new LogBookProcessor(
                         new NodeId("A"),
                         new MemoryPersistence(
                                 Collections.<TimingData>emptyList()),
                         new DefaultTimingDataFactory(),
                         () -> Instant.parse(
                                 "2026-10-13T12:00:00Z"),
-                        ReadOnlyConfiguration.fixed(
-                                TagProcessingPolicy.defaults()),
-                        EventData.empty(),
-                        dataLane,
+                        SystemMonotonicClock.INSTANCE,
+                        new LogBookProcessorMetrics(),
+                        dataLane);
+        NodeTaskProcessor tasks =
+                new NodeTaskProcessor(
+                        logBook,
                         taskLane,
-                        tagLane,
+                        eventData,
                         stream);
+        TagProcessor tags =
+                new TagProcessor(
+                        eventData,
+                        tagConfiguration,
+                        SystemMonotonicClock.INSTANCE,
+                        new TagProcessingMetrics(),
+                        tagLane,
+                        tagWorker);
+        tagConfiguration.changes()
+                .subscribe(
+                        tags::onPolicyConfigurationChanged);
+        TimingNode node =
+                new TimingNode(
+                        logBook,
+                        tasks,
+                        tags);
 
         CountDownLatch blockerStarted =
                 new CountDownLatch(1);
@@ -662,7 +690,7 @@ public class UpstreamHandlerTest {
             String nodeId,
             UpstreamStream stream,
             List<TimingData> initialTimingData) {
-        return new TimingNode(
+        return TimingNodeFixture.createDirect(
                 new NodeId(nodeId),
                 new MemoryPersistence(initialTimingData),
                 new DefaultTimingDataFactory(),

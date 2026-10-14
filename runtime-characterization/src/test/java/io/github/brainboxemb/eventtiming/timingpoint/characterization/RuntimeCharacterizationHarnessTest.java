@@ -56,8 +56,8 @@ public class RuntimeCharacterizationHarnessTest {
                         - result.tagBefore().mapped());
         assertEquals(
                 0L,
-                result.tagAfter().queueFull()
-                        - result.tagBefore().queueFull());
+                result.nodeAfter().queueFullCount()
+                        - result.nodeBefore().queueFullCount());
         assertEquals(
                 5,
                 result.query().totalHistory());

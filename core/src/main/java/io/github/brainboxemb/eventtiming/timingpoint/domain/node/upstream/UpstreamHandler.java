@@ -43,10 +43,10 @@ public final class UpstreamHandler {
 
     /*
      * inputAvailable() may be called by an I/O thread. This flag prevents a
-     * burst of notifications from enqueueing duplicate node tasks. The flag is
+     * burst of notifications from enqueueing duplicate node operations. The flag is
      * released only when no inbound message or LogBook synchronization batch remains.
      */
-    private final AtomicBoolean inputTaskScheduled = new AtomicBoolean();
+    private final AtomicBoolean inputOperationScheduled = new AtomicBoolean();
 
     public UpstreamHandler(
             NodeId nodeId,
@@ -77,21 +77,21 @@ public final class UpstreamHandler {
      * Signals that the node-scoped stream may contain inbound data.
      *
      * <p>The caller never performs semantic work or waits for the TimingNode.
-     * At most one upstream task is pending/running for this port.</p>
+     * At most one upstream operation is pending/running for this port.</p>
      */
     public boolean inputAvailable() {
         if (!stream.isAvailable() || !stream.hasMessage()) {
             return false;
         }
-        if (!inputTaskScheduled.compareAndSet(false, true)) {
+        if (!inputOperationScheduled.compareAndSet(false, true)) {
             return true;
         }
 
-        if (dataLane.offer(new UpstreamHandlerTask(this))) {
+        if (dataLane.offer(this::handleNextOnDataLane)) {
             return true;
         }
 
-        inputTaskScheduled.set(false);
+        inputOperationScheduled.set(false);
         return false;
     }
 
@@ -139,7 +139,7 @@ public final class UpstreamHandler {
             case RACE_DATA:
                 checkArgument(data instanceof UpstreamData.RaceData,
                         "RACE_DATA has incompatible semantic type");
-                offerTaskProtocol(
+                offerProtocolOperation(
                         "RACE_DATA",
                         () -> upstreamDataSync.handleRaceData(
                                 (UpstreamData.RaceData) data));
@@ -150,7 +150,7 @@ public final class UpstreamHandler {
                         "SYNC has incompatible semantic type");
                 UpstreamData.Sync sync = (UpstreamData.Sync) data;
                 if (sync.stream() == UpstreamData.Stream.RACE_DATA) {
-                    offerTaskProtocol(
+                    offerProtocolOperation(
                             "RACE_DATA SYNC",
                             () -> upstreamDataSync.handleSync(sync));
                 } else {
@@ -235,7 +235,7 @@ public final class UpstreamHandler {
                 "uniqueTeamRegistrationCount").intValue();
     }
 
-    private void offerTaskProtocol(String operation, Runnable task) {
+    private void offerProtocolOperation(String operation, Runnable task) {
         if (!taskLane.offer(task)) {
             LOG.warn(
                     "Dropped upstream {} for node {} because the Task Lane could not accept it; no ACK is sent",
@@ -245,30 +245,27 @@ public final class UpstreamHandler {
     }
 
     /**
-     * Keeps exactly one upstream task pending while work remains.
+     * Keeps exactly one upstream operation pending while work remains.
      */
     private void scheduleNextTurnOrRelease() {
         boolean workRemaining =
                 stream.isAvailable() && (logBookSync.syncPending() || stream.hasMessage());
 
-        if (workRemaining && dataLane.offer(new UpstreamHandlerTask(this))) {
+        if (workRemaining && dataLane.offer(this::handleNextOnDataLane)) {
             return;
         }
 
-        inputTaskScheduled.set(false);
+        inputOperationScheduled.set(false);
     }
 
     private <R> R onTaskLane(Callable<R> task, String operation) {
         return taskLane.run(task, operation);
     }
 
-    /** Narrow Data Lane execution boundary supplied by the owning TimingNode. */
+    /** Non-blocking handoff to the owning TimingNode Data Lane. */
+    @FunctionalInterface
     public interface DataLane {
-        boolean offer(Runnable task);
-
-        void run(Runnable task, String operation);
-
-        <R> R run(Callable<R> task, String operation);
+        boolean offer(Runnable operation);
     }
 
     /**
@@ -279,8 +276,6 @@ public final class UpstreamHandler {
      */
     public interface TaskLane {
         boolean offer(Runnable task);
-
-        void run(Runnable task, String operation);
 
         <R> R run(Callable<R> task, String operation);
     }

@@ -2,13 +2,13 @@
 
 ## Unreleased
 
-- Reorganize TimingNode-owned data packages: `LogBook` moves under `domain.node.data`, TimingData persistence under `domain.node.data.persistence`, and live race state under `domain.node.racedata` as preparation for NodeDataProcessor/NodeTaskProcessor ownership.
+- Keep TimingNode timing-history ownership explicit under `domain.node.logbook`, with persistence under `domain.node.logbook.persistence`; keep live race state separate under `domain.node.racedata`.
 
-- Move TimingNode heartbeat protocol state onto the bounded Task Lane: heartbeat ticks and inbound PING handling use non-blocking Task Lane admission, while heartbeat status is published as an immutable direct-read snapshot; RACE_DATA and LogBook processing remain Data Lane-owned for the next migration slices.
+- Move TimingNode heartbeat protocol state onto the bounded Task Lane: heartbeat ticks and inbound PING handling use non-blocking Task Lane admission, while heartbeat status is published as an immutable direct-read snapshot.
 
-- Introduce distinct bounded TimingNode Data and Task `SerialExecutor` lanes on the same Runtime-owned physical node worker; current mutable node/upstream state deliberately remains on the Data Lane until explicit asynchronous cross-lane handoffs are implemented.
+- Simplify Java 8 execution around one bounded `SerialLane` mechanism: ordinary work uses `Runnable`/`Callable`, delayed admission is handled separately by `LaneScheduler`, genuine multi-step work uses `YieldingTask`, and the former `SerialScheduledLane`/`ScheduledTaskRunner` layers are removed.
 
-- Organize Platform execution classes into `execution.tasks`, `execution.executors` and `execution.taskrunners`; update all Java imports and package-local tests without changing lane behaviour. Package names are changed for Java consumers.
+- Reduce `TimingNode` to one component constructor and lifecycle/facade role; `TimingNodeComposer` builds its LogBook, Task and Tag children, while `TagProcessor` publishes one-way `newRegistrationEvent` facts that `TimingNode` forwards to `LogBookProcessor`.
 
 - Restore clear BentoFX tab affordance: the strip has its own surface, every tab has a raised fill plus subtle separator, selected tabs use a dedicated light selection fill (#dbeaf9), and only the active leaf adds the accent underline.
 

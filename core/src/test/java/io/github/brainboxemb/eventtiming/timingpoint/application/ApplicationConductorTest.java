@@ -7,6 +7,7 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.SystemConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
+import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
@@ -16,7 +17,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -102,12 +102,8 @@ public class ApplicationConductorTest {
 
     private static final class SystemFixture
             implements AutoCloseable {
-        private final ExecutorService nodeWorker =
-                Executors.newSingleThreadExecutor();
         private final ExecutorService systemWorker =
                 Executors.newSingleThreadExecutor();
-        private final ScheduledExecutorService tagWorker =
-                Executors.newSingleThreadScheduledExecutor();
         private final ScheduledExecutorService ioWorker =
                 Executors.newSingleThreadScheduledExecutor();
 
@@ -118,36 +114,22 @@ public class ApplicationConductorTest {
                 String nodeId,
                 String label) {
             TimingNode node =
-                    new TimingNode(
+                    TimingNodeFixture.create(
                             new NodeId(nodeId),
                             new NoOpPersistence(),
                             new DefaultTimingDataFactory(),
-                            ApplicationConductorTest::now,
-                            ReadOnlyConfiguration.fixed(
-                                    TagProcessingPolicy.defaults()),
-                            EventData.empty(),
-                            new SerialLane(
-                                    8,
-                                    "app-node-data-" + label,
-                                    nodeWorker),
-                            new SerialLane(
-                                    8,
-                                    "app-node-task-" + label,
-                                    nodeWorker),
-                            new SerialScheduledLane(
-                                    8,
-                                    "app-tag-" + label,
-                                    tagWorker));
+                            ApplicationConductorTest::now);
 
             manager =
                     new AntennaManager(
                             new AntennaSet().add(
                                     new AntennaId("1"),
                                     new SimulatedAntenna()),
-                            new SerialScheduledLane(
+                            new SerialLane(
                                     8,
                                     "app-antenna-" + label,
                                     ioWorker),
+                            ioWorker,
                             Duration.ofSeconds(1));
 
             TimingNodeList timingNodes =
@@ -164,9 +146,7 @@ public class ApplicationConductorTest {
 
         @Override
         public void close() {
-            nodeWorker.shutdownNow();
             systemWorker.shutdownNow();
-            tagWorker.shutdownNow();
             ioWorker.shutdownNow();
         }
     }

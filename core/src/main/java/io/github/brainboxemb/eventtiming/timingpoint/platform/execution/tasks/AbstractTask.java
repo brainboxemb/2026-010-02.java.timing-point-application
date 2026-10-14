@@ -1,12 +1,12 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.CooperativeTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.YieldingTaskRunner;
 
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Base class for a reusable cooperative task.
+ * Base class for a reusable yielding task.
  *
  * <p>The concrete task owns its operation/control state. This base class owns only the
  * execution lifecycle that would otherwise be repeated in every task:
@@ -16,7 +16,7 @@ import java.util.concurrent.CompletableFuture;
  * state. It is therefore private here instead of being repeated in every
  * concrete task.</p>
  */
-public abstract class AbstractTask implements CooperativeTask {
+public abstract class AbstractTask implements YieldingTask {
 
     /** Completion returned by the runner for the currently active run. */
     private CompletableFuture<Void> currentRunFuture;
@@ -29,7 +29,7 @@ public abstract class AbstractTask implements CooperativeTask {
      *
      * @return false when this task already has a current run
      */
-    public final synchronized boolean start(CooperativeTaskRunner taskRunner) {
+    public final synchronized boolean start(YieldingTaskRunner taskRunner) {
         if (taskRunner == null) {
             throw new IllegalArgumentException("taskRunner must not be null");
         }

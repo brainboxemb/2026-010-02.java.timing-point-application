@@ -9,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
+import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
@@ -17,7 +18,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -253,59 +253,33 @@ public class SystemConductorTest {
     }
 
     private TimingNode newTimingNode(String id) {
-        ExecutorService nodeWorker =
-                newWorker("conductor-node-worker");
-        return new TimingNode(
+        return TimingNodeFixture.create(
                 new NodeId(id),
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),
-                SystemConductorTest::now,
-                ReadOnlyConfiguration.fixed(TagProcessingPolicy.defaults()),
-                EventData.empty(),
-                new SerialLane(
-                        8,
-                        "conductor-node-data",
-                        nodeWorker),
-                new SerialLane(
-                        8,
-                        "conductor-node-task",
-                        nodeWorker),
-                new SerialScheduledLane(
-                        8,
-                        "conductor-tag-test",
-                        newScheduledWorker("conductor-tag-test")));
+                SystemConductorTest::now);
     }
 
     private TimingNode newTimingNode(
             String id,
             TimingDataPersistence persistence) {
-        ExecutorService nodeWorker =
-                newWorker("conductor-node-startup-worker");
-        return new TimingNode(
+        return TimingNodeFixture.create(
                 new NodeId(id),
                 persistence,
                 new DefaultTimingDataFactory(),
-                SystemConductorTest::now,
-                ReadOnlyConfiguration.fixed(TagProcessingPolicy.defaults()),
-                EventData.empty(),
-                new SerialLane(
-                        8,
-                        "conductor-node-startup-data",
-                        nodeWorker),
-                new SerialLane(
-                        8,
-                        "conductor-node-startup-task",
-                        nodeWorker),
-                new SerialScheduledLane(
-                        8,
-                        "conductor-tag-startup-test",
-                        newScheduledWorker("conductor-tag-startup-worker")));
+                SystemConductorTest::now);
     }
 
     private AntennaManager newAntennaManager(SimulatedAntenna antenna) {
+        ScheduledExecutorService worker =
+                newScheduledWorker("conductor-antenna-test");
         return new AntennaManager(
                 new AntennaSet().add(new AntennaId("1"), antenna),
-                new SerialScheduledLane(8, "conductor-antenna-test", newScheduledWorker("conductor-antenna-test")),
+                new SerialLane(
+                        8,
+                        "conductor-antenna-test",
+                        worker),
+                worker,
                 Duration.ofSeconds(1));
     }
 

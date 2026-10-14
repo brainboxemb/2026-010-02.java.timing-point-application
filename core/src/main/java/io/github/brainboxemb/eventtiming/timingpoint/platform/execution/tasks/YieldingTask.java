@@ -1,10 +1,10 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.CooperativeTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.YieldingTaskRunner;
 
 /**
  * One cooperatively scheduled operation or control task executed by a
- * {@link CooperativeTaskRunner}.
+ * {@link YieldingTaskRunner}.
  *
  * <p>Each invocation performs exactly one logical cooperative step and
  * returns what the runner should do next. A task may implement a multi-phase
@@ -12,7 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunn
  * state; it does not own an executor or scheduler.</p>
  */
 @FunctionalInterface
-public interface CooperativeTask {
+public interface YieldingTask {
 
     /**
      * Executes one logical step.

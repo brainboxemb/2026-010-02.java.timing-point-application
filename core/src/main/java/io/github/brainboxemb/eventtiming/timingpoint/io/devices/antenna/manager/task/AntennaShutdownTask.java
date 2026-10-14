@@ -1,13 +1,13 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.CooperativeTask;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.ScheduledTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.util.List;
 
 /** Reusable antenna shutdown state machine. */
-final class AntennaShutdownTask implements CooperativeTask {
+final class AntennaShutdownTask implements YieldingTask {
 
     private enum Phase {
         STOP_INVENTORY,
@@ -31,7 +31,7 @@ final class AntennaShutdownTask implements CooperativeTask {
      * Runs shutdown as one cooperative task and waits for the ordered cleanup
      * sequence to finish.
      */
-    void runAndWait(ScheduledTaskRunner taskRunner) {
+    void runAndWait(SerialTaskRunner taskRunner) {
         reset();
         taskRunner.await(taskRunner.runTask(this));
     }

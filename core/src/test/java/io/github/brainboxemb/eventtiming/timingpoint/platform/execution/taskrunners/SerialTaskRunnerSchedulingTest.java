@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.time.Duration;
@@ -21,21 +21,22 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class ScheduledTaskRunnerTest {
+public class SerialTaskRunnerSchedulingTest {
 
     @Test
-    public void cooperativeAgainYieldsToAlreadyQueuedWork()
+    public void yieldingAgainYieldsToAlreadyQueuedWork()
             throws Exception {
         ScheduledExecutorService worker =
                 Executors.newScheduledThreadPool(1);
-        SerialScheduledLane lane =
-                new SerialScheduledLane(
+        SerialLane lane =
+                new SerialLane(
                         8,
-                        "cooperative-yield",
+                        "yielding-yield",
                         worker);
-        ScheduledTaskRunner runner =
-                new ScheduledTaskRunner(
+        SerialTaskRunner runner =
+                new SerialTaskRunner(
                         lane,
+                        worker,
                         Duration.ofSeconds(1));
         runner.start();
 
@@ -112,23 +113,24 @@ public class ScheduledTaskRunnerTest {
     }
 
     @Test
-    public void cooperativeAfterReleasesPhysicalWorker()
+    public void yieldingAfterReleasesPhysicalWorker()
             throws Exception {
         ScheduledExecutorService worker =
                 Executors.newScheduledThreadPool(1);
-        SerialScheduledLane taskLane =
-                new SerialScheduledLane(
+        SerialLane taskLane =
+                new SerialLane(
                         8,
-                        "cooperative-delay",
+                        "yielding-delay",
                         worker);
-        SerialScheduledLane siblingLane =
-                new SerialScheduledLane(
+        SerialLane siblingLane =
+                new SerialLane(
                         8,
-                        "cooperative-sibling",
+                        "yielding-sibling",
                         worker);
-        ScheduledTaskRunner runner =
-                new ScheduledTaskRunner(
+        SerialTaskRunner runner =
+                new SerialTaskRunner(
                         taskLane,
+                        worker,
                         Duration.ofSeconds(1));
         runner.start();
         siblingLane.start();
@@ -158,11 +160,12 @@ public class ScheduledTaskRunnerTest {
 
             CountDownLatch siblingRan =
                     new CountDownLatch(1);
-            assertTrue(
-                    siblingLane.execute(
+            assertEquals(
+                    SerialLane.AdmissionResult.ACCEPTED,
+                    siblingLane.offer(
                             siblingRan::countDown));
             assertTrue(
-                    "cooperative delay must release the shared worker",
+                    "yielding delay must release the shared worker",
                     siblingRan.await(
                             75,
                             TimeUnit.MILLISECONDS));
@@ -184,14 +187,15 @@ public class ScheduledTaskRunnerTest {
             throws Exception {
         ScheduledExecutorService worker =
                 Executors.newScheduledThreadPool(1);
-        SerialScheduledLane lane =
-                new SerialScheduledLane(
+        SerialLane lane =
+                new SerialLane(
                         4,
                         "timeout",
                         worker);
-        ScheduledTaskRunner runner =
-                new ScheduledTaskRunner(
+        SerialTaskRunner runner =
+                new SerialTaskRunner(
                         lane,
+                        worker,
                         Duration.ofMillis(50));
         runner.start();
 
@@ -218,9 +222,9 @@ public class ScheduledTaskRunnerTest {
             try {
                 runner.await(task);
                 fail("expected task timeout");
-            } catch (ScheduledTaskRunner.OperationException expected) {
+            } catch (SerialTaskRunner.OperationException expected) {
                 assertEquals(
-                        ScheduledTaskRunner.FailureReason.TIMEOUT,
+                        SerialTaskRunner.FailureReason.TIMEOUT,
                         expected.reason());
             }
 
@@ -241,14 +245,15 @@ public class ScheduledTaskRunnerTest {
                 Executors.newScheduledThreadPool(1);
         worker.shutdownNow();
 
-        SerialScheduledLane lane =
-                new SerialScheduledLane(
+        SerialLane lane =
+                new SerialLane(
                         4,
                         "rejected",
                         worker);
-        ScheduledTaskRunner runner =
-                new ScheduledTaskRunner(
+        SerialTaskRunner runner =
+                new SerialTaskRunner(
                         lane,
+                        worker,
                         Duration.ofMillis(100));
 
         runner.start();
@@ -260,9 +265,9 @@ public class ScheduledTaskRunnerTest {
             try {
                 runner.await(task);
                 fail("expected rejection");
-            } catch (ScheduledTaskRunner.OperationException expected) {
+            } catch (SerialTaskRunner.OperationException expected) {
                 assertEquals(
-                        ScheduledTaskRunner.FailureReason.OVERLOADED,
+                        SerialTaskRunner.FailureReason.OVERLOADED,
                         expected.reason());
             }
         } finally {

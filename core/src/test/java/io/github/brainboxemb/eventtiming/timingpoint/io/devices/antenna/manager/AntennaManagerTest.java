@@ -12,7 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -75,10 +75,11 @@ public class AntennaManagerTest {
                                 antenna,
                                 power,
                                 Duration.ofMillis(200)),
-                        new SerialScheduledLane(
+                        new SerialLane(
                                 8,
                                 "antenna-manager-test",
                                 shared),
+                        shared,
                         Duration.ofSeconds(1));
 
         try {
@@ -160,10 +161,11 @@ public class AntennaManagerTest {
                                 antenna,
                                 power,
                                 Duration.ofMillis(200)),
-                        new SerialScheduledLane(
+                        new SerialLane(
                                 8,
                                 "antenna-manager-test",
                                 shared),
+                        shared,
                         Duration.ofSeconds(1));
 
         try {
@@ -211,14 +213,15 @@ public class AntennaManagerTest {
                                 antenna,
                                 power,
                                 stabilization),
-                        new SerialScheduledLane(
+                        new SerialLane(
                                 8,
                                 "antenna-manager-test",
                                 shared),
+                        shared,
                         Duration.ofSeconds(1));
 
-        SerialScheduledLane sibling =
-                new SerialScheduledLane(
+        SerialLane sibling =
+                new SerialLane(
                         4,
                         "sibling-io-test",
                         shared);
@@ -233,8 +236,9 @@ public class AntennaManagerTest {
 
             CountDownLatch duringSelfTestDelay =
                     new CountDownLatch(1);
-            assertTrue(
-                    sibling.execute(
+            assertEquals(
+                    SerialLane.AdmissionResult.ACCEPTED,
+                    sibling.offer(
                             duringSelfTestDelay::countDown));
             assertTrue(
                     "self-test stabilization must not occupy the shared worker",
@@ -257,8 +261,9 @@ public class AntennaManagerTest {
 
             CountDownLatch duringInitializeDelay =
                     new CountDownLatch(1);
-            assertTrue(
-                    sibling.execute(
+            assertEquals(
+                    SerialLane.AdmissionResult.ACCEPTED,
+                    sibling.offer(
                             duringInitializeDelay::countDown));
             assertTrue(
                     "initialize stabilization must not occupy the shared worker",
@@ -590,10 +595,11 @@ public class AntennaManagerTest {
 
         return new AntennaManager(
                 antennaSet,
-                new SerialScheduledLane(
+                new SerialLane(
                         capacity,
                         "antenna-manager-test",
                         shared),
+                shared,
                 timeout);
     }
 
