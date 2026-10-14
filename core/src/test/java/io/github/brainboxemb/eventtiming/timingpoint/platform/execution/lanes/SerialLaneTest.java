@@ -84,7 +84,7 @@ public class SerialLaneTest {
     }
 
     @Test
-    public void processesAcceptedWorkInFifoOrder() throws Exception {
+    public void processesQueuedWorkInFifoOrder() throws Exception {
         SerialLane executor = newLane(4, "serial-executor-test");
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
@@ -140,7 +140,7 @@ public class SerialLaneTest {
     }
 
     @Test
-    public void closeDrainsAlreadyAcceptedWork() throws Exception {
+    public void closeDrainsAlreadyQueuedWork() throws Exception {
         SerialLane executor = newLane(2, "serial-executor-test");
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
@@ -229,7 +229,7 @@ public class SerialLaneTest {
         SerialLaneMetrics.Snapshot metrics =
                 executor.metrics().snapshot();
 
-        assertEquals(2L, metrics.acceptedCount());
+        assertEquals(2L, metrics.queuedCount());
         assertEquals(1L, metrics.fullCount());
         assertEquals(1L, metrics.notRunningCount());
         assertEquals(2L, metrics.completedCount());
