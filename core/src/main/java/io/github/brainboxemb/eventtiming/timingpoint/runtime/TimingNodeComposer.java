@@ -8,7 +8,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persist
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTasks;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
@@ -66,8 +66,8 @@ final class TimingNodeComposer {
                         new LogBookMetrics(),
                         lanes.dataLane());
 
-        NodeTasks tasks =
-                new NodeTasks(
+        NodeService nodeService =
+                new NodeService(
                         logBook,
                         lanes.taskLane(),
                         system.eventData(),
@@ -89,7 +89,7 @@ final class TimingNodeComposer {
         TimingNode node =
                 new TimingNode(
                         logBook,
-                        tasks,
+                        nodeService,
                         tags);
         return new TimingNodeComponents(
                 node,
