@@ -95,7 +95,6 @@ final class LogBookState {
         return logBookData.headSequence();
     }
 
-
     /** Opens the node at the requested location and commits the lifecycle record first. */
     OpenResult open(LocationId newLocationId)
             throws TimingDataPersistence.PersistenceException {
