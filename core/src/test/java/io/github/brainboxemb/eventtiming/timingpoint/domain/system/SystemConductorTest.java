@@ -132,8 +132,8 @@ public class SystemConductorTest {
                     manager.settings().revision());
 
             assertEquals(
-                    io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandAdmission.ACCEPTED,
-                    node.logBook().offer(
+                    io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandQueueResult.QUEUED,
+                    node.logBook().queue(
                             LogBookCommands.open(
                                     new LocationId(24))));
 
