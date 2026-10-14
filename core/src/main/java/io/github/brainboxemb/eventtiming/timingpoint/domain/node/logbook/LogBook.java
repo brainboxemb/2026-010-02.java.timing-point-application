@@ -116,7 +116,6 @@ public final class LogBook
      */
     public void activate() {
         serialLane.start();
-        publishedStatus = null;
 
         SafeExecute.onRejected(
                 () -> serialLane.execute(this::loadPersistedData),
