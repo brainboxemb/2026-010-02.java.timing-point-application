@@ -357,7 +357,7 @@ public final class SerialLane implements Executor, AutoCloseable {
     }
 
     /**
-     * Stops new admission and waits for work already accepted by this lane.
+     * Stops accepting new work and waits for queued/running work to finish.
      *
      * <p>Closing the lane never shuts down its externally owned worker.</p>
      */
