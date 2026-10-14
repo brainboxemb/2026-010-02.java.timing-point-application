@@ -254,14 +254,16 @@ public class StageTimingTest {
                         TimingData.RegistrationAction.ADD);
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
-        TimingNode node =
-                TimingNodeFixture.createDirect(
+        TimingNodeFixture.Components components =
+                TimingNodeFixture.createDirectComponents(
                         NODE_ID,
                         new StaticPersistence(committed),
                         FACTORY,
                         () -> Instant.parse("2026-10-13T12:05:00Z"),
                         new DefaultEventData(),
                         stream);
+        TimingNode node =
+                components.node();
 
         node.activate();
         try {
@@ -275,7 +277,8 @@ public class StageTimingTest {
                                             "0001",
                                             LocalTime.NOON))));
             assertTrue(
-                    node.upstreamHandler()
+                    components.taskProcessor()
+                            .upstreamHandler()
                             .inputAvailable());
             stream.takeSent();
 
