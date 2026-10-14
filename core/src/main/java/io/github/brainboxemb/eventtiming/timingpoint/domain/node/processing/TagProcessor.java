@@ -10,7 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,13 +48,13 @@ public final class TagProcessor {
     private final RegistrationDuplicateFilter duplicateFilter;
     private final TagProcessingMetrics metrics;
     private final TagObservationFilter observationFilter;
-    private final SerialScheduledExecutor executor;
+    private final SerialScheduledLane executor;
     private final ArrayBlockingQueue<TagObservation> inputQueue;
     private final AtomicBoolean drainScheduled = new AtomicBoolean();
     private final Object lifecycleLock = new Object();
 
     private volatile State state = State.NEW;
-    private volatile SerialScheduledExecutor.ScheduledRegistration housekeepingTask;
+    private volatile SerialScheduledLane.ScheduledRegistration housekeepingTask;
     private volatile List<TagPassageSnapshot> passageSnapshots =
             Collections.emptyList();
 
@@ -64,7 +64,7 @@ public final class TagProcessor {
             TagProcessingPolicy policy,
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
-            SerialScheduledExecutor executor) {
+            SerialScheduledLane executor) {
         this(
                 timingNode,
                 eventData,
@@ -80,7 +80,7 @@ public final class TagProcessor {
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
-            SerialScheduledExecutor executor) {
+            SerialScheduledLane executor) {
         if (timingNode == null) {
             throw new IllegalArgumentException("timingNode must not be null");
         }
@@ -364,7 +364,7 @@ public final class TagProcessor {
     }
 
     private void closeHousekeepingLocked() {
-        SerialScheduledExecutor.ScheduledRegistration task = housekeepingTask;
+        SerialScheduledLane.ScheduledRegistration task = housekeepingTask;
         housekeepingTask = null;
         if (task != null) {
             task.close();

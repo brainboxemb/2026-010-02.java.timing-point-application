@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors;
+package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory;
  * One serial execution lane that supports immediate, one-shot delayed and
  * fixed-delay work.
  *
- * <p>Like {@link SerialExecutor}, this is primarily a logical lane rather than
+ * <p>Like {@link SerialLane}, this is primarily a logical lane rather than
  * necessarily a Java thread. In production, multiple TagProcessor lanes share
  * one runtime-owned scheduled role worker. Each lane still serializes its own
  * immediate work and periodic housekeeping.</p>
@@ -29,9 +29,9 @@ import org.slf4j.LoggerFactory;
  * schedule timer triggers on it, but never creates, configures or shuts down the
  * underlying worker.</p>
  */
-public final class SerialScheduledExecutor implements AutoCloseable {
+public final class SerialScheduledLane implements AutoCloseable {
     private static final Logger LOG =
-            LoggerFactory.getLogger(SerialScheduledExecutor.class);
+            LoggerFactory.getLogger(SerialScheduledLane.class);
 
     /** Lifecycle of this logical scheduled lane. */
     public enum State {
@@ -79,7 +79,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
      */
     private final ScheduledExecutorService workerExecutor;
 
-    private final SerialScheduledExecutorMetrics metrics;
+    private final SerialScheduledLaneMetrics metrics;
 
     /** Active one-shot delayed registrations owned by this lane. */
     private final List<DelayedFutureTask<?>> delayedTasks =
@@ -95,7 +95,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
      * Lane-local serialization adapter. Immediate and periodic work both enter
      * this same lane.
      */
-    private SerialExecutor lane;
+    private SerialLane lane;
 
     /** First fatal lane/scheduling failure, if any. */
     private Throwable failure;
@@ -103,7 +103,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
     /**
      * Creates a logical scheduled lane on an externally owned scheduled worker.
      */
-    public SerialScheduledExecutor(
+    public SerialScheduledLane(
             int laneCapacity,
             String laneName,
             ScheduledExecutorService workerExecutor) {
@@ -123,17 +123,17 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         this.laneName = laneName.trim();
         this.laneCapacity = laneCapacity;
         this.workerExecutor = workerExecutor;
-        metrics = new SerialScheduledExecutorMetrics(
+        metrics = new SerialScheduledLaneMetrics(
                 this::metricQueueDepth);
     }
 
     /** Starts or restarts this logical lane on the supplied worker. */
     public synchronized void start() {
         if (state != State.NEW && state != State.STOPPED) {
-            throw new IllegalStateException("SerialScheduledExecutor cannot start from " + state);
+            throw new IllegalStateException("SerialScheduledLane cannot start from " + state);
         }
 
-        lane = new SerialExecutor(laneCapacity, laneName, workerExecutor);
+        lane = new SerialLane(laneCapacity, laneName, workerExecutor);
         lane.start();
         state = State.RUNNING;
     }
@@ -145,28 +145,28 @@ public final class SerialScheduledExecutor implements AutoCloseable {
      * ordering boundary. Callers do not need a second executor merely because
      * one control operation has a return/failure path.</p>
      */
-    public <R> SerialExecutor.SubmitResult<R> submit(
+    public <R> SerialLane.SubmitResult<R> submit(
             Callable<R> work) {
         if (work == null) {
             throw new IllegalArgumentException(
                     "work must not be null");
         }
 
-        final SerialExecutor activeLane;
+        final SerialLane activeLane;
         synchronized (this) {
             if (state != State.RUNNING) {
                 metrics.recordImmediateRejected();
-                return new SerialExecutor.SubmitResult<R>(
-                        SerialExecutor.AdmissionResult.NOT_RUNNING,
+                return new SerialLane.SubmitResult<R>(
+                        SerialLane.AdmissionResult.NOT_RUNNING,
                         null);
             }
             activeLane = lane;
         }
 
-        SerialExecutor.SubmitResult<R> result =
+        SerialLane.SubmitResult<R> result =
                 activeLane.submit(work);
         if (result.admission()
-                == SerialExecutor.AdmissionResult.ACCEPTED) {
+                == SerialLane.AdmissionResult.ACCEPTED) {
             metrics.recordImmediateAccepted();
         } else {
             metrics.recordImmediateRejected();
@@ -185,7 +185,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                     "task must not be null");
         }
 
-        SerialExecutor activeLane;
+        SerialLane activeLane;
         synchronized (this) {
             if (state != State.RUNNING) {
                 metrics.recordImmediateRejected();
@@ -194,9 +194,9 @@ public final class SerialScheduledExecutor implements AutoCloseable {
             activeLane = lane;
         }
 
-        SerialExecutor.AdmissionResult admission =
+        SerialLane.AdmissionResult admission =
                 activeLane.offer(wrapImmediate(task));
-        if (admission == SerialExecutor.AdmissionResult.ACCEPTED) {
+        if (admission == SerialLane.AdmissionResult.ACCEPTED) {
             metrics.recordImmediateAccepted();
             return true;
         }
@@ -247,7 +247,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         synchronized (this) {
             if (state != State.RUNNING) {
                 throw new IllegalStateException(
-                        "SerialScheduledExecutor is not running");
+                        "SerialScheduledLane is not running");
             }
             delayed =
                     new DelayedFutureTask<R>(
@@ -283,7 +283,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
         synchronized (this) {
             if (state != State.RUNNING) {
                 throw new IllegalStateException(
-                        "SerialScheduledExecutor is not running");
+                        "SerialScheduledLane is not running");
             }
             periodic = new PeriodicTask(task, delayNanos);
             periodicTasks.add(periodic);
@@ -302,7 +302,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
     }
 
     /** Returns the separate pull-based metrics owner for this lane. */
-    public SerialScheduledExecutorMetrics metrics() {
+    public SerialScheduledLaneMetrics metrics() {
         return metrics;
     }
 
@@ -320,7 +320,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
      */
     @Override
     public void close() {
-        final SerialExecutor activeLane;
+        final SerialLane activeLane;
         final List<DelayedFutureTask<?>> delayed;
         final List<PeriodicTask> tasks;
 
@@ -444,8 +444,8 @@ public final class SerialScheduledExecutor implements AutoCloseable {
             if (isDone()) {
                 return;
             }
-            synchronized (SerialScheduledExecutor.this) {
-                if (state != SerialScheduledExecutor.State.RUNNING) {
+            synchronized (SerialScheduledLane.this) {
+                if (state != SerialScheduledLane.State.RUNNING) {
                     cancel(false);
                     return;
                 }
@@ -465,10 +465,10 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                     }
                 }
             } catch (RejectedExecutionException ex) {
-                synchronized (SerialScheduledExecutor.this) {
-                    if (state == SerialScheduledExecutor.State.RUNNING) {
+                synchronized (SerialScheduledLane.this) {
+                    if (state == SerialScheduledLane.State.RUNNING) {
                         failure = ex;
-                        state = SerialScheduledExecutor.State.FAILED;
+                        state = SerialScheduledLane.State.FAILED;
                     }
                 }
                 completion.completeExceptionally(ex);
@@ -484,20 +484,20 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                 return;
             }
 
-            final SerialExecutor activeLane;
-            synchronized (SerialScheduledExecutor.this) {
-                if (state != SerialScheduledExecutor.State.RUNNING) {
+            final SerialLane activeLane;
+            synchronized (SerialScheduledLane.this) {
+                if (state != SerialScheduledLane.State.RUNNING) {
                     cancel(false);
                     return;
                 }
                 activeLane = lane;
             }
 
-            SerialExecutor.AdmissionResult admission =
+            SerialLane.AdmissionResult admission =
                     activeLane.offer(this);
 
             if (admission
-                    != SerialExecutor.AdmissionResult.ACCEPTED) {
+                    != SerialLane.AdmissionResult.ACCEPTED) {
                 schedule();
             }
         }
@@ -510,7 +510,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
 
         @Override
         protected void done() {
-            synchronized (SerialScheduledExecutor.this) {
+            synchronized (SerialScheduledLane.this) {
                 delayedTasks.remove(this);
             }
             if (executionStarted) {
@@ -607,7 +607,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                     return;
                 }
             }
-            synchronized (SerialScheduledExecutor.this) {
+            synchronized (SerialScheduledLane.this) {
                 if (state != State.RUNNING) {
                     return;
                 }
@@ -627,7 +627,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                     }
                 }
             } catch (RejectedExecutionException ex) {
-                synchronized (SerialScheduledExecutor.this) {
+                synchronized (SerialScheduledLane.this) {
                     if (state == State.RUNNING) {
                         failure = ex;
                         state = State.FAILED;
@@ -644,15 +644,15 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                 }
             }
 
-            SerialExecutor activeLane;
-            synchronized (SerialScheduledExecutor.this) {
+            SerialLane activeLane;
+            synchronized (SerialScheduledLane.this) {
                 if (state != State.RUNNING) {
                     return;
                 }
-                activeLane = SerialScheduledExecutor.this.lane;
+                activeLane = SerialScheduledLane.this.lane;
             }
 
-            SerialExecutor.AdmissionResult admission =
+            SerialLane.AdmissionResult admission =
                     activeLane.offer(() -> {
                         try {
                             wrapPeriodic(task).run();
@@ -662,7 +662,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                     });
 
             if (admission
-                    != SerialExecutor.AdmissionResult.ACCEPTED) {
+                    != SerialLane.AdmissionResult.ACCEPTED) {
                 /*
                  * This is control/scheduling work, not TagObservation ingress.
                  * Retry after the normal fixed delay rather than creating an
@@ -690,7 +690,7 @@ public final class SerialScheduledExecutor implements AutoCloseable {
                 pending.cancel(false);
             }
 
-            synchronized (SerialScheduledExecutor.this) {
+            synchronized (SerialScheduledLane.this) {
                 periodicTasks.remove(this);
             }
             if (recordCancellation) {

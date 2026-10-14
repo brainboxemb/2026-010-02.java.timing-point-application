@@ -14,7 +14,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.UniqueTe
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamTaskState;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 import java.time.ZoneId;
@@ -46,7 +46,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
     private static final int MAX_PENDING_FACTS = 256;
 
     private final LogBookProcessor logBookProcessor;
-    private final SerialExecutor taskLane;
+    private final SerialLane taskLane;
     private final RaceDataState raceData;
     private final UniqueTeamRegistrations uniqueTeamRegistrations =
             new UniqueTeamRegistrations();
@@ -65,7 +65,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
 
     public NodeTaskProcessor(
             LogBookProcessor logBookProcessor,
-            SerialExecutor taskLane,
+            SerialLane taskLane,
             EventData eventData,
             UpstreamStream upstreamStream) {
         if (logBookProcessor == null) {
@@ -111,9 +111,9 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
 
     /** Checks the Task Lane before Data Lane recovery is started. */
     public void ensureCanActivate() {
-        SerialExecutor.State state = taskLane.state();
-        if (state != SerialExecutor.State.NEW
-                && state != SerialExecutor.State.STOPPED) {
+        SerialLane.State state = taskLane.state();
+        if (state != SerialLane.State.NEW
+                && state != SerialLane.State.STOPPED) {
             throw new IllegalStateException(
                     "TimingNode cannot activate with Task Lane state=" + state);
         }
@@ -176,14 +176,14 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
 
     /** A full Task Lane rejects new work rather than blocking an ingress caller. */
     private boolean offerTask(Runnable task) {
-        return taskLane.offer(task) == SerialExecutor.AdmissionResult.ACCEPTED;
+        return taskLane.offer(task) == SerialLane.AdmissionResult.ACCEPTED;
     }
 
     private void onTimingDataRecovered(List<TimingData> recovered) {
         List<TimingData> snapshot =
                 new ArrayList<TimingData>(recovered);
 
-        if (taskLane.state() == SerialExecutor.State.RUNNING
+        if (taskLane.state() == SerialLane.State.RUNNING
                 && offerTask(() -> rebuildDerivedTiming(snapshot))) {
             return;
         }
@@ -195,7 +195,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
     }
 
     private void onTimingDataCommitted(TimingData data) {
-        if (taskLane.state() == SerialExecutor.State.RUNNING
+        if (taskLane.state() == SerialLane.State.RUNNING
                 && offerTask(() -> applyCommittedTimingData(data))) {
             return;
         }
@@ -324,7 +324,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
             }
         }
 
-        SerialExecutor.SubmitResult<R> submitResult =
+        SerialLane.SubmitResult<R> submitResult =
                 taskLane.submit(task);
         switch (submitResult.admission()) {
             case FULL:
@@ -333,7 +333,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
                         operation
                                 + " could not be admitted because the TimingNode Task Lane is full");
             case NOT_RUNNING:
-                if (taskLane.state() == SerialExecutor.State.FAILED) {
+                if (taskLane.state() == SerialLane.State.FAILED) {
                     throw new OperationException(
                             OperationException.Reason.FAILED,
                             operation

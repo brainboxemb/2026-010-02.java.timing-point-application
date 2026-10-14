@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingpoint.application.SimulationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -39,8 +39,8 @@ public class SimulatedTagScenarioRunnerTest {
         ScheduledThreadPoolExecutor worker =
                 new ScheduledThreadPoolExecutor(1);
         worker.setRemoveOnCancelPolicy(true);
-        SerialScheduledExecutor lane =
-                new SerialScheduledExecutor(
+        SerialScheduledLane lane =
+                new SerialScheduledLane(
                         32,
                         "simulation-test",
                         worker);
@@ -120,8 +120,8 @@ public class SimulatedTagScenarioRunnerTest {
         ScheduledThreadPoolExecutor worker =
                 new ScheduledThreadPoolExecutor(1);
         worker.setRemoveOnCancelPolicy(true);
-        SerialScheduledExecutor lane =
-                new SerialScheduledExecutor(
+        SerialScheduledLane lane =
+                new SerialScheduledLane(
                         32,
                         "simulation-test",
                         worker);
@@ -197,8 +197,8 @@ public class SimulatedTagScenarioRunnerTest {
         ScheduledThreadPoolExecutor worker =
                 new ScheduledThreadPoolExecutor(1);
         worker.setRemoveOnCancelPolicy(true);
-        SerialScheduledExecutor lane =
-                new SerialScheduledExecutor(
+        SerialScheduledLane lane =
+                new SerialScheduledLane(
                         32,
                         "simulation-test",
                         worker);
@@ -305,8 +305,8 @@ public class SimulatedTagScenarioRunnerTest {
         ScheduledThreadPoolExecutor worker =
                 new ScheduledThreadPoolExecutor(1);
         worker.setRemoveOnCancelPolicy(true);
-        SerialScheduledExecutor lane =
-                new SerialScheduledExecutor(
+        SerialScheduledLane lane =
+                new SerialScheduledLane(
                         32,
                         "simulation-test",
                         worker);

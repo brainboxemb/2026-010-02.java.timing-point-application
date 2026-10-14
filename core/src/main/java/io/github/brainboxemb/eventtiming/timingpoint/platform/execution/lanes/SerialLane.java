@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors;
+package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
 /**
  * One bounded FIFO execution lane that never runs two of its tasks concurrently.
  *
- * <p>A {@code SerialExecutor} is a logical lane, not necessarily a Java thread.
+ * <p>A {@code SerialLane} is a logical lane, not necessarily a Java thread.
  * Production runtime composition gives multiple lanes one shared role worker.
  * Each lane still owns its own bounded queue, admission result, FIFO ordering
  * and lifecycle. The shared worker only executes short drain tokens submitted by
@@ -24,9 +24,9 @@ import org.slf4j.LoggerFactory;
  * underlying worker. Runtime composition therefore owns physical worker
  * lifecycle while this class owns only lane-local execution behaviour.</p>
  */
-public final class SerialExecutor implements AutoCloseable {
+public final class SerialLane implements AutoCloseable {
     private static final Logger LOG =
-            LoggerFactory.getLogger(SerialExecutor.class);
+            LoggerFactory.getLogger(SerialLane.class);
 
     /**
      * Logical lane currently executing on this Java thread, if any.
@@ -34,8 +34,8 @@ public final class SerialExecutor implements AutoCloseable {
      * <p>Used only to detect blocking same-lane reentrancy. The previous value
      * is restored for nested execution of another logical lane.</p>
      */
-    private static final ThreadLocal<SerialExecutor> CURRENT_LANE =
-            new ThreadLocal<SerialExecutor>();
+    private static final ThreadLocal<SerialLane> CURRENT_LANE =
+            new ThreadLocal<SerialLane>();
 
     /** Lifecycle of this logical lane, independent of any shared worker lifecycle. */
     public enum State {
@@ -100,7 +100,7 @@ public final class SerialExecutor implements AutoCloseable {
 
     /** Bounded workload queue owned by this lane. */
     private final ArrayBlockingQueue<TrackedTask> queue;
-    private final SerialExecutorMetrics metrics;
+    private final SerialLaneMetrics metrics;
 
     private State state = State.NEW;
 
@@ -122,7 +122,7 @@ public final class SerialExecutor implements AutoCloseable {
      * <p>The supplied executor is a dependency only. Closing or faulting this
      * lane never shuts it down.</p>
      */
-    public SerialExecutor(
+    public SerialLane(
             int capacity,
             String laneName,
             Executor workerExecutor) {
@@ -135,7 +135,7 @@ public final class SerialExecutor implements AutoCloseable {
         this.laneName = requireLaneName(laneName);
         this.workerExecutor = workerExecutor;
         this.queue = new ArrayBlockingQueue<TrackedTask>(capacity);
-        this.metrics = new SerialExecutorMetrics(queue::size);
+        this.metrics = new SerialLaneMetrics(queue::size);
     }
 
     private static void validateCapacity(int capacity) {
@@ -156,7 +156,7 @@ public final class SerialExecutor implements AutoCloseable {
     /** Starts or restarts this logical lane on the externally owned worker. */
     public synchronized void start() {
         if (state != State.NEW && state != State.STOPPED) {
-            throw new IllegalStateException("SerialExecutor cannot start from " + state);
+            throw new IllegalStateException("SerialLane cannot start from " + state);
         }
         state = State.RUNNING;
     }
@@ -261,7 +261,7 @@ public final class SerialExecutor implements AutoCloseable {
             taskRunning = true;
         }
 
-        SerialExecutor previousLane = CURRENT_LANE.get();
+        SerialLane previousLane = CURRENT_LANE.get();
         CURRENT_LANE.set(this);
         try {
             task.run();
@@ -309,7 +309,7 @@ public final class SerialExecutor implements AutoCloseable {
     }
 
     /** Returns the separate pull-based metrics owner for this lane. */
-    public SerialExecutorMetrics metrics() {
+    public SerialLaneMetrics metrics() {
         return metrics;
     }
 

@@ -12,7 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -75,7 +75,7 @@ public class AntennaManagerTest {
                                 antenna,
                                 power,
                                 Duration.ofMillis(200)),
-                        new SerialScheduledExecutor(
+                        new SerialScheduledLane(
                                 8,
                                 "antenna-manager-test",
                                 shared),
@@ -160,7 +160,7 @@ public class AntennaManagerTest {
                                 antenna,
                                 power,
                                 Duration.ofMillis(200)),
-                        new SerialScheduledExecutor(
+                        new SerialScheduledLane(
                                 8,
                                 "antenna-manager-test",
                                 shared),
@@ -211,14 +211,14 @@ public class AntennaManagerTest {
                                 antenna,
                                 power,
                                 stabilization),
-                        new SerialScheduledExecutor(
+                        new SerialScheduledLane(
                                 8,
                                 "antenna-manager-test",
                                 shared),
                         Duration.ofSeconds(1));
 
-        SerialScheduledExecutor sibling =
-                new SerialScheduledExecutor(
+        SerialScheduledLane sibling =
+                new SerialScheduledLane(
                         4,
                         "sibling-io-test",
                         shared);
@@ -590,7 +590,7 @@ public class AntennaManagerTest {
 
         return new AntennaManager(
                 antennaSet,
-                new SerialScheduledExecutor(
+                new SerialScheduledLane(
                         capacity,
                         "antenna-manager-test",
                         shared),

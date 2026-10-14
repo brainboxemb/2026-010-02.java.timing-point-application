@@ -9,7 +9,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.power.SimulatedPowerDevice;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -363,7 +363,7 @@ public class AntennaMultiplexTest {
             Duration timeout) {
         return new AntennaManager(
                 antennaSet,
-                new SerialScheduledExecutor(
+                new SerialScheduledLane(
                         capacity,
                         "antenna-multiplex-test",
                         shared),

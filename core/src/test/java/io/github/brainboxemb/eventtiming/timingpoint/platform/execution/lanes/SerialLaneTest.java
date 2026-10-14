@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors;
+package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -21,7 +21,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class SerialExecutorTest {
+public class SerialLaneTest {
     private final List<ExecutorService> ownedWorkers =
             new ArrayList<ExecutorService>();
 
@@ -32,7 +32,7 @@ public class SerialExecutorTest {
         }
     }
 
-    private SerialExecutor newLane(
+    private SerialLane newLane(
             int capacity,
             String threadName) {
         ExecutorService worker =
@@ -41,7 +41,7 @@ public class SerialExecutorTest {
                                 runnable,
                                 threadName));
         ownedWorkers.add(worker);
-        return new SerialExecutor(
+        return new SerialLane(
                 capacity,
                 threadName,
                 worker);
@@ -49,50 +49,50 @@ public class SerialExecutorTest {
 
     @Test
     public void rejectsWorkBeforeStartAndAfterStop() {
-        SerialExecutor executor = newLane(1, "serial-executor-test");
+        SerialLane executor = newLane(1, "serial-executor-test");
 
         assertEquals(
-                SerialExecutor.AdmissionResult.NOT_RUNNING,
+                SerialLane.AdmissionResult.NOT_RUNNING,
                 executor.offer(() -> { }));
 
         executor.start();
         executor.close();
 
-        assertEquals(SerialExecutor.State.STOPPED, executor.state());
+        assertEquals(SerialLane.State.STOPPED, executor.state());
         assertEquals(
-                SerialExecutor.AdmissionResult.NOT_RUNNING,
+                SerialLane.AdmissionResult.NOT_RUNNING,
                 executor.offer(() -> { }));
     }
 
     @Test
     public void restartsAfterCleanStop() throws Exception {
-        SerialExecutor executor = newLane(2, "serial-executor-restart-test");
+        SerialLane executor = newLane(2, "serial-executor-restart-test");
         CountDownLatch first = new CountDownLatch(1);
         CountDownLatch second = new CountDownLatch(1);
 
         executor.start();
-        assertEquals(SerialExecutor.AdmissionResult.ACCEPTED, executor.offer(first::countDown));
+        assertEquals(SerialLane.AdmissionResult.ACCEPTED, executor.offer(first::countDown));
         assertTrue(first.await(1, TimeUnit.SECONDS));
         executor.close();
 
         executor.start();
-        assertEquals(SerialExecutor.AdmissionResult.ACCEPTED, executor.offer(second::countDown));
+        assertEquals(SerialLane.AdmissionResult.ACCEPTED, executor.offer(second::countDown));
         assertTrue(second.await(1, TimeUnit.SECONDS));
         executor.close();
 
-        assertEquals(SerialExecutor.State.STOPPED, executor.state());
+        assertEquals(SerialLane.State.STOPPED, executor.state());
     }
 
     @Test
     public void processesAcceptedWorkInFifoOrder() throws Exception {
-        SerialExecutor executor = newLane(4, "serial-executor-test");
+        SerialLane executor = newLane(4, "serial-executor-test");
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
         List<Integer> order = Collections.synchronizedList(new ArrayList<>());
 
         executor.start();
         try {
-            SerialExecutor.SubmitResult<Integer> first = executor.submit(() -> {
+            SerialLane.SubmitResult<Integer> first = executor.submit(() -> {
                 firstStarted.countDown();
                 releaseFirst.await();
                 order.add(1);
@@ -100,7 +100,7 @@ public class SerialExecutorTest {
             });
             assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
 
-            SerialExecutor.SubmitResult<Integer> second = executor.submit(() -> {
+            SerialLane.SubmitResult<Integer> second = executor.submit(() -> {
                 order.add(2);
                 return 20;
             });
@@ -117,7 +117,7 @@ public class SerialExecutorTest {
 
     @Test
     public void reportsFullWhileCapacityIsOccupied() throws Exception {
-        SerialExecutor executor = newLane(1, "serial-executor-test");
+        SerialLane executor = newLane(1, "serial-executor-test");
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
 
@@ -131,10 +131,10 @@ public class SerialExecutorTest {
             assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
 
             assertEquals(
-                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    SerialLane.AdmissionResult.ACCEPTED,
                     executor.offer(() -> { }));
             assertEquals(
-                    SerialExecutor.AdmissionResult.FULL,
+                    SerialLane.AdmissionResult.FULL,
                     executor.offer(() -> { }));
             assertTrue(executor.metrics().snapshot().queueHighWaterMark() >= 1);
         } finally {
@@ -145,7 +145,7 @@ public class SerialExecutorTest {
 
     @Test
     public void closeDrainsAlreadyAcceptedWork() throws Exception {
-        SerialExecutor executor = newLane(2, "serial-executor-test");
+        SerialLane executor = newLane(2, "serial-executor-test");
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
         CountDownLatch secondDone = new CountDownLatch(1);
@@ -171,18 +171,18 @@ public class SerialExecutorTest {
         closer.join(1000);
         assertFalse(closer.isAlive());
         assertTrue(secondDone.await(1, TimeUnit.SECONDS));
-        assertEquals(SerialExecutor.State.STOPPED, executor.state());
+        assertEquals(SerialLane.State.STOPPED, executor.state());
     }
 
     @Test
     public void ordinaryTaskFailureDoesNotStopLaterWork() throws Exception {
-        SerialExecutor executor = newLane(2, "serial-executor-test");
+        SerialLane executor = newLane(2, "serial-executor-test");
         executor.start();
         try {
-            SerialExecutor.SubmitResult<Integer> failing = executor.submit(() -> {
+            SerialLane.SubmitResult<Integer> failing = executor.submit(() -> {
                 throw new IllegalStateException("expected");
             });
-            SerialExecutor.SubmitResult<Integer> next = executor.submit(() -> 42);
+            SerialLane.SubmitResult<Integer> next = executor.submit(() -> 42);
 
             try {
                 failing.futureResult().get(1, TimeUnit.SECONDS);
@@ -192,7 +192,7 @@ public class SerialExecutorTest {
             }
 
             assertEquals(Integer.valueOf(42), next.futureResult().get(1, TimeUnit.SECONDS));
-            assertEquals(SerialExecutor.State.RUNNING, executor.state());
+            assertEquals(SerialLane.State.RUNNING, executor.state());
         } finally {
             executor.close();
         }
@@ -200,13 +200,13 @@ public class SerialExecutorTest {
 
     @Test
     public void recordsLowAllocationRuntimeCountersAndDurations() throws Exception {
-        SerialExecutor executor = newLane(1, "serial-executor-metrics-test");
+        SerialLane executor = newLane(1, "serial-executor-metrics-test");
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
         CountDownLatch queuedDone = new CountDownLatch(1);
 
         assertEquals(
-                SerialExecutor.AdmissionResult.NOT_RUNNING,
+                SerialLane.AdmissionResult.NOT_RUNNING,
                 executor.offer(() -> { }));
 
         executor.start();
@@ -222,10 +222,10 @@ public class SerialExecutorTest {
             assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
 
             assertEquals(
-                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    SerialLane.AdmissionResult.ACCEPTED,
                     executor.offer(queuedDone::countDown));
             assertEquals(
-                    SerialExecutor.AdmissionResult.FULL,
+                    SerialLane.AdmissionResult.FULL,
                     executor.offer(() -> { }));
 
             Thread.sleep(10L);
@@ -236,7 +236,7 @@ public class SerialExecutorTest {
             executor.close();
         }
 
-        SerialExecutorMetrics.Snapshot metrics =
+        SerialLaneMetrics.Snapshot metrics =
                 executor.metrics().snapshot();
 
         assertEquals(2L, metrics.acceptedCount());
@@ -265,13 +265,13 @@ public class SerialExecutorTest {
                         runnable,
                         "shared-node-worker"));
 
-        SerialExecutor first =
-                new SerialExecutor(
+        SerialLane first =
+                new SerialLane(
                         4,
                         "node-A",
                         shared);
-        SerialExecutor second =
-                new SerialExecutor(
+        SerialLane second =
+                new SerialLane(
                         4,
                         "node-B",
                         shared);
@@ -356,13 +356,13 @@ public class SerialExecutorTest {
                 0L,
                 TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>());
-        SerialExecutor first =
-                new SerialExecutor(
+        SerialLane first =
+                new SerialLane(
                         2,
                         "node-A",
                         shared);
-        SerialExecutor second =
-                new SerialExecutor(
+        SerialLane second =
+                new SerialLane(
                         2,
                         "node-B",
                         shared);
@@ -374,11 +374,11 @@ public class SerialExecutorTest {
             first.close();
 
             assertEquals(
-                    SerialExecutor.State.STOPPED,
+                    SerialLane.State.STOPPED,
                     first.state());
             assertFalse(shared.isShutdown());
             assertEquals(
-                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    SerialLane.AdmissionResult.ACCEPTED,
                     second.offer(secondDone::countDown));
             assertTrue(
                     secondDone.await(
@@ -404,13 +404,13 @@ public class SerialExecutorTest {
                         runnable,
                         "shared-node-worker"));
 
-        SerialExecutor failing =
-                new SerialExecutor(
+        SerialLane failing =
+                new SerialLane(
                         2,
                         "node-A",
                         shared);
-        SerialExecutor healthy =
-                new SerialExecutor(
+        SerialLane healthy =
+                new SerialLane(
                         2,
                         "node-B",
                         shared);
@@ -421,13 +421,13 @@ public class SerialExecutorTest {
         healthy.start();
         try {
             assertEquals(
-                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    SerialLane.AdmissionResult.ACCEPTED,
                     failing.offer(() -> {
                         throw new AssertionError(
                                 "expected lane failure");
                     }));
             assertEquals(
-                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    SerialLane.AdmissionResult.ACCEPTED,
                     healthy.offer(
                             healthyDone::countDown));
 
@@ -440,19 +440,19 @@ public class SerialExecutorTest {
                     System.nanoTime()
                             + TimeUnit.SECONDS.toNanos(1);
             while (failing.state()
-                    != SerialExecutor.State.FAILED
+                    != SerialLane.State.FAILED
                     && System.nanoTime() < deadline) {
                 Thread.yield();
             }
 
             assertEquals(
-                    SerialExecutor.State.FAILED,
+                    SerialLane.State.FAILED,
                     failing.state());
             assertTrue(
                     failing.failure()
                             instanceof AssertionError);
             assertEquals(
-                    SerialExecutor.State.RUNNING,
+                    SerialLane.State.RUNNING,
                     healthy.state());
             assertFalse(shared.isShutdown());
         } finally {
@@ -464,18 +464,18 @@ public class SerialExecutorTest {
 
     @Test
     public void fatalErrorFaultsWorkerAndCancelsQueuedWork() throws Exception {
-        SerialExecutor executor = newLane(2, "serial-executor-test");
+        SerialLane executor = newLane(2, "serial-executor-test");
         CountDownLatch fatalStarted = new CountDownLatch(1);
         CountDownLatch releaseFatal = new CountDownLatch(1);
         executor.start();
 
-        SerialExecutor.SubmitResult<Void> fatal = executor.submit(() -> {
+        SerialLane.SubmitResult<Void> fatal = executor.submit(() -> {
             fatalStarted.countDown();
             releaseFatal.await();
             throw new AssertionError("fatal");
         });
         assertTrue(fatalStarted.await(1, TimeUnit.SECONDS));
-        SerialExecutor.SubmitResult<Integer> queued = executor.submit(() -> 42);
+        SerialLane.SubmitResult<Integer> queued = executor.submit(() -> 42);
         releaseFatal.countDown();
 
         try {
@@ -486,10 +486,10 @@ public class SerialExecutorTest {
         }
 
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
-        while (executor.state() != SerialExecutor.State.FAILED && System.nanoTime() < deadline) {
+        while (executor.state() != SerialLane.State.FAILED && System.nanoTime() < deadline) {
             Thread.yield();
         }
-        assertEquals(SerialExecutor.State.FAILED, executor.state());
+        assertEquals(SerialLane.State.FAILED, executor.state());
         assertTrue(executor.failure() instanceof AssertionError);
 
         try {

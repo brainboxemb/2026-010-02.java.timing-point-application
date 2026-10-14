@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.time.Duration;
@@ -28,8 +28,8 @@ public class ScheduledTaskRunnerTest {
             throws Exception {
         ScheduledExecutorService worker =
                 Executors.newScheduledThreadPool(1);
-        SerialScheduledExecutor lane =
-                new SerialScheduledExecutor(
+        SerialScheduledLane lane =
+                new SerialScheduledLane(
                         8,
                         "cooperative-yield",
                         worker);
@@ -116,13 +116,13 @@ public class ScheduledTaskRunnerTest {
             throws Exception {
         ScheduledExecutorService worker =
                 Executors.newScheduledThreadPool(1);
-        SerialScheduledExecutor taskLane =
-                new SerialScheduledExecutor(
+        SerialScheduledLane taskLane =
+                new SerialScheduledLane(
                         8,
                         "cooperative-delay",
                         worker);
-        SerialScheduledExecutor siblingLane =
-                new SerialScheduledExecutor(
+        SerialScheduledLane siblingLane =
+                new SerialScheduledLane(
                         8,
                         "cooperative-sibling",
                         worker);
@@ -184,8 +184,8 @@ public class ScheduledTaskRunnerTest {
             throws Exception {
         ScheduledExecutorService worker =
                 Executors.newScheduledThreadPool(1);
-        SerialScheduledExecutor lane =
-                new SerialScheduledExecutor(
+        SerialScheduledLane lane =
+                new SerialScheduledLane(
                         4,
                         "timeout",
                         worker);
@@ -241,8 +241,8 @@ public class ScheduledTaskRunnerTest {
                 Executors.newScheduledThreadPool(1);
         worker.shutdownNow();
 
-        SerialScheduledExecutor lane =
-                new SerialScheduledExecutor(
+        SerialScheduledLane lane =
+                new SerialScheduledLane(
                         4,
                         "rejected",
                         worker);

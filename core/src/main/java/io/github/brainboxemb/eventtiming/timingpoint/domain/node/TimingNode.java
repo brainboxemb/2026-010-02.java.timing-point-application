@@ -25,8 +25,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 /**
@@ -89,11 +89,11 @@ public final class TimingNode {
                         timeSource,
                         SystemMonotonicClock.INSTANCE,
                         new LogBookProcessorMetrics(),
-                        new SerialExecutor(
+                        new SerialLane(
                                 32,
                                 "test-node-data-" + timingNodeId.value(),
                                 Runnable::run)),
-                new SerialExecutor(
+                new SerialLane(
                         32,
                         "test-node-task-" + timingNodeId.value(),
                         Runnable::run),
@@ -111,7 +111,7 @@ public final class TimingNode {
             TimingDataPersistence timingDataPersistence,
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
-            SerialExecutor dataLane,
+            SerialLane dataLane,
             long operationTimeoutMillis) {
         this(
                 new LogBookProcessor(
@@ -123,7 +123,7 @@ public final class TimingNode {
                         new LogBookProcessorMetrics(),
                         dataLane,
                         operationTimeoutMillis),
-                new SerialExecutor(
+                new SerialLane(
                         32,
                         "test-node-task-" + timingNodeId.value(),
                         Runnable::run),
@@ -142,9 +142,9 @@ public final class TimingNode {
             TimeSource timeSource,
             ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
             EventData eventData,
-            SerialExecutor dataLane,
-            SerialExecutor taskLane,
-            SerialScheduledExecutor tagProcessorExecutor) {
+            SerialLane dataLane,
+            SerialLane taskLane,
+            SerialScheduledLane tagProcessorExecutor) {
         this(
                 timingNodeId,
                 timingDataPersistence,
@@ -168,9 +168,9 @@ public final class TimingNode {
             TimeSource timeSource,
             ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
             EventData eventData,
-            SerialExecutor dataLane,
-            SerialExecutor taskLane,
-            SerialScheduledExecutor tagProcessorExecutor,
+            SerialLane dataLane,
+            SerialLane taskLane,
+            SerialScheduledLane tagProcessorExecutor,
             UpstreamStream upstreamStream) {
         this(
                 timingNodeId,
@@ -195,9 +195,9 @@ public final class TimingNode {
             TimeSource timeSource,
             ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
             EventData eventData,
-            SerialExecutor dataLane,
-            SerialExecutor taskLane,
-            SerialScheduledExecutor tagProcessorExecutor,
+            SerialLane dataLane,
+            SerialLane taskLane,
+            SerialScheduledLane tagProcessorExecutor,
             MonotonicClock monotonicClock) {
         this(
                 timingNodeId,
@@ -225,9 +225,9 @@ public final class TimingNode {
             TimeSource timeSource,
             ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
             EventData eventData,
-            SerialExecutor dataLane,
-            SerialExecutor taskLane,
-            SerialScheduledExecutor tagProcessorExecutor,
+            SerialLane dataLane,
+            SerialLane taskLane,
+            SerialScheduledLane tagProcessorExecutor,
             MonotonicClock monotonicClock,
             LogBookProcessorMetrics timingNodeMetrics,
             TagProcessingMetrics tagProcessingMetrics) {
@@ -254,9 +254,9 @@ public final class TimingNode {
             TimeSource timeSource,
             ReadOnlyConfiguration<TagProcessingPolicy> tagProcessingConfiguration,
             EventData eventData,
-            SerialExecutor dataLane,
-            SerialExecutor taskLane,
-            SerialScheduledExecutor tagProcessorExecutor,
+            SerialLane dataLane,
+            SerialLane taskLane,
+            SerialScheduledLane tagProcessorExecutor,
             MonotonicClock monotonicClock,
             LogBookProcessorMetrics timingNodeMetrics,
             TagProcessingMetrics tagProcessingMetrics,
@@ -324,7 +324,7 @@ public final class TimingNode {
 
     private TimingNode(
             LogBookProcessor logBookProcessor,
-            SerialExecutor taskLane,
+            SerialLane taskLane,
             TagProcessor tagProcessor,
             EventData eventData,
             UpstreamStream upstreamStream) {

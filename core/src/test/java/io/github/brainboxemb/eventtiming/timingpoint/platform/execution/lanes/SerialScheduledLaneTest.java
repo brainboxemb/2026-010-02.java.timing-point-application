@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors;
+package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,7 +15,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class SerialScheduledExecutorTest {
+public class SerialScheduledLaneTest {
     private final List<ScheduledThreadPoolExecutor> ownedWorkers =
             new ArrayList<ScheduledThreadPoolExecutor>();
 
@@ -26,7 +26,7 @@ public class SerialScheduledExecutorTest {
         }
     }
 
-    private SerialScheduledExecutor newLane(String threadName) {
+    private SerialScheduledLane newLane(String threadName) {
         ScheduledThreadPoolExecutor worker =
                 new ScheduledThreadPoolExecutor(
                         1,
@@ -35,7 +35,7 @@ public class SerialScheduledExecutorTest {
                                 threadName));
         worker.setRemoveOnCancelPolicy(true);
         ownedWorkers.add(worker);
-        return new SerialScheduledExecutor(
+        return new SerialScheduledLane(
                 4,
                 threadName,
                 worker);
@@ -45,23 +45,23 @@ public class SerialScheduledExecutorTest {
     @Test
     public void resultBearingWorkUsesTheSameSerialLane()
             throws Exception {
-        SerialScheduledExecutor executor =
+        SerialScheduledLane executor =
                 newLane("serial-scheduled-submit-test");
 
         assertEquals(
-                SerialExecutor.AdmissionResult.NOT_RUNNING,
+                SerialLane.AdmissionResult.NOT_RUNNING,
                 executor.submit(() -> "not-run")
                         .admission());
 
         executor.start();
         try {
-            SerialExecutor.SubmitResult<String> result =
+            SerialLane.SubmitResult<String> result =
                     executor.submit(
                             () -> Thread.currentThread()
                                     .getName());
 
             assertEquals(
-                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    SerialLane.AdmissionResult.ACCEPTED,
                     result.admission());
             assertEquals(
                     "serial-scheduled-submit-test",
@@ -75,7 +75,7 @@ public class SerialScheduledExecutorTest {
 
     @Test
     public void restartsAfterCleanStop() throws Exception {
-        SerialScheduledExecutor executor = newLane("serial-scheduled-restart-test");
+        SerialScheduledLane executor = newLane("serial-scheduled-restart-test");
         CountDownLatch first = new CountDownLatch(1);
         CountDownLatch second = new CountDownLatch(1);
 
@@ -89,13 +89,13 @@ public class SerialScheduledExecutorTest {
         assertTrue(second.await(1, TimeUnit.SECONDS));
         executor.close();
 
-        assertEquals(SerialScheduledExecutor.State.STOPPED, executor.state());
+        assertEquals(SerialScheduledLane.State.STOPPED, executor.state());
     }
 
     @Test
     public void delayedWorkRunsOnceOnTheSameSerialThread()
             throws Exception {
-        SerialScheduledExecutor executor =
+        SerialScheduledLane executor =
                 newLane("serial-scheduled-delay-test");
         AtomicReference<String> delayedThread =
                 new AtomicReference<String>();
@@ -135,7 +135,7 @@ public class SerialScheduledExecutorTest {
                     1,
                     calls.get());
 
-            SerialScheduledExecutorMetrics.Snapshot metrics =
+            SerialScheduledLaneMetrics.Snapshot metrics =
                     executor.metrics().snapshot();
             assertEquals(
                     1L,
@@ -148,7 +148,7 @@ public class SerialScheduledExecutorTest {
     @Test
     public void immediateAndPeriodicWorkUseTheSameSerialThread()
             throws Exception {
-        SerialScheduledExecutor executor =
+        SerialScheduledLane executor =
                 newLane("serial-scheduled-test");
         AtomicReference<String> immediateThread = new AtomicReference<>();
         AtomicReference<String> periodicThread = new AtomicReference<>();
@@ -156,7 +156,7 @@ public class SerialScheduledExecutorTest {
         CountDownLatch periodicDone = new CountDownLatch(1);
 
         executor.start();
-        SerialScheduledExecutor.ScheduledRegistration periodic = null;
+        SerialScheduledLane.ScheduledRegistration periodic = null;
         try {
             assertTrue(executor.execute(() -> {
                 immediateThread.set(Thread.currentThread().getName());
@@ -182,13 +182,13 @@ public class SerialScheduledExecutorTest {
     @Test
     public void periodicRuntimeFailureDoesNotSuppressLaterRuns()
             throws Exception {
-        SerialScheduledExecutor executor =
+        SerialScheduledLane executor =
                 newLane("serial-scheduled-test");
         AtomicInteger calls = new AtomicInteger();
         CountDownLatch secondCall = new CountDownLatch(1);
 
         executor.start();
-        SerialScheduledExecutor.ScheduledRegistration periodic =
+        SerialScheduledLane.ScheduledRegistration periodic =
                 executor.scheduleWithFixedDelay(() -> {
                     if (calls.incrementAndGet() == 1) {
                         throw new IllegalStateException("expected");
@@ -207,7 +207,7 @@ public class SerialScheduledExecutorTest {
             assertTrue(executor.execute(afterSecondRun::countDown));
             assertTrue(afterSecondRun.await(1, TimeUnit.SECONDS));
 
-            SerialScheduledExecutorMetrics.Snapshot metrics =
+            SerialScheduledLaneMetrics.Snapshot metrics =
                     executor.metrics().snapshot();
             assertEquals(1L, metrics.runtimeFailureCount());
             assertTrue(metrics.periodicExecutionCount() >= 2L);
@@ -220,7 +220,7 @@ public class SerialScheduledExecutorTest {
     @Test
     public void recordsLaneMetricsThroughImmutableSnapshot()
             throws Exception {
-        SerialScheduledExecutor executor =
+        SerialScheduledLane executor =
                 newLane("serial-scheduled-metrics-test");
         CountDownLatch immediateDone = new CountDownLatch(1);
         CountDownLatch periodicDone = new CountDownLatch(1);
@@ -228,7 +228,7 @@ public class SerialScheduledExecutorTest {
         assertFalse(executor.execute(() -> { }));
 
         executor.start();
-        SerialScheduledExecutor.ScheduledRegistration periodic =
+        SerialScheduledLane.ScheduledRegistration periodic =
                 executor.scheduleWithFixedDelay(
                         periodicDone::countDown,
                         TimeUnit.MILLISECONDS.toNanos(5));
@@ -245,7 +245,7 @@ public class SerialScheduledExecutorTest {
 
             periodic.close();
 
-            SerialScheduledExecutorMetrics.Snapshot metrics =
+            SerialScheduledLaneMetrics.Snapshot metrics =
                     executor.metrics().snapshot();
             assertEquals(1L, metrics.immediateAcceptedCount());
             assertEquals(1L, metrics.immediateRejectedCount());
@@ -275,13 +275,13 @@ public class SerialScheduledExecutorTest {
                                 "shared-tag-worker"));
         shared.setRemoveOnCancelPolicy(true);
 
-        SerialScheduledExecutor first =
-                new SerialScheduledExecutor(
+        SerialScheduledLane first =
+                new SerialScheduledLane(
                         4,
                         "tag-A",
                         shared);
-        SerialScheduledExecutor second =
-                new SerialScheduledExecutor(
+        SerialScheduledLane second =
+                new SerialScheduledLane(
                         4,
                         "tag-B",
                         shared);
@@ -351,8 +351,8 @@ public class SerialScheduledExecutorTest {
                                 runnable,
                                 "shared-tag-worker"));
         shared.setRemoveOnCancelPolicy(true);
-        SerialScheduledExecutor lane =
-                new SerialScheduledExecutor(
+        SerialScheduledLane lane =
+                new SerialScheduledLane(
                         4,
                         "tag-A",
                         shared);
@@ -362,7 +362,7 @@ public class SerialScheduledExecutorTest {
                 new CountDownLatch(1);
 
         lane.start();
-        SerialScheduledExecutor.ScheduledRegistration periodic =
+        SerialScheduledLane.ScheduledRegistration periodic =
                 lane.scheduleWithFixedDelay(() -> {
                     periodicThread.set(
                             Thread.currentThread().getName());
@@ -385,13 +385,13 @@ public class SerialScheduledExecutorTest {
 
     @Test
     public void closeStopsNewImmediateWork() {
-        SerialScheduledExecutor executor =
+        SerialScheduledLane executor =
                 newLane("serial-scheduled-test");
         executor.start();
         executor.close();
 
         assertEquals(
-                SerialScheduledExecutor.State.STOPPED,
+                SerialScheduledLane.State.STOPPED,
                 executor.state());
         assertFalse(executor.execute(() -> { }));
     }

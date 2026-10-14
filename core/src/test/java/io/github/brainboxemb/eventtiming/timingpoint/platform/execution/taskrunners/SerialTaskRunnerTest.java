@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.time.Duration;
@@ -28,8 +28,8 @@ public class SerialTaskRunnerTest {
             throws Exception {
         ExecutorService worker =
                 Executors.newSingleThreadExecutor();
-        SerialExecutor lane =
-                new SerialExecutor(
+        SerialLane lane =
+                new SerialLane(
                         8,
                         "serial-task-test",
                         worker);
@@ -82,7 +82,7 @@ public class SerialTaskRunnerTest {
                             500L,
                             TimeUnit.MILLISECONDS));
             assertEquals(
-                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    SerialLane.AdmissionResult.ACCEPTED,
                     lane.offer(
                             () -> order.add(
                                     "sibling")));
@@ -110,8 +110,8 @@ public class SerialTaskRunnerTest {
             throws Exception {
         ExecutorService worker =
                 Executors.newSingleThreadExecutor();
-        SerialExecutor lane =
-                new SerialExecutor(
+        SerialLane lane =
+                new SerialLane(
                         4,
                         "serial-task-delay-test",
                         worker);

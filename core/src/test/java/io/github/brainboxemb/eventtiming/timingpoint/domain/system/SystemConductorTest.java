@@ -16,8 +16,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaI
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -56,7 +56,7 @@ public class SystemConductorTest {
         TimingNode second = newTimingNode("B");
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
-        SerialExecutor lane = new SerialExecutor(8, "system-conductor-test", newWorker("worker"));
+        SerialLane lane = new SerialLane(8, "system-conductor-test", newWorker("worker"));
         SystemConductor conductor = new SystemConductor(
                 new TimingNodeList().add(first).add(second), manager.settings(), lane);
         first.statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(first, status));
@@ -88,8 +88,8 @@ public class SystemConductorTest {
         TimingNode node = newTimingNode("A", persistence);
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
-        SerialExecutor lane =
-                new SerialExecutor(
+        SerialLane lane =
+                new SerialLane(
                         4,
                         "conductor-startup-test",
                         newWorker("conductor-startup-worker"));
@@ -157,7 +157,7 @@ public class SystemConductorTest {
         TimingNode node = newTimingNode("A");
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
-        SerialExecutor lane = new SerialExecutor(4, "conductor-event-test", newWorker("conductor-event-worker"));
+        SerialLane lane = new SerialLane(4, "conductor-event-test", newWorker("conductor-event-worker"));
         SystemConductor conductor = new SystemConductor(
                 new TimingNodeList().add(node), manager.settings(), lane);
         node.statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(node, status));
@@ -168,7 +168,7 @@ public class SystemConductorTest {
         CountDownLatch release = new CountDownLatch(1);
         try {
             await(() -> lane.metrics().snapshot().queueDepth() == 0, 1000L);
-            assertEquals(SerialExecutor.AdmissionResult.ACCEPTED, lane.offer(() -> {
+            assertEquals(SerialLane.AdmissionResult.ACCEPTED, lane.offer(() -> {
                 started.countDown();
                 try { release.await(); } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
@@ -191,7 +191,7 @@ public class SystemConductorTest {
         TimingNode node = newTimingNode("A");
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
-        SerialExecutor lane = new SerialExecutor(4, "conductor-coalesce-test", newWorker("coalesce-worker"));
+        SerialLane lane = new SerialLane(4, "conductor-coalesce-test", newWorker("coalesce-worker"));
         SystemConductor conductor = new SystemConductor(
                 new TimingNodeList().add(node), manager.settings(), lane);
         node.statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(node, status));
@@ -202,7 +202,7 @@ public class SystemConductorTest {
         CountDownLatch release = new CountDownLatch(1);
         try {
             await(() -> lane.metrics().snapshot().queueDepth() == 0, 1000L);
-            assertEquals(SerialExecutor.AdmissionResult.ACCEPTED, lane.offer(() -> {
+            assertEquals(SerialLane.AdmissionResult.ACCEPTED, lane.offer(() -> {
                 started.countDown();
                 try { release.await(); } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
@@ -262,15 +262,15 @@ public class SystemConductorTest {
                 SystemConductorTest::now,
                 ReadOnlyConfiguration.fixed(TagProcessingPolicy.defaults()),
                 EventData.empty(),
-                new SerialExecutor(
+                new SerialLane(
                         8,
                         "conductor-node-data",
                         nodeWorker),
-                new SerialExecutor(
+                new SerialLane(
                         8,
                         "conductor-node-task",
                         nodeWorker),
-                new SerialScheduledExecutor(
+                new SerialScheduledLane(
                         8,
                         "conductor-tag-test",
                         newScheduledWorker("conductor-tag-test")));
@@ -288,15 +288,15 @@ public class SystemConductorTest {
                 SystemConductorTest::now,
                 ReadOnlyConfiguration.fixed(TagProcessingPolicy.defaults()),
                 EventData.empty(),
-                new SerialExecutor(
+                new SerialLane(
                         8,
                         "conductor-node-startup-data",
                         nodeWorker),
-                new SerialExecutor(
+                new SerialLane(
                         8,
                         "conductor-node-startup-task",
                         nodeWorker),
-                new SerialScheduledExecutor(
+                new SerialScheduledLane(
                         8,
                         "conductor-tag-startup-test",
                         newScheduledWorker("conductor-tag-startup-worker")));
@@ -305,7 +305,7 @@ public class SystemConductorTest {
     private AntennaManager newAntennaManager(SimulatedAntenna antenna) {
         return new AntennaManager(
                 new AntennaSet().add(new AntennaId("1"), antenna),
-                new SerialScheduledExecutor(8, "conductor-antenna-test", newScheduledWorker("conductor-antenna-test")),
+                new SerialScheduledLane(8, "conductor-antenna-test", newScheduledWorker("conductor-antenna-test")),
                 Duration.ofSeconds(1));
     }
 

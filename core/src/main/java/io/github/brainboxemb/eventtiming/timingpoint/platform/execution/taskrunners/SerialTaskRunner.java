@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.CooperativeTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
@@ -8,7 +8,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.RejectedExecutionException;
 
 /**
- * Runs cooperative tasks on an existing {@link SerialExecutor}.
+ * Runs cooperative tasks on an existing {@link SerialLane}.
  *
  * <p>This runner is for short application/domain control steps that need serial
  * ordering and cooperative yielding but no elapsed-time scheduling. Each
@@ -20,10 +20,10 @@ import java.util.concurrent.RejectedExecutionException;
  * lane lifecycle; its composition owner starts and closes the supplied lane.</p>
  */
 public final class SerialTaskRunner implements CooperativeTaskRunner {
-    private final SerialExecutor lane;
+    private final SerialLane lane;
 
     public SerialTaskRunner(
-            SerialExecutor lane) {
+            SerialLane lane) {
         if (lane == null) {
             throw new IllegalArgumentException(
                     "lane must not be null");
@@ -54,13 +54,13 @@ public final class SerialTaskRunner implements CooperativeTaskRunner {
             return;
         }
 
-        SerialExecutor.AdmissionResult admission =
+        SerialLane.AdmissionResult admission =
                 lane.offer(
                         () -> executeStep(
                                 task,
                                 result));
 
-        if (admission != SerialExecutor.AdmissionResult.ACCEPTED) {
+        if (admission != SerialLane.AdmissionResult.ACCEPTED) {
             result.completeExceptionally(
                     new RejectedExecutionException(
                             "Serial task lane rejected cooperative task step: "
