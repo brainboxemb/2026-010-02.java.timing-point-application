@@ -1,27 +1,72 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.task;
 
+import io.github.brainboxemb.eventtiming.eventdata.EventData;
+import io.github.brainboxemb.eventtiming.eventdata.TeamId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.NodeDataProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.UniqueTeamRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamTaskState;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Owns Task Lane execution and upstream composition for one TimingNode.
+ * Owns Task Lane execution, live RaceData and derived timing state for one node.
  *
  * <p>The Task Lane is a bounded logical serial queue, not a dedicated thread:
- * the supplied executor may share Runtime's physical worker with the Data
- * Lane. This component does not block on a Data Lane Future from a Task Lane
- * operation.</p>
+ * the supplied executor may share Runtime's physical worker with the Data Lane.
+ * Mutable TeamAssignments, StageStartTimes and UniqueTeamRegistrations never
+ * leave this lane. The Data Lane supplies only immutable recovered/committed
+ * TimingData facts and bounded LogBook reads.</p>
  */
-public final class NodeTaskProcessor {
+public final class NodeTaskProcessor implements UpstreamTaskState {
+    private static final Logger LOG =
+            LoggerFactory.getLogger(NodeTaskProcessor.class);
+    private static final long TASK_QUERY_TIMEOUT_MILLIS = 2000L;
+    private static final int MAX_PENDING_FACTS = 256;
+
+    private final NodeDataProcessor dataProcessor;
     private final SerialExecutor taskLane;
+    private final RaceDataState raceData;
+    private final UniqueTeamRegistrations uniqueTeamRegistrations =
+            new UniqueTeamRegistrations();
+    private final StageTiming stageTiming;
+    private final List<TimingData> committedTimingData =
+            new ArrayList<TimingData>();
+    private final Object pendingFactLock = new Object();
+    private final List<TimingData> pendingCommits =
+            new ArrayList<TimingData>();
+
+    private List<TimingData> pendingRecovery;
+    private volatile boolean derivedTimingReady;
+    private volatile boolean derivedTimingStale;
+
     private final UpstreamHandler upstreamHandler;
 
     public NodeTaskProcessor(
             NodeDataProcessor dataProcessor,
             SerialExecutor taskLane,
+            EventData eventData,
             UpstreamStream upstreamStream) {
         if (dataProcessor == null) {
             throw new IllegalArgumentException("dataProcessor must not be null");
@@ -29,18 +74,39 @@ public final class NodeTaskProcessor {
         if (taskLane == null) {
             throw new IllegalArgumentException("taskLane must not be null");
         }
+        if (eventData == null) {
+            throw new IllegalArgumentException("eventData must not be null");
+        }
         if (upstreamStream == null) {
             throw new IllegalArgumentException("upstreamStream must not be null");
         }
 
+        this.dataProcessor = dataProcessor;
         this.taskLane = taskLane;
+        this.raceData = new RaceDataState(eventData);
+        this.stageTiming =
+                new StageTiming(
+                        eventData,
+                        raceData.teamAssignments(),
+                        raceData.stageStartTimes());
+
+        /*
+         * Composition-time wiring. Event delivery itself is synchronous on the
+         * Data Lane; these listeners only perform a bounded Task Lane handoff.
+         */
+        dataProcessor.timingDataRecoveredEvent()
+                .subscribe(this::onTimingDataRecovered);
+        dataProcessor.timingDataCommittedEvent()
+                .subscribe(this::onTimingDataCommitted);
+
         this.upstreamHandler =
                 new UpstreamHandler(
                         dataProcessor.timingNodeId(),
                         new UpstreamDataLane(dataProcessor),
-                        this::offerTask,
+                        new UpstreamTaskLane(),
                         upstreamStream,
-                        dataProcessor);
+                        dataProcessor,
+                        this);
     }
 
     /** Checks the Task Lane before Data Lane recovery is started. */
@@ -56,14 +122,56 @@ public final class NodeTaskProcessor {
     public void activate() {
         ensureCanActivate();
         taskLane.start();
+        flushPendingDataFacts();
     }
 
     public void deactivate() {
         taskLane.close();
+        derivedTimingReady = false;
     }
 
     public UpstreamHandler upstreamHandler() {
         return upstreamHandler;
+    }
+
+    /** Returns the current derived stage ranking on the Task Lane. */
+    public List<StageTime> stageTiming(ZoneId raceTimeZone) {
+        if (raceTimeZone == null) {
+            throw new IllegalArgumentException("raceTimeZone must not be null");
+        }
+        return runTask(
+                () -> {
+                    ensureDerivedTimingAvailable();
+                    return stageTiming.ranking(
+                            new ArrayList<TimingData>(committedTimingData),
+                            raceTimeZone);
+                },
+                "stageTiming");
+    }
+
+    @Override
+    public void applyRaceData(UpstreamData.RaceData changes) {
+        requireTaskLane("applyRaceData");
+        raceData.applyChanges(changes);
+    }
+
+    @Override
+    public TeamId teamIdFor(RegistrationId registrationId) {
+        requireTaskLane("teamIdFor");
+        return raceData.teamIdFor(registrationId);
+    }
+
+    @Override
+    public TimingTimestamp stageStartTimeFor(TeamId teamId) {
+        requireTaskLane("stageStartTimeFor");
+        return raceData.stageStartTimeFor(teamId);
+    }
+
+    @Override
+    public int uniqueTeamRegistrationCount() {
+        requireTaskLane("uniqueTeamRegistrationCount");
+        ensureDerivedTimingAvailable();
+        return uniqueTeamRegistrations.uniqueTeamCount(raceData::teamIdFor);
     }
 
     /** A full Task Lane rejects new work rather than blocking an ingress caller. */
@@ -71,14 +179,215 @@ public final class NodeTaskProcessor {
         return taskLane.offer(task) == SerialExecutor.AdmissionResult.ACCEPTED;
     }
 
+    private void onTimingDataRecovered(List<TimingData> recovered) {
+        List<TimingData> snapshot =
+                new ArrayList<TimingData>(recovered);
+
+        if (taskLane.state() == SerialExecutor.State.RUNNING
+                && offerTask(() -> rebuildDerivedTiming(snapshot))) {
+            return;
+        }
+
+        synchronized (pendingFactLock) {
+            pendingRecovery = snapshot;
+            pendingCommits.clear();
+        }
+    }
+
+    private void onTimingDataCommitted(TimingData data) {
+        if (taskLane.state() == SerialExecutor.State.RUNNING
+                && offerTask(() -> applyCommittedTimingData(data))) {
+            return;
+        }
+
+        synchronized (pendingFactLock) {
+            if (pendingCommits.size() >= MAX_PENDING_FACTS) {
+                derivedTimingStale = true;
+                LOG.error(
+                        "Task Lane TimingData handoff buffer is full for node {}; derived timing state is stale",
+                        dataProcessor.timingNodeId().value());
+                return;
+            }
+            pendingCommits.add(data);
+        }
+    }
+
+    private void flushPendingDataFacts() {
+        final List<TimingData> recovery;
+        final List<TimingData> commits;
+
+        synchronized (pendingFactLock) {
+            recovery = pendingRecovery == null
+                    ? null
+                    : new ArrayList<TimingData>(pendingRecovery);
+            commits = new ArrayList<TimingData>(pendingCommits);
+            pendingRecovery = null;
+            pendingCommits.clear();
+        }
+
+        if (recovery == null && commits.isEmpty()) {
+            return;
+        }
+
+        if (!offerTask(
+                () -> {
+                    if (recovery != null) {
+                        rebuildDerivedTiming(recovery);
+                    }
+                    for (TimingData data : commits) {
+                        applyCommittedTimingData(data);
+                    }
+                })) {
+            derivedTimingStale = true;
+            LOG.error(
+                    "Task Lane could not accept recovered/committed TimingData facts for node {}; derived timing state is stale",
+                    dataProcessor.timingNodeId().value());
+        }
+    }
+
+    private void rebuildDerivedTiming(List<TimingData> recovered) {
+        requireTaskLane("rebuildDerivedTiming");
+        committedTimingData.clear();
+        uniqueTeamRegistrations.reset();
+
+        for (TimingData data : recovered) {
+            committedTimingData.add(data);
+            updateUniqueTeamRegistrations(data);
+        }
+
+        derivedTimingStale = false;
+        derivedTimingReady = true;
+    }
+
+    private void applyCommittedTimingData(TimingData data) {
+        requireTaskLane("applyCommittedTimingData");
+        if (!derivedTimingReady) {
+            derivedTimingStale = true;
+            return;
+        }
+
+        committedTimingData.add(data);
+        updateUniqueTeamRegistrations(data);
+    }
+
+    private void updateUniqueTeamRegistrations(TimingData data) {
+        final RegistrationId registrationId;
+        final TimingData.RegistrationAction action;
+
+        if (data instanceof TimingData.AutomaticRegistration) {
+            TimingData.AutomaticRegistration registration =
+                    (TimingData.AutomaticRegistration) data;
+            registrationId = registration.registrationId();
+            action = registration.action();
+        } else if (data instanceof TimingData.ManualRegistration) {
+            TimingData.ManualRegistration registration =
+                    (TimingData.ManualRegistration) data;
+            registrationId = registration.registrationId();
+            action = registration.action();
+        } else {
+            return;
+        }
+
+        if (action == TimingData.RegistrationAction.ADD) {
+            uniqueTeamRegistrations.registered(registrationId);
+        } else if (action == TimingData.RegistrationAction.REV) {
+            uniqueTeamRegistrations.revoked(registrationId);
+        }
+    }
+
+    private void ensureDerivedTimingAvailable() {
+        if (!derivedTimingReady || derivedTimingStale) {
+            throw new OperationException(
+                    OperationException.Reason.UNAVAILABLE,
+                    "Task Lane derived timing state is not available");
+        }
+    }
+
+    private void requireTaskLane(String operation) {
+        if (!taskLane.isExecutingOnCurrentThread()) {
+            throw new IllegalStateException(
+                    operation + " requires the TimingNode Task Lane");
+        }
+    }
+
+    private <R> R runTask(Callable<R> task, String operation) {
+        if (taskLane.isExecutingOnCurrentThread()) {
+            try {
+                return task.call();
+            } catch (RuntimeException ex) {
+                throw ex;
+            } catch (Exception ex) {
+                throw new OperationException(
+                        OperationException.Reason.FAILED,
+                        operation + " failed on the TimingNode Task Lane",
+                        ex);
+            }
+        }
+
+        SerialExecutor.SubmitResult<R> submitResult =
+                taskLane.submit(task);
+        switch (submitResult.admission()) {
+            case FULL:
+                throw new OperationException(
+                        OperationException.Reason.BUSY,
+                        operation
+                                + " could not be admitted because the TimingNode Task Lane is full");
+            case NOT_RUNNING:
+                if (taskLane.state() == SerialExecutor.State.FAILED) {
+                    throw new OperationException(
+                            OperationException.Reason.FAILED,
+                            operation
+                                    + " could not run because the TimingNode Task Lane failed",
+                            taskLane.failure());
+                }
+                throw new OperationException(
+                        OperationException.Reason.UNAVAILABLE,
+                        operation
+                                + " could not be admitted because the TimingNode Task Lane is not running");
+            case ACCEPTED:
+                return await(submitResult.futureResult(), operation);
+            default:
+                throw new IllegalStateException(
+                        "Unsupported submission result "
+                                + submitResult.admission());
+        }
+    }
+
+    private <R> R await(Future<R> future, String operation) {
+        try {
+            return future.get(
+                    TASK_QUERY_TIMEOUT_MILLIS,
+                    TimeUnit.MILLISECONDS);
+        } catch (TimeoutException ex) {
+            throw new OperationException(
+                    OperationException.Reason.TIMEOUT,
+                    operation + " timed out on the TimingNode Task Lane",
+                    ex);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new OperationException(
+                    OperationException.Reason.INTERRUPTED,
+                    operation + " was interrupted on the TimingNode Task Lane",
+                    ex);
+        } catch (CancellationException ex) {
+            throw new OperationException(
+                    OperationException.Reason.FAILED,
+                    operation + " was cancelled on the TimingNode Task Lane",
+                    ex);
+        } catch (ExecutionException ex) {
+            Throwable cause = ex.getCause();
+            throw new OperationException(
+                    OperationException.Reason.FAILED,
+                    operation + " failed on the TimingNode Task Lane",
+                    cause);
+        }
+    }
+
     /**
-     * Transitional data access for the existing upstream implementation.
+     * Data Lane adapter used only for bounded LogBook operations.
      *
-     * <p>Inbound race changes and LogBook batches still run on Data Lane,
-     * through NodeDataProcessor. A follow-up replaces the direct mutable state
-     * references with typed operations on UpstreamNodeData. The handler still
-     * schedules data-scoped work on the Data Lane. Future Task Lane protocol
-     * turns must use bounded asynchronous commands, not synchronous waits.</p>
+     * <p>No Task Lane code waits synchronously on this adapter. TIMING_DATA
+     * protocol work that needs history is still scheduled onto the Data Lane.</p>
      */
     private static final class UpstreamDataLane implements UpstreamHandler.DataLane {
         private final NodeDataProcessor dataProcessor;
@@ -100,6 +409,28 @@ public final class NodeTaskProcessor {
         @Override
         public <R> R run(Callable<R> task, String operation) {
             return dataProcessor.runTask(task, operation);
+        }
+    }
+
+    private final class UpstreamTaskLane implements UpstreamHandler.TaskLane {
+        @Override
+        public boolean offer(Runnable task) {
+            return offerTask(task);
+        }
+
+        @Override
+        public void run(Runnable task, String operation) {
+            runTask(
+                    () -> {
+                        task.run();
+                        return null;
+                    },
+                    operation);
+        }
+
+        @Override
+        public <R> R run(Callable<R> task, String operation) {
+            return runTask(task, operation);
         }
     }
 }
