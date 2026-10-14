@@ -584,7 +584,7 @@ public class TimingNodeRegistrationTest {
                 node.activate();
                 fail("expected running node not to restart");
             } catch (IllegalStateException expected) {
-                assertTrue(expected.getMessage().contains("cannot activate"));
+                assertTrue(expected.getMessage().contains("already active"));
             }
         } finally {
             node.deactivate();
