@@ -420,7 +420,7 @@ public class TimingApplicationRuntimeTest {
                                     new AntennaId("1"))
                             .operation());
 
-            application.timingNode().logBook().execute(
+            application.timingNode().logBook().process(
                     LogBookCommands.open(
                             new LocationId(24)));
 
@@ -454,7 +454,7 @@ public class TimingApplicationRuntimeTest {
                     "Reference EventData passage should commit through the antenna path",
                     simulatedCommit.await(3L, TimeUnit.SECONDS));
 
-            application.timingNode().logBook().execute(
+            application.timingNode().logBook().process(
                     LogBookCommands.close());
 
             await(
@@ -660,7 +660,7 @@ public class TimingApplicationRuntimeTest {
         try {
             assertFalse(antenna.inventoryRunning());
 
-            application.timingNode().logBook().execute(
+            application.timingNode().logBook().process(
                     LogBookCommands.open(new LocationId(24)));
             await(antenna::inventoryRunning, 1000L);
 
@@ -689,7 +689,7 @@ public class TimingApplicationRuntimeTest {
                     automatic.get().registrationId());
             assertEquals(observedAt, automatic.get().effectiveTime());
 
-            application.timingNode().logBook().execute(
+            application.timingNode().logBook().process(
                     LogBookCommands.close());
             await(() -> !antenna.inventoryRunning(), 1000L);
         } finally {
