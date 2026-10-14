@@ -315,17 +315,12 @@ public final class TimingNode {
 
         TagProcessor processorChild =
                 new TagProcessor(
-                        this,
                         eventData,
                         tagProcessingConfiguration,
                         monotonicClock,
                         tagProcessingMetrics,
                         tagProcessorLane,
                         tagProcessorScheduler);
-
-        tagProcessingConfiguration.changes()
-                .subscribe(
-                        processorChild::onPolicyConfigurationChanged);
 
         this.logBookProcessor = processor;
         this.taskProcessor = new NodeTaskProcessor(
@@ -334,6 +329,21 @@ public final class TimingNode {
                 eventData,
                 upstreamStream);
         this.tagProcessor = processorChild;
+
+        tagProcessingConfiguration.changes()
+                .subscribe(
+                        processorChild::onPolicyConfigurationChanged);
+        processorChild.newRegistrationEvent()
+                .subscribe(
+                        this::onNewRegistration);
+    }
+
+    private void onNewRegistration(
+            TagProcessor.NewRegistration registration) {
+        logBookProcessor.offer(
+                LogBookCommands.addAutomaticRegistration(
+                        registration.registrationId(),
+                        registration.observedAt()));
     }
 
     private TimingNode(

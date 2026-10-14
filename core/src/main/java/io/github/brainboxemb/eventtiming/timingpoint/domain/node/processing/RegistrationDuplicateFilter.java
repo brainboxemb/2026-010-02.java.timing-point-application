@@ -9,17 +9,15 @@ import java.util.Iterator;
 import java.util.Map;
 
 /**
- * Passive accepted-registration duplicate window owned by the TagProcessor lane.
+ * Passive selected-registration duplicate window owned by the TagProcessor lane.
  *
- * <p>The filter only remembers registrations after TimingNode accepted their
- * fire-and-forget offer. Checking and recording are deliberately separate so TagProcessor
- * can suppress repeated observations before passage aggregation without
- * suppressing retries after FULL or NOT_RUNNING admission.</p>
+ * <p>The filter only remembers registrations after TagProcessor selected them as completed registrations. Checking and recording are separate so repeated tag observations can be
+ * suppressed before passage aggregation.</p>
  */
 final class RegistrationDuplicateFilter {
     private final ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration;
     private final MonotonicClock monotonicClock;
-    private final Map<RegistrationId, Long> acceptedRegistrations =
+    private final Map<RegistrationId, Long> registrations =
             new HashMap<>();
 
     private boolean cleanupStarted;
@@ -51,12 +49,12 @@ final class RegistrationDuplicateFilter {
         long duplicateWindowNanos =
                 policyConfiguration.currentValue().duplicateWindowNanos();
         if (duplicateWindowNanos == 0L) {
-            acceptedRegistrations.remove(registrationId);
+            registrations.remove(registrationId);
             return false;
         }
 
         long now = monotonicClock.nowNanos();
-        Long acceptedAt = acceptedRegistrations.get(registrationId);
+        Long acceptedAt = registrations.get(registrationId);
         if (acceptedAt == null) {
             return false;
         }
@@ -64,18 +62,18 @@ final class RegistrationDuplicateFilter {
             return true;
         }
 
-        acceptedRegistrations.remove(registrationId);
+        registrations.remove(registrationId);
         return false;
     }
 
-    void recordAccepted(RegistrationId registrationId) {
+    void recordRegistration(RegistrationId registrationId) {
         requireRegistrationId(registrationId);
         long duplicateWindowNanos =
                 policyConfiguration.currentValue().duplicateWindowNanos();
         if (duplicateWindowNanos == 0L) {
             return;
         }
-        acceptedRegistrations.put(
+        registrations.put(
                 registrationId,
                 monotonicClock.nowNanos());
     }
@@ -90,14 +88,14 @@ final class RegistrationDuplicateFilter {
         long now = monotonicClock.nowNanos();
 
         if (duplicateWindowNanos == 0L) {
-            acceptedRegistrations.clear();
+            registrations.clear();
             cleanupStarted = false;
             lastCleanupNanos = 0L;
             return;
         }
 
         Iterator<Map.Entry<RegistrationId, Long>> iterator =
-                acceptedRegistrations.entrySet().iterator();
+                registrations.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<RegistrationId, Long> entry = iterator.next();
             if (now - entry.getValue() >= duplicateWindowNanos) {
@@ -110,14 +108,14 @@ final class RegistrationDuplicateFilter {
 
     boolean hasPendingState() {
         return policyConfiguration.currentValue().duplicateWindowNanos() != 0L
-                && !acceptedRegistrations.isEmpty();
+                && !registrations.isEmpty();
     }
 
     private void removeOldEntriesWhenDue(long now) {
         long duplicateWindowNanos =
                 policyConfiguration.currentValue().duplicateWindowNanos();
         if (duplicateWindowNanos == 0L) {
-            acceptedRegistrations.clear();
+            registrations.clear();
             cleanupStarted = false;
             lastCleanupNanos = 0L;
             return;
@@ -134,7 +132,7 @@ final class RegistrationDuplicateFilter {
         }
 
         Iterator<Map.Entry<RegistrationId, Long>> iterator =
-                acceptedRegistrations.entrySet().iterator();
+                registrations.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<RegistrationId, Long> entry = iterator.next();
             if (now - entry.getValue() >= duplicateWindowNanos) {

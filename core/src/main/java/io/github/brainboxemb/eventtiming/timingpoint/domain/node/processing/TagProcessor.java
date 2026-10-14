@@ -5,13 +5,12 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ConfigurationChange;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.scheduling.LaneScheduler;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,16 +23,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Active tag-processing boundary between antenna observations and TimingNode.
+ * Active tag-processing boundary between antenna observations and registrations.
  *
  * <p>The antenna callback only performs bounded queue ingress. EventData resolution,
- * accepted-registration duplicate suppression, passage state and TimingNode
- * admission run on one serial execution lane owned by this processor. Duplicate
- * suppression happens after tag-to-registration mapping and before passage
- * aggregation so recently accepted registrations do not create unnecessary
- * burst/RSSI/housekeeping state. Completed passages are handed off with
- * {@link TimingNode#offer(io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommand)};
- * TagProcessor never waits for lower-priority TimingNode processing.</p>
+ * duplicate suppression and passage selection run on one serial lane owned by
+ * this processor. A completed passage is published as a {@link NewRegistration};
+ * TagProcessor does not know where that registration is stored.</p>
  */
 public final class TagProcessor {
     private static final Logger LOG = LoggerFactory.getLogger(TagProcessor.class);
@@ -44,8 +39,9 @@ public final class TagProcessor {
         INACTIVE
     }
 
-    private final TimingNode timingNode;
     private final EventData eventData;
+    private final Event<NewRegistration> newRegistrationEvent =
+            new Event<NewRegistration>();
     private final ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration;
     private final RegistrationDuplicateFilter duplicateFilter;
     private final TagProcessingMetrics metrics;
@@ -62,7 +58,6 @@ public final class TagProcessor {
             Collections.emptyList();
 
     public TagProcessor(
-            TimingNode timingNode,
             EventData eventData,
             TagProcessingPolicy policy,
             MonotonicClock monotonicClock,
@@ -70,7 +65,6 @@ public final class TagProcessor {
             SerialLane lane,
             ScheduledExecutorService scheduledExecutor) {
         this(
-                timingNode,
                 eventData,
                 ReadOnlyConfiguration.fixed(policy),
                 monotonicClock,
@@ -80,16 +74,12 @@ public final class TagProcessor {
     }
 
     public TagProcessor(
-            TimingNode timingNode,
             EventData eventData,
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
             SerialLane lane,
             ScheduledExecutorService scheduledExecutor) {
-        if (timingNode == null) {
-            throw new IllegalArgumentException("timingNode must not be null");
-        }
         if (eventData == null) {
             throw new IllegalArgumentException("eventData must not be null");
         }
@@ -116,7 +106,6 @@ public final class TagProcessor {
                     "policyConfiguration.startupValue must not be null");
         }
 
-        this.timingNode = timingNode;
         this.eventData = eventData;
         this.policyConfiguration = policyConfiguration;
         this.metrics = metrics;
@@ -208,6 +197,11 @@ public final class TagProcessor {
      */
     public List<TagPassageSnapshot> passageSnapshots() {
         return passageSnapshots;
+    }
+
+    /** Selected registrations published synchronously from the TagProcessor lane. */
+    public EventSource<NewRegistration> newRegistrationEvent() {
+        return newRegistrationEvent;
     }
 
     private void scheduleDrainLocked() {
@@ -393,34 +387,50 @@ public final class TagProcessor {
     private void processValidObservation(
             RegistrationId registrationId,
             TimingTimestamp observedAt) {
-        CommandAdmission admission = timingNode.offer(
-                LogBookCommands.addAutomaticRegistration(
+        duplicateFilter.recordRegistration(
+                registrationId);
+
+        /*
+         * The observation that closed the previous passage may already have
+         * started a next passage. The selected registration now owns the
+         * duplicate window, so that next passage can be discarded locally.
+         */
+        observationFilter.discard(
+                registrationId);
+        publishPassageSnapshots();
+
+        newRegistrationEvent.emit(
+                new NewRegistration(
                         registrationId,
                         observedAt));
+    }
 
-        if (admission == CommandAdmission.ACCEPTED) {
-            duplicateFilter.recordAccepted(registrationId);
+    /** Immutable registration selected from one completed tag passage. */
+    public static final class NewRegistration {
+        private final RegistrationId registrationId;
+        private final TimingTimestamp observedAt;
 
-            /*
-             * add(...) can close an expired previous burst and start a new burst
-             * from the observation that triggered that closure before this
-             * callback runs. Once the previous passage is accepted, that pending
-             * next burst is inside the duplicate window and must not remain as
-             * unnecessary timed state.
-             */
-            observationFilter.discard(registrationId);
-
-            /*
-             * Publish the accepted-handoff metric before the empty passage
-             * snapshot. Engineering/characterization readers use an empty
-             * snapshot as the visible "filter settled" fact; they must not see
-             * that fact before admitted() includes this completed handoff.
-             */
-            metrics.recordAdmission(admission);
-            publishPassageSnapshots();
-            return;
+        public NewRegistration(
+                RegistrationId registrationId,
+                TimingTimestamp observedAt) {
+            if (registrationId == null) {
+                throw new IllegalArgumentException(
+                        "registrationId must not be null");
+            }
+            if (observedAt == null) {
+                throw new IllegalArgumentException(
+                        "observedAt must not be null");
+            }
+            this.registrationId = registrationId;
+            this.observedAt = observedAt;
         }
 
-        metrics.recordAdmission(admission);
+        public RegistrationId registrationId() {
+            return registrationId;
+        }
+
+        public TimingTimestamp observedAt() {
+            return observedAt;
+        }
     }
 }

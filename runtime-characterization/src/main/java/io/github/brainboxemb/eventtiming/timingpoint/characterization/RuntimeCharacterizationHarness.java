@@ -422,8 +422,8 @@ final class RuntimeCharacterizationHarness
      * The harness therefore must not assume every observation becomes committed
      * TimingData. It first waits until every emitted observation was either
      * processed or rejected at TagProcessor ingress, then until no active
-     * passage remains. Finally it waits only for the registrations that were
-     * actually admitted to TimingNode.</p>
+     * passage remains. Finally it drains TagProcessor and then the Data Lane,
+     * so every registration event already handed to TimingNode has completed.</p>
      */
     private void awaitBurstSettled(
             long preloadedCount,
@@ -452,19 +452,10 @@ final class RuntimeCharacterizationHarness
 
         /*
          * Metrics and filter snapshots are observations, not lane barriers.
-         * Drain TagProcessor first, then snapshot admitted handoffs, wait for
-         * those commits, and finally drain the TimingNode Data Lane. This keeps
+         * Drain TagProcessor first and then the TimingNode Data Lane. This keeps
          * the subsequent ORDERED history query out of the burst tail.
          */
         awaitTagProcessorBarrier();
-
-        TagProcessingMetrics.Snapshot settled =
-                measurements.tagProcessing();
-        awaitCommitted(
-                INITIAL_LIFECYCLE_RECORD_COUNT
-                        + preloadedCount
-                        + settled.admitted());
-
         awaitDataLaneBarrier();
     }
 

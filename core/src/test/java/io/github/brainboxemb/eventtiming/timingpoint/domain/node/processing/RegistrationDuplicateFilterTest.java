@@ -22,7 +22,7 @@ public class RegistrationDuplicateFilterTest {
         assertFalse(filter.isDuplicate(id));
         assertFalse(filter.hasPendingState());
 
-        filter.recordAccepted(id);
+        filter.recordRegistration(id);
 
         assertTrue(filter.hasPendingState());
         assertTrue(filter.isDuplicate(id));
@@ -46,7 +46,7 @@ public class RegistrationDuplicateFilterTest {
                 new RegistrationDuplicateFilter(policy(), clock);
         RegistrationId id = new RegistrationId("N-001");
 
-        filter.recordAccepted(id);
+        filter.recordRegistration(id);
         clock.advanceNanos(100L);
 
         assertFalse(filter.isDuplicate(id));
@@ -60,7 +60,7 @@ public class RegistrationDuplicateFilterTest {
                 new RegistrationDuplicateFilter(policy(), clock);
         RegistrationId id = new RegistrationId("N-001");
 
-        filter.recordAccepted(id);
+        filter.recordRegistration(id);
         filter.periodic();
         clock.advanceNanos(100L);
         filter.periodic();
@@ -82,7 +82,7 @@ public class RegistrationDuplicateFilterTest {
                         clock);
         RegistrationId id = new RegistrationId("N-001");
 
-        filter.recordAccepted(id);
+        filter.recordRegistration(id);
 
         assertFalse(filter.isDuplicate(id));
         assertFalse(filter.hasPendingState());

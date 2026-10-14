@@ -92,8 +92,7 @@ public class TagProcessorTest {
         TagProcessingMetrics metrics =
                 new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
-                node,
-                EventData.empty(),
+                                EventData.empty(),
                 policy(8),
                 clock,
                 metrics,
@@ -124,8 +123,7 @@ public class TagProcessorTest {
                 newTagExecution("tp-tag-test");
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
-                node,
-                eventDataFor(
+                                eventDataFor(
                         "TAG-A", "N-001",
                         "TAG-B", "N-001",
                         "TAG-C", "N-001"),
@@ -134,6 +132,7 @@ public class TagProcessorTest {
                 metrics,
                 execution.lane,
                 execution.scheduler);
+        connectToNode(processor, node);
         CountDownLatch committed = new CountDownLatch(1);
         node.newDataEntryEvent().subscribe(data -> {
             if (data instanceof AutomaticRegistration) {
@@ -180,7 +179,6 @@ public class TagProcessorTest {
             assertEquals(2L, snapshot.observations());
             assertEquals(2L, snapshot.mapped());
             assertEquals(1L, snapshot.closedBursts());
-            assertEquals(1L, snapshot.admitted());
         } finally {
             processor.deactivate();
             node.deactivate();
@@ -197,8 +195,7 @@ public class TagProcessorTest {
                 newTagExecution("tp-tag-test");
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
-                node,
-                eventDataFor(
+                                eventDataFor(
                         "TAG-A", "N-001",
                         "TAG-B", "N-001",
                         "TAG-C", "N-001"),
@@ -252,7 +249,7 @@ public class TagProcessorTest {
     }
 
     @Test
-    public void rejectedTimingNodeOfferDoesNotStartDuplicateSuppression()
+    public void selectedRegistrationStartsDuplicateSuppressionWithoutDownstreamFeedback()
             throws Exception {
         TimingNode node = node(new RecordingStore());
         FakeMonotonicClock clock = new FakeMonotonicClock();
@@ -260,7 +257,6 @@ public class TagProcessorTest {
                 newTagExecution("tp-tag-test");
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
-                node,
                 eventDataFor(
                         "TAG-A", "N-001",
                         "TAG-B", "N-001",
@@ -270,8 +266,12 @@ public class TagProcessorTest {
                 metrics,
                 execution.lane,
                 execution.scheduler);
+        CountDownLatch registrationPublished =
+                new CountDownLatch(1);
+        processor.newRegistrationEvent()
+                .subscribe(
+                        ignored -> registrationPublished.countDown());
 
-        // TimingNode deliberately remains NEW so every offer is NOT_RUNNING.
         processor.activate();
         try {
             processor.onTagObserved(
@@ -282,6 +282,10 @@ public class TagProcessorTest {
             processor.onTagObserved(
                     observation("TAG-B", -50, STRONGER_OBSERVED_AT));
             awaitLane(execution.lane);
+            assertTrue(
+                    registrationPublished.await(
+                            1,
+                            TimeUnit.SECONDS));
 
             clock.advanceNanos(100L);
             processor.onTagObserved(
@@ -290,9 +294,8 @@ public class TagProcessorTest {
 
             TagProcessingMetrics.Snapshot snapshot = metrics.snapshot();
             assertEquals(3L, snapshot.mapped());
-            assertEquals(0L, snapshot.duplicates());
-            assertEquals(2L, snapshot.closedBursts());
-            assertEquals(2L, snapshot.nodeNotRunning());
+            assertEquals(1L, snapshot.duplicates());
+            assertEquals(1L, snapshot.closedBursts());
         } finally {
             processor.deactivate();
         }
@@ -312,8 +315,7 @@ public class TagProcessorTest {
                         new NodeId("A"),
                         startup);
         TagProcessor processor = new TagProcessor(
-                node,
-                eventDataFor(
+                                eventDataFor(
                         "TAG-A", "N-001",
                         "TAG-B", "N-001",
                         "TAG-C", "N-001"),
@@ -322,6 +324,7 @@ public class TagProcessorTest {
                 new TagProcessingMetrics(),
                 execution.lane,
                 execution.scheduler);
+        connectToNode(processor, node);
         configuration.timingNode(new NodeId("A"))
                 .tagProcessing()
                 .changes()
@@ -379,8 +382,7 @@ public class TagProcessorTest {
                         new NodeId("A"),
                         startup);
         TagProcessor processor = new TagProcessor(
-                node,
-                referenceEventData(),
+                                referenceEventData(),
                 configuration.timingNode(new NodeId("A")).tagProcessing(),
                 clock,
                 new TagProcessingMetrics(),
@@ -433,8 +435,7 @@ public class TagProcessorTest {
                 newTagExecution("tp-tag-test");
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
-                node,
-                referenceEventData(),
+                                referenceEventData(),
                 policy(1),
                 clock,
                 metrics,
@@ -477,8 +478,7 @@ public class TagProcessorTest {
                 newTagExecution("tp-tag-test");
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
-                node,
-                referenceEventData(),
+                                referenceEventData(),
                 policy(4),
                 clock,
                 metrics,
@@ -554,6 +554,18 @@ public class TagProcessorTest {
         }
         return new EventData(
                 registrations);
+    }
+
+    private static void connectToNode(
+            TagProcessor processor,
+            TimingNode node) {
+        processor.newRegistrationEvent()
+                .subscribe(
+                        registration ->
+                                node.offer(
+                                        LogBookCommands.addAutomaticRegistration(
+                                                registration.registrationId(),
+                                                registration.observedAt())));
     }
 
     private static void awaitLane(SerialLane lane)

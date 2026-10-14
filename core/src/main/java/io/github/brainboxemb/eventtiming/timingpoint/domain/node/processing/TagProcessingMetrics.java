@@ -1,7 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandAdmission;
-
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -20,9 +18,6 @@ public final class TagProcessingMetrics {
     private final AtomicLong mappedCount = new AtomicLong();
     private final AtomicLong unmappedCount = new AtomicLong();
     private final AtomicLong duplicateCount = new AtomicLong();
-    private final AtomicLong admittedCount = new AtomicLong();
-    private final AtomicLong queueFullCount = new AtomicLong();
-    private final AtomicLong nodeNotRunningCount = new AtomicLong();
 
     void recordObservation() {
         observationCount.incrementAndGet();
@@ -52,23 +47,6 @@ public final class TagProcessingMetrics {
         duplicateCount.incrementAndGet();
     }
 
-    void recordAdmission(CommandAdmission admission) {
-        switch (admission) {
-            case ACCEPTED:
-                admittedCount.incrementAndGet();
-                break;
-            case FULL:
-                queueFullCount.incrementAndGet();
-                break;
-            case NOT_RUNNING:
-                nodeNotRunningCount.incrementAndGet();
-                break;
-            default:
-                throw new IllegalStateException(
-                        "Unsupported TimingNode admission result " + admission);
-        }
-    }
-
     /**
      * Returns an immutable pull-based view of the current processing metrics.
      *
@@ -83,10 +61,7 @@ public final class TagProcessingMetrics {
                 closedBurstCount.get(),
                 mappedCount.get(),
                 unmappedCount.get(),
-                duplicateCount.get(),
-                admittedCount.get(),
-                queueFullCount.get(),
-                nodeNotRunningCount.get());
+                duplicateCount.get());
     }
 
     public static final class Snapshot {
@@ -97,9 +72,6 @@ public final class TagProcessingMetrics {
         private final long mapped;
         private final long unmapped;
         private final long duplicates;
-        private final long admitted;
-        private final long queueFull;
-        private final long nodeNotRunning;
 
         private Snapshot(
                 long observations,
@@ -108,10 +80,7 @@ public final class TagProcessingMetrics {
                 long closedBursts,
                 long mapped,
                 long unmapped,
-                long duplicates,
-                long admitted,
-                long queueFull,
-                long nodeNotRunning) {
+                long duplicates) {
             this.observations = observations;
             this.observationQueueFull = observationQueueFull;
             this.processorNotRunning = processorNotRunning;
@@ -119,9 +88,6 @@ public final class TagProcessingMetrics {
             this.mapped = mapped;
             this.unmapped = unmapped;
             this.duplicates = duplicates;
-            this.admitted = admitted;
-            this.queueFull = queueFull;
-            this.nodeNotRunning = nodeNotRunning;
         }
 
         public long observations() {
@@ -152,16 +118,5 @@ public final class TagProcessingMetrics {
             return duplicates;
         }
 
-        public long admitted() {
-            return admitted;
-        }
-
-        public long queueFull() {
-            return queueFull;
-        }
-
-        public long nodeNotRunning() {
-            return nodeNotRunning;
-        }
     }
 }
