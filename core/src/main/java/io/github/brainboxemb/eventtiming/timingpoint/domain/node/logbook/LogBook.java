@@ -136,12 +136,12 @@ public final class LogBook
     }
 
     /**
-     * Executes one command in Data Lane order and waits for its domain result.
+     * Processes one command in LogBook order and returns its domain result.
      */
-    public <R> R execute(
+    public <R> R process(
             LogBookCommand<R> command) {
         checkArgument(command != null, "command must not be null");
-        return executeOnDataLaneAndWait(
+        return submitAndWait(
                 () -> applyCommand(command),
                 command.name());
     }
@@ -193,7 +193,7 @@ public final class LogBook
                 if (serialLane.isExecutingOnCurrentThread()) {
                     return query.readOrdered(logBookState);
                 }
-                return executeOnDataLaneAndWait(
+                return submitAndWait(
                         () -> query.readOrdered(logBookState),
                         query.name());
             default:
@@ -462,10 +462,10 @@ public final class LogBook
     }
 
     /**
-     * Queues one result-bearing operation on the Data Lane and waits for its
-     * ordered execution result.
+     * Submits one result-bearing operation to the SerialLane and waits for its
+     * ordered result.
      */
-    private <R> R executeOnDataLaneAndWait(
+    private <R> R submitAndWait(
             Callable<R> work,
             String operation) {
         if (serialLane.isExecutingOnCurrentThread()) {
