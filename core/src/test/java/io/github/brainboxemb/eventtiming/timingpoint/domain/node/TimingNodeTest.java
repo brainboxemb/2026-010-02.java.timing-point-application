@@ -636,9 +636,10 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void orderedReentrantQueryFailsImmediatelyInsideLogBookVisitor() {
+    public void orderedQueryReadsDirectlyInsideLogBookVisitor() {
         TimingNode node = node(new NodeId("A"));
-        final Throwable[] reentrantFailure = new Throwable[1];
+        final TimingNodeTypes.Status[] orderedStatus =
+                new TimingNodeTypes.Status[1];
         final TimingNodeTypes.Status[] currentStatus =
                 new TimingNodeTypes.Status[1];
 
@@ -651,22 +652,17 @@ public class TimingNodeTest {
                             1L,
                             1,
                             ignored -> {
-                                try {
-                                    node.logBook().query(
-                                            LogBookQueries.status(),
-                                            ReadConsistency.ORDERED);
-                                    fail("expected reentrant ORDERED query failure");
-                                } catch (IllegalStateException expected) {
-                                    reentrantFailure[0] = expected;
-                                }
-
+                                orderedStatus[0] =
+                                        node.logBook().query(
+                                                LogBookQueries.status(),
+                                                ReadConsistency.ORDERED);
                                 currentStatus[0] =
                                         node.logBook().query(
                                                 LogBookQueries.status(),
                                                 ReadConsistency.CURRENT);
                             }));
 
-            assertTrue(reentrantFailure[0].getMessage().contains("Reentrant ORDERED"));
+            assertEquals(TimingNodeTypes.State.OPEN, orderedStatus[0].state());
             assertEquals(TimingNodeTypes.State.OPEN, currentStatus[0].state());
         } finally {
             node.deactivate();
