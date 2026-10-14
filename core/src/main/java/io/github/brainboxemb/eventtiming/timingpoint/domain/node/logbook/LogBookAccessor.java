@@ -13,8 +13,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
  * startup-loading internals or engineering metrics.</p>
  */
 public interface LogBookAccessor {
-    /** Executes one command in Data Lane order and waits for its result. */
-    <R> R execute(LogBookCommand<R> command);
+    /** Processes one command in LogBook order and returns its domain result. */
+    <R> R process(LogBookCommand<R> command);
 
     /**
      * Queues one command for later Data Lane execution and returns immediately.
