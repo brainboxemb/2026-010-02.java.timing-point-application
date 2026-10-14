@@ -8,6 +8,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamTaskState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
@@ -26,6 +27,7 @@ import static org.junit.Assert.assertTrue;
 public class TimingNodeRaceDataTest {
 
     @Test
+    /** Verifies sequence 1 applies its assignment and produces an ACK. */
     public void firstRaceDataSequenceAppliesAndSendsAck() {
         Fixture fixture = fixture();
         fixture.node.activate();
@@ -45,7 +47,7 @@ public class TimingNodeRaceDataTest {
             assertEquals(1L, ack.sequence());
             assertEquals(
                     new TeamId("0042"),
-                    fixture.port.teamIdFor(
+                    fixture.state.teamIdFor(
                             new RegistrationId(
                                     "RT-R-0001")));
         } finally {
@@ -54,6 +56,7 @@ public class TimingNodeRaceDataTest {
     }
 
     @Test
+    /** Verifies a sequence gap leaves state unchanged and requests the first missing item. */
     public void gapDoesNotApplyAndSendsReqForFirstMissingSequence() {
         Fixture fixture = fixture();
         fixture.node.activate();
@@ -72,7 +75,7 @@ public class TimingNodeRaceDataTest {
                     req.stream());
             assertEquals(1L, req.fromSequence());
             assertNull(
-                    fixture.port.teamIdFor(
+                    fixture.state.teamIdFor(
                             new RegistrationId(
                                     "RT-R-0001")));
         } finally {
@@ -81,6 +84,7 @@ public class TimingNodeRaceDataTest {
     }
 
     @Test
+    /** Verifies duplicate RACE_DATA is acknowledged without reapplying its changes. */
     public void duplicateSequenceSendsCumulativeAckWithoutApplyingAgain() {
         Fixture fixture = fixture();
         fixture.node.activate();
@@ -107,7 +111,7 @@ public class TimingNodeRaceDataTest {
             assertEquals(1L, ack.sequence());
             assertEquals(
                     new TeamId("0042"),
-                    fixture.port.teamIdFor(
+                    fixture.state.teamIdFor(
                             new RegistrationId(
                                     "RT-R-0001")));
         } finally {
@@ -116,6 +120,7 @@ public class TimingNodeRaceDataTest {
     }
 
     @Test
+    /** Verifies an invalid fixed-team override neither advances sequence nor responds. */
     public void invalidFixedTeamOverrideDoesNotAdvanceOrRespond() {
         Fixture fixture = fixture();
         fixture.node.activate();
@@ -129,7 +134,7 @@ public class TimingNodeRaceDataTest {
             assertEquals(0, fixture.stream.sentCount());
             assertEquals(
                     new TeamId("0001"),
-                    fixture.port.teamIdFor(
+                    fixture.state.teamIdFor(
                             new RegistrationId(
                                     "RT-A-0001")));
         } finally {
@@ -138,6 +143,7 @@ public class TimingNodeRaceDataTest {
     }
 
     @Test
+    /** Verifies invalid RACE_DATA applies none of its section changes. */
     public void invalidRaceDataIsAtomicAcrossSections() {
         Fixture fixture = fixture();
         fixture.node.activate();
@@ -157,7 +163,7 @@ public class TimingNodeRaceDataTest {
 
             assertEquals(0, fixture.stream.sentCount());
             assertNull(
-                    fixture.port.stageStartTimeFor(
+                    fixture.state.stageStartTimeFor(
                             new TeamId("0042")));
         } finally {
             fixture.node.deactivate();
@@ -165,6 +171,7 @@ public class TimingNodeRaceDataTest {
     }
 
     @Test
+    /** Verifies stage-start changes are applied and deleted in RACE_DATA order. */
     public void stageStartTimesFollowRaceDataSequence() {
         Fixture fixture = fixture();
         fixture.node.activate();
@@ -185,7 +192,7 @@ public class TimingNodeRaceDataTest {
                             .sequence());
             assertEquals(
                     LocalTime.of(12, 30),
-                    fixture.port.stageStartTimeFor(
+                    fixture.state.stageStartTimeFor(
                             new TeamId("0042"))
                             .time());
 
@@ -203,13 +210,14 @@ public class TimingNodeRaceDataTest {
                             fixture.stream.takeSent())
                             .sequence());
             assertNull(
-                    fixture.port.stageStartTimeFor(
+                    fixture.state.stageStartTimeFor(
                             new TeamId("0042")));
         } finally {
             fixture.node.deactivate();
         }
     }
 
+    /** Builds one RACE_DATA team-assignment update for node A. */
     private static UpstreamData.RaceData raceDataSet(
             long sequence,
             String registrationId,
@@ -224,6 +232,7 @@ public class TimingNodeRaceDataTest {
                 Collections.<UpstreamData.StageStartTimeChange>emptyList());
     }
 
+    /** Creates one same-thread node fixture with an in-memory upstream stream. */
     private static Fixture fixture() {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
@@ -239,24 +248,29 @@ public class TimingNodeRaceDataTest {
         return new Fixture(
                 components.node(),
                 stream,
-                components.nodeService()
-                        .upstreamHandler());
+                components.upstreamHandler(),
+                components.upstreamTaskState());
     }
 
     private static final class Fixture {
         private final TimingNode node;
         private final InMemoryUpstreamStream stream;
         private final UpstreamHandler port;
+        private final UpstreamTaskState state;
 
+        /** Creates one direct-lane integration fixture for RACE_DATA handling. */
         private Fixture(
                 TimingNode node,
                 InMemoryUpstreamStream stream,
-                UpstreamHandler port) {
+                UpstreamHandler port,
+                UpstreamTaskState state) {
             this.node = node;
             this.stream = stream;
             this.port = port;
+            this.state = state;
         }
 
+        /** Delivers one upstream message and verifies that the handler schedules it. */
         private void receive(
                 UpstreamData data) {
             stream.receive(data);
@@ -267,6 +281,7 @@ public class TimingNodeRaceDataTest {
 
     private static final class EmptyPersistence
             implements TimingDataPersistence {
+        /** Returns an empty persisted TimingData history for RACE_DATA-only tests. */
         @Override
         public LoadResult load() {
             return new LoadResult(
@@ -274,6 +289,7 @@ public class TimingNodeRaceDataTest {
                     false);
         }
 
+        /** Rejects unexpected TimingData commits in RACE_DATA-only tests. */
         @Override
         public void append(TimingData data) {
             // RACE_DATA-only tests do not commit TimingData.
