@@ -3,7 +3,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.data;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory.Context;
@@ -78,24 +77,6 @@ final class TimingNodeLogic {
             TimeSource timeSource,
             MonotonicClock monotonicClock,
             TimingNodeMetrics metrics) {
-        this(
-                timingNodeId,
-                timingDataPersistence,
-                timingDataFactory,
-                timeSource,
-                EventData.empty(),
-                monotonicClock,
-                metrics);
-    }
-
-    TimingNodeLogic(
-            NodeId timingNodeId,
-            TimingDataPersistence timingDataPersistence,
-            TimingDataFactory timingDataFactory,
-            TimeSource timeSource,
-            EventData eventData,
-            MonotonicClock monotonicClock,
-            TimingNodeMetrics metrics) {
         if (timingNodeId == null) {
             throw new IllegalArgumentException("timingNodeId must not be null");
         }
@@ -108,9 +89,6 @@ final class TimingNodeLogic {
         }
         if (timeSource == null) {
             throw new IllegalArgumentException("timeSource must not be null");
-        }
-        if (eventData == null) {
-            throw new IllegalArgumentException("eventData must not be null");
         }
         if (monotonicClock == null) {
             throw new IllegalArgumentException("monotonicClock must not be null");
