@@ -6,8 +6,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObser
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.CooperativeTask;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.CooperativeTaskController;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTaskController;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.ScheduledTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
@@ -29,7 +29,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Task results remain owned by the tasks that produced them; manager transitions
  * read that authoritative task state in {@link #runStep()}.</p>
  */
-public final class AntennaManager implements CooperativeTask {
+public final class AntennaManager implements YieldingTask {
     private static final Logger LOG = LoggerFactory.getLogger(AntennaManager.class);
 
     /**
@@ -67,7 +67,7 @@ public final class AntennaManager implements CooperativeTask {
      * <p>The manager owns antenna state and transitions. The controller owns
      * only whether one cooperative run is active or another wake is pending.</p>
      */
-    private final CooperativeTaskController stateMachine;
+    private final YieldingTaskController stateMachine;
 
     public AntennaManager(
             AntennaSet antennaSet,
@@ -90,7 +90,7 @@ public final class AntennaManager implements CooperativeTask {
         antennaSet.seal();
         this.antennaSet = antennaSet;
         taskRunner = new ScheduledTaskRunner(controlLane, controlTimeout);
-        stateMachine = new CooperativeTaskController(
+        stateMachine = new YieldingTaskController(
                 taskRunner,
                 this,
                 this::onStateMachineFailure);
@@ -360,7 +360,7 @@ public final class AntennaManager implements CooperativeTask {
     /**
      * Handles execution failure of the manager state machine.
      *
-     * <p>Wake/coalescing bookkeeping belongs to CooperativeTaskController;
+     * <p>Wake/coalescing bookkeeping belongs to YieldingTaskController;
      * this method contains only AntennaManager failure semantics.</p>
      */
     private synchronized void onStateMachineFailure(

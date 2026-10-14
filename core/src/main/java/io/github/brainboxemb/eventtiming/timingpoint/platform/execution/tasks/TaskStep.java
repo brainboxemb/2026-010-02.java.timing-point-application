@@ -3,7 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
 import java.time.Duration;
 
 /**
- * Continuation decision returned by one {@link CooperativeTask} step.
+ * Continuation decision returned by one {@link YieldingTask} step.
  */
 public final class TaskStep {
 
@@ -58,7 +58,7 @@ public final class TaskStep {
                 delay);
     }
 
-    /** Completes the cooperative task. */
+    /** Completes the yielding task. */
     public static TaskStep done() {
         return DONE;
     }

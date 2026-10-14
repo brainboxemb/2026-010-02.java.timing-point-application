@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners;
 
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.CooperativeTask;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.time.Duration;
@@ -15,16 +15,16 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Runs cooperative tasks on one {@link SerialScheduledLane}.
+ * Runs yielding tasks on one {@link SerialScheduledLane}.
  *
- * <p>The runner owns cooperative continuation, cancellation propagation and
+ * <p>The runner owns yielding continuation, cancellation propagation and
  * bounded waiting for a complete task run. The task owns its operation/control
  * state. The wrapped lane owns serial admission and delayed scheduling.</p>
  *
  * <p>Domain/I/O components map {@link OperationException} to their own failure
  * semantics instead of putting component-specific policy in this platform type.</p>
  */
-public final class ScheduledTaskRunner implements CooperativeTaskRunner {
+public final class ScheduledTaskRunner implements YieldingTaskRunner {
 
     public enum FailureReason {
         OVERLOADED,
@@ -59,7 +59,7 @@ public final class ScheduledTaskRunner implements CooperativeTaskRunner {
      * admitted again. No component/domain state is kept here.</p>
      */
     private final class CooperativeRun {
-        private final CooperativeTask task;
+        private final YieldingTask task;
         private final CompletableFuture<Void> result =
                 new CompletableFuture<Void>();
         private final AtomicReference<
@@ -68,7 +68,7 @@ public final class ScheduledTaskRunner implements CooperativeTaskRunner {
                                 SerialScheduledLane.ScheduledResult<?>>();
 
         private CooperativeRun(
-                CooperativeTask task) {
+                YieldingTask task) {
             this.task = task;
             result.whenComplete(
                     this::runCompleted);
@@ -120,7 +120,7 @@ public final class ScheduledTaskRunner implements CooperativeTaskRunner {
                 result.completeExceptionally(
                         failure(
                                 FailureReason.OVERLOADED,
-                                "Serial scheduled operation lane rejected cooperative task step",
+                                "Serial scheduled operation lane rejected yielding task step",
                                 ex));
                 return;
             }
@@ -153,7 +153,7 @@ public final class ScheduledTaskRunner implements CooperativeTaskRunner {
             if (step == null) {
                 result.completeExceptionally(
                         new IllegalStateException(
-                                "cooperative task returned no TaskStep"));
+                                "yielding task returned no TaskStep"));
                 return;
             }
 
@@ -176,7 +176,7 @@ public final class ScheduledTaskRunner implements CooperativeTaskRunner {
                 default:
                     result.completeExceptionally(
                             new IllegalStateException(
-                                    "Unsupported cooperative task step "
+                                    "Unsupported yielding task step "
                                             + step.type()));
             }
         }
@@ -250,10 +250,10 @@ public final class ScheduledTaskRunner implements CooperativeTaskRunner {
     }
 
     /**
-     * Runs one cooperative task until it returns
+     * Runs one yielding task until it returns
      * {@link TaskStep#done()} or fails.
      *
-     * <p>Each invocation of {@link CooperativeTask#runStep()} is one logical
+     * <p>Each invocation of {@link YieldingTask#runStep()} is one logical
      * turn. {@link TaskStep#again()} yields the lane and re-admits the task at
      * the back of the same serial queue. {@link TaskStep#after(Duration)}
      * releases the physical worker and re-admits the task when the delay
@@ -261,7 +261,7 @@ public final class ScheduledTaskRunner implements CooperativeTaskRunner {
      */
     @Override
     public CompletableFuture<Void> runTask(
-            CooperativeTask task) {
+            YieldingTask task) {
         if (task == null) {
             throw new IllegalArgumentException(
                     "task must not be null");
@@ -273,7 +273,7 @@ public final class ScheduledTaskRunner implements CooperativeTaskRunner {
     }
 
     /**
-     * Waits for one cooperative task run using the configured control timeout.
+     * Waits for one yielding task run using the configured control timeout.
      *
      * <p>Timeout/interruption cancels the public completion. CooperativeRun then
      * propagates that cancellation to the current scheduled lane step.</p>

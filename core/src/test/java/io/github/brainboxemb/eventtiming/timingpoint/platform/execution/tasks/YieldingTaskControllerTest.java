@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.CooperativeTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.YieldingTaskRunner;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,14 +14,14 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
-public class CooperativeTaskControllerTest {
+public class YieldingTaskControllerTest {
 
     @Test
     public void wakeWhileRunningCoalescesIntoOneFollowUpRun() {
         ControlledRunner runner =
                 new ControlledRunner();
-        CooperativeTaskController controller =
-                new CooperativeTaskController(
+        YieldingTaskController controller =
+                new YieldingTaskController(
                         runner,
                         () -> TaskStep.done(),
                         failure -> {
@@ -67,8 +67,8 @@ public class CooperativeTaskControllerTest {
                 new ControlledRunner();
         AtomicReference<Throwable> observed =
                 new AtomicReference<Throwable>();
-        CooperativeTaskController controller =
-                new CooperativeTaskController(
+        YieldingTaskController controller =
+                new YieldingTaskController(
                         runner,
                         () -> TaskStep.done(),
                         observed::set);
@@ -94,13 +94,13 @@ public class CooperativeTaskControllerTest {
     }
 
     private static final class ControlledRunner
-            implements CooperativeTaskRunner {
+            implements YieldingTaskRunner {
         private final List<CompletableFuture<Void>> runs =
                 new ArrayList<CompletableFuture<Void>>();
 
         @Override
         public CompletableFuture<Void> runTask(
-                CooperativeTask task) {
+                YieldingTask task) {
             CompletableFuture<Void> run =
                     new CompletableFuture<Void>();
             runs.add(

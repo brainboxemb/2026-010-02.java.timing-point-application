@@ -9,8 +9,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.CooperativeTask;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.CooperativeTaskController;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTaskController;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
@@ -32,12 +32,12 @@ import org.slf4j.LoggerFactory;
  * through the shared AntennaSettings. It does not retain a second copy of
  * node state or invoke AntennaManager directly.</p>
  */
-public final class SystemConductor extends AbstractConductor implements CooperativeTask {
+public final class SystemConductor extends AbstractConductor implements YieldingTask {
     private static final Logger LOG = LoggerFactory.getLogger(SystemConductor.class);
 
     private final TimingNodeList nodes;
     private final AntennaSettings antennaSettings;
-    private final CooperativeTaskController taskController;
+    private final YieldingTaskController taskController;
 
     public SystemConductor(
             TimingNodeList timingNodes,
@@ -51,7 +51,7 @@ public final class SystemConductor extends AbstractConductor implements Cooperat
 
         this.nodes = timingNodes.copy();
         this.antennaSettings = antennaSettings;
-        taskController = new CooperativeTaskController(
+        taskController = new YieldingTaskController(
                 new SerialTaskRunner(coordinationLane()),
                 this,
                 this::onControlTaskFailure);

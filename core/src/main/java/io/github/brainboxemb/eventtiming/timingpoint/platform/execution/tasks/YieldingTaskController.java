@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.CooperativeTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.YieldingTaskRunner;
 
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -15,20 +15,20 @@ import java.util.function.Consumer;
  * authoritative state again.</p>
  *
  * <p>This class owns only scheduling state ({@code running}/{@code wakePending}).
- * The supplied {@link CooperativeTask} remains the sole owner of application,
+ * The supplied {@link YieldingTask} remains the sole owner of application,
  * domain or device state.</p>
  */
-public final class CooperativeTaskController {
-    private final CooperativeTaskRunner runner;
-    private final CooperativeTask task;
+public final class YieldingTaskController {
+    private final YieldingTaskRunner runner;
+    private final YieldingTask task;
     private final Consumer<Throwable> failureHandler;
 
     private boolean running;
     private boolean wakePending;
 
-    public CooperativeTaskController(
-            CooperativeTaskRunner runner,
-            CooperativeTask task,
+    public YieldingTaskController(
+            YieldingTaskRunner runner,
+            YieldingTask task,
             Consumer<Throwable> failureHandler) {
         if (runner == null) {
             throw new IllegalArgumentException(

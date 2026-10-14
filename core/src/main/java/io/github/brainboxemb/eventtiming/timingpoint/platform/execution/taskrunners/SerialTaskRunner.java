@@ -1,14 +1,14 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners;
 
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.CooperativeTask;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.RejectedExecutionException;
 
 /**
- * Runs cooperative tasks on an existing {@link SerialLane}.
+ * Runs yielding tasks on an existing {@link SerialLane}.
  *
  * <p>This runner is for short application/domain control steps that need serial
  * ordering and cooperative yielding but no elapsed-time scheduling. Each
@@ -19,7 +19,7 @@ import java.util.concurrent.RejectedExecutionException;
  * therefore supported only by {@link ScheduledTaskRunner}. This runner owns no
  * lane lifecycle; its composition owner starts and closes the supplied lane.</p>
  */
-public final class SerialTaskRunner implements CooperativeTaskRunner {
+public final class SerialTaskRunner implements YieldingTaskRunner {
     private final SerialLane lane;
 
     public SerialTaskRunner(
@@ -33,7 +33,7 @@ public final class SerialTaskRunner implements CooperativeTaskRunner {
 
     @Override
     public CompletableFuture<Void> runTask(
-            CooperativeTask task) {
+            YieldingTask task) {
         if (task == null) {
             throw new IllegalArgumentException(
                     "task must not be null");
@@ -48,7 +48,7 @@ public final class SerialTaskRunner implements CooperativeTaskRunner {
     }
 
     private void scheduleStep(
-            CooperativeTask task,
+            YieldingTask task,
             CompletableFuture<Void> result) {
         if (result.isDone()) {
             return;
@@ -63,13 +63,13 @@ public final class SerialTaskRunner implements CooperativeTaskRunner {
         if (admission != SerialLane.AdmissionResult.ACCEPTED) {
             result.completeExceptionally(
                     new RejectedExecutionException(
-                            "Serial task lane rejected cooperative task step: "
+                            "Serial task lane rejected yielding task step: "
                                     + admission));
         }
     }
 
     private void executeStep(
-            CooperativeTask task,
+            YieldingTask task,
             CompletableFuture<Void> result) {
         if (result.isDone()) {
             return;
@@ -91,7 +91,7 @@ public final class SerialTaskRunner implements CooperativeTaskRunner {
         if (step == null) {
             result.completeExceptionally(
                     new IllegalStateException(
-                            "cooperative task returned no TaskStep"));
+                            "yielding task returned no TaskStep"));
             return;
         }
 
@@ -116,7 +116,7 @@ public final class SerialTaskRunner implements CooperativeTaskRunner {
             default:
                 result.completeExceptionally(
                         new IllegalStateException(
-                                "Unsupported cooperative task step "
+                                "Unsupported yielding task step "
                                         + step.type()));
         }
     }
