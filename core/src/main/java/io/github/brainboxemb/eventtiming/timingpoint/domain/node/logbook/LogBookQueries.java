@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -49,6 +50,21 @@ public final class LogBookQueries {
         return TIMING_DATA_HEAD;
     }
 
+    /**
+     * Returns at most {@code limit} committed records starting at the inclusive
+     * source sequence.
+     *
+     * <p>The result is a bounded immutable copy produced on the Data Lane.</p>
+     */
+    public static LogBookQuery<List<TimingData>> timingDataRange(
+            long fromSequence,
+            int limit) {
+        return new LogBookQuery<>(
+                "timingDataRange",
+                logBookState -> logBookState.timingDataRange(
+                        fromSequence,
+                        limit));
+    }
 
     /**
      * Visits at most {@code limit} LogBook records on the Data Lane.
