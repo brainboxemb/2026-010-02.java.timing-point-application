@@ -196,7 +196,7 @@ public final class UpstreamHandler {
     }
 
     /**
-     * Submits one externally scheduled heartbeat tick to the Task Lane.
+     * Queues one externally scheduled heartbeat tick on the Task Lane.
      *
      * <p>This handoff is deliberately non-blocking because Data and Task Lane may
      * share one physical worker. Returning from this method does not mean the
@@ -231,13 +231,15 @@ public final class UpstreamHandler {
 
     /** Returns the Task Lane-owned unique-team count. */
     public int uniqueTeamRegistrationCount() {
-        return onTaskLane(
+        return executeOnTaskLaneAndWait(
                 () -> Integer.valueOf(taskState.uniqueTeamRegistrationCount()),
                 "uniqueTeamRegistrationCount").intValue();
     }
 
-    private void offerProtocolOperation(String operation, Runnable task) {
-        if (!taskLane.offer(task)) {
+    private void queueProtocolOperationOnTaskLane(
+            String operation,
+            Runnable task) {
+        if (!taskLane.tryQueue(task)) {
             LOG.warn(
                     "Dropped upstream {} for node {} because the Task Lane could not accept it; no ACK is sent",
                     operation,
@@ -278,7 +280,7 @@ public final class UpstreamHandler {
     /**
      * Task Lane boundary used by upstream protocol code.
      *
-     * <p>{@link #tryQueue(Runnable)} is fire-and-forget queue submission.
+     * <p>{@link #tryQueue(Runnable)} is fire-and-forget queueing.
      * {@link #executeAndWait(Callable, String)} is reserved for result-bearing
      * calls made from outside a conflicting lane context.</p>
      */
