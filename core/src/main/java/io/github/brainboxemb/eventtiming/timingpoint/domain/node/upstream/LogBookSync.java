@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookReader;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -27,19 +27,19 @@ final class LogBookSync {
 
     private final NodeId nodeId;
     private final UpstreamStream stream;
-    private final LogBookProcessor logBookProcessor;
+    private final LogBookReader logBookReader;
 
     private boolean syncActive;
     private long nextSequence;
     private long syncHead;
 
-    LogBookSync(NodeId nodeId, UpstreamStream stream, LogBookProcessor logBookProcessor) {
+    LogBookSync(NodeId nodeId, UpstreamStream stream, LogBookReader logBookReader) {
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(stream != null, "stream must not be null");
-        checkArgument(logBookProcessor != null, "logBookProcessor must not be null");
+        checkArgument(logBookReader != null, "logBookReader must not be null");
         this.nodeId = nodeId;
         this.stream = stream;
-        this.logBookProcessor = logBookProcessor;
+        this.logBookReader = logBookReader;
     }
 
     /** Sends the current TIMING_DATA source head. Empty LogBook means sequence 0. */
@@ -53,7 +53,7 @@ final class LogBookSync {
     }
 
     long headSequence() {
-        return logBookProcessor.timingDataHead();
+        return logBookReader.timingDataHead();
     }
 
     /**
@@ -101,7 +101,7 @@ final class LogBookSync {
                 syncHead - nextSequence + 1L);
 
         List<TimingData> records =
-                logBookProcessor.timingDataRange(nextSequence, limit);
+                logBookReader.timingDataRange(nextSequence, limit);
 
         if (records.isEmpty()) {
             syncActive = false;
