@@ -15,7 +15,7 @@ public class LogBookSyncTest {
     public void raceDataReqIsNotOwnedByLogBookSync() {
         NodeId nodeId = new NodeId("A");
         LogBookSync sync =
-                new LogBookSync(nodeId, new TestUpstreamStream(), new TestUpstreamNodeData());
+                new LogBookSync(nodeId, new TestUpstreamStream(), new TestTimingDataHistory());
 
         try {
             sync.handleReq(
