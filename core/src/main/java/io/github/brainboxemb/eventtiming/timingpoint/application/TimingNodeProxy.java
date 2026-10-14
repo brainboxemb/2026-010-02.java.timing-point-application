@@ -247,7 +247,7 @@ public final class TimingNodeProxy {
 
     /** Returns the subscription-only committed TimingData event. */
     public EventSource<TimingData> timingDataCommittedEvent() {
-        return timingNode.timingDataCommittedEvent();
+        return timingNode.newDataEvent();
     }
 
     private void updateStatus(Status status) {
