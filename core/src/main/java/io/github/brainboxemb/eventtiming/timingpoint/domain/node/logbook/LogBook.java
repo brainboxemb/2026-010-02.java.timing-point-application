@@ -235,12 +235,12 @@ public final class LogBook
     }
 
     /**
-     * Queues one internal fire-and-forget Data Lane operation.
+     * Executes one internal fire-and-forget operation on the Data Lane.
      *
      * <p>This is the raw execution seam used by node-local coordination code.
      * Rejection uses the same standard exception contract as SerialLane.</p>
      */
-    public void queueOperation(Runnable operation) {
+    public void executeOnDataLane(Runnable operation) {
         checkArgument(operation != null, "operation must not be null");
         dataLane.execute(operation);
     }
