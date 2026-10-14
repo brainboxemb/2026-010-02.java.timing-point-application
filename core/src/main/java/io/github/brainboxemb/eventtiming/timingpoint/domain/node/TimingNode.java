@@ -144,7 +144,7 @@ public final class TimingNode {
             EventData eventData,
             SerialLane dataLane,
             SerialLane taskLane,
-            SerialScheduledLane tagProcessorExecutor) {
+            SerialScheduledLane tagProcessorLane) {
         this(
                 timingNodeId,
                 timingDataPersistence,
@@ -154,7 +154,7 @@ public final class TimingNode {
                 eventData,
                 dataLane,
                 taskLane,
-                tagProcessorExecutor,
+                tagProcessorLane,
                 SystemMonotonicClock.INSTANCE,
                 new LogBookProcessorMetrics(),
                 new TagProcessingMetrics(),
@@ -170,7 +170,7 @@ public final class TimingNode {
             EventData eventData,
             SerialLane dataLane,
             SerialLane taskLane,
-            SerialScheduledLane tagProcessorExecutor,
+            SerialScheduledLane tagProcessorLane,
             UpstreamStream upstreamStream) {
         this(
                 timingNodeId,
@@ -181,7 +181,7 @@ public final class TimingNode {
                 eventData,
                 dataLane,
                 taskLane,
-                tagProcessorExecutor,
+                tagProcessorLane,
                 SystemMonotonicClock.INSTANCE,
                 new LogBookProcessorMetrics(),
                 new TagProcessingMetrics(),
@@ -197,7 +197,7 @@ public final class TimingNode {
             EventData eventData,
             SerialLane dataLane,
             SerialLane taskLane,
-            SerialScheduledLane tagProcessorExecutor,
+            SerialScheduledLane tagProcessorLane,
             MonotonicClock monotonicClock) {
         this(
                 timingNodeId,
@@ -208,7 +208,7 @@ public final class TimingNode {
                 eventData,
                 dataLane,
                 taskLane,
-                tagProcessorExecutor,
+                tagProcessorLane,
                 monotonicClock,
                 new LogBookProcessorMetrics(),
                 new TagProcessingMetrics(),
@@ -227,7 +227,7 @@ public final class TimingNode {
             EventData eventData,
             SerialLane dataLane,
             SerialLane taskLane,
-            SerialScheduledLane tagProcessorExecutor,
+            SerialScheduledLane tagProcessorLane,
             MonotonicClock monotonicClock,
             LogBookProcessorMetrics timingNodeMetrics,
             TagProcessingMetrics tagProcessingMetrics) {
@@ -240,7 +240,7 @@ public final class TimingNode {
                 eventData,
                 dataLane,
                 taskLane,
-                tagProcessorExecutor,
+                tagProcessorLane,
                 monotonicClock,
                 timingNodeMetrics,
                 tagProcessingMetrics,
@@ -256,7 +256,7 @@ public final class TimingNode {
             EventData eventData,
             SerialLane dataLane,
             SerialLane taskLane,
-            SerialScheduledLane tagProcessorExecutor,
+            SerialScheduledLane tagProcessorLane,
             MonotonicClock monotonicClock,
             LogBookProcessorMetrics timingNodeMetrics,
             TagProcessingMetrics tagProcessingMetrics,
@@ -273,9 +273,9 @@ public final class TimingNode {
             throw new IllegalArgumentException(
                     "taskLane must not be null");
         }
-        if (tagProcessorExecutor == null) {
+        if (tagProcessorLane == null) {
             throw new IllegalArgumentException(
-                    "tagProcessorExecutor must not be null");
+                    "tagProcessorLane must not be null");
         }
         if (monotonicClock == null) {
             throw new IllegalArgumentException(
@@ -307,7 +307,7 @@ public final class TimingNode {
                         tagProcessingConfiguration,
                         monotonicClock,
                         tagProcessingMetrics,
-                        tagProcessorExecutor);
+                        tagProcessorLane);
 
         tagProcessingConfiguration.changes()
                 .subscribe(
