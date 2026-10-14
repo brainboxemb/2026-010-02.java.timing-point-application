@@ -178,7 +178,7 @@ public final class LogBook
     /**
      * Executes one command in Data Lane order and waits for its domain result.
      */
-    public <R> R invoke(
+    public <R> R execute(
             LogBookCommand<R> command) {
         if (command == null) {
             throw new IllegalArgumentException(
