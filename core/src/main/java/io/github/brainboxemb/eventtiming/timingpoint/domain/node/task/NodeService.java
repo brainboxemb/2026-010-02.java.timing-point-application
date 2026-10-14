@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.task;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
@@ -10,6 +11,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
@@ -26,9 +28,9 @@ import org.slf4j.LoggerFactory;
  *
  * <p>The Task Lane is a bounded logical serial queue, not a dedicated thread:
  * the supplied executor may share Runtime's physical worker with the Data Lane.
- * Mutable TeamAssignments, StageStartTimes and UniqueTeamRegistrations never
- * leave this lane. The Data Lane supplies only immutable initial-loaded/committed
- * TimingData facts and bounded LogBook reads.</p>
+ * Mutable Task Lane state lives in {@link NodeServiceState}; the service itself
+ * owns lifecycle, queueing and orchestration. The Data Lane supplies only
+ * immutable initial-loaded/committed TimingData facts and bounded LogBook reads.</p>
  */
 public final class NodeService {
     private static final Logger LOG =
@@ -172,7 +174,7 @@ public final class NodeService {
             return;
         }
 
-        derivedTimingStale = true;
+        state.markDerivedTimingStale();
         LOG.error(
                 "Task Lane could not queue {} for node {}; queueResult={}, derived timing state is stale",
                 fact,
