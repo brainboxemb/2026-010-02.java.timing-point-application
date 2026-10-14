@@ -5,6 +5,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 
 import java.util.ArrayList;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 import java.util.Collections;
 import java.util.List;
 
@@ -77,15 +78,11 @@ public final class TimingNodeTypes {
                 ProblemCode code,
                 ProblemSeverity severity,
                 String message) {
-            if (code == null) {
-                throw new IllegalArgumentException("code must not be null");
-            }
-            if (severity == null) {
-                throw new IllegalArgumentException("severity must not be null");
-            }
-            if (message == null || message.trim().isEmpty()) {
-                throw new IllegalArgumentException("message must not be blank");
-            }
+            checkArgument(code != null, "code must not be null");
+            checkArgument(severity != null, "severity must not be null");
+            checkArgument(
+                    message != null && !message.trim().isEmpty(),
+                    "message must not be blank");
             this.code = code;
             this.severity = severity;
             this.message = message.trim();
