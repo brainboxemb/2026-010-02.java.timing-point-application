@@ -26,6 +26,9 @@ import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+
 /**
  * Data Lane component for one TimingNode's committed timing history.
  *
@@ -105,20 +108,12 @@ public final class LogBook
             SerialLane dataLane,
             long operationTimeoutMillis,
             MonotonicClock monotonicClock) {
-        if (logBookState == null) {
-            throw new IllegalArgumentException("logBookState must not be null");
-        }
-        if (dataLane == null) {
-            throw new IllegalArgumentException("dataLane must not be null");
-        }
-        if (operationTimeoutMillis < 1L) {
-            throw new IllegalArgumentException(
-                    "operationTimeoutMillis must be positive");
-        }
-        if (monotonicClock == null) {
-            throw new IllegalArgumentException(
-                    "monotonicClock must not be null");
-        }
+        checkArgument(logBookState != null, "logBookState must not be null");
+        checkArgument(dataLane != null, "dataLane must not be null");
+        checkArgument(
+                operationTimeoutMillis > 0L,
+                "operationTimeoutMillis must be positive");
+        checkArgument(monotonicClock != null, "monotonicClock must not be null");
         this.logBookState = logBookState;
         this.dataLane = dataLane;
         this.operationTimeoutMillis = operationTimeoutMillis;
@@ -144,12 +139,11 @@ public final class LogBook
      */
     public void activate() {
         SerialLane.State state = dataLane.state();
-        if (state != SerialLane.State.NEW
-                && state != SerialLane.State.STOPPED) {
-            throw new IllegalStateException(
-                    "LogBook cannot activate with Data Lane state="
-                            + state);
-        }
+        checkState(
+                state == SerialLane.State.NEW
+                        || state == SerialLane.State.STOPPED,
+                "LogBook cannot activate with Data Lane state=%s",
+                state);
 
         publishedStatus = null;
         dataLane.start();
@@ -180,10 +174,7 @@ public final class LogBook
      */
     public <R> R execute(
             LogBookCommand<R> command) {
-        if (command == null) {
-            throw new IllegalArgumentException(
-                    "command must not be null");
-        }
+        checkArgument(command != null, "command must not be null");
         return executeOnDataLaneAndWait(
                 () -> applyCommand(command),
                 command.name());
@@ -238,14 +229,8 @@ public final class LogBook
     public <R> R query(
             LogBookQuery<R> query,
             LogBookQuery.ReadConsistency consistency) {
-        if (query == null) {
-            throw new IllegalArgumentException(
-                    "query must not be null");
-        }
-        if (consistency == null) {
-            throw new IllegalArgumentException(
-                    "consistency must not be null");
-        }
+        checkArgument(query != null, "query must not be null");
+        checkArgument(consistency != null, "consistency must not be null");
 
         switch (consistency) {
             case CURRENT:
@@ -289,10 +274,7 @@ public final class LogBook
      */
     public boolean tryQueueOperation(
             Runnable operation) {
-        if (operation == null) {
-            throw new IllegalArgumentException(
-                    "operation must not be null");
-        }
+        checkArgument(operation != null, "operation must not be null");
         return dataLane.offer(operation)
                 == SerialLane.AdmissionResult.ACCEPTED;
     }
@@ -496,10 +478,7 @@ public final class LogBook
 
     private void publishCurrentStatus(
             Status status) {
-        if (status == null) {
-            throw new IllegalArgumentException(
-                    "status must not be null");
-        }
+        checkArgument(status != null, "status must not be null");
         publishedStatus = status;
     }
 
