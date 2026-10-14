@@ -1,21 +1,14 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.task;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
-import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.UniqueTeamRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamTaskState;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -35,25 +28,19 @@ import org.slf4j.LoggerFactory;
  *
  * <p>The Task Lane is a bounded logical serial queue, not a dedicated thread:
  * the supplied executor may share Runtime's physical worker with the Data Lane.
- * Mutable TeamAssignments, StageStartTimes and UniqueTeamRegistrations never
- * leave this lane. The Data Lane supplies only immutable initial-loaded/committed
- * TimingData facts and bounded LogBook reads.</p>
+ * Mutable Task Lane state lives in {@link NodeServiceState}; the service itself
+ * owns lifecycle, queueing and orchestration. The Data Lane supplies only
+ * immutable initial-loaded/committed TimingData facts and bounded LogBook reads.</p>
  */
-public final class NodeService implements UpstreamTaskState {
+public final class NodeService {
     private static final Logger LOG =
             LoggerFactory.getLogger(NodeService.class);
     private static final long TASK_QUERY_TIMEOUT_MILLIS = 2000L;
 
     private final LogBook logBook;
     private final SerialLane taskLane;
-    private final RaceDataState raceData;
-    private final UniqueTeamRegistrations uniqueTeamRegistrations =
-            new UniqueTeamRegistrations();
+    private final NodeServiceState state;
     private final StageTiming stageTiming;
-    private final List<TimingData> committedTimingData =
-            new ArrayList<TimingData>();
-    private volatile boolean derivedTimingReady;
-    private volatile boolean derivedTimingStale;
 
     private final UpstreamHandler upstreamHandler;
 
@@ -77,12 +64,12 @@ public final class NodeService implements UpstreamTaskState {
 
         this.logBook = logBook;
         this.taskLane = taskLane;
-        this.raceData = new RaceDataState(eventData);
+        this.state = new NodeServiceState(eventData);
         this.stageTiming =
                 new StageTiming(
                         eventData,
-                        raceData.teamAssignments(),
-                        raceData.stageStartTimes());
+                        state.teamAssignments(),
+                        state.stageStartTimes());
 
         /*
          * Composition-time wiring. Event delivery itself is synchronous on the
@@ -100,7 +87,7 @@ public final class NodeService implements UpstreamTaskState {
                         new UpstreamTaskLane(),
                         upstreamStream,
                         logBook,
-                        this);
+                        state);
     }
 
     /**
@@ -118,7 +105,7 @@ public final class NodeService implements UpstreamTaskState {
      */
     public void deactivate() {
         taskLane.close();
-        derivedTimingReady = false;
+        state.markDerivedTimingUnavailable();
     }
 
     /** Returns the Task Lane-owned upstream protocol boundary for this node. */
@@ -142,35 +129,9 @@ public final class NodeService implements UpstreamTaskState {
 
     private List<StageTime> stageTimingOnTaskLane(ZoneId raceTimeZone) {
         requireTaskLane("stageTiming");
-        ensureDerivedTimingAvailable();
         return stageTiming.ranking(
-                new ArrayList<TimingData>(committedTimingData),
+                state.committedTimingDataSnapshot(),
                 raceTimeZone);
-    }
-
-    @Override
-    public void applyRaceData(UpstreamData.RaceData changes) {
-        requireTaskLane("applyRaceData");
-        raceData.applyChanges(changes);
-    }
-
-    @Override
-    public TeamId teamIdFor(RegistrationId registrationId) {
-        requireTaskLane("teamIdFor");
-        return raceData.teamIdFor(registrationId);
-    }
-
-    @Override
-    public TimingTimestamp stageStartTimeFor(TeamId teamId) {
-        requireTaskLane("stageStartTimeFor");
-        return raceData.stageStartTimeFor(teamId);
-    }
-
-    @Override
-    public int uniqueTeamRegistrationCount() {
-        requireTaskLane("uniqueTeamRegistrationCount");
-        ensureDerivedTimingAvailable();
-        return uniqueTeamRegistrations.uniqueTeamCount(raceData::teamIdFor);
     }
 
     /**
@@ -187,13 +148,13 @@ public final class NodeService implements UpstreamTaskState {
     private void onInitialTimingDataLoaded(List<TimingData> loadedData) {
         List<TimingData> snapshot = new ArrayList<TimingData>(loadedData);
         queueTimingFactOnTaskLane(
-                () -> rebuildDerivedTiming(snapshot),
+                () -> rebuildDerivedTimingOnTaskLane(snapshot),
                 "initial TimingData");
     }
 
     private void onTimingDataCommitted(TimingData data) {
         queueTimingFactOnTaskLane(
-                () -> applyCommittedTimingData(data),
+                () -> applyCommittedTimingDataOnTaskLane(data),
                 "committed TimingData");
     }
 
@@ -213,7 +174,7 @@ public final class NodeService implements UpstreamTaskState {
             return;
         }
 
-        derivedTimingStale = true;
+        state.markDerivedTimingStale();
         LOG.error(
                 "Task Lane could not queue {} for node {}; queueResult={}, derived timing state is stale",
                 fact,
@@ -221,62 +182,16 @@ public final class NodeService implements UpstreamTaskState {
                 queueResult);
     }
 
-    private void rebuildDerivedTiming(List<TimingData> loadedData) {
+    private void rebuildDerivedTimingOnTaskLane(
+            List<TimingData> loadedData) {
         requireTaskLane("rebuildDerivedTiming");
-        committedTimingData.clear();
-        uniqueTeamRegistrations.reset();
-
-        for (TimingData data : loadedData) {
-            committedTimingData.add(data);
-            updateUniqueTeamRegistrations(data);
-        }
-
-        derivedTimingStale = false;
-        derivedTimingReady = true;
+        state.rebuildDerivedTiming(loadedData);
     }
 
-    private void applyCommittedTimingData(TimingData data) {
+    private void applyCommittedTimingDataOnTaskLane(
+            TimingData data) {
         requireTaskLane("applyCommittedTimingData");
-        if (!derivedTimingReady) {
-            derivedTimingStale = true;
-            return;
-        }
-
-        committedTimingData.add(data);
-        updateUniqueTeamRegistrations(data);
-    }
-
-    private void updateUniqueTeamRegistrations(TimingData data) {
-        final RegistrationId registrationId;
-        final TimingData.RegistrationAction action;
-
-        if (data instanceof TimingData.AutomaticRegistration) {
-            TimingData.AutomaticRegistration registration =
-                    (TimingData.AutomaticRegistration) data;
-            registrationId = registration.registrationId();
-            action = registration.action();
-        } else if (data instanceof TimingData.ManualRegistration) {
-            TimingData.ManualRegistration registration =
-                    (TimingData.ManualRegistration) data;
-            registrationId = registration.registrationId();
-            action = registration.action();
-        } else {
-            return;
-        }
-
-        if (action == TimingData.RegistrationAction.ADD) {
-            uniqueTeamRegistrations.registered(registrationId);
-        } else if (action == TimingData.RegistrationAction.REV) {
-            uniqueTeamRegistrations.revoked(registrationId);
-        }
-    }
-
-    private void ensureDerivedTimingAvailable() {
-        if (!derivedTimingReady || derivedTimingStale) {
-            throw new OperationException(
-                    OperationException.Reason.UNAVAILABLE,
-                    "Task Lane derived timing state is not available");
-        }
+        state.applyCommittedTimingData(data);
     }
 
     private void requireTaskLane(String operation) {

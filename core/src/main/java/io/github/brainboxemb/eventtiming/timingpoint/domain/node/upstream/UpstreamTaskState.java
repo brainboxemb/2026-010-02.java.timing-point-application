@@ -8,8 +8,9 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 /**
  * Task Lane-owned live state required by the upstream protocol.
  *
- * <p>Implementations are invoked only from the TimingNode Task Lane. The
- * interface deliberately exposes semantic operations rather than mutable
+ * <p>The port is implemented by passive Task Lane state, not by the top-level
+ * NodeService. Implementations are invoked only from the TimingNode Task Lane.
+ * The interface deliberately exposes semantic operations rather than mutable
  * TeamAssignments, StageStartTimes or UniqueTeamRegistrations objects.</p>
  */
 public interface UpstreamTaskState {
