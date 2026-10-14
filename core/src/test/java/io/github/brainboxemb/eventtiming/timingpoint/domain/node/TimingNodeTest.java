@@ -192,7 +192,7 @@ public class TimingNodeTest {
     public void openAndCloseCommitLifecycleTimingDataInSourceOrder() {
         NodeId id = new NodeId("A");
         RecordingPersistence persistence = new RecordingPersistence();
-        TimingNode node = TimingNodeFixture.create(
+        TimingNode node = TimingNodeFixture.createDirect(
                 id,
                 persistence,
                 new DefaultTimingDataFactory(),
@@ -232,7 +232,7 @@ public class TimingNodeTest {
             Instant.parse("2026-10-02T08:00:00.129876543Z"),
             Instant.parse("2026-10-02T08:00:00.134876543Z")
         };
-        TimingNode node = TimingNodeFixture.create(
+        TimingNode node = TimingNodeFixture.createDirect(
                 new NodeId("A"),
                 persistence,
                 new DefaultTimingDataFactory(),
@@ -261,7 +261,7 @@ public class TimingNodeTest {
     @Test
     public void repeatedLifecycleCommandsDoNotCreateAdditionalTimingData() {
         RecordingPersistence persistence = new RecordingPersistence();
-        TimingNode node = TimingNodeFixture.create(
+        TimingNode node = TimingNodeFixture.createDirect(
                 new NodeId("A"),
                 persistence,
                 new DefaultTimingDataFactory(),
@@ -291,7 +291,7 @@ public class TimingNodeTest {
     @Test
     public void failedOpenCommitLeavesNodeClosedAndPublishesNoSuccess() {
         FailingPersistence persistence = new FailingPersistence();
-        TimingNode node = TimingNodeFixture.create(
+        TimingNode node = TimingNodeFixture.createDirect(
                 new NodeId("A"),
                 persistence,
                 new DefaultTimingDataFactory(),
@@ -788,7 +788,7 @@ public class TimingNodeTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsMissingIdentity() {
-        TimingNodeFixture.create(
+        TimingNodeFixture.createDirect(
                 null,
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),
@@ -796,7 +796,7 @@ public class TimingNodeTest {
     }
 
     private static TimingNode node(NodeId id) {
-        return TimingNodeFixture.create(
+        return TimingNodeFixture.createDirect(
                 id,
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),

@@ -79,7 +79,35 @@ public final class TimingNodeFixture {
             TimingDataPersistence persistence,
             TimingDataFactory timingDataFactory,
             TimeSource timeSource) {
-        return create(
+        String suffix = nodeId == null ? "missing" : nodeId.value();
+        return compose(
+                nodeId,
+                persistence,
+                timingDataFactory,
+                timeSource,
+                EventData.empty(),
+                UpstreamStream.unavailable(),
+                new SerialLane(
+                        32,
+                        "test-node-data-" + suffix,
+                        NODE_WORKER),
+                new SerialLane(
+                        32,
+                        "test-node-task-" + suffix,
+                        NODE_WORKER),
+                new SerialLane(
+                        32,
+                        "test-tag-" + suffix,
+                        TAG_WORKER),
+                DEFAULT_OPERATION_TIMEOUT_MILLIS);
+    }
+
+    public static TimingNode createDirect(
+            NodeId nodeId,
+            TimingDataPersistence persistence,
+            TimingDataFactory timingDataFactory,
+            TimeSource timeSource) {
+        return createDirect(
                 nodeId,
                 persistence,
                 timingDataFactory,
@@ -88,7 +116,7 @@ public final class TimingNodeFixture {
                 UpstreamStream.unavailable());
     }
 
-    public static TimingNode create(
+    public static TimingNode createDirect(
             NodeId nodeId,
             TimingDataPersistence persistence,
             TimingDataFactory timingDataFactory,
@@ -105,8 +133,16 @@ public final class TimingNodeFixture {
                 upstreamStream,
                 new SerialLane(
                         32,
-                        "test-node-data-" + suffix,
-                        NODE_WORKER),
+                        "test-node-data-direct-" + suffix,
+                        Runnable::run),
+                new SerialLane(
+                        32,
+                        "test-node-task-direct-" + suffix,
+                        Runnable::run),
+                new SerialLane(
+                        32,
+                        "test-tag-direct-" + suffix,
+                        Runnable::run),
                 DEFAULT_OPERATION_TIMEOUT_MILLIS);
     }
 
@@ -117,6 +153,7 @@ public final class TimingNodeFixture {
             TimeSource timeSource,
             SerialLane dataLane,
             long operationTimeoutMillis) {
+        String suffix = nodeId == null ? "missing" : nodeId.value();
         return compose(
                 nodeId,
                 persistence,
@@ -125,6 +162,14 @@ public final class TimingNodeFixture {
                 EventData.empty(),
                 UpstreamStream.unavailable(),
                 dataLane,
+                new SerialLane(
+                        32,
+                        "test-node-task-direct-" + suffix,
+                        Runnable::run),
+                new SerialLane(
+                        32,
+                        "test-tag-direct-" + suffix,
+                        Runnable::run),
                 operationTimeoutMillis);
     }
 
@@ -136,8 +181,9 @@ public final class TimingNodeFixture {
             EventData eventData,
             UpstreamStream upstreamStream,
             SerialLane dataLane,
+            SerialLane taskLane,
+            SerialLane tagLane,
             long operationTimeoutMillis) {
-        String suffix = nodeId == null ? "missing" : nodeId.value();
         ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
                 ReadOnlyConfiguration.fixed(
                         TagProcessingPolicy.defaults());
@@ -156,10 +202,7 @@ public final class TimingNodeFixture {
         NodeTaskProcessor taskProcessor =
                 new NodeTaskProcessor(
                         logBookProcessor,
-                        new SerialLane(
-                                32,
-                                "test-node-task-" + suffix,
-                                NODE_WORKER),
+                        taskLane,
                         eventData,
                         upstreamStream);
 
@@ -169,10 +212,7 @@ public final class TimingNodeFixture {
                         tagConfiguration,
                         SystemMonotonicClock.INSTANCE,
                         new TagProcessingMetrics(),
-                        new SerialLane(
-                                32,
-                                "test-tag-" + suffix,
-                                TAG_WORKER),
+                        tagLane,
                         TAG_WORKER);
         tagConfiguration.changes()
                 .subscribe(

@@ -690,7 +690,7 @@ public class UpstreamHandlerTest {
             String nodeId,
             UpstreamStream stream,
             List<TimingData> initialTimingData) {
-        return TimingNodeFixture.create(
+        return TimingNodeFixture.createDirect(
                 new NodeId(nodeId),
                 new MemoryPersistence(initialTimingData),
                 new DefaultTimingDataFactory(),

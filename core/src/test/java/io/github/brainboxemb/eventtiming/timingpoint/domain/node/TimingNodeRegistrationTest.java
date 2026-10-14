@@ -605,7 +605,7 @@ public class TimingNodeRegistrationTest {
 
     private static TimingNode node(RecordingStore store) {
         TimeSource timeSource = () -> RECORDED_AT.instant();
-        return TimingNodeFixture.create(
+        return TimingNodeFixture.createDirect(
                 new NodeId("A"),
                 store,
                 new DefaultTimingDataFactory(),

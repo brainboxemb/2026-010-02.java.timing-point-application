@@ -255,7 +255,7 @@ public class StageTimingTest {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
         TimingNode node =
-                TimingNodeFixture.create(
+                TimingNodeFixture.createDirect(
                         NODE_ID,
                         new StaticPersistence(committed),
                         FACTORY,

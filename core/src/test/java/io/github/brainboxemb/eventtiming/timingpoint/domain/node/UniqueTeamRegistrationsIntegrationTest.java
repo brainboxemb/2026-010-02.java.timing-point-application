@@ -32,7 +32,7 @@ public class UniqueTeamRegistrationsIntegrationTest {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
         TimingNode node =
-                TimingNodeFixture.create(
+                TimingNodeFixture.createDirect(
                         new NodeId("A"),
                         new StaticPersistence(
                                 registration(1L, "RT-A-0001"),

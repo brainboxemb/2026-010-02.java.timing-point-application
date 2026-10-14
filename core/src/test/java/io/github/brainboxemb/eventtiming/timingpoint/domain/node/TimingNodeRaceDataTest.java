@@ -228,7 +228,7 @@ public class TimingNodeRaceDataTest {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
         TimingNode node =
-                TimingNodeFixture.create(
+                TimingNodeFixture.createDirect(
                         new NodeId("A"),
                         new EmptyPersistence(),
                         new DefaultTimingDataFactory(),
