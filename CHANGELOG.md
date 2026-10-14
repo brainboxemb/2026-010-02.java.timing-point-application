@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Finish the `domain.node` DR-16 audit by expressing the remaining pure Status/LogBook command preconditions with `checkArgument(...)`.
+
 - Rename the synchronous LogBook command boundary from `invoke(command)` to `execute(command)` and document TimingNode public result/status contracts at the type definition.
 
 - Separate `NodeService` composition from Task Lane state: new passive `NodeServiceState` owns RaceData/derived state and implements the narrow `UpstreamTaskState` port; `NodeService` no longer implements an upstream child interface.
