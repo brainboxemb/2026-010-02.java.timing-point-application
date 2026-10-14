@@ -481,7 +481,7 @@ public final class LogBookProcessor
             LOG.warn(
                     "Persisted TimingData loaded but "
                             + delivery.failureCount()
-                            + " initialDataLoadedEvent listener(s) failed for 
+                            + " initialDataLoadedEvent listener(s) failed for "
                             + timingNodeId().value(),
                     delivery.failures().get(0));
         }
