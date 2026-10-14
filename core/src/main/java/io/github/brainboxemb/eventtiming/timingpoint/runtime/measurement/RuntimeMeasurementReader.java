@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLaneMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.metrics.RuntimeObservation;
@@ -13,31 +13,31 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.metrics.RuntimeObs
  */
 public final class RuntimeMeasurementReader {
     private final SerialLaneMetrics timingNodeLaneMetrics;
-    private final LogBookProcessorMetrics timingNodeMetrics;
+    private final LogBookMetrics logBookMetrics;
     private final TagProcessingMetrics tagProcessingMetrics;
 
     public RuntimeMeasurementReader(
             SerialLaneMetrics timingNodeLaneMetrics,
-            LogBookProcessorMetrics timingNodeMetrics,
+            LogBookMetrics logBookMetrics,
             TagProcessingMetrics tagProcessingMetrics) {
         if (timingNodeLaneMetrics == null) {
             throw new IllegalArgumentException("timingNodeLaneMetrics must not be null");
         }
-        if (timingNodeMetrics == null) {
-            throw new IllegalArgumentException("timingNodeMetrics must not be null");
+        if (logBookMetrics == null) {
+            throw new IllegalArgumentException("logBookMetrics must not be null");
         }
         if (tagProcessingMetrics == null) {
             throw new IllegalArgumentException("tagProcessingMetrics must not be null");
         }
         this.timingNodeLaneMetrics = timingNodeLaneMetrics;
-        this.timingNodeMetrics = timingNodeMetrics;
+        this.logBookMetrics = logBookMetrics;
         this.tagProcessingMetrics = tagProcessingMetrics;
     }
 
     public TimingNodeRuntimeSnapshot timingNode() {
         return new TimingNodeRuntimeSnapshot(
                 timingNodeLaneMetrics.snapshot(),
-                timingNodeMetrics.snapshot());
+                logBookMetrics.snapshot());
     }
 
     public TagProcessingMetrics.Snapshot tagProcessing() {
