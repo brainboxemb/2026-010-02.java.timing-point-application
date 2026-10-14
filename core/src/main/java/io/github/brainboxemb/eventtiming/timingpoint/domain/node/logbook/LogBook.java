@@ -149,8 +149,8 @@ public final class LogBook
     /**
      * Queues one fire-and-forget command on the Data Lane.
      *
-     * <p>The method returns after the lane accepts the command. It does not wait
-     * for command execution. If the bounded lane cannot accept the command,
+     * <p>The method returns after the command is queued. It does not wait
+     * for command execution. If the bounded lane cannot queue the command,
      * {@link RejectedExecutionException} propagates to the caller that owns the
      * appropriate handling policy.</p>
      */
@@ -310,7 +310,7 @@ public final class LogBook
                 initialStatus);
     }
 
-    /** Executes one previously accepted fire-and-forget command and contains its later failure. */
+    /** Executes one previously queued fire-and-forget command and contains its later failure. */
     private <R> void executeQueuedCommand(
             LogBookCommand<R> command) {
         try {
