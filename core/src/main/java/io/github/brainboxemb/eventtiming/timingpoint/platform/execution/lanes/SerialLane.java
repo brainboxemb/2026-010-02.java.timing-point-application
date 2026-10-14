@@ -47,14 +47,55 @@ public final class SerialLane implements Executor, AutoCloseable {
     }
 
     /**
-     * Internal queue entry that adds timing/cancellation hooks around Runnable/FutureTask.
+     * Internal executable work item with separate timing and cancellation support.
      */
     private interface TrackedTask extends Runnable {
-        /** Records when the lane accepted this task for queue-wait metrics. */
-        void markAccepted(long acceptedAtNanos);
+        /** Returns the timing state used only for per-task lane metrics. */
+        TaskTiming timing();
 
-        /** Cancels result-bearing work when the lane fails before execution. */
-        void cancelIfFuture();
+        /** Cancels work that exposes a Future; fire-and-forget work is a no-op. */
+        void cancel();
+    }
+
+    /**
+     * Per-task timestamps used to derive queue wait and execution durations.
+     *
+     * <p>This object deliberately owns only measurement state. Task execution,
+     * queueing and lane lifecycle remain outside it.</p>
+     */
+    private static final class TaskTiming {
+        private long queuedAtNanos;
+        private long startedAtNanos;
+        private long finishedAtNanos;
+
+        /** Records when the task entered the SerialLane queue. */
+        private void recordQueuedAt(long queuedAtNanos) {
+            this.queuedAtNanos = queuedAtNanos;
+        }
+
+        /** Records when the task actually started executing. */
+        private void recordStartedAt(long startedAtNanos) {
+            this.startedAtNanos = startedAtNanos;
+        }
+
+        /** Records when task execution finished. */
+        private void recordFinishedAt(long finishedAtNanos) {
+            this.finishedAtNanos = finishedAtNanos;
+        }
+
+        /** Returns how long the task waited in the SerialLane queue. */
+        private long queueWaitNanos() {
+            return elapsedNanos(
+                    queuedAtNanos,
+                    startedAtNanos);
+        }
+
+        /** Returns how long the task itself executed. */
+        private long executionNanos() {
+            return elapsedNanos(
+                    startedAtNanos,
+                    finishedAtNanos);
+        }
     }
 
     /** Diagnostic identity of this logical lane; not a thread name in shared mode. */
@@ -63,7 +104,7 @@ public final class SerialLane implements Executor, AutoCloseable {
     /**
      * Physical execution dependency supplied by the composition owner.
      *
-     * <p>This lane may submit drain tokens but never owns this executor's
+     * <p>This lane may submit execution turns but never owns this executor's
      * lifecycle.</p>
      */
     private final Executor workerExecutor;
@@ -145,7 +186,7 @@ public final class SerialLane implements Executor, AutoCloseable {
         if (work == null) {
             throw new IllegalArgumentException("work must not be null");
         }
-        enqueue(new TrackedRunnable(work));
+        queueTask(new TrackedRunnable(work));
     }
 
     /**
@@ -160,57 +201,70 @@ public final class SerialLane implements Executor, AutoCloseable {
         }
 
         TrackedFutureTask<R> task = new TrackedFutureTask<R>(work);
-        enqueue(task);
+        queueTask(task);
         return task;
     }
 
     /**
-     * Adds one tracked task to the bounded lane queue or rejects it immediately.
+     * Queues one tracked task or throws when this lane cannot accept it.
      *
      * <p>Queue implementation details stay inside SerialLane; callers only see
      * the standard execute/submit and rejection model.</p>
      */
-    private void enqueue(TrackedTask task) {
+    private void queueTask(TrackedTask task) {
         synchronized (this) {
-            if (state != State.RUNNING) {
-                metrics.recordNotRunning();
-                throw new RejectedExecutionException("Serial lane " + laneName + " is not running");
-            }
+            ensureRunning();
 
-            task.markAccepted(System.nanoTime());
-            if (!enqueueTaskLocked(task)) {
-                metrics.recordFull();
-                throw new RejectedExecutionException("Serial lane " + laneName + " queue is full");
-            }
+            task.timing().recordQueuedAt(
+                    System.nanoTime());
+            addTaskToQueue(task);
 
             if (!executionScheduled) {
                 executionScheduled = true;
-                scheduleNextExecutionLocked();
+                scheduleNextExecution();
             }
 
-            metrics.recordAccepted(queue.size());
+            metrics.recordAccepted(
+                    queue.size());
         }
     }
 
-    /** Adds one task to the bounded internal queue without waiting for capacity. */
-    private boolean enqueueTaskLocked(TrackedTask task) {
-        return queue.offer(task);
+    /** Throws the standard rejection exception when this lane is not accepting work. */
+    private void ensureRunning() {
+        if (state == State.RUNNING) {
+            return;
+        }
+
+        metrics.recordNotRunning();
+        throw new RejectedExecutionException(
+                "Serial lane " + laneName + " is not running");
+    }
+
+    /** Adds one task to the bounded queue or throws when no queue capacity remains. */
+    private void addTaskToQueue(TrackedTask task) {
+        if (queue.offer(task)) {
+            return;
+        }
+
+        metrics.recordFull();
+        throw new RejectedExecutionException(
+                "Serial lane " + laneName + " queue is full");
     }
 
     /**
      * Asks the externally owned Executor to run the next SerialLane turn.
      *
-     * <p>If the worker rejects the turn, this lane becomes FAILED and all work
-     * still waiting in its private queue is cancelled.</p>
+     * <p>The caller already owns this lane's monitor. If the worker rejects the
+     * turn, this lane becomes FAILED and all queued work is cancelled.</p>
      */
-    private void scheduleNextExecutionLocked() {
+    private void scheduleNextExecution() {
         try {
             workerExecutor.execute(this::executeNextTask);
         } catch (RejectedExecutionException ex) {
             failure = ex;
             state = State.FAILED;
             executionScheduled = false;
-            cancelQueuedLocked();
+            cancelQueuedTasks();
             notifyAll();
             throw ex;
         }
@@ -232,7 +286,7 @@ public final class SerialLane implements Executor, AutoCloseable {
                 return;
             }
 
-            task = nextQueuedTaskLocked();
+            task = removeNextTaskFromQueue();
             if (task == null) {
                 executionScheduled = false;
                 notifyAll();
@@ -256,7 +310,7 @@ public final class SerialLane implements Executor, AutoCloseable {
                 taskRunning = false;
 
                 if (state == State.FAILED) {
-                    cancelQueuedLocked();
+                    cancelQueuedTasks();
                     executionScheduled = false;
                     notifyAll();
                     return;
@@ -268,13 +322,17 @@ public final class SerialLane implements Executor, AutoCloseable {
                     return;
                 }
 
-                scheduleNextExecutionLocked();
+                scheduleNextExecution();
             }
         }
     }
 
-    /** Removes and returns the next queued task, or {@code null} when none remains. */
-    private TrackedTask nextQueuedTaskLocked() {
+    /**
+     * Removes and returns the next queued task, or {@code null} when none remains.
+     *
+     * <p>The caller owns this lane's monitor while changing queue/execution state.</p>
+     */
+    private TrackedTask removeNextTaskFromQueue() {
         return queue.poll();
     }
 
@@ -341,16 +399,16 @@ public final class SerialLane implements Executor, AutoCloseable {
         }
         failure = cause;
         state = State.FAILED;
-        cancelQueuedLocked();
+        cancelQueuedTasks();
         executionScheduled = false;
         notifyAll();
     }
 
     /** Cancels all work still waiting in the private lane queue. */
-    private void cancelQueuedLocked() {
+    private void cancelQueuedTasks() {
         TrackedTask queued;
-        while ((queued = nextQueuedTaskLocked()) != null) {
-            queued.cancelIfFuture();
+        while ((queued = removeNextTaskFromQueue()) != null) {
+            queued.cancel();
         }
     }
 
@@ -365,29 +423,31 @@ public final class SerialLane implements Executor, AutoCloseable {
     private final class TrackedRunnable
             implements TrackedTask {
         private final Runnable delegate;
-        private long acceptedAtNanos;
+        private final TaskTiming timing =
+                new TaskTiming();
 
-        /** Wraps fire-and-forget work with lane timing/failure tracking. */
+        /** Wraps fire-and-forget work with separate timing and failure tracking. */
         private TrackedRunnable(Runnable delegate) {
             this.delegate = delegate;
         }
 
-        /** Stores the admission timestamp used when this Runnable eventually starts. */
+        /** Returns the measurement state for this queued Runnable. */
         @Override
-        public void markAccepted(long acceptedAtNanos) {
-            this.acceptedAtNanos = acceptedAtNanos;
+        public TaskTiming timing() {
+            return timing;
         }
 
         /** Fire-and-forget work has no Future that can be cancelled. */
         @Override
-        public void cancelIfFuture() {
-            // Fire-and-forget work has no Future to cancel.
+        public void cancel() {
+            // Nothing to cancel for fire-and-forget work.
         }
 
         /** Runs one fire-and-forget task while recording timing and containing runtime failures. */
         @Override
         public void run() {
-            long startedNanos = System.nanoTime();
+            timing.recordStartedAt(
+                    System.nanoTime());
             try {
                 delegate.run();
             } catch (RuntimeException ex) {
@@ -399,13 +459,11 @@ public final class SerialLane implements Executor, AutoCloseable {
                 markFailed(ex);
                 throw ex;
             } finally {
+                timing.recordFinishedAt(
+                        System.nanoTime());
                 metrics.recordCompleted(
-                        elapsedNanos(
-                                acceptedAtNanos,
-                                startedNanos),
-                        elapsedNanos(
-                                startedNanos,
-                                System.nanoTime()));
+                        timing.queueWaitNanos(),
+                        timing.executionNanos());
             }
         }
     }
@@ -414,7 +472,8 @@ public final class SerialLane implements Executor, AutoCloseable {
             extends FutureTask<R>
             implements TrackedTask {
         private final FatalTrackingCallable<R> trackedCallable;
-        private long acceptedAtNanos;
+        private final TaskTiming timing =
+                new TaskTiming();
 
         /** Wraps result-bearing work in the FutureTask used as the public Future. */
         private TrackedFutureTask(Callable<R> work) {
@@ -428,33 +487,33 @@ public final class SerialLane implements Executor, AutoCloseable {
             this.trackedCallable = trackedCallable;
         }
 
-        /** Stores the admission timestamp used when this FutureTask eventually starts. */
+        /** Returns the measurement state for this queued FutureTask. */
         @Override
-        public void markAccepted(long acceptedAtNanos) {
-            this.acceptedAtNanos = acceptedAtNanos;
+        public TaskTiming timing() {
+            return timing;
         }
 
-        /** Cancels an accepted FutureTask that cannot run after lane failure. */
+        /** Cancels a queued FutureTask that cannot run after lane failure. */
         @Override
-        public void cancelIfFuture() {
+        public void cancel() {
             cancel(false);
         }
 
         /** Runs one FutureTask, records timing and promotes fatal Errors to lane failure. */
         @Override
         public void run() {
-            long startedNanos = System.nanoTime();
+            timing.recordStartedAt(
+                    System.nanoTime());
             try {
                 super.run();
             } finally {
+                timing.recordFinishedAt(
+                        System.nanoTime());
                 metrics.recordCompleted(
-                        elapsedNanos(
-                                acceptedAtNanos,
-                                startedNanos),
-                        elapsedNanos(
-                                startedNanos,
-                                System.nanoTime()));
-                Error fatal = trackedCallable.fatalError();
+                        timing.queueWaitNanos(),
+                        timing.executionNanos());
+                Error fatal =
+                        trackedCallable.fatalError();
                 if (fatal != null) {
                     markFailed(fatal);
                 }
