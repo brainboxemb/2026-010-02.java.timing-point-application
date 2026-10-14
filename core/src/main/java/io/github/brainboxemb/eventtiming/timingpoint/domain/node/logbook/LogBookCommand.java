@@ -10,7 +10,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
  */
 public final class LogBookCommand<R> {
     interface Action<R> {
-        R apply(LogBookState logic) throws Exception;
+        R apply(LogBookState logBookState) throws Exception;
     }
 
     private final String name;
@@ -33,8 +33,8 @@ public final class LogBookCommand<R> {
         return name;
     }
 
-    R apply(LogBookState logic) throws Exception {
-        return action.apply(logic);
+    R apply(LogBookState logBookState) throws Exception {
+        return action.apply(logBookState);
     }
 
 }
