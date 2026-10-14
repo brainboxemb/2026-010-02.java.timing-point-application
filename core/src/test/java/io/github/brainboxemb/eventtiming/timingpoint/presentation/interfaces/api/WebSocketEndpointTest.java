@@ -326,11 +326,11 @@ public class WebSocketEndpointTest {
     }
 
     @Test
-    public void snapshotExposesContainedTimingDataRecoveryFailure()
+    public void snapshotExposesContainedTimingDataLoadFailure()
             throws Exception {
         TimingNode node = TimingNodeFixture.create(
                 new NodeId("A"),
-                new FailingRecoveryStore(),
+                new FailingLoadStore(),
                 () -> RECORDED_AT.instant());
         PresentationGateway handler =
                 new PresentationGateway(
@@ -360,10 +360,10 @@ public class WebSocketEndpointTest {
                 assertTrue(snapshot.contains("\"locationId\":null"));
                 assertTrue(snapshot.contains("\"state\":\"ERROR\""));
                 assertTrue(snapshot.contains(
-                        "\"code\":\"TIMING_DATA_RECOVERY_FAILED\""));
+                        "\"code\":\"TIMING_DATA_LOAD_FAILED\""));
                 assertTrue(snapshot.contains("\"severity\":\"ERROR\""));
                 assertTrue(snapshot.contains("\"nodeId\":\"A\""));
-                assertTrue(snapshot.contains("expected recovery failure"));
+                assertTrue(snapshot.contains("expected persisted-data load failure"));
             } finally {
                 client.closeBlocking();
             }
@@ -481,11 +481,11 @@ public class WebSocketEndpointTest {
         }
     }
 
-    private static final class FailingRecoveryStore
+    private static final class FailingLoadStore
             implements TimingDataPersistence {
         @Override
         public LoadResult load() throws PersistenceException {
-            throw new PersistenceException("expected recovery failure");
+            throw new PersistenceException("expected persisted-data load failure");
         }
 
         @Override

@@ -36,14 +36,13 @@ import org.slf4j.LoggerFactory;
  * <p>The Task Lane is a bounded logical serial queue, not a dedicated thread:
  * the supplied executor may share Runtime's physical worker with the Data Lane.
  * Mutable TeamAssignments, StageStartTimes and UniqueTeamRegistrations never
- * leave this lane. The Data Lane supplies only immutable recovered/committed
+ * leave this lane. The Data Lane supplies only immutable initial-loaded/committed
  * TimingData facts and bounded LogBook reads.</p>
  */
 public final class NodeTaskProcessor implements UpstreamTaskState {
     private static final Logger LOG =
             LoggerFactory.getLogger(NodeTaskProcessor.class);
     private static final long TASK_QUERY_TIMEOUT_MILLIS = 2000L;
-    private static final int MAX_PENDING_FACTS = 256;
 
     private final LogBookProcessor logBookProcessor;
     private final SerialLane taskLane;
@@ -53,11 +52,6 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
     private final StageTiming stageTiming;
     private final List<TimingData> committedTimingData =
             new ArrayList<TimingData>();
-    private final Object pendingFactLock = new Object();
-    private final List<TimingData> pendingCommits =
-            new ArrayList<TimingData>();
-
-    private List<TimingData> pendingRecovery;
     private volatile boolean derivedTimingReady;
     private volatile boolean derivedTimingStale;
 
@@ -94,8 +88,8 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
          * Composition-time wiring. Event delivery itself is synchronous on the
          * Data Lane; these listeners only perform a bounded Task Lane handoff.
          */
-        logBookProcessor.recoveredDataEvent()
-                .subscribe(this::onTimingDataRecovered);
+        logBookProcessor.initialDataLoadedEvent()
+                .subscribe(this::onInitialTimingDataLoaded);
         logBookProcessor.newDataEntryEvent()
                 .subscribe(this::onTimingDataCommitted);
 
@@ -109,20 +103,8 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
                         this);
     }
 
-    /** Checks the Task Lane before Data Lane recovery is started. */
-    public void ensureCanActivate() {
-        SerialLane.State state = taskLane.state();
-        if (state != SerialLane.State.NEW
-                && state != SerialLane.State.STOPPED) {
-            throw new IllegalStateException(
-                    "TimingNode cannot activate with Task Lane state=" + state);
-        }
-    }
-
     public void activate() {
-        ensureCanActivate();
         taskLane.start();
-        flushPendingDataFacts();
     }
 
     public void deactivate() {
@@ -130,23 +112,27 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
         derivedTimingReady = false;
     }
 
+    /** Returns the Task Lane-owned upstream protocol boundary for this node. */
     public UpstreamHandler upstreamHandler() {
         return upstreamHandler;
     }
 
-    /** Returns the current derived stage ranking on the Task Lane. */
+    /** Returns the current derived stage ranking through the Task Lane. */
     public List<StageTime> stageTiming(ZoneId raceTimeZone) {
         if (raceTimeZone == null) {
             throw new IllegalArgumentException("raceTimeZone must not be null");
         }
         return callOperation(
-                () -> {
-                    ensureDerivedTimingAvailable();
-                    return stageTiming.ranking(
-                            new ArrayList<TimingData>(committedTimingData),
-                            raceTimeZone);
-                },
+                () -> stageTimingOnTaskLane(raceTimeZone),
                 "stageTiming");
+    }
+
+    private List<StageTime> stageTimingOnTaskLane(ZoneId raceTimeZone) {
+        requireTaskLane("stageTiming");
+        ensureDerivedTimingAvailable();
+        return stageTiming.ranking(
+                new ArrayList<TimingData>(committedTimingData),
+                raceTimeZone);
     }
 
     @Override
@@ -179,78 +165,46 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
         return taskLane.offer(operation) == SerialLane.AdmissionResult.ACCEPTED;
     }
 
-    private void onTimingDataRecovered(List<TimingData> recovered) {
-        List<TimingData> snapshot =
-                new ArrayList<TimingData>(recovered);
-
-        if (taskLane.state() == SerialLane.State.RUNNING
-                && offerOperation(() -> rebuildDerivedTiming(snapshot))) {
-            return;
-        }
-
-        synchronized (pendingFactLock) {
-            pendingRecovery = snapshot;
-            pendingCommits.clear();
-        }
+    private void onInitialTimingDataLoaded(List<TimingData> loadedData) {
+        List<TimingData> snapshot = new ArrayList<TimingData>(loadedData);
+        admitTimingFact(
+                () -> rebuildDerivedTiming(snapshot),
+                "initial TimingData");
     }
 
     private void onTimingDataCommitted(TimingData data) {
-        if (taskLane.state() == SerialLane.State.RUNNING
-                && offerOperation(() -> applyCommittedTimingData(data))) {
+        admitTimingFact(
+                () -> applyCommittedTimingData(data),
+                "committed TimingData");
+    }
+
+    /**
+     * Performs the bounded Data Lane -> Task Lane handoff.
+     *
+     * <p>The Task Lane is activated before LogBookProcessor, so normal startup
+     * does not need an intermediate pending-data buffer. Rejected admission is
+     * an explicit degraded-state condition rather than deferred hidden work.</p>
+     */
+    private void admitTimingFact(Runnable operation, String fact) {
+        SerialLane.AdmissionResult admission = taskLane.offer(operation);
+        if (admission == SerialLane.AdmissionResult.ACCEPTED) {
             return;
         }
 
-        synchronized (pendingFactLock) {
-            if (pendingCommits.size() >= MAX_PENDING_FACTS) {
-                derivedTimingStale = true;
-                LOG.error(
-                        "Task Lane TimingData handoff buffer is full for node {}; derived timing state is stale",
-                        logBookProcessor.timingNodeId().value());
-                return;
-            }
-            pendingCommits.add(data);
-        }
+        derivedTimingStale = true;
+        LOG.error(
+                "Task Lane rejected {} for node {}; admission={}, derived timing state is stale",
+                fact,
+                logBookProcessor.timingNodeId().value(),
+                admission);
     }
 
-    private void flushPendingDataFacts() {
-        final List<TimingData> recovery;
-        final List<TimingData> commits;
-
-        synchronized (pendingFactLock) {
-            recovery = pendingRecovery == null
-                    ? null
-                    : new ArrayList<TimingData>(pendingRecovery);
-            commits = new ArrayList<TimingData>(pendingCommits);
-            pendingRecovery = null;
-            pendingCommits.clear();
-        }
-
-        if (recovery == null && commits.isEmpty()) {
-            return;
-        }
-
-        if (!offerOperation(
-                () -> {
-                    if (recovery != null) {
-                        rebuildDerivedTiming(recovery);
-                    }
-                    for (TimingData data : commits) {
-                        applyCommittedTimingData(data);
-                    }
-                })) {
-            derivedTimingStale = true;
-            LOG.error(
-                    "Task Lane could not accept recovered/committed TimingData facts for node {}; derived timing state is stale",
-                    logBookProcessor.timingNodeId().value());
-        }
-    }
-
-    private void rebuildDerivedTiming(List<TimingData> recovered) {
+    private void rebuildDerivedTiming(List<TimingData> loadedData) {
         requireTaskLane("rebuildDerivedTiming");
         committedTimingData.clear();
         uniqueTeamRegistrations.reset();
 
-        for (TimingData data : recovered) {
+        for (TimingData data : loadedData) {
             committedTimingData.add(data);
             updateUniqueTeamRegistrations(data);
         }

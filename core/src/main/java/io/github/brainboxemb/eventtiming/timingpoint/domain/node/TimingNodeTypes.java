@@ -41,7 +41,7 @@ public final class TimingNodeTypes {
     }
 
     public enum ProblemCode {
-        TIMING_DATA_RECOVERY_FAILED
+        TIMING_DATA_LOAD_FAILED
     }
 
     public static final class Problem {
@@ -156,19 +156,19 @@ public final class TimingNodeTypes {
         private final NodeId timingNodeId;
         private final State state;
         private final LocationId locationId;
-        private final boolean timingDataTailRecovered;
+        private final boolean timingDataTailRepaired;
         private final List<Problem> problems;
 
         public Status(
                 NodeId timingNodeId,
                 State state,
                 LocationId locationId,
-                boolean timingDataTailRecovered) {
+                boolean timingDataTailRepaired) {
             this(
                     timingNodeId,
                     state,
                     locationId,
-                    timingDataTailRecovered,
+                    timingDataTailRepaired,
                     Collections.<Problem>emptyList());
         }
 
@@ -176,7 +176,7 @@ public final class TimingNodeTypes {
                 NodeId timingNodeId,
                 State state,
                 LocationId locationId,
-                boolean timingDataTailRecovered,
+                boolean timingDataTailRepaired,
                 List<Problem> problems) {
             if (problems == null) {
                 throw new IllegalArgumentException("problems must not be null");
@@ -189,7 +189,7 @@ public final class TimingNodeTypes {
             this.timingNodeId = timingNodeId;
             this.state = state;
             this.locationId = locationId;
-            this.timingDataTailRecovered = timingDataTailRecovered;
+            this.timingDataTailRepaired = timingDataTailRepaired;
             this.problems = Collections.unmodifiableList(
                     new ArrayList<Problem>(problems));
         }
@@ -210,8 +210,8 @@ public final class TimingNodeTypes {
             return locationId;
         }
 
-        public boolean timingDataTailRecovered() {
-            return timingDataTailRecovered;
+        public boolean timingDataTailRepaired() {
+            return timingDataTailRepaired;
         }
 
         public List<Problem> problems() {

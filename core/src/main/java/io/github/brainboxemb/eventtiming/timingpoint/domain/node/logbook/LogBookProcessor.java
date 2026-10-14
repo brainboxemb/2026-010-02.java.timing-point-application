@@ -30,7 +30,7 @@ import org.slf4j.LoggerFactory;
  * Owns one TimingNode's committed LogBook and its Data Lane.
  *
  * <p>This component is the single execution boundary for ordered LogBook commands,
- * ORDERED queries, recovery, durable TimingData commit and publication of immutable
+ * ORDERED queries, persisted-data startup loading, durable TimingData commit and publication of immutable
  * CURRENT LogBook/status views. It owns no physical thread: the supplied
  * {@link SerialLane} may share a Runtime-owned worker with other logical
  * lanes.</p>
@@ -51,7 +51,7 @@ public final class LogBookProcessor
             new Event<Status>();
     private final Event<TimingData> newDataEntryEvent =
             new Event<TimingData>();
-    private final Event<List<TimingData>> recoveredDataEvent =
+    private final Event<List<TimingData>> initialDataLoadedEvent =
             new Event<List<TimingData>>();
 
     /** Latest activation-complete immutable Status visible to CURRENT queries. */
@@ -135,10 +135,10 @@ public final class LogBookProcessor
     }
 
     /**
-     * Starts the Data Lane and admits persistence recovery as its first task.
+     * Starts the Data Lane and admits persisted TimingData loading as its first task.
      *
-     * <p>The call does not wait for recovery. CURRENT status remains unavailable
-     * until that first ordered task publishes the recovered status.</p>
+     * <p>The call does not wait for file I/O. CURRENT status remains unavailable
+     * until that first ordered task has rebuilt the LogBook and published status.</p>
      */
     public void activate() {
         SerialLane.State state = dataLane.state();
@@ -153,11 +153,11 @@ public final class LogBookProcessor
         dataLane.start();
 
         SerialLane.AdmissionResult initialization =
-                dataLane.offer(this::initializeOnDataLane);
+                dataLane.offer(this::loadPersistedDataOnDataLane);
         if (initialization != SerialLane.AdmissionResult.ACCEPTED) {
             dataLane.close();
             throw new IllegalStateException(
-                    "TimingNode initial recovery could not be admitted: "
+                    "TimingNode persisted-data load could not be admitted: "
                             + initialization);
         }
     }
@@ -244,13 +244,13 @@ public final class LogBookProcessor
     }
 
     /**
-     * Publishes one immutable recovered TimingData history after Data Lane recovery.
+     * Publishes the immutable TimingData history loaded during node startup.
      *
-     * <p>Task Lane-derived state can rebuild from this fact without receiving the
-     * mutable LogBook itself.</p>
+     * <p>Task Lane-derived state can initialize from this fact without receiving
+     * the mutable LogBook itself.</p>
      */
-    public EventSource<List<TimingData>> recoveredDataEvent() {
-        return recoveredDataEvent;
+    public EventSource<List<TimingData>> initialDataLoadedEvent() {
+        return initialDataLoadedEvent;
     }
 
     /** Admits one fire-and-forget operation to the Data Lane. */
@@ -313,47 +313,47 @@ public final class LogBookProcessor
         if (status == null) {
             throw new OperationException(
                     OperationException.Reason.UNAVAILABLE,
-                    "status CURRENT result is unavailable because TimingNode recovery is not complete");
+                    "status CURRENT result is unavailable because persisted TimingData is not loaded yet");
         }
         return status;
     }
 
-    private void initializeOnDataLane() {
+    private void loadPersistedDataOnDataLane() {
         LOG.info(
-                "TimingNode {} TimingData recovery started",
+                "TimingNode {} persisted TimingData load started",
                 timingNodeId().value());
 
-        final TimingDataPersistence.LoadResult recovery;
+        final TimingDataPersistence.LoadResult loadResult;
         try {
-            recovery =
-                    logic.recoverTimingData();
+            loadResult =
+                    logic.loadPersistedTimingData();
         } catch (TimingDataPersistence.PersistenceException
                 | RuntimeException ex) {
-            logic.markTimingDataRecoveryFailed(ex);
+            logic.markTimingDataLoadFailed(ex);
             LOG.error(
-                    "TimingData recovery failed for {}; TimingNode remains available in ERROR state",
+                    "Persisted TimingData load failed for {}; TimingNode remains available in ERROR state",
                     timingNodeId().value(),
                     ex);
-            publishRecoveredStatus();
+            publishStatusAfterInitialLoad();
             return;
         }
 
         LOG.info(
-                "TimingNode {} TimingData recovery completed: records={}, tailRepaired={}",
+                "TimingNode {} persisted TimingData load completed: records={}, tailRepaired={}",
                 timingNodeId().value(),
-                recovery.records().size(),
-                recovery.repairedIncompleteTail());
-        if (recovery.repairedIncompleteTail()) {
+                loadResult.records().size(),
+                loadResult.repairedIncompleteTail());
+        if (loadResult.repairedIncompleteTail()) {
             LOG.warn(
-                    "TimingNode {} TimingData recovery repaired an incomplete final record tail",
+                    "TimingNode {} repaired an incomplete final TimingData record tail during load",
                     timingNodeId().value());
         }
 
-        publishRecoveredData(recovery.records());
-        publishRecoveredStatus();
+        publishInitialLoadedData(loadResult.records());
+        publishStatusAfterInitialLoad();
     }
 
-    private void publishRecoveredStatus() {
+    private void publishStatusAfterInitialLoad() {
         Status initialStatus =
                 logic.status();
         publishCurrentStatus(
@@ -470,18 +470,18 @@ public final class LogBookProcessor
         publishedStatus = status;
     }
 
-    private void publishRecoveredData(
-            List<TimingData> recovered) {
+    private void publishInitialLoadedData(
+            List<TimingData> loadedData) {
         List<TimingData> snapshot =
                 Collections.unmodifiableList(
-                        new ArrayList<TimingData>(recovered));
+                        new ArrayList<TimingData>(loadedData));
         Event.DeliveryReport delivery =
-                recoveredDataEvent.emit(snapshot);
+                initialDataLoadedEvent.emit(snapshot);
         if (!delivery.successful()) {
             LOG.warn(
-                    "TimingData recovered but "
+                    "Persisted TimingData loaded but "
                             + delivery.failureCount()
-                            + " recoveredDataEvent listener(s) failed for "
+                            + " initialDataLoadedEvent listener(s) failed for "
                             + timingNodeId().value(),
                     delivery.failures().get(0));
         }
@@ -609,8 +609,8 @@ public final class LogBookProcessor
                 != right.state()) {
             return false;
         }
-        if (left.timingDataTailRecovered()
-                != right.timingDataTailRecovered()) {
+        if (left.timingDataTailRepaired()
+                != right.timingDataTailRepaired()) {
             return false;
         }
         if (!left.problems()
