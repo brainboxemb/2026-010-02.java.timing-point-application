@@ -12,6 +12,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServiceState;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
@@ -70,32 +72,45 @@ public final class TimingNodeFixture {
         private final LogBook logBook;
         private final NodeService nodeService;
         private final TagProcessor tagProcessor;
+        private final UpstreamHandler upstreamHandler;
 
+        /** Creates test-only references to one fully composed TimingNode graph. */
         private Components(
                 TimingNode node,
                 LogBook logBook,
                 NodeService nodeService,
-                TagProcessor tagProcessor) {
+                TagProcessor tagProcessor,
+                UpstreamHandler upstreamHandler) {
             this.node = node;
             this.logBook = logBook;
             this.nodeService = nodeService;
             this.tagProcessor = tagProcessor;
+            this.upstreamHandler = upstreamHandler;
         }
 
+        /** Returns the composed TimingNode owner. */
         public TimingNode node() {
             return node;
         }
 
+        /** Returns the concrete LogBook for child-specific tests. */
         public LogBook logBook() {
             return logBook;
         }
 
+        /** Returns the NodeService for child-specific tests. */
         public NodeService nodeService() {
             return nodeService;
         }
 
+        /** Returns the TagProcessor for child-specific tests. */
         public TagProcessor tagProcessor() {
             return tagProcessor;
+        }
+
+        /** Returns the separately composed upstream protocol boundary. */
+        public UpstreamHandler upstreamHandler() {
+            return upstreamHandler;
         }
     }
 
@@ -266,12 +281,24 @@ public final class TimingNodeFixture {
                         dataLane,
                         operationTimeoutMillis);
 
+        NodeServiceState nodeServiceState =
+                new NodeServiceState(
+                        eventData);
+
         NodeService nodeService =
                 new NodeService(
                         logBook,
                         taskLane,
-                        eventData,
-                        upstreamStream);
+                        nodeServiceState);
+
+        UpstreamHandler upstreamHandler =
+                new UpstreamHandler(
+                        nodeId,
+                        dataLane,
+                        taskLane,
+                        upstreamStream,
+                        logBook,
+                        nodeServiceState);
 
         TagProcessor tagProcessor =
                 new TagProcessor(
@@ -296,6 +323,7 @@ public final class TimingNodeFixture {
                 node,
                 logBook,
                 nodeService,
-                tagProcessor);
+                tagProcessor,
+                upstreamHandler);
     }
 }
