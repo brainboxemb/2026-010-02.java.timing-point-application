@@ -201,9 +201,7 @@ public class SerialLaneTest {
         CountDownLatch releaseFirst = new CountDownLatch(1);
         CountDownLatch queuedDone = new CountDownLatch(1);
 
-        assertEquals(
-                SerialLane.AdmissionResult.NOT_RUNNING,
-                executor.execute(() -> { }));
+        expectRejected(() -> executor.execute(() -> { }));
 
         executor.start();
         try {
