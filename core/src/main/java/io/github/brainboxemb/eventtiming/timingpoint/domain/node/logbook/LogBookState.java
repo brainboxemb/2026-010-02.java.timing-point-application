@@ -51,7 +51,7 @@ final class LogBookState {
 
     private State state = State.CLOSED;
     private LocationId locationId;
-    private boolean timingDataTailRecovered;
+    private boolean timingDataTailRepaired;
     private Throwable timingDataCommitFailure;
     private List<Problem> problems = Collections.emptyList();
 
@@ -310,7 +310,7 @@ final class LogBookState {
                 timingNodeId,
                 state,
                 locationId,
-                timingDataTailRecovered,
+                timingDataTailRepaired,
                 problems);
     }
 
@@ -320,7 +320,7 @@ final class LogBookState {
         for (TimingData data : loadResult.records()) {
             logBook.add(data);
         }
-        timingDataTailRecovered = loadResult.repairedIncompleteTail();
+        timingDataTailRepaired = loadResult.repairedIncompleteTail();
         return loadResult;
     }
 
@@ -330,7 +330,7 @@ final class LogBookState {
         }
         state = State.ERROR;
         locationId = null;
-        timingDataTailRecovered = false;
+        timingDataTailRepaired = false;
 
         String detail = failure.getMessage();
         String message = "Persisted TimingData load failed for " + timingNodeId.value();
@@ -339,7 +339,7 @@ final class LogBookState {
         }
         problems = Collections.singletonList(
                 new Problem(
-                        ProblemCode.TIMING_DATA_RECOVERY_FAILED,
+                        ProblemCode.TIMING_DATA_LOAD_FAILED,
                         ProblemSeverity.ERROR,
                         message));
     }
