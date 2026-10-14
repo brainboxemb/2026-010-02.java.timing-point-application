@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookReader;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -53,13 +53,13 @@ public final class UpstreamHandler {
             DataLane dataLane,
             TaskLane taskLane,
             UpstreamStream stream,
-            LogBookReader logBookReader,
+            LogBookAccessor logBook,
             UpstreamTaskState taskState) {
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(dataLane != null, "dataLane must not be null");
         checkArgument(taskLane != null, "taskLane must not be null");
         checkArgument(stream != null, "stream must not be null");
-        checkArgument(logBookReader != null, "logBookReader must not be null");
+        checkArgument(logBook != null, "logBook must not be null");
         checkArgument(taskState != null, "taskState must not be null");
 
         this.nodeId = nodeId;
@@ -70,7 +70,7 @@ public final class UpstreamHandler {
         this.heartbeat = new UpstreamHeartbeat(nodeId, stream);
         this.upstreamDataSync =
                 new UpstreamDataSync(nodeId, stream, taskState);
-        this.logBookSync = new LogBookSync(nodeId, stream, logBookReader);
+        this.logBookSync = new LogBookSync(nodeId, stream, logBook);
     }
 
     /**

@@ -7,11 +7,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 /**
- * Narrow external access boundary for one TimingNode LogBook.
+ * Intentional access boundary for one TimingNode LogBook.
  *
- * <p>The accessor exposes intentional command/query/event operations without
- * exposing LogBook lifecycle, lane mechanics, startup-loading internals or
- * processor metrics.</p>
+ * <p>Internal and external consumers use the same typed command/query/event
+ * contract. The accessor does not expose LogBook lifecycle, lane mechanics,
+ * startup-loading internals or engineering metrics.</p>
  */
 public interface LogBookAccessor {
     /** Executes one command in Data Lane order and waits for its result. */

@@ -1,6 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookReader;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -27,19 +29,19 @@ final class LogBookSync {
 
     private final NodeId nodeId;
     private final UpstreamStream stream;
-    private final LogBookReader logBookReader;
+    private final LogBookAccessor logBook;
 
     private boolean syncActive;
     private long nextSequence;
     private long syncHead;
 
-    LogBookSync(NodeId nodeId, UpstreamStream stream, LogBookReader logBookReader) {
+    LogBookSync(NodeId nodeId, UpstreamStream stream, LogBookAccessor logBook) {
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(stream != null, "stream must not be null");
-        checkArgument(logBookReader != null, "logBookReader must not be null");
+        checkArgument(logBook != null, "logBook must not be null");
         this.nodeId = nodeId;
         this.stream = stream;
-        this.logBookReader = logBookReader;
+        this.logBook = logBook;
     }
 
     /** Sends the current TIMING_DATA source head. Empty LogBook means sequence 0. */
@@ -53,7 +55,9 @@ final class LogBookSync {
     }
 
     long headSequence() {
-        return logBookReader.timingDataHead();
+        return logBook.query(
+                LogBookQueries.timingDataHead(),
+                ReadConsistency.CURRENT);
     }
 
     /**
@@ -101,7 +105,10 @@ final class LogBookSync {
                 syncHead - nextSequence + 1L);
 
         List<TimingData> records =
-                logBookReader.timingDataRange(nextSequence, limit);
+                logBook.query(
+                        LogBookQueries.timingDataRange(
+                                nextSequence,
+                                limit));
 
         if (records.isEmpty()) {
             syncActive = false;

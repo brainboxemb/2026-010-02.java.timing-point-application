@@ -39,7 +39,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * lanes.</p>
  */
 public final class LogBook
-        implements LogBookReader, LogBookAccessor {
+        implements LogBookAccessor {
     private static final Logger LOG =
             LoggerFactory.getLogger(LogBook.class);
     public static final long DEFAULT_OPERATION_TIMEOUT_MILLIS = 2000L;
@@ -233,6 +233,15 @@ public final class LogBook
             case CURRENT:
                 return query.readCurrent(this);
             case ORDERED:
+                /*
+                 * When already on the Data Lane, earlier queued work has
+                 * necessarily been processed before this turn. Reading the
+                 * ordered view directly avoids self-queueing/waiting while
+                 * preserving the same ordering guarantee.
+                 */
+                if (dataLane.isExecutingOnCurrentThread()) {
+                    return query.readOrdered(logBookState);
+                }
                 return executeOnDataLaneAndWait(
                         () -> query.readOrdered(logBookState),
                         query.name());
@@ -274,32 +283,6 @@ public final class LogBook
         checkArgument(operation != null, "operation must not be null");
         return dataLane.offer(operation)
                 == SerialLane.AdmissionResult.ACCEPTED;
-    }
-
-    /**
-     * Narrow committed-history operations exposed independently of any consumer.
-     *
-     * <p>The scalar head is safely published by LogBook. Bounded history access
-     * remains Data Lane-only. Upstream/post-processing may depend on this data
-     * contract; this component never depends on those consumers.</p>
-     */
-    @Override
-    public long timingDataHead() {
-        return logBookState.timingDataHead();
-    }
-    @Override
-    public List<TimingData> timingDataRange(long fromSequence, int limit) {
-        requireDataLane("timingDataRange");
-        List<TimingData> records = new ArrayList<TimingData>(limit);
-        logBookState.logBookData().visitRange(fromSequence, limit, records::add);
-        return records;
-    }
-
-    private void requireDataLane(String operation) {
-        if (!dataLane.isExecutingOnCurrentThread()) {
-            throw new IllegalStateException(
-                    operation + " requires the TimingNode Data Lane");
-        }
     }
 
     long currentTimingDataHead() {
