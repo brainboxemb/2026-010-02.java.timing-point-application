@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandQueueResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -20,18 +19,21 @@ public interface LogBookAccessor {
     /**
      * Queues one command for later Data Lane execution and returns immediately.
      *
-     * <p>{@code QUEUED} means waiting to run, not completed.</p>
+     * <p>Rejection propagates as the standard execution exception from the owning lane.</p>
      */
-    CommandQueueResult queue(LogBookCommand<?> command);
+    void queue(LogBookCommand<?> command);
 
     /** Executes one ordered query and waits for its result. */
     <R> R query(LogBookQuery<R> query);
 
+    /** Reads one query with the explicitly requested consistency model. */
     <R> R query(
             LogBookQuery<R> query,
             ReadConsistency consistency);
 
+    /** Publishes the first available status and later effective status changes. */
     EventSource<Status> statusChangedEvent();
 
+    /** Publishes each TimingData record after a successful durable commit. */
     EventSource<TimingData> newDataEntryEvent();
 }
