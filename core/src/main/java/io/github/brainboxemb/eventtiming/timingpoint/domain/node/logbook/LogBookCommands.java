@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node.data;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
@@ -9,19 +9,19 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 
 /**
- * Standard state-changing commands supported by TimingNode.
+ * Standard state-changing commands committed through the LogBook component.
  *
  * <p>The factory validates command input at creation time. Execution belongs to
- * {@link NodeDataProcessor}, which applies the command on the Data Lane.</p>
+ * {@link LogBookProcessor}, which applies the command on the Data Lane.</p>
  */
-public final class TimingNodeCommands {
-    private static final TimingNodeCommand<CloseResult> CLOSE =
-            simple("close", TimingNodeLogic::close);
+public final class LogBookCommands {
+    private static final LogBookCommand<CloseResult> CLOSE =
+            simple("close", LogBookState::close);
 
-    private TimingNodeCommands() {
+    private LogBookCommands() {
     }
 
-    public static TimingNodeCommand<OpenResult> open(LocationId locationId) {
+    public static LogBookCommand<OpenResult> open(LocationId locationId) {
         if (locationId == null) {
             throw new IllegalArgumentException("locationId must not be null");
         }
@@ -30,11 +30,11 @@ public final class TimingNodeCommands {
                 logic -> logic.open(locationId));
     }
 
-    public static TimingNodeCommand<CloseResult> close() {
+    public static LogBookCommand<CloseResult> close() {
         return CLOSE;
     }
 
-    public static TimingNodeCommand<RegistrationResult>
+    public static LogBookCommand<RegistrationResult>
             addAutomaticRegistration(
                     RegistrationId registrationId,
                     TimingTimestamp time) {
@@ -53,7 +53,7 @@ public final class TimingNodeCommands {
     }
 
     /** Direct IF-03 simulation with a caller-supplied effective time. */
-    public static TimingNodeCommand<RegistrationResult>
+    public static LogBookCommand<RegistrationResult>
             simulateAutomaticRegistration(
                     RegistrationId registrationId,
                     TimingTimestamp time) {
@@ -66,7 +66,7 @@ public final class TimingNodeCommands {
     }
 
     /** Direct IF-03 simulation; capture TimeSource on the node's serial lane. */
-    public static TimingNodeCommand<RegistrationResult>
+    public static LogBookCommand<RegistrationResult>
             simulateAutomaticRegistrationNow(RegistrationId registrationId) {
         if (registrationId == null) {
             throw new IllegalArgumentException("registrationId must not be null");
@@ -76,7 +76,7 @@ public final class TimingNodeCommands {
                 logic -> logic.simulateAutomaticRegistrationNow(registrationId));
     }
 
-    public static TimingNodeCommand<RegistrationResult>
+    public static LogBookCommand<RegistrationResult>
             commitManualRegistration(
                     RegistrationId registrationId,
                     TimingTimestamp effectiveTime,
@@ -100,7 +100,7 @@ public final class TimingNodeCommands {
                         registrationTimeSource));
     }
 
-    public static TimingNodeCommand<RegistrationResult>
+    public static LogBookCommand<RegistrationResult>
             revokeAutomaticRegistration(
                     LocationId originalLocationId,
                     RegistrationId registrationId,
@@ -117,7 +117,7 @@ public final class TimingNodeCommands {
                         originalTime));
     }
 
-    public static TimingNodeCommand<RegistrationResult>
+    public static LogBookCommand<RegistrationResult>
             revokeManualRegistration(
                     LocationId originalLocationId,
                     RegistrationId registrationId,
@@ -158,10 +158,10 @@ public final class TimingNodeCommands {
         }
     }
 
-    private static <R> TimingNodeCommand<R> simple(
+    private static <R> LogBookCommand<R> simple(
             String name,
-            TimingNodeCommand.Action<R> action) {
-        return new TimingNodeCommand<>(
+            LogBookCommand.Action<R> action) {
+        return new LogBookCommand<>(
                 name,
                 action);
     }

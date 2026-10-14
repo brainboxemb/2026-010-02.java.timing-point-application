@@ -1,5 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookReader;
+
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
@@ -17,7 +19,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * <p>The LogBook is the TIMING_DATA source of truth. A REQ captures the current
  * source head once; records committed afterwards are intentionally excluded from
  * that synchronization run. Records are sent in batches of at most 256 per
- * TimingNode serial-lane turn so a large synchronization cannot monopolize the
+ * Data Lane turn so a large synchronization cannot monopolize the
  * node.</p>
  */
 final class LogBookSync {
@@ -25,19 +27,19 @@ final class LogBookSync {
 
     private final NodeId nodeId;
     private final UpstreamStream stream;
-    private final UpstreamNodeData nodeData;
+    private final LogBookReader logBookReader;
 
     private boolean syncActive;
     private long nextSequence;
     private long syncHead;
 
-    LogBookSync(NodeId nodeId, UpstreamStream stream, UpstreamNodeData nodeData) {
+    LogBookSync(NodeId nodeId, UpstreamStream stream, LogBookReader logBookReader) {
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(stream != null, "stream must not be null");
-        checkArgument(nodeData != null, "nodeData must not be null");
+        checkArgument(logBookReader != null, "logBookReader must not be null");
         this.nodeId = nodeId;
         this.stream = stream;
-        this.nodeData = nodeData;
+        this.logBookReader = logBookReader;
     }
 
     /** Sends the current TIMING_DATA source head. Empty LogBook means sequence 0. */
@@ -51,7 +53,7 @@ final class LogBookSync {
     }
 
     long headSequence() {
-        return nodeData.timingDataHead();
+        return logBookReader.timingDataHead();
     }
 
     /**
@@ -99,7 +101,7 @@ final class LogBookSync {
                 syncHead - nextSequence + 1L);
 
         List<TimingData> records =
-                nodeData.timingDataRange(nextSequence, limit);
+                logBookReader.timingDataRange(nextSequence, limit);
 
         if (records.isEmpty()) {
             syncActive = false;

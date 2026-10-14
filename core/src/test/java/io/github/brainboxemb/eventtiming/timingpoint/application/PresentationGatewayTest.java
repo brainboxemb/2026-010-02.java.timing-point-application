@@ -10,7 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGatewayFixture;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
@@ -96,7 +96,7 @@ public class PresentationGatewayTest {
         try {
             awaitStatus(proxy);
             proxy.statusChangedEvent().subscribe(statusChanges::add);
-            proxy.timingDataCommittedEvent().subscribe(committed::add);
+            proxy.newDataEntryEvent().subscribe(committed::add);
 
             PresentationGateway.Capabilities capabilities = gateway.capabilities();
             assertTrue(capabilities.directRegistrationSimulationSupported());

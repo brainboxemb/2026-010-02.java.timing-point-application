@@ -1,14 +1,12 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node.data;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
-import io.github.brainboxemb.eventtiming.eventdata.EventData;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamNodeData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -29,51 +27,49 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Owns one TimingNode's mutable data and its Data Lane.
+ * Owns one TimingNode's committed LogBook and its Data Lane.
  *
- * <p>This component is the single execution boundary for ordered node commands,
- * ORDERED queries, recovery, committed TimingData and publication of immutable
- * CURRENT data views. It owns no physical thread: the supplied
+ * <p>This component is the single execution boundary for ordered LogBook commands,
+ * ORDERED queries, recovery, durable TimingData commit and publication of immutable
+ * CURRENT LogBook/status views. It owns no physical thread: the supplied
  * {@link SerialExecutor} may share a Runtime-owned worker with other logical
  * lanes.</p>
  */
-public final class NodeDataProcessor implements UpstreamNodeData {
+public final class LogBookProcessor implements LogBookReader {
     private static final Logger LOG =
-            LoggerFactory.getLogger(NodeDataProcessor.class);
+            LoggerFactory.getLogger(LogBookProcessor.class);
     public static final long DEFAULT_OPERATION_TIMEOUT_MILLIS = 2000L;
 
-    private final TimingNodeLogic logic;
+    private final LogBookState logic;
     private final SerialExecutor dataLane;
     private final long operationTimeoutMillis;
     private final MonotonicClock monotonicClock;
-    private final TimingNodeMetrics metrics;
+    private final LogBookProcessorMetrics metrics;
 
     private final Event<Status> statusChangedEvent =
             new Event<Status>();
-    private final Event<TimingData> timingDataCommittedEvent =
+    private final Event<TimingData> newDataEntryEvent =
             new Event<TimingData>();
-    private final Event<List<TimingData>> timingDataRecoveredEvent =
+    private final Event<List<TimingData>> recoveredDataEvent =
             new Event<List<TimingData>>();
 
     /** Latest activation-complete immutable Status visible to CURRENT queries. */
     private volatile Status publishedStatus;
 
-    public NodeDataProcessor(
+    public LogBookProcessor(
             NodeId timingNodeId,
             TimingDataPersistence timingDataPersistence,
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
-            EventData eventData,
             MonotonicClock monotonicClock,
-            TimingNodeMetrics metrics,
+            LogBookProcessorMetrics metrics,
             SerialExecutor dataLane) {
         this(
-                new TimingNodeLogic(
+                new LogBookState(
                         timingNodeId,
                         timingDataPersistence,
                         timingDataFactory,
                         timeSource,
-                        eventData,
                         monotonicClock,
                         metrics),
                 dataLane,
@@ -81,23 +77,21 @@ public final class NodeDataProcessor implements UpstreamNodeData {
                 monotonicClock);
     }
 
-    public NodeDataProcessor(
+    public LogBookProcessor(
             NodeId timingNodeId,
             TimingDataPersistence timingDataPersistence,
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
-            EventData eventData,
             MonotonicClock monotonicClock,
-            TimingNodeMetrics metrics,
+            LogBookProcessorMetrics metrics,
             SerialExecutor dataLane,
             long operationTimeoutMillis) {
         this(
-                new TimingNodeLogic(
+                new LogBookState(
                         timingNodeId,
                         timingDataPersistence,
                         timingDataFactory,
                         timeSource,
-                        eventData,
                         monotonicClock,
                         metrics),
                 dataLane,
@@ -105,8 +99,8 @@ public final class NodeDataProcessor implements UpstreamNodeData {
                 monotonicClock);
     }
 
-    NodeDataProcessor(
-            TimingNodeLogic logic,
+    LogBookProcessor(
+            LogBookState logic,
             SerialExecutor dataLane,
             long operationTimeoutMillis,
             MonotonicClock monotonicClock) {
@@ -135,7 +129,7 @@ public final class NodeDataProcessor implements UpstreamNodeData {
         return logic.timingNodeId();
     }
 
-    public TimingNodeMetrics metrics() {
+    public LogBookProcessorMetrics metrics() {
         return metrics;
     }
 
@@ -150,7 +144,7 @@ public final class NodeDataProcessor implements UpstreamNodeData {
         if (state != SerialExecutor.State.NEW
                 && state != SerialExecutor.State.STOPPED) {
             throw new IllegalStateException(
-                    "NodeDataProcessor cannot activate with Data Lane state="
+                    "LogBookProcessor cannot activate with Data Lane state="
                             + state);
         }
 
@@ -173,7 +167,7 @@ public final class NodeDataProcessor implements UpstreamNodeData {
     }
 
     public <R> R invoke(
-            TimingNodeCommand<R> command) {
+            LogBookCommand<R> command) {
         if (command == null) {
             throw new IllegalArgumentException(
                     "command must not be null");
@@ -184,7 +178,7 @@ public final class NodeDataProcessor implements UpstreamNodeData {
     }
 
     public CommandAdmission offer(
-            TimingNodeCommand<?> command) {
+            LogBookCommand<?> command) {
         if (command == null) {
             throw new IllegalArgumentException(
                     "command must not be null");
@@ -208,15 +202,15 @@ public final class NodeDataProcessor implements UpstreamNodeData {
     }
 
     public <R> R query(
-            TimingNodeQuery<R> query) {
+            LogBookQuery<R> query) {
         return query(
                 query,
-                TimingNodeQuery.ReadConsistency.ORDERED);
+                LogBookQuery.ReadConsistency.ORDERED);
     }
 
     public <R> R query(
-            TimingNodeQuery<R> query,
-            TimingNodeQuery.ReadConsistency consistency) {
+            LogBookQuery<R> query,
+            LogBookQuery.ReadConsistency consistency) {
         if (query == null) {
             throw new IllegalArgumentException(
                     "query must not be null");
@@ -244,8 +238,8 @@ public final class NodeDataProcessor implements UpstreamNodeData {
         return statusChangedEvent;
     }
 
-    public EventSource<TimingData> timingDataCommittedEvent() {
-        return timingDataCommittedEvent;
+    public EventSource<TimingData> newDataEntryEvent() {
+        return newDataEntryEvent;
     }
 
     /**
@@ -254,8 +248,8 @@ public final class NodeDataProcessor implements UpstreamNodeData {
      * <p>Task Lane-derived state can rebuild from this fact without receiving the
      * mutable LogBook itself.</p>
      */
-    public EventSource<List<TimingData>> timingDataRecoveredEvent() {
-        return timingDataRecoveredEvent;
+    public EventSource<List<TimingData>> recoveredDataEvent() {
+        return recoveredDataEvent;
     }
 
     /** Admits one fire-and-forget operation to the Data Lane. */
@@ -298,16 +292,16 @@ public final class NodeDataProcessor implements UpstreamNodeData {
     }
 
     /**
-     * Narrow LogBook operations used by upstream TIMING_DATA synchronization.
+     * Narrow committed-history operations exposed independently of any consumer.
      *
      * <p>The scalar head is safely published by LogBook. Bounded history access
-     * remains Data Lane-only.</p>
+     * remains Data Lane-only. Upstream/post-processing may depend on this data
+     * contract; this component never depends on those consumers.</p>
      */
     @Override
     public long timingDataHead() {
         return logic.timingDataHead();
     }
-
     @Override
     public List<TimingData> timingDataRange(long fromSequence, int limit) {
         requireDataLane("timingDataRange");
@@ -339,7 +333,7 @@ public final class NodeDataProcessor implements UpstreamNodeData {
         if (state != SerialExecutor.State.RUNNING) {
             throw new OperationException(
                     OperationException.Reason.UNAVAILABLE,
-                    "status CURRENT result is unavailable because the TimingNode data component is not active");
+                    "status CURRENT result is unavailable because the LogBook component is not active");
         }
 
         Status status = publishedStatus;
@@ -382,7 +376,7 @@ public final class NodeDataProcessor implements UpstreamNodeData {
                     timingNodeId().value());
         }
 
-        publishTimingDataRecovered(recovery.records());
+        publishRecoveredData(recovery.records());
         publishRecoveredStatus();
     }
 
@@ -396,7 +390,7 @@ public final class NodeDataProcessor implements UpstreamNodeData {
     }
 
     private <R> void applySubmitted(
-            TimingNodeCommand<R> command) {
+            LogBookCommand<R> command) {
         try {
             applyCommand(command);
         } catch (Exception ex) {
@@ -408,7 +402,7 @@ public final class NodeDataProcessor implements UpstreamNodeData {
     }
 
     private <R> R applyCommand(
-            TimingNodeCommand<R> command)
+            LogBookCommand<R> command)
             throws Exception {
         Status before =
                 logic.status();
@@ -426,7 +420,7 @@ public final class NodeDataProcessor implements UpstreamNodeData {
         int committedAfter =
                 logic.committedTimingDataCount();
         if (committedAfter > committedBefore) {
-            publishTimingDataCommitted(
+            publishNewData(
                     logic.latestCommittedTimingData());
         }
 
@@ -503,29 +497,29 @@ public final class NodeDataProcessor implements UpstreamNodeData {
         publishedStatus = status;
     }
 
-    private void publishTimingDataRecovered(
+    private void publishRecoveredData(
             List<TimingData> recovered) {
         List<TimingData> snapshot =
                 Collections.unmodifiableList(
                         new ArrayList<TimingData>(recovered));
         Event.DeliveryReport delivery =
-                timingDataRecoveredEvent.emit(snapshot);
+                recoveredDataEvent.emit(snapshot);
         if (!delivery.successful()) {
             LOG.warn(
                     "TimingData recovered but "
                             + delivery.failureCount()
-                            + " timingDataRecoveredEvent listener(s) failed for "
+                            + " recoveredDataEvent listener(s) failed for "
                             + timingNodeId().value(),
                     delivery.failures().get(0));
         }
     }
 
-    private void publishTimingDataCommitted(
+    private void publishNewData(
             TimingData data) {
         long eventStartedNanos =
                 monotonicClock.nowNanos();
         Event.DeliveryReport delivery =
-                timingDataCommittedEvent.emit(data);
+                newDataEntryEvent.emit(data);
         metrics.recordEventDelivery(
                 monotonicClock.nowNanos()
                         - eventStartedNanos,
@@ -534,7 +528,7 @@ public final class NodeDataProcessor implements UpstreamNodeData {
             LOG.warn(
                     "TimingData committed but "
                             + delivery.failureCount()
-                            + " timingDataCommittedEvent listener(s) failed for "
+                            + " newDataEntryEvent listener(s) failed for "
                             + timingNodeId().value()
                             + ":"
                             + data.sequenceNumber(),

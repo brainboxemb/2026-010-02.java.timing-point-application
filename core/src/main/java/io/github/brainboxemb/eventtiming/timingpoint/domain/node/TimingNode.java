@@ -5,19 +5,21 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandAdmission;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.NodeDataProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeCommand;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeMetrics;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQueries;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQuery;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQuery.ReadConsistency;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommand;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
+
+import java.time.ZoneId;
+import java.util.List;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
@@ -31,13 +33,13 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
  * Top-level component boundary for one logical timing node.
  *
  * <p>TimingNode is deliberately a composition/lifecycle/facade component.
- * Mutable TimingData state, Data Lane execution, commands and queries belong to
- * {@link NodeDataProcessor}. Task/protocol execution is kept separate from that
+ * LogBook/TimingData state, Data Lane execution, commands and queries belong to
+ * {@link LogBookProcessor}. Task/protocol execution is kept separate from that
  * data component; Task Lane execution and upstream composition belong to
  * {@link NodeTaskProcessor}.</p>
  */
 public final class TimingNode {
-    private final NodeDataProcessor dataProcessor;
+    private final LogBookProcessor logBookProcessor;
     private final NodeTaskProcessor taskProcessor;
     private final TagProcessor tagProcessor;
 
@@ -80,14 +82,13 @@ public final class TimingNode {
             EventData eventData,
             UpstreamStream upstreamStream) {
         this(
-                new NodeDataProcessor(
+                new LogBookProcessor(
                         requireId(timingNodeId),
                         timingDataPersistence,
                         timingDataFactory,
                         timeSource,
-                        eventData,
                         SystemMonotonicClock.INSTANCE,
-                        new TimingNodeMetrics(),
+                        new LogBookProcessorMetrics(),
                         new SerialExecutor(
                                 32,
                                 "test-node-data-" + timingNodeId.value(),
@@ -113,14 +114,13 @@ public final class TimingNode {
             SerialExecutor dataLane,
             long operationTimeoutMillis) {
         this(
-                new NodeDataProcessor(
+                new LogBookProcessor(
                         requireId(timingNodeId),
                         timingDataPersistence,
                         timingDataFactory,
                         timeSource,
-                        EventData.empty(),
                         SystemMonotonicClock.INSTANCE,
-                        new TimingNodeMetrics(),
+                        new LogBookProcessorMetrics(),
                         dataLane,
                         operationTimeoutMillis),
                 new SerialExecutor(
@@ -156,7 +156,7 @@ public final class TimingNode {
                 taskLane,
                 tagProcessorExecutor,
                 SystemMonotonicClock.INSTANCE,
-                new TimingNodeMetrics(),
+                new LogBookProcessorMetrics(),
                 new TagProcessingMetrics(),
                 UpstreamStream.unavailable());
     }
@@ -183,7 +183,7 @@ public final class TimingNode {
                 taskLane,
                 tagProcessorExecutor,
                 SystemMonotonicClock.INSTANCE,
-                new TimingNodeMetrics(),
+                new LogBookProcessorMetrics(),
                 new TagProcessingMetrics(),
                 upstreamStream);
     }
@@ -210,7 +210,7 @@ public final class TimingNode {
                 taskLane,
                 tagProcessorExecutor,
                 monotonicClock,
-                new TimingNodeMetrics(),
+                new LogBookProcessorMetrics(),
                 new TagProcessingMetrics(),
                 UpstreamStream.unavailable());
     }
@@ -229,7 +229,7 @@ public final class TimingNode {
             SerialExecutor taskLane,
             SerialScheduledExecutor tagProcessorExecutor,
             MonotonicClock monotonicClock,
-            TimingNodeMetrics timingNodeMetrics,
+            LogBookProcessorMetrics timingNodeMetrics,
             TagProcessingMetrics tagProcessingMetrics) {
         this(
                 timingNodeId,
@@ -258,7 +258,7 @@ public final class TimingNode {
             SerialExecutor taskLane,
             SerialScheduledExecutor tagProcessorExecutor,
             MonotonicClock monotonicClock,
-            TimingNodeMetrics timingNodeMetrics,
+            LogBookProcessorMetrics timingNodeMetrics,
             TagProcessingMetrics tagProcessingMetrics,
             UpstreamStream upstreamStream) {
         if (tagProcessingConfiguration == null) {
@@ -290,13 +290,12 @@ public final class TimingNode {
                     "tagProcessingMetrics must not be null");
         }
 
-        NodeDataProcessor processor =
-                new NodeDataProcessor(
+        LogBookProcessor processor =
+                new LogBookProcessor(
                         requireId(timingNodeId),
                         timingDataPersistence,
                         timingDataFactory,
                         timeSource,
-                        eventData,
                         monotonicClock,
                         timingNodeMetrics,
                         dataLane);
@@ -314,7 +313,7 @@ public final class TimingNode {
                 .subscribe(
                         processorChild::onPolicyConfigurationChanged);
 
-        this.dataProcessor = processor;
+        this.logBookProcessor = processor;
         this.taskProcessor = new NodeTaskProcessor(
                 processor,
                 taskLane,
@@ -324,14 +323,14 @@ public final class TimingNode {
     }
 
     private TimingNode(
-            NodeDataProcessor dataProcessor,
+            LogBookProcessor logBookProcessor,
             SerialExecutor taskLane,
             TagProcessor tagProcessor,
             EventData eventData,
             UpstreamStream upstreamStream) {
-        if (dataProcessor == null) {
+        if (logBookProcessor == null) {
             throw new IllegalArgumentException(
-                    "dataProcessor must not be null");
+                    "logBookProcessor must not be null");
         }
         if (taskLane == null) {
             throw new IllegalArgumentException(
@@ -345,9 +344,9 @@ public final class TimingNode {
             throw new IllegalArgumentException(
                     "upstreamStream must not be null");
         }
-        this.dataProcessor = dataProcessor;
+        this.logBookProcessor = logBookProcessor;
         this.taskProcessor = new NodeTaskProcessor(
-                dataProcessor,
+                logBookProcessor,
                 taskLane,
                 eventData,
                 upstreamStream);
@@ -355,7 +354,7 @@ public final class TimingNode {
     }
 
     public NodeId timingNodeId() {
-        return dataProcessor.timingNodeId();
+        return logBookProcessor.timingNodeId();
     }
 
     /** Returns the TimingNode-owned semantic upstream boundary. */
@@ -370,12 +369,12 @@ public final class TimingNode {
     public void activate() {
         taskProcessor.ensureCanActivate();
 
-        dataProcessor.activate();
+        logBookProcessor.activate();
 
         try {
             taskProcessor.activate();
         } catch (RuntimeException ex) {
-            dataProcessor.deactivate();
+            logBookProcessor.deactivate();
             throw ex;
         }
 
@@ -384,7 +383,7 @@ public final class TimingNode {
                 tagProcessor.activate();
             } catch (RuntimeException ex) {
                 taskProcessor.deactivate();
-                dataProcessor.deactivate();
+                logBookProcessor.deactivate();
                 throw ex;
             }
         }
@@ -414,7 +413,7 @@ public final class TimingNode {
         }
 
         try {
-            dataProcessor.deactivate();
+            logBookProcessor.deactivate();
         } catch (RuntimeException ex) {
             if (firstFailure == null) {
                 firstFailure = ex;
@@ -435,59 +434,43 @@ public final class TimingNode {
         return tagProcessor;
     }
 
-    /** Delegates one result-bearing data command to NodeDataProcessor. */
+    /** Delegates one result-bearing LogBook command to LogBookProcessor. */
     public <R> R invoke(
-            TimingNodeCommand<R> command) {
-        return dataProcessor.invoke(
+            LogBookCommand<R> command) {
+        return logBookProcessor.invoke(
                 command);
     }
 
-    /** Delegates one admission-only data command to NodeDataProcessor. */
+    /** Delegates one admission-only LogBook command to LogBookProcessor. */
     public CommandAdmission offer(
-            TimingNodeCommand<?> command) {
-        return dataProcessor.offer(
+            LogBookCommand<?> command) {
+        return logBookProcessor.offer(
                 command);
     }
 
-    public <R> R query(
-            TimingNodeQuery<R> query) {
-        if (query == null) {
-            throw new IllegalArgumentException("query must not be null");
-        }
-        return query.isTaskOwned()
-                ? taskProcessor.query(query)
-                : dataProcessor.query(query);
+    /** Delegates an ordered/current LogBook query to LogBookProcessor. */
+    public <R> R query(LogBookQuery<R> query) {
+        return logBookProcessor.query(query);
     }
 
     public <R> R query(
-            TimingNodeQuery<R> query,
+            LogBookQuery<R> query,
             ReadConsistency consistency) {
-        if (query == null) {
-            throw new IllegalArgumentException("query must not be null");
-        }
-        if (consistency == null) {
-            throw new IllegalArgumentException("consistency must not be null");
-        }
-        if (query.isTaskOwned()) {
-            if (consistency != ReadConsistency.ORDERED) {
-                throw new IllegalArgumentException(
-                        "Task Lane query "
-                                + query.name()
-                                + " supports ORDERED consistency only");
-            }
-            return taskProcessor.query(query);
-        }
-        return dataProcessor.query(
-                query,
-                consistency);
+        return logBookProcessor.query(query, consistency);
+    }
+
+    /** Task Lane-owned derived timing query; deliberately not a LogBookQuery. */
+    public List<StageTime> stageTiming(ZoneId raceTimeZone) {
+        return taskProcessor.stageTiming(raceTimeZone);
     }
 
     public EventSource<TimingNodeTypes.Status> statusChangedEvent() {
-        return dataProcessor.statusChangedEvent();
+        return logBookProcessor.statusChangedEvent();
     }
 
-    public EventSource<TimingData> timingDataCommittedEvent() {
-        return dataProcessor.timingDataCommittedEvent();
+    /** Post-commit TimingData fact published by the Data component. */
+    public EventSource<TimingData> newDataEntryEvent() {
+        return logBookProcessor.newDataEntryEvent();
     }
 
     private static NodeId requireId(

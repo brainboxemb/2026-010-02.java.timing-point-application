@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutorMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.metrics.RuntimeObservation;
@@ -13,12 +13,12 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.metrics.RuntimeObs
  */
 public final class RuntimeMeasurementReader {
     private final SerialExecutorMetrics timingNodeLaneMetrics;
-    private final TimingNodeMetrics timingNodeMetrics;
+    private final LogBookProcessorMetrics timingNodeMetrics;
     private final TagProcessingMetrics tagProcessingMetrics;
 
     public RuntimeMeasurementReader(
             SerialExecutorMetrics timingNodeLaneMetrics,
-            TimingNodeMetrics timingNodeMetrics,
+            LogBookProcessorMetrics timingNodeMetrics,
             TagProcessingMetrics tagProcessingMetrics) {
         if (timingNodeLaneMetrics == null) {
             throw new IllegalArgumentException("timingNodeLaneMetrics must not be null");

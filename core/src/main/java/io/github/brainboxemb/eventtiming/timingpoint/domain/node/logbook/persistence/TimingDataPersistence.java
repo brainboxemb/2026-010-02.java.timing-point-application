@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 

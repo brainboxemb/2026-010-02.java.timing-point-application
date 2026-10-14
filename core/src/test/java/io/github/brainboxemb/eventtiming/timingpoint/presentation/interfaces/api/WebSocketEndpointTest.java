@@ -12,7 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGatewayFixture;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
@@ -380,7 +380,7 @@ public class WebSocketEndpointTest {
             timingNode.statusChangedEvent()
                     .subscribe(
                             endpoint::onTimingNodeStatusChanged);
-            timingNode.timingDataCommittedEvent()
+            timingNode.newDataEntryEvent()
                     .subscribe(
                             endpoint::onTimingDataCommitted);
         }

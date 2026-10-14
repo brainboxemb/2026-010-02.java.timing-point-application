@@ -14,8 +14,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
@@ -133,14 +133,14 @@ public class TagProcessorTest {
                 metrics,
                 executor);
         CountDownLatch committed = new CountDownLatch(1);
-        node.timingDataCommittedEvent().subscribe(data -> {
+        node.newDataEntryEvent().subscribe(data -> {
             if (data instanceof AutomaticRegistration) {
                 committed.countDown();
             }
         });
 
         node.activate();
-        node.invoke(TimingNodeCommands.open(new LocationId(24)));
+        node.invoke(LogBookCommands.open(new LocationId(24)));
         processor.activate();
         try {
             processor.onTagObserved(
@@ -205,14 +205,14 @@ public class TagProcessorTest {
                 metrics,
                 executor);
         CountDownLatch committed = new CountDownLatch(1);
-        node.timingDataCommittedEvent().subscribe(data -> {
+        node.newDataEntryEvent().subscribe(data -> {
             if (data instanceof AutomaticRegistration) {
                 committed.countDown();
             }
         });
 
         node.activate();
-        node.invoke(TimingNodeCommands.open(new LocationId(24)));
+        node.invoke(LogBookCommands.open(new LocationId(24)));
         processor.activate();
         try {
             processor.onTagObserved(
@@ -322,14 +322,14 @@ public class TagProcessorTest {
                 .changes()
                 .subscribe(processor::onPolicyConfigurationChanged);
         CountDownLatch committed = new CountDownLatch(1);
-        node.timingDataCommittedEvent().subscribe(data -> {
+        node.newDataEntryEvent().subscribe(data -> {
             if (data instanceof AutomaticRegistration) {
                 committed.countDown();
             }
         });
 
         node.activate();
-        node.invoke(TimingNodeCommands.open(new LocationId(24)));
+        node.invoke(LogBookCommands.open(new LocationId(24)));
         processor.activate();
         try {
             processor.onTagObserved(

@@ -7,10 +7,10 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
@@ -65,15 +65,15 @@ public class SystemConductorTest {
         manager.activate();
         conductor.activate();
         try {
-            first.invoke(TimingNodeCommands.open(new LocationId(24)));
+            first.invoke(LogBookCommands.open(new LocationId(24)));
             await(antenna::inventoryRunning, 1000L);
 
-            second.invoke(TimingNodeCommands.open(new LocationId(25)));
-            first.invoke(TimingNodeCommands.close());
+            second.invoke(LogBookCommands.open(new LocationId(25)));
+            first.invoke(LogBookCommands.close());
             await(() -> manager.settings().inventoryEnabled(), 1000L);
             assertTrue(antenna.inventoryRunning());
 
-            second.invoke(TimingNodeCommands.close());
+            second.invoke(LogBookCommands.close());
             await(() -> !antenna.inventoryRunning(), 1000L);
         } finally {
             conductor.deactivate();
@@ -134,7 +134,7 @@ public class SystemConductorTest {
             assertEquals(
                     io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandAdmission.ACCEPTED,
                     node.offer(
-                            TimingNodeCommands.open(
+                            LogBookCommands.open(
                                     new LocationId(24))));
 
             persistence.releaseLoad.countDown();
@@ -175,7 +175,7 @@ public class SystemConductorTest {
                 }
             }));
             assertTrue(started.await(1L, TimeUnit.SECONDS));
-            node.invoke(TimingNodeCommands.open(new LocationId(24)));
+            node.invoke(LogBookCommands.open(new LocationId(24)));
             assertFalse("Node event only wakes the Conductor", manager.settings().inventoryEnabled());
             release.countDown();
             await(antenna::inventoryRunning, 1000L);
@@ -209,9 +209,9 @@ public class SystemConductorTest {
                 }
             }));
             assertTrue(started.await(1L, TimeUnit.SECONDS));
-            node.invoke(TimingNodeCommands.open(new LocationId(24)));
-            node.invoke(TimingNodeCommands.close());
-            node.invoke(TimingNodeCommands.open(new LocationId(25)));
+            node.invoke(LogBookCommands.open(new LocationId(24)));
+            node.invoke(LogBookCommands.close());
+            node.invoke(LogBookCommands.open(new LocationId(25)));
             assertFalse(manager.settings().inventoryEnabled());
             assertEquals("one coalesced pending reconciliation", 1,
                     lane.metrics().snapshot().queueDepth());

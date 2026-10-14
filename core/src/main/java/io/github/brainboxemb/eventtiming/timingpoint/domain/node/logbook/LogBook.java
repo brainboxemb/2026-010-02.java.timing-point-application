@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node.data;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -8,10 +8,10 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * Passive committed TimingData history owned by one TimingNode serial lane.
+ * Passive committed TimingData history owned by one TimingNode Data Lane.
  *
  * <p>The LogBook has no worker or independent synchronization. Its record
- * collection is owned by the TimingNode serial lane. Only the committed source
+ * collection is owned by the TimingNode Data Lane. Only the committed source
  * head is published separately as a volatile value so a DIRECT/CURRENT query
  * can read that scalar without entering the lane.</p>
  */
@@ -36,7 +36,7 @@ public final class LogBook {
      * Returns the highest committed source sequence, or 0 when empty.
      *
      * <p>This scalar is safe for a direct read. The LogBook record collection
-     * itself remains TimingNode-lane owned.</p>
+     * itself remains Data Lane-owned.</p>
      */
     public long headSequence() {
         return headSequence;

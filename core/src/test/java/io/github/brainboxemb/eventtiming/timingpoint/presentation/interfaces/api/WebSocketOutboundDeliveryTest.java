@@ -6,9 +6,9 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQueries;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 
 import java.lang.reflect.InvocationHandler;
@@ -132,7 +132,7 @@ public class WebSocketOutboundDeliveryTest {
                                 .instant());
         node.activate();
         try {
-            node.timingDataCommittedEvent()
+            node.newDataEntryEvent()
                     .subscribe(
                             data -> {
                                 delivery.send(
@@ -141,12 +141,12 @@ public class WebSocketOutboundDeliveryTest {
                             });
 
             node.invoke(
-                    TimingNodeCommands.open(
+                    LogBookCommands.open(
                             new LocationId(24)));
 
             for (int index = 1; index <= 10; index++) {
                 node.invoke(
-                        TimingNodeCommands.addAutomaticRegistration(
+                        LogBookCommands.addAutomaticRegistration(
                                 new RegistrationId(
                                         String.format(
                                                 "N%04d",
@@ -161,7 +161,7 @@ public class WebSocketOutboundDeliveryTest {
                     "all TimingNode commits must complete even after the slow client is disconnected",
                     11,
                     node.query(
-                            TimingNodeQueries.timingDataCount())
+                            LogBookQueries.timingDataCount())
                             .intValue());
             assertEquals(
                     "the transport must not send beyond its bounded backlog budget",
