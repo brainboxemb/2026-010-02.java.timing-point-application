@@ -144,7 +144,8 @@ public final class TimingNode {
             EventData eventData,
             SerialLane dataLane,
             SerialLane taskLane,
-            SerialLane tagProcessorLane) {
+            SerialLane tagProcessorLane,
+            ScheduledExecutorService tagProcessorScheduler) {
         this(
                 timingNodeId,
                 timingDataPersistence,

@@ -17,7 +17,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -255,6 +254,8 @@ public class SystemConductorTest {
     private TimingNode newTimingNode(String id) {
         ExecutorService nodeWorker =
                 newWorker("conductor-node-worker");
+        ScheduledExecutorService tagWorker =
+                newScheduledWorker("conductor-tag-test");
         return new TimingNode(
                 new NodeId(id),
                 new NoOpPersistence(),
@@ -270,10 +271,11 @@ public class SystemConductorTest {
                         8,
                         "conductor-node-task",
                         nodeWorker),
-                new SerialScheduledLane(
+                new SerialLane(
                         8,
                         "conductor-tag-test",
-                        newScheduledWorker("conductor-tag-test")));
+                        tagWorker),
+                tagWorker);
     }
 
     private TimingNode newTimingNode(
@@ -281,6 +283,8 @@ public class SystemConductorTest {
             TimingDataPersistence persistence) {
         ExecutorService nodeWorker =
                 newWorker("conductor-node-startup-worker");
+        ScheduledExecutorService tagWorker =
+                newScheduledWorker("conductor-tag-startup-worker");
         return new TimingNode(
                 new NodeId(id),
                 persistence,
@@ -296,10 +300,11 @@ public class SystemConductorTest {
                         8,
                         "conductor-node-startup-task",
                         nodeWorker),
-                new SerialScheduledLane(
+                new SerialLane(
                         8,
                         "conductor-tag-startup-test",
-                        newScheduledWorker("conductor-tag-startup-worker")));
+                        tagWorker),
+                tagWorker);
     }
 
     private AntennaManager newAntennaManager(SimulatedAntenna antenna) {

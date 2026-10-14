@@ -235,16 +235,20 @@ public class RuntimeExecutorsTest {
         first.tagProcessor().start();
         second.tagProcessor().start();
         try {
-            assertTrue(first.tagProcessor().execute(() -> {
-                firstThread.set(
-                        Thread.currentThread().getName());
-                done.countDown();
-            }));
-            assertTrue(second.tagProcessor().execute(() -> {
-                secondThread.set(
-                        Thread.currentThread().getName());
-                done.countDown();
-            }));
+            assertEquals(
+                    SerialLane.AdmissionResult.ACCEPTED,
+                    first.tagProcessor().offer(() -> {
+                        firstThread.set(
+                                Thread.currentThread().getName());
+                        done.countDown();
+                    }));
+            assertEquals(
+                    SerialLane.AdmissionResult.ACCEPTED,
+                    second.tagProcessor().offer(() -> {
+                        secondThread.set(
+                                Thread.currentThread().getName());
+                        done.countDown();
+                    }));
 
             assertTrue(done.await(1, TimeUnit.SECONDS));
             assertEquals(
