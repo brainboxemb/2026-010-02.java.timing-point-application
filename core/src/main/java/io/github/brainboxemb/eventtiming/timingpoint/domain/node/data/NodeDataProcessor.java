@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.data;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamNodeData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -37,7 +36,7 @@ import org.slf4j.LoggerFactory;
  * {@link SerialExecutor} may share a Runtime-owned worker with other logical
  * lanes.</p>
  */
-public final class NodeDataProcessor implements UpstreamNodeData {
+public final class NodeDataProcessor implements TimingDataHistory {
     private static final Logger LOG =
             LoggerFactory.getLogger(NodeDataProcessor.class);
     public static final long DEFAULT_OPERATION_TIMEOUT_MILLIS = 2000L;
@@ -50,9 +49,9 @@ public final class NodeDataProcessor implements UpstreamNodeData {
 
     private final Event<Status> statusChangedEvent =
             new Event<Status>();
-    private final Event<TimingData> timingDataCommittedEvent =
+    private final Event<TimingData> newDataEvent =
             new Event<TimingData>();
-    private final Event<List<TimingData>> timingDataRecoveredEvent =
+    private final Event<List<TimingData>> recoveredDataEvent =
             new Event<List<TimingData>>();
 
     /** Latest activation-complete immutable Status visible to CURRENT queries. */
@@ -244,8 +243,8 @@ public final class NodeDataProcessor implements UpstreamNodeData {
         return statusChangedEvent;
     }
 
-    public EventSource<TimingData> timingDataCommittedEvent() {
-        return timingDataCommittedEvent;
+    public EventSource<TimingData> newDataEvent() {
+        return newDataEvent;
     }
 
     /**
@@ -254,8 +253,8 @@ public final class NodeDataProcessor implements UpstreamNodeData {
      * <p>Task Lane-derived state can rebuild from this fact without receiving the
      * mutable LogBook itself.</p>
      */
-    public EventSource<List<TimingData>> timingDataRecoveredEvent() {
-        return timingDataRecoveredEvent;
+    public EventSource<List<TimingData>> recoveredDataEvent() {
+        return recoveredDataEvent;
     }
 
     /** Admits one fire-and-forget operation to the Data Lane. */
@@ -298,10 +297,11 @@ public final class NodeDataProcessor implements UpstreamNodeData {
     }
 
     /**
-     * Narrow LogBook operations used by upstream TIMING_DATA synchronization.
+     * Narrow committed-history operations exposed independently of any consumer.
      *
      * <p>The scalar head is safely published by LogBook. Bounded history access
-     * remains Data Lane-only.</p>
+     * remains Data Lane-only. Upstream/post-processing may depend on this data
+     * contract; this component never depends on those consumers.</p>
      */
     @Override
     public long timingDataHead() {
@@ -382,7 +382,7 @@ public final class NodeDataProcessor implements UpstreamNodeData {
                     timingNodeId().value());
         }
 
-        publishTimingDataRecovered(recovery.records());
+        publishRecoveredData(recovery.records());
         publishRecoveredStatus();
     }
 
@@ -426,7 +426,7 @@ public final class NodeDataProcessor implements UpstreamNodeData {
         int committedAfter =
                 logic.committedTimingDataCount();
         if (committedAfter > committedBefore) {
-            publishTimingDataCommitted(
+            publishNewData(
                     logic.latestCommittedTimingData());
         }
 
@@ -503,29 +503,29 @@ public final class NodeDataProcessor implements UpstreamNodeData {
         publishedStatus = status;
     }
 
-    private void publishTimingDataRecovered(
+    private void publishRecoveredData(
             List<TimingData> recovered) {
         List<TimingData> snapshot =
                 Collections.unmodifiableList(
                         new ArrayList<TimingData>(recovered));
         Event.DeliveryReport delivery =
-                timingDataRecoveredEvent.emit(snapshot);
+                recoveredDataEvent.emit(snapshot);
         if (!delivery.successful()) {
             LOG.warn(
                     "TimingData recovered but "
                             + delivery.failureCount()
-                            + " timingDataRecoveredEvent listener(s) failed for "
+                            + " recoveredDataEvent listener(s) failed for "
                             + timingNodeId().value(),
                     delivery.failures().get(0));
         }
     }
 
-    private void publishTimingDataCommitted(
+    private void publishNewData(
             TimingData data) {
         long eventStartedNanos =
                 monotonicClock.nowNanos();
         Event.DeliveryReport delivery =
-                timingDataCommittedEvent.emit(data);
+                newDataEvent.emit(data);
         metrics.recordEventDelivery(
                 monotonicClock.nowNanos()
                         - eventStartedNanos,
@@ -534,7 +534,7 @@ public final class NodeDataProcessor implements UpstreamNodeData {
             LOG.warn(
                     "TimingData committed but "
                             + delivery.failureCount()
-                            + " timingDataCommittedEvent listener(s) failed for "
+                            + " newDataEvent listener(s) failed for "
                             + timingNodeId().value()
                             + ":"
                             + data.sequenceNumber(),
