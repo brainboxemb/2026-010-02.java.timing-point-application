@@ -222,17 +222,6 @@ public final class LogBook
         return initialDataLoadedEvent;
     }
 
-    /**
-     * Executes one internal fire-and-forget operation on the Data Lane.
-     *
-     * <p>This is the raw execution seam used by node-local coordination code.
-     * Rejection uses the same standard exception contract as SerialLane.</p>
-     */
-    public void executeOnDataLane(Runnable operation) {
-        checkArgument(operation != null, "operation must not be null");
-        serialLane.execute(operation);
-    }
-
     /** Returns the committed TimingData head while already inside LogBook query handling. */
     long currentTimingDataHead() {
         return logBookState.timingDataHead();
