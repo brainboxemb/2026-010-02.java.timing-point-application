@@ -65,15 +65,15 @@ public class SystemConductorTest {
         manager.activate();
         conductor.activate();
         try {
-            first.logBook().execute(LogBookCommands.open(new LocationId(24)));
+            first.logBook().process(LogBookCommands.open(new LocationId(24)));
             await(antenna::inventoryRunning, 1000L);
 
-            second.logBook().execute(LogBookCommands.open(new LocationId(25)));
-            first.logBook().execute(LogBookCommands.close());
+            second.logBook().process(LogBookCommands.open(new LocationId(25)));
+            first.logBook().process(LogBookCommands.close());
             await(() -> manager.settings().inventoryEnabled(), 1000L);
             assertTrue(antenna.inventoryRunning());
 
-            second.logBook().execute(LogBookCommands.close());
+            second.logBook().process(LogBookCommands.close());
             await(() -> !antenna.inventoryRunning(), 1000L);
         } finally {
             conductor.deactivate();
@@ -173,7 +173,7 @@ public class SystemConductorTest {
                 }
             });
             assertTrue(started.await(1L, TimeUnit.SECONDS));
-            node.logBook().execute(LogBookCommands.open(new LocationId(24)));
+            node.logBook().process(LogBookCommands.open(new LocationId(24)));
             assertFalse("Node event only wakes the Conductor", manager.settings().inventoryEnabled());
             release.countDown();
             await(antenna::inventoryRunning, 1000L);
@@ -207,9 +207,9 @@ public class SystemConductorTest {
                 }
             });
             assertTrue(started.await(1L, TimeUnit.SECONDS));
-            node.logBook().execute(LogBookCommands.open(new LocationId(24)));
-            node.logBook().execute(LogBookCommands.close());
-            node.logBook().execute(LogBookCommands.open(new LocationId(25)));
+            node.logBook().process(LogBookCommands.open(new LocationId(24)));
+            node.logBook().process(LogBookCommands.close());
+            node.logBook().process(LogBookCommands.open(new LocationId(25)));
             assertFalse(manager.settings().inventoryEnabled());
             assertEquals("one coalesced pending reconciliation", 1,
                     lane.metrics().snapshot().queueDepth());
