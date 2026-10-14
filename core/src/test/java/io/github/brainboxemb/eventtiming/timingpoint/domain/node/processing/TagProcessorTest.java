@@ -186,7 +186,7 @@ public class TagProcessorTest {
     }
 
     @Test
-    public void acceptedRegistrationSuppressesLaterMappedObservationsBeforePassageFiltering()
+    public void selectedRegistrationSuppressesLaterMappedObservationsBeforePassageFiltering()
             throws Exception {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
@@ -204,6 +204,7 @@ public class TagProcessorTest {
                 metrics,
                 execution.lane,
                 execution.scheduler);
+        connectToNode(processor, node);
         CountDownLatch committed = new CountDownLatch(1);
         node.newDataEntryEvent().subscribe(data -> {
             if (data instanceof AutomaticRegistration) {
@@ -221,9 +222,9 @@ public class TagProcessorTest {
 
             /*
              * This closes the first passage. TagObservationFilter has already
-             * created a new burst for TAG-B before the callback performs the
-             * TimingNode offer; ACCEPTED must therefore start duplicate
-             * suppression and discard that just-created next burst.
+             * created a new burst for TAG-B before the selected registration
+             * is published. Selecting that registration starts duplicate
+             * suppression and discards the just-created next burst.
              */
             clock.advanceNanos(100L);
             processor.onTagObserved(
@@ -239,7 +240,6 @@ public class TagProcessorTest {
             assertEquals(3L, snapshot.observations());
             assertEquals(3L, snapshot.mapped());
             assertEquals(1L, snapshot.closedBursts());
-            assertEquals(1L, snapshot.admitted());
             assertEquals(1L, snapshot.duplicates());
             assertEquals(2, store.appended.size());
         } finally {
@@ -251,7 +251,6 @@ public class TagProcessorTest {
     @Test
     public void selectedRegistrationStartsDuplicateSuppressionWithoutDownstreamFeedback()
             throws Exception {
-        TimingNode node = node(new RecordingStore());
         FakeMonotonicClock clock = new FakeMonotonicClock();
         TagExecution execution =
                 newTagExecution("tp-tag-test");
