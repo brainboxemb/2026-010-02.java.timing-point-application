@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Clarify the `TimingNode` composition boundary: name the TagProcessor-to-LogBook handoff, make rejected Data Lane admission observable, document LogBook access precisely, and explain the Task Lane activation preflight that protects asynchronous LogBook recovery.
+- Clarify the `TimingNode` composition boundary: name the TagProcessor-to-LogBook handoff, make rejected Data Lane admission observable, document LogBook access precisely, keep child lifecycle solely in `ComponentLifecycleManager`, and separate independent Task Lane activation from persisted TimingData startup loading.
 
 - Tighten the `TimingNode` boundary: child lifecycle now uses `ComponentLifecycleManager`, LogBook commands/queries/events are exposed through `LogBookAccessor`, and child/test-only passthrough getters are removed in favor of explicit runtime/test composition.
 
