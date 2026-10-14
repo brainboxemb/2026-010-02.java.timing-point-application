@@ -5,9 +5,10 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 
 import java.util.ArrayList;
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 import java.util.Collections;
 import java.util.List;
+
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 /**
  * Public value/result types used by the TimingNode component boundary.
