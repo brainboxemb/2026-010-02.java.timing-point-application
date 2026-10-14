@@ -41,6 +41,28 @@ public class ComponentLifecycleManagerTest {
     }
 
     @Test
+    public void registersConcreteComponentWithoutReflectionOrLifecycleInterface() {
+        List<String> calls = new ArrayList<String>();
+        TestComponent component = new TestComponent(calls);
+        ComponentLifecycleManager lifecycle =
+                new ComponentLifecycleManager();
+
+        lifecycle.register(
+                component,
+                TestComponent::activate,
+                TestComponent::deactivate);
+
+        lifecycle.activateAll();
+        lifecycle.deactivateAll();
+
+        assertEquals(
+                Arrays.asList(
+                        "activate",
+                        "deactivate"),
+                calls);
+    }
+
+    @Test
     public void activatesAgainAfterDeactivation() {
         List<String> calls = new ArrayList<String>();
         ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
@@ -97,5 +119,21 @@ public class ComponentLifecycleManagerTest {
         assertEquals(
                 3,
                 calls.size());
+    }
+
+    private static final class TestComponent {
+        private final List<String> calls;
+
+        private TestComponent(List<String> calls) {
+            this.calls = calls;
+        }
+
+        private void activate() {
+            calls.add("activate");
+        }
+
+        private void deactivate() {
+            calls.add("deactivate");
+        }
     }
 }
