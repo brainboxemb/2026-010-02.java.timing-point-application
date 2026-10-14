@@ -87,7 +87,7 @@ public final class UpstreamHandler {
             return true;
         }
 
-        if (dataLane.offer(new UpstreamHandlerTask(this))) {
+        if (dataLane.offer(this::handleNextOnDataLane)) {
             return true;
         }
 
@@ -251,7 +251,7 @@ public final class UpstreamHandler {
         boolean workRemaining =
                 stream.isAvailable() && (logBookSync.syncPending() || stream.hasMessage());
 
-        if (workRemaining && dataLane.offer(new UpstreamHandlerTask(this))) {
+        if (workRemaining && dataLane.offer(this::handleNextOnDataLane)) {
             return;
         }
 
@@ -262,13 +262,10 @@ public final class UpstreamHandler {
         return taskLane.run(task, operation);
     }
 
-    /** Narrow Data Lane execution boundary supplied by the owning TimingNode. */
+    /** Non-blocking handoff to the owning TimingNode Data Lane. */
+    @FunctionalInterface
     public interface DataLane {
-        boolean offer(Runnable task);
-
-        void run(Runnable task, String operation);
-
-        <R> R run(Callable<R> task, String operation);
+        boolean offer(Runnable operation);
     }
 
     /**

@@ -102,7 +102,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
         this.upstreamHandler =
                 new UpstreamHandler(
                         logBookProcessor.timingNodeId(),
-                        new UpstreamDataLane(logBookProcessor),
+                        logBookProcessor::offerTask,
                         new UpstreamTaskLane(),
                         upstreamStream,
                         logBookProcessor,
@@ -380,35 +380,6 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
                     OperationException.Reason.FAILED,
                     operation + " failed on the TimingNode Task Lane",
                     cause);
-        }
-    }
-
-    /**
-     * Data Lane adapter used only for bounded LogBook operations.
-     *
-     * <p>No Task Lane code waits synchronously on this adapter. TIMING_DATA
-     * protocol work that needs history is still scheduled onto the Data Lane.</p>
-     */
-    private static final class UpstreamDataLane implements UpstreamHandler.DataLane {
-        private final LogBookProcessor logBookProcessor;
-
-        UpstreamDataLane(LogBookProcessor logBookProcessor) {
-            this.logBookProcessor = logBookProcessor;
-        }
-
-        @Override
-        public boolean offer(Runnable task) {
-            return logBookProcessor.offerTask(task);
-        }
-
-        @Override
-        public void run(Runnable task, String operation) {
-            logBookProcessor.runTask(task, operation);
-        }
-
-        @Override
-        public <R> R run(Callable<R> task, String operation) {
-            return logBookProcessor.runTask(task, operation);
         }
     }
 
