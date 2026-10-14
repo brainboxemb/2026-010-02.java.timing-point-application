@@ -49,6 +49,7 @@ public final class UpstreamHandler {
      */
     private final AtomicBoolean inputOperationScheduled = new AtomicBoolean();
 
+    /** Creates the node-scoped upstream coordinator over the supplied Data and Task Lane boundaries. */
     public UpstreamHandler(
             NodeId nodeId,
             DataLane dataLane,
@@ -272,6 +273,7 @@ public final class UpstreamHandler {
         inputOperationScheduled.set(false);
     }
 
+    /** Delegates one result-bearing upstream query to the Task Lane and waits for completion. */
     private <R> R executeOnTaskLaneAndWait(
             Callable<R> task,
             String operation) {
@@ -297,8 +299,10 @@ public final class UpstreamHandler {
      * calls made from outside a conflicting lane context.</p>
      */
     public interface TaskLane {
+        /** Queues one fire-and-forget upstream task on the Task Lane. */
         void execute(Runnable task);
 
+        /** Executes one result-bearing Task Lane operation and waits for its result. */
         <R> R executeAndWait(
                 Callable<R> task,
                 String operation);
