@@ -34,9 +34,9 @@ public final class ApplicationConductor {
 
         if (antennaManager != null) {
             componentLifecycle.register(
-                    "AntennaManager",
-                    antennaManager::activate,
-                    antennaManager::deactivate);
+                    antennaManager,
+                    AntennaManager::activate,
+                    AntennaManager::deactivate);
         }
 
         componentLifecycle.register(
