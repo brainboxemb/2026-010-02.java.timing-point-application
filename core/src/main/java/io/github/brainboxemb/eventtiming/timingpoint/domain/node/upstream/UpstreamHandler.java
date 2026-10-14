@@ -187,7 +187,7 @@ public final class UpstreamHandler {
     /**
      * Sends a TIMING_DATA SYNC using the directly published LogBook head.
      *
-     * <p>No TimingNode-lane hop is needed: LogBook publishes its scalar head for
+     * <p>No Data Lane hop is needed: LogBook publishes its scalar head for
      * direct reads and UpstreamStream.send only enqueues into the local Messaging
      * mailbox.</p>
      */
