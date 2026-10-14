@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Refine `domain.node` readability: rename the active `LogBookProcessor` component to `LogBook`, passive committed history to `LogBookData`, `NodeTaskProcessor` to `NodeService`, and use plain queue/queued vocabulary for non-blocking lane handoffs.
+
 - Add type-safe default lifecycle registration: `ComponentLifecycleManager` derives the diagnostic class name while activation/deactivation remain explicit compile-time method references; no reflection or common lifecycle interface is required.
 
 - Clarify the `TimingNode` composition boundary: name the TagProcessor-to-LogBook handoff, make rejected Data Lane admission observable, document LogBook access precisely, keep child lifecycle solely in `ComponentLifecycleManager`, separate independent Task Lane activation from persisted TimingData startup loading, and report load failures as `TIMING_DATA_LOAD_FAILED`.

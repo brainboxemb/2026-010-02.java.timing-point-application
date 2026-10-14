@@ -5,12 +5,12 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
  *
  * <p>A command is a value describing one domain action. Public callers obtain
  * commands from {@link LogBookCommands}; only this data component binds a
- * command to package-private {@link LogBookState}. {@link LogBookProcessor}
+ * command to package-private {@link LogBookState}. {@link LogBook}
  * supplies serial execution, timeout and failure handling.</p>
  */
 public final class LogBookCommand<R> {
     interface Action<R> {
-        R apply(LogBookState logic) throws Exception;
+        R apply(LogBookState logBookState) throws Exception;
     }
 
     private final String name;
@@ -33,8 +33,8 @@ public final class LogBookCommand<R> {
         return name;
     }
 
-    R apply(LogBookState logic) throws Exception {
-        return action.apply(logic);
+    R apply(LogBookState logBookState) throws Exception {
+        return action.apply(logBookState);
     }
 
 }

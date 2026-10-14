@@ -17,65 +17,65 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-public class LogBookTest {
+public class LogBookDataTest {
     private final DefaultTimingDataFactory factory = new DefaultTimingDataFactory();
 
     @Test
     public void nextSequenceFollowsCommittedStateWithoutConsumingIt() {
-        LogBook logBook = new LogBook(new NodeId("A"));
+        LogBookData logBookData = new LogBookData(new NodeId("A"));
 
-        assertEquals(1L, logBook.nextSequence());
-        assertEquals(1L, logBook.nextSequence());
+        assertEquals(1L, logBookData.nextSequence());
+        assertEquals(1L, logBookData.nextSequence());
 
-        logBook.add(data("A", 1L, "1001"));
+        logBookData.add(data("A", 1L, "1001"));
 
-        assertEquals(2L, logBook.nextSequence());
-        assertEquals(1, logBook.size());
+        assertEquals(2L, logBookData.nextSequence());
+        assertEquals(1, logBookData.size());
     }
 
     @Test
     public void rejectsSequenceGap() {
-        LogBook logBook = new LogBook(new NodeId("A"));
+        LogBookData logBookData = new LogBookData(new NodeId("A"));
 
         try {
-            logBook.add(data("A", 2L, "1002"));
+            logBookData.add(data("A", 2L, "1002"));
             fail("expected sequence validation");
         } catch (IllegalArgumentException expected) {
-            assertEquals(0, logBook.size());
-            assertEquals(1L, logBook.nextSequence());
+            assertEquals(0, logBookData.size());
+            assertEquals(1L, logBookData.nextSequence());
         }
     }
 
     @Test
     public void rejectsDataFromDifferentTimingNode() {
-        LogBook logBook = new LogBook(new NodeId("A"));
+        LogBookData logBookData = new LogBookData(new NodeId("A"));
 
         try {
-            logBook.add(data("B", 1L, "1001"));
+            logBookData.add(data("B", 1L, "1001"));
             fail("expected TimingNode validation");
         } catch (IllegalArgumentException expected) {
-            assertEquals(0, logBook.size());
+            assertEquals(0, logBookData.size());
         }
     }
 
     @Test
     public void visitsBoundedRangesWithoutCreatingAReadList() {
-        LogBook logBook = new LogBook(new NodeId("A"));
+        LogBookData logBookData = new LogBookData(new NodeId("A"));
         TimingData first = data("A", 1L, "1001");
         TimingData second = data("A", 2L, "1002");
         TimingData third = data("A", 3L, "1003");
-        logBook.add(first);
-        logBook.add(second);
-        logBook.add(third);
+        logBookData.add(first);
+        logBookData.add(second);
+        logBookData.add(third);
 
         List<TimingData> visited = new ArrayList<>();
-        logBook.visitRange(2L, 1, visited::add);
+        logBookData.visitRange(2L, 1, visited::add);
 
         assertEquals(1, visited.size());
         assertEquals(second, visited.get(0));
 
         visited.clear();
-        logBook.visitLatest(2, visited::add);
+        logBookData.visitLatest(2, visited::add);
 
         assertEquals(2, visited.size());
         assertEquals(second, visited.get(0));

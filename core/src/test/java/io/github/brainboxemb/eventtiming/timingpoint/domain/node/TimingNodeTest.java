@@ -129,8 +129,8 @@ public class TimingNodeTest {
             }
 
             assertEquals(
-                    TimingNodeTypes.CommandAdmission.ACCEPTED,
-                    node.logBook().offer(
+                    TimingNodeTypes.CommandQueueResult.QUEUED,
+                    node.logBook().queue(
                             LogBookCommands.open(
                                     new LocationId(24))));
 
@@ -470,8 +470,8 @@ public class TimingNodeTest {
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
         CountDownLatch producerReturned = new CountDownLatch(1);
-        final TimingNodeTypes.CommandAdmission[] admission =
-                new TimingNodeTypes.CommandAdmission[1];
+        final TimingNodeTypes.CommandQueueResult[] queueResult =
+                new TimingNodeTypes.CommandQueueResult[1];
 
         node.activate();
         try {
@@ -483,8 +483,8 @@ public class TimingNodeTest {
             assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
             Thread producer = new Thread(() -> {
-                admission[0] =
-                        node.logBook().offer(
+                queueResult[0] =
+                        node.logBook().queue(
                                 LogBookCommands.open(
                                         new LocationId(24)));
                 producerReturned.countDown();
@@ -495,8 +495,8 @@ public class TimingNodeTest {
                     "offer-only producer must not wait for command execution",
                     producerReturned.await(250, TimeUnit.MILLISECONDS));
             assertEquals(
-                    TimingNodeTypes.CommandAdmission.ACCEPTED,
-                    admission[0]);
+                    TimingNodeTypes.CommandQueueResult.QUEUED,
+                    queueResult[0]);
 
             releaseBlocker.countDown();
             producer.join(1000);
@@ -535,8 +535,8 @@ public class TimingNodeTest {
             assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
             assertEquals(
-                    TimingNodeTypes.CommandAdmission.ACCEPTED,
-                    node.logBook().offer(LogBookCommands.open(new LocationId(24))));
+                    TimingNodeTypes.CommandQueueResult.QUEUED,
+                    node.logBook().queue(LogBookCommands.open(new LocationId(24))));
 
             TimingNodeTypes.Status current =
                     node.logBook().query(
@@ -738,7 +738,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void activationFailsWhenPersistedDataLoadCannotBeAdmitted() {
+    public void activationFailsWhenPersistedDataLoadCannotBeQueued() {
         SerialLane executor =
                 new SerialLane(
                         2,
@@ -755,7 +755,7 @@ public class TimingNodeTest {
         } catch (IllegalStateException expected) {
             assertTrue(
                     expected.getMessage()
-                            .contains("persisted-data load"));
+                            .contains("Persisted TimingData load"));
         } finally {
             node.deactivate();
         }

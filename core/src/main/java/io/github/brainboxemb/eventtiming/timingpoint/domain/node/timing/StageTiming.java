@@ -193,15 +193,15 @@ public final class StageTiming {
         for (int index = active.size() - 1;
                 index >= 0;
                 index--) {
-            TimingData candidate =
+            TimingData activeRegistration =
                     active.get(index);
             if (revokeRegistrationId.equals(
-                        registrationId(candidate))
+                        registrationId(activeRegistration))
                     && Objects.equals(
                             revoke.locationId(),
-                            candidate.locationId())
+                            activeRegistration.locationId())
                     && revoke.effectiveTime().equals(
-                            candidate.effectiveTime())) {
+                            activeRegistration.effectiveTime())) {
                 active.remove(index);
                 return;
             }
@@ -210,11 +210,11 @@ public final class StageTiming {
 
     private TeamId resolveTeamId(
             RegistrationId registrationId) {
-        TeamId fixed =
+        TeamId configuredTeamId =
                 eventData.teamIdFor(
                         registrationId);
-        return fixed != null
-                ? fixed
+        return configuredTeamId != null
+                ? configuredTeamId
                 : teamAssignments.teamIdFor(
                         registrationId);
     }

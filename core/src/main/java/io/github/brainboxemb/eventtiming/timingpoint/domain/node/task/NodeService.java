@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
@@ -31,7 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Owns Task Lane execution, live RaceData and derived timing state for one node.
+ * Node-local service for Task Lane-owned RaceData, derived timing and upstream operations.
  *
  * <p>The Task Lane is a bounded logical serial queue, not a dedicated thread:
  * the supplied executor may share Runtime's physical worker with the Data Lane.
@@ -39,12 +39,12 @@ import org.slf4j.LoggerFactory;
  * leave this lane. The Data Lane supplies only immutable initial-loaded/committed
  * TimingData facts and bounded LogBook reads.</p>
  */
-public final class NodeTaskProcessor implements UpstreamTaskState {
+public final class NodeService implements UpstreamTaskState {
     private static final Logger LOG =
-            LoggerFactory.getLogger(NodeTaskProcessor.class);
+            LoggerFactory.getLogger(NodeService.class);
     private static final long TASK_QUERY_TIMEOUT_MILLIS = 2000L;
 
-    private final LogBookProcessor logBookProcessor;
+    private final LogBook logBook;
     private final SerialLane taskLane;
     private final RaceDataState raceData;
     private final UniqueTeamRegistrations uniqueTeamRegistrations =
@@ -57,13 +57,13 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
 
     private final UpstreamHandler upstreamHandler;
 
-    public NodeTaskProcessor(
-            LogBookProcessor logBookProcessor,
+    public NodeService(
+            LogBook logBook,
             SerialLane taskLane,
             EventData eventData,
             UpstreamStream upstreamStream) {
-        if (logBookProcessor == null) {
-            throw new IllegalArgumentException("logBookProcessor must not be null");
+        if (logBook == null) {
+            throw new IllegalArgumentException("logBook must not be null");
         }
         if (taskLane == null) {
             throw new IllegalArgumentException("taskLane must not be null");
@@ -75,7 +75,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
             throw new IllegalArgumentException("upstreamStream must not be null");
         }
 
-        this.logBookProcessor = logBookProcessor;
+        this.logBook = logBook;
         this.taskLane = taskLane;
         this.raceData = new RaceDataState(eventData);
         this.stageTiming =
@@ -88,25 +88,34 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
          * Composition-time wiring. Event delivery itself is synchronous on the
          * Data Lane; these listeners only perform a bounded Task Lane handoff.
          */
-        logBookProcessor.initialDataLoadedEvent()
+        logBook.initialDataLoadedEvent()
                 .subscribe(this::onInitialTimingDataLoaded);
-        logBookProcessor.newDataEntryEvent()
+        logBook.newDataEntryEvent()
                 .subscribe(this::onTimingDataCommitted);
 
         this.upstreamHandler =
                 new UpstreamHandler(
-                        logBookProcessor.timingNodeId(),
-                        logBookProcessor::offerOperation,
+                        logBook.timingNodeId(),
+                        logBook::tryQueueOperation,
                         new UpstreamTaskLane(),
                         upstreamStream,
-                        logBookProcessor,
+                        logBook,
                         this);
     }
 
+    /**
+     * Starts the Task Lane execution context.
+     *
+     * <p>Activation does not wait for LogBook data. Derived timing becomes
+     * available only after the initial TimingData snapshot arrives.</p>
+     */
     public void activate() {
         taskLane.start();
     }
 
+    /**
+     * Stops Task Lane work and marks derived timing unavailable.
+     */
     public void deactivate() {
         taskLane.close();
         derivedTimingReady = false;
@@ -117,12 +126,16 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
         return upstreamHandler;
     }
 
-    /** Returns the current derived stage ranking through the Task Lane. */
+    /**
+     * Returns the current derived stage ranking.
+     *
+     * <p>The call waits for ordered Task Lane execution.</p>
+     */
     public List<StageTime> stageTiming(ZoneId raceTimeZone) {
         if (raceTimeZone == null) {
             throw new IllegalArgumentException("raceTimeZone must not be null");
         }
-        return callOperation(
+        return executeOnTaskLaneAndWait(
                 () -> stageTimingOnTaskLane(raceTimeZone),
                 "stageTiming");
     }
@@ -160,43 +173,52 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
         return uniqueTeamRegistrations.uniqueTeamCount(raceData::teamIdFor);
     }
 
-    /** A full Task Lane rejects new work rather than blocking an ingress caller. */
-    private boolean offerOperation(Runnable operation) {
-        return taskLane.offer(operation) == SerialLane.AdmissionResult.ACCEPTED;
+    /**
+     * Tries to queue fire-and-forget work on the Task Lane without waiting.
+     *
+     * <p>Returns {@code true} only when the work was queued for later serial
+     * execution.</p>
+     */
+    private boolean tryQueueOnTaskLane(Runnable operation) {
+        return taskLane.offer(operation)
+                == SerialLane.AdmissionResult.ACCEPTED;
     }
 
     private void onInitialTimingDataLoaded(List<TimingData> loadedData) {
         List<TimingData> snapshot = new ArrayList<TimingData>(loadedData);
-        admitTimingFact(
+        queueTimingFactOnTaskLane(
                 () -> rebuildDerivedTiming(snapshot),
                 "initial TimingData");
     }
 
     private void onTimingDataCommitted(TimingData data) {
-        admitTimingFact(
+        queueTimingFactOnTaskLane(
                 () -> applyCommittedTimingData(data),
                 "committed TimingData");
     }
 
     /**
-     * Performs the bounded Data Lane -> Task Lane handoff.
+     * Queues one immutable TimingData fact from the Data Lane onto the Task Lane.
      *
-     * <p>The Task Lane is activated before LogBookProcessor, so normal startup
-     * does not need an intermediate pending-data buffer. Rejected admission is
-     * an explicit degraded-state condition rather than deferred hidden work.</p>
+     * <p>The handoff is non-blocking because both logical lanes may share one
+     * physical worker. Failure to queue the fact makes derived timing state
+     * explicitly stale rather than silently losing synchronization.</p>
      */
-    private void admitTimingFact(Runnable operation, String fact) {
-        SerialLane.AdmissionResult admission = taskLane.offer(operation);
-        if (admission == SerialLane.AdmissionResult.ACCEPTED) {
+    private void queueTimingFactOnTaskLane(
+            Runnable operation,
+            String fact) {
+        SerialLane.AdmissionResult queueResult =
+                taskLane.offer(operation);
+        if (queueResult == SerialLane.AdmissionResult.ACCEPTED) {
             return;
         }
 
         derivedTimingStale = true;
         LOG.error(
-                "Task Lane rejected {} for node {}; admission={}, derived timing state is stale",
+                "Task Lane could not queue {} for node {}; queueResult={}, derived timing state is stale",
                 fact,
-                logBookProcessor.timingNodeId().value(),
-                admission);
+                logBook.timingNodeId().value(),
+                queueResult);
     }
 
     private void rebuildDerivedTiming(List<TimingData> loadedData) {
@@ -264,7 +286,15 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
         }
     }
 
-    private <R> R callOperation(Callable<R> work, String operation) {
+    /**
+     * Executes one result-bearing operation on the Task Lane and waits for it.
+     *
+     * <p>If already on the Task Lane, the work executes directly to avoid
+     * self-queueing and waiting on the same serial lane.</p>
+     */
+    private <R> R executeOnTaskLaneAndWait(
+            Callable<R> work,
+            String operation) {
         if (taskLane.isExecutingOnCurrentThread()) {
             try {
                 return work.call();
@@ -278,14 +308,16 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
             }
         }
 
-        SerialLane.SubmitResult<R> submitResult =
+        SerialLane.SubmitResult<R> queuedWork =
                 taskLane.submit(work);
-        switch (submitResult.admission()) {
+        SerialLane.AdmissionResult queueResult =
+                queuedWork.admission();
+        switch (queueResult) {
             case FULL:
                 throw new OperationException(
                         OperationException.Reason.BUSY,
                         operation
-                                + " could not be admitted because the TimingNode Task Lane is full");
+                                + " could not be queued because the TimingNode Task Lane is full");
             case NOT_RUNNING:
                 if (taskLane.state() == SerialLane.State.FAILED) {
                     throw new OperationException(
@@ -297,13 +329,13 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
                 throw new OperationException(
                         OperationException.Reason.UNAVAILABLE,
                         operation
-                                + " could not be admitted because the TimingNode Task Lane is not running");
+                                + " could not be queued because the TimingNode Task Lane is not running");
             case ACCEPTED:
-                return await(submitResult.futureResult(), operation);
+                return await(queuedWork.futureResult(), operation);
             default:
                 throw new IllegalStateException(
-                        "Unsupported submission result "
-                                + submitResult.admission());
+                        "Unsupported Task Lane queue result "
+                                + queueResult);
         }
     }
 
@@ -339,13 +371,15 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
 
     private final class UpstreamTaskLane implements UpstreamHandler.TaskLane {
         @Override
-        public boolean offer(Runnable task) {
-            return offerOperation(task);
+        public boolean tryQueue(Runnable task) {
+            return tryQueueOnTaskLane(task);
         }
 
         @Override
-        public <R> R run(Callable<R> task, String operation) {
-            return callOperation(task, operation);
+        public <R> R executeAndWait(
+                Callable<R> task,
+                String operation) {
+            return executeOnTaskLaneAndWait(task, operation);
         }
     }
 }

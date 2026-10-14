@@ -19,13 +19,15 @@ public final class TimingNodeTypes {
     }
 
     /**
-     * Immediate result of admission-only command ingress through TimingNode.offer(...).
+     * Immediate result of trying to queue a LogBook command.
      *
-     * <p>This is deliberately not the later domain result.</p>
+     * <p>{@code QUEUED} means the command is waiting for later Data Lane
+     * execution. It does not mean that the command has already executed or
+     * succeeded.</p>
      */
-    public enum CommandAdmission {
-        ACCEPTED,
-        FULL,
+    public enum CommandQueueResult {
+        QUEUED,
+        QUEUE_FULL,
         NOT_RUNNING
     }
 

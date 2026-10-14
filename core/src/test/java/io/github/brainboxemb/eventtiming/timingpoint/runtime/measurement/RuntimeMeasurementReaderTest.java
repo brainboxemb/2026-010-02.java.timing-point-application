@@ -9,13 +9,13 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
@@ -42,7 +42,7 @@ public class RuntimeMeasurementReaderTest {
                     "2026-10-04T12:00:01.000000000Z");
 
     @Test
-    public void readsComponentOwnedSnapshotsWithoutLogBookProcessorMetricsApi()
+    public void readsComponentOwnedSnapshotsWithoutLogBookMetricsApi()
             throws Exception {
         ExecutorService nodeWorker =
                 Executors.newSingleThreadExecutor();
@@ -67,8 +67,8 @@ public class RuntimeMeasurementReaderTest {
                         8,
                         "measurement-tag",
                         tagWorker);
-        LogBookProcessorMetrics nodeMetrics =
-                new LogBookProcessorMetrics();
+        LogBookMetrics logBookMetrics =
+                new LogBookMetrics();
         TagProcessingMetrics tagMetrics =
                 new TagProcessingMetrics();
         RecordingPersistence persistence =
@@ -80,17 +80,17 @@ public class RuntimeMeasurementReaderTest {
         ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
                 ReadOnlyConfiguration.fixed(
                         TagProcessingPolicy.defaults());
-        LogBookProcessor logBook =
-                new LogBookProcessor(
+        LogBook logBook =
+                new LogBook(
                         new NodeId("A"),
                         persistence,
                         new DefaultTimingDataFactory(),
                         timeSource,
                         SystemMonotonicClock.INSTANCE,
-                        nodeMetrics,
+                        logBookMetrics,
                         dataLane);
-        NodeTaskProcessor tasks =
-                new NodeTaskProcessor(
+        NodeService nodeService =
+                new NodeService(
                         logBook,
                         taskLane,
                         eventData,
@@ -109,13 +109,13 @@ public class RuntimeMeasurementReaderTest {
         TimingNode node =
                 new TimingNode(
                         logBook,
-                        tasks,
+                        nodeService,
                         tags);
 
         RuntimeMeasurementReader reader =
                 new RuntimeMeasurementReader(
                         dataLane.metrics(),
-                        nodeMetrics,
+                        logBookMetrics,
                         tagMetrics);
 
         node.logBook().newDataEntryEvent()

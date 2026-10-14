@@ -8,7 +8,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
  * another thread can take a safe non-transactional snapshot without locking the
  * registration path.</p>
  */
-public final class LogBookProcessorMetrics {
+public final class LogBookMetrics {
     private volatile long timingDataAppendAttempts;
     private volatile long timingDataAppendFailures;
     private volatile long timingDataCommitCount;

@@ -11,13 +11,13 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.DefaultTimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
@@ -92,6 +92,9 @@ final class RuntimeCharacterizationHarness
     private SerialLane antennaLane;
     private SimulatedAntenna antenna;
     private AntennaManager antennaManager;
+    private LogBook logBook;
+    private NodeService nodeService;
+    private TagProcessor tagProcessor;
     private TimingNode node;
     private RuntimeMeasurementReader measurements;
 
@@ -164,8 +167,8 @@ final class RuntimeCharacterizationHarness
                         "AntennaManager",
                         ioWorker);
 
-        LogBookProcessorMetrics nodeMetrics =
-                new LogBookProcessorMetrics();
+        LogBookMetrics logBookMetrics =
+                new LogBookMetrics();
         TagProcessingMetrics tagMetrics =
                 new TagProcessingMetrics();
 
@@ -180,8 +183,8 @@ final class RuntimeCharacterizationHarness
                 ReadOnlyConfiguration.fixed(
                         TagProcessingPolicy.defaults());
 
-        LogBookProcessor logBookProcessor =
-                new LogBookProcessor(
+        logBook =
+                new LogBook(
                         NODE_ID,
                         new DefaultTimingDataPersistence(
                                 new FileAppendOnlyRecordStore(
@@ -194,17 +197,17 @@ final class RuntimeCharacterizationHarness
                         new ClockTimeSource(
                                 Clock.systemUTC()),
                         SystemMonotonicClock.INSTANCE,
-                        nodeMetrics,
+                        logBookMetrics,
                         dataLane);
 
-        NodeTaskProcessor taskProcessor =
-                new NodeTaskProcessor(
-                        logBookProcessor,
+        nodeService =
+                new NodeService(
+                        logBook,
                         taskLane,
                         nodeEventData,
                         UpstreamStream.unavailable());
 
-        TagProcessor tagProcessor =
+        tagProcessor =
                 new TagProcessor(
                         nodeEventData,
                         tagConfiguration,
@@ -218,8 +221,8 @@ final class RuntimeCharacterizationHarness
 
         node =
                 new TimingNode(
-                        logBookProcessor,
-                        taskProcessor,
+                        logBook,
+                        nodeService,
                         tagProcessor);
 
         antenna =
@@ -240,8 +243,8 @@ final class RuntimeCharacterizationHarness
                 .tagObservedEvent(
                         ANTENNA_ID)
                 .subscribe(
-                        node.tagProcessor()::onTagObserved);
-        node.newDataEntryEvent()
+                        tagProcessor::onTagObserved);
+        logBook.newDataEntryEvent()
                 .subscribe(
                         ignored ->
                                 committedCount.incrementAndGet());
@@ -249,7 +252,7 @@ final class RuntimeCharacterizationHarness
         measurements =
                 new RuntimeMeasurementReader(
                         dataLane.metrics(),
-                        nodeMetrics,
+                        logBookMetrics,
                         tagMetrics);
 
         enableThreadCpuTimeWhenSupported();
@@ -265,7 +268,7 @@ final class RuntimeCharacterizationHarness
 
         node.activate();
         nodeActive = true;
-        node.invoke(
+        logBook.invoke(
                 LogBookCommands.open(
                         LOCATION_ID));
 
@@ -306,7 +309,7 @@ final class RuntimeCharacterizationHarness
         }
 
         int historyAtMeasurementStart =
-                node.query(
+                logBook.query(
                         LogBookQueries.timingDataCount());
 
         TimingNodeRuntimeSnapshot nodeBefore =
@@ -371,7 +374,7 @@ final class RuntimeCharacterizationHarness
                     new TimingTimestamp(
                             INPUT_TIME_BASE.minusSeconds(
                                     count - index));
-            if (!node.invoke(
+            if (!logBook.invoke(
                             LogBookCommands.addAutomaticRegistration(
                                     new RegistrationId(
                                             String.format(
@@ -425,7 +428,7 @@ final class RuntimeCharacterizationHarness
         long started =
                 System.nanoTime();
         int total =
-                node.query(
+                logBook.query(
                         LogBookQueries.visitLatestTimingData(
                                 config.queryLimit(),
                                 ignored ->
@@ -472,7 +475,7 @@ final class RuntimeCharacterizationHarness
                                     >= expectedObservationCount
                             && processedOrRejected
                                     >= expectedObservationCount
-                            && node.tagProcessor()
+                            && tagProcessor
                                     .passageSnapshots()
                                     .isEmpty();
                 },
