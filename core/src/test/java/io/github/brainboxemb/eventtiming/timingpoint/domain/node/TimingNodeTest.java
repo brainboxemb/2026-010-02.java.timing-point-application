@@ -738,7 +738,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void activationFailsWhenPersistedDataLoadCannotBeAdmitted() {
+    public void activationFailsWhenPersistedDataLoadCannotBeQueued() {
         SerialLane executor =
                 new SerialLane(
                         2,
@@ -755,7 +755,7 @@ public class TimingNodeTest {
         } catch (IllegalStateException expected) {
             assertTrue(
                     expected.getMessage()
-                            .contains("persisted-data load"));
+                            .contains("Persisted TimingData load"));
         } finally {
             node.deactivate();
         }
