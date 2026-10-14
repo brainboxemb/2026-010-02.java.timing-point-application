@@ -45,9 +45,9 @@ final class TimingNodeComposer {
         RuntimeExecutors.TimingNodeLanes lanes =
                 executors.createTimingNodeLanes();
         ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
-                        configuration.timingNode(
-                                nodeConfig.timingNodeId())
-                                .tagProcessing();
+                configuration.timingNode(
+                        nodeConfig.timingNodeId())
+                        .tagProcessing();
 
         TimingDataPersistence persistence =
                 new DefaultTimingDataPersistence(

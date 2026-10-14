@@ -27,8 +27,9 @@ import java.util.Map;
  * Nodes, their persistence, logical lanes, antenna set and AntennaManager are
  * built independently for each system. Runtime passes the shared
  * AntennaSettings to the Domain Conductor, not AntennaManager itself.
- * This class also installs event subscriptions before activation; component
- * constructors do not hide cross-component event wiring. It has no lifecycle.</p>
+ * This class installs only system-level event routing before activation.
+ * Node-internal child composition belongs to {@link TimingNodeComposer}.
+ * It has no lifecycle.</p>
  */
 final class TimingSystemComposer {
     private static final Duration ANTENNA_CONTROL_TIMEOUT = Duration.ofSeconds(2);

@@ -1,17 +1,13 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
-import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommand;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
@@ -19,20 +15,17 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTim
 
 import java.time.ZoneId;
 import java.util.List;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 /**
  * Top-level component boundary for one logical timing node.
  *
- * <p>TimingNode is deliberately a composition/lifecycle/facade component.
- * LogBook/TimingData state, Data Lane execution, commands and queries belong to
- * {@link LogBookProcessor}. Task/protocol execution is kept separate from that
- * data component; Task Lane execution and upstream composition belong to
- * {@link NodeTaskProcessor}.</p>
+ * <p>TimingNode is deliberately a small lifecycle/facade component. Its child
+ * processors are composed by runtime code before construction. LogBook/TimingData
+ * state belongs to {@link LogBookProcessor}; task/protocol state belongs to
+ * {@link NodeTaskProcessor}; tag processing belongs to {@link TagProcessor}.
+ * TimingNode only connects the selected-registration event to its Data child and
+ * coordinates child lifecycle.</p>
  */
 public final class TimingNode {
     private final LogBookProcessor logBookProcessor;
@@ -192,12 +185,4 @@ public final class TimingNode {
         return logBookProcessor.newDataEntryEvent();
     }
 
-    private static NodeId requireId(
-            NodeId timingNodeId) {
-        if (timingNodeId == null) {
-            throw new IllegalArgumentException(
-                    "timingNodeId must not be null");
-        }
-        return timingNodeId;
-    }
 }
