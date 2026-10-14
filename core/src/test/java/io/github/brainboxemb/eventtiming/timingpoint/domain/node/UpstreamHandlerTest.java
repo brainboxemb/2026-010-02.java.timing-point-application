@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -187,7 +188,8 @@ public class UpstreamHandlerTest {
                                 "2026-10-13T12:00:00Z"),
                         SystemMonotonicClock.INSTANCE,
                         new LogBookMetrics(),
-                        dataLane);
+                        dataLane,
+                        LogBook.DEFAULT_OPERATION_TIMEOUT_MILLIS);
         NodeService tasks =
                 new NodeService(
                         logBook,
@@ -221,16 +223,13 @@ public class UpstreamHandlerTest {
             // Barrier behind initial recovery before occupying the Data Lane.
             timingNode.logBook().query(LogBookQueries.status());
 
-            SerialLane.SubmitResult<Void> blocker =
+            Future<Void> blocker =
                     dataLane.submit(
                             () -> {
                                 blockerStarted.countDown();
                                 releaseBlocker.await();
                                 return null;
                             });
-            assertSame(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    blocker.admission());
             assertTrue(
                     blockerStarted.await(
                             1,
@@ -503,11 +502,9 @@ public class UpstreamHandlerTest {
         node.node().activate();
         try {
             stream.onNextSend(
-                    () -> assertSame(
-                            TimingNodeTypes.CommandQueueResult.QUEUED,
-                            node.node().logBook().queue(
-                                    LogBookCommands.open(
-                                            new LocationId(24)))));
+                    () -> node.node().logBook().queue(
+                            LogBookCommands.open(
+                                    new LocationId(24))));
 
             stream.receive(
                     DefaultUpstreamData.req(
