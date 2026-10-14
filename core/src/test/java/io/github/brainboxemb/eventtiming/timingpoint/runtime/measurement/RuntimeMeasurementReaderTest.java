@@ -109,7 +109,7 @@ public class RuntimeMeasurementReaderTest {
         TimingNode node =
                 new TimingNode(
                         logBook,
-                        tasks,
+                        nodeService,
                         tags);
 
         RuntimeMeasurementReader reader =
