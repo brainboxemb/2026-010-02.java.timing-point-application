@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Simplify LogBook activation: use a generic `serialLane` name, let `SerialLane.start()` own start-state validation, load persisted data through intent-based naming, and centralize rejection boilerplate in `SafeExecute.onRejected(...)`.
+
 - Replace the remaining SerialLane `accepted` metric vocabulary with queued-work terminology (`queuedCount`, `queuedTaskCount`, `queuedTaskDelta`) and bump runtime-characterization evidence schema to version 2 for the renamed JSON field.
 
 - Simplify `SerialLane` internals: per-task queue/execution timestamps live in a dedicated `TaskTiming` object, queue-capacity failure throws directly, and helper names describe intent instead of synchronization mechanics.

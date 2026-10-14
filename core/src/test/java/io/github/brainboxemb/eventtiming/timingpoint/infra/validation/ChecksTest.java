@@ -9,6 +9,7 @@ import static org.junit.Assert.fail;
 
 public class ChecksTest {
 
+    /** Verifies state-contract failure formatting. */
     @Test
     public void checkStateFormatsFailureMessage() {
         try {
@@ -26,6 +27,7 @@ public class ChecksTest {
         }
     }
 
+    /** Verifies argument-contract failure formatting. */
     @Test
     public void checkArgumentFormatsFailureMessage() {
         try {
