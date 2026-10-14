@@ -116,6 +116,7 @@ final class TimingSystemComposer {
                     nodeLanes.dataLane(),
                     nodeLanes.taskLane(),
                     nodeLanes.tagProcessor(),
+                    nodeLanes.tagProcessorScheduler(),
                     platform.monotonicClock());
             nodes.add(node);
         }

@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,15 +43,18 @@ final class RuntimeExecutors implements AutoCloseable {
     static final class TimingNodeLanes {
         private final SerialLane dataLane;
         private final SerialLane taskLane;
-        private final SerialScheduledLane tagProcessor;
+        private final SerialLane tagProcessor;
+        private final ScheduledExecutorService tagProcessorScheduler;
 
         private TimingNodeLanes(
                 SerialLane dataLane,
                 SerialLane taskLane,
-                SerialScheduledLane tagProcessor) {
+                SerialLane tagProcessor,
+                ScheduledExecutorService tagProcessorScheduler) {
             this.dataLane = dataLane;
             this.taskLane = taskLane;
             this.tagProcessor = tagProcessor;
+            this.tagProcessorScheduler = tagProcessorScheduler;
         }
 
         SerialLane dataLane() {
@@ -63,8 +65,12 @@ final class RuntimeExecutors implements AutoCloseable {
             return taskLane;
         }
 
-        SerialScheduledLane tagProcessor() {
+        SerialLane tagProcessor() {
             return tagProcessor;
+        }
+
+        ScheduledExecutorService tagProcessorScheduler() {
+            return tagProcessorScheduler;
         }
     }
 
@@ -174,8 +180,8 @@ final class RuntimeExecutors implements AutoCloseable {
                 "TimingNodeTask",
                 timingNodeWorker);
 
-        SerialScheduledLane tagProcessor =
-                new SerialScheduledLane(
+        SerialLane tagProcessor =
+                new SerialLane(
                         TAG_PROCESSOR_LANE_QUEUE_CAPACITY,
                         "TagProcessor",
                         tagProcessorWorker);
@@ -186,7 +192,8 @@ final class RuntimeExecutors implements AutoCloseable {
         return new TimingNodeLanes(
                 dataLane,
                 taskLane,
-                tagProcessor);
+                tagProcessor,
+                tagProcessorWorker);
     }
 
     /**

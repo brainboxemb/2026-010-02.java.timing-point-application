@@ -21,7 +21,12 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class LaneScheduler {
 
-    public interface ScheduledOperation<R> extends AutoCloseable {
+    public interface ScheduledRegistration extends AutoCloseable {
+        @Override
+        void close();
+    }
+
+    public interface ScheduledOperation<R> extends ScheduledRegistration {
         Future<R> futureResult();
 
         CompletionStage<R> completion();
@@ -62,6 +67,31 @@ public final class LaneScheduler {
                         delayNanos);
         delayed.schedule();
         return delayed;
+    }
+
+    /**
+     * Repeats an operation with a fixed delay after each completed lane turn.
+     *
+     * <p>The scheduler only wakes the operation. The callback itself always runs
+     * on the owning serial lane. If that bounded lane is temporarily full, the
+     * next normal delay is used rather than creating a second queue.</p>
+     */
+    public ScheduledRegistration scheduleWithFixedDelay(
+            Runnable operation,
+            long delayNanos) {
+        if (operation == null) {
+            throw new IllegalArgumentException("operation must not be null");
+        }
+        if (delayNanos <= 0L) {
+            throw new IllegalArgumentException("delayNanos must be positive");
+        }
+
+        RepeatingOperation repeating =
+                new RepeatingOperation(
+                        operation,
+                        delayNanos);
+        repeating.scheduleNext();
+        return repeating;
     }
 
     private final class DelayedOperation<R>
@@ -173,6 +203,79 @@ public final class LaneScheduler {
                     admitted.get();
             if (current != null) {
                 current.cancel(true);
+            }
+        }
+    }
+
+    private final class RepeatingOperation
+            implements ScheduledRegistration {
+        private final Runnable operation;
+        private final long delayNanos;
+
+        private boolean closed;
+        private ScheduledFuture<?> trigger;
+
+        private RepeatingOperation(
+                Runnable operation,
+                long delayNanos) {
+            this.operation = operation;
+            this.delayNanos = delayNanos;
+        }
+
+        private void scheduleNext() {
+            synchronized (this) {
+                if (closed) {
+                    return;
+                }
+                try {
+                    trigger =
+                            scheduler.schedule(
+                                    this::admit,
+                                    delayNanos,
+                                    TimeUnit.NANOSECONDS);
+                } catch (RejectedExecutionException ex) {
+                    closed = true;
+                }
+            }
+        }
+
+        private void admit() {
+            synchronized (this) {
+                trigger = null;
+                if (closed) {
+                    return;
+                }
+            }
+
+            SerialLane.AdmissionResult admission =
+                    lane.offer(
+                            () -> {
+                                try {
+                                    operation.run();
+                                } finally {
+                                    scheduleNext();
+                                }
+                            });
+
+            if (admission
+                    != SerialLane.AdmissionResult.ACCEPTED) {
+                scheduleNext();
+            }
+        }
+
+        @Override
+        public void close() {
+            ScheduledFuture<?> pending;
+            synchronized (this) {
+                if (closed) {
+                    return;
+                }
+                closed = true;
+                pending = trigger;
+                trigger = null;
+            }
+            if (pending != null) {
+                pending.cancel(false);
             }
         }
     }

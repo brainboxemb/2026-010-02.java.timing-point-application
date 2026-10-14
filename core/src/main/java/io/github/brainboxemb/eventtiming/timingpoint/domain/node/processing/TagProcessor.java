@@ -10,12 +10,14 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandAdmission;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.scheduling.LaneScheduler;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
@@ -48,13 +50,14 @@ public final class TagProcessor {
     private final RegistrationDuplicateFilter duplicateFilter;
     private final TagProcessingMetrics metrics;
     private final TagObservationFilter observationFilter;
-    private final SerialScheduledLane executor;
+    private final SerialLane lane;
+    private final LaneScheduler scheduler;
     private final ArrayBlockingQueue<TagObservation> inputQueue;
     private final AtomicBoolean drainScheduled = new AtomicBoolean();
     private final Object lifecycleLock = new Object();
 
     private volatile State state = State.NEW;
-    private volatile SerialScheduledLane.ScheduledRegistration housekeepingTask;
+    private volatile LaneScheduler.ScheduledRegistration housekeepingTask;
     private volatile List<TagPassageSnapshot> passageSnapshots =
             Collections.emptyList();
 
@@ -64,14 +67,16 @@ public final class TagProcessor {
             TagProcessingPolicy policy,
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
-            SerialScheduledLane executor) {
+            SerialLane lane,
+            ScheduledExecutorService scheduledExecutor) {
         this(
                 timingNode,
                 eventData,
                 ReadOnlyConfiguration.fixed(policy),
                 monotonicClock,
                 metrics,
-                executor);
+                lane,
+                scheduledExecutor);
     }
 
     public TagProcessor(
@@ -80,7 +85,8 @@ public final class TagProcessor {
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
-            SerialScheduledLane executor) {
+            SerialLane lane,
+            ScheduledExecutorService scheduledExecutor) {
         if (timingNode == null) {
             throw new IllegalArgumentException("timingNode must not be null");
         }
@@ -97,8 +103,11 @@ public final class TagProcessor {
         if (metrics == null) {
             throw new IllegalArgumentException("metrics must not be null");
         }
-        if (executor == null) {
-            throw new IllegalArgumentException("executor must not be null");
+        if (lane == null) {
+            throw new IllegalArgumentException("lane must not be null");
+        }
+        if (scheduledExecutor == null) {
+            throw new IllegalArgumentException("scheduledExecutor must not be null");
         }
 
         TagProcessingPolicy startupPolicy = policyConfiguration.startupValue();
@@ -111,7 +120,11 @@ public final class TagProcessor {
         this.eventData = eventData;
         this.policyConfiguration = policyConfiguration;
         this.metrics = metrics;
-        this.executor = executor;
+        this.lane = lane;
+        this.scheduler =
+                new LaneScheduler(
+                        lane,
+                        scheduledExecutor);
         this.inputQueue =
                 new ArrayBlockingQueue<>(
                         startupPolicy.observationQueueCapacity());
@@ -132,7 +145,7 @@ public final class TagProcessor {
             if (state == State.ACTIVE) {
                 throw new IllegalStateException("TagProcessor is already active");
             }
-            executor.start();
+            lane.start();
             state = State.ACTIVE;
         }
     }
@@ -145,7 +158,7 @@ public final class TagProcessor {
             }
             if (state == State.NEW) {
                 state = State.INACTIVE;
-                executor.close();
+                lane.close();
                 inputQueue.clear();
                 return;
             }
@@ -153,12 +166,12 @@ public final class TagProcessor {
             state = State.INACTIVE;
             closeHousekeepingLocked();
             drainRemaining = !inputQueue.isEmpty();
-            if (drainRemaining && !executor.execute(this::drainAll)) {
+            if (drainRemaining && !offer(this::drainAll)) {
                 inputQueue.clear();
             }
         }
 
-        executor.close();
+        lane.close();
         inputQueue.clear();
     }
 
@@ -201,7 +214,7 @@ public final class TagProcessor {
         if (!drainScheduled.compareAndSet(false, true)) {
             return;
         }
-        if (!executor.execute(this::drainBatch)) {
+        if (!offer(this::drainBatch)) {
             drainScheduled.set(false);
             metrics.recordProcessorNotRunning();
         }
@@ -285,7 +298,7 @@ public final class TagProcessor {
             if (state != State.ACTIVE || housekeepingTask != null) {
                 return;
             }
-            housekeepingTask = executor.scheduleWithFixedDelay(
+            housekeepingTask = scheduler.scheduleWithFixedDelay(
                     this::housekeeping,
                     policyConfiguration.currentValue().sweepCadenceNanos());
         }
@@ -304,7 +317,7 @@ public final class TagProcessor {
             if (state != State.ACTIVE) {
                 return;
             }
-            if (!executor.execute(() -> applyPolicyChange(change))) {
+            if (!offer(() -> applyPolicyChange(change))) {
                 LOG.warn("Could not queue TagProcessor policy change");
             }
         }
@@ -364,11 +377,17 @@ public final class TagProcessor {
     }
 
     private void closeHousekeepingLocked() {
-        SerialScheduledLane.ScheduledRegistration task = housekeepingTask;
+        LaneScheduler.ScheduledRegistration task = housekeepingTask;
         housekeepingTask = null;
         if (task != null) {
             task.close();
         }
+    }
+
+    private boolean offer(
+            Runnable operation) {
+        return lane.offer(operation)
+                == SerialLane.AdmissionResult.ACCEPTED;
     }
 
     private void processValidObservation(

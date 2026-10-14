@@ -20,13 +20,13 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTim
 
 import java.time.ZoneId;
 import java.util.List;
+import java.util.concurrent.ScheduledExecutorService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 /**
@@ -144,7 +144,7 @@ public final class TimingNode {
             EventData eventData,
             SerialLane dataLane,
             SerialLane taskLane,
-            SerialScheduledLane tagProcessorLane) {
+            SerialLane tagProcessorLane) {
         this(
                 timingNodeId,
                 timingDataPersistence,
@@ -155,6 +155,7 @@ public final class TimingNode {
                 dataLane,
                 taskLane,
                 tagProcessorLane,
+                tagProcessorScheduler,
                 SystemMonotonicClock.INSTANCE,
                 new LogBookProcessorMetrics(),
                 new TagProcessingMetrics(),
@@ -170,7 +171,8 @@ public final class TimingNode {
             EventData eventData,
             SerialLane dataLane,
             SerialLane taskLane,
-            SerialScheduledLane tagProcessorLane,
+            SerialLane tagProcessorLane,
+            ScheduledExecutorService tagProcessorScheduler,
             UpstreamStream upstreamStream) {
         this(
                 timingNodeId,
@@ -182,6 +184,7 @@ public final class TimingNode {
                 dataLane,
                 taskLane,
                 tagProcessorLane,
+                tagProcessorScheduler,
                 SystemMonotonicClock.INSTANCE,
                 new LogBookProcessorMetrics(),
                 new TagProcessingMetrics(),
@@ -197,7 +200,8 @@ public final class TimingNode {
             EventData eventData,
             SerialLane dataLane,
             SerialLane taskLane,
-            SerialScheduledLane tagProcessorLane,
+            SerialLane tagProcessorLane,
+            ScheduledExecutorService tagProcessorScheduler,
             MonotonicClock monotonicClock) {
         this(
                 timingNodeId,
@@ -209,6 +213,7 @@ public final class TimingNode {
                 dataLane,
                 taskLane,
                 tagProcessorLane,
+                tagProcessorScheduler,
                 monotonicClock,
                 new LogBookProcessorMetrics(),
                 new TagProcessingMetrics(),
@@ -227,7 +232,8 @@ public final class TimingNode {
             EventData eventData,
             SerialLane dataLane,
             SerialLane taskLane,
-            SerialScheduledLane tagProcessorLane,
+            SerialLane tagProcessorLane,
+            ScheduledExecutorService tagProcessorScheduler,
             MonotonicClock monotonicClock,
             LogBookProcessorMetrics timingNodeMetrics,
             TagProcessingMetrics tagProcessingMetrics) {
@@ -241,6 +247,7 @@ public final class TimingNode {
                 dataLane,
                 taskLane,
                 tagProcessorLane,
+                tagProcessorScheduler,
                 monotonicClock,
                 timingNodeMetrics,
                 tagProcessingMetrics,
@@ -256,7 +263,8 @@ public final class TimingNode {
             EventData eventData,
             SerialLane dataLane,
             SerialLane taskLane,
-            SerialScheduledLane tagProcessorLane,
+            SerialLane tagProcessorLane,
+            ScheduledExecutorService tagProcessorScheduler,
             MonotonicClock monotonicClock,
             LogBookProcessorMetrics timingNodeMetrics,
             TagProcessingMetrics tagProcessingMetrics,
@@ -276,6 +284,10 @@ public final class TimingNode {
         if (tagProcessorLane == null) {
             throw new IllegalArgumentException(
                     "tagProcessorLane must not be null");
+        }
+        if (tagProcessorScheduler == null) {
+            throw new IllegalArgumentException(
+                    "tagProcessorScheduler must not be null");
         }
         if (monotonicClock == null) {
             throw new IllegalArgumentException(
@@ -307,7 +319,8 @@ public final class TimingNode {
                         tagProcessingConfiguration,
                         monotonicClock,
                         tagProcessingMetrics,
-                        tagProcessorLane);
+                        tagProcessorLane,
+                        tagProcessorScheduler);
 
         tagProcessingConfiguration.changes()
                 .subscribe(
