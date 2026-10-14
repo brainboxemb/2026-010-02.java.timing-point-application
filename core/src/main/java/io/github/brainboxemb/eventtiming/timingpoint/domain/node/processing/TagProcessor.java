@@ -22,6 +22,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+
 /**
  * Active tag-processing boundary between antenna observations and registrations.
  *
@@ -80,31 +83,21 @@ public final class TagProcessor {
             TagProcessingMetrics metrics,
             SerialLane lane,
             ScheduledExecutorService scheduledExecutor) {
-        if (eventData == null) {
-            throw new IllegalArgumentException("eventData must not be null");
-        }
-        if (policyConfiguration == null) {
-            throw new IllegalArgumentException(
-                    "policyConfiguration must not be null");
-        }
-        if (monotonicClock == null) {
-            throw new IllegalArgumentException("monotonicClock must not be null");
-        }
-        if (metrics == null) {
-            throw new IllegalArgumentException("metrics must not be null");
-        }
-        if (lane == null) {
-            throw new IllegalArgumentException("lane must not be null");
-        }
-        if (scheduledExecutor == null) {
-            throw new IllegalArgumentException("scheduledExecutor must not be null");
-        }
+        checkArgument(eventData != null, "eventData must not be null");
+        checkArgument(
+                policyConfiguration != null,
+                "policyConfiguration must not be null");
+        checkArgument(monotonicClock != null, "monotonicClock must not be null");
+        checkArgument(metrics != null, "metrics must not be null");
+        checkArgument(lane != null, "lane must not be null");
+        checkArgument(
+                scheduledExecutor != null,
+                "scheduledExecutor must not be null");
 
         TagProcessingPolicy startupPolicy = policyConfiguration.startupValue();
-        if (startupPolicy == null) {
-            throw new IllegalArgumentException(
-                    "policyConfiguration.startupValue must not be null");
-        }
+        checkArgument(
+                startupPolicy != null,
+                "policyConfiguration.startupValue must not be null");
 
         this.eventData = eventData;
         this.policyConfiguration = policyConfiguration;
@@ -134,9 +127,9 @@ public final class TagProcessor {
      */
     public void activate() {
         synchronized (lifecycleLock) {
-            if (state == State.ACTIVE) {
-                throw new IllegalStateException("TagProcessor is already active");
-            }
+            checkState(
+                    state != State.ACTIVE,
+                    "TagProcessor is already active");
             lane.start();
             state = State.ACTIVE;
         }
@@ -179,9 +172,7 @@ public final class TagProcessor {
      * TagProcessor lane.</p>
      */
     public void onTagObserved(TagObservation observation) {
-        if (observation == null) {
-            throw new IllegalArgumentException("observation must not be null");
-        }
+        checkArgument(observation != null, "observation must not be null");
 
         metrics.recordObservation();
 
@@ -429,14 +420,8 @@ public final class TagProcessor {
         public NewRegistration(
                 RegistrationId registrationId,
                 TimingTimestamp observedAt) {
-            if (registrationId == null) {
-                throw new IllegalArgumentException(
-                        "registrationId must not be null");
-            }
-            if (observedAt == null) {
-                throw new IllegalArgumentException(
-                        "observedAt must not be null");
-            }
+            checkArgument(registrationId != null, "registrationId must not be null");
+            checkArgument(observedAt != null, "observedAt must not be null");
             this.registrationId = registrationId;
             this.observedAt = observedAt;
         }
