@@ -2,6 +2,8 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import java.util.function.Function;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * Typed read operation for the LogBook/Data Lane component.
  *
@@ -33,12 +35,10 @@ public final class LogBookQuery<R> {
             String name,
             Function<LogBookState, R> orderedReader,
             Function<LogBook, R> currentReader) {
-        if (name == null || name.trim().isEmpty()) {
-            throw new IllegalArgumentException("name must not be blank");
-        }
-        if (orderedReader == null) {
-            throw new IllegalArgumentException("orderedReader must not be null");
-        }
+        checkArgument(
+                name != null && !name.trim().isEmpty(),
+                "name must not be blank");
+        checkArgument(orderedReader != null, "orderedReader must not be null");
         this.name = name;
         this.orderedReader = orderedReader;
         this.currentReader = currentReader;
