@@ -1,0 +1,101 @@
+{
+  "schemaVersion" : 1,
+  "runId" : "20261014-172444-082",
+  "outcome" : "PASS",
+  "startedAt" : "2026-10-14T17:24:44.129Z",
+  "endedAt" : "2026-10-14T17:25:14.809Z",
+  "source" : {
+    "version" : "0.2.4-SNAPSHOT",
+    "revision" : "28526edd1fb684eb25b0c6bf4dc3b7604a37c29f",
+    "sourceRef" : "main",
+    "buildOrigin" : "github-actions",
+    "dirty" : false
+  },
+  "environment" : {
+    "javaVendor" : "Temurin",
+    "javaVersion" : "1.8.0_504",
+    "vmName" : "OpenJDK 64-Bit Server VM",
+    "osName" : "Linux",
+    "osVersion" : "6.17.0-1022-azure",
+    "osArch" : "amd64",
+    "stackOption" : "JVM-default"
+  },
+  "workload" : {
+    "name" : "history",
+    "version" : "1",
+    "inputPattern" : "sequential-known-tags-v1",
+    "deterministicInput" : true,
+    "knownTagPercent" : 100,
+    "unknownTagPercent" : 0,
+    "deliveryShape" : "paced",
+    "timingNodeCount" : 1,
+    "locationId" : 1,
+    "initialTimingNodeState" : "OPEN",
+    "warmupCount" : 20,
+    "measuredCount" : 100,
+    "referenceRegistrationsPerSecond" : 20,
+    "pacedDeliveryRegistrationsPerSecond" : 20,
+    "repetitionsInRun" : 1,
+    "preloadedCommittedRecords" : 9999,
+    "timingNodeQueueCapacity" : 32,
+    "tagProcessorLaneQueueCapacity" : 32,
+    "tagObservationQueueCapacity" : 256,
+    "persistenceMode" : "file-backed-jsonl",
+    "workDirectory" : "runtime-characterization/target/work/v01-development-host/history-9999-r3"
+  },
+  "results" : {
+    "timingNode" : {
+      "queueDepthAfter" : 0,
+      "queueHighWaterBefore" : 2,
+      "queueHighWaterAfter" : 6,
+      "queueAcceptedDelta" : 100,
+      "queueFullDelta" : 0,
+      "queueNotRunningDelta" : 0,
+      "queueCompletedDelta" : 100,
+      "queueWaitNanosDelta" : 2389950925,
+      "maxQueueWaitNanosBefore" : 89719308,
+      "maxQueueWaitNanosAfter" : 286904023,
+      "executionNanosDelta" : 2176871481,
+      "maxExecutionNanosBefore" : 454501369,
+      "maxExecutionNanosAfter" : 454501369,
+      "appendAttemptsDelta" : 100,
+      "appendFailuresDelta" : 0,
+      "committedDelta" : 100,
+      "appendNanosDelta" : 2168250482,
+      "maxAppendNanosBefore" : 454242919,
+      "maxAppendNanosAfter" : 454242919,
+      "eventDeliveriesDelta" : 100,
+      "eventListenerFailuresDelta" : 0,
+      "eventDeliveryNanosDelta" : 336331,
+      "maxEventDeliveryNanosBefore" : 353681,
+      "maxEventDeliveryNanosAfter" : 353681
+    },
+    "tagProcessing" : {
+      "observationsDelta" : 100,
+      "observationQueueFullDelta" : 0,
+      "processorNotRunningDelta" : 0,
+      "closedBurstsDelta" : 100,
+      "mappedDelta" : 100,
+      "unmappedDelta" : 0,
+      "duplicatesDelta" : 0
+    },
+    "jvm" : {
+      "heapUsedBytesBefore" : 184577592,
+      "heapUsedBytesAfter" : 189219680,
+      "liveThreadCountBefore" : 8,
+      "liveThreadCountAfter" : 8,
+      "gcCollectionCountDelta" : 0,
+      "gcCollectionTimeMillisDelta" : 0,
+      "roleWorkerCpuTimeNanosDelta" : 53545407,
+      "nativeThreadMemory" : "not-collected-by-portable-baseline"
+    },
+    "historyQuery" : {
+      "requestedLimit" : 100,
+      "visited" : 100,
+      "totalHistory" : 10120,
+      "elapsedNanos" : 1338150
+    },
+    "historyAtMeasurementStart" : 10020,
+    "measuredElapsedNanos" : 5252593923
+  }
+}
