@@ -24,7 +24,7 @@ import org.slf4j.LoggerFactory;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 /**
- * Node-local service for Task Lane-owned RaceData, derived timing and upstream operations.
+ * Node-local service for Task Lane-owned RaceData and derived timing.
  *
  * <p>The Task Lane is a bounded logical serial queue, not a dedicated thread:
  * the supplied executor may share Runtime's physical worker with the Data Lane.
