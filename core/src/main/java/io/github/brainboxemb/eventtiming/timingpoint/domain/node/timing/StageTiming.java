@@ -18,6 +18,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * Derives the current elapsed stage times and ranking for one TimingNode.
  *
@@ -34,18 +36,9 @@ public final class StageTiming {
             EventData eventData,
             TeamAssignments teamAssignments,
             StageStartTimes stageStartTimes) {
-        if (eventData == null) {
-            throw new IllegalArgumentException(
-                    "eventData must not be null");
-        }
-        if (teamAssignments == null) {
-            throw new IllegalArgumentException(
-                    "teamAssignments must not be null");
-        }
-        if (stageStartTimes == null) {
-            throw new IllegalArgumentException(
-                    "stageStartTimes must not be null");
-        }
+        checkArgument(eventData != null, "eventData must not be null");
+        checkArgument(teamAssignments != null, "teamAssignments must not be null");
+        checkArgument(stageStartTimes != null, "stageStartTimes must not be null");
         this.eventData = eventData;
         this.teamAssignments = teamAssignments;
         this.stageStartTimes = stageStartTimes;
@@ -62,14 +55,10 @@ public final class StageTiming {
     public List<StageTime> ranking(
             List<TimingData> committedTimingData,
             ZoneId raceTimeZone) {
-        if (committedTimingData == null) {
-            throw new IllegalArgumentException(
-                    "committedTimingData must not be null");
-        }
-        if (raceTimeZone == null) {
-            throw new IllegalArgumentException(
-                    "raceTimeZone must not be null");
-        }
+        checkArgument(
+                committedTimingData != null,
+                "committedTimingData must not be null");
+        checkArgument(raceTimeZone != null, "raceTimeZone must not be null");
 
         List<TimingData> activeRegistrations =
                 activeRegistrations(
