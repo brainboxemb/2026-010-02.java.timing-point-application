@@ -46,6 +46,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
             this.reason = reason;
         }
 
+        /** Returns the stable category for this task-runner operation failure. */
         public FailureReason reason() {
             return reason;
         }
@@ -65,6 +66,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
                     this::runCompleted);
         }
 
+        /** Starts the first cooperative task step and returns the completion handle. */
         private CompletableFuture<Void> start() {
             scheduleStep(
                     0L);
@@ -99,6 +101,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
             }
         }
 
+        /** Submits the next cooperative task step immediately to the serial lane. */
         private void scheduleImmediateStep() {
             CompletableFuture<TaskStep> completion =
                     new CompletableFuture<TaskStep>();
@@ -378,16 +381,19 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
         }
     }
 
+    /** Returns whether the underlying serial lane has never been started. */
     public boolean isNew() {
         return lane.state()
                 == SerialLane.State.NEW;
     }
 
+    /** Returns whether the underlying serial lane currently accepts work. */
     public boolean isRunning() {
         return lane.state()
                 == SerialLane.State.RUNNING;
     }
 
+    /** Returns the terminal lane failure used for task-runner diagnostics. */
     public Throwable failure() {
         return lane.failure();
     }
