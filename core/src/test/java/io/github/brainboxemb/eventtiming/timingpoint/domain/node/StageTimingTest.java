@@ -277,13 +277,13 @@ public class StageTimingTest {
                                             "0001",
                                             LocalTime.NOON))));
             assertTrue(
-                    components.nodeTasks()
+                    components.nodeService()
                             .upstreamHandler()
                             .inputAvailable());
             stream.takeSent();
 
             List<StageTime> ranking =
-                    components.nodeTasks()
+                    components.nodeService()
                             .stageTiming(ZoneOffset.UTC);
 
             assertEquals(1, ranking.size());
