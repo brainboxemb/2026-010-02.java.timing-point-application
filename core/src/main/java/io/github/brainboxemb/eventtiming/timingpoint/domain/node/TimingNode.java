@@ -17,6 +17,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamMessagePort;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
@@ -26,21 +27,19 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executor
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
-import java.util.concurrent.Callable;
-
 /**
  * Top-level component boundary for one logical timing node.
  *
  * <p>TimingNode is deliberately a composition/lifecycle/facade component.
  * Mutable TimingData state, Data Lane execution, commands and queries belong to
  * {@link NodeDataProcessor}. Task/protocol execution is kept separate from that
- * data component and is migrated behind NodeTaskProcessor in the next slice.</p>
+ * data component; Task Lane execution and upstream composition belong to
+ * {@link NodeTaskProcessor}.</p>
  */
 public final class TimingNode {
     private final NodeDataProcessor dataProcessor;
-    private final SerialExecutor taskLane;
+    private final NodeTaskProcessor taskProcessor;
     private final TagProcessor tagProcessor;
-    private final UpstreamMessagePort upstreamMessagePort;
 
     /** Test-only direct-execution convenience constructor. */
     TimingNode(
@@ -316,12 +315,12 @@ public final class TimingNode {
                         processorChild::onPolicyConfigurationChanged);
 
         this.dataProcessor = processor;
-        this.taskLane = taskLane;
+        this.taskProcessor = new NodeTaskProcessor(
+                processor,
+                taskLane,
+                eventData,
+                upstreamStream);
         this.tagProcessor = processorChild;
-        this.upstreamMessagePort =
-                createUpstreamMessagePort(
-                        upstreamStream,
-                        eventData);
     }
 
     private TimingNode(
@@ -347,12 +346,12 @@ public final class TimingNode {
                     "upstreamStream must not be null");
         }
         this.dataProcessor = dataProcessor;
-        this.taskLane = taskLane;
+        this.taskProcessor = new NodeTaskProcessor(
+                dataProcessor,
+                taskLane,
+                eventData,
+                upstreamStream);
         this.tagProcessor = tagProcessor;
-        this.upstreamMessagePort =
-                createUpstreamMessagePort(
-                        upstreamStream,
-                        eventData);
     }
 
     public NodeId timingNodeId() {
@@ -361,7 +360,7 @@ public final class TimingNode {
 
     /** Returns the TimingNode-owned semantic upstream boundary. */
     public UpstreamMessagePort upstreamMessagePort() {
-        return upstreamMessagePort;
+        return taskProcessor.upstreamMessagePort();
     }
 
     /**
@@ -369,19 +368,12 @@ public final class TimingNode {
      * Task Lane, then TagProcessor ingress.
      */
     public void activate() {
-        SerialExecutor.State taskState =
-                taskLane.state();
-        if (taskState != SerialExecutor.State.NEW
-                && taskState != SerialExecutor.State.STOPPED) {
-            throw new IllegalStateException(
-                    "TimingNode cannot activate with Task Lane state="
-                            + taskState);
-        }
+        taskProcessor.ensureCanActivate();
 
         dataProcessor.activate();
 
         try {
-            taskLane.start();
+            taskProcessor.activate();
         } catch (RuntimeException ex) {
             dataProcessor.deactivate();
             throw ex;
@@ -391,7 +383,7 @@ public final class TimingNode {
             try {
                 tagProcessor.activate();
             } catch (RuntimeException ex) {
-                taskLane.close();
+                taskProcessor.deactivate();
                 dataProcessor.deactivate();
                 throw ex;
             }
@@ -414,7 +406,7 @@ public final class TimingNode {
         }
 
         try {
-            taskLane.close();
+            taskProcessor.deactivate();
         } catch (RuntimeException ex) {
             if (firstFailure == null) {
                 firstFailure = ex;
@@ -477,68 +469,6 @@ public final class TimingNode {
 
     public EventSource<TimingData> timingDataCommittedEvent() {
         return dataProcessor.timingDataCommittedEvent();
-    }
-
-    /**
-     * Temporary wiring seam until upstream data access is fully asynchronous.
-     */
-    private UpstreamMessagePort createUpstreamMessagePort(
-            UpstreamStream upstreamStream,
-            EventData eventData) {
-        if (upstreamStream == null) {
-            throw new IllegalArgumentException(
-                    "upstreamStream must not be null");
-        }
-        return new UpstreamMessagePort(
-                timingNodeId(),
-                upstreamDataLane(),
-                upstreamTaskLane(),
-                upstreamStream,
-                eventData,
-                dataProcessor.logBookForUpstream(),
-                dataProcessor.teamAssignmentsForUpstream(),
-                dataProcessor.stageStartTimesForUpstream(),
-                dataProcessor.uniqueTeamRegistrationsForUpstream());
-    }
-
-    private UpstreamMessagePort.DataLane upstreamDataLane() {
-        return new UpstreamMessagePort.DataLane() {
-            @Override
-            public boolean offer(
-                    Runnable task) {
-                return dataProcessor.offerTask(
-                        task);
-            }
-
-            @Override
-            public void run(
-                    Runnable task,
-                    String operation) {
-                dataProcessor.runTask(
-                        task,
-                        operation);
-            }
-
-            @Override
-            public <R> R run(
-                    Callable<R> task,
-                    String operation) {
-                return dataProcessor.runTask(
-                        task,
-                        operation);
-            }
-        };
-    }
-
-    private UpstreamMessagePort.TaskLane upstreamTaskLane() {
-        return new UpstreamMessagePort.TaskLane() {
-            @Override
-            public boolean offer(
-                    Runnable task) {
-                return taskLane.offer(task)
-                        == SerialExecutor.AdmissionResult.ACCEPTED;
-            }
-        };
     }
 
     private static NodeId requireId(
