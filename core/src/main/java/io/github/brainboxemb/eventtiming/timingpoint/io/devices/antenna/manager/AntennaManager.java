@@ -8,7 +8,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTaskController;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.ScheduledTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
@@ -50,7 +50,7 @@ public final class AntennaManager implements YieldingTask {
         INVENTORY_FAILED
     }
 
-    private final ScheduledTaskRunner taskRunner;
+    private final SerialTaskRunner taskRunner;
     private final AntennaSet antennaSet;
     private final Setting<Boolean> inventoryEnabledSetting;
     private final AntennaSettings settings;
@@ -93,7 +93,7 @@ public final class AntennaManager implements YieldingTask {
 
         antennaSet.seal();
         this.antennaSet = antennaSet;
-        taskRunner = new ScheduledTaskRunner(controlLane, scheduler, controlTimeout);
+        taskRunner = new SerialTaskRunner(controlLane, scheduler, controlTimeout);
         stateMachine = new YieldingTaskController(
                 taskRunner,
                 this,
