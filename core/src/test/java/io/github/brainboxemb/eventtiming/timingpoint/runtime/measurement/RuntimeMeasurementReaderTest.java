@@ -41,6 +41,7 @@ public class RuntimeMeasurementReaderTest {
             TimingTimestamp.parse(
                     "2026-10-04T12:00:01.000000000Z");
 
+    /** Verifies that engineering measurement reads component-owned metric snapshots directly. */
     @Test
     public void readsComponentOwnedSnapshotsWithoutLogBookMetricsApi()
             throws Exception {
@@ -193,6 +194,7 @@ public class RuntimeMeasurementReaderTest {
         private final java.util.List<TimingData> records =
                 new ArrayList<TimingData>();
 
+        /** Returns all in-memory TimingData records as an unrepaired persistence load. */
         @Override
         public LoadResult load() {
             return new LoadResult(
@@ -200,6 +202,7 @@ public class RuntimeMeasurementReaderTest {
                     false);
         }
 
+        /** Appends one TimingData record to the in-memory persistence fixture. */
         @Override
         public void append(
                 TimingData data) {
