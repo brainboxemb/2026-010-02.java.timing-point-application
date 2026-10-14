@@ -616,11 +616,11 @@ public class TimingApplicationRuntimeTest {
                     1,
                     status.problems().size());
             assertEquals(
-                    TimingNodeTypes.ProblemCode.TIMING_DATA_RECOVERY_FAILED,
+                    TimingNodeTypes.ProblemCode.TIMING_DATA_LOAD_FAILED,
                     status.problems().get(0).code());
             assertTrue(
                     status.problems().get(0).message()
-                            .contains("TimingData recovery failed"));
+                            .contains("Persisted TimingData load failed"));
         } finally {
             application.deactivate();
         }
