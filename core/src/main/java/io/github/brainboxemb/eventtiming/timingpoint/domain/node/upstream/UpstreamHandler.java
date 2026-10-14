@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookReader;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -39,7 +39,7 @@ public final class UpstreamHandler {
     private final UpstreamHeartbeat heartbeat;
     private final UpstreamDataSync upstreamDataSync;
     private final LogBookSync logBookSync;
-    private final LogBookProcessor logBookProcessor;
+    private final LogBookReader logBookReader;
     private final UpstreamTaskState taskState;
 
     /*
@@ -54,25 +54,25 @@ public final class UpstreamHandler {
             DataLane dataLane,
             TaskLane taskLane,
             UpstreamStream stream,
-            LogBookProcessor logBookProcessor,
+            LogBookReader logBookReader,
             UpstreamTaskState taskState) {
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(dataLane != null, "dataLane must not be null");
         checkArgument(taskLane != null, "taskLane must not be null");
         checkArgument(stream != null, "stream must not be null");
-        checkArgument(logBookProcessor != null, "logBookProcessor must not be null");
+        checkArgument(logBookReader != null, "logBookReader must not be null");
         checkArgument(taskState != null, "taskState must not be null");
 
         this.nodeId = nodeId;
         this.dataLane = dataLane;
         this.taskLane = taskLane;
         this.stream = stream;
-        this.logBookProcessor = logBookProcessor;
+        this.logBookReader = logBookReader;
         this.taskState = taskState;
         this.heartbeat = new UpstreamHeartbeat(nodeId, stream);
         this.upstreamDataSync =
                 new UpstreamDataSync(nodeId, stream, taskState);
-        this.logBookSync = new LogBookSync(nodeId, stream, logBookProcessor);
+        this.logBookSync = new LogBookSync(nodeId, stream, logBookReader);
     }
 
     /**
