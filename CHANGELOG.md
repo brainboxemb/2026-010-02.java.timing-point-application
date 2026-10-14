@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Restore `LogBookCommands` to the shared validation/comment conventions: command preconditions use `Checks.checkArgument(...)`, private helpers are documented, and the repeated deferred `logBookState -> ...` command lambda is explained once at the factory boundary.
+
 - Remove unused `LogBookState` getters and its unused convenience constructor, and document every remaining state/helper method plus the missing `LogBookData` constructor/size contracts.
 
 - Document `LogBookQuery` ORDERED/CURRENT construction and read contracts, including why CURRENT reads go through safely published `LogBook` state.

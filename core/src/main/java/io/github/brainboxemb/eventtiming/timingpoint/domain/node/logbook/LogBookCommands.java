@@ -8,16 +8,23 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * Standard state-changing commands committed through the LogBook component.
  *
  * <p>The factory validates command input at creation time. Execution belongs to
  * {@link LogBook}, which applies the command on the Data Lane.</p>
+ *
+ * <p>Factory lambdas use {@code logBookState -> ...}: {@code logBookState} is
+ * the state supplied later by LogBook when the command executes, and {@code ->}
+ * introduces that deferred command body.</p>
  */
 public final class LogBookCommands {
     private static final LogBookCommand<CloseResult> CLOSE =
             simple("close", LogBookState::close);
 
+    /** Prevents construction of this stateless command factory. */
     private LogBookCommands() {
     }
 
@@ -28,9 +35,7 @@ public final class LogBookCommands {
      * {@code ALREADY_OPEN} rather than creating a second open transition.</p>
      */
     public static LogBookCommand<OpenResult> open(LocationId locationId) {
-        if (locationId == null) {
-            throw new IllegalArgumentException("locationId must not be null");
-        }
+        checkArgument(locationId != null, "locationId must not be null");
         return simple(
                 "open",
                 logBookState -> logBookState.open(locationId));
@@ -52,12 +57,8 @@ public final class LogBookCommands {
             addAutomaticRegistration(
                     RegistrationId registrationId,
                     TimingTimestamp time) {
-        if (registrationId == null) {
-            throw new IllegalArgumentException("registrationId must not be null");
-        }
-        if (time == null) {
-            throw new IllegalArgumentException("time must not be null");
-        }
+        checkArgument(registrationId != null, "registrationId must not be null");
+        checkArgument(time != null, "time must not be null");
 
         return simple(
                 "addAutomaticRegistration",
@@ -71,9 +72,8 @@ public final class LogBookCommands {
             simulateAutomaticRegistration(
                     RegistrationId registrationId,
                     TimingTimestamp time) {
-        if (registrationId == null || time == null) {
-            throw new IllegalArgumentException("registrationId and time are required");
-        }
+        checkArgument(registrationId != null, "registrationId must not be null");
+        checkArgument(time != null, "time must not be null");
         return simple(
                 "simulateAutomaticRegistration",
                 logBookState -> logBookState.simulateAutomaticRegistration(registrationId, time));
@@ -82,9 +82,7 @@ public final class LogBookCommands {
     /** Direct IF-03 simulation; capture TimeSource on the node's serial lane. */
     public static LogBookCommand<RegistrationResult>
             simulateAutomaticRegistrationNow(RegistrationId registrationId) {
-        if (registrationId == null) {
-            throw new IllegalArgumentException("registrationId must not be null");
-        }
+        checkArgument(registrationId != null, "registrationId must not be null");
         return simple(
                 "simulateAutomaticRegistrationNow",
                 logBookState -> logBookState.simulateAutomaticRegistrationNow(registrationId));
@@ -98,16 +96,11 @@ public final class LogBookCommands {
                     RegistrationId registrationId,
                     TimingTimestamp effectiveTime,
                     ManualTimeSource registrationTimeSource) {
-        if (registrationId == null) {
-            throw new IllegalArgumentException("registrationId must not be null");
-        }
-        if (effectiveTime == null) {
-            throw new IllegalArgumentException("effectiveTime must not be null");
-        }
-        if (registrationTimeSource == null) {
-            throw new IllegalArgumentException(
-                    "registrationTimeSource must not be null");
-        }
+        checkArgument(registrationId != null, "registrationId must not be null");
+        checkArgument(effectiveTime != null, "effectiveTime must not be null");
+        checkArgument(
+                registrationTimeSource != null,
+                "registrationTimeSource must not be null");
 
         return simple(
                 "commitManualRegistration",
@@ -150,10 +143,9 @@ public final class LogBookCommands {
                 originalLocationId,
                 registrationId,
                 originalTime);
-        if (originalTimeSource == null) {
-            throw new IllegalArgumentException(
-                    "originalTimeSource must not be null");
-        }
+        checkArgument(
+                originalTimeSource != null,
+                "originalTimeSource must not be null");
         return simple(
                 "revokeManualRegistration",
                 logBookState -> logBookState.revokeManualRegistration(
@@ -163,24 +155,23 @@ public final class LogBookCommands {
                         originalTimeSource));
     }
 
+    /** Validates the shared identity/time fields required by registration revocation commands. */
     private static void requireRevokeInput(
             LocationId originalLocationId,
             RegistrationId registrationId,
             TimingTimestamp originalTime) {
-        if (originalLocationId == null) {
-            throw new IllegalArgumentException(
-                    "originalLocationId must not be null");
-        }
-        if (registrationId == null) {
-            throw new IllegalArgumentException(
-                    "registrationId must not be null");
-        }
-        if (originalTime == null) {
-            throw new IllegalArgumentException(
-                    "originalTime must not be null");
-        }
+        checkArgument(
+                originalLocationId != null,
+                "originalLocationId must not be null");
+        checkArgument(
+                registrationId != null,
+                "registrationId must not be null");
+        checkArgument(
+                originalTime != null,
+                "originalTime must not be null");
     }
 
+    /** Creates one named typed command from its deferred LogBookState action. */
     private static <R> LogBookCommand<R> simple(
             String name,
             LogBookCommand.Action<R> action) {
