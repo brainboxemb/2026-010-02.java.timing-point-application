@@ -4,9 +4,9 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandSubmissionResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTaskProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTasks;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 
 import org.slf4j.Logger;
@@ -17,7 +17,7 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Runtime composes the LogBook, Task and Tag children before construction.
  * TimingNode owns their lifecycle and the one-way registration link from
- * TagProcessor to LogBookProcessor. Child-specific operations stay on their
+ * TagProcessor to LogBook. Child-specific operations stay on their
  * explicit access boundaries rather than being copied onto this class.</p>
  */
 public final class TimingNode {
@@ -29,16 +29,16 @@ public final class TimingNode {
             new ComponentLifecycleManager();
 
     public TimingNode(
-            LogBookProcessor logBookProcessor,
-            NodeTaskProcessor taskProcessor,
+            LogBook logBook,
+            NodeTasks nodeTasks,
             TagProcessor tagProcessor) {
-        if (logBookProcessor == null) {
+        if (logBook == null) {
             throw new IllegalArgumentException(
-                    "logBookProcessor must not be null");
+                    "logBook must not be null");
         }
-        if (taskProcessor == null) {
+        if (nodeTasks == null) {
             throw new IllegalArgumentException(
-                    "taskProcessor must not be null");
+                    "nodeTasks must not be null");
         }
         if (tagProcessor == null) {
             throw new IllegalArgumentException(
@@ -46,16 +46,16 @@ public final class TimingNode {
         }
 
         this.timingNodeId =
-                logBookProcessor.timingNodeId();
-        this.logBook = logBookProcessor;
+                logBook.timingNodeId();
+        this.logBook = logBook;
         lifecycle.register(
-                taskProcessor,
-                NodeTaskProcessor::activate,
-                NodeTaskProcessor::deactivate);
+                nodeTasks,
+                NodeTasks::activate,
+                NodeTasks::deactivate);
         lifecycle.register(
-                logBookProcessor,
-                LogBookProcessor::activate,
-                LogBookProcessor::deactivate);
+                logBook,
+                LogBook::activate,
+                LogBook::deactivate);
         lifecycle.register(
                 tagProcessor,
                 TagProcessor::activate,
@@ -88,7 +88,7 @@ public final class TimingNode {
      *
      * <p>The Task Lane starts first because its lifecycle is independent of
      * LogBook state and it consumes initial TimingData after that data has been
-     * loaded. LogBookProcessor then starts the Data Lane and queues the persisted
+     * loaded. LogBook then starts the Data Lane and queues the persisted
      * TimingData load as its first ordered task. TagProcessor ingress starts last.
      * Rollback and reverse deactivation are owned by the lifecycle manager.</p>
      */
