@@ -3,8 +3,8 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
@@ -25,7 +25,7 @@ public class LogBookSyncTest {
     public void raceDataReqIsNotOwnedByLogBookSync() {
         NodeId nodeId = new NodeId("A");
         LogBookSync sync =
-                new LogBookSync(nodeId, new TestUpstreamStream(), emptyProcessor(nodeId));
+                new LogBookSync(nodeId, new TestUpstreamStream(), emptyLogBook(nodeId));
 
         try {
             sync.handleReq(
@@ -39,8 +39,8 @@ public class LogBookSyncTest {
         }
     }
 
-    private static LogBookProcessor emptyProcessor(NodeId nodeId) {
-        return new LogBookProcessor(
+    private static LogBook emptyProcessor(NodeId nodeId) {
+        return new LogBook(
                 nodeId,
                 new TimingDataPersistence() {
                     @Override
@@ -58,7 +58,7 @@ public class LogBookSyncTest {
                 new DefaultTimingDataFactory(),
                 () -> Instant.EPOCH,
                 SystemMonotonicClock.INSTANCE,
-                new LogBookProcessorMetrics(),
+                new LogBookMetrics(),
                 new SerialLane(
                         8,
                         "test-logbook-sync-data",
