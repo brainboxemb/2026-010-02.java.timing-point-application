@@ -50,8 +50,10 @@ public final class SerialLane implements Executor, AutoCloseable {
      * Internal queue entry that adds timing/cancellation hooks around Runnable/FutureTask.
      */
     private interface TrackedTask extends Runnable {
+        /** Records when the lane accepted this task for queue-wait metrics. */
         void markAccepted(long acceptedAtNanos);
 
+        /** Cancels result-bearing work when the lane fails before execution. */
         void cancelIfFuture();
     }
 
@@ -365,20 +367,24 @@ public final class SerialLane implements Executor, AutoCloseable {
         private final Runnable delegate;
         private long acceptedAtNanos;
 
+        /** Wraps fire-and-forget work with lane timing/failure tracking. */
         private TrackedRunnable(Runnable delegate) {
             this.delegate = delegate;
         }
 
+        /** Stores the admission timestamp used when this Runnable eventually starts. */
         @Override
         public void markAccepted(long acceptedAtNanos) {
             this.acceptedAtNanos = acceptedAtNanos;
         }
 
+        /** Fire-and-forget work has no Future that can be cancelled. */
         @Override
         public void cancelIfFuture() {
             // Fire-and-forget work has no Future to cancel.
         }
 
+        /** Runs one fire-and-forget task while recording timing and containing runtime failures. */
         @Override
         public void run() {
             long startedNanos = System.nanoTime();
@@ -410,26 +416,31 @@ public final class SerialLane implements Executor, AutoCloseable {
         private final FatalTrackingCallable<R> trackedCallable;
         private long acceptedAtNanos;
 
+        /** Wraps result-bearing work in the FutureTask used as the public Future. */
         private TrackedFutureTask(Callable<R> work) {
             this(new FatalTrackingCallable<R>(work));
         }
 
+        /** Initializes FutureTask and retains fatal-error tracking for lane failure propagation. */
         private TrackedFutureTask(
                 FatalTrackingCallable<R> trackedCallable) {
             super(trackedCallable);
             this.trackedCallable = trackedCallable;
         }
 
+        /** Stores the admission timestamp used when this FutureTask eventually starts. */
         @Override
         public void markAccepted(long acceptedAtNanos) {
             this.acceptedAtNanos = acceptedAtNanos;
         }
 
+        /** Cancels an accepted FutureTask that cannot run after lane failure. */
         @Override
         public void cancelIfFuture() {
             cancel(false);
         }
 
+        /** Runs one FutureTask, records timing and promotes fatal Errors to lane failure. */
         @Override
         public void run() {
             long startedNanos = System.nanoTime();
@@ -456,10 +467,12 @@ public final class SerialLane implements Executor, AutoCloseable {
         private final Callable<R> delegate;
         private volatile Error fatalError;
 
+        /** Wraps a Callable so fatal Errors can be observed after FutureTask execution. */
         private FatalTrackingCallable(Callable<R> delegate) {
             this.delegate = delegate;
         }
 
+        /** Delegates the Callable while retaining any fatal Error for the owning lane. */
         @Override
         public R call() throws Exception {
             try {
@@ -470,6 +483,7 @@ public final class SerialLane implements Executor, AutoCloseable {
             }
         }
 
+        /** Returns the fatal Error captured during the delegated call, if any. */
         private Error fatalError() {
             return fatalError;
         }
