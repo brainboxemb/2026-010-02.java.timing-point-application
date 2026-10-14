@@ -39,7 +39,6 @@ public final class UpstreamHandler {
     private final UpstreamHeartbeat heartbeat;
     private final UpstreamDataSync upstreamDataSync;
     private final LogBookSync logBookSync;
-    private final LogBookReader logBookReader;
     private final UpstreamTaskState taskState;
 
     /*
@@ -67,7 +66,6 @@ public final class UpstreamHandler {
         this.dataLane = dataLane;
         this.taskLane = taskLane;
         this.stream = stream;
-        this.logBookReader = logBookReader;
         this.taskState = taskState;
         this.heartbeat = new UpstreamHeartbeat(nodeId, stream);
         this.upstreamDataSync =
