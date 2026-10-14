@@ -9,6 +9,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * Active registration multiplicity for one TimingNode.
  *
@@ -64,10 +66,7 @@ public final class UniqueTeamRegistrations {
      */
     public int uniqueTeamCount(
             Function<RegistrationId, TeamId> teamResolver) {
-        if (teamResolver == null) {
-            throw new IllegalArgumentException(
-                    "teamResolver must not be null");
-        }
+        checkArgument(teamResolver != null, "teamResolver must not be null");
 
         Set<TeamId> uniqueTeams =
                 new LinkedHashSet<TeamId>();
@@ -93,9 +92,6 @@ public final class UniqueTeamRegistrations {
 
     private static void requireRegistrationId(
             RegistrationId registrationId) {
-        if (registrationId == null) {
-            throw new IllegalArgumentException(
-                    "registrationId must not be null");
-        }
+        checkArgument(registrationId != null, "registrationId must not be null");
     }
 }
