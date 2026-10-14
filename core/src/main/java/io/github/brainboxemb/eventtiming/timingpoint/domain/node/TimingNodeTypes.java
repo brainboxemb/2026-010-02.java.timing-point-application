@@ -230,13 +230,11 @@ public final class TimingNodeTypes {
                 LocationId locationId,
                 boolean timingDataTailRepaired,
                 List<Problem> problems) {
-            if (problems == null) {
-                throw new IllegalArgumentException("problems must not be null");
-            }
+            checkArgument(timingNodeId != null, "timingNodeId must not be null");
+            checkArgument(state != null, "state must not be null");
+            checkArgument(problems != null, "problems must not be null");
             for (Problem problem : problems) {
-                if (problem == null) {
-                    throw new IllegalArgumentException("problem must not be null");
-                }
+                checkArgument(problem != null, "problem must not be null");
             }
             this.timingNodeId = timingNodeId;
             this.state = state;
