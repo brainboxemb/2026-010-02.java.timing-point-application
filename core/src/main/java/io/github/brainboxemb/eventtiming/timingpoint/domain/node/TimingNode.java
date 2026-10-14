@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTasks;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 
 import org.slf4j.Logger;
@@ -30,15 +30,15 @@ public final class TimingNode {
 
     public TimingNode(
             LogBook logBook,
-            NodeTasks nodeTasks,
+            NodeService nodeService,
             TagProcessor tagProcessor) {
         if (logBook == null) {
             throw new IllegalArgumentException(
                     "logBook must not be null");
         }
-        if (nodeTasks == null) {
+        if (nodeService == null) {
             throw new IllegalArgumentException(
-                    "nodeTasks must not be null");
+                    "nodeService must not be null");
         }
         if (tagProcessor == null) {
             throw new IllegalArgumentException(
@@ -49,9 +49,9 @@ public final class TimingNode {
                 logBook.timingNodeId();
         this.logBook = logBook;
         lifecycle.register(
-                nodeTasks,
-                NodeTasks::activate,
-                NodeTasks::deactivate);
+                nodeService,
+                NodeService::activate,
+                NodeService::deactivate);
         lifecycle.register(
                 logBook,
                 LogBook::activate,
