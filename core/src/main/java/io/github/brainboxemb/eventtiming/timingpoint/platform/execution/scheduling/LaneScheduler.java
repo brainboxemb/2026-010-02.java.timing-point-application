@@ -188,6 +188,7 @@ public final class LaneScheduler {
             cancelActive();
         }
 
+        /** Cancels both the timer trigger and any lane Future already admitted for this operation. */
         private void cancelActive() {
             ScheduledFuture<?> currentTrigger =
                     trigger;
@@ -259,6 +260,7 @@ public final class LaneScheduler {
             }
         }
 
+        /** Stops future fixed-delay triggers without interrupting unrelated lane work. */
         @Override
         public void close() {
             ScheduledFuture<?> pending;
