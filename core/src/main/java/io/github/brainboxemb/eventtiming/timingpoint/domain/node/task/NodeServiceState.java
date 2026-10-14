@@ -58,6 +58,10 @@ final class NodeServiceState implements UpstreamTaskState {
         derivedTimingReady = false;
     }
 
+    void markDerivedTimingStale() {
+        derivedTimingStale = true;
+    }
+
     void rebuildDerivedTiming(List<TimingData> loadedData) {
         if (loadedData == null) {
             throw new IllegalArgumentException(
