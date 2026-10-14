@@ -160,10 +160,8 @@ public class SerialTaskRunnerSchedulingTest {
 
             CountDownLatch siblingRan =
                     new CountDownLatch(1);
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    siblingLane.offer(
-                            siblingRan::countDown));
+            siblingLane.execute(
+                            siblingRan::countDown);
             assertTrue(
                     "yielding delay must release the shared worker",
                     siblingRan.await(
