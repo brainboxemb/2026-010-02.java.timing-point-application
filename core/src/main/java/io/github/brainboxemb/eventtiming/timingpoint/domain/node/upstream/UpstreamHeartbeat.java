@@ -27,8 +27,8 @@ final class UpstreamHeartbeat {
     private String pendingPingId;
 
     /** Latest immutable Task Lane-owned heartbeat state for direct reads. */
-    private volatile UpstreamMessageTypes.HeartbeatStatus publishedStatus =
-            new UpstreamMessageTypes.HeartbeatStatus(
+    private volatile UpstreamHandlerTypes.HeartbeatStatus publishedStatus =
+            new UpstreamHandlerTypes.HeartbeatStatus(
                     0L,
                     0L,
                     0L,
@@ -94,13 +94,13 @@ final class UpstreamHeartbeat {
         }
     }
 
-    UpstreamMessageTypes.HeartbeatStatus status() {
+    UpstreamHandlerTypes.HeartbeatStatus status() {
         return publishedStatus;
     }
 
     private void publishStatus() {
         publishedStatus =
-                new UpstreamMessageTypes.HeartbeatStatus(
+                new UpstreamHandlerTypes.HeartbeatStatus(
                         requestsSent,
                         answersReceived,
                         missedIntervals,

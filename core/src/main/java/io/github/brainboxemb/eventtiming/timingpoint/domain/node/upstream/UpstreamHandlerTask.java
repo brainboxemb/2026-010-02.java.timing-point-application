@@ -9,11 +9,11 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
  * the back of the Data Lane so registrations and other node work get a turn in
  * between.</p>
  */
-final class UpstreamMessageTask implements Runnable {
-    private final UpstreamMessagePort port;
+final class UpstreamHandlerTask implements Runnable {
+    private final UpstreamHandler port;
 
-    UpstreamMessageTask(
-            UpstreamMessagePort port) {
+    UpstreamHandlerTask(
+            UpstreamHandler port) {
         if (port == null) {
             throw new IllegalArgumentException(
                     "port must not be null");

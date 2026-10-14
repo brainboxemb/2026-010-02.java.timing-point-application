@@ -2,7 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.task;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.NodeDataProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamMessagePort;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
 
@@ -18,7 +18,7 @@ import java.util.concurrent.Callable;
  */
 public final class NodeTaskProcessor {
     private final SerialExecutor taskLane;
-    private final UpstreamMessagePort upstreamMessagePort;
+    private final UpstreamHandler upstreamHandler;
 
     public NodeTaskProcessor(
             NodeDataProcessor dataProcessor,
@@ -39,8 +39,8 @@ public final class NodeTaskProcessor {
         }
 
         this.taskLane = taskLane;
-        this.upstreamMessagePort =
-                new UpstreamMessagePort(
+        this.upstreamHandler =
+                new UpstreamHandler(
                         dataProcessor.timingNodeId(),
                         new UpstreamDataLane(dataProcessor),
                         this::offerTask,
@@ -71,8 +71,8 @@ public final class NodeTaskProcessor {
         taskLane.close();
     }
 
-    public UpstreamMessagePort upstreamMessagePort() {
-        return upstreamMessagePort;
+    public UpstreamHandler upstreamHandler() {
+        return upstreamHandler;
     }
 
     /** A full Task Lane rejects new work rather than blocking an ingress caller. */
@@ -88,7 +88,7 @@ public final class NodeTaskProcessor {
      * references above with bounded asynchronous commands and immutable replies.
      * This adapter must not be used for Task Lane to Data Lane blocking calls.</p>
      */
-    private static final class UpstreamDataLane implements UpstreamMessagePort.DataLane {
+    private static final class UpstreamDataLane implements UpstreamHandler.DataLane {
         private final NodeDataProcessor dataProcessor;
 
         UpstreamDataLane(NodeDataProcessor dataProcessor) {

@@ -276,7 +276,7 @@ public class StageTimingTest {
                                             "0001",
                                             LocalTime.NOON))));
             assertTrue(
-                    node.upstreamMessagePort()
+                    node.upstreamHandler()
                             .inputAvailable());
             stream.takeSent();
 
