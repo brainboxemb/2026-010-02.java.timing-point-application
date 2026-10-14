@@ -68,7 +68,7 @@ public final class TimingNode {
     /**
      * Returns the node's LogBook access boundary.
      *
-     * <p>Callers may submit LogBook commands, run supported queries and
+     * <p>Callers may execute or queue LogBook commands, run supported queries and
      * subscribe to post-commit/status events. Child lifecycle, persisted-data
      * startup loading, lane ownership and metrics remain internal to the node composition.</p>
      */
