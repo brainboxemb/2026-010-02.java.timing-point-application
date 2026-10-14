@@ -109,8 +109,15 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
                         this);
     }
 
-    /** Checks the Task Lane before Data Lane recovery is started. */
-    public void ensureCanActivate() {
+    /**
+     * Validates that the Task Lane can activate before LogBook recovery starts.
+     *
+     * <p>TimingNode calls this before the lifecycle manager activates the
+     * LogBook child because LogBook activation immediately admits asynchronous
+     * recovery. This is a side-effect preflight only; actual Task Lane startup
+     * still happens in {@link #activate()} under normal lifecycle management.</p>
+     */
+    public void validateActivationBeforeRecovery() {
         SerialLane.State state = taskLane.state();
         if (state != SerialLane.State.NEW
                 && state != SerialLane.State.STOPPED) {
@@ -120,7 +127,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
     }
 
     public void activate() {
-        ensureCanActivate();
+        validateActivationBeforeRecovery();
         taskLane.start();
         flushPendingDataFacts();
     }
