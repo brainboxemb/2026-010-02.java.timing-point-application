@@ -14,10 +14,17 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
  * processor metrics.</p>
  */
 public interface LogBookAccessor {
+    /** Executes one command in Data Lane order and waits for its result. */
     <R> R invoke(LogBookCommand<R> command);
 
-    CommandAdmission offer(LogBookCommand<?> command);
+    /**
+     * Queues one command for later Data Lane execution and returns immediately.
+     *
+     * <p>{@code QUEUED} means waiting to run, not completed.</p>
+     */
+    CommandQueueResult queue(LogBookCommand<?> command);
 
+    /** Executes one ordered query and waits for its result. */
     <R> R query(LogBookQuery<R> query);
 
     <R> R query(
