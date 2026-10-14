@@ -233,6 +233,15 @@ public final class LogBook
             case CURRENT:
                 return query.readCurrent(this);
             case ORDERED:
+                /*
+                 * When already on the Data Lane, earlier queued work has
+                 * necessarily been processed before this turn. Reading the
+                 * ordered view directly avoids self-queueing/waiting while
+                 * preserving the same ordering guarantee.
+                 */
+                if (dataLane.isExecutingOnCurrentThread()) {
+                    return query.readOrdered(logBookState);
+                }
                 return executeOnDataLaneAndWait(
                         () -> query.readOrdered(logBookState),
                         query.name());
