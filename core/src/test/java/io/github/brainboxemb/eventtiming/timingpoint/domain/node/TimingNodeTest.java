@@ -128,11 +128,9 @@ public class TimingNodeTest {
                         expected.reason());
             }
 
-            assertEquals(
-                    TimingNodeTypes.CommandQueueResult.QUEUED,
-                    node.logBook().queue(
-                            LogBookCommands.open(
-                                    new LocationId(24))));
+            node.logBook().queue(
+                    LogBookCommands.open(
+                            new LocationId(24)));
 
             persistence.releaseLoad.countDown();
             assertTrue(
@@ -384,7 +382,7 @@ public class TimingNodeTest {
             }
 
             CountDownLatch afterTimedOutOperation = new CountDownLatch(1);
-            executor.offer(afterTimedOutOperation::countDown);
+            executor.execute(afterTimedOutOperation::countDown);
             releaseBlocker.countDown();
 
             assertTrue(afterTimedOutOperation.await(1, TimeUnit.SECONDS));
@@ -459,8 +457,9 @@ public class TimingNodeTest {
         }
     }
 
+    /** Verifies that LogBook.queue returns after lane admission without waiting for command completion. */
     @Test
-    public void offerReturnsAfterAdmissionWithoutWaitingForExecution()
+    public void queueReturnsAfterAdmissionWithoutWaitingForExecution()
             throws Exception {
         SerialLane executor = newSerialLane(2, "timing-node-offer-test");
         TimingNode node = node(
@@ -470,9 +469,6 @@ public class TimingNodeTest {
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
         CountDownLatch producerReturned = new CountDownLatch(1);
-        final TimingNodeTypes.CommandQueueResult[] queueResult =
-                new TimingNodeTypes.CommandQueueResult[1];
-
         node.activate();
         try {
             executor.submit(() -> {
@@ -483,10 +479,9 @@ public class TimingNodeTest {
             assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
             Thread producer = new Thread(() -> {
-                queueResult[0] =
-                        node.logBook().queue(
-                                LogBookCommands.open(
-                                        new LocationId(24)));
+                node.logBook().queue(
+                        LogBookCommands.open(
+                                new LocationId(24)));
                 producerReturned.countDown();
             });
             producer.start();
@@ -494,18 +489,12 @@ public class TimingNodeTest {
             assertTrue(
                     "offer-only producer must not wait for command execution",
                     producerReturned.await(250, TimeUnit.MILLISECONDS));
-            assertEquals(
-                    TimingNodeTypes.CommandQueueResult.QUEUED,
-                    queueResult[0]);
-
             releaseBlocker.countDown();
             producer.join(1000);
             assertFalse(producer.isAlive());
 
             CountDownLatch afterOfferedCommand = new CountDownLatch(1);
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    executor.offer(afterOfferedCommand::countDown));
+            executor.execute(afterOfferedCommand::countDown);
             assertTrue(afterOfferedCommand.await(1, TimeUnit.SECONDS));
 
             assertEquals(
@@ -534,9 +523,7 @@ public class TimingNodeTest {
             });
             assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
-            assertEquals(
-                    TimingNodeTypes.CommandQueueResult.QUEUED,
-                    node.logBook().queue(LogBookCommands.open(new LocationId(24))));
+            node.logBook().queue(LogBookCommands.open(new LocationId(24)));
 
             TimingNodeTypes.Status current =
                     node.logBook().query(
@@ -557,9 +544,7 @@ public class TimingNodeTest {
 
             releaseBlocker.countDown();
             CountDownLatch drained = new CountDownLatch(1);
-            assertEquals(
-                    SerialLane.AdmissionResult.ACCEPTED,
-                    executor.offer(drained::countDown));
+            executor.execute(drained::countDown);
             assertTrue(drained.await(1, TimeUnit.SECONDS));
 
             assertEquals(
