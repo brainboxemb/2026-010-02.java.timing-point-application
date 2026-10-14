@@ -17,12 +17,12 @@ public final class SafeExecute {
     }
 
     /**
-     * Executes one operation and converts execution rejection to a component failure.
+     * Runs one operation and converts execution rejection to a component failure.
      *
      * <p>The supplied cleanup runs only after {@link RejectedExecutionException}.
      * Other runtime failures propagate unchanged.</p>
      */
-    public static void onRejected(
+    public static void run(
             Runnable operation,
             Runnable cleanup,
             String message) {
