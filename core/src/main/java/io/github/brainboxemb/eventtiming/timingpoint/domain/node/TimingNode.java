@@ -76,8 +76,8 @@ public final class TimingNode {
      * Returns the node's LogBook access boundary.
      *
      * <p>Callers may submit LogBook commands, run supported queries and
-     * subscribe to post-commit/status events. Processor lifecycle, recovery,
-     * lane ownership and metrics remain internal to the node composition.</p>
+     * subscribe to post-commit/status events. Processor lifecycle, persisted-data
+     * startup loading, lane ownership and metrics remain internal to the node composition.</p>
      */
     public LogBookAccessor logBook() {
         return logBook;
