@@ -438,7 +438,7 @@ public class TimingApplicationRuntimeTest {
             CountDownLatch simulatedCommit = new CountDownLatch(1);
             application.presentationGateway()
                     .timingNode(new NodeId("A"))
-                    .timingDataCommittedEvent()
+                    .newDataEvent()
                     .subscribe(data -> {
                         if (data instanceof AutomaticRegistration
                                 && new RegistrationId("RT-A-0042")
@@ -667,7 +667,7 @@ public class TimingApplicationRuntimeTest {
             CountDownLatch committed = new CountDownLatch(1);
             AtomicReference<AutomaticRegistration> automatic =
                     new AtomicReference<>();
-            application.timingNode().timingDataCommittedEvent().subscribe(data -> {
+            application.timingNode().newDataEvent().subscribe(data -> {
                 if (data instanceof AutomaticRegistration) {
                     automatic.set((AutomaticRegistration) data);
                     committed.countDown();
