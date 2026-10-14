@@ -8,6 +8,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * Passive selected-registration duplicate window owned by the TagProcessor lane.
  *
@@ -32,13 +34,10 @@ final class RegistrationDuplicateFilter {
     RegistrationDuplicateFilter(
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
             MonotonicClock monotonicClock) {
-        if (policyConfiguration == null) {
-            throw new IllegalArgumentException(
-                    "policyConfiguration must not be null");
-        }
-        if (monotonicClock == null) {
-            throw new IllegalArgumentException("monotonicClock must not be null");
-        }
+        checkArgument(
+                policyConfiguration != null,
+                "policyConfiguration must not be null");
+        checkArgument(monotonicClock != null, "monotonicClock must not be null");
         this.policyConfiguration = policyConfiguration;
         this.monotonicClock = monotonicClock;
     }
@@ -143,8 +142,6 @@ final class RegistrationDuplicateFilter {
     }
 
     private static void requireRegistrationId(RegistrationId registrationId) {
-        if (registrationId == null) {
-            throw new IllegalArgumentException("registrationId must not be null");
-        }
+        checkArgument(registrationId != null, "registrationId must not be null");
     }
 }
