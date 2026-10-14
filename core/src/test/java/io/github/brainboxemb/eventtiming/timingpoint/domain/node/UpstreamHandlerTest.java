@@ -503,7 +503,7 @@ public class UpstreamHandlerTest {
         node.node().activate();
         try {
             stream.onNextSend(
-                    () -> node.node().logBook().queue(
+                    () -> node.node().logBook().execute(
                             LogBookCommands.open(
                                     new LocationId(24))));
 
