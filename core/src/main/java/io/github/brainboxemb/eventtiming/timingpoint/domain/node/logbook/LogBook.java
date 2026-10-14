@@ -147,14 +147,13 @@ public final class LogBook
     }
 
     /**
-     * Queues one fire-and-forget command on the Data Lane.
+     * Executes one fire-and-forget command asynchronously.
      *
-     * <p>The method returns after the command is queued. It does not wait
-     * for command execution. If the bounded lane cannot queue the command,
-     * {@link RejectedExecutionException} propagates to the caller that owns the
-     * appropriate handling policy.</p>
+     * <p>The method follows Executor-style semantics: it returns after the
+     * command is queued and propagates RejectedExecutionException immediately
+     * when the bounded SerialLane cannot queue it.</p>
      */
-    public void queue(LogBookCommand<?> command) {
+    public void execute(LogBookCommand<?> command) {
         checkArgument(command != null, "command must not be null");
         serialLane.execute(() -> executeQueuedCommand(command));
     }
