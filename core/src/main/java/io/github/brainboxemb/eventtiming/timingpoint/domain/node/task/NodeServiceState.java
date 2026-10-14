@@ -27,9 +27,10 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * The one exception is the volatile stale marker: the Data Lane may set it when
  * a required Data-to-Task handoff could not be queued.</p>
  *
- * <p>The class implements the narrow upstream state port so {@code NodeService}
- * remains the composition/service owner instead of becoming an implementation
- * detail of its {@code UpstreamHandler} child.</p>
+ * <p>Runtime composition creates exactly one instance and shares it between
+ * {@code NodeService} and the node's upstream boundary. Upstream code sees only
+ * the narrow {@code UpstreamTaskState} contract; Task Lane implementation
+ * details remain package-local.</p>
  */
 public final class NodeServiceState implements UpstreamTaskState {
     private final EventData eventData;
