@@ -25,7 +25,6 @@ public final class TimingNode {
 
     private final NodeId timingNodeId;
     private final LogBookAccessor logBook;
-    private final NodeTaskProcessor taskProcessor;
     private final ComponentLifecycleManager lifecycle =
             new ComponentLifecycleManager();
 
@@ -49,16 +48,14 @@ public final class TimingNode {
         this.timingNodeId =
                 logBookProcessor.timingNodeId();
         this.logBook = logBookProcessor;
-        this.taskProcessor = taskProcessor;
-
-        lifecycle.register(
-                "LogBookProcessor",
-                logBookProcessor::activate,
-                logBookProcessor::deactivate);
         lifecycle.register(
                 "NodeTaskProcessor",
                 taskProcessor::activate,
                 taskProcessor::deactivate);
+        lifecycle.register(
+                "LogBookProcessor",
+                logBookProcessor::activate,
+                logBookProcessor::deactivate);
         lifecycle.register(
                 "TagProcessor",
                 tagProcessor::activate,
@@ -86,14 +83,16 @@ public final class TimingNode {
         return logBook;
     }
 
+    /**
+     * Activates the node-owned execution contexts in dependency order.
+     *
+     * <p>The Task Lane starts first because its lifecycle is independent of
+     * LogBook state and it consumes initial TimingData after that data has been
+     * loaded. LogBookProcessor then starts the Data Lane and queues the persisted
+     * TimingData load as its first ordered task. TagProcessor ingress starts last.
+     * Rollback and reverse deactivation are owned by the lifecycle manager.</p>
+     */
     public void activate() {
-        /*
-         * LogBook activation starts asynchronous recovery immediately. Check
-         * the Task Lane first so a known Task Lane lifecycle error cannot occur
-         * only after recovery has already started. Ordered child activation,
-         * rollback and reverse deactivation remain owned by the lifecycle manager.
-         */
-        taskProcessor.validateActivationBeforeRecovery();
         lifecycle.activateAll();
     }
 
