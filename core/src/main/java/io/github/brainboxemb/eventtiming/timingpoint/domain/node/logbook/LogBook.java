@@ -535,9 +535,11 @@ public final class LogBook
                             + " cannot wait for the same Data Lane");
         }
 
-        SerialLane.SubmitResult<R> submitResult =
+        SerialLane.SubmitResult<R> submittedWork =
                 dataLane.submit(work);
-        switch (submitResult.admission()) {
+        SerialLane.AdmissionResult submissionResult =
+                submittedWork.admission();
+        switch (submissionResult) {
             case FULL:
                 throw new OperationException(
                         OperationException.Reason.BUSY,
@@ -558,12 +560,12 @@ public final class LogBook
                                 + " could not be queued because the TimingNode Data Lane is not running");
             case ACCEPTED:
                 return await(
-                        submitResult.futureResult(),
+                        submittedWork.futureResult(),
                         operation);
             default:
                 throw new IllegalStateException(
                         "Unsupported submission result "
-                                + submitResult.admission());
+                                + submissionResult);
         }
     }
 
