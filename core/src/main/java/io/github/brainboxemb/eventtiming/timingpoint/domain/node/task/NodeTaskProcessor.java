@@ -43,7 +43,6 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
     private static final Logger LOG =
             LoggerFactory.getLogger(NodeTaskProcessor.class);
     private static final long TASK_QUERY_TIMEOUT_MILLIS = 2000L;
-    private static final int MAX_PENDING_FACTS = 256;
 
     private final LogBookProcessor logBookProcessor;
     private final SerialLane taskLane;
@@ -53,11 +52,6 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
     private final StageTiming stageTiming;
     private final List<TimingData> committedTimingData =
             new ArrayList<TimingData>();
-    private final Object pendingFactLock = new Object();
-    private final List<TimingData> pendingCommits =
-            new ArrayList<TimingData>();
-
-    private List<TimingData> pendingInitialData;
     private volatile boolean derivedTimingReady;
     private volatile boolean derivedTimingStale;
 
@@ -111,7 +105,6 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
 
     public void activate() {
         taskLane.start();
-        flushPendingDataFacts();
     }
 
     public void deactivate() {
@@ -169,69 +162,37 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
     }
 
     private void onInitialTimingDataLoaded(List<TimingData> loadedData) {
-        List<TimingData> snapshot =
-                new ArrayList<TimingData>(loadedData);
-
-        if (taskLane.state() == SerialLane.State.RUNNING
-                && offerOperation(() -> rebuildDerivedTiming(snapshot))) {
-            return;
-        }
-
-        synchronized (pendingFactLock) {
-            pendingInitialData = snapshot;
-            pendingCommits.clear();
-        }
+        List<TimingData> snapshot = new ArrayList<TimingData>(loadedData);
+        admitTimingFact(
+                () -> rebuildDerivedTiming(snapshot),
+                "initial TimingData");
     }
 
     private void onTimingDataCommitted(TimingData data) {
-        if (taskLane.state() == SerialLane.State.RUNNING
-                && offerOperation(() -> applyCommittedTimingData(data))) {
-            return;
-        }
-
-        synchronized (pendingFactLock) {
-            if (pendingCommits.size() >= MAX_PENDING_FACTS) {
-                derivedTimingStale = true;
-                LOG.error(
-                        "Task Lane TimingData handoff buffer is full for node {}; derived timing state is stale",
-                        logBookProcessor.timingNodeId().value());
-                return;
-            }
-            pendingCommits.add(data);
-        }
+        admitTimingFact(
+                () -> applyCommittedTimingData(data),
+                "committed TimingData");
     }
 
-    private void flushPendingDataFacts() {
-        final List<TimingData> initialData;
-        final List<TimingData> commits;
-
-        synchronized (pendingFactLock) {
-            initialData = pendingInitialData == null
-                    ? null
-                    : new ArrayList<TimingData>(pendingInitialData);
-            commits = new ArrayList<TimingData>(pendingCommits);
-            pendingInitialData = null;
-            pendingCommits.clear();
-        }
-
-        if (initialData == null && commits.isEmpty()) {
+    /**
+     * Performs the bounded Data Lane -> Task Lane handoff.
+     *
+     * <p>The Task Lane is activated before LogBookProcessor, so normal startup
+     * does not need an intermediate pending-data buffer. Rejected admission is
+     * an explicit degraded-state condition rather than deferred hidden work.</p>
+     */
+    private void admitTimingFact(Runnable operation, String fact) {
+        SerialLane.AdmissionResult admission = taskLane.offer(operation);
+        if (admission == SerialLane.AdmissionResult.ACCEPTED) {
             return;
         }
 
-        if (!offerOperation(
-                () -> {
-                    if (initialData != null) {
-                        rebuildDerivedTiming(initialData);
-                    }
-                    for (TimingData data : commits) {
-                        applyCommittedTimingData(data);
-                    }
-                })) {
-            derivedTimingStale = true;
-            LOG.error(
-                    "Task Lane rejected initial/committed TimingData for node {}; derived timing state is stale",
-                    logBookProcessor.timingNodeId().value());
-        }
+        derivedTimingStale = true;
+        LOG.error(
+                "Task Lane rejected {} for node {}; admission={}, derived timing state is stale",
+                fact,
+                logBookProcessor.timingNodeId().value(),
+                admission);
     }
 
     private void rebuildDerivedTiming(List<TimingData> loadedData) {
