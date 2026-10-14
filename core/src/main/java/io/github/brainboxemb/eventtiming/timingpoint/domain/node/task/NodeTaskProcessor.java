@@ -57,7 +57,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
     private final List<TimingData> pendingCommits =
             new ArrayList<TimingData>();
 
-    private List<TimingData> pendingRecovery;
+    private List<TimingData> pendingInitialData;
     private volatile boolean derivedTimingReady;
     private volatile boolean derivedTimingStale;
 
@@ -94,8 +94,8 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
          * Composition-time wiring. Event delivery itself is synchronous on the
          * Data Lane; these listeners only perform a bounded Task Lane handoff.
          */
-        logBookProcessor.recoveredDataEvent()
-                .subscribe(this::onTimingDataRecovered);
+        logBookProcessor.initialDataLoadedEvent()
+                .subscribe(this::onInitialTimingDataLoaded);
         logBookProcessor.newDataEntryEvent()
                 .subscribe(this::onTimingDataCommitted);
 
@@ -168,9 +168,9 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
         return taskLane.offer(operation) == SerialLane.AdmissionResult.ACCEPTED;
     }
 
-    private void onTimingDataRecovered(List<TimingData> recovered) {
+    private void onInitialTimingDataLoaded(List<TimingData> loadedData) {
         List<TimingData> snapshot =
-                new ArrayList<TimingData>(recovered);
+                new ArrayList<TimingData>(loadedData);
 
         if (taskLane.state() == SerialLane.State.RUNNING
                 && offerOperation(() -> rebuildDerivedTiming(snapshot))) {
@@ -178,7 +178,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
         }
 
         synchronized (pendingFactLock) {
-            pendingRecovery = snapshot;
+            pendingInitialData = snapshot;
             pendingCommits.clear();
         }
     }
@@ -202,26 +202,26 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
     }
 
     private void flushPendingDataFacts() {
-        final List<TimingData> recovery;
+        final List<TimingData> initialData;
         final List<TimingData> commits;
 
         synchronized (pendingFactLock) {
-            recovery = pendingRecovery == null
+            initialData = pendingInitialData == null
                     ? null
-                    : new ArrayList<TimingData>(pendingRecovery);
+                    : new ArrayList<TimingData>(pendingInitialData);
             commits = new ArrayList<TimingData>(pendingCommits);
-            pendingRecovery = null;
+            pendingInitialData = null;
             pendingCommits.clear();
         }
 
-        if (recovery == null && commits.isEmpty()) {
+        if (initialData == null && commits.isEmpty()) {
             return;
         }
 
         if (!offerOperation(
                 () -> {
-                    if (recovery != null) {
-                        rebuildDerivedTiming(recovery);
+                    if (initialData != null) {
+                        rebuildDerivedTiming(initialData);
                     }
                     for (TimingData data : commits) {
                         applyCommittedTimingData(data);
@@ -229,17 +229,17 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
                 })) {
             derivedTimingStale = true;
             LOG.error(
-                    "Task Lane could not accept recovered/committed TimingData facts for node {}; derived timing state is stale",
+                    "Task Lane could not accept initial/committed TimingData facts for node {}; derived timing state is stale",
                     logBookProcessor.timingNodeId().value());
         }
     }
 
-    private void rebuildDerivedTiming(List<TimingData> recovered) {
+    private void rebuildDerivedTiming(List<TimingData> loadedData) {
         requireTaskLane("rebuildDerivedTiming");
         committedTimingData.clear();
         uniqueTeamRegistrations.reset();
 
-        for (TimingData data : recovered) {
+        for (TimingData data : loadedData) {
             committedTimingData.add(data);
             updateUniqueTeamRegistrations(data);
         }
