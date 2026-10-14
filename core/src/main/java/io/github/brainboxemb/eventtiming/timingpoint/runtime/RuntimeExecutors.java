@@ -230,9 +230,9 @@ final class RuntimeExecutors implements AutoCloseable {
      * worker. Scenario delays therefore release the physical worker while still
      * keeping a bounded logical execution lane.
      */
-    synchronized SerialScheduledLane createSimulationLane() {
-        SerialScheduledLane simulation =
-                new SerialScheduledLane(
+    synchronized SerialLane createSimulationLane() {
+        SerialLane simulation =
+                new SerialLane(
                         SIMULATION_QUEUE_CAPACITY,
                         "SimulatedTagScenario",
                         sharedIoWorker);

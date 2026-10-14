@@ -6,12 +6,14 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.application.SimulationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.scheduling.LaneScheduler;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -39,7 +41,8 @@ public final class SimulatedTagScenarioRunner
     private final SimulatedAntenna antenna;
     private final EventData eventData;
     private final TimeSource timeSource;
-    private final SerialScheduledLane executor;
+    private final SerialLane lane;
+    private final LaneScheduler scheduler;
 
     private boolean active;
     private int activeScenarios;
@@ -48,7 +51,8 @@ public final class SimulatedTagScenarioRunner
             SimulatedAntenna antenna,
             EventData eventData,
             TimeSource timeSource,
-            SerialScheduledLane executor) {
+            SerialLane lane,
+            ScheduledExecutorService scheduledExecutor) {
         if (antenna == null) {
             throw new IllegalArgumentException(
                     "antenna must not be null");
@@ -61,14 +65,22 @@ public final class SimulatedTagScenarioRunner
             throw new IllegalArgumentException(
                     "timeSource must not be null");
         }
-        if (executor == null) {
+        if (lane == null) {
             throw new IllegalArgumentException(
-                    "executor must not be null");
+                    "lane must not be null");
+        }
+        if (scheduledExecutor == null) {
+            throw new IllegalArgumentException(
+                    "scheduledExecutor must not be null");
         }
         this.antenna = antenna;
         this.eventData = eventData;
         this.timeSource = timeSource;
-        this.executor = executor;
+        this.lane = lane;
+        this.scheduler =
+                new LaneScheduler(
+                        lane,
+                        scheduledExecutor);
     }
 
     public synchronized void activate() {
@@ -76,7 +88,7 @@ public final class SimulatedTagScenarioRunner
             throw new IllegalStateException(
                     "SimulatedTagScenarioRunner is already active");
         }
-        executor.start();
+        lane.start();
         active = true;
     }
 
@@ -86,7 +98,7 @@ public final class SimulatedTagScenarioRunner
         }
         active = false;
         activeScenarios = 0;
-        executor.close();
+        lane.close();
     }
 
     @Override
@@ -169,11 +181,14 @@ public final class SimulatedTagScenarioRunner
 
         try {
             if (delayNanos == 0L) {
-                return executor.execute(
-                        work);
+                return lane.offer(work)
+                        == SerialLane.AdmissionResult.ACCEPTED;
             }
-            executor.schedule(
-                    work,
+            scheduler.submitAfter(
+                    () -> {
+                        work.run();
+                        return null;
+                    },
                     delayNanos);
             return true;
         } catch (IllegalStateException ex) {

@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingpoint.application.SimulationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -39,8 +39,8 @@ public class SimulatedTagScenarioRunnerTest {
         ScheduledThreadPoolExecutor worker =
                 new ScheduledThreadPoolExecutor(1);
         worker.setRemoveOnCancelPolicy(true);
-        SerialScheduledLane lane =
-                new SerialScheduledLane(
+        SerialLane lane =
+                new SerialLane(
                         32,
                         "simulation-test",
                         worker);
@@ -51,7 +51,8 @@ public class SimulatedTagScenarioRunnerTest {
                         antenna,
                         eventData(),
                         () -> BASE_TIME,
-                        lane);
+                        lane,
+                        worker);
 
         List<TagObservation> observations =
                 Collections.synchronizedList(
@@ -120,8 +121,8 @@ public class SimulatedTagScenarioRunnerTest {
         ScheduledThreadPoolExecutor worker =
                 new ScheduledThreadPoolExecutor(1);
         worker.setRemoveOnCancelPolicy(true);
-        SerialScheduledLane lane =
-                new SerialScheduledLane(
+        SerialLane lane =
+                new SerialLane(
                         32,
                         "simulation-test",
                         worker);
@@ -132,7 +133,8 @@ public class SimulatedTagScenarioRunnerTest {
                         antenna,
                         eventData(),
                         () -> BASE_TIME,
-                        lane);
+                        lane,
+                        worker);
 
         AtomicObservation single =
                 new AtomicObservation();
@@ -197,8 +199,8 @@ public class SimulatedTagScenarioRunnerTest {
         ScheduledThreadPoolExecutor worker =
                 new ScheduledThreadPoolExecutor(1);
         worker.setRemoveOnCancelPolicy(true);
-        SerialScheduledLane lane =
-                new SerialScheduledLane(
+        SerialLane lane =
+                new SerialLane(
                         32,
                         "simulation-test",
                         worker);
@@ -209,7 +211,8 @@ public class SimulatedTagScenarioRunnerTest {
                         antenna,
                         new EventData(mapping),
                         () -> BASE_TIME,
-                        lane);
+                        lane,
+                        worker);
 
         List<TagObservation> longObservations =
                 Collections.synchronizedList(
@@ -305,8 +308,8 @@ public class SimulatedTagScenarioRunnerTest {
         ScheduledThreadPoolExecutor worker =
                 new ScheduledThreadPoolExecutor(1);
         worker.setRemoveOnCancelPolicy(true);
-        SerialScheduledLane lane =
-                new SerialScheduledLane(
+        SerialLane lane =
+                new SerialLane(
                         32,
                         "simulation-test",
                         worker);
@@ -317,7 +320,8 @@ public class SimulatedTagScenarioRunnerTest {
                         antenna,
                         eventData(),
                         () -> BASE_TIME,
-                        lane);
+                        lane,
+                        worker);
 
         runner.activate();
         try {
