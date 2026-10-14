@@ -69,6 +69,7 @@ final class TimingSystemComposer {
                 ? null : new AntennaManager(
                         antennaSet,
                         executors.createAntennaControlLane(),
+                        executors.sharedIoScheduler(),
                         ANTENNA_CONTROL_TIMEOUT,
                         antennaSettings);
 

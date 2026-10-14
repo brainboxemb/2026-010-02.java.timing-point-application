@@ -9,12 +9,13 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTaskController;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.ScheduledTaskRunner;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.ScheduledExecutorService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,14 +72,16 @@ public final class AntennaManager implements YieldingTask {
 
     public AntennaManager(
             AntennaSet antennaSet,
-            SerialScheduledLane controlLane,
+            SerialLane controlLane,
+            ScheduledExecutorService scheduler,
             Duration controlTimeout) {
-        this(antennaSet, controlLane, controlTimeout, new AntennaSettings());
+        this(antennaSet, controlLane, scheduler, controlTimeout, new AntennaSettings());
     }
 
     public AntennaManager(
             AntennaSet antennaSet,
-            SerialScheduledLane controlLane,
+            SerialLane controlLane,
+            ScheduledExecutorService scheduler,
             Duration controlTimeout,
             AntennaSettings settings) {
         checkArgument(settings != null, "settings must not be null");
@@ -86,10 +89,11 @@ public final class AntennaManager implements YieldingTask {
         inventoryEnabledSetting = settings.inventorySetting();
         checkArgument(antennaSet != null, "antennaSet must not be null");
         checkArgument(controlLane != null, "controlLane must not be null");
+        checkArgument(scheduler != null, "scheduler must not be null");
 
         antennaSet.seal();
         this.antennaSet = antennaSet;
-        taskRunner = new ScheduledTaskRunner(controlLane, controlTimeout);
+        taskRunner = new ScheduledTaskRunner(controlLane, scheduler, controlTimeout);
         stateMachine = new YieldingTaskController(
                 taskRunner,
                 this,

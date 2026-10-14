@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -205,19 +206,23 @@ final class RuntimeExecutors implements AutoCloseable {
     }
 
     /**
-     * Creates one AntennaManager control lane on the shared scheduled I/O worker.
+     * Creates one ordinary serial AntennaManager control lane.
      *
-     * <p>The manager sees only the project SerialScheduledLane abstraction.
-     * The JDK ScheduledExecutorService remains a Runtime implementation detail.</p>
+     * <p>Delayed work is scheduled separately and later admitted to this same
+     * lane, so timing does not create a second kind of lane.</p>
      */
-    synchronized SerialScheduledLane createAntennaControlLane() {
-        SerialScheduledLane antennaControl =
-                new SerialScheduledLane(
+    synchronized SerialLane createAntennaControlLane() {
+        SerialLane antennaControl =
+                new SerialLane(
                         ANTENNA_CONTROL_QUEUE_CAPACITY,
                         "AntennaManager",
                         sharedIoWorker);
         serialLanes.add(antennaControl);
         return antennaControl;
+    }
+
+    ScheduledExecutorService sharedIoScheduler() {
+        return sharedIoWorker;
     }
 
     /**

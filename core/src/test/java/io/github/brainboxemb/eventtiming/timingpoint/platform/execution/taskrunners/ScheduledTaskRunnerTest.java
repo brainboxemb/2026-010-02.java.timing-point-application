@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.time.Duration;
@@ -28,14 +28,15 @@ public class ScheduledTaskRunnerTest {
             throws Exception {
         ScheduledExecutorService worker =
                 Executors.newScheduledThreadPool(1);
-        SerialScheduledLane lane =
-                new SerialScheduledLane(
+        SerialLane lane =
+                new SerialLane(
                         8,
                         "cooperative-yield",
                         worker);
         ScheduledTaskRunner runner =
                 new ScheduledTaskRunner(
                         lane,
+                        worker,
                         Duration.ofSeconds(1));
         runner.start();
 
@@ -116,19 +117,20 @@ public class ScheduledTaskRunnerTest {
             throws Exception {
         ScheduledExecutorService worker =
                 Executors.newScheduledThreadPool(1);
-        SerialScheduledLane taskLane =
-                new SerialScheduledLane(
+        SerialLane taskLane =
+                new SerialLane(
                         8,
                         "cooperative-delay",
                         worker);
-        SerialScheduledLane siblingLane =
-                new SerialScheduledLane(
+        SerialLane siblingLane =
+                new SerialLane(
                         8,
                         "cooperative-sibling",
                         worker);
         ScheduledTaskRunner runner =
                 new ScheduledTaskRunner(
                         taskLane,
+                        worker,
                         Duration.ofSeconds(1));
         runner.start();
         siblingLane.start();
@@ -158,8 +160,9 @@ public class ScheduledTaskRunnerTest {
 
             CountDownLatch siblingRan =
                     new CountDownLatch(1);
-            assertTrue(
-                    siblingLane.execute(
+            assertEquals(
+                    SerialLane.AdmissionResult.ACCEPTED,
+                    siblingLane.offer(
                             siblingRan::countDown));
             assertTrue(
                     "cooperative delay must release the shared worker",
@@ -184,14 +187,15 @@ public class ScheduledTaskRunnerTest {
             throws Exception {
         ScheduledExecutorService worker =
                 Executors.newScheduledThreadPool(1);
-        SerialScheduledLane lane =
-                new SerialScheduledLane(
+        SerialLane lane =
+                new SerialLane(
                         4,
                         "timeout",
                         worker);
         ScheduledTaskRunner runner =
                 new ScheduledTaskRunner(
                         lane,
+                        worker,
                         Duration.ofMillis(50));
         runner.start();
 
@@ -241,14 +245,15 @@ public class ScheduledTaskRunnerTest {
                 Executors.newScheduledThreadPool(1);
         worker.shutdownNow();
 
-        SerialScheduledLane lane =
-                new SerialScheduledLane(
+        SerialLane lane =
+                new SerialLane(
                         4,
                         "rejected",
                         worker);
         ScheduledTaskRunner runner =
                 new ScheduledTaskRunner(
                         lane,
+                        worker,
                         Duration.ofMillis(100));
 
         runner.start();

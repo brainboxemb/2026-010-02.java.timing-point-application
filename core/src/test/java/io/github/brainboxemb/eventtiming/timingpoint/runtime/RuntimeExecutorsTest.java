@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -161,9 +160,9 @@ public class RuntimeExecutorsTest {
     public void antennaControlLanesUseRuntimeOwnedSharedIoWorkers()
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
-        SerialScheduledLane first =
+        SerialLane first =
                 runtime.createAntennaControlLane();
-        SerialScheduledLane second =
+        SerialLane second =
                 runtime.createAntennaControlLane();
         runtime.start();
 
@@ -179,8 +178,9 @@ public class RuntimeExecutorsTest {
         first.start();
         second.start();
         try {
-            assertTrue(
-                    first.execute(() -> {
+            assertEquals(
+                    SerialLane.AdmissionResult.ACCEPTED,
+                    first.offer(() -> {
                         firstThread.set(
                                 Thread.currentThread().getName());
                         firstDone.countDown();
@@ -195,8 +195,9 @@ public class RuntimeExecutorsTest {
 
             first.close();
 
-            assertTrue(
-                    second.execute(() -> {
+            assertEquals(
+                    SerialLane.AdmissionResult.ACCEPTED,
+                    second.offer(() -> {
                         secondThread.set(
                                 Thread.currentThread().getName());
                         secondDone.countDown();

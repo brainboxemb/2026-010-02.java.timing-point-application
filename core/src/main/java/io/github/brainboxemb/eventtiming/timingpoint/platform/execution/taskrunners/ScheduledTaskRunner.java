@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.scheduling.LaneScheduler;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
@@ -10,16 +11,19 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Runs yielding tasks on one {@link SerialScheduledLane}.
+ * Runs yielding tasks on one {@link SerialLane}, with delayed re-admission
+ * supplied separately by a JDK scheduler.
  *
  * <p>The runner owns yielding continuation, cancellation propagation and
  * bounded waiting for a complete task run. The task owns its operation/control
- * state. The wrapped lane owns serial admission and delayed scheduling.</p>
+ * state. The lane owns serial admission; {@link LaneScheduler} owns only the
+ * timing of delayed re-admission.</p>
  *
  * <p>Domain/I/O components map {@link OperationException} to their own failure
  * semantics instead of putting component-specific policy in this platform type.</p>
@@ -63,9 +67,9 @@ public final class ScheduledTaskRunner implements YieldingTaskRunner {
         private final CompletableFuture<Void> result =
                 new CompletableFuture<Void>();
         private final AtomicReference<
-                SerialScheduledLane.ScheduledResult<?>> active =
+                LaneScheduler.ScheduledOperation<?>> active =
                         new AtomicReference<
-                                SerialScheduledLane.ScheduledResult<?>>();
+                                LaneScheduler.ScheduledOperation<?>>();
 
         private CooperativeRun(
                 YieldingTask task) {
@@ -90,7 +94,7 @@ public final class ScheduledTaskRunner implements YieldingTaskRunner {
                 return;
             }
 
-            SerialScheduledLane.ScheduledResult<?> scheduled =
+            LaneScheduler.ScheduledOperation<?> scheduled =
                     active.get();
             if (scheduled != null) {
                 scheduled.futureResult()
@@ -108,10 +112,10 @@ public final class ScheduledTaskRunner implements YieldingTaskRunner {
                 return;
             }
 
-            final SerialScheduledLane.ScheduledResult<TaskStep> scheduled;
+            final LaneScheduler.ScheduledOperation<TaskStep> scheduled;
             try {
                 scheduled =
-                        lane.submitAfter(
+                        scheduler.submitAfter(
                                 task::runStep,
                                 delayNanos);
                 active.set(
@@ -206,15 +210,21 @@ public final class ScheduledTaskRunner implements YieldingTaskRunner {
         }
     }
 
-    private final SerialScheduledLane lane;
+    private final SerialLane lane;
+    private final LaneScheduler scheduler;
     private final long timeoutNanos;
 
     public ScheduledTaskRunner(
-            SerialScheduledLane lane,
+            SerialLane lane,
+            ScheduledExecutorService scheduledExecutor,
             Duration timeout) {
         if (lane == null) {
             throw new IllegalArgumentException(
                     "lane must not be null");
+        }
+        if (scheduledExecutor == null) {
+            throw new IllegalArgumentException(
+                    "scheduledExecutor must not be null");
         }
         if (timeout == null
                 || timeout.isZero()
@@ -224,6 +234,10 @@ public final class ScheduledTaskRunner implements YieldingTaskRunner {
         }
 
         this.lane = lane;
+        this.scheduler =
+                new LaneScheduler(
+                        lane,
+                        scheduledExecutor);
         try {
             timeoutNanos = timeout.toNanos();
         } catch (ArithmeticException ex) {
@@ -245,8 +259,8 @@ public final class ScheduledTaskRunner implements YieldingTaskRunner {
      */
     public boolean execute(
             Runnable action) {
-        return lane.execute(
-                action);
+        return lane.offer(action)
+                == SerialLane.AdmissionResult.ACCEPTED;
     }
 
     /**
@@ -290,12 +304,12 @@ public final class ScheduledTaskRunner implements YieldingTaskRunner {
 
     public boolean isNew() {
         return lane.state()
-                == SerialScheduledLane.State.NEW;
+                == SerialLane.State.NEW;
     }
 
     public boolean isRunning() {
         return lane.state()
-                == SerialScheduledLane.State.RUNNING;
+                == SerialLane.State.RUNNING;
     }
 
     public Throwable failure() {
