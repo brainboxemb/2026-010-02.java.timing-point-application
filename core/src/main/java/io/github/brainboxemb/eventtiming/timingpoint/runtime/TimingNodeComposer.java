@@ -9,6 +9,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServiceState;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
@@ -68,12 +70,24 @@ final class TimingNodeComposer {
                         lanes.dataLane(),
                         LogBook.DEFAULT_OPERATION_TIMEOUT_MILLIS);
 
+        NodeServiceState nodeServiceState =
+                new NodeServiceState(
+                        system.eventData());
+
         NodeService nodeService =
                 new NodeService(
                         logBook,
                         lanes.taskLane(),
-                        system.eventData(),
-                        UpstreamStream.unavailable());
+                        nodeServiceState);
+
+        UpstreamHandler upstreamHandler =
+                new UpstreamHandler(
+                        nodeConfig.timingNodeId(),
+                        lanes.dataLane(),
+                        lanes.taskLane(),
+                        UpstreamStream.unavailable(),
+                        logBook,
+                        nodeServiceState);
 
         TagProcessor tags =
                 new TagProcessor(
@@ -95,6 +109,7 @@ final class TimingNodeComposer {
                         tags);
         return new TimingNodeComponents(
                 node,
-                tags);
+                tags,
+                upstreamHandler);
     }
 }
