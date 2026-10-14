@@ -99,7 +99,7 @@ final class TimingSystemComposer {
             TimeSource timeSource) {
         TimingNodeList nodes = new TimingNodeList();
         for (Config.TimingNodeConfig nodeConfig : system.configuration().timingNodes()) {
-            RuntimeExecutors.TimingNodeLanes nodeExecutors =
+            RuntimeExecutors.TimingNodeLanes nodeLanes =
                     executors.createTimingNodeLanes();
             TimingDataPersistence persistence = new DefaultTimingDataPersistence(
                     new FileAppendOnlyRecordStore(nodeConfig.timingDataPath()),
@@ -112,9 +112,9 @@ final class TimingSystemComposer {
                     timeSource,
                     configuration.timingNode(nodeConfig.timingNodeId()).tagProcessing(),
                     system.eventData(),
-                    nodeExecutors.dataLane(),
-                    nodeExecutors.taskLane(),
-                    nodeExecutors.tagProcessor(),
+                    nodeLanes.dataLane(),
+                    nodeLanes.taskLane(),
+                    nodeLanes.tagProcessor(),
                     platform.monotonicClock());
             nodes.add(node);
         }
