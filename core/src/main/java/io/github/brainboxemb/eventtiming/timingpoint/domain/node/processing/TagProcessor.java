@@ -61,6 +61,7 @@ public final class TagProcessor {
     private volatile List<TagPassageSnapshot> passageSnapshots =
             Collections.emptyList();
 
+    /** Creates a TagProcessor with one fixed startup policy. */
     public TagProcessor(
             EventData eventData,
             TagProcessingPolicy policy,
@@ -77,6 +78,7 @@ public final class TagProcessor {
                 scheduledExecutor);
     }
 
+    /** Creates a TagProcessor backed by the supplied live read-only policy configuration. */
     public TagProcessor(
             EventData eventData,
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
@@ -176,6 +178,7 @@ public final class TagProcessor {
      * Mapping, duplicate checks and passage selection run later on the
      * TagProcessor lane.</p>
      */
+    /** Accepts one antenna observation into the bounded processor ingress queue. */
     public void onTagObserved(TagObservation observation) {
         checkArgument(observation != null, "observation must not be null");
 
@@ -201,6 +204,7 @@ public final class TagProcessor {
      * never read the mutable filter state directly and no worker round-trip is
      * required merely to inspect diagnostics.</p>
      */
+    /** Returns the latest immutable engineering snapshot of active tag passages. */
     public List<TagPassageSnapshot> passageSnapshots() {
         return passageSnapshots;
     }
@@ -319,6 +323,7 @@ public final class TagProcessor {
      * child. The event graph is not changed during component activation or
      * deactivation.</p>
      */
+    /** Queues one accepted processing-policy change onto the TagProcessor lane. */
     public void onPolicyConfigurationChanged(
             ConfigurationChange<TagProcessingPolicy> change) {
         synchronized (lifecycleLock) {
@@ -426,6 +431,7 @@ public final class TagProcessor {
         private final RegistrationId registrationId;
         private final TimingTimestamp observedAt;
 
+        /** Creates the immutable registration fact emitted after passage selection. */
         public NewRegistration(
                 RegistrationId registrationId,
                 TimingTimestamp observedAt) {
