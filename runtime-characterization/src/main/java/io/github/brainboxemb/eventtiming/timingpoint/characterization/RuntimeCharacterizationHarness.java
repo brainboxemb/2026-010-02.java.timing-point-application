@@ -480,7 +480,8 @@ final class RuntimeCharacterizationHarness
             throws InterruptedException {
         CountDownLatch barrier = new CountDownLatch(1);
         await(
-                () -> tagLane.execute(barrier::countDown),
+                () -> tagLane.offer(barrier::countDown)
+                        == SerialLane.AdmissionResult.ACCEPTED,
                 "TagProcessor barrier admission");
         if (!barrier.await(
                 COMPLETION_TIMEOUT_MILLIS,
