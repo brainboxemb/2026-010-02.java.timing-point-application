@@ -6,7 +6,7 @@ import java.util.function.Function;
  * Typed read operation for the LogBook/Data Lane component.
  *
  * <p>ORDERED reads execute on the Data Lane. CURRENT reads are available only
- * where LogBookProcessor explicitly publishes a safe immutable/scalar view.</p>
+ * where LogBook explicitly publishes a safe immutable/scalar view.</p>
  */
 public final class LogBookQuery<R> {
 
@@ -17,7 +17,7 @@ public final class LogBookQuery<R> {
 
     private final String name;
     private final Function<LogBookState, R> orderedReader;
-    private final Function<LogBookProcessor, R> currentReader;
+    private final Function<LogBook, R> currentReader;
 
     LogBookQuery(
             String name,
@@ -28,7 +28,7 @@ public final class LogBookQuery<R> {
     LogBookQuery(
             String name,
             Function<LogBookState, R> orderedReader,
-            Function<LogBookProcessor, R> currentReader) {
+            Function<LogBook, R> currentReader) {
         if (name == null || name.trim().isEmpty()) {
             throw new IllegalArgumentException("name must not be blank");
         }
@@ -48,7 +48,7 @@ public final class LogBookQuery<R> {
         return orderedReader.apply(state);
     }
 
-    R readCurrent(LogBookProcessor processor) {
+    R readCurrent(LogBook processor) {
         if (currentReader == null) {
             throw new IllegalArgumentException(
                     "LogBook query " + name + " does not support CURRENT consistency");
