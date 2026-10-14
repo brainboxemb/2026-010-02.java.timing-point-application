@@ -10,8 +10,12 @@ import java.util.function.Function;
  */
 public final class LogBookQuery<R> {
 
+    /** Determines whether a query reads published state or enters the Data Lane. */
     public enum ReadConsistency {
+        /** Read the latest safely published immutable/scalar view without a lane hop. */
         CURRENT,
+
+        /** Execute after earlier queued Data Lane work and return that ordered view. */
         ORDERED
     }
 
@@ -48,11 +52,11 @@ public final class LogBookQuery<R> {
         return orderedReader.apply(state);
     }
 
-    R readCurrent(LogBook processor) {
+    R readCurrent(LogBook logBook) {
         if (currentReader == null) {
             throw new IllegalArgumentException(
                     "LogBook query " + name + " does not support CURRENT consistency");
         }
-        return currentReader.apply(processor);
+        return currentReader.apply(logBook);
     }
 }
