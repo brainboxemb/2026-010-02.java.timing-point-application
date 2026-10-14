@@ -380,7 +380,7 @@ public class WebSocketEndpointTest {
             timingNode.statusChangedEvent()
                     .subscribe(
                             endpoint::onTimingNodeStatusChanged);
-            timingNode.newDataEvent()
+            timingNode.newDataEntryEvent()
                     .subscribe(
                             endpoint::onTimingDataCommitted);
         }
