@@ -47,14 +47,14 @@ public class RuntimeExecutorsTest {
         try {
             first.dataLane().execute(() -> {
                         firstThread.set(
-                                Thread.currentThread().getName();
+                                Thread.currentThread().getName());
                         done.countDown();
-                    }));
+                    });
             second.dataLane().execute(() -> {
                         secondThread.set(
-                                Thread.currentThread().getName();
+                                Thread.currentThread().getName());
                         done.countDown();
-                    }));
+                    });
 
             assertTrue(done.await(1, TimeUnit.SECONDS));
             assertEquals(
@@ -89,14 +89,14 @@ public class RuntimeExecutorsTest {
         try {
             lanes.dataLane().execute(() -> {
                         dataThread.set(
-                                Thread.currentThread().getName();
+                                Thread.currentThread().getName());
                         done.countDown();
-                    }));
+                    });
             lanes.taskLane().execute(() -> {
                         taskThread.set(
-                                Thread.currentThread().getName();
+                                Thread.currentThread().getName());
                         done.countDown();
-                    }));
+                    });
 
             assertTrue(done.await(1, TimeUnit.SECONDS));
             assertEquals(
@@ -129,9 +129,9 @@ public class RuntimeExecutorsTest {
         try {
             conductor.execute(() -> {
                         threadName.set(
-                                Thread.currentThread().getName();
+                                Thread.currentThread().getName());
                         done.countDown();
-                    }));
+                    });
 
             assertTrue(
                     done.await(
@@ -170,9 +170,9 @@ public class RuntimeExecutorsTest {
         try {
             first.execute(() -> {
                         firstThread.set(
-                                Thread.currentThread().getName();
+                                Thread.currentThread().getName());
                         firstDone.countDown();
-                    }));
+                    });
             assertTrue(
                     firstDone.await(
                             1,
@@ -185,9 +185,9 @@ public class RuntimeExecutorsTest {
 
             second.execute(() -> {
                         secondThread.set(
-                                Thread.currentThread().getName();
+                                Thread.currentThread().getName());
                         secondDone.countDown();
-                    }));
+                    });
             assertTrue(
                     secondDone.await(
                             1,
@@ -223,14 +223,14 @@ public class RuntimeExecutorsTest {
         try {
             first.tagProcessor().execute(() -> {
                         firstThread.set(
-                                Thread.currentThread().getName();
+                                Thread.currentThread().getName());
                         done.countDown();
-                    }));
+                    });
             second.tagProcessor().execute(() -> {
                         secondThread.set(
-                                Thread.currentThread().getName();
+                                Thread.currentThread().getName());
                         done.countDown();
-                    }));
+                    });
 
             assertTrue(done.await(1, TimeUnit.SECONDS));
             assertEquals(
