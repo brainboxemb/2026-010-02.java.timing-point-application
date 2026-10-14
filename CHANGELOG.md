@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Document the remaining non-trivial `LogBook` execution lambdas at their call sites, including what `()` and `->` mean and which work the `SerialLane` executes later.
+
 - Align `NodeService` execution naming with Java semantics: synchronous result work uses a literal `submitAndWait(...)` helper, direct same-lane query execution is decided by the caller, and private Task Lane helper names describe domain intent rather than execution plumbing.
 
 - Rename the generic execution guard to `SafeExecute.run(...)` and document the LogBook startup lambda/method-reference arguments explicitly at the call site.
