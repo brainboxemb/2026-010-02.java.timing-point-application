@@ -25,12 +25,19 @@ public final class LogBookQuery<R> {
     private final Function<LogBookState, R> orderedReader;
     private final Function<LogBook, R> currentReader;
 
+    /** Creates an ORDERED-only query backed by Data Lane-owned LogBookState. */
     LogBookQuery(
             String name,
             Function<LogBookState, R> orderedReader) {
         this(name, orderedReader, null);
     }
 
+    /**
+     * Creates a query with an ORDERED reader and an optional safe CURRENT reader.
+     *
+     * <p>The CURRENT reader receives LogBook because only LogBook may expose
+     * safely published immutable/scalar state outside the Data Lane.</p>
+     */
     LogBookQuery(
             String name,
             Function<LogBookState, R> orderedReader,
@@ -44,14 +51,17 @@ public final class LogBookQuery<R> {
         this.currentReader = currentReader;
     }
 
+    /** Returns the stable diagnostic name used in operation/error reporting. */
     public String name() {
         return name;
     }
 
+    /** Reads the ordered value from Data Lane-owned mutable LogBookState. */
     R readOrdered(LogBookState state) {
         return orderedReader.apply(state);
     }
 
+    /** Reads the safely published CURRENT view or rejects unsupported consistency. */
     R readCurrent(LogBook logBook) {
         if (currentReader == null) {
             throw new IllegalArgumentException(

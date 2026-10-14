@@ -27,6 +27,7 @@ public final class LogBookQueries {
                     LogBookState::timingDataHead,
                     LogBook::currentTimingDataHead);
 
+    /** Prevents construction of this stateless query factory. */
     private LogBookQueries() {
     }
 
