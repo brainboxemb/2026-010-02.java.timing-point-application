@@ -128,7 +128,7 @@ public class TimingNodeTest {
                         expected.reason());
             }
 
-            node.logBook().queue(
+            node.logBook().execute(
                     LogBookCommands.open(
                             new LocationId(24)));
 
@@ -479,7 +479,7 @@ public class TimingNodeTest {
             assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
             Thread producer = new Thread(() -> {
-                node.logBook().queue(
+                node.logBook().execute(
                         LogBookCommands.open(
                                 new LocationId(24)));
                 producerReturned.countDown();
@@ -523,7 +523,7 @@ public class TimingNodeTest {
             });
             assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
-            node.logBook().queue(LogBookCommands.open(new LocationId(24)));
+            node.logBook().execute(LogBookCommands.open(new LocationId(24)));
 
             TimingNodeTypes.Status current =
                     node.logBook().query(
