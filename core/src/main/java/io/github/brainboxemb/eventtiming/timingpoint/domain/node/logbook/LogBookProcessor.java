@@ -41,7 +41,7 @@ public final class LogBookProcessor
             LoggerFactory.getLogger(LogBookProcessor.class);
     public static final long DEFAULT_OPERATION_TIMEOUT_MILLIS = 2000L;
 
-    private final LogBookState logic;
+    private final LogBookState logBookState;
     private final SerialLane dataLane;
     private final long operationTimeoutMillis;
     private final MonotonicClock monotonicClock;
@@ -101,12 +101,12 @@ public final class LogBookProcessor
     }
 
     LogBookProcessor(
-            LogBookState logic,
+            LogBookState logBookState,
             SerialLane dataLane,
             long operationTimeoutMillis,
             MonotonicClock monotonicClock) {
-        if (logic == null) {
-            throw new IllegalArgumentException("logic must not be null");
+        if (logBookState == null) {
+            throw new IllegalArgumentException("logBookState must not be null");
         }
         if (dataLane == null) {
             throw new IllegalArgumentException("dataLane must not be null");
@@ -119,15 +119,15 @@ public final class LogBookProcessor
             throw new IllegalArgumentException(
                     "monotonicClock must not be null");
         }
-        this.logic = logic;
+        this.logBookState = logBookState;
         this.dataLane = dataLane;
         this.operationTimeoutMillis = operationTimeoutMillis;
         this.monotonicClock = monotonicClock;
-        this.metrics = logic.metrics();
+        this.metrics = logBookState.metrics();
     }
 
     public NodeId timingNodeId() {
-        return logic.timingNodeId();
+        return logBookState.timingNodeId();
     }
 
     public LogBookProcessorMetrics metrics() {
@@ -233,7 +233,7 @@ public final class LogBookProcessor
                 return query.readCurrent(this);
             case ORDERED:
                 return executeOnDataLaneAndWait(
-                        () -> query.readOrdered(logic),
+                        () -> query.readOrdered(logBookState),
                         query.name());
             default:
                 throw new IllegalStateException(
@@ -285,13 +285,13 @@ public final class LogBookProcessor
      */
     @Override
     public long timingDataHead() {
-        return logic.timingDataHead();
+        return logBookState.timingDataHead();
     }
     @Override
     public List<TimingData> timingDataRange(long fromSequence, int limit) {
         requireDataLane("timingDataRange");
         List<TimingData> records = new ArrayList<TimingData>(limit);
-        logic.logBook().visitRange(fromSequence, limit, records::add);
+        logBookState.logBook().visitRange(fromSequence, limit, records::add);
         return records;
     }
 
@@ -303,7 +303,7 @@ public final class LogBookProcessor
     }
 
     long currentTimingDataHead() {
-        return logic.timingDataHead();
+        return logBookState.timingDataHead();
     }
 
     Status publishedStatus() {
@@ -338,10 +338,10 @@ public final class LogBookProcessor
         final TimingDataPersistence.LoadResult loadResult;
         try {
             loadResult =
-                    logic.loadPersistedTimingData();
+                    logBookState.loadPersistedTimingData();
         } catch (TimingDataPersistence.PersistenceException
                 | RuntimeException ex) {
-            logic.markTimingDataLoadFailed(ex);
+            logBookState.markTimingDataLoadFailed(ex);
             LOG.error(
                     "Persisted TimingData load failed for {}; TimingNode remains available in ERROR state",
                     timingNodeId().value(),
@@ -367,7 +367,7 @@ public final class LogBookProcessor
 
     private void publishStatusAfterInitialLoad() {
         Status initialStatus =
-                logic.status();
+                logBookState.status();
         publishCurrentStatus(
                 initialStatus);
         publishInitialStatus(
@@ -390,23 +390,23 @@ public final class LogBookProcessor
             LogBookCommand<R> command)
             throws Exception {
         Status before =
-                logic.status();
+                logBookState.status();
         int committedBefore =
-                logic.committedTimingDataCount();
+                logBookState.committedTimingDataCount();
 
         R result =
-                command.apply(logic);
+                command.apply(logBookState);
 
         Status after =
-                logic.status();
+                logBookState.status();
         publishCurrentStatus(
                 after);
 
         int committedAfter =
-                logic.committedTimingDataCount();
+                logBookState.committedTimingDataCount();
         if (committedAfter > committedBefore) {
             publishNewData(
-                    logic.latestCommittedTimingData());
+                    logBookState.latestCommittedTimingData());
         }
 
         publishStatusChanged(
