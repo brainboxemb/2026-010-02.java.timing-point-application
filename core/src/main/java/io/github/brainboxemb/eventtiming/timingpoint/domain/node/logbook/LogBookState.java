@@ -31,18 +31,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Passive mutable state behind one LogBookProcessor.
+ * Passive mutable state behind one LogBook component.
  *
  * <p>This object contains lifecycle state, LogBook state and commit decisions. It has no queue,
  * timeout or event-delivery responsibility; those belong to the owning
- * {@link LogBookProcessor} component.</p>
+ * {@link LogBook} component.</p>
  */
 final class LogBookState {
     private static final Logger LOG =
             LoggerFactory.getLogger(LogBookState.class);
 
     private final NodeId timingNodeId;
-    private final LogBook logBook;
+    private final LogBookData logBookData;
     private final TimingDataPersistence timingDataPersistence;
     private final TimingDataFactory timingDataFactory;
     private final TimeSource timeSource;
@@ -103,7 +103,7 @@ final class LogBookState {
         this.timeSource = timeSource;
         this.monotonicClock = monotonicClock;
         this.metrics = metrics;
-        this.logBook = new LogBook(timingNodeId);
+        this.logBookData = new LogBookData(timingNodeId);
     }
 
     NodeId timingNodeId() {
@@ -114,12 +114,12 @@ final class LogBookState {
         return metrics;
     }
 
-    LogBook logBook() {
-        return logBook;
+    LogBookData logBookData() {
+        return logBookData;
     }
 
     long timingDataHead() {
-        return logBook.headSequence();
+        return logBookData.headSequence();
     }
 
 
@@ -285,7 +285,7 @@ final class LogBookState {
 
     int timingDataCount() {
         ensureOperational();
-        return logBook.size();
+        return logBookData.size();
     }
 
     int visitTimingDataRange(
@@ -293,16 +293,16 @@ final class LogBookState {
             int limit,
             Consumer<TimingData> visitor) {
         ensureOperational();
-        logBook.visitRange(fromSequence, limit, visitor);
-        return logBook.size();
+        logBookData.visitRange(fromSequence, limit, visitor);
+        return logBookData.size();
     }
 
     int visitLatestTimingData(
             int limit,
             Consumer<TimingData> visitor) {
         ensureOperational();
-        logBook.visitLatest(limit, visitor);
-        return logBook.size();
+        logBookData.visitLatest(limit, visitor);
+        return logBookData.size();
     }
 
     Status status() {
@@ -318,7 +318,7 @@ final class LogBookState {
             throws TimingDataPersistence.PersistenceException {
         TimingDataPersistence.LoadResult loadResult = timingDataPersistence.load();
         for (TimingData data : loadResult.records()) {
-            logBook.add(data);
+            logBookData.add(data);
         }
         timingDataTailRepaired = loadResult.repairedIncompleteTail();
         return loadResult;
@@ -355,7 +355,7 @@ final class LogBookState {
             TimingTimestamp effectiveTime) {
         return new Context(
                 timingNodeId,
-                logBook.nextSequence(),
+                logBookData.nextSequence(),
                 recordLocationId,
                 effectiveTime,
                 currentRecordedTime());
@@ -368,7 +368,7 @@ final class LogBookState {
             TimingData.AutomaticTimeSource timeProvenance) {
         return new Context(
                 timingNodeId,
-                logBook.nextSequence(),
+                logBookData.nextSequence(),
                 recordLocationId,
                 effectiveTime,
                 currentRecordedTime(),
@@ -381,7 +381,7 @@ final class LogBookState {
             TimingTimestamp effectiveTime) {
         return new Context(
                 timingNodeId,
-                logBook.nextSequence(),
+                logBookData.nextSequence(),
                 lifecycleLocation,
                 effectiveTime,
                 currentRecordedTime());
@@ -431,12 +431,12 @@ final class LogBookState {
     }
 
     int committedTimingDataCount() {
-        return logBook.size();
+        return logBookData.size();
     }
 
     TimingData latestCommittedTimingData() {
         final TimingData[] latest = new TimingData[1];
-        logBook.visitLatest(
+        logBookData.visitLatest(
                 1,
                 data -> latest[0] = data);
         if (latest[0] == null) {
@@ -491,7 +491,7 @@ final class LogBookState {
                 monotonicClock.nowNanos() - appendStartedNanos);
 
         try {
-            logBook.add(data);
+            logBookData.add(data);
         } catch (RuntimeException ex) {
             timingDataCommitFailure = ex;
             throw ex;
