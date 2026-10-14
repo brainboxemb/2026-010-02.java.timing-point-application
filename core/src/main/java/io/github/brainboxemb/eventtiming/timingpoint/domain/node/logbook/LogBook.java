@@ -126,10 +126,12 @@ public final class LogBook
         this.metrics = logBookState.metrics();
     }
 
+    /** Returns immutable node identity without entering the Data Lane. */
     public NodeId timingNodeId() {
         return logBookState.timingNodeId();
     }
 
+    /** Returns engineering metrics for this LogBook and its commit path. */
     public LogBookMetrics metrics() {
         return metrics;
     }
@@ -152,21 +154,30 @@ public final class LogBook
         publishedStatus = null;
         dataLane.start();
 
-        SerialLane.AdmissionResult loadSubmissionResult =
+        SerialLane.AdmissionResult loadQueueResult =
                 dataLane.offer(this::loadPersistedDataOnDataLane);
-        if (loadSubmissionResult != SerialLane.AdmissionResult.ACCEPTED) {
+        if (loadQueueResult != SerialLane.AdmissionResult.ACCEPTED) {
             dataLane.close();
             throw new IllegalStateException(
                     "Persisted TimingData load could not be queued on the Data Lane: "
-                            + loadSubmissionResult);
+                            + loadQueueResult);
         }
     }
 
+    /**
+     * Stops new Data Lane work and makes CURRENT status unavailable.
+     *
+     * <p>Lane shutdown/drain semantics are owned by {@link SerialLane}; LogBook
+     * does not implement a second shutdown queue.</p>
+     */
     public void deactivate() {
         dataLane.close();
         publishedStatus = null;
     }
 
+    /**
+     * Executes one command in Data Lane order and waits for its domain result.
+     */
     public <R> R invoke(
             LogBookCommand<R> command) {
         if (command == null) {
@@ -194,7 +205,7 @@ public final class LogBook
 
         SerialLane.AdmissionResult laneQueueResult =
                 dataLane.offer(
-                        () -> executeSubmittedCommand(command));
+                        () -> executeQueuedCommand(command));
         switch (laneQueueResult) {
             case ACCEPTED:
                 return CommandQueueResult.QUEUED;
@@ -209,6 +220,10 @@ public final class LogBook
         }
     }
 
+    /**
+     * Executes an ORDERED query and waits until earlier queued Data Lane work
+     * has been processed.
+     */
     public <R> R query(
             LogBookQuery<R> query) {
         return query(
@@ -216,6 +231,10 @@ public final class LogBook
                 LogBookQuery.ReadConsistency.ORDERED);
     }
 
+    /**
+     * Reads either the directly published CURRENT view or an ORDERED Data Lane
+     * view, according to the requested consistency.
+     */
     public <R> R query(
             LogBookQuery<R> query,
             LogBookQuery.ReadConsistency consistency) {
@@ -242,10 +261,12 @@ public final class LogBook
         }
     }
 
+    /** Publishes status changes synchronously on the Data Lane after commit. */
     public EventSource<Status> statusChangedEvent() {
         return statusChangedEvent;
     }
 
+    /** Publishes each newly committed TimingData record on the Data Lane. */
     public EventSource<TimingData> newDataEntryEvent() {
         return newDataEntryEvent;
     }
@@ -374,7 +395,7 @@ public final class LogBook
                 initialStatus);
     }
 
-    private <R> void executeSubmittedCommand(
+    private <R> void executeQueuedCommand(
             LogBookCommand<R> command) {
         try {
             applyCommand(command);
