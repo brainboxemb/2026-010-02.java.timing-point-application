@@ -10,7 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persist
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.ArrayList;
@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory;
  * <p>This component is the single execution boundary for ordered LogBook commands,
  * ORDERED queries, recovery, durable TimingData commit and publication of immutable
  * CURRENT LogBook/status views. It owns no physical thread: the supplied
- * {@link SerialExecutor} may share a Runtime-owned worker with other logical
+ * {@link SerialLane} may share a Runtime-owned worker with other logical
  * lanes.</p>
  */
 public final class LogBookProcessor implements LogBookReader {
@@ -41,7 +41,7 @@ public final class LogBookProcessor implements LogBookReader {
     public static final long DEFAULT_OPERATION_TIMEOUT_MILLIS = 2000L;
 
     private final LogBookState logic;
-    private final SerialExecutor dataLane;
+    private final SerialLane dataLane;
     private final long operationTimeoutMillis;
     private final MonotonicClock monotonicClock;
     private final LogBookProcessorMetrics metrics;
@@ -63,7 +63,7 @@ public final class LogBookProcessor implements LogBookReader {
             TimeSource timeSource,
             MonotonicClock monotonicClock,
             LogBookProcessorMetrics metrics,
-            SerialExecutor dataLane) {
+            SerialLane dataLane) {
         this(
                 new LogBookState(
                         timingNodeId,
@@ -84,7 +84,7 @@ public final class LogBookProcessor implements LogBookReader {
             TimeSource timeSource,
             MonotonicClock monotonicClock,
             LogBookProcessorMetrics metrics,
-            SerialExecutor dataLane,
+            SerialLane dataLane,
             long operationTimeoutMillis) {
         this(
                 new LogBookState(
@@ -101,7 +101,7 @@ public final class LogBookProcessor implements LogBookReader {
 
     LogBookProcessor(
             LogBookState logic,
-            SerialExecutor dataLane,
+            SerialLane dataLane,
             long operationTimeoutMillis,
             MonotonicClock monotonicClock) {
         if (logic == null) {
@@ -140,9 +140,9 @@ public final class LogBookProcessor implements LogBookReader {
      * until that first ordered task publishes the recovered status.</p>
      */
     public void activate() {
-        SerialExecutor.State state = dataLane.state();
-        if (state != SerialExecutor.State.NEW
-                && state != SerialExecutor.State.STOPPED) {
+        SerialLane.State state = dataLane.state();
+        if (state != SerialLane.State.NEW
+                && state != SerialLane.State.STOPPED) {
             throw new IllegalStateException(
                     "LogBookProcessor cannot activate with Data Lane state="
                             + state);
@@ -151,9 +151,9 @@ public final class LogBookProcessor implements LogBookReader {
         publishedStatus = null;
         dataLane.start();
 
-        SerialExecutor.AdmissionResult initialization =
+        SerialLane.AdmissionResult initialization =
                 dataLane.offer(this::initializeOnDataLane);
-        if (initialization != SerialExecutor.AdmissionResult.ACCEPTED) {
+        if (initialization != SerialLane.AdmissionResult.ACCEPTED) {
             dataLane.close();
             throw new IllegalStateException(
                     "TimingNode initial recovery could not be admitted: "
@@ -184,7 +184,7 @@ public final class LogBookProcessor implements LogBookReader {
                     "command must not be null");
         }
 
-        SerialExecutor.AdmissionResult admission =
+        SerialLane.AdmissionResult admission =
                 dataLane.offer(
                         () -> applySubmitted(command));
         switch (admission) {
@@ -260,7 +260,7 @@ public final class LogBookProcessor implements LogBookReader {
                     "task must not be null");
         }
         return dataLane.offer(task)
-                == SerialExecutor.AdmissionResult.ACCEPTED;
+                == SerialLane.AdmissionResult.ACCEPTED;
     }
 
     /** Runs one synchronous helper operation on the Data Lane. */
@@ -322,15 +322,15 @@ public final class LogBookProcessor implements LogBookReader {
     }
 
     Status publishedStatus() {
-        SerialExecutor.State state =
+        SerialLane.State state =
                 dataLane.state();
-        if (state == SerialExecutor.State.FAILED) {
+        if (state == SerialLane.State.FAILED) {
             throw new OperationException(
                     OperationException.Reason.FAILED,
                     "status CURRENT result is unavailable because the Data Lane failed",
                     dataLane.failure());
         }
-        if (state != SerialExecutor.State.RUNNING) {
+        if (state != SerialLane.State.RUNNING) {
             throw new OperationException(
                     OperationException.Reason.UNAVAILABLE,
                     "status CURRENT result is unavailable because the LogBook component is not active");
@@ -546,7 +546,7 @@ public final class LogBookProcessor implements LogBookReader {
                             + " cannot wait for the same Data Lane");
         }
 
-        SerialExecutor.SubmitResult<R> submitResult =
+        SerialLane.SubmitResult<R> submitResult =
                 dataLane.submit(work);
         switch (submitResult.admission()) {
             case FULL:
@@ -556,7 +556,7 @@ public final class LogBookProcessor implements LogBookReader {
                                 + " could not be admitted because the TimingNode Data Lane is full");
             case NOT_RUNNING:
                 if (dataLane.state()
-                        == SerialExecutor.State.FAILED) {
+                        == SerialLane.State.FAILED) {
                     throw new OperationException(
                             OperationException.Reason.FAILED,
                             operation

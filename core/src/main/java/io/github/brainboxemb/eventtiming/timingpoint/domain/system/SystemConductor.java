@@ -11,7 +11,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractCon
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.CooperativeTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.CooperativeTaskController;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
@@ -42,7 +42,7 @@ public final class SystemConductor extends AbstractConductor implements Cooperat
     public SystemConductor(
             TimingNodeList timingNodes,
             AntennaSettings antennaSettings,
-            SerialExecutor coordinationLane) {
+            SerialLane coordinationLane) {
         super(coordinationLane);
 
         if (timingNodes == null || timingNodes.isEmpty()) {
@@ -87,7 +87,7 @@ public final class SystemConductor extends AbstractConductor implements Cooperat
          * reconciliation, so an event arriving before this lane is RUNNING does
          * not need to be retained separately.
          */
-        if (coordinationLane().state() == SerialExecutor.State.RUNNING) {
+        if (coordinationLane().state() == SerialLane.State.RUNNING) {
             taskController.wake();
         }
     }

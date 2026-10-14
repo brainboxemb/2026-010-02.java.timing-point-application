@@ -15,8 +15,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -126,15 +126,15 @@ public class ApplicationConductorTest {
                             ReadOnlyConfiguration.fixed(
                                     TagProcessingPolicy.defaults()),
                             EventData.empty(),
-                            new SerialExecutor(
+                            new SerialLane(
                                     8,
                                     "app-node-data-" + label,
                                     nodeWorker),
-                            new SerialExecutor(
+                            new SerialLane(
                                     8,
                                     "app-node-task-" + label,
                                     nodeWorker),
-                            new SerialScheduledExecutor(
+                            new SerialScheduledLane(
                                     8,
                                     "app-tag-" + label,
                                     tagWorker));
@@ -144,7 +144,7 @@ public class ApplicationConductorTest {
                             new AntennaSet().add(
                                     new AntennaId("1"),
                                     new SimulatedAntenna()),
-                            new SerialScheduledExecutor(
+                            new SerialScheduledLane(
                                     8,
                                     "app-antenna-" + label,
                                     ioWorker),
@@ -156,7 +156,7 @@ public class ApplicationConductorTest {
                     new SystemConductor(
                             timingNodes,
                             manager.settings(),
-                            new SerialExecutor(
+                            new SerialLane(
                                     8,
                                     "app-system-" + label,
                                     systemWorker));

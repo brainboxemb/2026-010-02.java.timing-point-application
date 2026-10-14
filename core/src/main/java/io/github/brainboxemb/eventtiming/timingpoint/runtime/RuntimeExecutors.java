@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,29 +40,29 @@ final class RuntimeExecutors implements AutoCloseable {
      */
     private static final int SHARED_IO_WORKERS = 1;
 
-    static final class TimingNodeExecutors {
-        private final SerialExecutor dataLane;
-        private final SerialExecutor taskLane;
-        private final SerialScheduledExecutor tagProcessor;
+    static final class TimingNodeLanes {
+        private final SerialLane dataLane;
+        private final SerialLane taskLane;
+        private final SerialScheduledLane tagProcessor;
 
-        private TimingNodeExecutors(
-                SerialExecutor dataLane,
-                SerialExecutor taskLane,
-                SerialScheduledExecutor tagProcessor) {
+        private TimingNodeLanes(
+                SerialLane dataLane,
+                SerialLane taskLane,
+                SerialScheduledLane tagProcessor) {
             this.dataLane = dataLane;
             this.taskLane = taskLane;
             this.tagProcessor = tagProcessor;
         }
 
-        SerialExecutor dataLane() {
+        SerialLane dataLane() {
             return dataLane;
         }
 
-        SerialExecutor taskLane() {
+        SerialLane taskLane() {
             return taskLane;
         }
 
-        SerialScheduledExecutor tagProcessor() {
+        SerialScheduledLane tagProcessor() {
             return tagProcessor;
         }
     }
@@ -157,24 +157,24 @@ final class RuntimeExecutors implements AutoCloseable {
     /**
      * Creates one node-local set of logical lanes on shared Runtime workers.
      *
-     * <p>The Data Lane and Task Lane are distinct SerialExecutor instances with
+     * <p>The Data Lane and Task Lane are distinct SerialLane instances with
      * independent bounded queues and FIFO ordering, but they deliberately share
      * the same physical node worker. TagProcessor keeps its separately scheduled
      * role worker. Logical responsibility therefore does not imply another
      * Java thread.</p>
      */
-    synchronized TimingNodeExecutors createTimingNodeExecutors() {
-        SerialExecutor dataLane = new SerialExecutor(
+    synchronized TimingNodeLanes createTimingNodeLanes() {
+        SerialLane dataLane = new SerialLane(
                 TIMING_NODE_DATA_QUEUE_CAPACITY,
                 "TimingNodeData",
                 timingNodeWorker);
-        SerialExecutor taskLane = new SerialExecutor(
+        SerialLane taskLane = new SerialLane(
                 TIMING_NODE_TASK_QUEUE_CAPACITY,
                 "TimingNodeTask",
                 timingNodeWorker);
 
-        SerialScheduledExecutor tagProcessor =
-                new SerialScheduledExecutor(
+        SerialScheduledLane tagProcessor =
+                new SerialScheduledLane(
                         TAG_PROCESSOR_LANE_QUEUE_CAPACITY,
                         "TagProcessor",
                         tagProcessorWorker);
@@ -182,7 +182,7 @@ final class RuntimeExecutors implements AutoCloseable {
         serialLanes.add(dataLane);
         serialLanes.add(taskLane);
         serialLanes.add(tagProcessor);
-        return new TimingNodeExecutors(
+        return new TimingNodeLanes(
                 dataLane,
                 taskLane,
                 tagProcessor);
@@ -194,9 +194,9 @@ final class RuntimeExecutors implements AutoCloseable {
      * <p>The lane is logically owned by that system Conductor. Runtime owns the physical
      * coordination worker underneath it.</p>
      */
-    synchronized SerialExecutor createSystemConductorExecutor() {
-        SerialExecutor conductor =
-                new SerialExecutor(
+    synchronized SerialLane createSystemConductorLane() {
+        SerialLane conductor =
+                new SerialLane(
                         CONDUCTOR_QUEUE_CAPACITY,
                         "SystemConductor",
                         coordinationWorker);
@@ -207,12 +207,12 @@ final class RuntimeExecutors implements AutoCloseable {
     /**
      * Creates one AntennaManager control lane on the shared scheduled I/O worker.
      *
-     * <p>The manager sees only the project SerialScheduledExecutor abstraction.
+     * <p>The manager sees only the project SerialScheduledLane abstraction.
      * The JDK ScheduledExecutorService remains a Runtime implementation detail.</p>
      */
-    synchronized SerialScheduledExecutor createAntennaControlExecutor() {
-        SerialScheduledExecutor antennaControl =
-                new SerialScheduledExecutor(
+    synchronized SerialScheduledLane createAntennaControlLane() {
+        SerialScheduledLane antennaControl =
+                new SerialScheduledLane(
                         ANTENNA_CONTROL_QUEUE_CAPACITY,
                         "AntennaManager",
                         sharedIoWorker);
@@ -225,9 +225,9 @@ final class RuntimeExecutors implements AutoCloseable {
      * worker. Scenario delays therefore release the physical worker while still
      * keeping a bounded logical execution lane.
      */
-    synchronized SerialScheduledExecutor createSimulationExecutor() {
-        SerialScheduledExecutor simulation =
-                new SerialScheduledExecutor(
+    synchronized SerialScheduledLane createSimulationLane() {
+        SerialScheduledLane simulation =
+                new SerialScheduledLane(
                         SIMULATION_QUEUE_CAPACITY,
                         "SimulatedTagScenario",
                         sharedIoWorker);

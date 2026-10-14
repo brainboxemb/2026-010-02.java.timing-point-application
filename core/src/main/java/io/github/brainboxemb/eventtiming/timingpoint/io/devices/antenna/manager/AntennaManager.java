@@ -9,7 +9,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.CooperativeTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.CooperativeTaskController;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.ScheduledTaskRunner;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.time.Duration;
@@ -71,14 +71,14 @@ public final class AntennaManager implements CooperativeTask {
 
     public AntennaManager(
             AntennaSet antennaSet,
-            SerialScheduledExecutor controlLane,
+            SerialScheduledLane controlLane,
             Duration controlTimeout) {
         this(antennaSet, controlLane, controlTimeout, new AntennaSettings());
     }
 
     public AntennaManager(
             AntennaSet antennaSet,
-            SerialScheduledExecutor controlLane,
+            SerialScheduledLane controlLane,
             Duration controlTimeout,
             AntennaSettings settings) {
         checkArgument(settings != null, "settings must not be null");

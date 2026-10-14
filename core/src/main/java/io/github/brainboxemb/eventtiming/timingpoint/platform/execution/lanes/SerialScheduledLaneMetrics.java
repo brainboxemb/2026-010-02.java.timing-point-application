@@ -1,15 +1,15 @@
-package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors;
+package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntSupplier;
 
 /**
- * Lane-local measurements for {@link SerialScheduledExecutor}.
+ * Lane-local measurements for {@link SerialScheduledLane}.
  *
  * <p>Scheduling/execution code records facts here; diagnostic state and its
  * immutable snapshot remain separate from the execution primitive.</p>
  */
-public final class SerialScheduledExecutorMetrics {
+public final class SerialScheduledLaneMetrics {
     private final IntSupplier queueDepthSupplier;
     private final AtomicLong immediateAcceptedCount = new AtomicLong();
     private final AtomicLong immediateRejectedCount = new AtomicLong();
@@ -20,7 +20,7 @@ public final class SerialScheduledExecutorMetrics {
     private final AtomicLong periodicExecutionCount = new AtomicLong();
     private final AtomicLong runtimeFailureCount = new AtomicLong();
 
-    SerialScheduledExecutorMetrics(
+    SerialScheduledLaneMetrics(
             IntSupplier queueDepthSupplier) {
         if (queueDepthSupplier == null) {
             throw new IllegalArgumentException(

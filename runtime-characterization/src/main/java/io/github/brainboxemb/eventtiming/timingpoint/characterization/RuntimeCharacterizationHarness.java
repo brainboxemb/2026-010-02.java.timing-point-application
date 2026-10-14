@@ -23,8 +23,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.ClockTimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement.JvmRuntimeSnapshot;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement.RuntimeMeasurementReader;
@@ -83,10 +83,10 @@ final class RuntimeCharacterizationHarness
     private ExecutorService nodeWorker;
     private ScheduledThreadPoolExecutor tagWorker;
     private ScheduledThreadPoolExecutor ioWorker;
-    private SerialExecutor dataLane;
-    private SerialExecutor taskLane;
-    private SerialScheduledExecutor tagLane;
-    private SerialScheduledExecutor antennaLane;
+    private SerialLane dataLane;
+    private SerialLane taskLane;
+    private SerialScheduledLane tagLane;
+    private SerialScheduledLane antennaLane;
     private SimulatedAntenna antenna;
     private AntennaManager antennaManager;
     private TimingNode node;
@@ -141,22 +141,22 @@ final class RuntimeCharacterizationHarness
                 true);
 
         dataLane =
-                new SerialExecutor(
+                new SerialLane(
                         TIMING_NODE_QUEUE_CAPACITY,
                         "TimingNodeData",
                         nodeWorker);
         taskLane =
-                new SerialExecutor(
+                new SerialLane(
                         TIMING_NODE_QUEUE_CAPACITY,
                         "TimingNodeTask",
                         nodeWorker);
         tagLane =
-                new SerialScheduledExecutor(
+                new SerialScheduledLane(
                         TAG_PROCESSOR_QUEUE_CAPACITY,
                         "TagProcessor",
                         tagWorker);
         antennaLane =
-                new SerialScheduledExecutor(
+                new SerialScheduledLane(
                         ANTENNA_CONTROL_QUEUE_CAPACITY,
                         "AntennaManager",
                         ioWorker);
@@ -494,7 +494,7 @@ final class RuntimeCharacterizationHarness
         CountDownLatch barrier = new CountDownLatch(1);
         await(
                 () -> dataLane.offer(barrier::countDown)
-                        == SerialExecutor.AdmissionResult.ACCEPTED,
+                        == SerialLane.AdmissionResult.ACCEPTED,
                 "TimingNode Data Lane barrier admission");
         if (!barrier.await(
                 COMPLETION_TIMEOUT_MILLIS,

@@ -1,17 +1,17 @@
-package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors;
+package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntSupplier;
 
 /**
- * Lane-local measurements for {@link SerialExecutor}.
+ * Lane-local measurements for {@link SerialLane}.
  *
  * <p>The execution primitive records facts here but does not own the diagnostic
  * model itself. Snapshot creation is pull-based and may allocate; hot-path
  * recording keeps only primitive state.</p>
  */
-public final class SerialExecutorMetrics {
+public final class SerialLaneMetrics {
     private final IntSupplier queueDepthSupplier;
     private final AtomicInteger highWaterMark = new AtomicInteger();
     private final AtomicLong acceptedCount = new AtomicLong();
@@ -23,7 +23,7 @@ public final class SerialExecutorMetrics {
     private final AtomicLong totalExecutionNanos = new AtomicLong();
     private final AtomicLong maxExecutionNanos = new AtomicLong();
 
-    SerialExecutorMetrics(
+    SerialLaneMetrics(
             IntSupplier queueDepthSupplier) {
         if (queueDepthSupplier == null) {
             throw new IllegalArgumentException(

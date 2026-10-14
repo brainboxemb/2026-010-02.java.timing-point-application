@@ -2,7 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutorMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLaneMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.metrics.RuntimeObservation;
 
 /**
@@ -12,12 +12,12 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.metrics.RuntimeObs
  * through TimingNode, PresentationGateway, IF-03, console or remote shell.</p>
  */
 public final class RuntimeMeasurementReader {
-    private final SerialExecutorMetrics timingNodeLaneMetrics;
+    private final SerialLaneMetrics timingNodeLaneMetrics;
     private final LogBookProcessorMetrics timingNodeMetrics;
     private final TagProcessingMetrics tagProcessingMetrics;
 
     public RuntimeMeasurementReader(
-            SerialExecutorMetrics timingNodeLaneMetrics,
+            SerialLaneMetrics timingNodeLaneMetrics,
             LogBookProcessorMetrics timingNodeMetrics,
             TagProcessingMetrics tagProcessingMetrics) {
         if (timingNodeLaneMetrics == null) {

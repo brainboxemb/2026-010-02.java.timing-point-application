@@ -1,17 +1,17 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutorMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLaneMetrics;
 
 /**
  * Immutable engineering snapshot of one TimingNode runtime path.
  */
 public final class TimingNodeRuntimeSnapshot {
-    private final SerialExecutorMetrics.Snapshot lane;
+    private final SerialLaneMetrics.Snapshot lane;
     private final LogBookProcessorMetrics.Snapshot node;
 
     TimingNodeRuntimeSnapshot(
-            SerialExecutorMetrics.Snapshot lane,
+            SerialLaneMetrics.Snapshot lane,
             LogBookProcessorMetrics.Snapshot node) {
         this.lane = lane;
         this.node = node;

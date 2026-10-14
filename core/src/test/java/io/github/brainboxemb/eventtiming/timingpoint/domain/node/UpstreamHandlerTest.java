@@ -18,8 +18,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
@@ -124,18 +124,18 @@ public class UpstreamHandlerTest {
                 Executors.newSingleThreadExecutor();
         ScheduledThreadPoolExecutor tagWorker =
                 new ScheduledThreadPoolExecutor(1);
-        SerialExecutor dataLane =
-                new SerialExecutor(
+        SerialLane dataLane =
+                new SerialLane(
                         4,
                         "heartbeat-data-test",
                         nodeWorker);
-        SerialExecutor taskLane =
-                new SerialExecutor(
+        SerialLane taskLane =
+                new SerialLane(
                         4,
                         "heartbeat-task-test",
                         nodeWorker);
-        SerialScheduledExecutor tagLane =
-                new SerialScheduledExecutor(
+        SerialScheduledLane tagLane =
+                new SerialScheduledLane(
                         4,
                         "heartbeat-tag-test",
                         tagWorker);
@@ -193,7 +193,7 @@ public class UpstreamHandlerTest {
             // Barrier behind initial recovery before occupying the Data Lane.
             node.query(LogBookQueries.status());
 
-            SerialExecutor.SubmitResult<Void> blocker =
+            SerialLane.SubmitResult<Void> blocker =
                     dataLane.submit(
                             () -> {
                                 blockerStarted.countDown();
@@ -201,7 +201,7 @@ public class UpstreamHandlerTest {
                                 return null;
                             });
             assertSame(
-                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    SerialLane.AdmissionResult.ACCEPTED,
                     blocker.admission());
             assertTrue(
                     blockerStarted.await(

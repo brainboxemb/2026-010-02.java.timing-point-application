@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,12 +26,12 @@ public abstract class AbstractConductor {
     private static final Logger LOG =
             LoggerFactory.getLogger(AbstractConductor.class);
 
-    private final SerialExecutor coordinationLane;
+    private final SerialLane coordinationLane;
     private final ComponentLifecycleManager componentLifecycle =
             new ComponentLifecycleManager();
 
     protected AbstractConductor(
-            SerialExecutor coordinationLane) {
+            SerialLane coordinationLane) {
         if (coordinationLane == null) {
             throw new IllegalArgumentException(
                     "coordinationLane must not be null");
@@ -61,7 +61,7 @@ public abstract class AbstractConductor {
      * <p>The returned lane is still owned by this base lifecycle. Concrete code
      * may schedule work on it but must not start or close it.</p>
      */
-    protected final SerialExecutor coordinationLane() {
+    protected final SerialLane coordinationLane() {
         return coordinationLane;
     }
 

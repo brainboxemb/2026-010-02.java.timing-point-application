@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -31,10 +31,10 @@ public class RuntimeExecutorsTest {
     public void timingNodeDataLanesShareOnePhysicalNodeWorker()
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
-        RuntimeExecutors.TimingNodeExecutors first =
-                runtime.createTimingNodeExecutors();
-        RuntimeExecutors.TimingNodeExecutors second =
-                runtime.createTimingNodeExecutors();
+        RuntimeExecutors.TimingNodeLanes first =
+                runtime.createTimingNodeLanes();
+        RuntimeExecutors.TimingNodeLanes second =
+                runtime.createTimingNodeLanes();
         runtime.start();
 
         AtomicReference<String> firstThread =
@@ -47,14 +47,14 @@ public class RuntimeExecutorsTest {
         second.dataLane().start();
         try {
             assertEquals(
-                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    SerialLane.AdmissionResult.ACCEPTED,
                     first.dataLane().offer(() -> {
                         firstThread.set(
                                 Thread.currentThread().getName());
                         done.countDown();
                     }));
             assertEquals(
-                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    SerialLane.AdmissionResult.ACCEPTED,
                     second.dataLane().offer(() -> {
                         secondThread.set(
                                 Thread.currentThread().getName());
@@ -79,8 +79,8 @@ public class RuntimeExecutorsTest {
     public void timingNodeDataAndTaskLanesShareTheSamePhysicalWorker()
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
-        RuntimeExecutors.TimingNodeExecutors lanes =
-                runtime.createTimingNodeExecutors();
+        RuntimeExecutors.TimingNodeLanes lanes =
+                runtime.createTimingNodeLanes();
         runtime.start();
 
         AtomicReference<String> dataThread =
@@ -93,14 +93,14 @@ public class RuntimeExecutorsTest {
         lanes.taskLane().start();
         try {
             assertEquals(
-                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    SerialLane.AdmissionResult.ACCEPTED,
                     lanes.dataLane().offer(() -> {
                         dataThread.set(
                                 Thread.currentThread().getName());
                         done.countDown();
                     }));
             assertEquals(
-                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    SerialLane.AdmissionResult.ACCEPTED,
                     lanes.taskLane().offer(() -> {
                         taskThread.set(
                                 Thread.currentThread().getName());
@@ -125,8 +125,8 @@ public class RuntimeExecutorsTest {
     public void systemConductorUsesSharedSystemCoordinationWorker()
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
-        SerialExecutor conductor =
-                runtime.createSystemConductorExecutor();
+        SerialLane conductor =
+                runtime.createSystemConductorLane();
         runtime.start();
 
         AtomicReference<String> threadName =
@@ -137,7 +137,7 @@ public class RuntimeExecutorsTest {
         conductor.start();
         try {
             assertEquals(
-                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    SerialLane.AdmissionResult.ACCEPTED,
                     conductor.offer(() -> {
                         threadName.set(
                                 Thread.currentThread().getName());
@@ -161,10 +161,10 @@ public class RuntimeExecutorsTest {
     public void antennaControlLanesUseRuntimeOwnedSharedIoWorkers()
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
-        SerialScheduledExecutor first =
-                runtime.createAntennaControlExecutor();
-        SerialScheduledExecutor second =
-                runtime.createAntennaControlExecutor();
+        SerialScheduledLane first =
+                runtime.createAntennaControlLane();
+        SerialScheduledLane second =
+                runtime.createAntennaControlLane();
         runtime.start();
 
         AtomicReference<String> firstThread =
@@ -219,10 +219,10 @@ public class RuntimeExecutorsTest {
     public void tagProcessorsShareOnePhysicalScheduledWorker()
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
-        RuntimeExecutors.TimingNodeExecutors first =
-                runtime.createTimingNodeExecutors();
-        RuntimeExecutors.TimingNodeExecutors second =
-                runtime.createTimingNodeExecutors();
+        RuntimeExecutors.TimingNodeLanes first =
+                runtime.createTimingNodeLanes();
+        RuntimeExecutors.TimingNodeLanes second =
+                runtime.createTimingNodeLanes();
         runtime.start();
 
         AtomicReference<String> firstThread =

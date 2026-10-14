@@ -7,7 +7,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -59,7 +59,7 @@ public class LogBookSyncTest {
                 () -> Instant.EPOCH,
                 SystemMonotonicClock.INSTANCE,
                 new LogBookProcessorMetrics(),
-                new SerialExecutor(
+                new SerialLane(
                         8,
                         "test-logbook-sync-data",
                         Runnable::run));

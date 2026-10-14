@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
@@ -43,14 +43,14 @@ public class TimingNodeTest {
         }
     }
 
-    private SerialExecutor newSerialExecutor(
+    private SerialLane newSerialLane(
             int capacity,
             String threadName) {
         ExecutorService worker =
                 Executors.newSingleThreadExecutor(
                         runnable -> new Thread(runnable, threadName));
         ownedWorkers.add(worker);
-        return new SerialExecutor(capacity, threadName, worker);
+        return new SerialLane(capacity, threadName, worker);
     }
 
     @Test
@@ -73,8 +73,8 @@ public class TimingNodeTest {
     @Test
     public void activationQueuesRecoveryOnNodeLaneAndReturnsBeforeRecoveryCompletes()
             throws Exception {
-        SerialExecutor executor =
-                newSerialExecutor(
+        SerialLane executor =
+                newSerialLane(
                         4,
                         "timing-node-recovery-worker");
         BlockingPersistence persistence =
@@ -356,7 +356,7 @@ public class TimingNodeTest {
 
     @Test
     public void timeoutDoesNotCancelAcceptedOperation() throws Exception {
-        SerialExecutor executor = newSerialExecutor(2, "timing-node-test");
+        SerialLane executor = newSerialLane(2, "timing-node-test");
         TimingNode node = node(
                 new NodeId("A"),
                 executor,
@@ -399,7 +399,7 @@ public class TimingNodeTest {
 
     @Test
     public void stateDependentOperationsAreDecidedInQueueOrder() throws Exception {
-        SerialExecutor executor = newSerialExecutor(4, "timing-node-test");
+        SerialLane executor = newSerialLane(4, "timing-node-test");
         TimingNode node = node(
                 new NodeId("A"),
                 executor,
@@ -461,7 +461,7 @@ public class TimingNodeTest {
     @Test
     public void offerReturnsAfterAdmissionWithoutWaitingForExecution()
             throws Exception {
-        SerialExecutor executor = newSerialExecutor(2, "timing-node-offer-test");
+        SerialLane executor = newSerialLane(2, "timing-node-offer-test");
         TimingNode node = node(
                 new NodeId("A"),
                 executor,
@@ -503,7 +503,7 @@ public class TimingNodeTest {
 
             CountDownLatch afterOfferedCommand = new CountDownLatch(1);
             assertEquals(
-                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    SerialLane.AdmissionResult.ACCEPTED,
                     executor.offer(afterOfferedCommand::countDown));
             assertTrue(afterOfferedCommand.await(1, TimeUnit.SECONDS));
 
@@ -519,7 +519,7 @@ public class TimingNodeTest {
 
     @Test
     public void currentStatusDoesNotWaitBehindQueuedWork() throws Exception {
-        SerialExecutor executor = newSerialExecutor(3, "timing-node-current-test");
+        SerialLane executor = newSerialLane(3, "timing-node-current-test");
         TimingNode node = node(new NodeId("A"), executor, 25L);
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
@@ -557,7 +557,7 @@ public class TimingNodeTest {
             releaseBlocker.countDown();
             CountDownLatch drained = new CountDownLatch(1);
             assertEquals(
-                    SerialExecutor.AdmissionResult.ACCEPTED,
+                    SerialLane.AdmissionResult.ACCEPTED,
                     executor.offer(drained::countDown));
             assertTrue(drained.await(1, TimeUnit.SECONDS));
 
@@ -738,8 +738,8 @@ public class TimingNodeTest {
 
     @Test
     public void activationFailsWhenInitialRecoveryCannotBeAdmitted() {
-        SerialExecutor executor =
-                new SerialExecutor(
+        SerialLane executor =
+                new SerialLane(
                         2,
                         "timing-node-failed-current-test",
                         runnable -> {
@@ -808,7 +808,7 @@ public class TimingNodeTest {
      */
     private static TimingNode node(
             NodeId id,
-            SerialExecutor executor,
+            SerialLane executor,
             long timeoutMillis) {
         return new TimingNode(
                 id,
@@ -822,7 +822,7 @@ public class TimingNodeTest {
     private static TimingNode node(
             NodeId id,
             TimingDataPersistence persistence,
-            SerialExecutor executor,
+            SerialLane executor,
             long timeoutMillis) {
         return new TimingNode(
                 id,
@@ -838,7 +838,7 @@ public class TimingNodeTest {
     }
 
     private static final class BlockingPersistence implements TimingDataPersistence {
-        private final SerialExecutor expectedLane;
+        private final SerialLane expectedLane;
         private final CountDownLatch loadStarted =
                 new CountDownLatch(1);
         private final CountDownLatch releaseLoad =
@@ -846,7 +846,7 @@ public class TimingNodeTest {
         private volatile boolean executedOnNodeLane;
 
         private BlockingPersistence(
-                SerialExecutor expectedLane) {
+                SerialLane expectedLane) {
             this.expectedLane = expectedLane;
         }
 

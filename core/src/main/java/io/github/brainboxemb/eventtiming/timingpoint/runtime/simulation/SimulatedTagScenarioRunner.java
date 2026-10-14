@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.application.SimulationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.time.Instant;
@@ -39,7 +39,7 @@ public final class SimulatedTagScenarioRunner
     private final SimulatedAntenna antenna;
     private final EventData eventData;
     private final TimeSource timeSource;
-    private final SerialScheduledExecutor executor;
+    private final SerialScheduledLane executor;
 
     private boolean active;
     private int activeScenarios;
@@ -48,7 +48,7 @@ public final class SimulatedTagScenarioRunner
             SimulatedAntenna antenna,
             EventData eventData,
             TimeSource timeSource,
-            SerialScheduledExecutor executor) {
+            SerialScheduledLane executor) {
         if (antenna == null) {
             throw new IllegalArgumentException(
                     "antenna must not be null");

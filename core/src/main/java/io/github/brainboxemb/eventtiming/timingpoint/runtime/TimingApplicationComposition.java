@@ -372,7 +372,7 @@ final class TimingApplicationComposition {
                             simulatedAntenna,
                             resolvedSystem.eventData(),
                             timeSource,
-                            executors.createSimulationExecutor());
+                            executors.createSimulationLane());
                 }
             }
 

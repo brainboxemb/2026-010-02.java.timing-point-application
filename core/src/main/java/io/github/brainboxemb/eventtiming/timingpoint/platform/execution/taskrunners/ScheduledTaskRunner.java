@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.CooperativeTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
@@ -15,7 +15,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Runs cooperative tasks on one {@link SerialScheduledExecutor}.
+ * Runs cooperative tasks on one {@link SerialScheduledLane}.
  *
  * <p>The runner owns cooperative continuation, cancellation propagation and
  * bounded waiting for a complete task run. The task owns its operation/control
@@ -63,9 +63,9 @@ public final class ScheduledTaskRunner implements CooperativeTaskRunner {
         private final CompletableFuture<Void> result =
                 new CompletableFuture<Void>();
         private final AtomicReference<
-                SerialScheduledExecutor.ScheduledResult<?>> active =
+                SerialScheduledLane.ScheduledResult<?>> active =
                         new AtomicReference<
-                                SerialScheduledExecutor.ScheduledResult<?>>();
+                                SerialScheduledLane.ScheduledResult<?>>();
 
         private CooperativeRun(
                 CooperativeTask task) {
@@ -90,7 +90,7 @@ public final class ScheduledTaskRunner implements CooperativeTaskRunner {
                 return;
             }
 
-            SerialScheduledExecutor.ScheduledResult<?> scheduled =
+            SerialScheduledLane.ScheduledResult<?> scheduled =
                     active.get();
             if (scheduled != null) {
                 scheduled.futureResult()
@@ -108,7 +108,7 @@ public final class ScheduledTaskRunner implements CooperativeTaskRunner {
                 return;
             }
 
-            final SerialScheduledExecutor.ScheduledResult<TaskStep> scheduled;
+            final SerialScheduledLane.ScheduledResult<TaskStep> scheduled;
             try {
                 scheduled =
                         lane.submitAfter(
@@ -206,11 +206,11 @@ public final class ScheduledTaskRunner implements CooperativeTaskRunner {
         }
     }
 
-    private final SerialScheduledExecutor lane;
+    private final SerialScheduledLane lane;
     private final long timeoutNanos;
 
     public ScheduledTaskRunner(
-            SerialScheduledExecutor lane,
+            SerialScheduledLane lane,
             Duration timeout) {
         if (lane == null) {
             throw new IllegalArgumentException(
@@ -290,12 +290,12 @@ public final class ScheduledTaskRunner implements CooperativeTaskRunner {
 
     public boolean isNew() {
         return lane.state()
-                == SerialScheduledExecutor.State.NEW;
+                == SerialScheduledLane.State.NEW;
     }
 
     public boolean isRunning() {
         return lane.state()
-                == SerialScheduledExecutor.State.RUNNING;
+                == SerialScheduledLane.State.RUNNING;
     }
 
     public Throwable failure() {

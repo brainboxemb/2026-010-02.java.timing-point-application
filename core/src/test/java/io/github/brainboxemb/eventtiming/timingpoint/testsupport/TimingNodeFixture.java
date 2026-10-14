@@ -9,8 +9,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialScheduledExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialScheduledLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 
 import java.util.concurrent.ExecutorService;
@@ -82,15 +82,15 @@ public final class TimingNodeFixture {
                 ReadOnlyConfiguration.fixed(
                         TagProcessingPolicy.defaults()),
                 EventData.empty(),
-                new SerialExecutor(
+                new SerialLane(
                         32,
                         "test-node-data-" + suffix,
                         NODE_WORKER),
-                new SerialExecutor(
+                new SerialLane(
                         32,
                         "test-node-task-" + suffix,
                         NODE_WORKER),
-                new SerialScheduledExecutor(
+                new SerialScheduledLane(
                         32,
                         "test-tag-" + suffix,
                         TAG_WORKER),

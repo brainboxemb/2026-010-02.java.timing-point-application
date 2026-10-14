@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutor;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -20,8 +20,8 @@ public class AbstractConductorTest {
     public void activatesComponentsStartsLaneThenRunsConcreteHook() {
         ExecutorService worker =
                 Executors.newSingleThreadExecutor();
-        SerialExecutor lane =
-                new SerialExecutor(
+        SerialLane lane =
+                new SerialLane(
                         4,
                         "abstract-conductor-test",
                         worker);
@@ -45,7 +45,7 @@ public class AbstractConductorTest {
                             "component.deactivate"),
                     calls);
             assertEquals(
-                    SerialExecutor.State.STOPPED,
+                    SerialLane.State.STOPPED,
                     lane.state());
         } finally {
             worker.shutdownNow();
@@ -56,8 +56,8 @@ public class AbstractConductorTest {
     public void hookFailureClosesLaneAndRollsBackComponents() {
         ExecutorService worker =
                 Executors.newSingleThreadExecutor();
-        SerialExecutor lane =
-                new SerialExecutor(
+        SerialLane lane =
+                new SerialLane(
                         4,
                         "abstract-conductor-test",
                         worker);
@@ -90,7 +90,7 @@ public class AbstractConductorTest {
                             "component.deactivate"),
                     calls);
             assertEquals(
-                    SerialExecutor.State.STOPPED,
+                    SerialLane.State.STOPPED,
                     lane.state());
         } finally {
             worker.shutdownNow();
@@ -103,7 +103,7 @@ public class AbstractConductorTest {
         private final RuntimeException hookFailure;
 
         private TestConductor(
-                SerialExecutor lane,
+                SerialLane lane,
                 List<String> calls,
                 RuntimeException hookFailure) {
             super(lane);
@@ -121,7 +121,7 @@ public class AbstractConductorTest {
         @Override
         protected void onActivated() {
             assertEquals(
-                    SerialExecutor.State.RUNNING,
+                    SerialLane.State.RUNNING,
                     coordinationLane().state());
 
             calls.add(

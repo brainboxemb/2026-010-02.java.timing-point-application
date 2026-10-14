@@ -68,14 +68,14 @@ final class TimingSystemComposer {
         AntennaManager antennaManager = antennaSet.isEmpty()
                 ? null : new AntennaManager(
                         antennaSet,
-                        executors.createAntennaControlExecutor(),
+                        executors.createAntennaControlLane(),
                         ANTENNA_CONTROL_TIMEOUT,
                         antennaSettings);
 
         SystemConductor conductor = new SystemConductor(
                 nodes,
                 antennaSettings,
-                executors.createSystemConductorExecutor());
+                executors.createSystemConductorLane());
 
         applicationConductor.registerTimingSystem(antennaManager, conductor);
 
@@ -99,8 +99,8 @@ final class TimingSystemComposer {
             TimeSource timeSource) {
         TimingNodeList nodes = new TimingNodeList();
         for (Config.TimingNodeConfig nodeConfig : system.configuration().timingNodes()) {
-            RuntimeExecutors.TimingNodeExecutors nodeExecutors =
-                    executors.createTimingNodeExecutors();
+            RuntimeExecutors.TimingNodeLanes nodeLanes =
+                    executors.createTimingNodeLanes();
             TimingDataPersistence persistence = new DefaultTimingDataPersistence(
                     new FileAppendOnlyRecordStore(nodeConfig.timingDataPath()),
                     nodeConfig.timingNodeId(),
@@ -112,9 +112,9 @@ final class TimingSystemComposer {
                     timeSource,
                     configuration.timingNode(nodeConfig.timingNodeId()).tagProcessing(),
                     system.eventData(),
-                    nodeExecutors.dataLane(),
-                    nodeExecutors.taskLane(),
-                    nodeExecutors.tagProcessor(),
+                    nodeLanes.dataLane(),
+                    nodeLanes.taskLane(),
+                    nodeLanes.tagProcessor(),
                     platform.monotonicClock());
             nodes.add(node);
         }
