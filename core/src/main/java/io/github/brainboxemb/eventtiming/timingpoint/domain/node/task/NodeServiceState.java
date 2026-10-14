@@ -20,9 +20,10 @@ import java.util.List;
  * Passive Task Lane-owned state behind {@link NodeService}.
  *
  * <p>This object owns mutable race/reference data and derived registration
- * history. It has no executor or lifecycle of its own. Every mutation/read that
- * depends on consistency is performed by callers while the NodeService Task
- * Lane is current.</p>
+ * history. It has no executor or lifecycle of its own. Normal state mutation
+ * and consistent reads happen only while the NodeService Task Lane is current.
+ * The one exception is the volatile stale marker: the Data Lane may set it when
+ * a required Data-to-Task handoff could not be queued.</p>
  *
  * <p>The class implements the narrow upstream state port so {@code NodeService}
  * remains the composition/service owner instead of becoming an implementation
@@ -36,7 +37,11 @@ final class NodeServiceState implements UpstreamTaskState {
             new ArrayList<TimingData>();
 
     private boolean derivedTimingReady;
-    private boolean derivedTimingStale;
+
+    /**
+     * Cross-lane health signal set when a required TimingData handoff is lost.
+     */
+    private volatile boolean derivedTimingStale;
 
     NodeServiceState(EventData eventData) {
         if (eventData == null) {
@@ -58,6 +63,11 @@ final class NodeServiceState implements UpstreamTaskState {
         derivedTimingReady = false;
     }
 
+    /**
+     * Marks derived timing stale after a required Data-to-Task handoff failed.
+     *
+     * <p>This method is intentionally safe to call from the Data Lane.</p>
+     */
     void markDerivedTimingStale() {
         derivedTimingStale = true;
     }
