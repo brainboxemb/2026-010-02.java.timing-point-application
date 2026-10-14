@@ -62,6 +62,7 @@ public class LogBookSyncTest {
                 new SerialLane(
                         8,
                         "test-logbook-sync-data",
-                        Runnable::run));
+                        Runnable::run),
+                LogBook.DEFAULT_OPERATION_TIMEOUT_MILLIS);
     }
 }
