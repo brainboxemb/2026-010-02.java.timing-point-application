@@ -84,6 +84,7 @@ public final class SimulatedTagScenarioRunner
                         scheduledExecutor);
     }
 
+    /** Enables acceptance and scheduling of new deterministic simulation scenarios. */
     public synchronized void activate() {
         if (active) {
             throw new IllegalStateException(
@@ -93,6 +94,7 @@ public final class SimulatedTagScenarioRunner
         active = true;
     }
 
+    /** Stops new simulation scenarios and clears runtime-owned active-scenario state. */
     public synchronized void deactivate() {
         if (!active) {
             return;
@@ -245,10 +247,12 @@ public final class SimulatedTagScenarioRunner
         }
     }
 
+    /** Returns whether simulation work may still emit observations. */
     private synchronized boolean isActive() {
         return active;
     }
 
+    /** Decrements the active-scenario count after its final step or early stop. */
     private synchronized void finishScenario() {
         if (activeScenarios > 0) {
             activeScenarios--;
