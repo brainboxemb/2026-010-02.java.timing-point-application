@@ -19,13 +19,15 @@ public final class TimingNodeTypes {
     }
 
     /**
-     * Immediate result of admission-only command ingress through TimingNode.offer(...).
+     * Immediate result of a non-blocking LogBook command submission.
      *
-     * <p>This is deliberately not the later domain result.</p>
+     * <p>{@code ACCEPTED} means the command was queued for later Data Lane
+     * execution. It does not mean that the command has already executed or
+     * succeeded.</p>
      */
-    public enum CommandAdmission {
+    public enum CommandSubmissionResult {
         ACCEPTED,
-        FULL,
+        QUEUE_FULL,
         NOT_RUNNING
     }
 
