@@ -152,6 +152,11 @@ public final class LogBook
             LogBookCommand<R> command) {
         checkArgument(command != null, "command must not be null");
         return submitAndWait(
+                /*
+                 * () means this Callable has no arguments; -> introduces the
+                 * command application that SerialLane executes later in order.
+                 * Its return value becomes the command result.
+                 */
                 () -> applyCommand(command),
                 command.name());
     }
@@ -165,7 +170,13 @@ public final class LogBook
      */
     public void execute(LogBookCommand<?> command) {
         checkArgument(command != null, "command must not be null");
-        serialLane.execute(() -> executeQueuedCommand(command));
+        /*
+         * () means this Runnable has no arguments; -> introduces the command
+         * work that SerialLane executes later. This fire-and-forget path
+         * contains execution-time command failure inside executeQueuedCommand.
+         */
+        serialLane.execute(
+                () -> executeQueuedCommand(command));
     }
 
     /**
@@ -203,6 +214,10 @@ public final class LogBook
                     return query.readOrdered(logBookState);
                 }
                 return submitAndWait(
+                        /*
+                         * () means this Callable has no arguments; -> introduces
+                         * the ordered LogBook read that SerialLane executes later.
+                         */
                         () -> query.readOrdered(logBookState),
                         query.name());
             default:
