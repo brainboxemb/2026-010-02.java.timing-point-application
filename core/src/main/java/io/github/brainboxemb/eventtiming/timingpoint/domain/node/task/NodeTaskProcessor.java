@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.task;
 
-import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.NodeDataProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
@@ -23,16 +22,12 @@ public final class NodeTaskProcessor {
     public NodeTaskProcessor(
             NodeDataProcessor dataProcessor,
             SerialExecutor taskLane,
-            EventData eventData,
             UpstreamStream upstreamStream) {
         if (dataProcessor == null) {
             throw new IllegalArgumentException("dataProcessor must not be null");
         }
         if (taskLane == null) {
             throw new IllegalArgumentException("taskLane must not be null");
-        }
-        if (eventData == null) {
-            throw new IllegalArgumentException("eventData must not be null");
         }
         if (upstreamStream == null) {
             throw new IllegalArgumentException("upstreamStream must not be null");
@@ -45,11 +40,7 @@ public final class NodeTaskProcessor {
                         new UpstreamDataLane(dataProcessor),
                         this::offerTask,
                         upstreamStream,
-                        eventData,
-                        dataProcessor.logBookForUpstream(),
-                        dataProcessor.teamAssignmentsForUpstream(),
-                        dataProcessor.stageStartTimesForUpstream(),
-                        dataProcessor.uniqueTeamRegistrationsForUpstream());
+                        dataProcessor);
     }
 
     /** Checks the Task Lane before Data Lane recovery is started. */
@@ -85,8 +76,9 @@ public final class NodeTaskProcessor {
      *
      * <p>Inbound race changes and LogBook batches still run on Data Lane,
      * through NodeDataProcessor. A follow-up replaces the direct mutable state
-     * references above with bounded asynchronous commands and immutable replies.
-     * This adapter must not be used for Task Lane to Data Lane blocking calls.</p>
+     * references with typed operations on UpstreamNodeData. The handler still
+     * schedules data-scoped work on the Data Lane. Future Task Lane protocol
+     * turns must use bounded asynchronous commands, not synchronous waits.</p>
      */
     private static final class UpstreamDataLane implements UpstreamHandler.DataLane {
         private final NodeDataProcessor dataProcessor;

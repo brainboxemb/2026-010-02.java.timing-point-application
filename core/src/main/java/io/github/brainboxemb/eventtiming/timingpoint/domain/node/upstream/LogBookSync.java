@@ -2,12 +2,10 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
@@ -27,19 +25,19 @@ final class LogBookSync {
 
     private final NodeId nodeId;
     private final UpstreamStream stream;
-    private final LogBook logBook;
+    private final UpstreamNodeData nodeData;
 
     private boolean syncActive;
     private long nextSequence;
     private long syncHead;
 
-    LogBookSync(NodeId nodeId, UpstreamStream stream, LogBook logBook) {
+    LogBookSync(NodeId nodeId, UpstreamStream stream, UpstreamNodeData nodeData) {
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(stream != null, "stream must not be null");
-        checkArgument(logBook != null, "logBook must not be null");
+        checkArgument(nodeData != null, "nodeData must not be null");
         this.nodeId = nodeId;
         this.stream = stream;
-        this.logBook = logBook;
+        this.nodeData = nodeData;
     }
 
     /** Sends the current TIMING_DATA source head. Empty LogBook means sequence 0. */
@@ -53,7 +51,7 @@ final class LogBookSync {
     }
 
     long headSequence() {
-        return logBook.headSequence();
+        return nodeData.timingDataHead();
     }
 
     /**
@@ -100,8 +98,8 @@ final class LogBookSync {
                 (long) MAX_RECORDS_PER_BATCH,
                 syncHead - nextSequence + 1L);
 
-        List<TimingData> records = new ArrayList<TimingData>(limit);
-        logBook.visitRange(nextSequence, limit, records::add);
+        List<TimingData> records =
+                nodeData.timingDataRange(nextSequence, limit);
 
         if (records.isEmpty()) {
             syncActive = false;
