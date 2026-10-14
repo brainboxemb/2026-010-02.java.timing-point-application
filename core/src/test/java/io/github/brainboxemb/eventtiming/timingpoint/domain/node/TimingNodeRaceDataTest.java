@@ -26,8 +26,8 @@ import static org.junit.Assert.assertTrue;
 
 public class TimingNodeRaceDataTest {
 
-    @Test
     /** Verifies sequence 1 applies its assignment and produces an ACK. */
+    @Test
     public void firstRaceDataSequenceAppliesAndSendsAck() {
         Fixture fixture = fixture();
         fixture.node.activate();
@@ -55,8 +55,8 @@ public class TimingNodeRaceDataTest {
         }
     }
 
-    @Test
     /** Verifies a sequence gap leaves state unchanged and requests the first missing item. */
+    @Test
     public void gapDoesNotApplyAndSendsReqForFirstMissingSequence() {
         Fixture fixture = fixture();
         fixture.node.activate();
@@ -83,8 +83,8 @@ public class TimingNodeRaceDataTest {
         }
     }
 
-    @Test
     /** Verifies duplicate RACE_DATA is acknowledged without reapplying its changes. */
+    @Test
     public void duplicateSequenceSendsCumulativeAckWithoutApplyingAgain() {
         Fixture fixture = fixture();
         fixture.node.activate();
@@ -119,8 +119,8 @@ public class TimingNodeRaceDataTest {
         }
     }
 
-    @Test
     /** Verifies an invalid fixed-team override neither advances sequence nor responds. */
+    @Test
     public void invalidFixedTeamOverrideDoesNotAdvanceOrRespond() {
         Fixture fixture = fixture();
         fixture.node.activate();
@@ -142,8 +142,8 @@ public class TimingNodeRaceDataTest {
         }
     }
 
-    @Test
     /** Verifies invalid RACE_DATA applies none of its section changes. */
+    @Test
     public void invalidRaceDataIsAtomicAcrossSections() {
         Fixture fixture = fixture();
         fixture.node.activate();
@@ -170,8 +170,8 @@ public class TimingNodeRaceDataTest {
         }
     }
 
-    @Test
     /** Verifies stage-start changes are applied and deleted in RACE_DATA order. */
+    @Test
     public void stageStartTimesFollowRaceDataSequence() {
         Fixture fixture = fixture();
         fixture.node.activate();
