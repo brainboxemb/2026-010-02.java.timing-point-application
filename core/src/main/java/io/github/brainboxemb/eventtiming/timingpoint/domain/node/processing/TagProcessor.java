@@ -155,7 +155,7 @@ public final class TagProcessor {
             state = State.INACTIVE;
             closeHousekeepingLocked();
             drainRemaining = !inputQueue.isEmpty();
-            if (drainRemaining && !trySubmitToTagLane(this::drainAll)) {
+            if (drainRemaining && !tryQueueOnTagLane(this::drainAll)) {
                 inputQueue.clear();
             }
         }
@@ -208,7 +208,7 @@ public final class TagProcessor {
         if (!drainScheduled.compareAndSet(false, true)) {
             return;
         }
-        if (!trySubmitToTagLane(this::drainBatch)) {
+        if (!tryQueueOnTagLane(this::drainBatch)) {
             drainScheduled.set(false);
             metrics.recordProcessorNotRunning();
         }
@@ -311,7 +311,7 @@ public final class TagProcessor {
             if (state != State.ACTIVE) {
                 return;
             }
-            if (!trySubmitToTagLane(() -> applyPolicyChange(change))) {
+            if (!tryQueueOnTagLane(() -> applyPolicyChange(change))) {
                 LOG.warn("Could not queue TagProcessor policy change");
             }
         }
@@ -384,7 +384,7 @@ public final class TagProcessor {
      * <p>Returns {@code true} only when the work was queued for later serial
      * execution; it does not report the eventual operation outcome.</p>
      */
-    private boolean trySubmitToTagLane(
+    private boolean tryQueueOnTagLane(
             Runnable operation) {
         return lane.offer(operation)
                 == SerialLane.AdmissionResult.ACCEPTED;
