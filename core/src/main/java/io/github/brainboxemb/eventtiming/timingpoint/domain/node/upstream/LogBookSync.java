@@ -19,7 +19,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * <p>The LogBook is the TIMING_DATA source of truth. A REQ captures the current
  * source head once; records committed afterwards are intentionally excluded from
  * that synchronization run. Records are sent in batches of at most 256 per
- * TimingNode serial-lane turn so a large synchronization cannot monopolize the
+ * Data Lane turn so a large synchronization cannot monopolize the
  * node.</p>
  */
 final class LogBookSync {
@@ -27,19 +27,19 @@ final class LogBookSync {
 
     private final NodeId nodeId;
     private final UpstreamStream stream;
-    private final LogBookProcessor timingDataHistory;
+    private final LogBookProcessor logBookProcessor;
 
     private boolean syncActive;
     private long nextSequence;
     private long syncHead;
 
-    LogBookSync(NodeId nodeId, UpstreamStream stream, LogBookProcessor timingDataHistory) {
+    LogBookSync(NodeId nodeId, UpstreamStream stream, LogBookProcessor logBookProcessor) {
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(stream != null, "stream must not be null");
-        checkArgument(timingDataHistory != null, "timingDataHistory must not be null");
+        checkArgument(logBookProcessor != null, "logBookProcessor must not be null");
         this.nodeId = nodeId;
         this.stream = stream;
-        this.timingDataHistory = timingDataHistory;
+        this.logBookProcessor = logBookProcessor;
     }
 
     /** Sends the current TIMING_DATA source head. Empty LogBook means sequence 0. */
@@ -53,7 +53,7 @@ final class LogBookSync {
     }
 
     long headSequence() {
-        return timingDataHistory.timingDataHead();
+        return logBookProcessor.timingDataHead();
     }
 
     /**
@@ -101,7 +101,7 @@ final class LogBookSync {
                 syncHead - nextSequence + 1L);
 
         List<TimingData> records =
-                timingDataHistory.timingDataRange(nextSequence, limit);
+                logBookProcessor.timingDataRange(nextSequence, limit);
 
         if (records.isEmpty()) {
             syncActive = false;
