@@ -224,7 +224,7 @@ public final class SerialLane implements Executor, AutoCloseable {
                 scheduleNextExecution();
             }
 
-            metrics.recordAccepted(
+            metrics.recordQueued(
                     queue.size());
         }
     }
