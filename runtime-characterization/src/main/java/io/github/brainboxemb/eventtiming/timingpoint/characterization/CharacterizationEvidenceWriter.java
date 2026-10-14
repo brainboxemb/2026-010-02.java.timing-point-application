@@ -16,11 +16,13 @@ import java.util.List;
 
 /** Writes one compact machine-readable characterization summary. */
 final class CharacterizationEvidenceWriter {
-    private static final int SCHEMA_VERSION = 1;
+    private static final int SCHEMA_VERSION = 2;
 
+    /** Prevents instantiation of this stateless evidence writer. */
     private CharacterizationEvidenceWriter() {
     }
 
+    /** Writes one complete PASS evidence document for a successful characterization run. */
     static void writeSuccess(
             CharacterizationConfig config,
             CharacterizationBuildInfo build,
@@ -86,6 +88,7 @@ final class CharacterizationEvidenceWriter {
         }
     }
 
+    /** Writes one complete FAIL evidence document with the captured failure summary. */
     static void writeFailure(
             CharacterizationConfig config,
             CharacterizationBuildInfo build,
@@ -121,6 +124,7 @@ final class CharacterizationEvidenceWriter {
         }
     }
 
+    /** Opens a pretty-printing JSON generator after creating the output directory when needed. */
     private static JsonGenerator open(
             Path output)
             throws IOException {
@@ -141,6 +145,7 @@ final class CharacterizationEvidenceWriter {
         return json;
     }
 
+    /** Writes evidence fields shared by successful and failed characterization runs. */
     private static void writeCommon(
             JsonGenerator json,
             CharacterizationConfig config,
@@ -295,6 +300,7 @@ final class CharacterizationEvidenceWriter {
         json.writeEndObject();
     }
 
+    /** Writes TimingNode lane and LogBook measurement deltas to characterization evidence. */
     private static void writeTimingNode(
             JsonGenerator json,
             TimingNodeRuntimeSnapshot before,
@@ -312,10 +318,10 @@ final class CharacterizationEvidenceWriter {
                 "queueHighWaterAfter",
                 after.queueHighWaterMark());
         json.writeNumberField(
-                "queueAcceptedDelta",
+                "queuedTaskDelta",
                 delta(
-                        before.queueAcceptedCount(),
-                        after.queueAcceptedCount()));
+                        before.queuedTaskCount(),
+                        after.queuedTaskCount()));
         json.writeNumberField(
                 "queueFullDelta",
                 delta(
@@ -403,6 +409,7 @@ final class CharacterizationEvidenceWriter {
         json.writeEndObject();
     }
 
+    /** Writes TagProcessor measurement deltas to characterization evidence. */
     private static void writeTagProcessing(
             JsonGenerator json,
             TagProcessingMetrics.Snapshot before,
@@ -448,6 +455,7 @@ final class CharacterizationEvidenceWriter {
         json.writeEndObject();
     }
 
+    /** Writes JVM/runtime measurement deltas to characterization evidence. */
     private static void writeJvm(
             JsonGenerator json,
             JvmRuntimeSnapshot before,
@@ -488,12 +496,14 @@ final class CharacterizationEvidenceWriter {
         json.writeEndObject();
     }
 
+    /** Returns the signed change between two cumulative counters. */
     private static long delta(
             long before,
             long after) {
         return after - before;
     }
 
+    /** Returns a counter delta or -1 when either source measurement is unavailable. */
     private static long availableDelta(
             long before,
             long after) {
@@ -503,6 +513,7 @@ final class CharacterizationEvidenceWriter {
         return after - before;
     }
 
+    /** Returns the configured JVM thread-stack option or a marker for the JVM default. */
     private static String stackOption() {
         List<String> arguments =
                 ManagementFactory.getRuntimeMXBean()

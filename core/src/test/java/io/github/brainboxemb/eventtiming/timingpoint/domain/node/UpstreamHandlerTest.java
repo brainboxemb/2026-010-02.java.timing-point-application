@@ -124,8 +124,9 @@ public class UpstreamHandlerTest {
         }
     }
 
+    /** Verifies that a heartbeat is queued on the Task Lane while the Data Lane is occupied. */
     @Test
-    public void heartbeatIsAdmittedToTaskLaneWhileDataLaneIsBusy()
+    public void heartbeatIsQueuedToTaskLaneWhileDataLaneIsBusy()
             throws Exception {
         ExecutorService nodeWorker =
                 Executors.newSingleThreadExecutor();
@@ -235,19 +236,19 @@ public class UpstreamHandlerTest {
                             1,
                             TimeUnit.SECONDS));
 
-            long acceptedBeforeHeartbeat =
+            long queuedBeforeHeartbeat =
                     taskLane.metrics()
                             .snapshot()
-                            .acceptedCount();
+                            .queuedCount();
 
             tasks.upstreamHandler()
                     .heartbeatTick();
 
             assertEquals(
-                    acceptedBeforeHeartbeat + 1L,
+                    queuedBeforeHeartbeat + 1L,
                     taskLane.metrics()
                             .snapshot()
-                            .acceptedCount());
+                            .queuedCount());
             assertEquals(
                     1L,
                     heartbeatSent.getCount());

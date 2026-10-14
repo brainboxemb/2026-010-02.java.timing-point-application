@@ -51,6 +51,7 @@ public class SerialLaneTest {
                 worker);
     }
 
+    /** Verifies that a lane rejects work outside its RUNNING lifecycle state. */
     @Test
     public void rejectsWorkBeforeStartAndAfterStop() {
         SerialLane executor = newLane(1, "serial-executor-test");
@@ -64,6 +65,7 @@ public class SerialLaneTest {
         expectRejected(() -> executor.execute(() -> { }));
     }
 
+    /** Verifies that a cleanly stopped lane can be started and used again. */
     @Test
     public void restartsAfterCleanStop() throws Exception {
         SerialLane executor = newLane(2, "serial-executor-restart-test");
@@ -83,8 +85,9 @@ public class SerialLaneTest {
         assertEquals(SerialLane.State.STOPPED, executor.state());
     }
 
+    /** Verifies FIFO execution for tasks successfully queued on one lane. */
     @Test
-    public void processesAcceptedWorkInFifoOrder() throws Exception {
+    public void processesQueuedWorkInFifoOrder() throws Exception {
         SerialLane executor = newLane(4, "serial-executor-test");
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
@@ -115,6 +118,7 @@ public class SerialLaneTest {
         }
     }
 
+    /** Verifies bounded queue rejection while the configured capacity is occupied. */
     @Test
     public void reportsFullWhileCapacityIsOccupied() throws Exception {
         SerialLane executor = newLane(1, "serial-executor-test");
@@ -139,8 +143,9 @@ public class SerialLaneTest {
         }
     }
 
+    /** Verifies that close waits for work already queued before stopping the lane. */
     @Test
-    public void closeDrainsAlreadyAcceptedWork() throws Exception {
+    public void closeDrainsAlreadyQueuedWork() throws Exception {
         SerialLane executor = newLane(2, "serial-executor-test");
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
@@ -170,6 +175,7 @@ public class SerialLaneTest {
         assertEquals(SerialLane.State.STOPPED, executor.state());
     }
 
+    /** Verifies that an ordinary task exception does not fault the SerialLane. */
     @Test
     public void ordinaryTaskFailureDoesNotStopLaterWork() throws Exception {
         SerialLane executor = newLane(2, "serial-executor-test");
@@ -194,6 +200,7 @@ public class SerialLaneTest {
         }
     }
 
+    /** Verifies queued/rejected/completed counters and queue/execution duration metrics. */
     @Test
     public void recordsLowAllocationRuntimeCountersAndDurations() throws Exception {
         SerialLane executor = newLane(1, "serial-executor-metrics-test");
@@ -229,7 +236,7 @@ public class SerialLaneTest {
         SerialLaneMetrics.Snapshot metrics =
                 executor.metrics().snapshot();
 
-        assertEquals(2L, metrics.acceptedCount());
+        assertEquals(2L, metrics.queuedCount());
         assertEquals(1L, metrics.fullCount());
         assertEquals(1L, metrics.notRunningCount());
         assertEquals(2L, metrics.completedCount());
@@ -242,6 +249,7 @@ public class SerialLaneTest {
     }
 
 
+    /** Verifies lane-local FIFO ordering and fair turns on one shared physical worker. */
     @Test
     public void sharedLanesKeepIndependentFifoQueuesAndShareOneWorker()
             throws Exception {
@@ -337,6 +345,7 @@ public class SerialLaneTest {
         }
     }
 
+    /** Verifies that closing one logical lane does not stop its sibling's shared worker. */
     @Test
     public void closingSharedLaneDoesNotStopSiblingLane()
             throws Exception {
@@ -379,6 +388,7 @@ public class SerialLaneTest {
     }
 
 
+    /** Verifies that a fatal failure is lane-local when sibling lanes share a worker. */
     @Test
     public void fatalFailureInSharedLaneDoesNotStopSiblingLane()
             throws Exception {
@@ -444,6 +454,7 @@ public class SerialLaneTest {
         }
     }
 
+    /** Verifies that a fatal Error faults the lane and cancels queued Future work. */
     @Test
     public void fatalErrorFaultsWorkerAndCancelsQueuedWork() throws Exception {
         SerialLane executor = newLane(2, "serial-executor-test");
