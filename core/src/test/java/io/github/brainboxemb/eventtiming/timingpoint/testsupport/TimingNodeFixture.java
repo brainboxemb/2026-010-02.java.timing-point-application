@@ -11,7 +11,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persist
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeTasks;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
@@ -68,17 +68,17 @@ public final class TimingNodeFixture {
     public static final class Components {
         private final TimingNode node;
         private final LogBook logBook;
-        private final NodeTasks nodeTasks;
+        private final NodeService nodeService;
         private final TagProcessor tagProcessor;
 
         private Components(
                 TimingNode node,
                 LogBook logBook,
-                NodeTasks nodeTasks,
+                NodeService nodeService,
                 TagProcessor tagProcessor) {
             this.node = node;
             this.logBook = logBook;
-            this.nodeTasks = nodeTasks;
+            this.nodeService = nodeService;
             this.tagProcessor = tagProcessor;
         }
 
@@ -90,8 +90,8 @@ public final class TimingNodeFixture {
             return logBook;
         }
 
-        public NodeTasks nodeTasks() {
-            return nodeTasks;
+        public NodeService nodeService() {
+            return nodeService;
         }
 
         public TagProcessor tagProcessor() {
@@ -266,8 +266,8 @@ public final class TimingNodeFixture {
                         dataLane,
                         operationTimeoutMillis);
 
-        NodeTasks nodeTasks =
-                new NodeTasks(
+        NodeService nodeService =
+                new NodeService(
                         logBook,
                         taskLane,
                         eventData,
@@ -289,13 +289,13 @@ public final class TimingNodeFixture {
         TimingNode node =
                 new TimingNode(
                         logBook,
-                        nodeTasks,
+                        nodeService,
                         tagProcessor);
 
         return new Components(
                 node,
                 logBook,
-                nodeTasks,
+                nodeService,
                 tagProcessor);
     }
 }
