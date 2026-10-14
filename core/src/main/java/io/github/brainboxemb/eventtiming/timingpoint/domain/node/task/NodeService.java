@@ -120,6 +120,7 @@ public final class NodeService {
                 "stageTiming");
     }
 
+    /** Builds the derived stage ranking while the Task Lane owns mutable derived state. */
     private List<StageTime> stageTimingOnTaskLane(ZoneId raceTimeZone) {
         requireTaskLane("stageTiming");
         return stageTiming.ranking(
@@ -127,6 +128,7 @@ public final class NodeService {
                 raceTimeZone);
     }
 
+    /** Hands the immutable startup history from the Data Lane to Task Lane-derived state. */
     private void onInitialTimingDataLoaded(List<TimingData> loadedData) {
         List<TimingData> snapshot = new ArrayList<TimingData>(loadedData);
         queueTimingFactOnTaskLane(
@@ -134,6 +136,7 @@ public final class NodeService {
                 "initial TimingData");
     }
 
+    /** Hands one committed TimingData fact from the Data Lane to Task Lane-derived state. */
     private void onTimingDataCommitted(TimingData data) {
         queueTimingFactOnTaskLane(
                 () -> applyCommittedTimingDataOnTaskLane(data),
@@ -174,6 +177,7 @@ public final class NodeService {
         state.applyCommittedTimingData(data);
     }
 
+    /** Fails fast when a helper that owns mutable Task Lane state runs outside that lane. */
     private void requireTaskLane(String operation) {
         if (!taskLane.isExecutingOnCurrentThread()) {
             throw new IllegalStateException(
