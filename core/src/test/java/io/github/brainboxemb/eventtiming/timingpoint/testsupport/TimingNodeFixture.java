@@ -61,6 +61,7 @@ public final class TimingNodeFixture {
         TAG_WORKER.setRemoveOnCancelPolicy(true);
     }
 
+    /** Prevents construction of this static test fixture. */
     private TimingNodeFixture() {
     }
 
@@ -114,6 +115,7 @@ public final class TimingNodeFixture {
         }
     }
 
+    /** Creates one test TimingNode with default profile data and shared test workers. */
     public static TimingNode create(
             NodeId nodeId,
             TimingDataPersistence persistence,
@@ -125,6 +127,7 @@ public final class TimingNodeFixture {
                 timeSource);
     }
 
+    /** Creates one test TimingNode with an explicit TimingDataFactory. */
     public static TimingNode create(
             NodeId nodeId,
             TimingDataPersistence persistence,
@@ -158,6 +161,7 @@ public final class TimingNodeFixture {
                 .node();
     }
 
+    /** Creates one same-thread TimingNode for deterministic child execution tests. */
     public static TimingNode createDirect(
             NodeId nodeId,
             TimingDataPersistence persistence,
@@ -172,6 +176,7 @@ public final class TimingNodeFixture {
                 UpstreamStream.unavailable());
     }
 
+    /** Creates one same-thread TimingNode with explicit EventData and upstream stream. */
     public static TimingNode createDirect(
             NodeId nodeId,
             TimingDataPersistence persistence,
@@ -189,6 +194,7 @@ public final class TimingNodeFixture {
                 .node();
     }
 
+    /** Creates same-thread TimingNode components for child-specific tests. */
     public static Components createDirectComponents(
             NodeId nodeId,
             TimingDataPersistence persistence,
@@ -223,6 +229,7 @@ public final class TimingNodeFixture {
                 DEFAULT_OPERATION_TIMEOUT_MILLIS);
     }
 
+    /** Creates one TimingNode using a caller-supplied Data Lane and timeout. */
     public static TimingNode createWithDataLane(
             NodeId nodeId,
             TimingDataPersistence persistence,
@@ -255,6 +262,7 @@ public final class TimingNodeFixture {
                 .node();
     }
 
+    /** Composes one complete test TimingNode graph from explicit logical lanes. */
     private static Components compose(
             NodeId nodeId,
             TimingDataPersistence persistence,
