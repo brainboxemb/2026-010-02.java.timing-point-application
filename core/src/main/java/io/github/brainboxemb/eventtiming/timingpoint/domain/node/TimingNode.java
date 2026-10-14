@@ -12,6 +12,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLi
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * Top-level owner for one logical timing node.
  *
@@ -32,18 +34,9 @@ public final class TimingNode {
             LogBook logBook,
             NodeService nodeService,
             TagProcessor tagProcessor) {
-        if (logBook == null) {
-            throw new IllegalArgumentException(
-                    "logBook must not be null");
-        }
-        if (nodeService == null) {
-            throw new IllegalArgumentException(
-                    "nodeService must not be null");
-        }
-        if (tagProcessor == null) {
-            throw new IllegalArgumentException(
-                    "tagProcessor must not be null");
-        }
+        checkArgument(logBook != null, "logBook must not be null");
+        checkArgument(nodeService != null, "nodeService must not be null");
+        checkArgument(tagProcessor != null, "tagProcessor must not be null");
 
         this.timingNodeId =
                 logBook.timingNodeId();
