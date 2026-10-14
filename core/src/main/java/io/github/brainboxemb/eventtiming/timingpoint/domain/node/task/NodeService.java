@@ -103,10 +103,19 @@ public final class NodeService implements UpstreamTaskState {
                         this);
     }
 
+    /**
+     * Starts the Task Lane execution context.
+     *
+     * <p>Activation does not wait for LogBook data. Derived timing becomes
+     * available only after the initial TimingData snapshot arrives.</p>
+     */
     public void activate() {
         taskLane.start();
     }
 
+    /**
+     * Stops Task Lane work and marks derived timing unavailable.
+     */
     public void deactivate() {
         taskLane.close();
         derivedTimingReady = false;
@@ -117,7 +126,11 @@ public final class NodeService implements UpstreamTaskState {
         return upstreamHandler;
     }
 
-    /** Returns the current derived stage ranking through the Task Lane. */
+    /**
+     * Returns the current derived stage ranking.
+     *
+     * <p>The call waits for ordered Task Lane execution.</p>
+     */
     public List<StageTime> stageTiming(ZoneId raceTimeZone) {
         if (raceTimeZone == null) {
             throw new IllegalArgumentException("raceTimeZone must not be null");
