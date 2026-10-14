@@ -27,15 +27,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Owns one TimingNode's mutable data and its Data Lane.
+ * Owns one TimingNode's committed LogBook and its Data Lane.
  *
  * <p>This component is the single execution boundary for ordered LogBook commands,
- * ORDERED queries, recovery, committed TimingData and publication of immutable
- * CURRENT data views. It owns no physical thread: the supplied
+ * ORDERED queries, recovery, durable TimingData commit and publication of immutable
+ * CURRENT LogBook/status views. It owns no physical thread: the supplied
  * {@link SerialExecutor} may share a Runtime-owned worker with other logical
  * lanes.</p>
  */
-public final class LogBookProcessor {
+public final class LogBookProcessor implements LogBookReader {
     private static final Logger LOG =
             LoggerFactory.getLogger(LogBookProcessor.class);
     public static final long DEFAULT_OPERATION_TIMEOUT_MILLIS = 2000L;
@@ -298,9 +298,11 @@ public final class LogBookProcessor {
      * remains Data Lane-only. Upstream/post-processing may depend on this data
      * contract; this component never depends on those consumers.</p>
      */
+    @Override
     public long timingDataHead() {
         return logic.timingDataHead();
     }
+    @Override
     public List<TimingData> timingDataRange(long fromSequence, int limit) {
         requireDataLane("timingDataRange");
         List<TimingData> records = new ArrayList<TimingData>(limit);
