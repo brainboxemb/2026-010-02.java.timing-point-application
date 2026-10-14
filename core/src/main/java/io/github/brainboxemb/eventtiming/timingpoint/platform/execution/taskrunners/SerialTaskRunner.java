@@ -103,22 +103,18 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
             CompletableFuture<TaskStep> completion =
                     new CompletableFuture<TaskStep>();
 
-            SerialLane.SubmitResult<TaskStep> submitted =
-                    lane.submit(
-                            () -> executeStep(
-                                    task::runStep,
-                                    completion));
-
-            if (submitted.admission()
-                    != SerialLane.AdmissionResult.ACCEPTED) {
-                result.completeExceptionally(
-                        rejected(
-                                submitted.admission()));
+            final Future<TaskStep> future;
+            try {
+                future =
+                        lane.submit(
+                                () -> executeStep(
+                                        task::runStep,
+                                        completion));
+            } catch (RejectedExecutionException ex) {
+                result.completeExceptionally(ex);
                 return;
             }
 
-            Future<TaskStep> future =
-                    submitted.futureResult();
             active.set(
                     future);
             if (result.isCancelled()) {
@@ -314,18 +310,18 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
                 .start();
     }
 
+    /** Starts the owned serial lane before tasks or ordinary operations are submitted. */
     public void start() {
         lane.start();
     }
 
-    /** Admits one ordinary short operation to the same serial lane. */
-    public boolean execute(
+    /** Queues one ordinary short operation on the same serial lane without waiting. */
+    public void execute(
             Runnable operation) {
-        return lane.offer(
-                operation)
-                == SerialLane.AdmissionResult.ACCEPTED;
+        lane.execute(operation);
     }
 
+    /** Waits for one cooperative task completion using this runner's configured timeout. */
     public void await(
             CompletableFuture<Void> future) {
         if (timeoutNanos <= 0L) {
@@ -396,15 +392,9 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
         return lane.failure();
     }
 
+    /** Stops new serial-lane work after accepted work has drained. */
     public void close() {
         lane.close();
-    }
-
-    private static RejectedExecutionException rejected(
-            SerialLane.AdmissionResult admission) {
-        return new RejectedExecutionException(
-                "Serial lane rejected yielding task step: "
-                        + admission);
     }
 
     private static SerialLane requireLane(
