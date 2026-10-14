@@ -39,7 +39,7 @@ public class TimingNodeRegistrationTest {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
         List<TimingData> delivered = new ArrayList<>();
-        node.timingDataCommittedEvent().subscribe(delivered::add);
+        node.newDataEvent().subscribe(delivered::add);
 
         node.activate();
         try {
@@ -324,7 +324,7 @@ public class TimingNodeRegistrationTest {
         List<TimingData> delivered = new ArrayList<>();
         Consumer<TimingData> listener = delivered::add;
 
-        assertTrue(node.timingDataCommittedEvent().subscribe(listener));
+        assertTrue(node.newDataEvent().subscribe(listener));
 
         node.activate();
         try {
@@ -359,7 +359,7 @@ public class TimingNodeRegistrationTest {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
         List<TimingData> delivered = new ArrayList<>();
-        node.timingDataCommittedEvent().subscribe(delivered::add);
+        node.newDataEvent().subscribe(delivered::add);
 
         node.activate();
         try {
@@ -392,10 +392,10 @@ public class TimingNodeRegistrationTest {
         TimingNode node = node(store);
         List<TimingData> delivered = new ArrayList<>();
 
-        node.timingDataCommittedEvent().subscribe(data -> {
+        node.newDataEvent().subscribe(data -> {
             throw new IllegalStateException("expected listener failure");
         });
-        node.timingDataCommittedEvent().subscribe(delivered::add);
+        node.newDataEvent().subscribe(delivered::add);
 
         node.activate();
         try {
@@ -482,7 +482,7 @@ public class TimingNodeRegistrationTest {
         store.loaded.add(recoveredData(1L, 11));
         TimingNode node = node(store);
         List<TimingData> delivered = new ArrayList<>();
-        node.timingDataCommittedEvent().subscribe(delivered::add);
+        node.newDataEvent().subscribe(delivered::add);
 
         node.activate();
         try {
