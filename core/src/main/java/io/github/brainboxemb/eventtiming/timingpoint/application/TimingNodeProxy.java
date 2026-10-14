@@ -7,13 +7,13 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQuery.ReadConsistency;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
@@ -62,18 +62,18 @@ public final class TimingNodeProxy {
     public TimingNodeStatus status() {
         return timingNodeStatus(
                 timingNode.query(
-                        TimingNodeQueries.status(),
+                        LogBookQueries.status(),
                         ReadConsistency.CURRENT));
     }
 
     /** Opens the node at the requested LocationId. */
     public OpenResult open(LocationId locationId) {
-        return timingNode.invoke(TimingNodeCommands.open(locationId));
+        return timingNode.invoke(LogBookCommands.open(locationId));
     }
 
     /** Closes the node. */
     public CloseResult close() {
-        return timingNode.invoke(TimingNodeCommands.close());
+        return timingNode.invoke(LogBookCommands.close());
     }
 
     /**
@@ -93,7 +93,7 @@ public final class TimingNodeProxy {
         switch (action) {
             case ADD:
                 return timingNode.invoke(
-                        TimingNodeCommands.addAutomaticRegistration(
+                        LogBookCommands.addAutomaticRegistration(
                                 registrationId,
                                 time));
             default:
@@ -106,14 +106,14 @@ public final class TimingNodeProxy {
     public RegistrationResult simulateAutomaticRegistration(
             RegistrationId registrationId, TimingTimestamp time) {
         return timingNode.invoke(
-                TimingNodeCommands.simulateAutomaticRegistration(registrationId, time));
+                LogBookCommands.simulateAutomaticRegistration(registrationId, time));
     }
 
     /** Engineering-only accepted registration using this node's own TimeSource. */
     public RegistrationResult simulateAutomaticRegistrationNow(
             RegistrationId registrationId) {
         return timingNode.invoke(
-                TimingNodeCommands.simulateAutomaticRegistrationNow(registrationId));
+                LogBookCommands.simulateAutomaticRegistrationNow(registrationId));
     }
 
     /**
@@ -137,7 +137,7 @@ public final class TimingNodeProxy {
                     "timeSource must not be null");
         }
         return timingNode.invoke(
-                TimingNodeCommands.commitManualRegistration(
+                LogBookCommands.commitManualRegistration(
                         registrationId,
                         effectiveTime,
                         timeSource));
@@ -181,7 +181,7 @@ public final class TimingNodeProxy {
                             "AUTO_REG revoke must not carry originalTimeSource");
                 }
                 return timingNode.invoke(
-                        TimingNodeCommands.revokeAutomaticRegistration(
+                        LogBookCommands.revokeAutomaticRegistration(
                                 originalLocationId,
                                 registrationId,
                                 originalTime));
@@ -191,7 +191,7 @@ public final class TimingNodeProxy {
                             "MAN_REG revoke requires originalTimeSource");
                 }
                 return timingNode.invoke(
-                        TimingNodeCommands.revokeManualRegistration(
+                        LogBookCommands.revokeManualRegistration(
                                 originalLocationId,
                                 registrationId,
                                 originalTime,
@@ -204,7 +204,7 @@ public final class TimingNodeProxy {
 
     /** Returns the number of committed records in this node LogBook. */
     public int logBookCount() {
-        return timingNode.query(TimingNodeQueries.timingDataCount());
+        return timingNode.query(LogBookQueries.timingDataCount());
     }
 
     /**
@@ -217,7 +217,7 @@ public final class TimingNodeProxy {
             int limit,
             Consumer<TimingData> visitor) {
         return timingNode.query(
-                TimingNodeQueries.visitTimingDataRange(
+                LogBookQueries.visitTimingDataRange(
                         fromSequence,
                         limit,
                         visitor));
@@ -232,7 +232,7 @@ public final class TimingNodeProxy {
             int limit,
             Consumer<TimingData> visitor) {
         return timingNode.query(
-                TimingNodeQueries.visitLatestTimingData(limit, visitor));
+                LogBookQueries.visitLatestTimingData(limit, visitor));
     }
 
     /**

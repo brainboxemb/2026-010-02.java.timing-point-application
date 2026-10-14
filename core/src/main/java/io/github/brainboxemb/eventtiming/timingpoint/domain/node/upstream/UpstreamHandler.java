@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingDataHistory;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -39,7 +39,7 @@ public final class UpstreamHandler {
     private final UpstreamHeartbeat heartbeat;
     private final UpstreamDataSync upstreamDataSync;
     private final LogBookSync logBookSync;
-    private final TimingDataHistory timingDataHistory;
+    private final LogBookProcessor timingDataHistory;
     private final UpstreamTaskState taskState;
 
     /*
@@ -54,7 +54,7 @@ public final class UpstreamHandler {
             DataLane dataLane,
             TaskLane taskLane,
             UpstreamStream stream,
-            TimingDataHistory timingDataHistory,
+            LogBookProcessor timingDataHistory,
             UpstreamTaskState taskState) {
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(dataLane != null, "dataLane must not be null");

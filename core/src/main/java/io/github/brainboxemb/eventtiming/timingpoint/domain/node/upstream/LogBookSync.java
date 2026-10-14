@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingDataHistory;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -27,13 +27,13 @@ final class LogBookSync {
 
     private final NodeId nodeId;
     private final UpstreamStream stream;
-    private final TimingDataHistory timingDataHistory;
+    private final LogBookProcessor timingDataHistory;
 
     private boolean syncActive;
     private long nextSequence;
     private long syncHead;
 
-    LogBookSync(NodeId nodeId, UpstreamStream stream, TimingDataHistory timingDataHistory) {
+    LogBookSync(NodeId nodeId, UpstreamStream stream, LogBookProcessor timingDataHistory) {
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(stream != null, "stream must not be null");
         checkArgument(timingDataHistory != null, "timingDataHistory must not be null");

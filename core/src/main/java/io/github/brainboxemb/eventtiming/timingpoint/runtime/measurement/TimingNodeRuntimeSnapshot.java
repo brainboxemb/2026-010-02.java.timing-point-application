@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executors.SerialExecutorMetrics;
 
 /**
@@ -8,11 +8,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.executor
  */
 public final class TimingNodeRuntimeSnapshot {
     private final SerialExecutorMetrics.Snapshot lane;
-    private final TimingNodeMetrics.Snapshot node;
+    private final LogBookProcessorMetrics.Snapshot node;
 
     TimingNodeRuntimeSnapshot(
             SerialExecutorMetrics.Snapshot lane,
-            TimingNodeMetrics.Snapshot node) {
+            LogBookProcessorMetrics.Snapshot node) {
         this.lane = lane;
         this.node = node;
     }

@@ -5,14 +5,14 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CommandAdmission;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.NodeDataProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeCommand;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeMetrics;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQueries;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQuery;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQuery.ReadConsistency;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.persistence.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommand;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessorMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
@@ -32,12 +32,12 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
  *
  * <p>TimingNode is deliberately a composition/lifecycle/facade component.
  * Mutable TimingData state, Data Lane execution, commands and queries belong to
- * {@link NodeDataProcessor}. Task/protocol execution is kept separate from that
+ * {@link LogBookProcessor}. Task/protocol execution is kept separate from that
  * data component; Task Lane execution and upstream composition belong to
  * {@link NodeTaskProcessor}.</p>
  */
 public final class TimingNode {
-    private final NodeDataProcessor dataProcessor;
+    private final LogBookProcessor dataProcessor;
     private final NodeTaskProcessor taskProcessor;
     private final TagProcessor tagProcessor;
 
@@ -80,13 +80,13 @@ public final class TimingNode {
             EventData eventData,
             UpstreamStream upstreamStream) {
         this(
-                new NodeDataProcessor(
+                new LogBookProcessor(
                         requireId(timingNodeId),
                         timingDataPersistence,
                         timingDataFactory,
                         timeSource,
                         SystemMonotonicClock.INSTANCE,
-                        new TimingNodeMetrics(),
+                        new LogBookProcessorMetrics(),
                         new SerialExecutor(
                                 32,
                                 "test-node-data-" + timingNodeId.value(),
@@ -112,13 +112,13 @@ public final class TimingNode {
             SerialExecutor dataLane,
             long operationTimeoutMillis) {
         this(
-                new NodeDataProcessor(
+                new LogBookProcessor(
                         requireId(timingNodeId),
                         timingDataPersistence,
                         timingDataFactory,
                         timeSource,
                         SystemMonotonicClock.INSTANCE,
-                        new TimingNodeMetrics(),
+                        new LogBookProcessorMetrics(),
                         dataLane,
                         operationTimeoutMillis),
                 new SerialExecutor(
@@ -154,7 +154,7 @@ public final class TimingNode {
                 taskLane,
                 tagProcessorExecutor,
                 SystemMonotonicClock.INSTANCE,
-                new TimingNodeMetrics(),
+                new LogBookProcessorMetrics(),
                 new TagProcessingMetrics(),
                 UpstreamStream.unavailable());
     }
@@ -181,7 +181,7 @@ public final class TimingNode {
                 taskLane,
                 tagProcessorExecutor,
                 SystemMonotonicClock.INSTANCE,
-                new TimingNodeMetrics(),
+                new LogBookProcessorMetrics(),
                 new TagProcessingMetrics(),
                 upstreamStream);
     }
@@ -208,7 +208,7 @@ public final class TimingNode {
                 taskLane,
                 tagProcessorExecutor,
                 monotonicClock,
-                new TimingNodeMetrics(),
+                new LogBookProcessorMetrics(),
                 new TagProcessingMetrics(),
                 UpstreamStream.unavailable());
     }
@@ -227,7 +227,7 @@ public final class TimingNode {
             SerialExecutor taskLane,
             SerialScheduledExecutor tagProcessorExecutor,
             MonotonicClock monotonicClock,
-            TimingNodeMetrics timingNodeMetrics,
+            LogBookProcessorMetrics timingNodeMetrics,
             TagProcessingMetrics tagProcessingMetrics) {
         this(
                 timingNodeId,
@@ -256,7 +256,7 @@ public final class TimingNode {
             SerialExecutor taskLane,
             SerialScheduledExecutor tagProcessorExecutor,
             MonotonicClock monotonicClock,
-            TimingNodeMetrics timingNodeMetrics,
+            LogBookProcessorMetrics timingNodeMetrics,
             TagProcessingMetrics tagProcessingMetrics,
             UpstreamStream upstreamStream) {
         if (tagProcessingConfiguration == null) {
@@ -288,8 +288,8 @@ public final class TimingNode {
                     "tagProcessingMetrics must not be null");
         }
 
-        NodeDataProcessor processor =
-                new NodeDataProcessor(
+        LogBookProcessor processor =
+                new LogBookProcessor(
                         requireId(timingNodeId),
                         timingDataPersistence,
                         timingDataFactory,
@@ -321,7 +321,7 @@ public final class TimingNode {
     }
 
     private TimingNode(
-            NodeDataProcessor dataProcessor,
+            LogBookProcessor dataProcessor,
             SerialExecutor taskLane,
             TagProcessor tagProcessor,
             EventData eventData,
@@ -432,22 +432,22 @@ public final class TimingNode {
         return tagProcessor;
     }
 
-    /** Delegates one result-bearing data command to NodeDataProcessor. */
+    /** Delegates one result-bearing data command to LogBookProcessor. */
     public <R> R invoke(
-            TimingNodeCommand<R> command) {
+            LogBookCommand<R> command) {
         return dataProcessor.invoke(
                 command);
     }
 
-    /** Delegates one admission-only data command to NodeDataProcessor. */
+    /** Delegates one admission-only data command to LogBookProcessor. */
     public CommandAdmission offer(
-            TimingNodeCommand<?> command) {
+            LogBookCommand<?> command) {
         return dataProcessor.offer(
                 command);
     }
 
     public <R> R query(
-            TimingNodeQuery<R> query) {
+            LogBookQuery<R> query) {
         if (query == null) {
             throw new IllegalArgumentException("query must not be null");
         }
@@ -457,7 +457,7 @@ public final class TimingNode {
     }
 
     public <R> R query(
-            TimingNodeQuery<R> query,
+            LogBookQuery<R> query,
             ReadConsistency consistency) {
         if (query == null) {
             throw new IllegalArgumentException("query must not be null");

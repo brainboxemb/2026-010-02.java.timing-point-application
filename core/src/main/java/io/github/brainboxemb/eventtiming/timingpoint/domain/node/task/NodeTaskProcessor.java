@@ -6,8 +6,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.NodeDataProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.data.TimingNodeQuery;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
@@ -46,7 +46,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
     private static final long TASK_QUERY_TIMEOUT_MILLIS = 2000L;
     private static final int MAX_PENDING_FACTS = 256;
 
-    private final NodeDataProcessor dataProcessor;
+    private final LogBookProcessor dataProcessor;
     private final SerialExecutor taskLane;
     private final RaceDataState raceData;
     private final UniqueTeamRegistrations uniqueTeamRegistrations =
@@ -65,7 +65,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
     private final UpstreamHandler upstreamHandler;
 
     public NodeTaskProcessor(
-            NodeDataProcessor dataProcessor,
+            LogBookProcessor dataProcessor,
             SerialExecutor taskLane,
             EventData eventData,
             UpstreamStream upstreamStream) {
@@ -136,7 +136,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
     }
 
     /** Executes one Task Lane-owned TimingNode query. */
-    public <R> R query(TimingNodeQuery<R> query) {
+    public <R> R query(LogBookQuery<R> query) {
         if (query == null) {
             throw new IllegalArgumentException("query must not be null");
         }
@@ -401,9 +401,9 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
      * protocol work that needs history is still scheduled onto the Data Lane.</p>
      */
     private static final class UpstreamDataLane implements UpstreamHandler.DataLane {
-        private final NodeDataProcessor dataProcessor;
+        private final LogBookProcessor dataProcessor;
 
-        UpstreamDataLane(NodeDataProcessor dataProcessor) {
+        UpstreamDataLane(LogBookProcessor dataProcessor) {
             this.dataProcessor = dataProcessor;
         }
 
