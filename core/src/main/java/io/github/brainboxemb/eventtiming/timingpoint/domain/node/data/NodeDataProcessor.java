@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.data;
 
-import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -62,7 +61,6 @@ public final class NodeDataProcessor implements TimingDataHistory {
             TimingDataPersistence timingDataPersistence,
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
-            EventData eventData,
             MonotonicClock monotonicClock,
             TimingNodeMetrics metrics,
             SerialExecutor dataLane) {
@@ -72,7 +70,6 @@ public final class NodeDataProcessor implements TimingDataHistory {
                         timingDataPersistence,
                         timingDataFactory,
                         timeSource,
-                        eventData,
                         monotonicClock,
                         metrics),
                 dataLane,
@@ -85,7 +82,6 @@ public final class NodeDataProcessor implements TimingDataHistory {
             TimingDataPersistence timingDataPersistence,
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
-            EventData eventData,
             MonotonicClock monotonicClock,
             TimingNodeMetrics metrics,
             SerialExecutor dataLane,
@@ -96,7 +92,6 @@ public final class NodeDataProcessor implements TimingDataHistory {
                         timingDataPersistence,
                         timingDataFactory,
                         timeSource,
-                        eventData,
                         monotonicClock,
                         metrics),
                 dataLane,
