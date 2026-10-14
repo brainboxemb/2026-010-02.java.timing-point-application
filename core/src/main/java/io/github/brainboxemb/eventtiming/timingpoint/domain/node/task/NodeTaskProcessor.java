@@ -102,7 +102,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
         this.upstreamHandler =
                 new UpstreamHandler(
                         logBookProcessor.timingNodeId(),
-                        logBookProcessor::offerTask,
+                        logBookProcessor::offerOperation,
                         new UpstreamTaskLane(),
                         upstreamStream,
                         logBookProcessor,
@@ -139,7 +139,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
         if (raceTimeZone == null) {
             throw new IllegalArgumentException("raceTimeZone must not be null");
         }
-        return runTask(
+        return callOperation(
                 () -> {
                     ensureDerivedTimingAvailable();
                     return stageTiming.ranking(
@@ -175,8 +175,8 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
     }
 
     /** A full Task Lane rejects new work rather than blocking an ingress caller. */
-    private boolean offerTask(Runnable task) {
-        return taskLane.offer(task) == SerialLane.AdmissionResult.ACCEPTED;
+    private boolean offerOperation(Runnable operation) {
+        return taskLane.offer(operation) == SerialLane.AdmissionResult.ACCEPTED;
     }
 
     private void onTimingDataRecovered(List<TimingData> recovered) {
@@ -184,7 +184,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
                 new ArrayList<TimingData>(recovered);
 
         if (taskLane.state() == SerialLane.State.RUNNING
-                && offerTask(() -> rebuildDerivedTiming(snapshot))) {
+                && offerOperation(() -> rebuildDerivedTiming(snapshot))) {
             return;
         }
 
@@ -196,7 +196,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
 
     private void onTimingDataCommitted(TimingData data) {
         if (taskLane.state() == SerialLane.State.RUNNING
-                && offerTask(() -> applyCommittedTimingData(data))) {
+                && offerOperation(() -> applyCommittedTimingData(data))) {
             return;
         }
 
@@ -229,7 +229,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
             return;
         }
 
-        if (!offerTask(
+        if (!offerOperation(
                 () -> {
                     if (recovery != null) {
                         rebuildDerivedTiming(recovery);
@@ -310,10 +310,10 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
         }
     }
 
-    private <R> R runTask(Callable<R> task, String operation) {
+    private <R> R callOperation(Callable<R> work, String operation) {
         if (taskLane.isExecutingOnCurrentThread()) {
             try {
-                return task.call();
+                return work.call();
             } catch (RuntimeException ex) {
                 throw ex;
             } catch (Exception ex) {
@@ -325,7 +325,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
         }
 
         SerialLane.SubmitResult<R> submitResult =
-                taskLane.submit(task);
+                taskLane.submit(work);
         switch (submitResult.admission()) {
             case FULL:
                 throw new OperationException(
@@ -386,22 +386,12 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
     private final class UpstreamTaskLane implements UpstreamHandler.TaskLane {
         @Override
         public boolean offer(Runnable task) {
-            return offerTask(task);
-        }
-
-        @Override
-        public void run(Runnable task, String operation) {
-            runTask(
-                    () -> {
-                        task.run();
-                        return null;
-                    },
-                    operation);
+            return offerOperation(task);
         }
 
         @Override
         public <R> R run(Callable<R> task, String operation) {
-            return runTask(task, operation);
+            return callOperation(task, operation);
         }
     }
 }

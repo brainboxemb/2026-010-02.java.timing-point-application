@@ -253,42 +253,14 @@ public final class LogBookProcessor implements LogBookReader {
     }
 
     /** Admits one fire-and-forget operation to the Data Lane. */
-    public boolean offerTask(
-            Runnable task) {
-        if (task == null) {
+    public boolean offerOperation(
+            Runnable operation) {
+        if (operation == null) {
             throw new IllegalArgumentException(
-                    "task must not be null");
+                    "operation must not be null");
         }
-        return dataLane.offer(task)
+        return dataLane.offer(operation)
                 == SerialLane.AdmissionResult.ACCEPTED;
-    }
-
-    /** Runs one synchronous helper operation on the Data Lane. */
-    public void runTask(
-            Runnable task,
-            String operation) {
-        if (task == null) {
-            throw new IllegalArgumentException(
-                    "task must not be null");
-        }
-        runSerialized(
-                () -> {
-                    task.run();
-                    return null;
-                },
-                operation);
-    }
-
-    public <R> R runTask(
-            Callable<R> task,
-            String operation) {
-        if (task == null) {
-            throw new IllegalArgumentException(
-                    "task must not be null");
-        }
-        return runSerialized(
-                task,
-                operation);
     }
 
     /**
