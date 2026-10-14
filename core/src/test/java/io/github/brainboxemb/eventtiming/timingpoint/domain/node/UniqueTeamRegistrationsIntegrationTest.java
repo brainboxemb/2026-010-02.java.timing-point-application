@@ -12,6 +12,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
@@ -31,7 +32,7 @@ public class UniqueTeamRegistrationsIntegrationTest {
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
         TimingNode node =
-                new TimingNode(
+                TimingNodeFixture.create(
                         new NodeId("A"),
                         new StaticPersistence(
                                 registration(1L, "RT-A-0001"),

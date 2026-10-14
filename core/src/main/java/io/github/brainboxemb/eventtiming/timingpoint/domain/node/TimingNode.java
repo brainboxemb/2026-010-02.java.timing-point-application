@@ -39,95 +39,6 @@ public final class TimingNode {
     private final NodeTaskProcessor taskProcessor;
     private final TagProcessor tagProcessor;
 
-    /** Test-only direct-execution convenience constructor. */
-    TimingNode(
-            NodeId timingNodeId,
-            TimingDataPersistence timingDataPersistence,
-            TimingDataFactory timingDataFactory,
-            TimeSource timeSource) {
-        this(
-                timingNodeId,
-                timingDataPersistence,
-                timingDataFactory,
-                timeSource,
-                EventData.empty());
-    }
-
-    /** Test-only direct-execution convenience constructor with EventData. */
-    TimingNode(
-            NodeId timingNodeId,
-            TimingDataPersistence timingDataPersistence,
-            TimingDataFactory timingDataFactory,
-            TimeSource timeSource,
-            EventData eventData) {
-        this(
-                timingNodeId,
-                timingDataPersistence,
-                timingDataFactory,
-                timeSource,
-                eventData,
-                UpstreamStream.unavailable());
-    }
-
-    /** Test-only direct-execution convenience constructor with upstream stream. */
-    TimingNode(
-            NodeId timingNodeId,
-            TimingDataPersistence timingDataPersistence,
-            TimingDataFactory timingDataFactory,
-            TimeSource timeSource,
-            EventData eventData,
-            UpstreamStream upstreamStream) {
-        this(
-                new LogBookProcessor(
-                        requireId(timingNodeId),
-                        timingDataPersistence,
-                        timingDataFactory,
-                        timeSource,
-                        SystemMonotonicClock.INSTANCE,
-                        new LogBookProcessorMetrics(),
-                        new SerialLane(
-                                32,
-                                "test-node-data-" + timingNodeId.value(),
-                                Runnable::run)),
-                new SerialLane(
-                        32,
-                        "test-node-task-" + timingNodeId.value(),
-                        Runnable::run),
-                null,
-                eventData,
-                upstreamStream);
-    }
-
-    /**
-     * Test seam for boundary tests that need explicit Data Lane scheduling or
-     * operation timeout control.
-     */
-    TimingNode(
-            NodeId timingNodeId,
-            TimingDataPersistence timingDataPersistence,
-            TimingDataFactory timingDataFactory,
-            TimeSource timeSource,
-            SerialLane dataLane,
-            long operationTimeoutMillis) {
-        this(
-                new LogBookProcessor(
-                        requireId(timingNodeId),
-                        timingDataPersistence,
-                        timingDataFactory,
-                        timeSource,
-                        SystemMonotonicClock.INSTANCE,
-                        new LogBookProcessorMetrics(),
-                        dataLane,
-                        operationTimeoutMillis),
-                new SerialLane(
-                        32,
-                        "test-node-task-" + timingNodeId.value(),
-                        Runnable::run),
-                null,
-                EventData.empty(),
-                UpstreamStream.unavailable());
-    }
-
     /**
      * Creates one TimingNode from its already-composed child components.
      *
@@ -169,37 +80,6 @@ public final class TimingNode {
                         registration.observedAt()));
     }
 
-    private TimingNode(
-            LogBookProcessor logBookProcessor,
-            SerialLane taskLane,
-            TagProcessor tagProcessor,
-            EventData eventData,
-            UpstreamStream upstreamStream) {
-        if (logBookProcessor == null) {
-            throw new IllegalArgumentException(
-                    "logBookProcessor must not be null");
-        }
-        if (taskLane == null) {
-            throw new IllegalArgumentException(
-                    "taskLane must not be null");
-        }
-        if (eventData == null) {
-            throw new IllegalArgumentException(
-                    "eventData must not be null");
-        }
-        if (upstreamStream == null) {
-            throw new IllegalArgumentException(
-                    "upstreamStream must not be null");
-        }
-        this.logBookProcessor = logBookProcessor;
-        this.taskProcessor = new NodeTaskProcessor(
-                logBookProcessor,
-                taskLane,
-                eventData,
-                upstreamStream);
-        this.tagProcessor = tagProcessor;
-    }
-
     public NodeId timingNodeId() {
         return logBookProcessor.timingNodeId();
     }
@@ -225,14 +105,12 @@ public final class TimingNode {
             throw ex;
         }
 
-        if (tagProcessor != null) {
-            try {
-                tagProcessor.activate();
-            } catch (RuntimeException ex) {
-                taskProcessor.deactivate();
-                logBookProcessor.deactivate();
-                throw ex;
-            }
+        try {
+            tagProcessor.activate();
+        } catch (RuntimeException ex) {
+            taskProcessor.deactivate();
+            logBookProcessor.deactivate();
+            throw ex;
         }
     }
 
@@ -243,12 +121,10 @@ public final class TimingNode {
         RuntimeException firstFailure =
                 null;
 
-        if (tagProcessor != null) {
-            try {
-                tagProcessor.deactivate();
-            } catch (RuntimeException ex) {
-                firstFailure = ex;
-            }
+        try {
+            tagProcessor.deactivate();
+        } catch (RuntimeException ex) {
+            firstFailure = ex;
         }
 
         try {
@@ -274,10 +150,6 @@ public final class TimingNode {
 
     /** Returns the node-local TagProcessor child for runtime I/O wiring. */
     public TagProcessor tagProcessor() {
-        if (tagProcessor == null) {
-            throw new IllegalStateException(
-                    "TagProcessor is unavailable on the TimingNode test-only construction seam");
-        }
         return tagProcessor;
     }
 

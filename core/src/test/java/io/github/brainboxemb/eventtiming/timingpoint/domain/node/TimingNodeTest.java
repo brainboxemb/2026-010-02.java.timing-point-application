@@ -6,6 +6,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
@@ -191,7 +192,7 @@ public class TimingNodeTest {
     public void openAndCloseCommitLifecycleTimingDataInSourceOrder() {
         NodeId id = new NodeId("A");
         RecordingPersistence persistence = new RecordingPersistence();
-        TimingNode node = new TimingNode(
+        TimingNode node = TimingNodeFixture.create(
                 id,
                 persistence,
                 new DefaultTimingDataFactory(),
@@ -231,7 +232,7 @@ public class TimingNodeTest {
             Instant.parse("2026-10-02T08:00:00.129876543Z"),
             Instant.parse("2026-10-02T08:00:00.134876543Z")
         };
-        TimingNode node = new TimingNode(
+        TimingNode node = TimingNodeFixture.create(
                 new NodeId("A"),
                 persistence,
                 new DefaultTimingDataFactory(),
@@ -260,7 +261,7 @@ public class TimingNodeTest {
     @Test
     public void repeatedLifecycleCommandsDoNotCreateAdditionalTimingData() {
         RecordingPersistence persistence = new RecordingPersistence();
-        TimingNode node = new TimingNode(
+        TimingNode node = TimingNodeFixture.create(
                 new NodeId("A"),
                 persistence,
                 new DefaultTimingDataFactory(),
@@ -290,7 +291,7 @@ public class TimingNodeTest {
     @Test
     public void failedOpenCommitLeavesNodeClosedAndPublishesNoSuccess() {
         FailingPersistence persistence = new FailingPersistence();
-        TimingNode node = new TimingNode(
+        TimingNode node = TimingNodeFixture.create(
                 new NodeId("A"),
                 persistence,
                 new DefaultTimingDataFactory(),
@@ -787,7 +788,7 @@ public class TimingNodeTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsMissingIdentity() {
-        new TimingNode(
+        TimingNodeFixture.create(
                 null,
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),
@@ -795,7 +796,7 @@ public class TimingNodeTest {
     }
 
     private static TimingNode node(NodeId id) {
-        return new TimingNode(
+        return TimingNodeFixture.create(
                 id,
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),
@@ -810,7 +811,7 @@ public class TimingNodeTest {
             NodeId id,
             SerialLane executor,
             long timeoutMillis) {
-        return new TimingNode(
+        return TimingNodeFixture.createWithDataLane(
                 id,
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),
@@ -824,7 +825,7 @@ public class TimingNodeTest {
             TimingDataPersistence persistence,
             SerialLane executor,
             long timeoutMillis) {
-        return new TimingNode(
+        return TimingNodeFixture.createWithDataLane(
                 id,
                 persistence,
                 new DefaultTimingDataFactory(),

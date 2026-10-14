@@ -30,6 +30,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
  * executor wiring or fall back to hidden component-owned thread creation.</p>
  */
 public final class TimingNodeFixture {
+    private static final long DEFAULT_OPERATION_TIMEOUT_MILLIS = 5000L;
     /*
      * Test-suite-owned workers. They are daemon threads so a failed test cannot
      * keep the JVM alive; individual logical lanes still close with their node.
@@ -78,9 +79,65 @@ public final class TimingNodeFixture {
             TimingDataPersistence persistence,
             TimingDataFactory timingDataFactory,
             TimeSource timeSource) {
+        return create(
+                nodeId,
+                persistence,
+                timingDataFactory,
+                timeSource,
+                EventData.empty(),
+                UpstreamStream.unavailable());
+    }
+
+    public static TimingNode create(
+            NodeId nodeId,
+            TimingDataPersistence persistence,
+            TimingDataFactory timingDataFactory,
+            TimeSource timeSource,
+            EventData eventData,
+            UpstreamStream upstreamStream) {
         String suffix = nodeId == null ? "missing" : nodeId.value();
-        EventData eventData =
-                EventData.empty();
+        return compose(
+                nodeId,
+                persistence,
+                timingDataFactory,
+                timeSource,
+                eventData,
+                upstreamStream,
+                new SerialLane(
+                        32,
+                        "test-node-data-" + suffix,
+                        NODE_WORKER),
+                DEFAULT_OPERATION_TIMEOUT_MILLIS);
+    }
+
+    public static TimingNode createWithDataLane(
+            NodeId nodeId,
+            TimingDataPersistence persistence,
+            TimingDataFactory timingDataFactory,
+            TimeSource timeSource,
+            SerialLane dataLane,
+            long operationTimeoutMillis) {
+        return compose(
+                nodeId,
+                persistence,
+                timingDataFactory,
+                timeSource,
+                EventData.empty(),
+                UpstreamStream.unavailable(),
+                dataLane,
+                operationTimeoutMillis);
+    }
+
+    private static TimingNode compose(
+            NodeId nodeId,
+            TimingDataPersistence persistence,
+            TimingDataFactory timingDataFactory,
+            TimeSource timeSource,
+            EventData eventData,
+            UpstreamStream upstreamStream,
+            SerialLane dataLane,
+            long operationTimeoutMillis) {
+        String suffix = nodeId == null ? "missing" : nodeId.value();
         ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
                 ReadOnlyConfiguration.fixed(
                         TagProcessingPolicy.defaults());
@@ -93,10 +150,8 @@ public final class TimingNodeFixture {
                         timeSource,
                         SystemMonotonicClock.INSTANCE,
                         new LogBookProcessorMetrics(),
-                        new SerialLane(
-                                32,
-                                "test-node-data-" + suffix,
-                                NODE_WORKER));
+                        dataLane,
+                        operationTimeoutMillis);
 
         NodeTaskProcessor taskProcessor =
                 new NodeTaskProcessor(
@@ -106,7 +161,7 @@ public final class TimingNodeFixture {
                                 "test-node-task-" + suffix,
                                 NODE_WORKER),
                         eventData,
-                        UpstreamStream.unavailable());
+                        upstreamStream);
 
         TagProcessor tagProcessor =
                 new TagProcessor(
@@ -128,4 +183,5 @@ public final class TimingNodeFixture {
                 taskProcessor,
                 tagProcessor);
     }
+
 }
