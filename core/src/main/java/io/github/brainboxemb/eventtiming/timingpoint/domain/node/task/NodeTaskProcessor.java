@@ -229,7 +229,7 @@ public final class NodeTaskProcessor implements UpstreamTaskState {
                 })) {
             derivedTimingStale = true;
             LOG.error(
-                    "Task Lane could not accept initial/committed TimingData facts for node {}; derived timing state is stale",
+                    "Task Lane rejected initial/committed TimingData for node {}; derived timing state is stale",
                     logBookProcessor.timingNodeId().value());
         }
     }
