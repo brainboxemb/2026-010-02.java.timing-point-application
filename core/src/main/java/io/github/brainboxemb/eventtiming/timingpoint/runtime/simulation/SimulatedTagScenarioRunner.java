@@ -13,6 +13,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -185,18 +186,20 @@ public final class SimulatedTagScenarioRunner
                         scenario,
                         index,
                         baseTime);
+        Callable<Void> delayedWork =
+                () -> {
+                    work.run();
+                    return null;
+                };
 
         try {
             if (delayNanos == 0L) {
                 lane.execute(work);
-                return true;
+            } else {
+                scheduler.submitAfter(
+                        delayedWork,
+                        delayNanos);
             }
-            scheduler.submitAfter(
-                    () -> {
-                        work.run();
-                        return null;
-                    },
-                    delayNanos);
             return true;
         } catch (RejectedExecutionException | IllegalStateException ex) {
             return false;
