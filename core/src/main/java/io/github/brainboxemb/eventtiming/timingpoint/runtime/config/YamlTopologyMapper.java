@@ -173,21 +173,16 @@ final class YamlTopologyMapper {
                                         timingNodeField
                                                 + "."
                                                 + NODE_ID));
-                if (!timingNode.containsKey(ANTENNA_ID)) {
-                    throw new IllegalArgumentException(
-                            "Missing required configuration field: "
-                                    + timingNodeField
-                                    + "."
-                                    + ANTENNA_ID);
-                }
                 AntennaId antennaId =
-                        new AntennaId(
-                                YamlValues.requireCompactId(
-                                        timingNode.get(
-                                                ANTENNA_ID),
-                                        timingNodeField
-                                                + "."
-                                                + ANTENNA_ID));
+                        timingNode.containsKey(ANTENNA_ID)
+                                ? new AntennaId(
+                                        YamlValues.requireCompactId(
+                                                timingNode.get(
+                                                        ANTENNA_ID),
+                                                timingNodeField
+                                                        + "."
+                                                        + ANTENNA_ID))
+                                : null;
                 if (!nodeIds.add(timingNodeId)) {
                     throw new IllegalArgumentException(
                             "Duplicate application-wide TimingNodeId "
