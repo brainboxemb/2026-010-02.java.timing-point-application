@@ -19,8 +19,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import java.util.function.Consumer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Presentation-facing application proxy for one TimingNode.
@@ -30,7 +28,6 @@ import org.slf4j.LoggerFactory;
  * typed TimingNode commands/queries and exposes node-scoped application events.</p>
  */
 public final class TimingNodeProxy {
-    private static final Logger LOG = LoggerFactory.getLogger(TimingNodeProxy.class);
 
     /** Automatic-registration actions currently supported by this application boundary. */
     public enum AutomaticRegistrationAction {
@@ -254,16 +251,9 @@ public final class TimingNodeProxy {
     }
 
     private void updateStatus(Status status) {
+
         TimingNodeStatus update = timingNodeStatus(status);
-        Event.DeliveryReport delivery = statusChangedEvent.emit(update);
-        if (!delivery.successful()) {
-            LOG.warn(
-                    "TimingNode status changed but "
-                            + delivery.failureCount()
-                            + " status listener(s) failed for "
-                            + update.timingNodeId().value(),
-                    delivery.failures().get(0));
-        }
+        statusChangedEvent.emit(update);
     }
 
     private static TimingNodeStatus timingNodeStatus(Status status) {

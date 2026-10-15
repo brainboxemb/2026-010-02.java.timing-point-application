@@ -7,13 +7,9 @@ import java.util.Objects;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** Package-local implementation behind the public typed configuration views. */
 final class DefaultDynamicConfiguration<T> implements DynamicConfiguration<T> {
-    private static final Logger LOG =
-            LoggerFactory.getLogger(DefaultDynamicConfiguration.class);
 
     private final T startupValue;
     private final Predicate<T> validator;
@@ -108,11 +104,6 @@ final class DefaultDynamicConfiguration<T> implements DynamicConfiguration<T> {
     }
 
     private void emitChange(ConfigurationChange<T> change) {
-        Event.DeliveryReport report = changes.emit(change);
-        if (!report.successful()) {
-            LOG.warn(
-                    "Configuration change listener failure(s): {}",
-                    report.failureCount());
-        }
+        changes.emit(change);
     }
 }

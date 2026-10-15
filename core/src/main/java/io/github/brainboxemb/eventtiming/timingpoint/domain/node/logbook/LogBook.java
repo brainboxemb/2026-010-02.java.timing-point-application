@@ -280,15 +280,7 @@ public final class LogBook implements LogBookAccessor {
     /** Emits immutable LoadResult history without allocating another full-list snapshot. */
     private void publishInitialLoadedData(List<TimingData> loadedData) {
 
-        Event.DeliveryReport delivery = initialDataLoadedEvent.emit(loadedData);
-        if (!delivery.successful()) {
-            LOG.warn(
-                    "Persisted TimingData loaded but "
-                            + delivery.failureCount()
-                            + " initialDataLoadedEvent listener(s) failed for "
-                            + timingNodeId().value(),
-                    delivery.failures().get(0));
-        }
+        initialDataLoadedEvent.emit(loadedData);
     }
 
     /** Publishes one successfully committed TimingData record and records delivery metrics. */
@@ -297,16 +289,6 @@ public final class LogBook implements LogBookAccessor {
         long eventStartedNanos = monotonicClock.nowNanos();
         Event.DeliveryReport delivery = newDataEntryEvent.emit(data);
         metrics.recordEventDelivery(monotonicClock.nowNanos() - eventStartedNanos, delivery.failureCount());
-        if (!delivery.successful()) {
-            LOG.warn(
-                    "TimingData committed but "
-                            + delivery.failureCount()
-                            + " newDataEntryEvent listener(s) failed for "
-                            + timingNodeId().value()
-                            + ":"
-                            + data.sequenceNumber(),
-                    delivery.failures().get(0));
-        }
     }
 
 

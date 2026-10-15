@@ -88,15 +88,7 @@ final class LogBookStatus {
                 status.hasLocation() ? status.locationId() : "-",
                 status.problems().size());
 
-        Event.DeliveryReport delivery = statusChangedEvent.emit(status);
-        if (!delivery.successful()) {
-            LOG.warn(
-                    "TimingNode initial status published but "
-                            + delivery.failureCount()
-                            + " status listener(s) failed for "
-                            + timingNodeId.value(),
-                    delivery.failures().get(0));
-        }
+        statusChangedEvent.emit(status);
     }
 
     /** Emits a status event only when the effective immutable Status changed. */
@@ -118,15 +110,7 @@ final class LogBookStatus {
                 before.problems().size(),
                 after.problems().size());
 
-        Event.DeliveryReport delivery = statusChangedEvent.emit(after);
-        if (!delivery.successful()) {
-            LOG.warn(
-                    "TimingNode status changed but "
-                            + delivery.failureCount()
-                            + " status listener(s) failed for "
-                            + timingNodeId.value(),
-                    delivery.failures().get(0));
-        }
+        statusChangedEvent.emit(after);
     }
 
     /** Compares immutable Status values without depending on object identity. */
