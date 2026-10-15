@@ -10,6 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServiceState;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
@@ -43,6 +44,7 @@ final class TimingNodeComposer {
     /** Builds one complete TimingNode from resolved runtime configuration. */
     TimingNode compose(
             Config.TimingNodeConfig nodeConfig,
+            AntennaId antennaId,
             TimingSystemResolvedData system,
             TimeSource timeSource) {
 
@@ -85,6 +87,6 @@ final class TimingNodeComposer {
                         execution.tagProcessorLane(),
                         execution.tagProcessorScheduledExecutor());
 
-        return new TimingNode(nodeConfig.antennaId(), logBook, nodeService, tagProcessor);
+        return new TimingNode(antennaId, logBook, nodeService, tagProcessor);
     }
 }
