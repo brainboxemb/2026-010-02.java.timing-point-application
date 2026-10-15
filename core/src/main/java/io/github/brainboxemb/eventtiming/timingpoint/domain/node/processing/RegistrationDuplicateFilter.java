@@ -90,19 +90,18 @@ final class RegistrationDuplicateFilter {
             registrations.clear();
             cleanupStarted = false;
             lastCleanupNanos = 0L;
-            return;
-        }
-
-        Iterator<Map.Entry<RegistrationId, Long>> iterator =
-                registrations.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<RegistrationId, Long> entry = iterator.next();
-            if (now - entry.getValue() >= duplicateWindowNanos) {
-                iterator.remove();
+        } else {
+            Iterator<Map.Entry<RegistrationId, Long>> iterator =
+                    registrations.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<RegistrationId, Long> entry = iterator.next();
+                if (now - entry.getValue() >= duplicateWindowNanos) {
+                    iterator.remove();
+                }
             }
+            cleanupStarted = true;
+            lastCleanupNanos = now;
         }
-        cleanupStarted = true;
-        lastCleanupNanos = now;
     }
 
     boolean hasPendingState() {
@@ -117,28 +116,20 @@ final class RegistrationDuplicateFilter {
             registrations.clear();
             cleanupStarted = false;
             lastCleanupNanos = 0L;
-            return;
-        }
-
-        if (!cleanupStarted) {
+        } else if (!cleanupStarted) {
             cleanupStarted = true;
             lastCleanupNanos = now;
-            return;
-        }
-
-        if (now - lastCleanupNanos < duplicateWindowNanos) {
-            return;
-        }
-
-        Iterator<Map.Entry<RegistrationId, Long>> iterator =
-                registrations.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<RegistrationId, Long> entry = iterator.next();
-            if (now - entry.getValue() >= duplicateWindowNanos) {
-                iterator.remove();
+        } else if (now - lastCleanupNanos >= duplicateWindowNanos) {
+            Iterator<Map.Entry<RegistrationId, Long>> iterator =
+                    registrations.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<RegistrationId, Long> entry = iterator.next();
+                if (now - entry.getValue() >= duplicateWindowNanos) {
+                    iterator.remove();
+                }
             }
+            lastCleanupNanos = now;
         }
-        lastCleanupNanos = now;
     }
 
     private static void requireRegistrationId(RegistrationId registrationId) {
