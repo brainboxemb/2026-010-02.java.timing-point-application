@@ -1,10 +1,12 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.YieldingTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Test;
@@ -17,114 +19,142 @@ import static org.junit.Assert.assertTrue;
 public class YieldingTaskControllerTest {
 
     @Test
-    public void wakeWhileRunningCoalescesIntoOneFollowUpRun() {
-        ControlledRunner runner =
-                new ControlledRunner();
+    public void wakeWhileRunningCoalescesIntoOneFollowUpRun()
+            throws Exception {
+        ScheduledExecutorService worker =
+                Executors.newSingleThreadScheduledExecutor();
+        TaskSerialLane lane =
+                new TaskSerialLane(
+                        8,
+                        "controller-coalesce",
+                        worker);
+        lane.start();
+
+        AtomicInteger runs = new AtomicInteger();
+        CountDownLatch firstEntered = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        CountDownLatch secondRan = new CountDownLatch(1);
+
         YieldingTaskController controller =
                 new YieldingTaskController(
-                        runner,
-                        () -> TaskStep.done(),
+                        lane,
+                        () -> {
+                            int run = runs.incrementAndGet();
+                            if (run == 1) {
+                                firstEntered.countDown();
+                                try {
+                                    releaseFirst.await();
+                                } catch (InterruptedException ex) {
+                                    Thread.currentThread().interrupt();
+                                    throw new IllegalStateException(
+                                            "test interrupted",
+                                            ex);
+                                }
+                            } else {
+                                secondRan.countDown();
+                            }
+                            return TaskStep.done();
+                        },
                         failure -> {
-                            throw new AssertionError(
-                                    failure);
+                            throw new AssertionError(failure);
                         });
 
-        controller.wake();
-        controller.wake();
-        controller.wake();
+        try {
+            controller.wake();
+            assertTrue(
+                    firstEntered.await(
+                            1L,
+                            TimeUnit.SECONDS));
 
-        assertEquals(
-                1,
-                runner.runCount());
-        assertTrue(
-                controller.isRunning());
-        assertTrue(
-                controller.wakePending());
+            controller.wake();
+            controller.wake();
 
-        runner.complete(
-                0);
+            assertEquals(1, runs.get());
+            assertTrue(controller.isRunning());
+            assertTrue(controller.wakePending());
 
-        assertEquals(
-                2,
-                runner.runCount());
-        assertTrue(
-                controller.isRunning());
-        assertFalse(
-                controller.wakePending());
+            releaseFirst.countDown();
 
-        runner.complete(
-                1);
+            assertTrue(
+                    secondRan.await(
+                            1L,
+                            TimeUnit.SECONDS));
+            await(
+                    () -> !controller.isRunning(),
+                    1000L);
 
-        assertFalse(
-                controller.isRunning());
-        assertFalse(
-                controller.wakePending());
+            assertEquals(2, runs.get());
+            assertFalse(controller.wakePending());
+        } finally {
+            releaseFirst.countDown();
+            lane.close();
+            worker.shutdownNow();
+        }
     }
 
     @Test
-    public void executionFailureIsReportedWithoutRestart() {
-        ControlledRunner runner =
-                new ControlledRunner();
+    public void executionFailureIsReportedWithoutRestart()
+            throws Exception {
+        ScheduledExecutorService worker =
+                Executors.newSingleThreadScheduledExecutor();
+        TaskSerialLane lane =
+                new TaskSerialLane(
+                        8,
+                        "controller-failure",
+                        worker);
+        lane.start();
+
+        AtomicInteger runs = new AtomicInteger();
         AtomicReference<Throwable> observed =
                 new AtomicReference<Throwable>();
+        CountDownLatch failureObserved =
+                new CountDownLatch(1);
+        RuntimeException failure =
+                new RuntimeException("boom");
+
         YieldingTaskController controller =
                 new YieldingTaskController(
-                        runner,
-                        () -> TaskStep.done(),
-                        observed::set);
+                        lane,
+                        () -> {
+                            runs.incrementAndGet();
+                            throw failure;
+                        },
+                        observedFailure -> {
+                            observed.set(observedFailure);
+                            failureObserved.countDown();
+                        });
 
-        controller.wake();
-        controller.wake();
+        try {
+            controller.wake();
+            controller.wake();
 
-        RuntimeException failure =
-                new RuntimeException(
-                        "boom");
-        runner.fail(
-                0,
-                failure);
-
-        assertSame(
-                failure,
-                observed.get());
-        assertEquals(
-                1,
-                runner.runCount());
-        assertFalse(
-                controller.isRunning());
+            assertTrue(
+                    failureObserved.await(
+                            1L,
+                            TimeUnit.SECONDS));
+            assertSame(failure, observed.get());
+            assertEquals(1, runs.get());
+            assertFalse(controller.isRunning());
+        } finally {
+            lane.close();
+            worker.shutdownNow();
+        }
     }
 
-    private static final class ControlledRunner
-            implements YieldingTaskRunner {
-        private final List<CompletableFuture<Void>> runs =
-                new ArrayList<CompletableFuture<Void>>();
+    private static void await(
+            java.util.function.BooleanSupplier condition,
+            long timeoutMillis)
+            throws Exception {
+        long deadline =
+                System.nanoTime()
+                        + TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
 
-        @Override
-        public CompletableFuture<Void> runTask(
-                YieldingTask task) {
-            CompletableFuture<Void> run =
-                    new CompletableFuture<Void>();
-            runs.add(
-                    run);
-            return run;
-        }
-
-        int runCount() {
-            return runs.size();
-        }
-
-        void complete(
-                int index) {
-            runs.get(index)
-                    .complete(
-                            null);
-        }
-
-        void fail(
-                int index,
-                Throwable failure) {
-            runs.get(index)
-                    .completeExceptionally(
-                            failure);
+        while (!condition.getAsBoolean()) {
+            if (System.nanoTime() >= deadline) {
+                throw new AssertionError(
+                        "condition did not become true before timeout");
+            }
+            Thread.sleep(2L);
         }
     }
 }
