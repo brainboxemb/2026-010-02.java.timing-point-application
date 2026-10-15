@@ -162,8 +162,8 @@ final class RuntimeExecutors implements AutoCloseable {
      *
      * <p>The Data Lane and Task Lane are distinct SerialLane instances with
      * independent bounded queues and FIFO ordering, but they deliberately share
-     * the same TimingNode executor. TagProcessor keeps its separately scheduled
-     * scheduled executor. Logical responsibility therefore does not imply another
+     * the same TimingNode executor. TagProcessor keeps its separate scheduled
+     * executor. Logical responsibility therefore does not imply another
      * Java thread.</p>
      */
     synchronized TimingNodeLanes createTimingNodeLanes() {
@@ -176,20 +176,13 @@ final class RuntimeExecutors implements AutoCloseable {
                 "TimingNodeTask",
                 timingNodeExecutor);
 
-        SerialLane tagProcessor =
-                new SerialLane(
-                        TAG_PROCESSOR_LANE_QUEUE_CAPACITY,
-                        "TagProcessor",
-                        tagProcessorScheduledExecutor);
+        SerialLane tagProcessorLane = new SerialLane(
+                TAG_PROCESSOR_LANE_QUEUE_CAPACITY, "TagProcessor", tagProcessorScheduledExecutor);
 
         serialLanes.add(dataLane);
         serialLanes.add(taskLane);
-        serialLanes.add(tagProcessor);
-        return new TimingNodeLanes(
-                dataLane,
-                taskLane,
-                tagProcessor,
-                tagProcessorScheduledExecutor);
+        serialLanes.add(tagProcessorLane);
+        return new TimingNodeLanes(dataLane, taskLane, tagProcessorLane, tagProcessorScheduledExecutor);
     }
 
     /**
@@ -199,13 +192,10 @@ final class RuntimeExecutors implements AutoCloseable {
      * coordination executor underneath it.</p>
      */
     synchronized SerialLane createSystemConductorLane() {
-        SerialLane conductor =
-                new SerialLane(
-                        CONDUCTOR_QUEUE_CAPACITY,
-                        "SystemConductor",
-                        coordinationExecutor);
-        serialLanes.add(conductor);
-        return conductor;
+        SerialLane conductorLane = new SerialLane(
+                CONDUCTOR_QUEUE_CAPACITY, "SystemConductor", coordinationExecutor);
+        serialLanes.add(conductorLane);
+        return conductorLane;
     }
 
     /**
@@ -215,16 +205,13 @@ final class RuntimeExecutors implements AutoCloseable {
      * lane, so timing does not create a second kind of lane.</p>
      */
     synchronized SerialLane createAntennaControlLane() {
-        SerialLane antennaControl =
-                new SerialLane(
-                        ANTENNA_CONTROL_QUEUE_CAPACITY,
-                        "AntennaManager",
-                        sharedIoScheduledExecutor);
-        serialLanes.add(antennaControl);
-        return antennaControl;
+        SerialLane antennaControlLane = new SerialLane(
+                ANTENNA_CONTROL_QUEUE_CAPACITY, "AntennaManager", sharedIoScheduledExecutor);
+        serialLanes.add(antennaControlLane);
+        return antennaControlLane;
     }
 
-    ScheduledExecutorService sharedIoScheduler() {
+    ScheduledExecutorService sharedIoScheduledExecutor() {
         return sharedIoScheduledExecutor;
     }
 
@@ -234,13 +221,10 @@ final class RuntimeExecutors implements AutoCloseable {
      * keeping a bounded logical execution lane.
      */
     synchronized SerialLane createSimulationLane() {
-        SerialLane simulation =
-                new SerialLane(
-                        SIMULATION_QUEUE_CAPACITY,
-                        "SimulatedTagScenario",
-                        sharedIoScheduledExecutor);
-        serialLanes.add(simulation);
-        return simulation;
+        SerialLane simulationLane = new SerialLane(
+                SIMULATION_QUEUE_CAPACITY, "SimulatedTagScenario", sharedIoScheduledExecutor);
+        serialLanes.add(simulationLane);
+        return simulationLane;
     }
 
     @Override
