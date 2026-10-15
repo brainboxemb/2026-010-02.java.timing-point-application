@@ -6,7 +6,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLi
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 
-import java.util.Collections;
 import java.util.Map;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
@@ -52,12 +51,8 @@ public final class TimingSystem {
         this.antennaManager = antennaManager;
         this.timingSystemConductor = timingSystemConductor;
 
-        bindAntennaObservations(
-                antennaManager == null
-                        ? Collections.<AntennaId, TimingNodeList>emptyMap()
-                        : antennaToNodes);
-
         if (antennaManager != null) {
+            bindAntennaObservations(antennaToNodes);
             lifecycle.register(antennaManager, AntennaManager::activate, AntennaManager::deactivate);
         }
         lifecycle.register(timingSystemConductor, TimingSystemConductor::activate, TimingSystemConductor::deactivate);
