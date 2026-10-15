@@ -8,6 +8,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
 
 import org.slf4j.Logger;
@@ -22,14 +23,15 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Top-level owner for one logical timing node.
  *
  * <p>Runtime composes the LogBook, Task and Tag children before construction.
- * TimingNode owns their lifecycle and the node-internal event links between
- * those children. Child-specific operations stay on their explicit access
- * boundaries rather than being copied onto this class.</p>
+ * TimingNode owns their lifecycle and node-internal event links. System-level
+ * routing talks to this component boundary rather than reaching directly into
+ * TagProcessor or other child objects.</p>
  */
 public final class TimingNode {
     private static final Logger LOG = LoggerFactory.getLogger(TimingNode.class);
     private final NodeId timingNodeId;
     private final LogBookAccessor logBook;
+    private final TagProcessor tagProcessor;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
 
     /** Creates the top-level node owner around its already composed child components. */
@@ -41,6 +43,7 @@ public final class TimingNode {
 
         this.timingNodeId = logBook.timingNodeId();
         this.logBook = logBook;
+        this.tagProcessor = tagProcessor;
         lifecycle.register(nodeService, NodeService::activate, NodeService::deactivate);
         lifecycle.register(logBook, LogBook::activate, LogBook::deactivate);
         lifecycle.register(tagProcessor, TagProcessor::activate, TagProcessor::deactivate);
@@ -57,6 +60,12 @@ public final class TimingNode {
          * performs only a non-blocking handoff to the LogBook Data Lane.
          */
         tagProcessor.newRegistrationEvent().subscribe(this::onNewRegistration);
+    }
+
+    /** Accepts one system-routed antenna observation at the TimingNode boundary. */
+    public void onTagObserved(TagObservation observation) {
+
+        tagProcessor.onTagObserved(observation);
     }
 
     /** Returns the immutable identity of this logical timing node. */
