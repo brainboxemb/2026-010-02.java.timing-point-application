@@ -15,6 +15,7 @@ import java.util.List;
  */
 public final class TagPassageSnapshot {
 
+    /** Immutable per-TagId diagnostic statistics within one open passage. */
     public static final class TagStats {
         private final TagId tagId;
         private final long observationCount;
