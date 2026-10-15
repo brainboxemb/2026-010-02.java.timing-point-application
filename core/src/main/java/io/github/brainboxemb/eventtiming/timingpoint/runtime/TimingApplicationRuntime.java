@@ -65,7 +65,7 @@ public final class TimingApplicationRuntime {
             PresentationRuntime presentationRuntime,
             ShutdownSignal shutdownSignal) {
         this.buildIdentity = buildIdentity;
-        this.timingNodes = timingNodes.copy();
+        this.timingNodes = timingNodes;
         this.configuration = configuration;
         this.presentationGateway = presentationGateway;
         this.runtimeExecutors = runtimeExecutors;
@@ -288,7 +288,7 @@ public final class TimingApplicationRuntime {
     }
 
     TimingNodeList timingNodes() {
-        return timingNodes.copy();
+        return timingNodes;
     }
 
     AntennaManager antennaManager() {
