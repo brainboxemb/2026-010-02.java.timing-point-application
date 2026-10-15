@@ -6,10 +6,12 @@ import java.util.function.Consumer;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 /**
- * Small execution guard for call sites that need one standard rejection policy.
+ * Small guard for execution boundaries that handle queue rejection explicitly.
  *
- * <p>The guarded operation stays visible at the call site while the repeated
- * {@link RejectedExecutionException} catch-and-wrap boilerplate lives here.</p>
+ * <p>The guarded operation and component-owned rejection policy remain visible
+ * at the call site while repeated {@link RejectedExecutionException}
+ * try/catch boilerplate stays in this utility. Other runtime failures are not
+ * treated as queue rejection.</p>
  */
 public final class SafeExecute {
 
@@ -41,6 +43,7 @@ public final class SafeExecute {
                     ex);
         }
     }
+
     /**
      * Runs one operation and delegates queue rejection to the caller's policy.
      *
