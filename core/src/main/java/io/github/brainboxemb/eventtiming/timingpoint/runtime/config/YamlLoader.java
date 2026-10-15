@@ -67,7 +67,7 @@ public final class YamlLoader {
                 timingNodes(
                         timingSystems);
         Map<NodeId, Path> timingDataPaths =
-                YamlIoMapper.mapTimingDataPaths(
+                YamlTimingDataStorageMapper.map(
                         root.get(
                                 IO),
                         timingNodes);
@@ -79,7 +79,7 @@ public final class YamlLoader {
 
         return new Config(
                 configuredSystems,
-                YamlIoMapper.mapAntennaManagers(
+                YamlAntennaMapper.map(
                         root.get(
                                 IO)),
                 YamlPresentationMapper.map(
