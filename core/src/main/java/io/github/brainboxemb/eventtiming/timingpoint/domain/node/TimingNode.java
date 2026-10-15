@@ -353,7 +353,9 @@ public final class TimingNode {
             String detail = status.hasProblems()
                     ? status.problems().get(0).message()
                     : "TimingNode is in ERROR";
-            throw new IllegalStateException(detail);
+            throw new OperationException(
+                    OperationException.Reason.FAILED,
+                    detail);
         }
         return status;
     }
