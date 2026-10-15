@@ -276,12 +276,11 @@ public class TimingSystemConductorTest {
                 newScheduledWorker("conductor-antenna-test");
         return new AntennaManager(
                 new AntennaSet().add(new AntennaId("1"), antenna),
-                new SerialLane(
+                new TaskSerialLane(
                         8,
                         "conductor-antenna-test",
-                        worker),
-                worker,
-                Duration.ofSeconds(1));
+                        worker,
+                        Duration.ofSeconds(1)));
     }
 
     private ScheduledExecutorService newScheduledWorker(String name) {
