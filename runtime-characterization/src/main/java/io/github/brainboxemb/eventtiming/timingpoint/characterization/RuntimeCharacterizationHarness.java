@@ -29,6 +29,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.Si
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.ClockTimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement.JvmRuntimeSnapshot;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement.RuntimeMeasurementReader;
@@ -91,8 +93,8 @@ final class RuntimeCharacterizationHarness
     private ScheduledThreadPoolExecutor ioWorker;
     private SerialLane dataLane;
     private SerialLane taskLane;
-    private SerialLane tagLane;
-    private SerialLane antennaLane;
+    private ScheduledSerialLane tagLane;
+    private TaskSerialLane antennaLane;
     private SimulatedAntenna antenna;
     private AntennaManager antennaManager;
     private LogBook logBook;
@@ -160,15 +162,16 @@ final class RuntimeCharacterizationHarness
                         "TimingNodeTask",
                         nodeWorker);
         tagLane =
-                new SerialLane(
+                new ScheduledSerialLane(
                         TAG_PROCESSOR_QUEUE_CAPACITY,
                         "TagProcessor",
                         tagWorker);
         antennaLane =
-                new SerialLane(
+                new TaskSerialLane(
                         ANTENNA_CONTROL_QUEUE_CAPACITY,
                         "AntennaManager",
-                        ioWorker);
+                        ioWorker,
+                        ANTENNA_CONTROL_TIMEOUT);
 
         LogBookMetrics logBookMetrics =
                 new LogBookMetrics();
@@ -219,10 +222,10 @@ final class RuntimeCharacterizationHarness
                         tagConfiguration,
                         SystemMonotonicClock.INSTANCE,
                         tagMetrics,
-                        tagLane,
-                        tagWorker);
+                        tagLane);
         node =
                 new TimingNode(
+                        ANTENNA_ID,
                         logBook,
                         nodeService,
                         tagProcessor);
@@ -237,9 +240,7 @@ final class RuntimeCharacterizationHarness
         antennaManager =
                 new AntennaManager(
                         antennaSet,
-                        antennaLane,
-                        ioWorker,
-                        ANTENNA_CONTROL_TIMEOUT);
+                        antennaLane);
 
         node.bind(
                 TimingNode.TAG_OBSERVATIONS,

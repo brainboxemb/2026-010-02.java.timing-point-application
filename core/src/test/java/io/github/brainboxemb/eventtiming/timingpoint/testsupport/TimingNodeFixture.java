@@ -20,6 +20,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaI
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.concurrent.ExecutorService;
@@ -168,7 +169,7 @@ public final class TimingNodeFixture {
                         32,
                         "test-node-task-" + suffix,
                         NODE_WORKER),
-                new SerialLane(
+                new ScheduledSerialLane(
                         32,
                         "test-tag-" + suffix,
                         TAG_WORKER),
@@ -237,10 +238,10 @@ public final class TimingNodeFixture {
                         32,
                         "test-node-task-direct-" + suffix,
                         Runnable::run),
-                new SerialLane(
+                new ScheduledSerialLane(
                         32,
                         "test-tag-direct-" + suffix,
-                        Runnable::run),
+                        TAG_WORKER),
                 DEFAULT_OPERATION_TIMEOUT_MILLIS);
     }
 
@@ -269,10 +270,10 @@ public final class TimingNodeFixture {
                         32,
                         "test-node-task-direct-" + suffix,
                         Runnable::run),
-                new SerialLane(
+                new ScheduledSerialLane(
                         32,
                         "test-tag-direct-" + suffix,
-                        Runnable::run),
+                        TAG_WORKER),
                 operationTimeoutMillis)
                 .node();
     }
@@ -287,7 +288,7 @@ public final class TimingNodeFixture {
             UpstreamStream upstreamStream,
             SerialLane dataLane,
             SerialLane taskLane,
-            SerialLane tagLane,
+            ScheduledSerialLane tagLane,
             long operationTimeoutMillis) {
         ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
                 ReadOnlyConfiguration.fixed(
@@ -323,8 +324,7 @@ public final class TimingNodeFixture {
                         tagConfiguration,
                         SystemMonotonicClock.INSTANCE,
                         new TagProcessingMetrics(),
-                        tagLane,
-                        TAG_WORKER);
+                        tagLane);
 
         TimingNode node = new TimingNode(new AntennaId("1"), logBook, nodeService, tagProcessor);
 

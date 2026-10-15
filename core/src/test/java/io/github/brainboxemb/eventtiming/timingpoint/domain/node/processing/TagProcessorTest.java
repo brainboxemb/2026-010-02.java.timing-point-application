@@ -20,6 +20,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persist
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -69,11 +70,10 @@ public class TagProcessorTest {
         worker.setRemoveOnCancelPolicy(true);
         ownedWorkers.add(worker);
         return new TagExecution(
-                new SerialLane(
+                new ScheduledSerialLane(
                         32,
                         threadName,
-                        worker),
-                worker);
+                        worker));
     }
 
     private static final TimingTimestamp OBSERVED_AT =
@@ -97,8 +97,7 @@ public class TagProcessorTest {
                 policy(8),
                 clock,
                 metrics,
-                execution.lane,
-                execution.scheduler);
+                execution.lane);
 
         processor.activate();
         try {
@@ -131,8 +130,7 @@ public class TagProcessorTest {
                 policy(8),
                 clock,
                 metrics,
-                execution.lane,
-                execution.scheduler);
+                execution.lane);
         connectToNode(processor, node);
         CountDownLatch committed = new CountDownLatch(1);
         node.logBook().newDataEntryEvent().subscribe(data -> {
@@ -203,8 +201,7 @@ public class TagProcessorTest {
                 policy(8),
                 clock,
                 metrics,
-                execution.lane,
-                execution.scheduler);
+                execution.lane);
         connectToNode(processor, node);
         CountDownLatch committed = new CountDownLatch(1);
         node.logBook().newDataEntryEvent().subscribe(data -> {
@@ -264,8 +261,7 @@ public class TagProcessorTest {
                 policy(8),
                 clock,
                 metrics,
-                execution.lane,
-                execution.scheduler);
+                execution.lane);
         CountDownLatch registrationPublished =
                 new CountDownLatch(1);
         processor.newRegistrationEvent()
@@ -322,8 +318,7 @@ public class TagProcessorTest {
                 configuration.timingNode(new NodeId("A")).tagProcessing(),
                 clock,
                 new TagProcessingMetrics(),
-                execution.lane,
-                execution.scheduler);
+                execution.lane);
         connectToNode(processor, node);
         CountDownLatch committed = new CountDownLatch(1);
         node.logBook().newDataEntryEvent().subscribe(data -> {
@@ -382,8 +377,7 @@ public class TagProcessorTest {
                 configuration.timingNode(new NodeId("A")).tagProcessing(),
                 clock,
                 new TagProcessingMetrics(),
-                execution.lane,
-                execution.scheduler);
+                execution.lane);
 
         processor.activate();
         try {
@@ -431,8 +425,7 @@ public class TagProcessorTest {
                 policy(1),
                 clock,
                 metrics,
-                execution.lane,
-                execution.scheduler);
+                execution.lane);
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
@@ -472,8 +465,7 @@ public class TagProcessorTest {
                 policy(4),
                 clock,
                 metrics,
-                execution.lane,
-                execution.scheduler);
+                execution.lane);
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
@@ -582,14 +574,10 @@ public class TagProcessorTest {
     }
 
     private static final class TagExecution {
-        private final SerialLane lane;
-        private final ScheduledThreadPoolExecutor scheduler;
+        private final ScheduledSerialLane lane;
 
-        private TagExecution(
-                SerialLane lane,
-                ScheduledThreadPoolExecutor scheduler) {
+        private TagExecution(ScheduledSerialLane lane) {
             this.lane = lane;
-            this.scheduler = scheduler;
         }
     }
 

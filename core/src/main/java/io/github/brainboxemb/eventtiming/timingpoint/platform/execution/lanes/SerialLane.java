@@ -27,7 +27,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * underlying executor. Runtime composition therefore owns executor
  * lifecycle while this class owns only lane-local execution behaviour.</p>
  */
-public final class SerialLane implements Executor, AutoCloseable {
+public class SerialLane implements Executor, AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(SerialLane.class);
 
     /**

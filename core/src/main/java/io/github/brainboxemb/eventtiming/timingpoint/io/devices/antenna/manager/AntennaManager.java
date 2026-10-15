@@ -8,14 +8,12 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTaskController;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.ScheduledExecutorService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +48,7 @@ public final class AntennaManager implements YieldingTask {
         INVENTORY_FAILED
     }
 
-    private final SerialTaskRunner taskRunner;
+    private final TaskSerialLane taskLane;
     private final AntennaSet antennaSet;
     private final Setting<Boolean> inventoryEnabledSetting;
     private final AntennaSettings settings;
@@ -72,30 +70,25 @@ public final class AntennaManager implements YieldingTask {
 
     public AntennaManager(
             AntennaSet antennaSet,
-            SerialLane controlLane,
-            ScheduledExecutorService scheduledExecutor,
-            Duration controlTimeout) {
-        this(antennaSet, controlLane, scheduledExecutor, controlTimeout, new AntennaSettings());
+            TaskSerialLane taskLane) {
+        this(antennaSet, taskLane, new AntennaSettings());
     }
 
     public AntennaManager(
             AntennaSet antennaSet,
-            SerialLane controlLane,
-            ScheduledExecutorService scheduledExecutor,
-            Duration controlTimeout,
+            TaskSerialLane taskLane,
             AntennaSettings settings) {
         checkArgument(settings != null, "settings must not be null");
         this.settings = settings;
         inventoryEnabledSetting = settings.inventorySetting();
         checkArgument(antennaSet != null, "antennaSet must not be null");
-        checkArgument(controlLane != null, "controlLane must not be null");
-        checkArgument(scheduledExecutor != null, "scheduledExecutor must not be null");
+        checkArgument(taskLane != null, "taskLane must not be null");
 
         antennaSet.seal();
         this.antennaSet = antennaSet;
-        taskRunner = new SerialTaskRunner(controlLane, scheduledExecutor, controlTimeout);
+        this.taskLane = taskLane;
         stateMachine = new YieldingTaskController(
-                taskRunner,
+                taskLane,
                 this,
                 this::onStateMachineFailure);
         selfTestTask = new SelfTestTask(antennaSet.antennas());
@@ -118,7 +111,7 @@ public final class AntennaManager implements YieldingTask {
     public synchronized void activate() {
         checkState(state == State.NEW || state == State.INACTIVE, "AntennaManager cannot activate from %s", state);
 
-        taskRunner.start();
+        taskLane.start();
         state = State.ACTIVE;
         phase = Phase.START_SELF_TEST;
         failure = null;
@@ -202,16 +195,16 @@ public final class AntennaManager implements YieldingTask {
 
         RuntimeException shutdownFailure = null;
         try {
-            if (taskRunner.isNew()) {
-                taskRunner.start();
+            if (taskLane.state() == SerialLane.State.NEW) {
+                taskLane.start();
             }
-            shutdownTask.runAndWait(taskRunner);
+            shutdownTask.runAndWait(taskLane);
         } catch (RuntimeException ex) {
             shutdownFailure = ex;
         }
 
         try {
-            taskRunner.close();
+            taskLane.close();
         } catch (RuntimeException ex) {
             if (shutdownFailure == null) {
                 shutdownFailure = ex;
@@ -284,7 +277,7 @@ public final class AntennaManager implements YieldingTask {
 
         switch (phase) {
             case START_SELF_TEST:
-                selfTestTask.start(taskRunner);
+                selfTestTask.start(taskLane);
                 phase = Phase.WAIT_SELF_TEST;
                 return TaskStep.done();
 
@@ -299,7 +292,7 @@ public final class AntennaManager implements YieldingTask {
                 return TaskStep.again();
 
             case START_INVENTORY:
-                inventoryTask.start(taskRunner);
+                inventoryTask.start(taskLane);
                 phase = Phase.WAIT_INVENTORY;
                 return TaskStep.done();
 
@@ -384,7 +377,7 @@ public final class AntennaManager implements YieldingTask {
             failure = cause;
         }
 
-        if (taskRunner.failure() != null) {
+        if (taskLane.failure() != null) {
             state = State.FAILED;
         }
     }

@@ -84,8 +84,7 @@ final class TimingNodeComposer {
                         tagConfiguration,
                         monotonicClock,
                         new TagProcessingMetrics(),
-                        execution.tagProcessorLane(),
-                        execution.tagProcessorScheduledExecutor());
+                        execution.tagProcessorLane());
 
         return new TimingNode(antennaId, logBook, nodeService, tagProcessor);
     }

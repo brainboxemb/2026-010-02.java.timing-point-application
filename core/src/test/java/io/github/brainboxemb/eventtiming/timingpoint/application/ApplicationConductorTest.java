@@ -18,6 +18,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -97,8 +98,8 @@ public class ApplicationConductorTest {
 
     private static final class SystemFixture
             implements AutoCloseable {
-        private final ExecutorService systemWorker =
-                Executors.newSingleThreadExecutor();
+        private final ScheduledExecutorService systemWorker =
+                Executors.newSingleThreadScheduledExecutor();
         private final ScheduledExecutorService ioWorker =
                 Executors.newSingleThreadScheduledExecutor();
 
@@ -121,12 +122,11 @@ public class ApplicationConductorTest {
                             new AntennaSet().add(
                                     new AntennaId("1"),
                                     new SimulatedAntenna()),
-                            new SerialLane(
+                            new TaskSerialLane(
                                     8,
                                     "app-antenna-" + label,
-                                    ioWorker),
-                            ioWorker,
-                            Duration.ofSeconds(1));
+                                    ioWorker,
+                                    Duration.ofSeconds(1)));
 
             TimingNodeList timingNodes =
                     TimingNodeList.of(node);
@@ -134,7 +134,7 @@ public class ApplicationConductorTest {
                     new TimingSystemConductor(
                             timingNodes,
                             manager.settings(),
-                            new SerialLane(
+                            new TaskSerialLane(
                                     8,
                                     "app-system-" + label,
                                     systemWorker));

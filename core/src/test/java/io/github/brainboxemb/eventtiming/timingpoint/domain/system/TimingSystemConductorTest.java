@@ -18,6 +18,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -56,7 +57,11 @@ public class TimingSystemConductorTest {
         TimingNode second = newTimingNode("B");
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
-        SerialLane lane = new SerialLane(8, "system-conductor-test", newWorker("worker"));
+        TaskSerialLane lane =
+                new TaskSerialLane(
+                        8,
+                        "system-conductor-test",
+                        newScheduledWorker("worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
                 TimingNodeList.builder().add(first).add(second).build(), manager.settings(), lane);
         manager.activate();
@@ -85,11 +90,11 @@ public class TimingSystemConductorTest {
         TimingNode node = newTimingNode("A", persistence);
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
-        SerialLane lane =
-                new SerialLane(
+        TaskSerialLane lane =
+                new TaskSerialLane(
                         4,
                         "conductor-startup-test",
-                        newWorker("conductor-startup-worker"));
+                        newScheduledWorker("conductor-startup-worker"));
         TimingSystemConductor conductor =
                 new TimingSystemConductor(
                         TimingNodeList.of(node),
@@ -149,7 +154,11 @@ public class TimingSystemConductorTest {
         TimingNode node = newTimingNode("A");
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
-        SerialLane lane = new SerialLane(4, "conductor-event-test", newWorker("conductor-event-worker"));
+        TaskSerialLane lane =
+                new TaskSerialLane(
+                        4,
+                        "conductor-event-test",
+                        newScheduledWorker("conductor-event-worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
                 TimingNodeList.of(node), manager.settings(), lane);
         manager.activate();
@@ -181,7 +190,11 @@ public class TimingSystemConductorTest {
         TimingNode node = newTimingNode("A");
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
-        SerialLane lane = new SerialLane(4, "conductor-coalesce-test", newWorker("coalesce-worker"));
+        TaskSerialLane lane =
+                new TaskSerialLane(
+                        4,
+                        "conductor-coalesce-test",
+                        newScheduledWorker("coalesce-worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
                 TimingNodeList.of(node), manager.settings(), lane);
         manager.activate();
@@ -263,19 +276,11 @@ public class TimingSystemConductorTest {
                 newScheduledWorker("conductor-antenna-test");
         return new AntennaManager(
                 new AntennaSet().add(new AntennaId("1"), antenna),
-                new SerialLane(
+                new TaskSerialLane(
                         8,
                         "conductor-antenna-test",
-                        worker),
-                worker,
-                Duration.ofSeconds(1));
-    }
-
-    private ExecutorService newWorker(String name) {
-        ExecutorService worker =
-                Executors.newSingleThreadExecutor(runnable -> new Thread(runnable, name));
-        workers.add(worker);
-        return worker;
+                        worker,
+                        Duration.ofSeconds(1)));
     }
 
     private ScheduledExecutorService newScheduledWorker(String name) {

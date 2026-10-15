@@ -1,10 +1,10 @@
-package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners;
+package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -17,28 +17,23 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class SerialTaskRunnerSchedulingTest {
+public class TaskSerialLaneTest {
 
     @Test
-    public void yieldingAgainYieldsToAlreadyQueuedWork()
+    public void againYieldsToAlreadyQueuedWork()
             throws Exception {
         ScheduledExecutorService worker =
                 Executors.newScheduledThreadPool(1);
-        SerialLane lane =
-                new SerialLane(
+        TaskSerialLane lane =
+                new TaskSerialLane(
                         8,
                         "yielding-yield",
-                        worker);
-        SerialTaskRunner runner =
-                new SerialTaskRunner(
-                        lane,
                         worker,
                         Duration.ofSeconds(1));
-        runner.start();
+        lane.start();
 
         List<String> order =
                 Collections.synchronizedList(
@@ -52,11 +47,10 @@ public class SerialTaskRunnerSchedulingTest {
 
         try {
             CompletableFuture<Void> task =
-                    runner.runTask(
+                    lane.runTask(
                             () -> {
                                 if (step.getAndIncrement() == 0) {
-                                    order.add(
-                                            "task-1");
+                                    order.add("task-1");
                                     firstStepEntered.countDown();
                                     try {
                                         if (!allowFirstStepReturn.await(
@@ -66,8 +60,7 @@ public class SerialTaskRunnerSchedulingTest {
                                                     "test did not release first step");
                                         }
                                     } catch (InterruptedException ex) {
-                                        Thread.currentThread()
-                                                .interrupt();
+                                        Thread.currentThread().interrupt();
                                         throw new IllegalStateException(
                                                 "test task interrupted",
                                                 ex);
@@ -75,8 +68,7 @@ public class SerialTaskRunnerSchedulingTest {
                                     return TaskStep.again();
                                 }
 
-                                order.add(
-                                        "task-2");
+                                order.add("task-2");
                                 return TaskStep.done();
                             });
 
@@ -85,53 +77,41 @@ public class SerialTaskRunnerSchedulingTest {
                             500,
                             TimeUnit.MILLISECONDS));
 
-            runner.execute(
-                    () -> order.add(
-                            "sibling"));
+            lane.execute(() -> order.add("sibling"));
 
             allowFirstStepReturn.countDown();
-            runner.await(
-                    task);
+            lane.await(task);
 
             assertEquals(
-                    3,
-                    order.size());
-            assertEquals(
-                    "task-1",
-                    order.get(0));
-            assertEquals(
-                    "sibling",
-                    order.get(1));
-            assertEquals(
-                    "task-2",
-                    order.get(2));
+                    Arrays.asList(
+                            "task-1",
+                            "sibling",
+                            "task-2"),
+                    order);
         } finally {
-            runner.close();
+            allowFirstStepReturn.countDown();
+            lane.close();
             worker.shutdownNow();
         }
     }
 
     @Test
-    public void yieldingAfterReleasesPhysicalWorker()
+    public void afterReleasesPhysicalWorker()
             throws Exception {
         ScheduledExecutorService worker =
                 Executors.newScheduledThreadPool(1);
-        SerialLane taskLane =
-                new SerialLane(
+        TaskSerialLane taskLane =
+                new TaskSerialLane(
                         8,
                         "yielding-delay",
-                        worker);
+                        worker,
+                        Duration.ofSeconds(1));
         SerialLane siblingLane =
                 new SerialLane(
                         8,
                         "yielding-sibling",
                         worker);
-        SerialTaskRunner runner =
-                new SerialTaskRunner(
-                        taskLane,
-                        worker,
-                        Duration.ofSeconds(1));
-        runner.start();
+        taskLane.start();
         siblingLane.start();
 
         AtomicInteger step =
@@ -141,13 +121,12 @@ public class SerialTaskRunnerSchedulingTest {
 
         try {
             CompletableFuture<Void> task =
-                    runner.runTask(
+                    taskLane.runTask(
                             () -> {
                                 if (step.getAndIncrement() == 0) {
                                     waiting.countDown();
                                     return TaskStep.after(
-                                            Duration.ofMillis(
-                                                    200));
+                                            Duration.ofMillis(200));
                                 }
                                 return TaskStep.done();
                             });
@@ -159,21 +138,17 @@ public class SerialTaskRunnerSchedulingTest {
 
             CountDownLatch siblingRan =
                     new CountDownLatch(1);
-            siblingLane.execute(
-                            siblingRan::countDown);
+            siblingLane.execute(siblingRan::countDown);
             assertTrue(
                     "yielding delay must release the shared worker",
                     siblingRan.await(
                             75,
                             TimeUnit.MILLISECONDS));
 
-            runner.await(
-                    task);
-            assertEquals(
-                    2,
-                    step.get());
+            taskLane.await(task);
+            assertEquals(2, step.get());
         } finally {
-            runner.close();
+            taskLane.close();
             siblingLane.close();
             worker.shutdownNow();
         }
@@ -184,24 +159,20 @@ public class SerialTaskRunnerSchedulingTest {
             throws Exception {
         ScheduledExecutorService worker =
                 Executors.newScheduledThreadPool(1);
-        SerialLane lane =
-                new SerialLane(
+        TaskSerialLane lane =
+                new TaskSerialLane(
                         4,
                         "timeout",
-                        worker);
-        SerialTaskRunner runner =
-                new SerialTaskRunner(
-                        lane,
                         worker,
                         Duration.ofMillis(50));
-        runner.start();
+        lane.start();
 
         CountDownLatch interrupted =
                 new CountDownLatch(1);
 
         try {
             CompletableFuture<Void> task =
-                    runner.runTask(
+                    lane.runTask(
                             () -> {
                                 try {
                                     Thread.sleep(
@@ -217,11 +188,11 @@ public class SerialTaskRunnerSchedulingTest {
                             });
 
             try {
-                runner.await(task);
+                lane.await(task);
                 fail("expected task timeout");
-            } catch (SerialTaskRunner.OperationException expected) {
+            } catch (TaskSerialLane.OperationException expected) {
                 assertEquals(
-                        SerialTaskRunner.FailureReason.TIMEOUT,
+                        TaskSerialLane.FailureReason.TIMEOUT,
                         expected.reason());
             }
 
@@ -231,7 +202,7 @@ public class SerialTaskRunnerSchedulingTest {
                             500,
                             TimeUnit.MILLISECONDS));
         } finally {
-            runner.close();
+            lane.close();
             worker.shutdownNow();
         }
     }
@@ -242,33 +213,29 @@ public class SerialTaskRunnerSchedulingTest {
                 Executors.newScheduledThreadPool(1);
         worker.shutdownNow();
 
-        SerialLane lane =
-                new SerialLane(
+        TaskSerialLane lane =
+                new TaskSerialLane(
                         4,
                         "rejected",
-                        worker);
-        SerialTaskRunner runner =
-                new SerialTaskRunner(
-                        lane,
                         worker,
                         Duration.ofMillis(100));
 
-        runner.start();
+        lane.start();
         try {
             CompletableFuture<Void> task =
-                    runner.runTask(
+                    lane.runTask(
                             () -> TaskStep.done());
 
             try {
-                runner.await(task);
+                lane.await(task);
                 fail("expected rejection");
-            } catch (SerialTaskRunner.OperationException expected) {
+            } catch (TaskSerialLane.OperationException expected) {
                 assertEquals(
-                        SerialTaskRunner.FailureReason.OVERLOADED,
+                        TaskSerialLane.FailureReason.OVERLOADED,
                         expected.reason());
             }
         } finally {
-            runner.close();
+            lane.close();
         }
     }
 }

@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
+import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -106,8 +107,8 @@ public class RuntimeExecutorsTest {
     @Test
     public void antennaControlLanesUseSharedIoExecutorThread() throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
-        SerialLane first = runtime.createAntennaControlLane();
-        SerialLane second = runtime.createAntennaControlLane();
+        SerialLane first = runtime.createAntennaControlLane(Duration.ofSeconds(1));
+        SerialLane second = runtime.createAntennaControlLane(Duration.ofSeconds(1));
         runtime.start();
 
         AtomicReference<String> firstThread = new AtomicReference<String>();

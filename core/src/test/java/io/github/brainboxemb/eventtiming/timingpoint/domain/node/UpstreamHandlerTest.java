@@ -27,6 +27,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnl
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
@@ -144,8 +145,8 @@ public class UpstreamHandlerTest {
                         4,
                         "heartbeat-task-test",
                         nodeWorker);
-        SerialLane tagLane =
-                new SerialLane(
+        ScheduledSerialLane tagLane =
+                new ScheduledSerialLane(
                         4,
                         "heartbeat-tag-test",
                         tagWorker);
@@ -211,8 +212,7 @@ public class UpstreamHandlerTest {
                         tagConfiguration,
                         SystemMonotonicClock.INSTANCE,
                         new TagProcessingMetrics(),
-                        tagLane,
-                        tagWorker);
+                        tagLane);
         TimingNode timingNode =
                 new TimingNode(
                         new AntennaId("1"),
