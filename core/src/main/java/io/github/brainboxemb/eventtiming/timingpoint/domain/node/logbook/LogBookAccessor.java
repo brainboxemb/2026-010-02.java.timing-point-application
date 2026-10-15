@@ -13,16 +13,16 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
  * startup-loading internals or engineering metrics.</p>
  */
 public interface LogBookAccessor {
-    /** Processes one command in LogBook order and returns its domain result. */
-    <R> R process(LogBookCommand<R> command);
+    /** Executes one command in LogBook order and returns its domain result. */
+    <R> R execute(LogBookCommand<R> command);
 
     /**
-     * Executes one command asynchronously and returns after it is queued.
+     * Queues one command asynchronously and returns after lane admission.
      *
-     * <p>Like {@code Executor.execute}, queue rejection propagates immediately
-     * as RejectedExecutionException; later command execution has no caller result.</p>
+     * <p>Queue rejection propagates immediately as RejectedExecutionException;
+     * later command execution has no caller result.</p>
      */
-    void execute(LogBookCommand<?> command);
+    void queue(LogBookCommand<?> command);
 
     /** Executes one ordered query and waits for its result. */
     <R> R query(LogBookQuery<R> query);
