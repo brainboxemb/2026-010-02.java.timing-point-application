@@ -13,6 +13,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.Se
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import java.util.function.Consumer;
 
@@ -33,6 +35,11 @@ import org.slf4j.LoggerFactory;
  */
 public final class TimingSystemConductor extends AbstractConductor {
     private static final Logger LOG = LoggerFactory.getLogger(TimingSystemConductor.class);
+
+    private static final EventInput<TimingSystemConductor, Status> NODE_STATUS_CHANGED =
+            EventInput.of(
+                    (conductor, source) ->
+                            source.subscribe(ignored -> conductor.wakeMainTask()));
 
     private final TimingNodeList nodes;
     private final AntennaSettings antennaSettings;
@@ -59,8 +66,17 @@ public final class TimingSystemConductor extends AbstractConductor {
                     "TimingNode " + node.timingNodeId().value(),
                     node::activate,
                     node::deactivate);
-            node.logBook().statusChangedEvent().subscribe(ignored -> wakeMainTask());
+            bind(
+                    NODE_STATUS_CHANGED,
+                    node.logBook().statusChangedEvent());
         }
+    }
+
+    private <T> void bind(
+            EventInput<TimingSystemConductor, T> input,
+            EventSource<T> source) {
+
+        input.bind(this, source);
     }
 
     /** Wakes the main task after one TimingNode status change. */
