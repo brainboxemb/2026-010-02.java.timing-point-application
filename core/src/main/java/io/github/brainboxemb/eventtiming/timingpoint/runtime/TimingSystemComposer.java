@@ -185,22 +185,21 @@ final class TimingSystemComposer {
                         .subscribe(
                                 tags::onTagObserved);
             }
-            return;
-        }
-
-        for (AntennaManagerConfig.AntennaConfig antenna : binding.antennas()) {
-            for (NodeId target : antenna.timingNodes()) {
-                TimingNodeComponents components =
-                        byId.get(target);
-                if (components == null) {
-                    throw new IllegalArgumentException(
-                            "Antenna " + antenna.id()
-                                    + " targets unknown TimingNode "
-                                    + target.value());
+        } else {
+            for (AntennaManagerConfig.AntennaConfig antenna : binding.antennas()) {
+                for (NodeId target : antenna.timingNodes()) {
+                    TimingNodeComponents components =
+                            byId.get(target);
+                    if (components == null) {
+                        throw new IllegalArgumentException(
+                                "Antenna " + antenna.id()
+                                        + " targets unknown TimingNode "
+                                        + target.value());
+                    }
+                    manager.tagObservedEvent(antenna.id())
+                            .subscribe(
+                                    components.tagProcessor()::onTagObserved);
                 }
-                manager.tagObservedEvent(antenna.id())
-                        .subscribe(
-                                components.tagProcessor()::onTagObserved);
             }
         }
     }
