@@ -91,6 +91,7 @@ public final class LogBookMetrics {
         private final long totalTimingDataEventNanos;
         private final long maxTimingDataEventNanos;
 
+        /** Creates one immutable engineering snapshot from current LogBook counters. */
         private Snapshot(
                 long timingDataAppendAttempts,
                 long timingDataAppendFailures,
