@@ -71,12 +71,12 @@ public final class TimingNodeProxy {
 
     /** Opens the node at the requested LocationId. */
     public OpenResult open(LocationId locationId) {
-        return logBook.process(LogBookCommands.open(locationId));
+        return logBook.execute(LogBookCommands.open(locationId));
     }
 
     /** Closes the node. */
     public CloseResult close() {
-        return logBook.process(LogBookCommands.close());
+        return logBook.execute(LogBookCommands.close());
     }
 
     /**
@@ -95,7 +95,7 @@ public final class TimingNodeProxy {
         }
         switch (action) {
             case ADD:
-                return logBook.process(
+                return logBook.execute(
                         LogBookCommands.addAutomaticRegistration(
                                 registrationId,
                                 time));
@@ -108,14 +108,14 @@ public final class TimingNodeProxy {
     /** Engineering-only accepted registration with an explicit API timestamp. */
     public RegistrationResult simulateAutomaticRegistration(
             RegistrationId registrationId, TimingTimestamp time) {
-        return logBook.process(
+        return logBook.execute(
                 LogBookCommands.simulateAutomaticRegistration(registrationId, time));
     }
 
     /** Engineering-only accepted registration using this node's own TimeSource. */
     public RegistrationResult simulateAutomaticRegistrationNow(
             RegistrationId registrationId) {
-        return logBook.process(
+        return logBook.execute(
                 LogBookCommands.simulateAutomaticRegistrationNow(registrationId));
     }
 
@@ -139,7 +139,7 @@ public final class TimingNodeProxy {
             throw new IllegalArgumentException(
                     "timeSource must not be null");
         }
-        return logBook.process(
+        return logBook.execute(
                 LogBookCommands.commitManualRegistration(
                         registrationId,
                         effectiveTime,
@@ -183,7 +183,7 @@ public final class TimingNodeProxy {
                     throw new IllegalArgumentException(
                             "AUTO_REG revoke must not carry originalTimeSource");
                 }
-                return logBook.process(
+                return logBook.execute(
                         LogBookCommands.revokeAutomaticRegistration(
                                 originalLocationId,
                                 registrationId,
@@ -193,7 +193,7 @@ public final class TimingNodeProxy {
                     throw new IllegalArgumentException(
                             "MAN_REG revoke requires originalTimeSource");
                 }
-                return logBook.process(
+                return logBook.execute(
                         LogBookCommands.revokeManualRegistration(
                                 originalLocationId,
                                 registrationId,
