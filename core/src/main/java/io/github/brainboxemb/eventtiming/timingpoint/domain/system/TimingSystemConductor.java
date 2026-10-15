@@ -62,16 +62,12 @@ public final class TimingSystemConductor extends AbstractConductor implements Yi
                     "TimingNode " + node.timingNodeId().value(),
                     node::activate,
                     node::deactivate);
-            node.logBook().statusChangedEvent().subscribe(this::onTimingNodeStatusChanged);
+            node.logBook().statusChangedEvent().subscribe(ignored -> wakeReconciliation());
         }
     }
 
     /** Wakes system reconciliation after one TimingNode Status change. */
-    private void onTimingNodeStatusChanged(Status status) {
-
-        if (status == null) {
-            throw new IllegalArgumentException("status must not be null");
-        }
+    private void wakeReconciliation() {
 
         /*
          * A TimingNode may finish its first recovery while this Conductor is
