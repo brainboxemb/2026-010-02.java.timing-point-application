@@ -3,7 +3,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.task;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
@@ -25,8 +24,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * <p>The Task Lane is a bounded logical serial queue, not a dedicated thread:
  * the supplied executor may share Runtime's physical worker with the Data Lane.
  * Mutable Task Lane state lives in {@link NodeServiceState}; {@link NodeTaskLane}
- * owns Task Lane execution/wait mechanics and the service owns semantic orchestration. {@link TimingNode} wires the
- * LogBook's immutable startup-history and committed-data events to this service;
+ * owns Task Lane execution/wait mechanics and the service owns semantic orchestration.
+ * {@link TimingNode} wires the LogBook's immutable startup-history and committed-data
+ * events to this service;
  * NodeService has no LogBook lifecycle or storage dependency of its own.</p>
  */
 public final class NodeService {
@@ -40,6 +40,7 @@ public final class NodeService {
 
     /** Creates the Task Lane service around explicitly composed passive state. */
     public NodeService(NodeId nodeId, SerialLane serialLane, NodeServiceState state) {
+
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(serialLane != null, "serialLane must not be null");
         checkArgument(state != null, "state must not be null");
@@ -47,7 +48,8 @@ public final class NodeService {
         this.nodeId = nodeId;
         this.taskLane = new NodeTaskLane(serialLane, TASK_QUERY_TIMEOUT_MILLIS);
         this.state = state;
-        this.stageTiming = new StageTiming(state.eventData(), state.teamAssignments(), state.stageStartTimes());
+        this.stageTiming = new StageTiming(
+                state.eventData(), state.teamAssignments(), state.stageStartTimes());
     }
 
     /**
@@ -76,6 +78,7 @@ public final class NodeService {
      * <p>The call waits for ordered Task Lane execution.</p>
      */
     public List<StageTime> stageTiming(ZoneId raceTimeZone) {
+
         checkArgument(raceTimeZone != null, "raceTimeZone must not be null");
 
         /*
@@ -91,7 +94,8 @@ public final class NodeService {
 
     /** Builds the derived stage ranking while the Task Lane owns mutable derived state. */
     private List<StageTime> buildStageTiming(ZoneId raceTimeZone) {
-        requireTaskLane("stageTiming");
+
+        taskLane.requireCurrentThread("stageTiming");
         return stageTiming.ranking(state.activeRegistrations(), raceTimeZone);
     }
 
@@ -102,6 +106,7 @@ public final class NodeService {
      * handler only queues the history fold onto the Task Lane and returns.</p>
      */
     public void onInitialTimingDataLoaded(List<TimingData> loadedData) {
+
         // Runnable defers the one-time history fold until the Task Lane owns derived state.
         Runnable rebuildInitialState = () -> rebuildDerivedTiming(loadedData);
         handoffTimingFact(rebuildInitialState, "initial TimingData");
@@ -114,6 +119,7 @@ public final class NodeService {
      * handler only queues the derived-state update onto the Task Lane and returns.</p>
      */
     public void onTimingDataCommitted(TimingData data) {
+
         // Runnable defers the compact derived-state update to preserve Task Lane order.
         Runnable applyCommittedData = () -> applyCommittedTimingData(data);
         handoffTimingFact(applyCommittedData, "committed TimingData");
@@ -127,6 +133,7 @@ public final class NodeService {
      * explicitly stale rather than silently losing synchronization.</p>
      */
     private void handoffTimingFact(Runnable operation, String fact) {
+
         Runnable queueTimingFact = () -> taskLane.execute(operation);
         Consumer<RejectedExecutionException> onRejected = ex -> {
             state.markDerivedTimingStale();
@@ -142,15 +149,15 @@ public final class NodeService {
 
     /** Rebuilds derived timing while this service owns the SerialLane turn. */
     private void rebuildDerivedTiming(Iterable<TimingData> loadedData) {
+
         taskLane.requireCurrentThread("rebuildDerivedTiming");
         state.rebuildDerivedTiming(loadedData);
     }
 
     /** Applies one newly committed TimingData fact during the owned SerialLane turn. */
     private void applyCommittedTimingData(TimingData data) {
+
         taskLane.requireCurrentThread("applyCommittedTimingData");
         state.applyCommittedTimingData(data);
     }
-
-
 }
