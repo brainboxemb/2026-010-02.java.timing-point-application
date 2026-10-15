@@ -415,10 +415,20 @@ public final class TagProcessor {
                 registrationId);
         publishPassageSnapshots();
 
-        newRegistrationEvent.emit(
+        NewRegistration registration =
                 new NewRegistration(
                         registrationId,
-                        observedAt));
+                        observedAt);
+        Event.DeliveryReport delivery =
+                newRegistrationEvent.emit(
+                        registration);
+        if (!delivery.successful()) {
+            LOG.warn(
+                    "New registration {} published but {} listener(s) failed",
+                    registrationId.value(),
+                    delivery.failureCount(),
+                    delivery.failures().get(0));
+        }
     }
 
     /** Immutable registration selected from one completed tag passage. */
