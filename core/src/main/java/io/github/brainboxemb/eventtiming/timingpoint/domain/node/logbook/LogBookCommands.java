@@ -10,7 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 /**
- * Standard state-changing commands committed through the LogBook component.
+ * Standard TimingData commit commands executed through the LogBook component.
  *
  * <p>Factory methods validate caller input and capture the values needed by the
  * immutable command. LogBook later applies that command on the Data Lane.</p>
