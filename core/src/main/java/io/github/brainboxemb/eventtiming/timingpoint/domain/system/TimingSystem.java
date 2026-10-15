@@ -15,14 +15,10 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Java component for one TimingSystem architecture responsibility.
  *
  * <p>A TimingSystem contains one or more TimingNodes and one TimingSystemConductor and
- * uses associated I/O components such as AntennaManager. It installs the fixed
- * system-level event links between those components before activation and owns
- * their lifecycle relationship. Runtime supplies already constructed components
- * and resolved routing data.</p>
- *
- * <p>This component is also the natural owner for the system-level SystemStatus,
- * which combines semantic state from the contained TimingNodes with relevant
- * operational state from the I/O components used by this TimingSystem.</p>
+ * uses associated I/O components such as AntennaManager. It owns system-level
+ * routing such as antenna-to-node bindings and the lifecycle relationship between
+ * its components. Runtime supplies already constructed components and resolved
+ * routing data.</p>
  */
 public final class TimingSystem {
     private final String id;
@@ -56,7 +52,6 @@ public final class TimingSystem {
         this.antennaManager = antennaManager;
         this.timingSystemConductor = timingSystemConductor;
 
-        bindTimingNodes();
         bindAntennaObservations(
                 antennaManager == null
                         ? Collections.<AntennaId, TimingNodeList>emptyMap()
@@ -96,14 +91,6 @@ public final class TimingSystem {
     public void deactivate() {
 
         lifecycle.deactivateAll();
-    }
-
-    /** Binds contained TimingNodes to their system conductor. */
-    private void bindTimingNodes() {
-
-        for (TimingNode node : timingNodes) {
-            timingSystemConductor.bind(node);
-        }
     }
 
     /** Binds AntennaManager observation sources to mapped TimingNode inputs. */
