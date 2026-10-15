@@ -105,15 +105,9 @@ public final class UpstreamHandler {
         try {
             if (!stream.isAvailable()) {
                 logBookSync.cancelSync();
-                return;
-            }
-
-            if (logBookSync.syncPending()) {
+            } else if (logBookSync.syncPending()) {
                 logBookSync.sendNextBatch();
-                return;
-            }
-
-            if (stream.hasMessage()) {
+            } else if (stream.hasMessage()) {
                 handleMessage(stream.read());
             }
         } finally {
@@ -227,17 +221,20 @@ public final class UpstreamHandler {
     private void scheduleNextTurnOrRelease() {
         boolean workRemaining =
                 stream.isAvailable() && (logBookSync.syncPending() || stream.hasMessage());
+        boolean nextTurnScheduled = false;
 
         if (workRemaining) {
             try {
                 dataSerialLane.execute(this::handleNextTurn);
-                return;
+                nextTurnScheduled = true;
             } catch (RejectedExecutionException ex) {
                 LOG.debug("Data Lane rejected another upstream turn for node {}", nodeId.value(), ex);
             }
         }
 
-        inputOperationScheduled.set(false);
+        if (!nextTurnScheduled) {
+            inputOperationScheduled.set(false);
+        }
     }
 
 
