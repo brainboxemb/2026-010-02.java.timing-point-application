@@ -233,10 +233,10 @@ final class TagObservationFilter {
                         observation.tagId(),
                         new MutableTagStats(
                                 observation));
-                return;
+            } else {
+                stats.add(
+                        observation);
             }
-            stats.add(
-                    observation);
         }
 
         private boolean expired(long now, TagProcessingPolicy policy) {
