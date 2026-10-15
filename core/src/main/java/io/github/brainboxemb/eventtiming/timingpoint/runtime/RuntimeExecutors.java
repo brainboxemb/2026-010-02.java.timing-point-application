@@ -1,6 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,23 +42,20 @@ final class RuntimeExecutors implements AutoCloseable {
      */
     private static final int SHARED_IO_THREADS = 1;
 
-    /** Node-local logical lanes plus the scheduled executor needed by TagProcessor timing. */
+    /** Node-local logical lanes resolved for one TimingNode. */
     static final class TimingNodeExecutionResources {
         private final SerialLane dataLane;
         private final SerialLane taskLane;
-        private final SerialLane tagProcessorLane;
-        private final ScheduledExecutorService tagProcessorScheduledExecutor;
+        private final ScheduledSerialLane tagProcessorLane;
 
         private TimingNodeExecutionResources(
                 SerialLane dataLane,
                 SerialLane taskLane,
-                SerialLane tagProcessorLane,
-                ScheduledExecutorService tagProcessorScheduledExecutor) {
+                ScheduledSerialLane tagProcessorLane) {
 
             this.dataLane = dataLane;
             this.taskLane = taskLane;
             this.tagProcessorLane = tagProcessorLane;
-            this.tagProcessorScheduledExecutor = tagProcessorScheduledExecutor;
         }
 
         SerialLane dataLane() {
@@ -69,14 +68,9 @@ final class RuntimeExecutors implements AutoCloseable {
             return taskLane;
         }
 
-        SerialLane tagProcessorLane() {
+        ScheduledSerialLane tagProcessorLane() {
 
             return tagProcessorLane;
-        }
-
-        ScheduledExecutorService tagProcessorScheduledExecutor() {
-
-            return tagProcessorScheduledExecutor;
         }
     }
 
@@ -98,7 +92,7 @@ final class RuntimeExecutors implements AutoCloseable {
      * Domain or I/O component thread. Logical TimingSystemConductor lanes therefore use
      * this separate executor.</p>
      */
-    private final ThreadPoolExecutor timingSystemConductorExecutor;
+    private final ScheduledThreadPoolExecutor timingSystemConductorExecutor;
 
     /**
      * Shared scheduled I/O executor. AntennaManager
@@ -122,12 +116,11 @@ final class RuntimeExecutors implements AutoCloseable {
                 new ScheduledThreadPoolExecutor(1, threadFactory("tp-dl-tagproc"));
         tagProcessorScheduledExecutor.setRemoveOnCancelPolicy(true);
 
-        timingSystemConductorExecutor = new ThreadPoolExecutor(
-                1, 1,
-                0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<Runnable>(),
-                threadFactory("tp-dl-system-conductor"),
-                new ThreadPoolExecutor.AbortPolicy());
+        timingSystemConductorExecutor =
+                new ScheduledThreadPoolExecutor(
+                        1,
+                        threadFactory("tp-dl-system-conductor"));
+        timingSystemConductorExecutor.setRemoveOnCancelPolicy(true);
 
         sharedIoScheduledExecutor =
                 new ScheduledThreadPoolExecutor(SHARED_IO_THREADS, threadFactory("tp-io-shared"));
@@ -172,13 +165,16 @@ final class RuntimeExecutors implements AutoCloseable {
         SerialLane taskLane =
                 new SerialLane(TIMING_NODE_TASK_LANE_QUEUE_CAPACITY, "TimingNodeTask", timingNodeExecutor);
 
-        SerialLane tagProcessorLane = new SerialLane(
-                TAG_PROCESSOR_LANE_QUEUE_CAPACITY, "TagProcessor", tagProcessorScheduledExecutor);
+        ScheduledSerialLane tagProcessorLane =
+                new ScheduledSerialLane(
+                        TAG_PROCESSOR_LANE_QUEUE_CAPACITY,
+                        "TagProcessor",
+                        tagProcessorScheduledExecutor);
 
         serialLanes.add(dataLane);
         serialLanes.add(taskLane);
         serialLanes.add(tagProcessorLane);
-        return new TimingNodeExecutionResources(dataLane, taskLane, tagProcessorLane, tagProcessorScheduledExecutor);
+        return new TimingNodeExecutionResources(dataLane, taskLane, tagProcessorLane);
     }
 
     /**
@@ -187,9 +183,12 @@ final class RuntimeExecutors implements AutoCloseable {
      * <p>The lane is logically owned by that TimingSystemConductor. Runtime owns the physical
      * coordination executor underneath it.</p>
      */
-    synchronized SerialLane createTimingSystemConductorLane() {
-        SerialLane conductorLane = new SerialLane(
-                TIMING_SYSTEM_CONDUCTOR_LANE_QUEUE_CAPACITY, "TimingSystemConductor", timingSystemConductorExecutor);
+    synchronized TaskSerialLane createTimingSystemConductorLane() {
+        TaskSerialLane conductorLane =
+                new TaskSerialLane(
+                        TIMING_SYSTEM_CONDUCTOR_LANE_QUEUE_CAPACITY,
+                        "TimingSystemConductor",
+                        timingSystemConductorExecutor);
         serialLanes.add(conductorLane);
         return conductorLane;
     }
