@@ -9,6 +9,7 @@ public final class TagObservation {
     private final int rssi;
     private final TimingTimestamp observedAt;
 
+    /** Creates one immutable decoded observation from the antenna source. */
     public TagObservation(
             TagId tagId,
             int rssi,
@@ -24,14 +25,17 @@ public final class TagObservation {
         this.observedAt = observedAt;
     }
 
+    /** Returns the observed TagId. */
     public TagId tagId() {
         return tagId;
     }
 
+    /** Returns the antenna-provided RSSI for this observation. */
     public int rssi() {
         return rssi;
     }
 
+    /** Returns the observation time assigned at the antenna/I-O boundary. */
     public TimingTimestamp observedAt() {
         return observedAt;
     }
