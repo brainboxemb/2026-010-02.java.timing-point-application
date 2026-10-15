@@ -30,44 +30,26 @@ public final class TimingNode {
     private static final Logger LOG = LoggerFactory.getLogger(TimingNode.class);
     private final NodeId timingNodeId;
     private final LogBookAccessor logBook;
-    private final ComponentLifecycleManager lifecycle =
-            new ComponentLifecycleManager();
+    private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
 
     /** Creates the top-level node owner around its already composed child components. */
-    public TimingNode(
-            LogBook logBook,
-            NodeService nodeService,
-            TagProcessor tagProcessor) {
+    public TimingNode(LogBook logBook, NodeService nodeService, TagProcessor tagProcessor) {
         checkArgument(logBook != null, "logBook must not be null");
         checkArgument(nodeService != null, "nodeService must not be null");
         checkArgument(tagProcessor != null, "tagProcessor must not be null");
 
-        this.timingNodeId =
-                logBook.timingNodeId();
+        this.timingNodeId = logBook.timingNodeId();
         this.logBook = logBook;
-        lifecycle.register(
-                nodeService,
-                NodeService::activate,
-                NodeService::deactivate);
-        lifecycle.register(
-                logBook,
-                LogBook::activate,
-                LogBook::deactivate);
-        lifecycle.register(
-                tagProcessor,
-                TagProcessor::activate,
-                TagProcessor::deactivate);
+        lifecycle.register(nodeService, NodeService::activate, NodeService::deactivate);
+        lifecycle.register(logBook, LogBook::activate, LogBook::deactivate);
+        lifecycle.register(tagProcessor, TagProcessor::activate, TagProcessor::deactivate);
 
         /*
          * LogBook emits committed/startup TimingData synchronously on the Data
          * Lane. NodeService handlers only queue the corresponding Task Lane work.
          */
-        logBook.initialDataLoadedEvent()
-                .subscribe(
-                        nodeService::onInitialTimingDataLoaded);
-        logBook.newDataEntryEvent()
-                .subscribe(
-                        nodeService::onTimingDataCommitted);
+        logBook.initialDataLoadedEvent().subscribe(nodeService::onInitialTimingDataLoaded);
+        logBook.newDataEntryEvent().subscribe(nodeService::onTimingDataCommitted);
 
         /*
          * TagProcessor emits synchronously on its own lane. The named handler
@@ -116,20 +98,15 @@ public final class TimingNode {
      */
     private void onNewRegistration(TagProcessor.NewRegistration registration) {
         LogBookCommand<?> command = LogBookCommands.addAutomaticRegistration(
-                registration.registrationId(),
-                registration.observedAt());
+                registration.registrationId(), registration.observedAt());
 
-        Runnable queueRegistration =
-                () -> logBook.execute(command);
-        Consumer<RejectedExecutionException> onRejected =
-                ex -> LOG.warn(
-                        "Automatic registration {} for node {} could not be queued on the LogBook Data Lane",
-                        registration.registrationId().value(),
-                        timingNodeId.value(),
-                        ex);
+        Runnable queueRegistration = () -> logBook.execute(command);
+        Consumer<RejectedExecutionException> onRejected = ex -> LOG.warn(
+                "Automatic registration {} for node {} could not be queued on the LogBook Data Lane",
+                registration.registrationId().value(),
+                timingNodeId.value(),
+                ex);
 
-        SafeExecute.runOrHandleRejection(
-                queueRegistration,
-                onRejected);
+        SafeExecute.runOrHandleRejection(queueRegistration, onRejected);
     }
 }
