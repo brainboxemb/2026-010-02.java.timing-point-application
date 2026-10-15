@@ -19,27 +19,32 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 public final class TeamAssignments {
     private final Map<RegistrationId, TeamId> assignments;
 
+    /** Creates empty live assignment state. */
     public TeamAssignments() {
         this.assignments =
                 new LinkedHashMap<RegistrationId, TeamId>();
     }
 
+    /** Creates an independent mutable copy from existing assignment values. */
     private TeamAssignments(
             Map<RegistrationId, TeamId> assignments) {
         this.assignments =
                 new LinkedHashMap<RegistrationId, TeamId>(assignments);
     }
 
+    /** Returns an independent mutable copy for transactional validation. */
     public TeamAssignments copy() {
         return new TeamAssignments(assignments);
     }
 
+    /** Returns the live TeamId assignment for one RegistrationId, or null when absent. */
     public TeamId teamIdFor(
             RegistrationId registrationId) {
         checkArgument(registrationId != null, "registrationId must not be null");
         return assignments.get(registrationId);
     }
 
+    /** Sets the live TeamId assignment for one RegistrationId. */
     public void assign(
             RegistrationId registrationId,
             TeamId teamId) {
@@ -50,12 +55,14 @@ public final class TeamAssignments {
                 teamId);
     }
 
+    /** Removes any live assignment for the RegistrationId. */
     public void remove(
             RegistrationId registrationId) {
         checkArgument(registrationId != null, "registrationId must not be null");
         assignments.remove(registrationId);
     }
 
+    /** Validates the invariant that one TeamId cannot be assigned to multiple registrations. */
     public void validate() {
         Set<TeamId> teams =
                 new LinkedHashSet<TeamId>();
@@ -68,6 +75,7 @@ public final class TeamAssignments {
         }
     }
 
+    /** Replaces live state with a validated transactional assignment copy. */
     public void replaceWith(
             TeamAssignments updatedAssignments) {
         checkArgument(updatedAssignments != null, "updatedAssignments must not be null");

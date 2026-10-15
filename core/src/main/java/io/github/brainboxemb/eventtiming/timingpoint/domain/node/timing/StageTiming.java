@@ -31,7 +31,11 @@ public final class StageTiming {
     private final TeamAssignments teamAssignments;
     private final StageStartTimes stageStartTimes;
 
-    public StageTiming(EventData eventData, TeamAssignments teamAssignments, StageStartTimes stageStartTimes) {
+    /** Creates the read-side timing calculator over current reference and race data. */
+    public StageTiming(
+            EventData eventData,
+            TeamAssignments teamAssignments,
+            StageStartTimes stageStartTimes) {
         checkArgument(eventData != null, "eventData must not be null");
         checkArgument(teamAssignments != null, "teamAssignments must not be null");
         checkArgument(stageStartTimes != null, "stageStartTimes must not be null");
@@ -100,11 +104,13 @@ public final class StageTiming {
         return Collections.unmodifiableList(ranked);
     }
 
+    /** Resolves TeamId from fixed EventData first and live assignment state second. */
     private TeamId resolveTeamId(RegistrationId registrationId) {
         TeamId configuredTeamId = eventData.teamIdFor(registrationId);
         return configuredTeamId != null ? configuredTeamId : teamAssignments.teamIdFor(registrationId);
     }
 
+    /** Extracts RegistrationId from an active automatic or manual registration record. */
     private static RegistrationId registrationId(TimingData data) {
         if (data instanceof TimingData.AutomaticRegistration) {
             return ((TimingData.AutomaticRegistration) data).registrationId();
@@ -115,16 +121,7 @@ public final class StageTiming {
         throw new IllegalArgumentException("TimingData is not a registration");
     }
 
-    private static TimingData.RegistrationAction registrationAction(TimingData data) {
-        if (data instanceof TimingData.AutomaticRegistration) {
-            return ((TimingData.AutomaticRegistration) data).action();
-        }
-        if (data instanceof TimingData.ManualRegistration) {
-            return ((TimingData.ManualRegistration) data).action();
-        }
-        return null;
-    }
-
+    /** Resolves partial stage-start time information to an absolute timestamp. */
     private static TimingTimestamp resolveStart(
             TimingTimestamp start, TimingTimestamp registrationTime, ZoneId raceTimeZone) {
         if (start.isAbsolute()) {
@@ -150,6 +147,7 @@ public final class StageTiming {
         return absolute(resolved);
     }
 
+    /** Converts one zoned civil time into the absolute TimingTimestamp representation. */
     private static TimingTimestamp absolute(ZonedDateTime value) {
         return new TimingTimestamp(value.toInstant());
     }

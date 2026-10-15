@@ -21,6 +21,7 @@ public final class TimingNodeList implements Iterable<TimingNode> {
     private final Map<TimingNode, Boolean> members =
             new IdentityHashMap<TimingNode, Boolean>();
 
+    /** Adds one distinct TimingNode instance and returns this list for composition chaining. */
     public TimingNodeList add(TimingNode node) {
         checkArgument(node != null, "TimingNode must not be null");
         checkArgument(
@@ -32,6 +33,7 @@ public final class TimingNodeList implements Iterable<TimingNode> {
         return this;
     }
 
+    /** Returns an independent ordered list containing the same TimingNode instances. */
     public TimingNodeList copy() {
         TimingNodeList copy = new TimingNodeList();
         for (TimingNode node : nodes) {
@@ -40,18 +42,22 @@ public final class TimingNodeList implements Iterable<TimingNode> {
         return copy;
     }
 
+    /** Reports whether the system currently contains no TimingNode instances. */
     public boolean isEmpty() {
         return nodes.isEmpty();
     }
 
+    /** Returns the number of TimingNode instances in composition order. */
     public int size() {
         return nodes.size();
     }
 
+    /** Returns the TimingNode at the requested composition-order index. */
     public TimingNode get(int index) {
         return nodes.get(index);
     }
 
+    /** Iterates over the TimingNodes without exposing list mutation. */
     @Override
     public Iterator<TimingNode> iterator() {
         return Collections.unmodifiableList(nodes).iterator();
