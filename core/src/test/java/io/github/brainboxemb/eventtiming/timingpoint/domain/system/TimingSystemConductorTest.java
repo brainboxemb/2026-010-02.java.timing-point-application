@@ -240,13 +240,13 @@ public class TimingSystemConductorTest {
     @Test
     public void timingNodeListRejectsDuplicateInstance() {
         TimingNode node = newTimingNode("A");
-        TimingNodeList nodes = TimingNodeList.of(node);
+        TimingNodeList.Builder nodes = TimingNodeList.builder().add(node);
 
         try {
             nodes.add(node);
             fail("Duplicate TimingNode accepted");
         } catch (IllegalArgumentException expected) {
-            assertEquals(1, nodes.size());
+            assertEquals(1, nodes.build().size());
         }
     }
 
