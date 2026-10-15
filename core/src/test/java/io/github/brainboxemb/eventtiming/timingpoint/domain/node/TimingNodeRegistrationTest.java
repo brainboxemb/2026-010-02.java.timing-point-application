@@ -78,8 +78,9 @@ public class TimingNodeRegistrationTest {
         try {
             node.logBook().process(LogBookCommands.open(new LocationId(24)));
             AutomaticRegistration implicit = (AutomaticRegistration) node.logBook().process(
-                    LogBookCommands.simulateAutomaticRegistrationNow(
-                            new RegistrationId("RT-A-0001"))).timingData();
+                    LogBookCommands.commitAutomaticRegistrationNow(
+                            new RegistrationId("RT-A-0001"),
+                            TimingData.TagSource.API)).timingData();
             assertEquals(RECORDED_AT, implicit.effectiveTime());
             assertEquals(RECORDED_AT, implicit.recordedAt());
             assertEquals(TimingData.TagSource.API, implicit.tagSource());
@@ -87,8 +88,11 @@ public class TimingNodeRegistrationTest {
                     implicit.registrationTimeSource());
 
             AutomaticRegistration explicit = (AutomaticRegistration) node.logBook().process(
-                    LogBookCommands.simulateAutomaticRegistration(
-                            new RegistrationId("RT-A-0002"), EFFECTIVE_TIME)).timingData();
+                    LogBookCommands.commitAutomaticRegistration(
+                            new RegistrationId("RT-A-0002"),
+                            EFFECTIVE_TIME,
+                            TimingData.TagSource.API,
+                            TimingData.AutomaticTimeSource.API)).timingData();
             assertEquals(EFFECTIVE_TIME, explicit.effectiveTime());
             assertEquals(TimingData.TagSource.API, explicit.tagSource());
             assertEquals(TimingData.AutomaticTimeSource.API,
