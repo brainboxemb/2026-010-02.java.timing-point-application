@@ -61,7 +61,7 @@ public class TimingNodeTest {
 
         node.activate();
         try {
-            TimingNodeTypes.Status status = node.logBook().process(LogBookQueries.status());
+            TimingNodeTypes.Status status = node.status();
 
             assertSame(id, status.timingNodeId());
             assertEquals(TimingNodeTypes.State.CLOSED, status.state());
@@ -116,7 +116,7 @@ public class TimingNodeTest {
                         executor,
                         1000L);
         CountDownLatch firstStatusPublished = new CountDownLatch(1);
-        node.logBook().statusChangedEvent().subscribe(
+        node.statusChangedEvent().subscribe(
                 status -> firstStatusPublished.countDown());
 
         final Throwable[] activationFailure = new Throwable[1];
@@ -196,7 +196,7 @@ public class TimingNodeTest {
                 new DefaultTimingDataFactory(),
                 TimingNodeTest::now);
         CountDownLatch initialStatusPublished = new CountDownLatch(1);
-        node.logBook().statusChangedEvent().subscribe(
+        node.statusChangedEvent().subscribe(
                 status -> initialStatusPublished.countDown());
 
         node.activate();
@@ -228,17 +228,17 @@ public class TimingNodeTest {
         try {
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
-                    node.logBook().process(LogBookCommands.open(openLocation)));
+                    node.open(openLocation));
 
-            TimingNodeTypes.Status openStatus = node.logBook().process(LogBookQueries.status());
+            TimingNodeTypes.Status openStatus = node.status();
             assertEquals(TimingNodeTypes.State.OPEN, openStatus.state());
             assertEquals(openLocation, openStatus.locationId());
 
             assertEquals(
                     TimingNodeTypes.CloseResult.CLOSED,
-                    node.logBook().process(LogBookCommands.close()));
+                    node.close());
 
-            TimingNodeTypes.Status closedStatus = node.logBook().process(LogBookQueries.status());
+            TimingNodeTypes.Status closedStatus = node.status();
             assertEquals(TimingNodeTypes.State.CLOSED, closedStatus.state());
             assertEquals(openLocation, closedStatus.locationId());
         } finally {
@@ -262,10 +262,10 @@ public class TimingNodeTest {
         try {
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
-                    node.logBook().process(LogBookCommands.open(new LocationId(24))));
+                    node.open(new LocationId(24)));
             assertEquals(
                     TimingNodeTypes.CloseResult.CLOSED,
-                    node.logBook().process(LogBookCommands.close()));
+                    node.close());
 
             assertEquals(2, persistence.records.size());
             assertTrue(persistence.records.get(0) instanceof TimingData.NodeOpen);
@@ -298,9 +298,7 @@ public class TimingNodeTest {
 
         node.activate();
         try {
-            node.logBook().process(
-                    LogBookCommands.open(
-                            new LocationId(24)));
+            node.open(new LocationId(24));
 
             TimingData open = persistence.records.get(0);
             assertEquals(
@@ -329,16 +327,16 @@ public class TimingNodeTest {
         try {
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
-                    node.logBook().process(LogBookCommands.open(new LocationId(24))));
+                    node.open(new LocationId(24)));
             assertEquals(
                     TimingNodeTypes.OpenResult.ALREADY_OPEN,
-                    node.logBook().process(LogBookCommands.open(new LocationId(25))));
+                    node.open(new LocationId(25)));
             assertEquals(
                     TimingNodeTypes.CloseResult.CLOSED,
-                    node.logBook().process(LogBookCommands.close()));
+                    node.close());
             assertEquals(
                     TimingNodeTypes.CloseResult.ALREADY_CLOSED,
-                    node.logBook().process(LogBookCommands.close()));
+                    node.close());
 
             assertEquals(2, persistence.records.size());
         } finally {
@@ -360,7 +358,7 @@ public class TimingNodeTest {
         node.activate();
         try {
             try {
-                node.logBook().process(LogBookCommands.open(new LocationId(24)));
+                node.open(new LocationId(24));
                 fail("expected persistence failure");
             } catch (TimingNodeTypes.OperationException expected) {
                 assertEquals(
@@ -369,7 +367,7 @@ public class TimingNodeTest {
             }
 
             TimingNodeTypes.Status status =
-                    node.logBook().process(LogBookQueries.status());
+                    node.status();
             assertEquals(TimingNodeTypes.State.CLOSED, status.state());
             assertFalse(status.hasLocation());
             assertTrue(committedEvents.isEmpty());
@@ -381,7 +379,7 @@ public class TimingNodeTest {
     @Test
     public void openCommandRequiresLocation() {
         try {
-            LogBookCommands.open(null);
+            node(new NodeId("A")).open(null);
             fail("expected location validation failure");
         } catch (IllegalArgumentException expected) {
             assertTrue(expected.getMessage().contains("locationId"));
@@ -396,18 +394,18 @@ public class TimingNodeTest {
         try {
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
-                    node.logBook().process(LogBookCommands.open(new LocationId(24))));
+                    node.open(new LocationId(24)));
             assertEquals(
                     TimingNodeTypes.OpenResult.ALREADY_OPEN,
-                    node.logBook().process(LogBookCommands.open(new LocationId(24))));
+                    node.open(new LocationId(24)));
             assertEquals(
                     TimingNodeTypes.OpenResult.ALREADY_OPEN,
-                    node.logBook().process(LogBookCommands.open(new LocationId(25))));
-            TimingNodeTypes.Status submittedStatus = node.logBook().process(LogBookQueries.status());
+                    node.open(new LocationId(25)));
+            TimingNodeTypes.Status submittedStatus = node.status();
             assertEquals(TimingNodeTypes.State.OPEN, submittedStatus.state());
             assertEquals(new LocationId(24), submittedStatus.locationId());
-            assertEquals(TimingNodeTypes.CloseResult.CLOSED, node.logBook().process(LogBookCommands.close()));
-            assertEquals(TimingNodeTypes.CloseResult.ALREADY_CLOSED, node.logBook().process(LogBookCommands.close()));
+            assertEquals(TimingNodeTypes.CloseResult.CLOSED, node.close());
+            assertEquals(TimingNodeTypes.CloseResult.ALREADY_CLOSED, node.close());
         } finally {
             node.deactivate();
         }
@@ -433,7 +431,7 @@ public class TimingNodeTest {
             assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
             try {
-                node.logBook().process(LogBookCommands.open(new LocationId(24)));
+                node.open(new LocationId(24));
                 fail("expected timeout");
             } catch (TimingNodeTypes.OperationException expected) {
                 assertEquals(
@@ -446,7 +444,7 @@ public class TimingNodeTest {
             releaseBlocker.countDown();
 
             assertTrue(afterTimedOutOperation.await(1, TimeUnit.SECONDS));
-            TimingNodeTypes.Status status = node.logBook().process(LogBookQueries.status());
+            TimingNodeTypes.Status status = node.status();
             assertEquals(TimingNodeTypes.State.OPEN, status.state());
             assertTrue(status.hasLocation());
             assertEquals(new LocationId(24), status.locationId());
@@ -480,10 +478,10 @@ public class TimingNodeTest {
 
             Thread openCaller = new Thread(
                     () -> openResult[0] =
-                            node.logBook().process(LogBookCommands.open(new LocationId(24))));
+                            node.open(new LocationId(24)));
             Thread closeCaller = new Thread(
                     () -> closeResult[0] =
-                            node.logBook().process(LogBookCommands.close()));
+                            node.close());
 
             openCaller.start();
             long queueDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
@@ -508,7 +506,7 @@ public class TimingNodeTest {
 
             assertEquals(TimingNodeTypes.OpenResult.OPENED, openResult[0]);
             assertEquals(TimingNodeTypes.CloseResult.CLOSED, closeResult[0]);
-            TimingNodeTypes.Status status = node.logBook().process(LogBookQueries.status());
+            TimingNodeTypes.Status status = node.status();
             assertEquals(TimingNodeTypes.State.CLOSED, status.state());
             assertEquals(new LocationId(24), status.locationId());
         } finally {
@@ -559,7 +557,7 @@ public class TimingNodeTest {
 
             assertEquals(
                     new LocationId(24),
-                    node.logBook().process(LogBookQueries.status()).locationId());
+                    node.status().locationId());
         } finally {
             releaseBlocker.countDown();
             node.deactivate();
@@ -629,7 +627,7 @@ public class TimingNodeTest {
 
         node.activate();
         try {
-            node.logBook().statusChangedEvent().subscribe(
+            node.statusChangedEvent().subscribe(
                     ignored ->
                             statusEventCurrent[0] =
                                     node.logBook().process(
@@ -642,7 +640,7 @@ public class TimingNodeTest {
                                             LogBookQueries.status(),
                                             ReadConsistency.CURRENT));
 
-            node.logBook().process(LogBookCommands.open(new LocationId(24)));
+            node.open(new LocationId(24));
 
             assertEquals(
                     TimingNodeTypes.State.OPEN,
@@ -690,7 +688,7 @@ public class TimingNodeTest {
 
         node.activate();
         try {
-            node.logBook().process(LogBookCommands.open(new LocationId(24)));
+            node.open(new LocationId(24));
 
             node.logBook().process(
                     LogBookQueries.visitTimingDataRange(
@@ -818,7 +816,7 @@ public class TimingNodeTest {
         TimingNode node = node(new NodeId("A"));
 
         try {
-            node.logBook().process(LogBookQueries.status());
+            node.status();
             fail("expected operation failure");
         } catch (TimingNodeTypes.OperationException expected) {
             assertEquals(
