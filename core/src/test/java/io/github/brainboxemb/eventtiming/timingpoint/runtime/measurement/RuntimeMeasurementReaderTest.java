@@ -118,14 +118,11 @@ public class RuntimeMeasurementReaderTest {
 
         node.activate();
         try {
-            node.logBook().process(
-                    LogBookCommands.open(
-                            new LocationId(24)));
+            node.open(new LocationId(24));
             assertTrue(
-                    node.logBook().process(
-                                    LogBookCommands.addAutomaticRegistration(
-                                            new RegistrationId("N0001"),
-                                            EVENT_TIME))
+                    node.addAutomaticRegistration(
+                                    new RegistrationId("N0001"),
+                                    EVENT_TIME)
                             .committed());
 
             /*
