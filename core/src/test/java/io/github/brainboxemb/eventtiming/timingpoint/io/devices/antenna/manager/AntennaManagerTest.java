@@ -423,8 +423,8 @@ public class AntennaManagerTest {
 
             antenna.setFailurePoint(
                     SimulatedAntenna.FailurePoint.START_INVENTORY);
-            assertTrue(
-                    manager.setInventoryEnabled(
+            manager.settings().update(
+                    edit -> edit.inventoryEnabled(
                             true));
 
             awaitCondition(
@@ -443,8 +443,8 @@ public class AntennaManagerTest {
              * coalescing. Repeating the same desired TRUE must not become an
              * implicit retry.
              */
-            assertTrue(
-                    manager.setInventoryEnabled(
+            manager.settings().update(
+                    edit -> edit.inventoryEnabled(
                             true));
             Thread.sleep(
                     50L);
