@@ -186,16 +186,16 @@ public final class SimulatedTagScenarioRunner
                         scenario,
                         index,
                         baseTime);
-        Callable<Void> delayedWork =
-                () -> {
-                    work.run();
-                    return null;
-                };
 
         try {
             if (delayNanos == 0L) {
                 lane.execute(work);
             } else {
+                Callable<Void> delayedWork =
+                        () -> {
+                            work.run();
+                            return null;
+                        };
                 scheduler.submitAfter(
                         delayedWork,
                         delayNanos);
