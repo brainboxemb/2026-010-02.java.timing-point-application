@@ -2,7 +2,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
@@ -13,21 +12,21 @@ import org.slf4j.LoggerFactory;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 /**
- * Published CURRENT status view and status-change event for one LogBook.
+ * Published CURRENT recovery result for one LogBook.
  *
- * <p>Mutable lifecycle/location facts remain in {@link LogBookState}. This
- * object owns only the safely published immutable Status snapshot, availability
- * checks, status comparison, diagnostics and the post-fact status event.</p>
+ * <p>This object owns only the safely published immutable recovery result and
+ * its availability checks. TimingNode OPEN/CLOSED state is not represented here.</p>
  */
 final class LogBookStatus {
     private static final Logger LOG = LoggerFactory.getLogger(LogBookStatus.class);
 
     private final NodeId timingNodeId;
     private final LogBookDataLane dataLane;
-    private final Event<Status> statusChangedEvent = new Event<Status>();
+    private final Event<LogBookRecoveryStatus> recoveryStatusChangedEvent =
+            new Event<LogBookRecoveryStatus>();
 
-    /** Latest activation-complete immutable Status visible to CURRENT queries. */
-    private volatile Status publishedStatus;
+    /** Latest completed recovery result visible to CURRENT queries. */
+    private volatile LogBookRecoveryStatus publishedRecoveryStatus;
 
     /** Creates the status publication owner for one LogBook Data Lane. */
     LogBookStatus(NodeId timingNodeId, LogBookDataLane dataLane) {
@@ -37,18 +36,18 @@ final class LogBookStatus {
         this.dataLane = dataLane;
     }
 
-    /** Returns the externally subscribable post-fact status event. */
-    EventSource<Status> statusChangedEvent() {
-        return statusChangedEvent;
+    /** Returns the event published when the startup recovery attempt completes. */
+    EventSource<LogBookRecoveryStatus> recoveryStatusChangedEvent() {
+        return recoveryStatusChangedEvent;
     }
 
     /** Makes CURRENT status unavailable after LogBook deactivation. */
     void clear() {
-        publishedStatus = null;
+        publishedRecoveryStatus = null;
     }
 
-    /** Returns the latest safely published CURRENT status or explains why none is available. */
-    Status current() {
+    /** Returns the latest completed recovery result or explains why none is available. */
+    LogBookRecoveryStatus current() {
         SerialLane.State state = dataLane.state();
         if (state == SerialLane.State.FAILED) {
             throw new OperationException(
@@ -62,7 +61,7 @@ final class LogBookStatus {
                     "status CURRENT result is unavailable because the LogBook component is not active");
         }
 
-        Status status = publishedStatus;
+        LogBookRecoveryStatus status = publishedRecoveryStatus;
         if (status == null) {
             throw new OperationException(
                     OperationException.Reason.UNAVAILABLE,
@@ -71,46 +70,18 @@ final class LogBookStatus {
         return status;
     }
 
-    /** Replaces the immutable snapshot used by CURRENT queries. */
-    void publishCurrent(Status status) {
+    /** Publishes the completed startup recovery result. */
+    void publishInitial(LogBookRecoveryStatus status) {
         checkArgument(status != null, "status must not be null");
-        publishedStatus = status;
-    }
-
-    /** Publishes the first Status fact after persisted data reconstruction finishes. */
-    void publishInitial(Status status) {
-        publishCurrent(status);
+        publishedRecoveryStatus = status;
 
         LOG.info(
-                "TimingNode {} initial status available: state {}, location {}, problems {}",
+                "TimingNode {} LogBook recovery completed: tailRepaired={}, problems={}",
                 timingNodeId.value(),
-                status.state(),
-                status.hasLocation() ? status.locationId() : "-",
+                status.timingDataTailRepaired(),
                 status.problems().size());
 
-        statusChangedEvent.emit(status);
-    }
-
-    /** Emits a status event only when the effective immutable Status changed. */
-    void publishChanged(Status before, Status after) {
-        checkArgument(before != null, "before must not be null");
-        checkArgument(after != null, "after must not be null");
-
-        if (before.equals(after)) {
-            return;
-        }
-
-        LOG.info(
-                "TimingNode {} status changed: state {} -> {}, location {} -> {}, problems {} -> {}",
-                timingNodeId.value(),
-                before.state(),
-                after.state(),
-                before.hasLocation() ? before.locationId() : "-",
-                after.hasLocation() ? after.locationId() : "-",
-                before.problems().size(),
-                after.problems().size());
-
-        statusChangedEvent.emit(after);
+        recoveryStatusChangedEvent.emit(status);
     }
 
 }
