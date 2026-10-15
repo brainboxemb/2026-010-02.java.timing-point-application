@@ -57,6 +57,7 @@ public final class LogBook implements LogBookAccessor {
             LogBookMetrics metrics,
             SerialLane serialLane,
             long operationTimeoutMillis) {
+
         checkArgument(timingNodeId != null, "timingNodeId must not be null");
         checkArgument(timingDataPersistence != null, "timingDataPersistence must not be null");
         checkArgument(timingDataFactory != null, "timingDataFactory must not be null");
@@ -82,11 +83,13 @@ public final class LogBook implements LogBookAccessor {
 
     /** Returns immutable node identity without entering the Data Lane. */
     public NodeId timingNodeId() {
+
         return logBookState.timingNodeId();
     }
 
     /** Returns engineering metrics for this LogBook and its commit path. */
     public LogBookMetrics metrics() {
+
         return metrics;
     }
 
@@ -97,6 +100,7 @@ public final class LogBook implements LogBookAccessor {
      * until that first ordered task has rebuilt the LogBook and published status.</p>
      */
     public void activate() {
+
         dataLane.activate(this::loadPersistedData);
     }
 
@@ -107,6 +111,7 @@ public final class LogBook implements LogBookAccessor {
      * does not implement a second shutdown queue.</p>
      */
     public void deactivate() {
+
         dataLane.deactivate();
         logBookStatus.clear();
     }
@@ -115,6 +120,7 @@ public final class LogBook implements LogBookAccessor {
      * Processes one command in LogBook order and returns its domain result.
      */
     public <R> R process(LogBookCommand<R> command) {
+
         checkArgument(command != null, "command must not be null");
         return dataLane.submitAndWait(() -> applyCommand(command), command.name());
     }
@@ -127,6 +133,7 @@ public final class LogBook implements LogBookAccessor {
      * when the bounded SerialLane cannot queue it.</p>
      */
     public void execute(LogBookCommand<?> command) {
+
         checkArgument(command != null, "command must not be null");
         Runnable queuedCommand = () -> executeQueuedCommand(command);
         dataLane.execute(queuedCommand);
@@ -137,6 +144,7 @@ public final class LogBook implements LogBookAccessor {
      * has been processed.
      */
     public <R> R query(LogBookQuery<R> query) {
+
         return query(query, LogBookQuery.ReadConsistency.ORDERED);
     }
 
@@ -145,6 +153,7 @@ public final class LogBook implements LogBookAccessor {
      * view, according to the requested consistency.
      */
     public <R> R query(LogBookQuery<R> query, LogBookQuery.ReadConsistency consistency) {
+
         checkArgument(query != null, "query must not be null");
         checkArgument(consistency != null, "consistency must not be null");
 
@@ -169,11 +178,13 @@ public final class LogBook implements LogBookAccessor {
 
     /** Publishes status changes synchronously on the Data Lane after commit. */
     public EventSource<Status> statusChangedEvent() {
+
         return logBookStatus.statusChangedEvent();
     }
 
     /** Publishes each newly committed TimingData record on the Data Lane. */
     public EventSource<TimingData> newDataEntryEvent() {
+
         return newDataEntryEvent;
     }
 
@@ -184,21 +195,25 @@ public final class LogBook implements LogBookAccessor {
      * Consumers must process and release it rather than retain a second full LogBook history.</p>
      */
     public EventSource<List<TimingData>> initialDataLoadedEvent() {
+
         return initialDataLoadedEvent;
     }
 
     /** Returns the committed TimingData head while already inside LogBook query handling. */
     long currentTimingDataHead() {
+
         return logBookState.timingDataHead();
     }
 
     /** Returns the latest safely published CURRENT status. */
     Status publishedStatus() {
+
         return logBookStatus.current();
     }
 
     /** Loads persisted history, then publishes initial status on either outcome. */
     private void loadPersistedData() {
+
         LOG.info("TimingNode {} persisted TimingData load started", timingNodeId().value());
 
         try {
@@ -216,6 +231,7 @@ public final class LogBook implements LogBookAccessor {
 
             publishInitialLoadedData(loadResult.records());
         } catch (TimingDataPersistence.PersistenceException | RuntimeException ex) {
+
             logBookOperations.markTimingDataLoadFailed(ex);
             LOG.error(
                     "Persisted TimingData load failed for {}; TimingNode remains available in ERROR state",
@@ -229,9 +245,11 @@ public final class LogBook implements LogBookAccessor {
 
     /** Executes one previously queued fire-and-forget command and contains its later failure. */
     private <R> void executeQueuedCommand(LogBookCommand<R> command) {
+
         try {
             applyCommand(command);
         } catch (Exception ex) {
+
             LOG.warn(
                     "Queued TimingNode command {} failed during Data Lane execution",
                     command.name(),
@@ -241,6 +259,7 @@ public final class LogBook implements LogBookAccessor {
 
     /** Applies one command to mutable LogBook state and publishes its completed effects. */
     private <R> R applyCommand(LogBookCommand<R> command) throws Exception {
+
         Status before = logBookState.status();
         int committedBefore = logBookState.committedTimingDataCount();
 
@@ -260,6 +279,7 @@ public final class LogBook implements LogBookAccessor {
 
     /** Emits immutable LoadResult history without allocating another full-list snapshot. */
     private void publishInitialLoadedData(List<TimingData> loadedData) {
+
         Event.DeliveryReport delivery = initialDataLoadedEvent.emit(loadedData);
         if (!delivery.successful()) {
             LOG.warn(
@@ -273,6 +293,7 @@ public final class LogBook implements LogBookAccessor {
 
     /** Publishes one successfully committed TimingData record and records delivery metrics. */
     private void publishNewData(TimingData data) {
+
         long eventStartedNanos = monotonicClock.nowNanos();
         Event.DeliveryReport delivery = newDataEntryEvent.emit(data);
         metrics.recordEventDelivery(monotonicClock.nowNanos() - eventStartedNanos, delivery.failureCount());
