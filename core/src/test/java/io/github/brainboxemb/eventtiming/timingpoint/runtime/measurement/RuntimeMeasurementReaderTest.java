@@ -17,6 +17,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServiceState;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
@@ -101,7 +102,7 @@ public class RuntimeMeasurementReaderTest {
                         tagMetrics,
                         tagLane,
                         tagWorker);
-        TimingNode node = new TimingNode(logBook, nodeService, tags);
+        TimingNode node = new TimingNode(new AntennaId("1"), logBook, nodeService, tags);
 
         RuntimeMeasurementReader reader =
                 new RuntimeMeasurementReader(
