@@ -53,6 +53,19 @@ public final class LogBookCommands {
         return CLOSE;
     }
 
+    /** Commits one antenna-originated automatic registration. */
+    public static LogBookCommand<RegistrationResult>
+            addAutomaticRegistration(
+                    RegistrationId registrationId,
+                    TimingTimestamp effectiveTime) {
+
+        return commitAutomaticRegistration(
+                registrationId,
+                effectiveTime,
+                TimingData.TagSource.ANT,
+                TimingData.AutomaticTimeSource.OBS);
+    }
+
     /** Commits one automatic registration with explicit source provenance. */
     public static LogBookCommand<RegistrationResult>
             commitAutomaticRegistration(
