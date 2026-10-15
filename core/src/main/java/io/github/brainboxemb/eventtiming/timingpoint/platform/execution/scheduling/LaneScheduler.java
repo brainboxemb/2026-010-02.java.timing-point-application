@@ -12,6 +12,8 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * Adds delayed admission to an existing {@link SerialLane}.
  *
@@ -44,31 +46,18 @@ public final class LaneScheduler {
 
     /** Creates delayed admission support for one existing SerialLane. */
     public LaneScheduler(SerialLane lane, ScheduledExecutorService scheduledExecutor) {
-        if (lane == null) {
-            throw new IllegalArgumentException("lane must not be null");
-        }
-        if (scheduledExecutor == null) {
-            throw new IllegalArgumentException("scheduledExecutor must not be null");
-        }
+        checkArgument(lane != null, "lane must not be null");
+        checkArgument(scheduledExecutor != null, "scheduledExecutor must not be null");
         this.lane = lane;
         this.scheduledExecutor = scheduledExecutor;
     }
 
     /** Schedules one Callable for later admission to the owning serial lane. */
-    public <R> ScheduledOperation<R> submitAfter(
-            Callable<R> operation,
-            long delayNanos) {
-        if (operation == null) {
-            throw new IllegalArgumentException("operation must not be null");
-        }
-        if (delayNanos < 0L) {
-            throw new IllegalArgumentException("delayNanos must not be negative");
-        }
+    public <R> ScheduledOperation<R> submitAfter(Callable<R> operation, long delayNanos) {
+        checkArgument(operation != null, "operation must not be null");
+        checkArgument(delayNanos >= 0L, "delayNanos must not be negative");
 
-        DelayedOperation<R> delayed =
-                new DelayedOperation<R>(
-                        operation,
-                        delayNanos);
+        DelayedOperation<R> delayed = new DelayedOperation<R>(operation, delayNanos);
         delayed.schedule();
         return delayed;
     }
@@ -80,20 +69,11 @@ public final class LaneScheduler {
      * on the owning serial lane. If that bounded lane is temporarily full, the
      * next normal delay is used rather than creating a second queue.</p>
      */
-    public ScheduledRegistration scheduleWithFixedDelay(
-            Runnable operation,
-            long delayNanos) {
-        if (operation == null) {
-            throw new IllegalArgumentException("operation must not be null");
-        }
-        if (delayNanos <= 0L) {
-            throw new IllegalArgumentException("delayNanos must be positive");
-        }
+    public ScheduledRegistration scheduleWithFixedDelay(Runnable operation, long delayNanos) {
+        checkArgument(operation != null, "operation must not be null");
+        checkArgument(delayNanos > 0L, "delayNanos must be positive");
 
-        RepeatingOperation repeating =
-                new RepeatingOperation(
-                        operation,
-                        delayNanos);
+        RepeatingOperation repeating = new RepeatingOperation(operation, delayNanos);
         repeating.scheduleNext();
         return repeating;
     }
