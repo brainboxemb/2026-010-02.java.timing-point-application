@@ -55,17 +55,8 @@ public final class TimingNode {
         lifecycle.register(logBook, LogBook::activate, LogBook::deactivate);
         lifecycle.register(tagProcessor, TagProcessor::activate, TagProcessor::deactivate);
 
-        /*
-         * LogBook emits committed/startup TimingData synchronously on the Data
-         * Lane. NodeService owns the internal handlers and only queues the
-         * corresponding Task Lane work.
-         */
-        nodeService.bind(
-                NodeService.INITIAL_TIMING_DATA,
-                logBook.initialDataLoadedEvent());
-        nodeService.bind(
-                NodeService.COMMITTED_TIMING_DATA,
-                logBook.newDataEntryEvent());
+        nodeService.bind(NodeService.INITIAL_TIMING_DATA, logBook.initialDataLoadedEvent());
+        nodeService.bind(NodeService.COMMITTED_TIMING_DATA, logBook.newDataEntryEvent());
 
         /*
          * TagProcessor emits synchronously on its own lane. The named handler
