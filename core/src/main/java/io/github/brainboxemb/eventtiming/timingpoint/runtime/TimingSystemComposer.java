@@ -2,7 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystem;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingTimingSystemConductor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystemConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
@@ -75,7 +75,7 @@ final class TimingSystemComposer {
                         ANTENNA_CONTROL_TIMEOUT,
                         antennaSettings);
 
-        TimingSystemConductor conductor = new TimingSystemConductor(
+        TimingSystemConductor timingSystemConductor = new TimingSystemConductor(
                 nodes,
                 antennaSettings,
                 executors.createTimingSystemConductorLane());
@@ -87,7 +87,7 @@ final class TimingSystemComposer {
                 system.configuration().timingSystemId(),
                 nodes,
                 antennaManager,
-                conductor,
+                timingSystemConductor,
                 observationRoutes);
     }
 
