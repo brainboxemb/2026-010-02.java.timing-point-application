@@ -3,7 +3,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
@@ -24,7 +23,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  *
  * <p>LogBook is the single execution boundary for ordered commands,
  * ORDERED queries, persisted-data startup loading, durable TimingData commit and publication of immutable
- * CURRENT status/history views. It owns no physical thread: the supplied
+ * recovery/history views. It owns no physical thread: the supplied
  * {@link SerialLane} may share a Runtime-owned worker with other logical
  * lanes.</p>
  */
@@ -35,10 +34,12 @@ public final class LogBook implements LogBookAccessor {
     private final LogBookState logBookState;
     private final LogBookOperations logBookOperations;
     private final LogBookDataLane dataLane;
-    private final LogBookStatus logBookStatus;
+    private final LogBookRecoveryView recoveryView;
     private final LogBookMetrics metrics;
 
     private final EventWithMetrics<TimingData> newDataEntryEvent;
+    private final Event<TimingData> nodeLifecycleStateEvent = new Event<TimingData>();
+    private final Event<TimingData> nodeLifecycleCommittedEvent = new Event<TimingData>();
     private final Event<List<TimingData>> initialDataLoadedEvent = new Event<List<TimingData>>();
 
     /**
@@ -76,7 +77,7 @@ public final class LogBook implements LogBookAccessor {
                 monotonicClock,
                 metrics);
         this.dataLane = new LogBookDataLane(serialLane, operationTimeoutMillis);
-        this.logBookStatus = new LogBookStatus(timingNodeId, dataLane);
+        this.recoveryView = new LogBookRecoveryView(timingNodeId, dataLane);
         this.metrics = metrics;
         this.newDataEntryEvent =
                 new EventWithMetrics<TimingData>(
@@ -99,8 +100,8 @@ public final class LogBook implements LogBookAccessor {
     /**
      * Starts the Data Lane and queues persisted TimingData loading as its first task.
      *
-     * <p>The call does not wait for file I/O. CURRENT status remains unavailable
-     * until that first ordered task has rebuilt the LogBook and published status.</p>
+     * <p>The call does not wait for file I/O. CURRENT recovery status remains
+     * unavailable until that first ordered task has completed startup recovery.</p>
      */
     public void activate() {
 
@@ -108,7 +109,7 @@ public final class LogBook implements LogBookAccessor {
     }
 
     /**
-     * Stops new Data Lane work and makes CURRENT status unavailable.
+     * Stops new Data Lane work and makes the CURRENT recovery result unavailable.
      *
      * <p>Lane shutdown/drain semantics are owned by {@link SerialLane}; LogBook
      * does not implement a second shutdown queue.</p>
@@ -116,7 +117,7 @@ public final class LogBook implements LogBookAccessor {
     public void deactivate() {
 
         dataLane.deactivate();
-        logBookStatus.clear();
+        recoveryView.clear();
     }
 
     /**
@@ -179,16 +180,36 @@ public final class LogBook implements LogBookAccessor {
         }
     }
 
-    /** Publishes status changes synchronously on the Data Lane after commit. */
-    public EventSource<Status> statusChangedEvent() {
+    /** Publishes the completed startup recovery result on the Data Lane. */
+    public EventSource<LogBookRecoveryStatus> recoveryStatusChangedEvent() {
 
-        return logBookStatus.statusChangedEvent();
+        return recoveryView.recoveryStatusChangedEvent();
     }
 
     /** Publishes each newly committed TimingData record on the Data Lane. */
     public EventSource<TimingData> newDataEntryEvent() {
 
         return newDataEntryEvent;
+    }
+
+    /**
+     * Publishes NODE_OPEN/NODE_CLOSE immediately after commit, before general
+     * committed-data publication, so TimingNode can update its CURRENT state.
+     */
+    public EventSource<TimingData> nodeLifecycleStateEvent() {
+
+        return nodeLifecycleStateEvent;
+    }
+
+    /**
+     * Publishes NODE_OPEN/NODE_CLOSE after the general committed-data event.
+     *
+     * <p>This source is used internally by TimingNode so externally visible
+     * committed TimingData remains ordered before the resulting node-status change.</p>
+     */
+    public EventSource<TimingData> nodeLifecycleCommittedEvent() {
+
+        return nodeLifecycleCommittedEvent;
     }
 
     /**
@@ -208,13 +229,13 @@ public final class LogBook implements LogBookAccessor {
         return logBookState.timingDataHead();
     }
 
-    /** Returns the latest safely published CURRENT status. */
-    Status publishedStatus() {
+    /** Returns the latest safely published CURRENT recovery result. */
+    LogBookRecoveryStatus publishedRecoveryStatus() {
 
-        return logBookStatus.current();
+        return recoveryView.current();
     }
 
-    /** Loads persisted history, then publishes initial status on either outcome. */
+    /** Loads persisted history, then publishes the recovery result on either outcome. */
     private void loadPersistedData() {
 
         LOG.info("TimingNode {} persisted TimingData load started", timingNodeId().value());
@@ -237,13 +258,12 @@ public final class LogBook implements LogBookAccessor {
 
             logBookOperations.markTimingDataLoadFailed(ex);
             LOG.error(
-                    "Persisted TimingData load failed for {}; TimingNode remains available in ERROR state",
+                    "Persisted TimingData load failed for {}",
                     timingNodeId().value(),
                     ex);
         }
 
-        // Both loaded and ERROR states become visible once the startup attempt has finished.
-        logBookStatus.publishInitial(logBookState.status());
+        recoveryView.publishInitial(logBookState.recoveryStatus());
     }
 
     /** Executes one previously queued fire-and-forget command and contains its later failure. */
@@ -254,28 +274,32 @@ public final class LogBook implements LogBookAccessor {
         } catch (Exception ex) {
 
             LOG.warn(
-                    "Queued TimingNode command {} failed during Data Lane execution",
+                    "Queued LogBook command {} failed during Data Lane execution",
                     command.name(),
                     ex);
         }
     }
 
-    /** Applies one command to mutable LogBook state and publishes its completed effects. */
+    /** Applies one command and publishes newly committed TimingData. */
     private <R> R applyCommand(LogBookCommand<R> command) throws Exception {
 
-        Status before = logBookState.status();
         long headBefore = logBookState.timingDataHead();
-
         R result = command.apply(logBookOperations);
 
-        Status after = logBookState.status();
-        logBookStatus.publishCurrent(after);
-
         if (logBookState.timingDataHead() > headBefore) {
-            newDataEntryEvent.emit(logBookState.latestCommittedTimingData());
-        }
+            TimingData committed = logBookState.latestCommittedTimingData();
+            boolean nodeLifecycle = committed instanceof TimingData.NodeOpen
+                    || committed instanceof TimingData.NodeClose;
+            if (nodeLifecycle) {
+                nodeLifecycleStateEvent.emit(committed);
+            }
 
-        logBookStatus.publishChanged(before, after);
+            newDataEntryEvent.emit(committed);
+
+            if (nodeLifecycle) {
+                nodeLifecycleCommittedEvent.emit(committed);
+            }
+        }
         return result;
     }
 

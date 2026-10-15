@@ -140,21 +140,18 @@ public class WebSocketOutboundDeliveryTest {
                                         "seq-" + data.sequenceNumber());
                             });
 
-            node.logBook().process(
-                    LogBookCommands.open(
-                            new LocationId(24)));
+            node.open(new LocationId(24));
 
             for (int index = 1; index <= 10; index++) {
-                node.logBook().process(
-                        LogBookCommands.addAutomaticRegistration(
-                                new RegistrationId(
-                                        String.format(
-                                                "N%04d",
-                                                index)),
-                                TimingTimestamp.parse(
-                                        String.format(
-                                                "2026-10-07T10:00:%02dZ",
-                                                index))));
+                node.addAutomaticRegistration(
+                        new RegistrationId(
+                                String.format(
+                                        "N%04d",
+                                        index)),
+                        TimingTimestamp.parse(
+                                String.format(
+                                        "2026-10-07T10:00:%02dZ",
+                                        index)));
             }
 
             assertEquals(

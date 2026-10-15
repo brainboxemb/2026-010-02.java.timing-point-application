@@ -1,11 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Problem;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -17,17 +14,15 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Passive mutable state behind one LogBook component.
  *
- * <p>This object owns only current node facts and committed in-memory TimingData
- * history. It has no TimingDataFactory, time source, persistence, metrics,
- * queueing, timeout, logging or event-delivery responsibility. State-changing
- * domain operations belong to {@link LogBookOperations}.</p>
+ * <p>This object owns committed in-memory TimingData history and LogBook
+ * recovery facts. It has no TimingNode OPEN/CLOSED state, TimingDataFactory,
+ * time source, persistence, metrics, queueing, timeout, logging or
+ * event-delivery responsibility.</p>
  */
 final class LogBookState {
     private final NodeId timingNodeId;
     private final LogBookData logBookData;
 
-    private State state = State.CLOSED;
-    private LocationId locationId;
     private boolean timingDataTailRepaired;
     private List<Problem> problems = Collections.emptyList();
 
@@ -51,54 +46,25 @@ final class LogBookState {
         return logBookData.headSequence();
     }
 
-    /** Returns the current lifecycle state. */
-    State state() {
-
-        return state;
-    }
-
-    /** Returns the current location, or null when no location is available. */
-    LocationId locationId() {
-
-        return locationId;
-    }
-
-    /** Marks a successful OPEN transition after its TimingData commit. */
-    void markOpen(LocationId newLocationId) {
-
-        checkArgument(newLocationId != null, "newLocationId must not be null");
-        locationId = newLocationId;
-        state = State.OPEN;
-    }
-
-    /** Marks a successful CLOSE transition after its TimingData commit. */
-    void markClosed() {
-
-        state = State.CLOSED;
-    }
-
     /** Records whether startup recovery repaired an incomplete persisted tail. */
     void timingDataTailRepaired(boolean repaired) {
 
         timingDataTailRepaired = repaired;
     }
 
-    /** Moves state to ERROR after startup recovery failed. */
+    /** Records a LogBook startup recovery problem. */
     void markTimingDataLoadFailed(Problem problem) {
 
         checkArgument(problem != null, "problem must not be null");
-        state = State.ERROR;
-        locationId = null;
         timingDataTailRepaired = false;
         problems = Collections.singletonList(problem);
     }
 
-    /** Rejects normal LogBook access after startup recovery entered ERROR state. */
+    /** Rejects normal LogBook access after startup recovery failed. */
     void ensureOperational() {
 
-        if (state == State.ERROR) {
-            String detail = problems.isEmpty() ? "TimingNode is in ERROR" : problems.get(0).message();
-            throw new IllegalStateException(detail);
+        if (!problems.isEmpty()) {
+            throw new IllegalStateException(problems.get(0).message());
         }
     }
 
@@ -146,10 +112,10 @@ final class LogBookState {
         return logBookData.size();
     }
 
-    /** Builds the current immutable node status from passive state. */
-    Status status() {
+    /** Builds the immutable result of the completed LogBook recovery attempt. */
+    LogBookRecoveryStatus recoveryStatus() {
 
-        return new Status(timingNodeId, state, locationId, timingDataTailRepaired, problems);
+        return new LogBookRecoveryStatus(timingDataTailRepaired, problems);
     }
 
     /** Returns the newest committed TimingData record. */

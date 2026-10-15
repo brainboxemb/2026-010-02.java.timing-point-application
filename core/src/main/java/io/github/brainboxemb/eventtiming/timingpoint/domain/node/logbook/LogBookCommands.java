@@ -5,57 +5,54 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 /**
- * Standard state-changing commands committed through the LogBook component.
+ * Standard TimingData commit commands executed through the LogBook component.
  *
  * <p>Factory methods validate caller input and capture the values needed by the
  * immutable command. LogBook later applies that command on the Data Lane.</p>
  */
 public final class LogBookCommands {
-    private static final LogBookCommand<CloseResult> CLOSE =
-            simple("close", LogBookOperations::close);
-
     /** Prevents construction of this stateless command factory. */
     private LogBookCommands() {
     }
 
-    /**
-     * Opens the node for the supplied timing location.
-     *
-     * <p>The command is idempotent; executing it while already open returns
-     * {@code ALREADY_OPEN} rather than creating a second open transition.</p>
-     */
-    public static LogBookCommand<OpenResult> open(LocationId locationId) {
+    /** Commits one NODE_OPEN record selected by the owning TimingNode. */
+    public static LogBookCommand<Void> commitNodeOpen(LocationId locationId) {
 
         checkArgument(locationId != null, "locationId must not be null");
         return simple(
-                "open",
-                operations -> operations.open(locationId));
+                "commitNodeOpen",
+                operations -> {
+                    operations.commitNodeOpen(locationId);
+                    return null;
+                });
     }
 
-    /**
-     * Closes the currently open timing location.
-     *
-     * <p>The command is idempotent when the node is already closed.</p>
-     */
-    public static LogBookCommand<CloseResult> close() {
+    /** Commits one NODE_CLOSE record selected by the owning TimingNode. */
+    public static LogBookCommand<Void> commitNodeClose(LocationId locationId) {
 
-        return CLOSE;
+        checkArgument(locationId != null, "locationId must not be null");
+        return simple(
+                "commitNodeClose",
+                operations -> {
+                    operations.commitNodeClose(locationId);
+                    return null;
+                });
     }
 
     /** Commits one antenna-originated automatic registration. */
     public static LogBookCommand<RegistrationResult>
             addAutomaticRegistration(
+                    LocationId locationId,
                     RegistrationId registrationId,
                     TimingTimestamp effectiveTime) {
 
         return commitAutomaticRegistration(
+                locationId,
                 registrationId,
                 effectiveTime,
                 TimingData.TagSource.ANT,
@@ -65,11 +62,13 @@ public final class LogBookCommands {
     /** Commits one automatic registration with explicit source provenance. */
     public static LogBookCommand<RegistrationResult>
             commitAutomaticRegistration(
+                    LocationId locationId,
                     RegistrationId registrationId,
                     TimingTimestamp effectiveTime,
                     TimingData.TagSource tagSource,
                     TimingData.AutomaticTimeSource timeSource) {
 
+        checkArgument(locationId != null, "locationId must not be null");
         checkArgument(registrationId != null, "registrationId must not be null");
         checkArgument(effectiveTime != null, "effectiveTime must not be null");
         checkArgument(tagSource != null, "tagSource must not be null");
@@ -78,6 +77,7 @@ public final class LogBookCommands {
         return simple(
                 "commitAutomaticRegistration",
                 operations -> operations.commitAutomaticRegistration(
+                        locationId,
                         registrationId,
                         effectiveTime,
                         tagSource,
@@ -87,15 +87,18 @@ public final class LogBookCommands {
     /** Commits one automatic registration using current node time. */
     public static LogBookCommand<RegistrationResult>
             commitAutomaticRegistrationNow(
+                    LocationId locationId,
                     RegistrationId registrationId,
                     TimingData.TagSource tagSource) {
 
+        checkArgument(locationId != null, "locationId must not be null");
         checkArgument(registrationId != null, "registrationId must not be null");
         checkArgument(tagSource != null, "tagSource must not be null");
 
         return simple(
                 "commitAutomaticRegistrationNow",
                 operations -> operations.commitAutomaticRegistrationNow(
+                        locationId,
                         registrationId,
                         tagSource));
     }
@@ -105,10 +108,12 @@ public final class LogBookCommands {
      */
     public static LogBookCommand<RegistrationResult>
             commitManualRegistration(
+                    LocationId locationId,
                     RegistrationId registrationId,
                     TimingTimestamp effectiveTime,
                     ManualTimeSource registrationTimeSource) {
 
+        checkArgument(locationId != null, "locationId must not be null");
         checkArgument(registrationId != null, "registrationId must not be null");
         checkArgument(effectiveTime != null, "effectiveTime must not be null");
         checkArgument(
@@ -118,6 +123,7 @@ public final class LogBookCommands {
         return simple(
                 "commitManualRegistration",
                 operations -> operations.commitManualRegistration(
+                        locationId,
                         registrationId,
                         effectiveTime,
                         registrationTimeSource));

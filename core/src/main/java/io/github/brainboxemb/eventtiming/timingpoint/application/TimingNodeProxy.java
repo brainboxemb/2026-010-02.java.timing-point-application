@@ -90,10 +90,9 @@ public final class TimingNodeProxy {
         }
         switch (action) {
             case ADD:
-                return logBook.process(
-                        LogBookCommands.addAutomaticRegistration(
-                                registrationId,
-                                time));
+                return timingNode.addAutomaticRegistration(
+                        registrationId,
+                        time);
             default:
                 throw new IllegalArgumentException(
                         "Unsupported automatic registration action " + action);
@@ -103,21 +102,19 @@ public final class TimingNodeProxy {
     /** Engineering-only accepted registration with an explicit API timestamp. */
     public RegistrationResult simulateAutomaticRegistration(
             RegistrationId registrationId, TimingTimestamp time) {
-        return logBook.process(
-                LogBookCommands.commitAutomaticRegistration(
-                        registrationId,
-                        time,
-                        TimingData.TagSource.API,
-                        TimingData.AutomaticTimeSource.API));
+        return timingNode.commitAutomaticRegistration(
+                registrationId,
+                time,
+                TimingData.TagSource.API,
+                TimingData.AutomaticTimeSource.API);
     }
 
     /** Engineering-only accepted registration using this node's own TimeSource. */
     public RegistrationResult simulateAutomaticRegistrationNow(
             RegistrationId registrationId) {
-        return logBook.process(
-                LogBookCommands.commitAutomaticRegistrationNow(
-                        registrationId,
-                        TimingData.TagSource.API));
+        return timingNode.commitAutomaticRegistrationNow(
+                registrationId,
+                TimingData.TagSource.API);
     }
 
     /**
@@ -140,11 +137,10 @@ public final class TimingNodeProxy {
             throw new IllegalArgumentException(
                     "timeSource must not be null");
         }
-        return logBook.process(
-                LogBookCommands.commitManualRegistration(
-                        registrationId,
-                        effectiveTime,
-                        timeSource));
+        return timingNode.addManualRegistration(
+                registrationId,
+                effectiveTime,
+                timeSource);
     }
 
     /**
