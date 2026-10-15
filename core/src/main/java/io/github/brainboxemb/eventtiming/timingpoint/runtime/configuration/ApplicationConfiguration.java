@@ -80,8 +80,8 @@ public final class ApplicationConfiguration {
 
     private static boolean runtimeCompatible(
             TagProcessingPolicy startup,
-            TagProcessingPolicy candidate) {
+            TagProcessingPolicy proposedPolicy) {
         return startup.observationQueueCapacity()
-                == candidate.observationQueueCapacity();
+                == proposedPolicy.observationQueueCapacity();
     }
 }
