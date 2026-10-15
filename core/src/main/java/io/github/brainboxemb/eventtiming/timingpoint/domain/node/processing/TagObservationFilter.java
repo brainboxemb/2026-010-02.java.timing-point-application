@@ -35,6 +35,7 @@ final class TagObservationFilter {
 
     private final Map<RegistrationId, BurstState> bursts = new HashMap<>();
 
+    /** Creates a passage filter with a fixed processing policy. */
     TagObservationFilter(
             TagProcessingPolicy policy,
             MonotonicClock monotonicClock,
@@ -48,6 +49,7 @@ final class TagObservationFilter {
                 validObservationCallback);
     }
 
+    /** Creates a passage filter that follows the live TagProcessor policy configuration. */
     TagObservationFilter(
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
             MonotonicClock monotonicClock,
@@ -68,6 +70,7 @@ final class TagObservationFilter {
         this.validObservationCallback = validObservationCallback;
     }
 
+    /** Adds one mapped observation to the RegistrationId's current passage burst. */
     void add(
             RegistrationId registrationId,
             TagObservation observation) {
@@ -97,6 +100,7 @@ final class TagObservationFilter {
         sendValidObservation(closedBurst);
     }
 
+    /** Closes expired passage bursts and publishes their selected observations. */
     void periodic() {
         List<ClosedBurst> closedBursts = new ArrayList<>();
         long now = monotonicClock.nowNanos();
@@ -132,10 +136,12 @@ final class TagObservationFilter {
         return bursts.remove(registrationId) != null;
     }
 
+    /** Reports whether one or more passage bursts are still being aggregated. */
     boolean hasPendingState() {
         return !bursts.isEmpty();
     }
 
+    /** Returns diagnostic snapshots of the currently open passage bursts. */
     List<TagPassageSnapshot> snapshots() {
         List<TagPassageSnapshot> result =
                 new ArrayList<TagPassageSnapshot>(
@@ -151,6 +157,7 @@ final class TagObservationFilter {
     }
 
 
+    /** Publishes one closed burst's selected observation when a burst was actually closed. */
     private void sendValidObservation(ClosedBurst closedBurst) {
         if (closedBurst == null) {
             return;
@@ -180,6 +187,7 @@ final class TagObservationFilter {
         private final int rssi;
         private final TimingTimestamp observedAt;
 
+        /** Captures the immutable selected observation of one closed registration burst. */
         private ClosedBurst(
                 RegistrationId registrationId,
                 TagId tagId,
@@ -202,6 +210,7 @@ final class TagObservationFilter {
         private TagId maxRssiTagId;
         private TimingTimestamp maxRssiObservedAt;
 
+        /** Starts a mutable passage burst from its first observation. */
         private BurstState(TagObservation observation, long now) {
             firstSeenNanos = now;
             lastSeenNanos = now;
@@ -212,6 +221,7 @@ final class TagObservationFilter {
                     observation);
         }
 
+        /** Adds one observation and updates the burst's maximum-RSSI selection. */
         private void add(TagObservation observation, long now) {
             lastSeenNanos = now;
             recordTag(
@@ -223,6 +233,7 @@ final class TagObservationFilter {
             }
         }
 
+        /** Updates per-TagId diagnostic statistics for one observation. */
         private void recordTag(
                 TagObservation observation) {
             MutableTagStats stats =
@@ -239,11 +250,13 @@ final class TagObservationFilter {
             }
         }
 
+        /** Reports whether quiet-time or maximum-duration closure is due. */
         private boolean expired(long now, TagProcessingPolicy policy) {
             return now - lastSeenNanos >= policy.quietTimeoutNanos()
                     || now - firstSeenNanos >= policy.maxBurstDurationNanos();
         }
 
+        /** Freezes the burst's selected maximum-RSSI observation. */
         private ClosedBurst close(
                 RegistrationId registrationId) {
             return new ClosedBurst(
@@ -253,6 +266,7 @@ final class TagObservationFilter {
                     maxRssiObservedAt);
         }
 
+        /** Builds the engineering snapshot for this still-open burst. */
         private TagPassageSnapshot snapshot(
                 RegistrationId registrationId) {
             List<TagPassageSnapshot.TagStats> tags =
@@ -280,6 +294,7 @@ final class TagObservationFilter {
         private final TimingTimestamp firstObservedAt;
         private TimingTimestamp lastObservedAt;
 
+        /** Starts per-tag diagnostics from the first observation. */
         private MutableTagStats(
                 TagObservation observation) {
             tagId = observation.tagId();
@@ -289,6 +304,7 @@ final class TagObservationFilter {
             lastObservedAt = observation.observedAt();
         }
 
+        /** Updates per-tag diagnostics with one additional observation. */
         private void add(
                 TagObservation observation) {
             observationCount++;
@@ -298,6 +314,7 @@ final class TagObservationFilter {
             }
         }
 
+        /** Returns the immutable diagnostic statistics for this TagId. */
         private TagPassageSnapshot.TagStats snapshot() {
             return new TagPassageSnapshot.TagStats(
                     tagId,
