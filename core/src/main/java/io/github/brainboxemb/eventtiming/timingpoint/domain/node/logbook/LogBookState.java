@@ -523,10 +523,7 @@ final class LogBookState {
                     data.effectiveTime(),
                     registration.tagSource(),
                     registration.registrationTimeSource());
-            return;
-        }
-
-        if (data instanceof TimingData.ManualRegistration) {
+        } else if (data instanceof TimingData.ManualRegistration) {
             TimingData.ManualRegistration registration =
                     (TimingData.ManualRegistration) data;
             LOG.info(
@@ -540,16 +537,15 @@ final class LogBookState {
                     location,
                     data.effectiveTime(),
                     registration.timeSource());
-            return;
+        } else {
+            LOG.info(
+                    "TimingData committed: node={}, sequence={}, type={}, location={}, effectiveTime={}",
+                    timingNodeId.value(),
+                    data.sequenceNumber(),
+                    type,
+                    location,
+                    data.effectiveTime());
         }
-
-        LOG.info(
-                "TimingData committed: node={}, sequence={}, type={}, location={}, effectiveTime={}",
-                timingNodeId.value(),
-                data.sequenceNumber(),
-                type,
-                location,
-                data.effectiveTime());
     }
 
     /** Returns the compact diagnostic record-family label used in commit logging. */
