@@ -35,6 +35,7 @@ public final class LogBookCommands {
      * {@code ALREADY_OPEN} rather than creating a second open transition.</p>
      */
     public static LogBookCommand<OpenResult> open(LocationId locationId) {
+
         checkArgument(locationId != null, "locationId must not be null");
         return simple(
                 "open",
@@ -47,6 +48,7 @@ public final class LogBookCommands {
      * <p>The command is idempotent when the node is already closed.</p>
      */
     public static LogBookCommand<CloseResult> close() {
+
         return CLOSE;
     }
 
@@ -57,6 +59,7 @@ public final class LogBookCommands {
             addAutomaticRegistration(
                     RegistrationId registrationId,
                     TimingTimestamp time) {
+
         checkArgument(registrationId != null, "registrationId must not be null");
         checkArgument(time != null, "time must not be null");
 
@@ -72,6 +75,7 @@ public final class LogBookCommands {
             simulateAutomaticRegistration(
                     RegistrationId registrationId,
                     TimingTimestamp time) {
+
         checkArgument(registrationId != null, "registrationId must not be null");
         checkArgument(time != null, "time must not be null");
         return simple(
@@ -82,6 +86,7 @@ public final class LogBookCommands {
     /** Direct IF-03 simulation; capture TimeSource on the node's serial lane. */
     public static LogBookCommand<RegistrationResult>
             simulateAutomaticRegistrationNow(RegistrationId registrationId) {
+
         checkArgument(registrationId != null, "registrationId must not be null");
         return simple(
                 "simulateAutomaticRegistrationNow",
@@ -96,6 +101,7 @@ public final class LogBookCommands {
                     RegistrationId registrationId,
                     TimingTimestamp effectiveTime,
                     ManualTimeSource registrationTimeSource) {
+
         checkArgument(registrationId != null, "registrationId must not be null");
         checkArgument(effectiveTime != null, "effectiveTime must not be null");
         checkArgument(
@@ -118,6 +124,7 @@ public final class LogBookCommands {
                     LocationId originalLocationId,
                     RegistrationId registrationId,
                     TimingTimestamp originalTime) {
+
         requireRevokeInput(
                 originalLocationId,
                 registrationId,
@@ -139,6 +146,7 @@ public final class LogBookCommands {
                     RegistrationId registrationId,
                     TimingTimestamp originalTime,
                     ManualTimeSource originalTimeSource) {
+
         requireRevokeInput(
                 originalLocationId,
                 registrationId,
@@ -160,6 +168,7 @@ public final class LogBookCommands {
             LocationId originalLocationId,
             RegistrationId registrationId,
             TimingTimestamp originalTime) {
+
         checkArgument(
                 originalLocationId != null,
                 "originalLocationId must not be null");
@@ -175,6 +184,7 @@ public final class LogBookCommands {
     private static <R> LogBookCommand<R> simple(
             String name,
             LogBookCommand.Action<R> action) {
+
         return new LogBookCommand<>(
                 name,
                 action);
