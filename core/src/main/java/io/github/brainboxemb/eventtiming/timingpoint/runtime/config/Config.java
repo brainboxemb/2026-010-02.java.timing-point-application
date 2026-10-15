@@ -346,14 +346,6 @@ public final class Config {
                 nodeId);
     }
 
-    /**
-     * Single-node compatibility accessor.
-     */
-    public NodeId timingNodeId() {
-        return requireSingleTimingNode()
-                .timingNodeId();
-    }
-
     public Presentation presentation() {
         return presentation;
     }
@@ -364,30 +356,6 @@ public final class Config {
 
     public LoggingServerConfig loggingServer() {
         return loggingServer;
-    }
-
-    /** Single-node compatibility accessor. */
-    public Path timingDataPath() {
-        return requireSingleTimingNode()
-                .timingDataPath();
-    }
-
-    /** Single-node compatibility accessor. */
-    public TagProcessingPolicy tagProcessingPolicy() {
-        return requireSingleTimingNode()
-                .tagProcessingPolicy();
-    }
-
-    /** Single-system compatibility accessor. */
-    public String eventDataProviderId() {
-        return requireSingleTimingSystem()
-                .eventDataProviderId();
-    }
-
-    /** Single-system compatibility accessor. */
-    public String timingDataProviderId() {
-        return requireSingleTimingSystem()
-                .timingDataProviderId();
     }
 
     private static List<TimingNodeConfig> oneTimingNodeConfig(
@@ -419,28 +387,6 @@ public final class Config {
                         eventDataProviderId,
                         timingDataProviderId));
         return result;
-    }
-
-    private TimingNodeConfig requireSingleTimingNode() {
-        List<TimingNodeConfig> nodes =
-                timingSystems.timingNodes();
-        if (nodes.size() != 1) {
-            throw new IllegalStateException(
-                    "Operation requires exactly one TimingNode; configured="
-                            + nodes.size());
-        }
-        return nodes.get(0);
-    }
-
-    private TimingSystemConfig requireSingleTimingSystem() {
-        List<TimingSystemConfig> systems =
-                timingSystems.systems();
-        if (systems.size() != 1) {
-            throw new IllegalStateException(
-                    "Operation requires exactly one TimingSystem; configured="
-                            + systems.size());
-        }
-        return systems.get(0);
     }
 
     private static String requireProviderId(

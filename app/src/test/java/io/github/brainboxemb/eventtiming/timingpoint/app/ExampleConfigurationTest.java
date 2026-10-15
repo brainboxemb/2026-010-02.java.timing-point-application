@@ -42,7 +42,7 @@ public class ExampleConfigurationTest {
         Config config = YamlLoader.load(output);
         assertEquals(
                 "A",
-                config.timingNodeId().value());
+                config.timingNodes().get(0).timingNodeId().value());
         assertEquals(
                 "A",
                 config.timingSystems()
@@ -52,14 +52,14 @@ public class ExampleConfigurationTest {
                 Paths.get(
                         "data",
                         "node-A-logbook.jsonl"),
-                config.timingDataPath());
+                config.timingNodes().get(0).timingDataPath());
         assertNotNull(config.presentation().remoteShell());
         assertNotNull(config.presentation().api());
         assertNotNull(config.logging());
         assertNotNull(config.loggingServer());
         assertEquals(
                 TagProcessingPolicy.defaults(),
-                config.tagProcessingPolicy());
+                config.timingNodes().get(0).tagProcessingPolicy());
     }
 
     @Test(expected = FileAlreadyExistsException.class)

@@ -27,23 +27,23 @@ public class YamlLoaderTest {
                 timingNode("A")
                         + timingDataStorage());
 
-        assertEquals("A", config.timingNodeId().value());
+        assertEquals("A", config.timingNodes().get(0).timingNodeId().value());
         assertNull(config.presentation().remoteShell());
         assertNull(config.presentation().api());
         assertNull(config.logging());
         assertNull(config.loggingServer());
         assertEquals(
                 Paths.get("data", "node_A_logbook.jsonl"),
-                config.timingDataPath());
+                config.timingNodes().get(0).timingDataPath());
         assertEquals(
                 TagProcessingPolicy.defaults(),
-                config.tagProcessingPolicy());
+                config.timingNodes().get(0).tagProcessingPolicy());
         assertEquals(
                 "reference",
-                config.eventDataProviderId());
+                config.timingSystems().get(0).eventDataProviderId());
         assertEquals(
                 "reference",
-                config.timingDataProviderId());
+                config.timingSystems().get(0).timingDataProviderId());
     }
 
     @Test
@@ -69,12 +69,12 @@ public class YamlLoaderTest {
                         .timingSystemId());
         assertEquals(
                 "A",
-                config.timingNodeId().value());
+                config.timingNodes().get(0).timingNodeId().value());
         assertEquals(
                 Paths.get(
                         "data",
                         "node-A-logbook.jsonl"),
-                config.timingDataPath());
+                config.timingNodes().get(0).timingDataPath());
     }
 
     @Test
@@ -196,10 +196,10 @@ public class YamlLoaderTest {
 
         assertEquals(
                 "custom-event",
-                config.eventDataProviderId());
+                config.timingSystems().get(0).eventDataProviderId());
         assertEquals(
                 "custom-timing",
-                config.timingDataProviderId());
+                config.timingSystems().get(0).timingDataProviderId());
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -240,7 +240,7 @@ public class YamlLoaderTest {
         TagProcessingPolicy defaults =
                 TagProcessingPolicy.defaults();
         TagProcessingPolicy policy =
-                config.tagProcessingPolicy();
+                config.timingNodes().get(0).tagProcessingPolicy();
 
         assertEquals(
                 TimeUnit.MILLISECONDS.toNanos(300L),
@@ -273,7 +273,7 @@ public class YamlLoaderTest {
                         + timingDataStorage());
 
         TagProcessingPolicy policy =
-                config.tagProcessingPolicy();
+                config.timingNodes().get(0).tagProcessingPolicy();
         assertEquals(
                 TimeUnit.MILLISECONDS.toNanos(200L),
                 policy.quietTimeoutNanos());
