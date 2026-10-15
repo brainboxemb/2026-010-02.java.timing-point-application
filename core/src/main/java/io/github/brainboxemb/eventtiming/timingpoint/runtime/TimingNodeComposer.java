@@ -10,8 +10,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServiceState;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
@@ -81,15 +79,6 @@ final class TimingNodeComposer {
                         lanes.taskLane(),
                         nodeServiceState);
 
-        UpstreamHandler upstreamHandler =
-                new UpstreamHandler(
-                        nodeConfig.timingNodeId(),
-                        lanes.dataLane(),
-                        lanes.taskLane(),
-                        UpstreamStream.unavailable(),
-                        logBook,
-                        nodeServiceState);
-
         TagProcessor tags =
                 new TagProcessor(
                         system.eventData(),
@@ -110,7 +99,6 @@ final class TimingNodeComposer {
                         tags);
         return new TimingNodeComponents(
                 node,
-                tags,
-                upstreamHandler);
+                tags);
     }
 }
