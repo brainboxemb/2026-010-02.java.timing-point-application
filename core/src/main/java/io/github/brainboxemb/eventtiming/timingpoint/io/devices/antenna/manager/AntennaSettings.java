@@ -24,17 +24,19 @@ public final class AntennaSettings {
     private boolean updating;
 
     /**
-     * Mutable candidate values scoped to a single update callback.
+     * Mutable proposed values scoped to a single update callback.
      *
      * <p>Do not retain or use this editor after the callback returns.</p>
      */
     public static final class Edit {
         private boolean inventoryEnabled;
 
+        /** Creates one transaction-scoped edit initialized from current requested state. */
         private Edit(boolean inventoryEnabled) {
             this.inventoryEnabled = inventoryEnabled;
         }
 
+        /** Sets the proposed desired inventory state for this update transaction. */
         public void inventoryEnabled(boolean enabled) {
             inventoryEnabled = enabled;
         }
