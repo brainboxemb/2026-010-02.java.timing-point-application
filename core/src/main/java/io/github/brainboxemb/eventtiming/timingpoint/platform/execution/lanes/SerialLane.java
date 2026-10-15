@@ -10,23 +10,24 @@ import java.util.concurrent.RejectedExecutionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * One bounded FIFO execution lane that never runs two of its tasks concurrently.
  *
  * <p>A {@code SerialLane} is a logical lane, not necessarily a Java thread.
- * Production runtime composition gives multiple lanes one shared role worker.
+ * Production runtime composition gives multiple lanes one shared backing executor.
  * Each lane still owns its own bounded queue, FIFO ordering and lifecycle.
- * Callers use the standard Java execute/submit/rejection model; the shared worker
+ * Callers use the standard Java execute/submit/rejection model; the backing executor
  * only runs short lane turns that execute one queued task at a time.</p>
  *
- * <p>The physical worker is supplied from outside this lane. The lane uses it
+ * <p>The backing executor is supplied from outside this lane. The lane uses it
  * only to execute queued lane turns; it never creates, configures or shuts down the
- * underlying worker. Runtime composition therefore owns physical worker
+ * underlying executor. Runtime composition therefore owns executor
  * lifecycle while this class owns only lane-local execution behaviour.</p>
  */
 public final class SerialLane implements Executor, AutoCloseable {
-    private static final Logger LOG =
-            LoggerFactory.getLogger(SerialLane.class);
+    private static final Logger LOG = LoggerFactory.getLogger(SerialLane.class);
 
     /**
      * Logical lane currently executing on this Java thread, if any.
@@ -34,8 +35,7 @@ public final class SerialLane implements Executor, AutoCloseable {
      * <p>Used only to detect blocking same-lane reentrancy. The previous value
      * is restored for nested execution of another logical lane.</p>
      */
-    private static final ThreadLocal<SerialLane> CURRENT_LANE =
-            new ThreadLocal<SerialLane>();
+    private static final ThreadLocal<SerialLane> CURRENT_LANE = new ThreadLocal<SerialLane>();
 
     /** Lifecycle of this logical lane, independent of any shared worker lifecycle. */
     public enum State {
@@ -107,7 +107,7 @@ public final class SerialLane implements Executor, AutoCloseable {
      * <p>This lane may submit execution turns but never owns this executor's
      * lifecycle.</p>
      */
-    private final Executor workerExecutor;
+    private final Executor backingExecutor;
 
     /** Bounded workload queue owned by this lane. */
     private final ArrayBlockingQueue<TrackedTask> queue;
@@ -128,23 +128,17 @@ public final class SerialLane implements Executor, AutoCloseable {
     private boolean taskRunning;
 
     /**
-     * Creates a bounded logical lane on an externally owned worker.
+     * Creates a bounded logical lane on an externally owned executor.
      *
      * <p>The supplied executor is a dependency only. Closing or faulting this
      * lane never shuts it down.</p>
      */
-    public SerialLane(
-            int capacity,
-            String laneName,
-            Executor workerExecutor) {
+    public SerialLane(int capacity, String laneName, Executor backingExecutor) {
         validateCapacity(capacity);
-        if (workerExecutor == null) {
-            throw new IllegalArgumentException(
-                    "workerExecutor must not be null");
-        }
+        checkArgument(backingExecutor != null, "backingExecutor must not be null");
 
         this.laneName = requireLaneName(laneName);
-        this.workerExecutor = workerExecutor;
+        this.backingExecutor = backingExecutor;
         this.queue = new ArrayBlockingQueue<TrackedTask>(capacity);
         this.metrics = new SerialLaneMetrics(queue::size);
     }
@@ -250,12 +244,12 @@ public final class SerialLane implements Executor, AutoCloseable {
     /**
      * Asks the externally owned Executor to run the next SerialLane turn.
      *
-     * <p>The caller already owns this lane's monitor. If the worker rejects the
+     * <p>The caller already owns this lane's monitor. If the backing executor rejects the
      * turn, this lane becomes FAILED and all queued work is cancelled.</p>
      */
     private void scheduleNextExecution() {
         try {
-            workerExecutor.execute(this::executeNextTask);
+            backingExecutor.execute(this::executeNextTask);
         } catch (RejectedExecutionException ex) {
             failure = ex;
             state = State.FAILED;
@@ -270,7 +264,7 @@ public final class SerialLane implements Executor, AutoCloseable {
      * Executes one queued lane item and schedules another turn when work remains.
      *
      * <p>Processing one item per worker turn is intentional: on a shared
-     * one-worker Executor, a sibling lane already waiting can run before this
+     * single-thread Executor, a sibling lane already waiting can run before this
      * lane schedules its next item.</p>
      */
     private void executeNextTask() {
@@ -337,7 +331,7 @@ public final class SerialLane implements Executor, AutoCloseable {
         return state;
     }
 
-    /** Returns the first fatal lane/worker failure, or {@code null} when healthy. */
+    /** Returns the first fatal lane/executor failure, or {@code null} when healthy. */
     public synchronized Throwable failure() {
         return failure;
     }
@@ -407,9 +401,7 @@ public final class SerialLane implements Executor, AutoCloseable {
     }
 
     /** Returns a non-negative elapsed duration for lane metrics. */
-    private static long elapsedNanos(
-            long startedNanos,
-            long finishedNanos) {
+    private static long elapsedNanos(long startedNanos, long finishedNanos) {
         long elapsed = finishedNanos - startedNanos;
         return elapsed < 0L ? 0L : elapsed;
     }
@@ -417,8 +409,7 @@ public final class SerialLane implements Executor, AutoCloseable {
     private final class TrackedRunnable
             implements TrackedTask {
         private final Runnable delegate;
-        private final TaskTiming timing =
-                new TaskTiming();
+        private final TaskTiming timing = new TaskTiming();
 
         /** Wraps fire-and-forget work with separate timing and failure tracking. */
         private TrackedRunnable(Runnable delegate) {
@@ -475,8 +466,7 @@ public final class SerialLane implements Executor, AutoCloseable {
         }
 
         /** Initializes FutureTask and retains fatal-error tracking for lane failure propagation. */
-        private TrackedFutureTask(
-                FatalTrackingCallable<R> trackedCallable) {
+        private TrackedFutureTask(FatalTrackingCallable<R> trackedCallable) {
             super(trackedCallable);
             this.trackedCallable = trackedCallable;
         }
