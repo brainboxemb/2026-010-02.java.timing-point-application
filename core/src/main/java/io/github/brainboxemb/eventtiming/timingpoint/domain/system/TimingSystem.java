@@ -22,10 +22,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * system-level event links between those components before activation and owns
  * their lifecycle relationship. Runtime supplies already constructed components
  * and resolved routing data.</p>
- *
- * <p>This component is also the natural owner for the system-level SystemStatus,
- * which combines semantic state from the contained TimingNodes with relevant
- * operational state from the I/O components used by this TimingSystem.</p>
+
  */
 public final class TimingSystem {
     private final String id;
