@@ -131,10 +131,9 @@ public final class UpstreamHandler {
             case RACE_DATA:
                 checkArgument(data instanceof UpstreamData.RaceData,
                         "RACE_DATA has incompatible semantic type");
-                executeTaskOrWarn(
-                        () -> upstreamDataSync.handleRaceData(
-                                (UpstreamData.RaceData) data),
-                        "RACE_DATA");
+                UpstreamData.RaceData raceData = (UpstreamData.RaceData) data;
+                Runnable applyRaceData = () -> upstreamDataSync.handleRaceData(raceData);
+                executeTaskOrWarn(applyRaceData, "RACE_DATA");
                 return;
 
             case SYNC:
@@ -142,9 +141,8 @@ public final class UpstreamHandler {
                         "SYNC has incompatible semantic type");
                 UpstreamData.Sync sync = (UpstreamData.Sync) data;
                 if (sync.stream() == UpstreamData.Stream.RACE_DATA) {
-                    executeTaskOrWarn(
-                            () -> upstreamDataSync.handleSync(sync),
-                            "RACE_DATA SYNC");
+                    Runnable applyRaceDataSync = () -> upstreamDataSync.handleSync(sync);
+                    executeTaskOrWarn(applyRaceDataSync, "RACE_DATA SYNC");
                 } else {
                     throw new UnsupportedOperationException(
                             "Inbound SYNC supports RACE_DATA only");
@@ -162,9 +160,8 @@ public final class UpstreamHandler {
                         "PING has incompatible semantic type");
                 UpstreamData.Ping ping =
                         (UpstreamData.Ping) data;
-                executeTaskOrWarn(
-                        () -> heartbeat.handle(ping),
-                        "PING");
+                Runnable handlePing = () -> heartbeat.handle(ping);
+                executeTaskOrWarn(handlePing, "PING");
                 return;
 
             default:
