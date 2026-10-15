@@ -1,10 +1,12 @@
 package io.github.brainboxemb.eventtiming.timingpoint.app;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Presentation;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 import org.junit.Test;
 import java.util.List;
 import static org.junit.Assert.assertEquals;
@@ -13,7 +15,27 @@ public class StartupParametersTest {
     @Test
     public void logsChosenConfigurationAndEffectiveProviderIdentifiers() {
         Path configPath = Paths.get("config", "development-simulation.yml");
-        Config config = new Config(new NodeId("A"), new Presentation(null, null));
+        Config.TimingNodeConfig timingNode =
+                new Config.TimingNodeConfig(
+                        new NodeId("A"),
+                        null,
+                        TagProcessingPolicy.defaults());
+        Config.TimingSystemConfig timingSystem =
+                new Config.TimingSystemConfig(
+                        "A",
+                        Collections.singletonList(
+                                timingNode),
+                        Config.REFERENCE_PROVIDER_ID,
+                        Config.REFERENCE_PROVIDER_ID);
+        Config config =
+                new Config(
+                        Collections.singletonList(
+                                timingSystem),
+                        new Presentation(
+                                null,
+                                null),
+                        null,
+                        null);
         List<String> lines =
                 ApplicationLauncher.startupConfigurationLines(
                         configPath,
