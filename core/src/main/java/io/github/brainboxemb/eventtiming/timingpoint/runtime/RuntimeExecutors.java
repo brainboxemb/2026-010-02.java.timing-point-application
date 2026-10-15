@@ -25,12 +25,12 @@ import java.util.concurrent.TimeUnit;
  * and progress never depend on priority.</p>
  */
 final class RuntimeExecutors implements AutoCloseable {
-    static final int TIMING_NODE_DATA_QUEUE_CAPACITY = 32;
-    static final int TIMING_NODE_TASK_QUEUE_CAPACITY = 32;
+    static final int TIMING_NODE_DATA_LANE_QUEUE_CAPACITY = 32;
+    static final int TIMING_NODE_TASK_LANE_QUEUE_CAPACITY = 32;
     static final int TAG_PROCESSOR_LANE_QUEUE_CAPACITY = 32;
-    static final int ANTENNA_CONTROL_QUEUE_CAPACITY = 8;
-    static final int SIMULATION_QUEUE_CAPACITY = 32;
-    static final int CONDUCTOR_QUEUE_CAPACITY = 8;
+    static final int ANTENNA_CONTROL_LANE_QUEUE_CAPACITY = 8;
+    static final int SIMULATION_LANE_QUEUE_CAPACITY = 32;
+    static final int SYSTEM_CONDUCTOR_LANE_QUEUE_CAPACITY = 8;
 
     /*
      * Step-5 baseline: one physical blocking-I/O thread.
@@ -87,13 +87,13 @@ final class RuntimeExecutors implements AutoCloseable {
     private final ScheduledThreadPoolExecutor tagProcessorScheduledExecutor;
 
     /**
-     * Shared executor for TimingSystem coordination lanes.
+     * Shared executor for TimingSystem Conductor lanes.
      *
-     * <p>TimingSystem coordination must not run synchronously on the emitting
+     * <p>TimingSystem Conductor work must not run synchronously on the emitting
      * Domain or I/O component thread. Logical system-Conductor lanes therefore use
      * this separate executor.</p>
      */
-    private final ThreadPoolExecutor coordinationExecutor;
+    private final ThreadPoolExecutor systemConductorExecutor;
 
     /**
      * Shared scheduled I/O executor. AntennaManager
@@ -116,11 +116,11 @@ final class RuntimeExecutors implements AutoCloseable {
                 new ScheduledThreadPoolExecutor(1, threadFactory("tp-dl-tagproc"));
         tagProcessorScheduledExecutor.setRemoveOnCancelPolicy(true);
 
-        coordinationExecutor = new ThreadPoolExecutor(
+        systemConductorExecutor = new ThreadPoolExecutor(
                 1, 1,
                 0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>(),
-                threadFactory("tp-dl-system"),
+                threadFactory("tp-dl-system-conductor"),
                 new ThreadPoolExecutor.AbortPolicy());
 
         sharedIoScheduledExecutor =
@@ -146,7 +146,7 @@ final class RuntimeExecutors implements AutoCloseable {
 
         timingNodeExecutor.prestartAllCoreThreads();
         tagProcessorScheduledExecutor.prestartAllCoreThreads();
-        coordinationExecutor.prestartAllCoreThreads();
+        systemConductorExecutor.prestartAllCoreThreads();
         sharedIoScheduledExecutor.prestartAllCoreThreads();
         started = true;
     }
@@ -162,9 +162,9 @@ final class RuntimeExecutors implements AutoCloseable {
      */
     synchronized TimingNodeExecutionResources createTimingNodeExecutionResources() {
         SerialLane dataLane =
-                new SerialLane(TIMING_NODE_DATA_QUEUE_CAPACITY, "TimingNodeData", timingNodeExecutor);
+                new SerialLane(TIMING_NODE_DATA_LANE_QUEUE_CAPACITY, "TimingNodeData", timingNodeExecutor);
         SerialLane taskLane =
-                new SerialLane(TIMING_NODE_TASK_QUEUE_CAPACITY, "TimingNodeTask", timingNodeExecutor);
+                new SerialLane(TIMING_NODE_TASK_LANE_QUEUE_CAPACITY, "TimingNodeTask", timingNodeExecutor);
 
         SerialLane tagProcessorLane = new SerialLane(
                 TAG_PROCESSOR_LANE_QUEUE_CAPACITY, "TagProcessor", tagProcessorScheduledExecutor);
@@ -183,7 +183,7 @@ final class RuntimeExecutors implements AutoCloseable {
      */
     synchronized SerialLane createSystemConductorLane() {
         SerialLane conductorLane = new SerialLane(
-                CONDUCTOR_QUEUE_CAPACITY, "SystemConductor", coordinationExecutor);
+                SYSTEM_CONDUCTOR_LANE_QUEUE_CAPACITY, "SystemConductor", systemConductorExecutor);
         serialLanes.add(conductorLane);
         return conductorLane;
     }
@@ -196,7 +196,7 @@ final class RuntimeExecutors implements AutoCloseable {
      */
     synchronized SerialLane createAntennaControlLane() {
         SerialLane antennaControlLane = new SerialLane(
-                ANTENNA_CONTROL_QUEUE_CAPACITY, "AntennaManager", sharedIoScheduledExecutor);
+                ANTENNA_CONTROL_LANE_QUEUE_CAPACITY, "AntennaManager", sharedIoScheduledExecutor);
         serialLanes.add(antennaControlLane);
         return antennaControlLane;
     }
@@ -212,7 +212,7 @@ final class RuntimeExecutors implements AutoCloseable {
      */
     synchronized SerialLane createSimulationLane() {
         SerialLane simulationLane = new SerialLane(
-                SIMULATION_QUEUE_CAPACITY, "SimulatedTagScenario", sharedIoScheduledExecutor);
+                SIMULATION_LANE_QUEUE_CAPACITY, "SimulatedTagScenario", sharedIoScheduledExecutor);
         serialLanes.add(simulationLane);
         return simulationLane;
     }
@@ -239,12 +239,12 @@ final class RuntimeExecutors implements AutoCloseable {
 
         tagProcessorScheduledExecutor.shutdownNow();
         timingNodeExecutor.shutdownNow();
-        coordinationExecutor.shutdownNow();
+        systemConductorExecutor.shutdownNow();
         sharedIoScheduledExecutor.shutdownNow();
 
         awaitTermination(tagProcessorScheduledExecutor);
         awaitTermination(timingNodeExecutor);
-        awaitTermination(coordinationExecutor);
+        awaitTermination(systemConductorExecutor);
         awaitTermination(sharedIoScheduledExecutor);
     }
 

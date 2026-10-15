@@ -96,7 +96,7 @@ public class RuntimeExecutorsTest {
                     });
 
             assertTrue(done.await(1, TimeUnit.SECONDS));
-            assertEquals("tp-dl-system", threadName.get());
+            assertEquals("tp-dl-system-conductor", threadName.get());
         } finally {
             conductor.close();
             runtime.close();
