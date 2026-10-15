@@ -1,5 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventMetrics;
+
 /**
  * Component-owned engineering counters for the LogBook commit/event path.
  *
@@ -14,10 +16,7 @@ public final class LogBookMetrics {
     private volatile long timingDataCommitCount;
     private volatile long totalTimingDataAppendNanos;
     private volatile long maxTimingDataAppendNanos;
-    private volatile long timingDataEventDeliveries;
-    private volatile long timingDataEventListenerFailures;
-    private volatile long totalTimingDataEventNanos;
-    private volatile long maxTimingDataEventNanos;
+    private final EventMetrics timingDataEventMetrics = new EventMetrics();
 
     /** Records one durable TimingData append attempt. */
     void recordAppendAttempt() {
@@ -48,35 +47,24 @@ public final class LogBookMetrics {
                         safeElapsed);
     }
 
-    /** Records one TimingData event delivery, including listener failures and latency. */
-    void recordEventDelivery(
-            long elapsedNanos,
-            int listenerFailures) {
-        long safeElapsed =
-                Math.max(
-                        0L,
-                        elapsedNanos);
-        timingDataEventDeliveries++;
-        timingDataEventListenerFailures += listenerFailures;
-        totalTimingDataEventNanos += safeElapsed;
-        maxTimingDataEventNanos =
-                Math.max(
-                        maxTimingDataEventNanos,
-                        safeElapsed);
+    /** Event-delivery metrics used by the LogBook's measured TimingData event. */
+    EventMetrics timingDataEventMetrics() {
+        return timingDataEventMetrics;
     }
 
     /** Returns an immutable pull-based snapshot of the current counters. */
     public Snapshot snapshot() {
+        EventMetrics.Snapshot event = timingDataEventMetrics.snapshot();
         return new Snapshot(
                 timingDataAppendAttempts,
                 timingDataAppendFailures,
                 timingDataCommitCount,
                 totalTimingDataAppendNanos,
                 maxTimingDataAppendNanos,
-                timingDataEventDeliveries,
-                timingDataEventListenerFailures,
-                totalTimingDataEventNanos,
-                maxTimingDataEventNanos);
+                event.deliveries(),
+                event.listenerFailures(),
+                event.totalDeliveryNanos(),
+                event.maxDeliveryNanos());
     }
 
     /** Immutable pull-based view for engineering characterization. */
