@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
+import java.util.Optional;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -13,6 +14,70 @@ import static org.junit.Assert.fail;
 
 /** Verifies the small rejection guard used at execution boundaries. */
 public class SafeExecuteTest {
+
+    /** Verifies that a selected handled failure produces an empty result. */
+    @Test
+    public void handledCallFailureReturnsEmpty() {
+        IllegalStateException failure = new IllegalStateException("not available");
+
+        Optional<String> result =
+                SafeExecute.callOrEmpty(
+                        () -> {
+                            throw failure;
+                        },
+                        IllegalStateException.class,
+                        ex -> true);
+
+        assertFalse(result.isPresent());
+    }
+
+    /** Verifies that successful guarded calls return their value. */
+    @Test
+    public void successfulGuardedCallReturnsValue() {
+        Optional<String> result =
+                SafeExecute.callOrEmpty(
+                        () -> "ready",
+                        IllegalStateException.class,
+                        ex -> true);
+
+        assertEquals("ready", result.get());
+    }
+
+    /** Verifies that a selected but unhandled failure propagates unchanged. */
+    @Test
+    public void unhandledSelectedCallFailurePropagates() {
+        IllegalStateException failure = new IllegalStateException("invalid");
+
+        try {
+            SafeExecute.callOrEmpty(
+                    () -> {
+                        throw failure;
+                    },
+                    IllegalStateException.class,
+                    ex -> false);
+            fail("expected IllegalStateException");
+        } catch (IllegalStateException expected) {
+            assertSame(failure, expected);
+        }
+    }
+
+    /** Verifies that unrelated call failures propagate unchanged. */
+    @Test
+    public void unrelatedCallFailurePropagates() {
+        IllegalArgumentException failure = new IllegalArgumentException("invalid");
+
+        try {
+            SafeExecute.callOrEmpty(
+                    () -> {
+                        throw failure;
+                    },
+                    IllegalStateException.class,
+                    ex -> true);
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            assertSame(failure, expected);
+        }
+    }
 
     /** Verifies that successful work runs without invoking cleanup. */
     @Test
