@@ -1,9 +1,12 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommand;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
@@ -11,6 +14,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLi
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
@@ -21,6 +25,10 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Consumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 
 /**
  * Top-level owner for one logical timing node.
@@ -37,6 +45,10 @@ public final class TimingNode {
     private final LogBookAccessor logBook;
     private final TagProcessor tagProcessor;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
+    private final Event<Status> statusChangedEvent = new Event<Status>();
+
+    /** Current status determined by this TimingNode from its component facts. */
+    private volatile Status currentStatus;
 
     /** Antenna observation input; internally consumed by the TagProcessor. */
     public static final EventInput<TimingNode, TagObservation> TAG_OBSERVATIONS =
@@ -65,6 +77,7 @@ public final class TimingNode {
 
         nodeService.bind(NodeService.INITIAL_TIMING_DATA, logBook.initialDataLoadedEvent());
         nodeService.bind(NodeService.COMMITTED_TIMING_DATA, logBook.newDataEntryEvent());
+        logBook.statusChangedEvent().subscribe(this::onLogBookStatusChanged);
 
         /*
          * TagProcessor emits synchronously on its own lane. The named handler
@@ -99,6 +112,43 @@ public final class TimingNode {
         return antennaId;
     }
 
+    /** Returns the current status determined by this TimingNode. */
+    public Status status() {
+
+        Status status = currentStatus;
+        if (status != null) {
+            return status;
+        }
+
+        /*
+         * Before the first LogBook status event, preserve the LogBook's
+         * availability/failure semantics while still evaluating the result at
+         * the TimingNode boundary.
+         */
+        return evaluateStatus(
+                logBook.process(
+                        LogBookQueries.status(),
+                        ReadConsistency.CURRENT));
+    }
+
+    /** Publishes TimingNode status after this component has evaluated it. */
+    public EventSource<Status> statusChangedEvent() {
+
+        return statusChangedEvent;
+    }
+
+    /** Opens this TimingNode at the requested timing location. */
+    public OpenResult open(LocationId locationId) {
+
+        return logBook.process(LogBookCommands.open(locationId));
+    }
+
+    /** Closes this TimingNode. */
+    public CloseResult close() {
+
+        return logBook.process(LogBookCommands.close());
+    }
+
     /**
      * Returns the node's LogBook access boundary.
      *
@@ -129,6 +179,36 @@ public final class TimingNode {
     public void deactivate() {
 
         lifecycle.deactivateAll();
+        currentStatus = null;
+    }
+
+    /**
+     * Re-evaluates node status after the LogBook's recorded state changes.
+     *
+     * <p>The LogBook reports what its committed/reconstructed history says.
+     * TimingNode owns the externally meaningful node status and may combine
+     * additional component facts here as the node model grows.</p>
+     */
+    private void onLogBookStatusChanged(Status logBookStatus) {
+
+        Status evaluated = evaluateStatus(logBookStatus);
+        Status previous = currentStatus;
+        currentStatus = evaluated;
+
+        if (!evaluated.equals(previous)) {
+            statusChangedEvent.emit(evaluated);
+        }
+    }
+
+    /** Determines TimingNode status from the currently available component facts. */
+    private Status evaluateStatus(Status logBookStatus) {
+
+        return new Status(
+                timingNodeId,
+                logBookStatus.state(),
+                logBookStatus.locationId(),
+                logBookStatus.timingDataTailRepaired(),
+                logBookStatus.problems());
     }
 
     /**

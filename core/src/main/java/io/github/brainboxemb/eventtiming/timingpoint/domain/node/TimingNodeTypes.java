@@ -22,7 +22,7 @@ public final class TimingNodeTypes {
     private TimingNodeTypes() {
     }
 
-    /** Logical operating state published by the LogBook. */
+    /** Logical operating state determined and published by TimingNode. */
     public enum State {
         /** No timing location is currently open. */
         CLOSED,
@@ -189,11 +189,12 @@ public final class TimingNodeTypes {
     }
 
     /**
-     * Immutable status snapshot published by the LogBook.
+     * Immutable status snapshot determined and published by TimingNode.
      *
      * <p>The snapshot combines logical OPEN/CLOSED/ERROR state, the optional
      * active location, startup tail-repair information and immutable problem
-     * entries. It is safe to expose outside the Data Lane.</p>
+     * entries. LogBook-derived facts may contribute to this status, but the
+     * TimingNode boundary owns its externally meaningful state.</p>
      */
     public static final class Status {
         private final NodeId timingNodeId;

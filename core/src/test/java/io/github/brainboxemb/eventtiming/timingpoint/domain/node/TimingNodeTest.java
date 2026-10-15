@@ -72,6 +72,35 @@ public class TimingNodeTest {
     }
 
     @Test
+    public void timingNodePublishesItsStatusAfterOpenAndClose() {
+        TimingNode node = node(new NodeId("A"));
+        List<TimingNodeTypes.Status> changes =
+                new ArrayList<TimingNodeTypes.Status>();
+
+        node.statusChangedEvent().subscribe(changes::add);
+        node.activate();
+        try {
+            assertEquals(TimingNodeTypes.State.CLOSED, node.status().state());
+
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.open(new LocationId(24)));
+            assertEquals(TimingNodeTypes.State.OPEN, node.status().state());
+            assertEquals(new LocationId(24), node.status().locationId());
+
+            assertEquals(TimingNodeTypes.CloseResult.CLOSED, node.close());
+            assertEquals(TimingNodeTypes.State.CLOSED, node.status().state());
+
+            assertEquals(3, changes.size());
+            assertEquals(TimingNodeTypes.State.CLOSED, changes.get(0).state());
+            assertEquals(TimingNodeTypes.State.OPEN, changes.get(1).state());
+            assertEquals(TimingNodeTypes.State.CLOSED, changes.get(2).state());
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
     public void activationLoadsPersistedDataOnDataLaneAndReturnsBeforeLoadCompletes()
             throws Exception {
         SerialLane executor =
