@@ -22,15 +22,19 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class LaneScheduler {
 
     public interface ScheduledRegistration extends AutoCloseable {
+        /** Stops future scheduling owned by this registration. */
         @Override
         void close();
     }
 
     public interface ScheduledOperation<R> extends ScheduledRegistration {
+        /** Returns the Future representing the operation's final result. */
         Future<R> futureResult();
 
+        /** Returns the completion-stage view of the operation result. */
         CompletionStage<R> completion();
 
+        /** Cancels the scheduled operation and any admitted lane work still cancellable. */
         @Override
         void close();
     }
@@ -72,13 +76,12 @@ public final class LaneScheduler {
     }
 
     /**
-     * Repeats an operation with a fixed delay after each completed lane turn.
+     * Schedules recurring fire-and-forget work with delay measured after each lane turn.
      *
      * <p>The scheduler only wakes the operation. The callback itself always runs
      * on the owning serial lane. If that bounded lane is temporarily full, the
      * next normal delay is used rather than creating a second queue.</p>
      */
-    /** Schedules recurring fire-and-forget work with delay measured after each lane turn. */
     public ScheduledRegistration scheduleWithFixedDelay(
             Runnable operation,
             long delayNanos) {
@@ -114,12 +117,16 @@ public final class LaneScheduler {
                 long delayNanos) {
             this.operation = operation;
             this.delayNanos = delayNanos;
-            completion.whenComplete(
-                    (ignored, failure) -> {
-                        if (completion.isCancelled()) {
-                            cancelActive();
-                        }
-                    });
+            completion.whenComplete(this::completionFinished);
+        }
+
+        /** Cancels active scheduling when the public completion is cancelled. */
+        private void completionFinished(
+                R ignoredResult,
+                Throwable ignoredFailure) {
+            if (completion.isCancelled()) {
+                cancelActive();
+            }
         }
 
         /** Schedules the timer trigger that later submits this one-shot operation to the lane. */
@@ -176,20 +183,20 @@ public final class LaneScheduler {
             }
         }
 
-        @Override
         /** Returns the Future representing this delayed operation's final result. */
+        @Override
         public Future<R> futureResult() {
             return completion;
         }
 
-        @Override
         /** Returns the completion-stage view used by asynchronous consumers. */
+        @Override
         public CompletionStage<R> completion() {
             return completion;
         }
 
-        @Override
         /** Cancels this delayed operation and any trigger or lane Future still active. */
+        @Override
         public void close() {
             completion.cancel(true);
             cancelActive();
@@ -255,15 +262,17 @@ public final class LaneScheduler {
             }
 
             try {
-                lane.execute(
-                        () -> {
-                            try {
-                                operation.run();
-                            } finally {
-                                scheduleNext();
-                            }
-                        });
+                lane.execute(this::runAndScheduleNext);
             } catch (RejectedExecutionException ex) {
+                scheduleNext();
+            }
+        }
+
+        /** Runs one admitted fixed-delay turn and schedules its next trigger afterwards. */
+        private void runAndScheduleNext() {
+            try {
+                operation.run();
+            } finally {
                 scheduleNext();
             }
         }
