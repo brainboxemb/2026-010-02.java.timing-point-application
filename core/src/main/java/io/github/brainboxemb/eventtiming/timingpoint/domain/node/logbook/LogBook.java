@@ -38,6 +38,7 @@ public final class LogBook implements LogBookAccessor {
     private final LogBookMetrics metrics;
 
     private final EventWithMetrics<TimingData> newDataEntryEvent;
+    private final Event<TimingData> nodeLifecycleCommittedEvent = new Event<TimingData>();
     private final Event<List<TimingData>> initialDataLoadedEvent = new Event<List<TimingData>>();
 
     /**
@@ -191,6 +192,17 @@ public final class LogBook implements LogBookAccessor {
     }
 
     /**
+     * Publishes NODE_OPEN/NODE_CLOSE after the general committed-data event.
+     *
+     * <p>This source is used internally by TimingNode so externally visible
+     * committed TimingData remains ordered before the resulting node-status change.</p>
+     */
+    public EventSource<TimingData> nodeLifecycleCommittedEvent() {
+
+        return nodeLifecycleCommittedEvent;
+    }
+
+    /**
      * Publishes transient immutable startup history for one-time derived-state reconstruction.
      *
      * <p>The list comes directly from immutable TimingDataPersistence.LoadResult data.
@@ -265,7 +277,12 @@ public final class LogBook implements LogBookAccessor {
         R result = command.apply(logBookOperations);
 
         if (logBookState.timingDataHead() > headBefore) {
-            newDataEntryEvent.emit(logBookState.latestCommittedTimingData());
+            TimingData committed = logBookState.latestCommittedTimingData();
+            newDataEntryEvent.emit(committed);
+            if (committed instanceof TimingData.NodeOpen
+                    || committed instanceof TimingData.NodeClose) {
+                nodeLifecycleCommittedEvent.emit(committed);
+            }
         }
         return result;
     }
