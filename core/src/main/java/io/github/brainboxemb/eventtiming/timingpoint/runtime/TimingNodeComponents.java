@@ -12,9 +12,7 @@ final class TimingNodeComponents {
     private final TagProcessor tagProcessor;
 
     /** Creates the runtime-only references produced while composing one TimingNode. */
-    TimingNodeComponents(
-            TimingNode node,
-            TagProcessor tagProcessor) {
+    TimingNodeComponents(TimingNode node, TagProcessor tagProcessor) {
         this.node = node;
         this.tagProcessor = tagProcessor;
     }
@@ -28,5 +26,4 @@ final class TimingNodeComponents {
     TagProcessor tagProcessor() {
         return tagProcessor;
     }
-
 }
