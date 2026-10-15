@@ -110,15 +110,16 @@ public final class SystemConductor extends AbstractConductor implements Yielding
                         LogBookQueries.status(),
                         ReadConsistency.CURRENT);
             } catch (OperationException ex) {
-                if (ex.reason() == OperationException.Reason.UNAVAILABLE) {
-                    /*
-                     * Activation starts node recovery asynchronously. Do not wait
-                     * here and do not publish a partial system decision. The
-                     * node's first Status publication wakes a later reconciliation.
-                     */
-                    return TaskStep.done();
+                if (ex.reason() != OperationException.Reason.UNAVAILABLE) {
+                    throw ex;
                 }
-                throw ex;
+
+                /*
+                 * Activation starts node recovery asynchronously. Do not wait
+                 * here and do not publish a partial system decision. The
+                 * node's first Status publication wakes a later reconciliation.
+                 */
+                return TaskStep.done();
             }
 
             if (status.state() == State.OPEN) {
