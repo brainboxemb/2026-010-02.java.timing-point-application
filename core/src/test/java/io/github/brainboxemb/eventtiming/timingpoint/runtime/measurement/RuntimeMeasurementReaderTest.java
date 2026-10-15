@@ -93,7 +93,7 @@ public class RuntimeMeasurementReaderTest {
                         LogBook.DEFAULT_OPERATION_TIMEOUT_MILLIS);
         NodeService nodeService =
                 new NodeService(
-                        logBook,
+                        nodeId,
                         taskLane,
                         new NodeServiceState(eventData));
         TagProcessor tags =
