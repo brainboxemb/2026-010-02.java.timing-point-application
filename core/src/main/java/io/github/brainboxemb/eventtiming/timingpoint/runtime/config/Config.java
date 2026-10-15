@@ -34,10 +34,6 @@ public final class Config {
                 throw new IllegalArgumentException(
                         "timingNodeId must not be null");
             }
-            if (antennaId == null) {
-                throw new IllegalArgumentException(
-                        "antennaId must not be null");
-            }
             if (timingDataPath != null
                     && timingDataPath.toString().trim().isEmpty()) {
                 throw new IllegalArgumentException(
