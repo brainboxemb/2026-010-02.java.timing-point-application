@@ -3,7 +3,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
@@ -34,15 +33,12 @@ public final class LogBook implements LogBookAccessor {
 
     private final LogBookState logBookState;
     private final LogBookDataLane dataLane;
+    private final LogBookStatus logBookStatus;
     private final MonotonicClock monotonicClock;
     private final LogBookMetrics metrics;
 
-    private final Event<Status> statusChangedEvent = new Event<Status>();
     private final Event<TimingData> newDataEntryEvent = new Event<TimingData>();
     private final Event<List<TimingData>> initialDataLoadedEvent = new Event<List<TimingData>>();
-
-    /** Latest activation-complete immutable Status visible to CURRENT queries. */
-    private volatile Status publishedStatus;
 
     /**
      * Creates one LogBook bound to the supplied Data Lane.
@@ -77,6 +73,7 @@ public final class LogBook implements LogBookAccessor {
                 monotonicClock,
                 metrics);
         this.dataLane = new LogBookDataLane(serialLane, operationTimeoutMillis);
+        this.logBookStatus = new LogBookStatus(timingNodeId, dataLane);
         this.monotonicClock = monotonicClock;
         this.metrics = metrics;
     }
@@ -109,7 +106,7 @@ public final class LogBook implements LogBookAccessor {
      */
     public void deactivate() {
         dataLane.deactivate();
-        publishedStatus = null;
+        logBookStatus.clear();
     }
 
     /**
@@ -170,7 +167,7 @@ public final class LogBook implements LogBookAccessor {
 
     /** Publishes status changes synchronously on the Data Lane after commit. */
     public EventSource<Status> statusChangedEvent() {
-        return statusChangedEvent;
+        return logBookStatus.statusChangedEvent();
     }
 
     /** Publishes each newly committed TimingData record on the Data Lane. */
@@ -193,28 +190,9 @@ public final class LogBook implements LogBookAccessor {
         return logBookState.timingDataHead();
     }
 
-    /** Returns the latest safely published CURRENT status or explains why none is available. */
+    /** Returns the latest safely published CURRENT status. */
     Status publishedStatus() {
-        SerialLane.State state = dataLane.state();
-        if (state == SerialLane.State.FAILED) {
-            throw new OperationException(
-                    OperationException.Reason.FAILED,
-                    "status CURRENT result is unavailable because the Data Lane failed",
-                    dataLane.failure());
-        }
-        if (state != SerialLane.State.RUNNING) {
-            throw new OperationException(
-                    OperationException.Reason.UNAVAILABLE,
-                    "status CURRENT result is unavailable because the LogBook component is not active");
-        }
-
-        Status status = publishedStatus;
-        if (status == null) {
-            throw new OperationException(
-                    OperationException.Reason.UNAVAILABLE,
-                    "status CURRENT result is unavailable because persisted TimingData is not loaded yet");
-        }
-        return status;
+        return logBookStatus.current();
     }
 
     /** Loads persisted history, then publishes initial status on either outcome. */
@@ -244,9 +222,7 @@ public final class LogBook implements LogBookAccessor {
         }
 
         // Both loaded and ERROR states become visible once the startup attempt has finished.
-        Status initialStatus = logBookState.status();
-        publishCurrentStatus(initialStatus);
-        publishInitialStatus(initialStatus);
+        logBookStatus.publishInitial(logBookState.status());
     }
 
     /** Executes one previously queued fire-and-forget command and contains its later failure. */
@@ -269,74 +245,15 @@ public final class LogBook implements LogBookAccessor {
         R result = command.apply(logBookState);
 
         Status after = logBookState.status();
-        publishCurrentStatus(after);
+        logBookStatus.publishCurrent(after);
 
         int committedAfter = logBookState.committedTimingDataCount();
         if (committedAfter > committedBefore) {
             publishNewData(logBookState.latestCommittedTimingData());
         }
 
-        publishStatusChanged(before, after);
+        logBookStatus.publishChanged(before, after);
         return result;
-    }
-
-    /** Emits the first status fact after persisted data has been reconstructed. */
-    private void publishInitialStatus(Status status) {
-        LOG.info(
-                "TimingNode {} initial status available: state {}, location {}, problems {}",
-                timingNodeId().value(),
-                status.state(),
-                status.hasLocation()
-                        ? status.locationId()
-                        : "-",
-                status.problems().size());
-
-        Event.DeliveryReport delivery = statusChangedEvent.emit(status);
-        if (!delivery.successful()) {
-            LOG.warn(
-                    "TimingNode initial status published but "
-                            + delivery.failureCount()
-                            + " status listener(s) failed for "
-                            + timingNodeId().value(),
-                    delivery.failures().get(0));
-        }
-    }
-
-    /** Emits a status event only when the effective status changed. */
-    private void publishStatusChanged(Status before, Status after) {
-        if (sameStatus(before, after)) {
-            return;
-        }
-
-        LOG.info(
-                "TimingNode {} status changed: state {} -> {}, location {} -> {}, problems {} -> {}",
-                timingNodeId().value(),
-                before.state(),
-                after.state(),
-                before.hasLocation()
-                        ? before.locationId()
-                        : "-",
-                after.hasLocation()
-                        ? after.locationId()
-                        : "-",
-                before.problems().size(),
-                after.problems().size());
-
-        Event.DeliveryReport delivery = statusChangedEvent.emit(after);
-        if (!delivery.successful()) {
-            LOG.warn(
-                    "TimingNode status changed but "
-                            + delivery.failureCount()
-                            + " status listener(s) failed for "
-                            + timingNodeId().value(),
-                    delivery.failures().get(0));
-        }
-    }
-
-    /** Replaces the volatile immutable status snapshot used by CURRENT queries. */
-    private void publishCurrentStatus(Status status) {
-        checkArgument(status != null, "status must not be null");
-        publishedStatus = status;
     }
 
     /** Emits immutable LoadResult history without allocating another full-list snapshot. */
@@ -369,32 +286,5 @@ public final class LogBook implements LogBookAccessor {
         }
     }
 
-    /** Compares immutable status values without depending on object identity. */
-    private static boolean sameStatus(Status left, Status right) {
-        if (!left.timingNodeId()
-                .equals(
-                        right.timingNodeId())) {
-            return false;
-        }
-        if (left.state()
-                != right.state()) {
-            return false;
-        }
-        if (left.timingDataTailRepaired()
-                != right.timingDataTailRepaired()) {
-            return false;
-        }
-        if (!left.problems()
-                .equals(
-                        right.problems())) {
-            return false;
-        }
-        if (!left.hasLocation()) {
-            return !right.hasLocation();
-        }
-        return right.hasLocation()
-                && left.locationId()
-                        .equals(
-                                right.locationId());
-    }
+
 }
