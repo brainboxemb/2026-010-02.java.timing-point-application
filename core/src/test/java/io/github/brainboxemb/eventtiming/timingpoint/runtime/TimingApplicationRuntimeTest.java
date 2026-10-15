@@ -837,13 +837,11 @@ public class TimingApplicationRuntimeTest {
     private static Config config(
             Path timingDataPath,
             TagProcessingPolicy tagProcessingPolicy) {
-        return new Config(
-                new NodeId("A"),
-                new Presentation(null, null),
-                null,
-                null,
+        return config(
                 timingDataPath,
-                tagProcessingPolicy);
+                tagProcessingPolicy,
+                Config.REFERENCE_PROVIDER_ID,
+                Config.REFERENCE_PROVIDER_ID);
     }
 
     private static Config config(
