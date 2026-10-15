@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime.config;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingConfig;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.loggingserver.LoggingServerConfig;
 
@@ -20,16 +21,22 @@ public final class Config {
     /** Effective startup configuration for one TimingNode. */
     public static final class TimingNodeConfig {
         private final NodeId timingNodeId;
+        private final AntennaId antennaId;
         private final Path timingDataPath;
         private final TagProcessingPolicy tagProcessingPolicy;
 
         public TimingNodeConfig(
                 NodeId timingNodeId,
+                AntennaId antennaId,
                 Path timingDataPath,
                 TagProcessingPolicy tagProcessingPolicy) {
             if (timingNodeId == null) {
                 throw new IllegalArgumentException(
                         "timingNodeId must not be null");
+            }
+            if (antennaId == null) {
+                throw new IllegalArgumentException(
+                        "antennaId must not be null");
             }
             if (timingDataPath != null
                     && timingDataPath.toString().trim().isEmpty()) {
@@ -42,12 +49,17 @@ public final class Config {
             }
 
             this.timingNodeId = timingNodeId;
+            this.antennaId = antennaId;
             this.timingDataPath = timingDataPath;
             this.tagProcessingPolicy = tagProcessingPolicy;
         }
 
         public NodeId timingNodeId() {
             return timingNodeId;
+        }
+
+        public AntennaId antennaId() {
+            return antennaId;
         }
 
         public Path timingDataPath() {
