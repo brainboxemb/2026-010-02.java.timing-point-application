@@ -75,18 +75,16 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
             return result;
         }
 
-        /** Completes the public result after the task reaches DONE or fails. */
+        /** Cancels admitted work only when the public task result was cancelled. */
         private void runCompleted(
                 Void ignored,
                 Throwable ignoredFailure) {
-            if (!result.isCancelled()) {
-                return;
-            }
-
-            Future<?> current =
-                    active.get();
-            if (current != null) {
-                current.cancel(true);
+            if (result.isCancelled()) {
+                Future<?> current =
+                        active.get();
+                if (current != null) {
+                    current.cancel(true);
+                }
             }
         }
 
@@ -110,13 +108,16 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
             CompletableFuture<TaskStep> completion =
                     new CompletableFuture<TaskStep>();
 
+            Callable<TaskStep> stepExecution =
+                    () -> executeStep(
+                            task::runStep,
+                            completion);
+
             final Future<TaskStep> future;
             try {
                 future =
                         lane.submit(
-                                () -> executeStep(
-                                        task::runStep,
-                                        completion));
+                                stepExecution);
             } catch (RejectedExecutionException ex) {
                 result.completeExceptionally(ex);
                 return;
@@ -200,39 +201,37 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
             if (result.isDone()) {
                 return;
             }
+
             if (stepFailure != null) {
                 result.completeExceptionally(
                         stepFailure);
-                return;
-            }
-            if (step == null) {
+            } else if (step == null) {
                 result.completeExceptionally(
                         new IllegalStateException(
                                 "yielding task returned no TaskStep"));
-                return;
-            }
+            } else {
+                switch (step.type()) {
+                    case DONE:
+                        result.complete(
+                                null);
+                        break;
 
-            switch (step.type()) {
-                case DONE:
-                    result.complete(
-                            null);
-                    return;
+                    case AGAIN:
+                        scheduleStep(
+                                0L);
+                        break;
 
-                case AGAIN:
-                    scheduleStep(
-                            0L);
-                    return;
+                    case AFTER:
+                        scheduleAfter(
+                                step.delay());
+                        break;
 
-                case AFTER:
-                    scheduleAfter(
-                            step.delay());
-                    return;
-
-                default:
-                    result.completeExceptionally(
-                            new IllegalStateException(
-                                    "Unsupported yielding task step "
-                                            + step.type()));
+                    default:
+                        result.completeExceptionally(
+                                new IllegalStateException(
+                                        "Unsupported yielding task step "
+                                                + step.type()));
+                }
             }
         }
 
@@ -261,11 +260,10 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
             if (delayNanos <= 0L) {
                 scheduleStep(
                         0L);
-                return;
+            } else {
+                scheduleStep(
+                        delayNanos);
             }
-
-            scheduleStep(
-                    delayNanos);
         }
     }
 
@@ -309,8 +307,8 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
         this.timeoutNanos = timeoutNanos;
     }
 
-    @Override
     /** Starts one cooperative task and returns a Future completed when the task finishes. */
+    @Override
     public CompletableFuture<Void> runTask(
             YieldingTask task) {
         if (task == null) {
