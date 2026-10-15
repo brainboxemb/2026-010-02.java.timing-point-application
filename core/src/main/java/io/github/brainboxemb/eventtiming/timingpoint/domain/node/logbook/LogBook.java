@@ -12,8 +12,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventWithMe
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
-import java.util.List;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,7 +37,7 @@ public final class LogBook implements LogBookAccessor {
     private final LogBookMetrics metrics;
 
     private final EventWithMetrics<TimingData> newDataEntryEvent;
-    private final Event<List<TimingData>> initialDataLoadedEvent = new Event<List<TimingData>>();
+    private final Event<Integer> dataLoadedEvent = new Event<Integer>();
 
     /**
      * Creates one LogBook bound to the supplied Data Lane.
@@ -191,15 +189,10 @@ public final class LogBook implements LogBookAccessor {
         return newDataEntryEvent;
     }
 
-    /**
-     * Publishes transient immutable startup history for one-time derived-state reconstruction.
-     *
-     * <p>The list comes directly from immutable TimingDataPersistence.LoadResult data.
-     * Consumers must process and release it rather than retain a second full LogBook history.</p>
-     */
-    public EventSource<List<TimingData>> initialDataLoadedEvent() {
+    /** Publishes successful persisted-data load completion with the loaded record count. */
+    public EventSource<Integer> dataLoadedEvent() {
 
-        return initialDataLoadedEvent;
+        return dataLoadedEvent;
     }
 
     /** Returns the committed TimingData head while already inside LogBook query handling. */
@@ -232,7 +225,7 @@ public final class LogBook implements LogBookAccessor {
                         timingNodeId().value());
             }
 
-            initialDataLoadedEvent.emit(loadResult.records());
+            dataLoadedEvent.emit(Integer.valueOf(loadResult.records().size()));
         } catch (TimingDataPersistence.PersistenceException | RuntimeException ex) {
 
             logBookOperations.markTimingDataLoadFailed(ex);
