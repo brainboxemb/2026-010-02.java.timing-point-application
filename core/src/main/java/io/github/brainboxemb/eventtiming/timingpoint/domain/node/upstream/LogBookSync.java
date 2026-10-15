@@ -78,12 +78,11 @@ final class LogBookSync {
         long capturedHead = headSequence();
         if (fromSequence > capturedHead) {
             syncActive = false;
-            return;
+        } else {
+            nextSequence = fromSequence;
+            syncHead = capturedHead;
+            syncActive = true;
         }
-
-        nextSequence = fromSequence;
-        syncHead = capturedHead;
-        syncActive = true;
     }
 
     boolean syncPending() {
