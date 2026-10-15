@@ -10,6 +10,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
 public final class AntennaId {
     private final String value;
 
+    /** Creates one validated configured antenna identity. */
     public AntennaId(String value) {
         String normalized = value == null ? null : value.trim();
         if (normalized == null
@@ -22,10 +23,12 @@ public final class AntennaId {
         this.value = normalized;
     }
 
+    /** Returns the normalized one-digit configured antenna identity. */
     public String value() {
         return value;
     }
 
+    /** Compares AntennaId values by normalized identity. */
     @Override
     public boolean equals(Object other) {
         if (this == other) {
@@ -38,11 +41,13 @@ public final class AntennaId {
         return value.equals(that.value);
     }
 
+    /** Returns a hash consistent with AntennaId value equality. */
     @Override
     public int hashCode() {
         return value.hashCode();
     }
 
+    /** Returns the configured antenna identity for diagnostics/configuration text. */
     @Override
     public String toString() {
         return value;
