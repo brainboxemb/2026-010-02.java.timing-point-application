@@ -27,6 +27,7 @@ final class UpstreamDataSync {
      */
     private long appliedSequence;
 
+    /** Creates RACE_DATA synchronization state over the Task Lane-owned state boundary. */
     UpstreamDataSync(NodeId nodeId, UpstreamStream stream, UpstreamTaskState taskState) {
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(stream != null, "stream must not be null");
@@ -92,6 +93,7 @@ final class UpstreamDataSync {
         }
     }
 
+    /** Sends the cumulative acknowledgement for the highest locally applied RACE_DATA sequence. */
     private void sendAck(long sequence) {
         stream.send(DefaultUpstreamData.ack(
                 nodeId,
