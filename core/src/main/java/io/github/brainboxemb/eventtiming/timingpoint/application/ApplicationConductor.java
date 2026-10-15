@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.application;
 
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 
 import org.slf4j.Logger;
