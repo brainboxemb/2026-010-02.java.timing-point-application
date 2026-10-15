@@ -92,10 +92,7 @@ public class RuntimeMeasurementReaderTest {
                         dataLane,
                         LogBook.DEFAULT_OPERATION_TIMEOUT_MILLIS);
         NodeService nodeService =
-                new NodeService(
-                        nodeId,
-                        taskLane,
-                        new NodeServiceState(eventData));
+                new NodeService(new NodeId("A"), taskLane, new NodeServiceState(eventData));
         TagProcessor tags =
                 new TagProcessor(
                         eventData,
@@ -104,14 +101,8 @@ public class RuntimeMeasurementReaderTest {
                         tagMetrics,
                         tagLane,
                         tagWorker);
-        tagConfiguration.changes()
-                .subscribe(
-                        tags::onPolicyConfigurationChanged);
-        TimingNode node =
-                new TimingNode(
-                        logBook,
-                        nodeService,
-                        tags);
+        tagConfiguration.changes().subscribe(tags::onPolicyConfigurationChanged);
+        TimingNode node = new TimingNode(logBook, nodeService, tags);
 
         RuntimeMeasurementReader reader =
                 new RuntimeMeasurementReader(
