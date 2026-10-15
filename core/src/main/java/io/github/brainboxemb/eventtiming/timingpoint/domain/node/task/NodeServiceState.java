@@ -14,7 +14,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.UniqueTe
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamTaskState;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
-
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 /**
@@ -101,11 +100,10 @@ public final class NodeServiceState implements UpstreamTaskState {
         checkArgument(data != null, "data must not be null");
         if (!derivedTimingReady) {
             derivedTimingStale = true;
-            return;
+        } else {
+            activeRegistrations.apply(data);
+            updateUniqueTeamRegistrations(data);
         }
-
-        activeRegistrations.apply(data);
-        updateUniqueTeamRegistrations(data);
     }
 
     /** Returns compact active-registration state after availability checks. */
@@ -150,14 +148,12 @@ public final class NodeServiceState implements UpstreamTaskState {
     /** Updates the unique-team index from one committed registration record. */
     private void updateUniqueTeamRegistrations(TimingData data) {
         if (data instanceof TimingData.AutomaticRegistration) {
-            TimingData.AutomaticRegistration registration =
-                    (TimingData.AutomaticRegistration) data;
+            TimingData.AutomaticRegistration registration = (TimingData.AutomaticRegistration) data;
             applyUniqueTeamRegistrationChange(
                     registration.registrationId(),
                     registration.action());
         } else if (data instanceof TimingData.ManualRegistration) {
-            TimingData.ManualRegistration registration =
-                    (TimingData.ManualRegistration) data;
+            TimingData.ManualRegistration registration = (TimingData.ManualRegistration) data;
             applyUniqueTeamRegistrationChange(
                     registration.registrationId(),
                     registration.action());
@@ -166,8 +162,7 @@ public final class NodeServiceState implements UpstreamTaskState {
 
     /** Applies one registration ADD/REV to the compact unique-team index. */
     private void applyUniqueTeamRegistrationChange(
-            RegistrationId registrationId,
-            TimingData.RegistrationAction action) {
+            RegistrationId registrationId, TimingData.RegistrationAction action) {
         if (action == TimingData.RegistrationAction.ADD) {
             uniqueTeamRegistrations.registered(registrationId);
         } else if (action == TimingData.RegistrationAction.REV) {
