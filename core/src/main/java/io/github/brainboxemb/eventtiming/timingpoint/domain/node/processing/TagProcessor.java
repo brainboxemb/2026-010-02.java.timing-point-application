@@ -415,10 +415,7 @@ public final class TagProcessor {
                 registrationId);
         publishPassageSnapshots();
 
-        newRegistrationEvent.emit(
-                new NewRegistration(
-                        registrationId,
-                        observedAt));
+        newRegistrationEvent.emit(new NewRegistration(registrationId, observedAt));
     }
 
     /** Immutable registration selected from one completed tag passage. */
