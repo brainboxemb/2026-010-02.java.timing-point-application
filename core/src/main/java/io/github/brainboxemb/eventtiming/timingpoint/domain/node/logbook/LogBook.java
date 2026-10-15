@@ -111,10 +111,8 @@ public final class LogBook implements LogBookAccessor {
         serialLane.start();
 
         // Startup loading is the Data Lane's first ordered task. Failed scheduling closes the lane.
-        Runnable schedulePersistedDataLoad =
-                () -> serialLane.execute(this::loadPersistedData);
-        Runnable closeRejectedStartup =
-                serialLane::close;
+        Runnable schedulePersistedDataLoad = () -> serialLane.execute(this::loadPersistedData);
+        Runnable closeRejectedStartup = serialLane::close;
 
         SafeExecute.run(
                 schedulePersistedDataLoad,
