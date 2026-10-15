@@ -13,6 +13,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -105,8 +106,8 @@ public final class SimulatedTagScenarioRunner
         lane.close();
     }
 
-    @Override
     /** Starts one named simulated registration scenario when runtime simulation is active. */
+    @Override
     public StartResult startRegistration(
             RegistrationId registrationId,
             String profileId) {
@@ -189,14 +190,16 @@ public final class SimulatedTagScenarioRunner
         try {
             if (delayNanos == 0L) {
                 lane.execute(work);
-                return true;
+            } else {
+                Callable<Void> delayedWork =
+                        () -> {
+                            work.run();
+                            return null;
+                        };
+                scheduler.submitAfter(
+                        delayedWork,
+                        delayNanos);
             }
-            scheduler.submitAfter(
-                    () -> {
-                        work.run();
-                        return null;
-                    },
-                    delayNanos);
             return true;
         } catch (RejectedExecutionException | IllegalStateException ex) {
             return false;
@@ -237,10 +240,7 @@ public final class SimulatedTagScenarioRunner
         if (nextIndex
                 >= scenario.steps.size()) {
             finishScenario();
-            return;
-        }
-
-        if (!scheduleStep(
+        } else if (!scheduleStep(
                 scenario,
                 nextIndex,
                 baseTime,

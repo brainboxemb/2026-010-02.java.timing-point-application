@@ -41,6 +41,7 @@ final class TimingSystemComposer {
     private final ApplicationConductor applicationConductor;
     private final TimingNodeComposer nodeComposer;
 
+    /** Creates a stateless composer over shared runtime infrastructure. */
     TimingSystemComposer(
             ApplicationConfiguration configuration,
             RuntimeExecutors executors,
@@ -55,6 +56,7 @@ final class TimingSystemComposer {
                         platform.monotonicClock());
     }
 
+    /** Composes one configured timing system and installs its event routing. */
     TimingSystemComponents compose(
             TimingSystemResolvedData system,
             AntennaManagerConfig managerBinding,
@@ -113,6 +115,7 @@ final class TimingSystemComposer {
                 system.configuration().timingSystemId(), nodes, antennaManager);
     }
 
+    /** Composes all TimingNodes configured for this resolved timing system. */
     private List<TimingNodeComponents> createNodes(
             TimingSystemResolvedData system,
             TimeSource timeSource) {
@@ -129,6 +132,7 @@ final class TimingSystemComposer {
         return nodes;
     }
 
+    /** Extracts the composed domain TimingNodes in configuration order. */
     private static TimingNodeList timingNodes(
             List<TimingNodeComponents> components) {
         TimingNodeList nodes =
@@ -140,6 +144,7 @@ final class TimingSystemComposer {
         return nodes;
     }
 
+    /** Creates the system antenna set from explicit binding or implicit composition input. */
     private static AntennaSet createAntennas(
             AntennaManagerConfig binding,
             AntennaSet implicitAntennas) {
@@ -163,6 +168,7 @@ final class TimingSystemComposer {
         return antennas;
     }
 
+    /** Connects antenna observation events to each configured target TimingNode TagProcessor. */
     private static void routeObservations(
             AntennaManager manager,
             AntennaSet antennas,
@@ -185,22 +191,21 @@ final class TimingSystemComposer {
                         .subscribe(
                                 tags::onTagObserved);
             }
-            return;
-        }
-
-        for (AntennaManagerConfig.AntennaConfig antenna : binding.antennas()) {
-            for (NodeId target : antenna.timingNodes()) {
-                TimingNodeComponents components =
-                        byId.get(target);
-                if (components == null) {
-                    throw new IllegalArgumentException(
-                            "Antenna " + antenna.id()
-                                    + " targets unknown TimingNode "
-                                    + target.value());
+        } else {
+            for (AntennaManagerConfig.AntennaConfig antenna : binding.antennas()) {
+                for (NodeId target : antenna.timingNodes()) {
+                    TimingNodeComponents components =
+                            byId.get(target);
+                    if (components == null) {
+                        throw new IllegalArgumentException(
+                                "Antenna " + antenna.id()
+                                        + " targets unknown TimingNode "
+                                        + target.value());
+                    }
+                    manager.tagObservedEvent(antenna.id())
+                            .subscribe(
+                                    components.tagProcessor()::onTagObserved);
                 }
-                manager.tagObservedEvent(antenna.id())
-                        .subscribe(
-                                components.tagProcessor()::onTagObserved);
             }
         }
     }
