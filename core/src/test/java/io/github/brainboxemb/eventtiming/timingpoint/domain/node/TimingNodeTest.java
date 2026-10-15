@@ -61,7 +61,7 @@ public class TimingNodeTest {
 
         node.activate();
         try {
-            TimingNodeTypes.Status status = node.logBook().query(LogBookQueries.status());
+            TimingNodeTypes.Status status = node.logBook().process(LogBookQueries.status());
 
             assertSame(id, status.timingNodeId());
             assertEquals(TimingNodeTypes.State.CLOSED, status.state());
@@ -118,7 +118,7 @@ public class TimingNodeTest {
                     persistence.executedOnNodeLane);
 
             try {
-                node.logBook().query(
+                node.logBook().process(
                         LogBookQueries.status(),
                         ReadConsistency.CURRENT);
                 fail("CURRENT status must remain unavailable during persisted-data load");
@@ -140,7 +140,7 @@ public class TimingNodeTest {
                             TimeUnit.SECONDS));
 
             TimingNodeTypes.Status ordered =
-                    node.logBook().query(
+                    node.logBook().process(
                             LogBookQueries.status(),
                             ReadConsistency.ORDERED);
             assertEquals(
@@ -148,7 +148,7 @@ public class TimingNodeTest {
                     ordered.state());
             assertEquals(
                     TimingNodeTypes.State.OPEN,
-                    node.logBook().query(
+                    node.logBook().process(
                             LogBookQueries.status(),
                             ReadConsistency.CURRENT)
                             .state());
@@ -177,7 +177,7 @@ public class TimingNodeTest {
                     initialStatusPublished.await(1L, TimeUnit.SECONDS));
 
             TimingNodeTypes.Status current =
-                    node.logBook().query(
+                    node.logBook().process(
                             LogBookQueries.status(),
                             ReadConsistency.CURRENT);
             assertEquals(TimingNodeTypes.State.ERROR, current.state());
@@ -201,7 +201,7 @@ public class TimingNodeTest {
                     TimingNodeTypes.OpenResult.OPENED,
                     node.logBook().process(LogBookCommands.open(openLocation)));
 
-            TimingNodeTypes.Status openStatus = node.logBook().query(LogBookQueries.status());
+            TimingNodeTypes.Status openStatus = node.logBook().process(LogBookQueries.status());
             assertEquals(TimingNodeTypes.State.OPEN, openStatus.state());
             assertEquals(openLocation, openStatus.locationId());
 
@@ -209,7 +209,7 @@ public class TimingNodeTest {
                     TimingNodeTypes.CloseResult.CLOSED,
                     node.logBook().process(LogBookCommands.close()));
 
-            TimingNodeTypes.Status closedStatus = node.logBook().query(LogBookQueries.status());
+            TimingNodeTypes.Status closedStatus = node.logBook().process(LogBookQueries.status());
             assertEquals(TimingNodeTypes.State.CLOSED, closedStatus.state());
             assertEquals(openLocation, closedStatus.locationId());
         } finally {
@@ -340,7 +340,7 @@ public class TimingNodeTest {
             }
 
             TimingNodeTypes.Status status =
-                    node.logBook().query(LogBookQueries.status());
+                    node.logBook().process(LogBookQueries.status());
             assertEquals(TimingNodeTypes.State.CLOSED, status.state());
             assertFalse(status.hasLocation());
             assertTrue(committedEvents.isEmpty());
@@ -374,7 +374,7 @@ public class TimingNodeTest {
             assertEquals(
                     TimingNodeTypes.OpenResult.ALREADY_OPEN,
                     node.logBook().process(LogBookCommands.open(new LocationId(25))));
-            TimingNodeTypes.Status submittedStatus = node.logBook().query(LogBookQueries.status());
+            TimingNodeTypes.Status submittedStatus = node.logBook().process(LogBookQueries.status());
             assertEquals(TimingNodeTypes.State.OPEN, submittedStatus.state());
             assertEquals(new LocationId(24), submittedStatus.locationId());
             assertEquals(TimingNodeTypes.CloseResult.CLOSED, node.logBook().process(LogBookCommands.close()));
@@ -417,7 +417,7 @@ public class TimingNodeTest {
             releaseBlocker.countDown();
 
             assertTrue(afterTimedOutOperation.await(1, TimeUnit.SECONDS));
-            TimingNodeTypes.Status status = node.logBook().query(LogBookQueries.status());
+            TimingNodeTypes.Status status = node.logBook().process(LogBookQueries.status());
             assertEquals(TimingNodeTypes.State.OPEN, status.state());
             assertTrue(status.hasLocation());
             assertEquals(new LocationId(24), status.locationId());
@@ -479,7 +479,7 @@ public class TimingNodeTest {
 
             assertEquals(TimingNodeTypes.OpenResult.OPENED, openResult[0]);
             assertEquals(TimingNodeTypes.CloseResult.CLOSED, closeResult[0]);
-            TimingNodeTypes.Status status = node.logBook().query(LogBookQueries.status());
+            TimingNodeTypes.Status status = node.logBook().process(LogBookQueries.status());
             assertEquals(TimingNodeTypes.State.CLOSED, status.state());
             assertEquals(new LocationId(24), status.locationId());
         } finally {
@@ -530,7 +530,7 @@ public class TimingNodeTest {
 
             assertEquals(
                     new LocationId(24),
-                    node.logBook().query(LogBookQueries.status()).locationId());
+                    node.logBook().process(LogBookQueries.status()).locationId());
         } finally {
             releaseBlocker.countDown();
             node.deactivate();
@@ -557,13 +557,13 @@ public class TimingNodeTest {
             node.logBook().execute(LogBookCommands.open(new LocationId(24)));
 
             TimingNodeTypes.Status current =
-                    node.logBook().query(
+                    node.logBook().process(
                             LogBookQueries.status(),
                             ReadConsistency.CURRENT);
             assertEquals(TimingNodeTypes.State.CLOSED, current.state());
 
             try {
-                node.logBook().query(
+                node.logBook().process(
                         LogBookQueries.status(),
                         ReadConsistency.ORDERED);
                 fail("expected ordered status timeout behind blocked lane");
@@ -580,7 +580,7 @@ public class TimingNodeTest {
 
             assertEquals(
                     TimingNodeTypes.State.OPEN,
-                    node.logBook().query(
+                    node.logBook().process(
                             LogBookQueries.status(),
                             ReadConsistency.CURRENT)
                             .state());
@@ -603,13 +603,13 @@ public class TimingNodeTest {
             node.logBook().statusChangedEvent().subscribe(
                     ignored ->
                             statusEventCurrent[0] =
-                                    node.logBook().query(
+                                    node.logBook().process(
                                             LogBookQueries.status(),
                                             ReadConsistency.CURRENT));
             node.logBook().newDataEntryEvent().subscribe(
                     ignored ->
                             timingDataEventCurrent[0] =
-                                    node.logBook().query(
+                                    node.logBook().process(
                                             LogBookQueries.status(),
                                             ReadConsistency.CURRENT));
 
@@ -639,7 +639,7 @@ public class TimingNodeTest {
         node.activate();
         try {
             try {
-                node.logBook().query(
+                node.logBook().process(
                         LogBookQueries.timingDataCount(),
                         ReadConsistency.CURRENT);
                 fail("expected unsupported CURRENT query");
@@ -663,17 +663,17 @@ public class TimingNodeTest {
         try {
             node.logBook().process(LogBookCommands.open(new LocationId(24)));
 
-            node.logBook().query(
+            node.logBook().process(
                     LogBookQueries.visitTimingDataRange(
                             1L,
                             1,
                             ignored -> {
                                 orderedStatus[0] =
-                                        node.logBook().query(
+                                        node.logBook().process(
                                                 LogBookQueries.status(),
                                                 ReadConsistency.ORDERED);
                                 currentStatus[0] =
-                                        node.logBook().query(
+                                        node.logBook().process(
                                                 LogBookQueries.status(),
                                                 ReadConsistency.CURRENT);
                             }));
@@ -690,7 +690,7 @@ public class TimingNodeTest {
         TimingNode node = node(new NodeId("A"));
 
         try {
-            node.logBook().query(
+            node.logBook().process(
                     LogBookQueries.status(),
                     ReadConsistency.CURRENT);
             fail("expected current status to be unavailable before activation");
@@ -703,14 +703,14 @@ public class TimingNodeTest {
         node.activate();
         assertEquals(
                 TimingNodeTypes.State.CLOSED,
-                node.logBook().query(
+                node.logBook().process(
                         LogBookQueries.status(),
                         ReadConsistency.CURRENT)
                         .state());
         node.deactivate();
 
         try {
-            node.logBook().query(
+            node.logBook().process(
                     LogBookQueries.status(),
                     ReadConsistency.CURRENT);
             fail("expected current status to be unavailable after deactivation");
@@ -728,7 +728,7 @@ public class TimingNodeTest {
         node.activate();
         try {
             TimingNodeTypes.Status before =
-                    node.logBook().query(
+                    node.logBook().process(
                             LogBookQueries.status(),
                             ReadConsistency.CURRENT);
 
@@ -741,7 +741,7 @@ public class TimingNodeTest {
 
             assertSame(
                     before,
-                    node.logBook().query(
+                    node.logBook().process(
                             LogBookQueries.status(),
                             ReadConsistency.CURRENT));
         } finally {
@@ -773,7 +773,7 @@ public class TimingNodeTest {
         }
 
         try {
-            node.logBook().query(
+            node.logBook().process(
                     LogBookQueries.status(),
                     ReadConsistency.CURRENT);
             fail("failed activation must not publish CURRENT status");
@@ -789,7 +789,7 @@ public class TimingNodeTest {
         TimingNode node = node(new NodeId("A"));
 
         try {
-            node.logBook().query(LogBookQueries.status());
+            node.logBook().process(LogBookQueries.status());
             fail("expected operation failure");
         } catch (TimingNodeTypes.OperationException expected) {
             assertEquals(
