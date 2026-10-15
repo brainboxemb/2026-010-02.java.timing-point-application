@@ -28,6 +28,7 @@ public final class TagProcessingPolicy {
     private final long sweepCadenceNanos;
     private final int observationQueueCapacity;
 
+    /** Creates an immutable passage/duplicate processing policy. */
     public TagProcessingPolicy(
             Duration quietTimeout,
             Duration maxBurstDuration,
@@ -56,26 +57,32 @@ public final class TagProcessingPolicy {
                 DEFAULT_OBSERVATION_QUEUE_CAPACITY);
     }
 
+    /** Returns the quiet period after which an inactive passage burst closes. */
     public long quietTimeoutNanos() {
         return quietTimeoutNanos;
     }
 
+    /** Returns the hard maximum duration of one aggregated passage burst. */
     public long maxBurstDurationNanos() {
         return maxBurstDurationNanos;
     }
 
+    /** Returns the suppression window after one RegistrationId was accepted. */
     public long duplicateWindowNanos() {
         return duplicateWindowNanos;
     }
 
+    /** Returns the cadence used for scheduled passage/duplicate housekeeping. */
     public long sweepCadenceNanos() {
         return sweepCadenceNanos;
     }
 
+    /** Returns the bounded TagProcessor observation queue capacity. */
     public int observationQueueCapacity() {
         return observationQueueCapacity;
     }
 
+    /** Compares all processing-policy values. */
     @Override
     public boolean equals(Object other) {
         if (this == other) {
@@ -92,6 +99,7 @@ public final class TagProcessingPolicy {
                 && observationQueueCapacity == that.observationQueueCapacity;
     }
 
+    /** Returns a hash consistent with policy value equality. */
     @Override
     public int hashCode() {
         int result = (int) (quietTimeoutNanos ^ (quietTimeoutNanos >>> 32));
@@ -105,12 +113,14 @@ public final class TagProcessingPolicy {
         return result;
     }
 
+    /** Converts a required positive duration to nanoseconds. */
     private static long positiveNanos(Duration value, String name) {
         long nanos = nonNegativeNanos(value, name);
         checkArgument(nanos > 0L, "%s must be positive", name);
         return nanos;
     }
 
+    /** Converts a required non-negative duration to nanoseconds. */
     private static long nonNegativeNanos(Duration value, String name) {
         checkArgument(value != null, "%s must not be null", name);
         checkArgument(!value.isNegative(), "%s must not be negative", name);
