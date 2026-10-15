@@ -16,16 +16,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 /**
  * Derives the current elapsed stage times and ranking for one TimingNode.
  *
- * <p>StageTiming is read-side only. It interprets committed registration
- * history together with current EventData, TeamAssignments and StageStartTimes;
- * it never rewrites TimingData or race state.</p>
+ * <p>StageTiming is read-side only. It interprets the compact active-registration
+ * view together with current EventData, TeamAssignments and StageStartTimes;
+ * full committed history remains owned by LogBook.</p>
  */
 public final class StageTiming {
     private final EventData eventData;
@@ -49,14 +48,13 @@ public final class StageTiming {
      * simply absent; StageTiming never invents an elapsed time for incomplete
      * input.</p>
      */
-    public List<StageTime> ranking(List<TimingData> committedTimingData, ZoneId raceTimeZone) {
-        checkArgument(committedTimingData != null, "committedTimingData must not be null");
+    public List<StageTime> ranking(ActiveRegistrations activeRegistrations, ZoneId raceTimeZone) {
+        checkArgument(activeRegistrations != null, "activeRegistrations must not be null");
         checkArgument(raceTimeZone != null, "raceTimeZone must not be null");
 
-        List<TimingData> activeRegistrations = activeRegistrations(committedTimingData);
         List<StageTime> resolved = new ArrayList<StageTime>();
 
-        for (TimingData registration : activeRegistrations) {
+        for (TimingData registration : activeRegistrations.values()) {
             RegistrationId registrationId = registrationId(registration);
             TeamId teamId = resolveTeamId(registrationId);
             if (teamId == null) {
@@ -100,52 +98,6 @@ public final class StageTiming {
         }
 
         return Collections.unmodifiableList(ranked);
-    }
-
-    /**
-     * Rebuilds the active registration view from append-only ADD/REV records.
-     */
-    private static List<TimingData> activeRegistrations(List<TimingData> committedTimingData) {
-        List<TimingData> active = new ArrayList<TimingData>();
-
-        for (TimingData data : committedTimingData) {
-            TimingData.RegistrationAction action = registrationAction(data);
-            if (action == null) {
-                continue;
-            }
-
-            if (action == TimingData.RegistrationAction.ADD) {
-                active.add(data);
-            } else {
-                removeMatchingRegistration(active, data);
-            }
-        }
-        return active;
-    }
-
-    private static void removeMatchingRegistration(List<TimingData> active, TimingData revoke) {
-        RegistrationId revokeRegistrationId = registrationId(revoke);
-
-        /*
-         * A REV carries the original registration identity: RegistrationId,
-         * LocationId and effective time. Scan backwards so multiplicity remains
-         * correct if equivalent ADD records exist.
-         */
-        for (int index = active.size() - 1;
-                index >= 0;
-                index--) {
-            TimingData activeRegistration = active.get(index);
-            if (revokeRegistrationId.equals(
-                        registrationId(activeRegistration))
-                    && Objects.equals(
-                            revoke.locationId(),
-                            activeRegistration.locationId())
-                    && revoke.effectiveTime().equals(
-                            activeRegistration.effectiveTime())) {
-                active.remove(index);
-                return;
-            }
-        }
     }
 
     private TeamId resolveTeamId(RegistrationId registrationId) {
