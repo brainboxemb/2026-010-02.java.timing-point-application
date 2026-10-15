@@ -113,21 +113,21 @@ public final class TimingNodeTypes {
         }
     }
 
-    /** Result of the idempotent LogBook open command. */
+    /** Result of the idempotent TimingNode open operation. */
     public enum OpenResult {
-        /** The command changed the LogBook to OPEN. */
+        /** The operation changed the TimingNode to OPEN. */
         OPENED,
 
-        /** The LogBook was already open; no second open transition occurred. */
+        /** The TimingNode was already open; no second transition occurred. */
         ALREADY_OPEN
     }
 
-    /** Result of the idempotent LogBook close command. */
+    /** Result of the idempotent TimingNode close operation. */
     public enum CloseResult {
-        /** The command changed the LogBook to CLOSED. */
+        /** The operation changed the TimingNode to CLOSED. */
         CLOSED,
 
-        /** The LogBook was already closed; no second close transition occurred. */
+        /** The TimingNode was already closed; no second transition occurred. */
         ALREADY_CLOSED
     }
 
@@ -232,8 +232,9 @@ public final class TimingNodeTypes {
             this.state = state;
             this.locationId = locationId;
             this.timingDataTailRepaired = timingDataTailRepaired;
-            this.problems = Collections.unmodifiableList(
-                    new ArrayList<Problem>(problems));
+            this.problems = problems.isEmpty()
+                    ? Collections.<Problem>emptyList()
+                    : Collections.unmodifiableList(new ArrayList<Problem>(problems));
         }
 
         /** Returns the node identity represented by this status snapshot. */
