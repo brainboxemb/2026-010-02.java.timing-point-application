@@ -13,6 +13,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -75,12 +76,11 @@ public class AntennaManagerTest {
                                 antenna,
                                 power,
                                 Duration.ofMillis(200)),
-                        new SerialLane(
+                        new TaskSerialLane(
                                 8,
                                 "antenna-manager-test",
-                                shared),
-                        shared,
-                        Duration.ofSeconds(1));
+                                shared,
+                                Duration.ofSeconds(1)));
 
         try {
             manager.activate();
@@ -591,12 +591,11 @@ public class AntennaManagerTest {
 
         return new AntennaManager(
                 antennaSet,
-                new SerialLane(
+                new TaskSerialLane(
                         capacity,
                         "antenna-manager-test",
-                        shared),
-                shared,
-                timeout);
+                        shared,
+                        timeout));
     }
 
     private static ScheduledExecutorService sharedExecutor() {
