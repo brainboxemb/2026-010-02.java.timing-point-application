@@ -130,22 +130,22 @@ public final class LogBook implements LogBookAccessor {
     }
 
     /**
-     * Processes one command in LogBook order and returns its domain result.
+     * Executes one command in LogBook order and returns its domain result.
      */
-    public <R> R process(LogBookCommand<R> command) {
+    public <R> R execute(LogBookCommand<R> command) {
         checkArgument(command != null, "command must not be null");
         Callable<R> commandApplication = () -> applyCommand(command);
         return submitAndWait(commandApplication, command.name());
     }
 
     /**
-     * Executes one fire-and-forget command asynchronously.
+     * Queues one fire-and-forget command asynchronously.
      *
-     * <p>The method follows Executor-style semantics: it returns after the
-     * command is queued and propagates RejectedExecutionException immediately
-     * when the bounded SerialLane cannot queue it.</p>
+     * <p>The method returns after the command is queued and propagates
+     * RejectedExecutionException immediately when the bounded SerialLane cannot
+     * accept it.</p>
      */
-    public void execute(LogBookCommand<?> command) {
+    public void queue(LogBookCommand<?> command) {
         checkArgument(command != null, "command must not be null");
         Runnable queuedCommand = () -> executeQueuedCommand(command);
         serialLane.execute(queuedCommand);
