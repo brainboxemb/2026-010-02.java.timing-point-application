@@ -2,15 +2,12 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.Consumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
@@ -59,8 +56,8 @@ public final class TimingSystem {
         this.antennaManager = antennaManager;
         this.timingSystemConductor = timingSystemConductor;
 
-        wireNodeStatus();
-        wireAntennaObservations(
+        bindTimingNodes();
+        bindAntennaObservations(
                 antennaManager == null
                         ? Collections.<AntennaId, TimingNodeList>emptyMap()
                         : antennaToNodes);
@@ -101,18 +98,16 @@ public final class TimingSystem {
         lifecycle.deactivateAll();
     }
 
-    /** Installs node-status wake links owned by this system boundary. */
-    private void wireNodeStatus() {
+    /** Binds contained TimingNodes to their system conductor. */
+    private void bindTimingNodes() {
 
         for (TimingNode node : timingNodes) {
-            Consumer<Status> onStatusChanged =
-                    status -> timingSystemConductor.onTimingNodeStatusChanged(node, status);
-            node.logBook().statusChangedEvent().subscribe(onStatusChanged);
+            timingSystemConductor.bind(node);
         }
     }
 
-    /** Connects AntennaManager observations to mapped TimingNode boundaries. */
-    private void wireAntennaObservations(Map<AntennaId, TimingNodeList> antennaToNodes) {
+    /** Binds AntennaManager observation sources to mapped TimingNode inputs. */
+    private void bindAntennaObservations(Map<AntennaId, TimingNodeList> antennaToNodes) {
 
         for (Map.Entry<AntennaId, TimingNodeList> route : antennaToNodes.entrySet()) {
             AntennaId antennaId = route.getKey();
@@ -128,8 +123,9 @@ public final class TimingSystem {
                         node.timingNodeId().value(),
                         id);
 
-                Consumer<TagObservation> onTagObserved = node::onTagObserved;
-                antennaManager.tagObservedEvent(antennaId).subscribe(onTagObserved);
+                node.bind(
+                        TimingNode.Inputs.TAG_OBSERVATIONS,
+                        antennaManager.tagObservedEvent(antennaId));
             }
         }
     }
