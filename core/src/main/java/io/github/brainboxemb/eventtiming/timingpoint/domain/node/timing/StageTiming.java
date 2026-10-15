@@ -121,7 +121,7 @@ public final class StageTiming {
         throw new IllegalArgumentException("TimingData is not a registration");
     }
 
-     /** Resolves partial stage-start time information to an absolute timestamp. */
+    /** Resolves partial stage-start time information to an absolute timestamp. */
     private static TimingTimestamp resolveStart(
             TimingTimestamp start, TimingTimestamp registrationTime, ZoneId raceTimeZone) {
         if (start.isAbsolute()) {
