@@ -157,7 +157,7 @@ public class TimingSystemConductorTest {
         AntennaManager manager = newAntennaManager(antenna);
         SerialLane lane = new SerialLane(4, "conductor-event-test", newWorker("conductor-event-worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
-                new TimingNodeList().add(node), manager.settings(), lane);
+                TimingNodeList.of(node), manager.settings(), lane);
         node.logBook().statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(node, status));
 
         manager.activate();
@@ -191,7 +191,7 @@ public class TimingSystemConductorTest {
         AntennaManager manager = newAntennaManager(antenna);
         SerialLane lane = new SerialLane(4, "conductor-coalesce-test", newWorker("coalesce-worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
-                new TimingNodeList().add(node), manager.settings(), lane);
+                TimingNodeList.of(node), manager.settings(), lane);
         node.logBook().statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(node, status));
 
         manager.activate();
@@ -230,7 +230,7 @@ public class TimingSystemConductorTest {
         TimingNode first = newTimingNode("A");
         TimingNode second = newTimingNode("B");
 
-        TimingNodeList nodes = new TimingNodeList().add(first).add(second);
+        TimingNodeList nodes = TimingNodeList.builder().add(first).add(second).build();
 
         assertEquals(2, nodes.size());
         assertSame(first, nodes.get(0));
@@ -240,7 +240,7 @@ public class TimingSystemConductorTest {
     @Test
     public void timingNodeListRejectsDuplicateInstance() {
         TimingNode node = newTimingNode("A");
-        TimingNodeList nodes = new TimingNodeList().add(node);
+        TimingNodeList nodes = TimingNodeList.of(node);
 
         try {
             nodes.add(node);
