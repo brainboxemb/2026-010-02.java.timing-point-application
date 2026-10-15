@@ -25,6 +25,14 @@ public final class Config {
         private final Path timingDataPath;
         private final TagProcessingPolicy tagProcessingPolicy;
 
+        /** Creates a node configuration whose antenna is resolved during composition. */
+        public TimingNodeConfig(
+                NodeId timingNodeId,
+                Path timingDataPath,
+                TagProcessingPolicy tagProcessingPolicy) {
+            this(timingNodeId, null, timingDataPath, tagProcessingPolicy);
+        }
+
         public TimingNodeConfig(
                 NodeId timingNodeId,
                 AntennaId antennaId,
