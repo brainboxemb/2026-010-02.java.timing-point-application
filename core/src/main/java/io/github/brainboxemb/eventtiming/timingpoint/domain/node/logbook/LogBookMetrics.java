@@ -19,18 +19,22 @@ public final class LogBookMetrics {
     private volatile long totalTimingDataEventNanos;
     private volatile long maxTimingDataEventNanos;
 
+    /** Records one durable TimingData append attempt. */
     void recordAppendAttempt() {
         timingDataAppendAttempts++;
     }
 
+    /** Records one failed durable TimingData append. */
     void recordAppendFailure() {
         timingDataAppendFailures++;
     }
 
+    /** Records one TimingData record committed to LogBook state. */
     void recordCommit() {
         timingDataCommitCount++;
     }
 
+    /** Records non-negative append latency and updates its maximum. */
     void recordAppendDuration(
             long elapsedNanos) {
         long safeElapsed =
@@ -44,6 +48,7 @@ public final class LogBookMetrics {
                         safeElapsed);
     }
 
+    /** Records one TimingData event delivery, including listener failures and latency. */
     void recordEventDelivery(
             long elapsedNanos,
             int listenerFailures) {
@@ -60,6 +65,7 @@ public final class LogBookMetrics {
                         safeElapsed);
     }
 
+    /** Returns an immutable pull-based snapshot of the current counters. */
     public Snapshot snapshot() {
         return new Snapshot(
                 timingDataAppendAttempts,
@@ -85,6 +91,7 @@ public final class LogBookMetrics {
         private final long totalTimingDataEventNanos;
         private final long maxTimingDataEventNanos;
 
+        /** Creates one immutable engineering snapshot from current LogBook counters. */
         private Snapshot(
                 long timingDataAppendAttempts,
                 long timingDataAppendFailures,
@@ -106,38 +113,47 @@ public final class LogBookMetrics {
             this.maxTimingDataEventNanos = maxTimingDataEventNanos;
         }
 
+        /** Returns durable append attempts. */
         public long timingDataAppendAttempts() {
             return timingDataAppendAttempts;
         }
 
+        /** Returns failed durable append attempts. */
         public long timingDataAppendFailures() {
             return timingDataAppendFailures;
         }
 
+        /** Returns successfully committed TimingData records. */
         public long timingDataCommitCount() {
             return timingDataCommitCount;
         }
 
+        /** Returns cumulative durable append latency in nanoseconds. */
         public long totalTimingDataAppendNanos() {
             return totalTimingDataAppendNanos;
         }
 
+        /** Returns maximum observed durable append latency in nanoseconds. */
         public long maxTimingDataAppendNanos() {
             return maxTimingDataAppendNanos;
         }
 
+        /** Returns TimingData event delivery attempts. */
         public long timingDataEventDeliveries() {
             return timingDataEventDeliveries;
         }
 
+        /** Returns listener failures observed during TimingData event delivery. */
         public long timingDataEventListenerFailures() {
             return timingDataEventListenerFailures;
         }
 
+        /** Returns cumulative TimingData event delivery latency in nanoseconds. */
         public long totalTimingDataEventNanos() {
             return totalTimingDataEventNanos;
         }
 
+        /** Returns maximum observed TimingData event delivery latency in nanoseconds. */
         public long maxTimingDataEventNanos() {
             return maxTimingDataEventNanos;
         }

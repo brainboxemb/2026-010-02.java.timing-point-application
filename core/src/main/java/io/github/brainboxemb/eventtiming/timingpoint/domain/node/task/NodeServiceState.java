@@ -149,21 +149,25 @@ public final class NodeServiceState implements UpstreamTaskState {
 
     /** Updates the unique-team index from one committed registration record. */
     private void updateUniqueTeamRegistrations(TimingData data) {
-        final RegistrationId registrationId;
-        final TimingData.RegistrationAction action;
-
         if (data instanceof TimingData.AutomaticRegistration) {
-            TimingData.AutomaticRegistration registration = (TimingData.AutomaticRegistration) data;
-            registrationId = registration.registrationId();
-            action = registration.action();
+            TimingData.AutomaticRegistration registration =
+                    (TimingData.AutomaticRegistration) data;
+            applyUniqueTeamRegistrationChange(
+                    registration.registrationId(),
+                    registration.action());
         } else if (data instanceof TimingData.ManualRegistration) {
-            TimingData.ManualRegistration registration = (TimingData.ManualRegistration) data;
-            registrationId = registration.registrationId();
-            action = registration.action();
-        } else {
-            return;
+            TimingData.ManualRegistration registration =
+                    (TimingData.ManualRegistration) data;
+            applyUniqueTeamRegistrationChange(
+                    registration.registrationId(),
+                    registration.action());
         }
+    }
 
+    /** Applies one registration ADD/REV to the compact unique-team index. */
+    private void applyUniqueTeamRegistrationChange(
+            RegistrationId registrationId,
+            TimingData.RegistrationAction action) {
         if (action == TimingData.RegistrationAction.ADD) {
             uniqueTeamRegistrations.registered(registrationId);
         } else if (action == TimingData.RegistrationAction.REV) {

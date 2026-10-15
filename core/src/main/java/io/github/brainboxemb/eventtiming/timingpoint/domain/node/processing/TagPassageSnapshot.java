@@ -15,6 +15,7 @@ import java.util.List;
  */
 public final class TagPassageSnapshot {
 
+    /** Immutable per-TagId diagnostic statistics within one open passage. */
     public static final class TagStats {
         private final TagId tagId;
         private final long observationCount;
@@ -22,6 +23,7 @@ public final class TagPassageSnapshot {
         private final TimingTimestamp firstObservedAt;
         private final TimingTimestamp lastObservedAt;
 
+        /** Creates immutable diagnostic statistics for one TagId in the passage. */
         TagStats(
                 TagId tagId,
                 long observationCount,
@@ -35,22 +37,27 @@ public final class TagPassageSnapshot {
             this.lastObservedAt = lastObservedAt;
         }
 
+        /** Returns the observed TagId. */
         public TagId tagId() {
             return tagId;
         }
 
+        /** Returns the number of observations collected for this TagId. */
         public long observationCount() {
             return observationCount;
         }
 
+        /** Returns the strongest RSSI observed for this TagId. */
         public int strongestRssi() {
             return strongestRssi;
         }
 
+        /** Returns the first observation timestamp for this TagId. */
         public TimingTimestamp firstObservedAt() {
             return firstObservedAt;
         }
 
+        /** Returns the most recent observation timestamp for this TagId. */
         public TimingTimestamp lastObservedAt() {
             return lastObservedAt;
         }
@@ -62,6 +69,7 @@ public final class TagPassageSnapshot {
     private final int selectedRssi;
     private final TimingTimestamp selectedObservedAt;
 
+    /** Creates one immutable snapshot of an open passage burst. */
     TagPassageSnapshot(
             RegistrationId registrationId,
             List<TagStats> tags,
@@ -77,22 +85,27 @@ public final class TagPassageSnapshot {
         this.selectedObservedAt = selectedObservedAt;
     }
 
+    /** Returns the RegistrationId whose passage is being aggregated. */
     public RegistrationId registrationId() {
         return registrationId;
     }
 
+    /** Returns immutable per-tag diagnostic statistics for the passage. */
     public List<TagStats> tags() {
         return tags;
     }
 
+    /** Returns the TagId currently selected by maximum RSSI. */
     public TagId selectedTagId() {
         return selectedTagId;
     }
 
+    /** Returns the RSSI of the currently selected observation. */
     public int selectedRssi() {
         return selectedRssi;
     }
 
+    /** Returns the timestamp of the currently selected observation. */
     public TimingTimestamp selectedObservedAt() {
         return selectedObservedAt;
     }
