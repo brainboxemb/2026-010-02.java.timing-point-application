@@ -38,10 +38,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * {@link SerialLane} may share a Runtime-owned worker with other logical
  * lanes.</p>
  */
-public final class LogBook
-        implements LogBookAccessor {
-    private static final Logger LOG =
-            LoggerFactory.getLogger(LogBook.class);
+public final class LogBook implements LogBookAccessor {
+    private static final Logger LOG = LoggerFactory.getLogger(LogBook.class);
     public static final long DEFAULT_OPERATION_TIMEOUT_MILLIS = 2000L;
 
     private final LogBookState logBookState;
@@ -50,12 +48,9 @@ public final class LogBook
     private final MonotonicClock monotonicClock;
     private final LogBookMetrics metrics;
 
-    private final Event<Status> statusChangedEvent =
-            new Event<Status>();
-    private final Event<TimingData> newDataEntryEvent =
-            new Event<TimingData>();
-    private final Event<List<TimingData>> initialDataLoadedEvent =
-            new Event<List<TimingData>>();
+    private final Event<Status> statusChangedEvent = new Event<Status>();
+    private final Event<TimingData> newDataEntryEvent = new Event<TimingData>();
+    private final Event<List<TimingData>> initialDataLoadedEvent = new Event<List<TimingData>>();
 
     /** Latest activation-complete immutable Status visible to CURRENT queries. */
     private volatile Status publishedStatus;
@@ -118,17 +113,12 @@ public final class LogBook
         serialLane.start();
 
         // Runnable without arguments that schedules persisted-data loading on the SerialLane.
-        Runnable scheduleLoad =
-                () -> serialLane.execute(this::loadPersistedData);
+        Runnable scheduleLoad = () -> serialLane.execute(this::loadPersistedData);
 
         // Cleanup Runnable invoked by SafeExecute when scheduling is rejected.
-        Runnable cleanup =
-                serialLane::close;
+        Runnable cleanup = serialLane::close;
 
-        SafeExecute.run(
-                scheduleLoad,
-                cleanup,
-                "Persisted TimingData load could not be scheduled");
+        SafeExecute.run(scheduleLoad, cleanup, "Persisted TimingData load could not be scheduled");
     }
 
     /**
@@ -145,17 +135,13 @@ public final class LogBook
     /**
      * Processes one command in LogBook order and returns its domain result.
      */
-    public <R> R process(
-            LogBookCommand<R> command) {
+    public <R> R process(LogBookCommand<R> command) {
         checkArgument(command != null, "command must not be null");
-        return submitAndWait(
-                /*
-                 * () means this Callable has no arguments; -> introduces the
-                 * command application that SerialLane executes later in order.
-                 * Its return value becomes the command result.
-                 */
-                () -> applyCommand(command),
-                command.name());
+        /*
+         * () means this Callable has no arguments; -> introduces the command application
+         * that SerialLane executes later in order. Its return value becomes the command result.
+         */
+        return submitAndWait(() -> applyCommand(command), command.name());
     }
 
     /**
@@ -172,28 +158,22 @@ public final class LogBook
          * work that SerialLane executes later. This fire-and-forget path
          * contains execution-time command failure inside executeQueuedCommand.
          */
-        serialLane.execute(
-                () -> executeQueuedCommand(command));
+        serialLane.execute(() -> executeQueuedCommand(command));
     }
 
     /**
      * Executes an ORDERED query and waits until earlier queued Data Lane work
      * has been processed.
      */
-    public <R> R query(
-            LogBookQuery<R> query) {
-        return query(
-                query,
-                LogBookQuery.ReadConsistency.ORDERED);
+    public <R> R query(LogBookQuery<R> query) {
+        return query(query, LogBookQuery.ReadConsistency.ORDERED);
     }
 
     /**
      * Reads either the directly published CURRENT view or an ORDERED Data Lane
      * view, according to the requested consistency.
      */
-    public <R> R query(
-            LogBookQuery<R> query,
-            LogBookQuery.ReadConsistency consistency) {
+    public <R> R query(LogBookQuery<R> query, LogBookQuery.ReadConsistency consistency) {
         checkArgument(query != null, "query must not be null");
         checkArgument(consistency != null, "consistency must not be null");
 
@@ -210,17 +190,13 @@ public final class LogBook
                 if (serialLane.isExecutingOnCurrentThread()) {
                     return query.readOrdered(logBookState);
                 }
-                return submitAndWait(
-                        /*
-                         * () means this Callable has no arguments; -> introduces
-                         * the ordered LogBook read that SerialLane executes later.
-                         */
-                        () -> query.readOrdered(logBookState),
-                        query.name());
+                /*
+                 * () means this Callable has no arguments; -> introduces the ordered LogBook read
+                 * that SerialLane executes later.
+                 */
+                return submitAndWait(() -> query.readOrdered(logBookState), query.name());
             default:
-                throw new IllegalStateException(
-                        "Unsupported read consistency "
-                                + consistency);
+                throw new IllegalStateException("Unsupported read consistency " + consistency);
         }
     }
 
@@ -251,8 +227,7 @@ public final class LogBook
 
     /** Returns the latest safely published CURRENT status or explains why none is available. */
     Status publishedStatus() {
-        SerialLane.State state =
-                serialLane.state();
+        SerialLane.State state = serialLane.state();
         if (state == SerialLane.State.FAILED) {
             throw new OperationException(
                     OperationException.Reason.FAILED,
@@ -276,14 +251,11 @@ public final class LogBook
 
     /** Loads persisted TimingData and publishes the reconstructed LogBook state. */
     private void loadPersistedData() {
-        LOG.info(
-                "TimingNode {} persisted TimingData load started",
-                timingNodeId().value());
+        LOG.info("TimingNode {} persisted TimingData load started", timingNodeId().value());
 
         final TimingDataPersistence.LoadResult loadResult;
         try {
-            loadResult =
-                    logBookState.loadPersistedTimingData();
+            loadResult = logBookState.loadPersistedTimingData();
         } catch (TimingDataPersistence.PersistenceException
                 | RuntimeException ex) {
             logBookState.markTimingDataLoadFailed(ex);
@@ -301,8 +273,7 @@ public final class LogBook
                 loadResult.records().size(),
                 loadResult.repairedIncompleteTail());
         if (loadResult.repairedIncompleteTail()) {
-            LOG.warn(
-                    "TimingNode {} repaired an incomplete final TimingData record tail during load",
+            LOG.warn("TimingNode {} repaired an incomplete final TimingData record tail during load",
                     timingNodeId().value());
         }
 
@@ -312,17 +283,13 @@ public final class LogBook
 
     /** Publishes the first immutable status after startup loading finishes or fails. */
     private void publishStatusAfterInitialLoad() {
-        Status initialStatus =
-                logBookState.status();
-        publishCurrentStatus(
-                initialStatus);
-        publishInitialStatus(
-                initialStatus);
+        Status initialStatus = logBookState.status();
+        publishCurrentStatus(initialStatus);
+        publishInitialStatus(initialStatus);
     }
 
     /** Executes one previously queued fire-and-forget command and contains its later failure. */
-    private <R> void executeQueuedCommand(
-            LogBookCommand<R> command) {
+    private <R> void executeQueuedCommand(LogBookCommand<R> command) {
         try {
             applyCommand(command);
         } catch (Exception ex) {
@@ -334,38 +301,26 @@ public final class LogBook
     }
 
     /** Applies one command to mutable LogBook state and publishes its completed effects. */
-    private <R> R applyCommand(
-            LogBookCommand<R> command)
-            throws Exception {
-        Status before =
-                logBookState.status();
-        int committedBefore =
-                logBookState.committedTimingDataCount();
+    private <R> R applyCommand(LogBookCommand<R> command) throws Exception {
+        Status before = logBookState.status();
+        int committedBefore = logBookState.committedTimingDataCount();
 
-        R result =
-                command.apply(logBookState);
+        R result = command.apply(logBookState);
 
-        Status after =
-                logBookState.status();
-        publishCurrentStatus(
-                after);
+        Status after = logBookState.status();
+        publishCurrentStatus(after);
 
-        int committedAfter =
-                logBookState.committedTimingDataCount();
+        int committedAfter = logBookState.committedTimingDataCount();
         if (committedAfter > committedBefore) {
-            publishNewData(
-                    logBookState.latestCommittedTimingData());
+            publishNewData(logBookState.latestCommittedTimingData());
         }
 
-        publishStatusChanged(
-                before,
-                after);
+        publishStatusChanged(before, after);
         return result;
     }
 
     /** Emits the first status fact after persisted data has been reconstructed. */
-    private void publishInitialStatus(
-            Status status) {
+    private void publishInitialStatus(Status status) {
         LOG.info(
                 "TimingNode {} initial status available: state {}, location {}, problems {}",
                 timingNodeId().value(),
@@ -375,8 +330,7 @@ public final class LogBook
                         : "-",
                 status.problems().size());
 
-        Event.DeliveryReport delivery =
-                statusChangedEvent.emit(status);
+        Event.DeliveryReport delivery = statusChangedEvent.emit(status);
         if (!delivery.successful()) {
             LOG.warn(
                     "TimingNode initial status published but "
@@ -388,12 +342,8 @@ public final class LogBook
     }
 
     /** Emits a status event only when the effective status changed. */
-    private void publishStatusChanged(
-            Status before,
-            Status after) {
-        if (sameStatus(
-                before,
-                after)) {
+    private void publishStatusChanged(Status before, Status after) {
+        if (sameStatus(before, after)) {
             return;
         }
 
@@ -411,8 +361,7 @@ public final class LogBook
                 before.problems().size(),
                 after.problems().size());
 
-        Event.DeliveryReport delivery =
-                statusChangedEvent.emit(after);
+        Event.DeliveryReport delivery = statusChangedEvent.emit(after);
         if (!delivery.successful()) {
             LOG.warn(
                     "TimingNode status changed but "
@@ -424,20 +373,15 @@ public final class LogBook
     }
 
     /** Replaces the volatile immutable status snapshot used by CURRENT queries. */
-    private void publishCurrentStatus(
-            Status status) {
+    private void publishCurrentStatus(Status status) {
         checkArgument(status != null, "status must not be null");
         publishedStatus = status;
     }
 
     /** Emits an immutable startup-history snapshot to node-local derived-state consumers. */
-    private void publishInitialLoadedData(
-            List<TimingData> loadedData) {
-        List<TimingData> snapshot =
-                Collections.unmodifiableList(
-                        new ArrayList<TimingData>(loadedData));
-        Event.DeliveryReport delivery =
-                initialDataLoadedEvent.emit(snapshot);
+    private void publishInitialLoadedData(List<TimingData> loadedData) {
+        List<TimingData> snapshot = Collections.unmodifiableList(new ArrayList<TimingData>(loadedData));
+        Event.DeliveryReport delivery = initialDataLoadedEvent.emit(snapshot);
         if (!delivery.successful()) {
             LOG.warn(
                     "Persisted TimingData loaded but "
@@ -449,16 +393,10 @@ public final class LogBook
     }
 
     /** Publishes one successfully committed TimingData record and records delivery metrics. */
-    private void publishNewData(
-            TimingData data) {
-        long eventStartedNanos =
-                monotonicClock.nowNanos();
-        Event.DeliveryReport delivery =
-                newDataEntryEvent.emit(data);
-        metrics.recordEventDelivery(
-                monotonicClock.nowNanos()
-                        - eventStartedNanos,
-                delivery.failureCount());
+    private void publishNewData(TimingData data) {
+        long eventStartedNanos = monotonicClock.nowNanos();
+        Event.DeliveryReport delivery = newDataEntryEvent.emit(data);
+        metrics.recordEventDelivery(monotonicClock.nowNanos() - eventStartedNanos, delivery.failureCount());
         if (!delivery.successful()) {
             LOG.warn(
                     "TimingData committed but "
@@ -475,9 +413,7 @@ public final class LogBook
      * Submits one result-bearing operation to the SerialLane and waits for its
      * ordered result.
      */
-    private <R> R submitAndWait(
-            Callable<R> work,
-            String operation) {
+    private <R> R submitAndWait(Callable<R> work, String operation) {
         if (serialLane.isExecutingOnCurrentThread()) {
             throw new IllegalStateException(
                     "Reentrant ORDERED TimingNode operation "
@@ -495,13 +431,9 @@ public final class LogBook
     }
 
     /** Converts Future completion into the stable LogBook operation exception contract. */
-    private <R> R await(
-            Future<R> future,
-            String operation) {
+    private <R> R await(Future<R> future, String operation) {
         try {
-            return future.get(
-                    operationTimeoutMillis,
-                    TimeUnit.MILLISECONDS);
+            return future.get(operationTimeoutMillis, TimeUnit.MILLISECONDS);
         } catch (TimeoutException ex) {
             throw new OperationException(
                     OperationException.Reason.TIMEOUT,
@@ -547,9 +479,7 @@ public final class LogBook
      * <p>The lane state distinguishes a stopped/failed owner from ordinary bounded-queue pressure;
      * SerialLane itself keeps the standard RejectedExecutionException API.</p>
      */
-    private OperationException rejectedOperation(
-            String operation,
-            RejectedExecutionException rejection) {
+    private OperationException rejectedOperation(String operation, RejectedExecutionException rejection) {
         if (serialLane.state() == SerialLane.State.FAILED) {
             return new OperationException(
                     OperationException.Reason.FAILED,
@@ -569,9 +499,7 @@ public final class LogBook
     }
 
     /** Compares immutable status values without depending on object identity. */
-    private static boolean sameStatus(
-            Status left,
-            Status right) {
+    private static boolean sameStatus(Status left, Status right) {
         if (!left.timingNodeId()
                 .equals(
                         right.timingNodeId())) {

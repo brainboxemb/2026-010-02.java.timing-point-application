@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reflow recently refactored TimingNode code to DR-18: keep readable statements on one line up to the 120-character limit instead of mechanically wrapping around 80 columns.
+
 - Make `LogBook.activate()` read linearly by naming the persisted-load scheduling and rejection-cleanup `Runnable` values before passing them to `SafeExecute.run(...)`.
 
 - Restore `LogBookCommands` to the shared validation/comment conventions: command preconditions use `Checks.checkArgument(...)`, private helpers are documented, and the repeated deferred `logBookState -> ...` command lambda is explained once at the factory boundary.

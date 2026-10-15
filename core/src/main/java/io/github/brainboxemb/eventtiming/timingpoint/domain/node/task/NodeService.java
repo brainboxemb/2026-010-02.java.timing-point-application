@@ -33,8 +33,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * immutable initial-loaded/committed TimingData facts and bounded LogBook reads.</p>
  */
 public final class NodeService {
-    private static final Logger LOG =
-            LoggerFactory.getLogger(NodeService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(NodeService.class);
     private static final long TASK_QUERY_TIMEOUT_MILLIS = 2000L;
 
     private final LogBook logBook;
@@ -43,10 +42,7 @@ public final class NodeService {
     private final StageTiming stageTiming;
 
     /** Creates the Task Lane service around explicitly composed passive state. */
-    public NodeService(
-            LogBook logBook,
-            SerialLane serialLane,
-            NodeServiceState state) {
+    public NodeService(LogBook logBook, SerialLane serialLane, NodeServiceState state) {
         checkArgument(logBook != null, "logBook must not be null");
         checkArgument(serialLane != null, "serialLane must not be null");
         checkArgument(state != null, "state must not be null");
@@ -54,20 +50,14 @@ public final class NodeService {
         this.logBook = logBook;
         this.serialLane = serialLane;
         this.state = state;
-        this.stageTiming =
-                new StageTiming(
-                        state.eventData(),
-                        state.teamAssignments(),
-                        state.stageStartTimes());
+        this.stageTiming = new StageTiming(state.eventData(), state.teamAssignments(), state.stageStartTimes());
 
         /*
          * Composition-time wiring. Event delivery itself is synchronous on the
          * Data Lane; these listeners only perform a bounded Task Lane handoff.
          */
-        logBook.initialDataLoadedEvent()
-                .subscribe(this::onInitialTimingDataLoaded);
-        logBook.newDataEntryEvent()
-                .subscribe(this::onTimingDataCommitted);
+        logBook.initialDataLoadedEvent().subscribe(this::onInitialTimingDataLoaded);
+        logBook.newDataEntryEvent().subscribe(this::onTimingDataCommitted);
     }
 
     /**
@@ -104,17 +94,13 @@ public final class NodeService {
         if (serialLane.isExecutingOnCurrentThread()) {
             return buildStageTiming(raceTimeZone);
         }
-        return submitAndWait(
-                () -> buildStageTiming(raceTimeZone),
-                "stageTiming");
+        return submitAndWait(() -> buildStageTiming(raceTimeZone), "stageTiming");
     }
 
     /** Builds the derived stage ranking while the Task Lane owns mutable derived state. */
     private List<StageTime> buildStageTiming(ZoneId raceTimeZone) {
         requireTaskLane("stageTiming");
-        return stageTiming.ranking(
-                state.committedTimingDataSnapshot(),
-                raceTimeZone);
+        return stageTiming.ranking(state.committedTimingDataSnapshot(), raceTimeZone);
     }
 
     /** Hands the immutable startup history from the Data Lane to Task Lane-derived state. */
@@ -146,9 +132,7 @@ public final class NodeService {
      * physical worker. Failure to queue the fact makes derived timing state
      * explicitly stale rather than silently losing synchronization.</p>
      */
-    private void handoffTimingFact(
-            Runnable operation,
-            String fact) {
+    private void handoffTimingFact(Runnable operation, String fact) {
         try {
             serialLane.execute(operation);
         } catch (RejectedExecutionException ex) {
@@ -162,15 +146,13 @@ public final class NodeService {
     }
 
     /** Rebuilds derived timing while this service owns the SerialLane turn. */
-    private void rebuildDerivedTiming(
-            List<TimingData> loadedData) {
+    private void rebuildDerivedTiming(List<TimingData> loadedData) {
         requireTaskLane("rebuildDerivedTiming");
         state.rebuildDerivedTiming(loadedData);
     }
 
     /** Applies one newly committed TimingData fact during the owned SerialLane turn. */
-    private void applyCommittedTimingData(
-            TimingData data) {
+    private void applyCommittedTimingData(TimingData data) {
         requireTaskLane("applyCommittedTimingData");
         state.applyCommittedTimingData(data);
     }
@@ -178,8 +160,7 @@ public final class NodeService {
     /** Fails fast when a helper that owns mutable Task Lane state runs outside that lane. */
     private void requireTaskLane(String operation) {
         if (!serialLane.isExecutingOnCurrentThread()) {
-            throw new IllegalStateException(
-                    operation + " requires the TimingNode Task Lane");
+            throw new IllegalStateException(operation + " requires the TimingNode Task Lane");
         }
     }
 
@@ -189,9 +170,7 @@ public final class NodeService {
      * <p>Callers already executing on the SerialLane must use their direct
      * read path instead of self-submitting and waiting.</p>
      */
-    private <R> R submitAndWait(
-            Callable<R> work,
-            String operation) {
+    private <R> R submitAndWait(Callable<R> work, String operation) {
         final Future<R> future;
         try {
             future = serialLane.submit(work);
@@ -204,9 +183,7 @@ public final class NodeService {
     /** Converts Future completion into the stable Task Lane operation exception contract. */
     private <R> R await(Future<R> future, String operation) {
         try {
-            return future.get(
-                    TASK_QUERY_TIMEOUT_MILLIS,
-                    TimeUnit.MILLISECONDS);
+            return future.get(TASK_QUERY_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
         } catch (TimeoutException ex) {
             throw new OperationException(
                     OperationException.Reason.TIMEOUT,
@@ -233,9 +210,7 @@ public final class NodeService {
     }
 
     /** Maps standard Task Lane rejection to the result-bearing domain operation categories. */
-    private OperationException rejectedOperation(
-            String operation,
-            RejectedExecutionException rejection) {
+    private OperationException rejectedOperation(String operation, RejectedExecutionException rejection) {
         if (serialLane.state() == SerialLane.State.FAILED) {
             return new OperationException(
                     OperationException.Reason.FAILED,

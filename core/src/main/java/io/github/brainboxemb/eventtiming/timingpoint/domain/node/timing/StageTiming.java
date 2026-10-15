@@ -32,10 +32,7 @@ public final class StageTiming {
     private final TeamAssignments teamAssignments;
     private final StageStartTimes stageStartTimes;
 
-    public StageTiming(
-            EventData eventData,
-            TeamAssignments teamAssignments,
-            StageStartTimes stageStartTimes) {
+    public StageTiming(EventData eventData, TeamAssignments teamAssignments, StageStartTimes stageStartTimes) {
         checkArgument(eventData != null, "eventData must not be null");
         checkArgument(teamAssignments != null, "teamAssignments must not be null");
         checkArgument(stageStartTimes != null, "stageStartTimes must not be null");
@@ -52,107 +49,67 @@ public final class StageTiming {
      * simply absent; StageTiming never invents an elapsed time for incomplete
      * input.</p>
      */
-    public List<StageTime> ranking(
-            List<TimingData> committedTimingData,
-            ZoneId raceTimeZone) {
-        checkArgument(
-                committedTimingData != null,
-                "committedTimingData must not be null");
+    public List<StageTime> ranking(List<TimingData> committedTimingData, ZoneId raceTimeZone) {
+        checkArgument(committedTimingData != null, "committedTimingData must not be null");
         checkArgument(raceTimeZone != null, "raceTimeZone must not be null");
 
-        List<TimingData> activeRegistrations =
-                activeRegistrations(
-                        committedTimingData);
-        List<StageTime> resolved =
-                new ArrayList<StageTime>();
+        List<TimingData> activeRegistrations = activeRegistrations(committedTimingData);
+        List<StageTime> resolved = new ArrayList<StageTime>();
 
         for (TimingData registration : activeRegistrations) {
-            RegistrationId registrationId =
-                    registrationId(registration);
-            TeamId teamId =
-                    resolveTeamId(registrationId);
+            RegistrationId registrationId = registrationId(registration);
+            TeamId teamId = resolveTeamId(registrationId);
             if (teamId == null) {
                 continue;
             }
 
-            TimingTimestamp start =
-                    stageStartTimes.startFor(
-                            teamId);
+            TimingTimestamp start = stageStartTimes.startFor(teamId);
             if (start == null) {
                 continue;
             }
 
-            TimingTimestamp registrationTime =
-                    registration.effectiveTime();
+            TimingTimestamp registrationTime = registration.effectiveTime();
             if (!registrationTime.isAbsolute()) {
-                throw new IllegalStateException(
-                        "committed TimingData effectiveTime must be absolute");
+                throw new IllegalStateException("committed TimingData effectiveTime must be absolute");
             }
 
-            TimingTimestamp resolvedStart =
-                    resolveStart(
-                            start,
-                            registrationTime,
-                            raceTimeZone);
-            resolved.add(
-                    new StageTime(
-                            0,
-                            teamId,
-                            registrationId,
-                            Duration.between(
-                                    resolvedStart.instant(),
-                                    registrationTime.instant())));
+            TimingTimestamp resolvedStart = resolveStart(start, registrationTime, raceTimeZone);
+            resolved.add(new StageTime(
+                    0,
+                    teamId,
+                    registrationId,
+                    Duration.between(resolvedStart.instant(), registrationTime.instant())));
         }
 
         Collections.sort(
                 resolved,
-                Comparator
-                        .comparing(StageTime::elapsed)
-                        .thenComparing(
-                                value -> value.teamId().value())
-                        .thenComparing(
-                                value -> value.registrationId().value()));
+                Comparator.comparing(StageTime::elapsed)
+                        .thenComparing(value -> value.teamId().value())
+                        .thenComparing(value -> value.registrationId().value()));
 
-        List<StageTime> ranked =
-                new ArrayList<StageTime>(
-                        resolved.size());
+        List<StageTime> ranked = new ArrayList<StageTime>(resolved.size());
         Duration previousElapsed = null;
         int rank = 0;
-        for (int index = 0;
-                index < resolved.size();
-                index++) {
-            StageTime value =
-                    resolved.get(index);
-            if (previousElapsed == null
-                    || !previousElapsed.equals(
-                            value.elapsed())) {
+        for (int index = 0; index < resolved.size(); index++) {
+            StageTime value = resolved.get(index);
+            if (previousElapsed == null || !previousElapsed.equals(value.elapsed())) {
                 rank = index + 1;
-                previousElapsed =
-                        value.elapsed();
+                previousElapsed = value.elapsed();
             }
-            ranked.add(
-                    new StageTime(
-                            rank,
-                            value.teamId(),
-                            value.registrationId(),
-                            value.elapsed()));
+            ranked.add(new StageTime(rank, value.teamId(), value.registrationId(), value.elapsed()));
         }
 
-        return Collections.unmodifiableList(
-                ranked);
+        return Collections.unmodifiableList(ranked);
     }
 
     /**
      * Rebuilds the active registration view from append-only ADD/REV records.
      */
-    private static List<TimingData> activeRegistrations(
-            List<TimingData> committedTimingData) {
-        List<TimingData> active =
-                new ArrayList<TimingData>();
+    private static List<TimingData> activeRegistrations(List<TimingData> committedTimingData) {
+        List<TimingData> active = new ArrayList<TimingData>();
 
         for (TimingData data : committedTimingData) {
-            TimingData.RegistrationAction action =
-                    registrationAction(data);
+            TimingData.RegistrationAction action = registrationAction(data);
             if (action == null) {
                 continue;
             }
@@ -160,19 +117,14 @@ public final class StageTiming {
             if (action == TimingData.RegistrationAction.ADD) {
                 active.add(data);
             } else {
-                removeMatchingRegistration(
-                        active,
-                        data);
+                removeMatchingRegistration(active, data);
             }
         }
         return active;
     }
 
-    private static void removeMatchingRegistration(
-            List<TimingData> active,
-            TimingData revoke) {
-        RegistrationId revokeRegistrationId =
-                registrationId(revoke);
+    private static void removeMatchingRegistration(List<TimingData> active, TimingData revoke) {
+        RegistrationId revokeRegistrationId = registrationId(revoke);
 
         /*
          * A REV carries the original registration identity: RegistrationId,
@@ -182,8 +134,7 @@ public final class StageTiming {
         for (int index = active.size() - 1;
                 index >= 0;
                 index--) {
-            TimingData activeRegistration =
-                    active.get(index);
+            TimingData activeRegistration = active.get(index);
             if (revokeRegistrationId.equals(
                         registrationId(activeRegistration))
                     && Objects.equals(
@@ -197,58 +148,39 @@ public final class StageTiming {
         }
     }
 
-    private TeamId resolveTeamId(
-            RegistrationId registrationId) {
-        TeamId configuredTeamId =
-                eventData.teamIdFor(
-                        registrationId);
-        return configuredTeamId != null
-                ? configuredTeamId
-                : teamAssignments.teamIdFor(
-                        registrationId);
+    private TeamId resolveTeamId(RegistrationId registrationId) {
+        TeamId configuredTeamId = eventData.teamIdFor(registrationId);
+        return configuredTeamId != null ? configuredTeamId : teamAssignments.teamIdFor(registrationId);
     }
 
-    private static RegistrationId registrationId(
-            TimingData data) {
+    private static RegistrationId registrationId(TimingData data) {
         if (data instanceof TimingData.AutomaticRegistration) {
-            return ((TimingData.AutomaticRegistration) data)
-                    .registrationId();
+            return ((TimingData.AutomaticRegistration) data).registrationId();
         }
         if (data instanceof TimingData.ManualRegistration) {
-            return ((TimingData.ManualRegistration) data)
-                    .registrationId();
+            return ((TimingData.ManualRegistration) data).registrationId();
         }
-        throw new IllegalArgumentException(
-                "TimingData is not a registration");
+        throw new IllegalArgumentException("TimingData is not a registration");
     }
 
-    private static TimingData.RegistrationAction registrationAction(
-            TimingData data) {
+    private static TimingData.RegistrationAction registrationAction(TimingData data) {
         if (data instanceof TimingData.AutomaticRegistration) {
-            return ((TimingData.AutomaticRegistration) data)
-                    .action();
+            return ((TimingData.AutomaticRegistration) data).action();
         }
         if (data instanceof TimingData.ManualRegistration) {
-            return ((TimingData.ManualRegistration) data)
-                    .action();
+            return ((TimingData.ManualRegistration) data).action();
         }
         return null;
     }
 
     private static TimingTimestamp resolveStart(
-            TimingTimestamp start,
-            TimingTimestamp registrationTime,
-            ZoneId raceTimeZone) {
+            TimingTimestamp start, TimingTimestamp registrationTime, ZoneId raceTimeZone) {
         if (start.isAbsolute()) {
             return start;
         }
 
         if (start.hasDate()) {
-            return absolute(
-                    ZonedDateTime.of(
-                            start.date(),
-                            start.time(),
-                            raceTimeZone));
+            return absolute(ZonedDateTime.of(start.date(), start.time(), raceTimeZone));
         }
 
         /*
@@ -256,31 +188,17 @@ public final class StageTiming {
          * occurrence that is not after the registration, including midnight
          * rollover.
          */
-        LocalDate registrationDate =
-                registrationTime.instant()
-                        .atZone(raceTimeZone)
-                        .toLocalDate();
-        ZonedDateTime resolved =
-                ZonedDateTime.of(
-                        registrationDate,
-                        start.time(),
-                        raceTimeZone);
+        LocalDate registrationDate = registrationTime.instant().atZone(raceTimeZone).toLocalDate();
+        ZonedDateTime resolved = ZonedDateTime.of(registrationDate, start.time(), raceTimeZone);
 
-        if (resolved.toInstant()
-                .isAfter(registrationTime.instant())) {
-            resolved =
-                    ZonedDateTime.of(
-                            registrationDate.minusDays(1L),
-                            start.time(),
-                            raceTimeZone);
+        if (resolved.toInstant().isAfter(registrationTime.instant())) {
+            resolved = ZonedDateTime.of(registrationDate.minusDays(1L), start.time(), raceTimeZone);
         }
 
         return absolute(resolved);
     }
 
-    private static TimingTimestamp absolute(
-            ZonedDateTime value) {
-        return new TimingTimestamp(
-                value.toInstant());
+    private static TimingTimestamp absolute(ZonedDateTime value) {
+        return new TimingTimestamp(value.toInstant());
     }
 }
