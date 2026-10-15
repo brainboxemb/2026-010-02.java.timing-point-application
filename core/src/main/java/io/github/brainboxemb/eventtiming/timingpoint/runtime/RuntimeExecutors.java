@@ -4,6 +4,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.Se
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -193,15 +194,14 @@ final class RuntimeExecutors implements AutoCloseable {
         return conductorLane;
     }
 
-    /**
-     * Creates one ordinary serial AntennaManager control lane.
-     *
-     * <p>Delayed work is scheduled separately and later admitted to this same
-     * lane, so timing does not create a second kind of lane.</p>
-     */
-    synchronized SerialLane createAntennaControlLane() {
-        SerialLane antennaControlLane = new SerialLane(
-                ANTENNA_CONTROL_LANE_QUEUE_CAPACITY, "AntennaManager", sharedIoScheduledExecutor);
+    /** Creates the cooperative serial control lane owned by one AntennaManager. */
+    synchronized TaskSerialLane createAntennaControlLane(Duration operationTimeout) {
+        TaskSerialLane antennaControlLane =
+                new TaskSerialLane(
+                        ANTENNA_CONTROL_LANE_QUEUE_CAPACITY,
+                        "AntennaManager",
+                        sharedIoScheduledExecutor,
+                        operationTimeout);
         serialLanes.add(antennaControlLane);
         return antennaControlLane;
     }
