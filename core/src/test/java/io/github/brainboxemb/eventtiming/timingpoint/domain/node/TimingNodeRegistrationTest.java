@@ -225,9 +225,9 @@ public class TimingNodeRegistrationTest {
         try {
             node.open(new LocationId(24));
 
-            TimingNodeTypes.RegistrationResult first = node.logBook().process(LogBookCommands.addAutomaticRegistration(
+            TimingNodeTypes.RegistrationResult first = node.addAutomaticRegistration(
                     new RegistrationId("1001"),
-                    EFFECTIVE_TIME));
+                    EFFECTIVE_TIME);
             TimingNodeTypes.RegistrationResult second = node.addManualRegistration(
                     new RegistrationId("1002"),
                     EFFECTIVE_TIME,
@@ -282,10 +282,10 @@ public class TimingNodeRegistrationTest {
             store.failNext = true;
 
             try {
-                node.logBook().process(LogBookCommands.commitManualRegistration(
+                node.addManualRegistration(
                         new RegistrationId("1001"),
                         EFFECTIVE_TIME,
-                        ManualTimeSource.OPERATOR_ENTERED));
+                        ManualTimeSource.OPERATOR_ENTERED);
                 fail("expected persistence failure");
             } catch (TimingNodeTypes.OperationException expected) {
                 assertEquals(
@@ -297,10 +297,10 @@ public class TimingNodeRegistrationTest {
             assertEquals(2, store.attempts);
 
             try {
-                node.logBook().process(LogBookCommands.commitManualRegistration(
+                node.addManualRegistration(
                         new RegistrationId("1002"),
                         EFFECTIVE_TIME,
-                        ManualTimeSource.OPERATOR_ENTERED));
+                        ManualTimeSource.OPERATOR_ENTERED);
                 fail("expected blocked commit");
             } catch (TimingNodeTypes.OperationException expected) {
                 assertEquals(
@@ -366,10 +366,10 @@ public class TimingNodeRegistrationTest {
             store.failNext = true;
 
             try {
-                node.logBook().process(LogBookCommands.commitManualRegistration(
+                node.addManualRegistration(
                         new RegistrationId("1001"),
                         EFFECTIVE_TIME,
-                        ManualTimeSource.OPERATOR_ENTERED));
+                        ManualTimeSource.OPERATOR_ENTERED);
                 fail("expected persistence failure");
             } catch (TimingNodeTypes.OperationException expected) {
                 assertEquals(
