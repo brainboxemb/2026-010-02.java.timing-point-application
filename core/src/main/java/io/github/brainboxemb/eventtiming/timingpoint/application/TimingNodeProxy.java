@@ -106,14 +106,20 @@ public final class TimingNodeProxy {
     public RegistrationResult simulateAutomaticRegistration(
             RegistrationId registrationId, TimingTimestamp time) {
         return logBook.process(
-                LogBookCommands.simulateAutomaticRegistration(registrationId, time));
+                LogBookCommands.commitAutomaticRegistration(
+                        registrationId,
+                        time,
+                        TimingData.TagSource.API,
+                        TimingData.AutomaticTimeSource.API));
     }
 
     /** Engineering-only accepted registration using this node's own TimeSource. */
     public RegistrationResult simulateAutomaticRegistrationNow(
             RegistrationId registrationId) {
         return logBook.process(
-                LogBookCommands.simulateAutomaticRegistrationNow(registrationId));
+                LogBookCommands.commitAutomaticRegistrationNow(
+                        registrationId,
+                        TimingData.TagSource.API));
     }
 
     /**

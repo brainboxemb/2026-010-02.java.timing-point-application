@@ -160,6 +160,11 @@ public final class AntennaManager implements YieldingTask {
         return requestInventory(false);
     }
 
+    /** Returns configured antenna ids in composition order. */
+    public List<AntennaId> antennaIds() {
+        return antennaSet.antennaIds();
+    }
+
     public EventSource<TagObservation> tagObservedEvent(AntennaId antennaId) {
         return antennaSet.tagObservedEvent(antennaId);
     }

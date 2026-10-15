@@ -71,8 +71,7 @@ public class TimingApplicationRuntimeTest {
                     Config.REFERENCE_PROVIDER_ID, Config.REFERENCE_PROVIDER_ID));
             managers.add(new AntennaManagerConfig(id,
                     Collections.singletonList(new AntennaManagerConfig.AntennaConfig(
-                            new AntennaId("1"), "simulated",
-                            Collections.singletonList(new NodeId(id)))),
+                            new AntennaId("1"), "simulated")),
                     Collections.<AntennaId>emptyList(), null));
         }
         Config config = new Config(systems, managers, new Presentation(null, null), null, null);

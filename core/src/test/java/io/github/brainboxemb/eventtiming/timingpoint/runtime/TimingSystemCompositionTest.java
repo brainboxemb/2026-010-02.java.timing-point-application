@@ -51,8 +51,7 @@ public class TimingSystemCompositionTest {
                     nodeId,
                     Collections.singletonList(new AntennaManagerConfig.AntennaConfig(
                             new AntennaId("1"),
-                            "simulated",
-                            Collections.singletonList(new NodeId(nodeId)))),
+                            "simulated")),
                     Collections.<AntennaId>emptyList(),
                     null));
         }
@@ -130,7 +129,7 @@ public class TimingSystemCompositionTest {
     }
 
     @Test
-    public void rejectsImplicitRoutingForMultipleNodes() {
+    public void soleAntennaIsDefaultedForNodesWithoutExplicitAntennaId() {
         Config.TimingSystemConfig timingSystem =
                 new Config.TimingSystemConfig(
                         "9",
@@ -151,13 +150,44 @@ public class TimingSystemCompositionTest {
 
         AntennaSet antennaSet = new AntennaSet()
                 .add(new AntennaId("1"), new SimulatedAntenna());
+
+        TimingApplicationRuntime application =
+                TimingApplicationRuntime.createSimulation(
+                        identity(), config, antennaSet, EventData.empty());
+
+        assertEquals(new AntennaId("1"), application.timingNodes().get(0).antennaId());
+        assertEquals(new AntennaId("1"), application.timingNodes().get(1).antennaId());
+        application.deactivate();
+    }
+
+    @Test
+    public void multipleAntennasRequireExplicitNodeAntennaId() {
+        Config.TimingSystemConfig timingSystem =
+                new Config.TimingSystemConfig(
+                        "9",
+                        Arrays.asList(
+                                node("A"),
+                                node("B")),
+                        Config.REFERENCE_PROVIDER_ID,
+                        Config.REFERENCE_PROVIDER_ID);
+        Config config =
+                new Config(
+                        Collections.singletonList(timingSystem),
+                        new Presentation(null, null),
+                        null,
+                        null);
+
+        AntennaSet antennaSet = new AntennaSet()
+                .add(new AntennaId("1"), new SimulatedAntenna())
+                .add(new AntennaId("2"), new SimulatedAntenna());
+
         try {
             TimingApplicationRuntime.createSimulation(
                     identity(), config, antennaSet, EventData.empty());
-            fail("Expected ambiguous implicit antenna routing to be rejected");
+            fail("Expected explicit antennaId to be required");
         } catch (IllegalArgumentException expected) {
             assertTrue(expected.getMessage().contains(
-                    "Implicit antenna routing requires exactly one TimingNode"));
+                    "requires antennaId because multiple antennas are configured"));
         }
     }
 

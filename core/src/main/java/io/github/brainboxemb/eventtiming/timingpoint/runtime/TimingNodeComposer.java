@@ -10,6 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServiceState;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
@@ -21,9 +22,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnl
  * Composes the child components owned by one {@link TimingNode}.
  *
  * <p>This class only builds one node. System-level construction such as
- * AntennaManager, TimingSystemConductor and antenna-to-node mapping remains in
- * {@link TimingSystemComposer}; the resulting TimingSystem owns system-level
- * wiring and lifecycle.</p>
+ * AntennaManager and TimingSystemConductor remains in {@link TimingSystemComposer};
+ * the resulting TimingSystem owns system-level wiring and lifecycle.</p>
  */
 final class TimingNodeComposer {
     private final ApplicationConfiguration configuration;
@@ -44,6 +44,7 @@ final class TimingNodeComposer {
     /** Builds one complete TimingNode from resolved runtime configuration. */
     TimingNode compose(
             Config.TimingNodeConfig nodeConfig,
+            AntennaId antennaId,
             TimingSystemResolvedData system,
             TimeSource timeSource) {
 
@@ -86,6 +87,6 @@ final class TimingNodeComposer {
                         execution.tagProcessorLane(),
                         execution.tagProcessorScheduledExecutor());
 
-        return new TimingNode(logBook, nodeService, tagProcessor);
+        return new TimingNode(antennaId, logBook, nodeService, tagProcessor);
     }
 }

@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
@@ -13,12 +14,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Standard state-changing commands committed through the LogBook component.
  *
- * <p>The factory validates command input at creation time. Execution belongs to
- * {@link LogBook}, which applies the command on the Data Lane.</p>
- *
- * <p>Factory methods validate caller input and capture only the values needed
- * by the immutable command. LogBook later applies that command through its owned
- * LogBookOperations on the Data Lane.</p>
+ * <p>Factory methods validate caller input and capture the values needed by the
+ * immutable command. LogBook later applies that command on the Data Lane.</p>
  */
 public final class LogBookCommands {
     private static final LogBookCommand<CloseResult> CLOSE =
@@ -52,45 +49,55 @@ public final class LogBookCommands {
         return CLOSE;
     }
 
-    /**
-     * Commits one automatic registration using the already observed effective time.
-     */
+    /** Commits one antenna-originated automatic registration. */
     public static LogBookCommand<RegistrationResult>
             addAutomaticRegistration(
                     RegistrationId registrationId,
-                    TimingTimestamp time) {
+                    TimingTimestamp effectiveTime) {
 
-        checkArgument(registrationId != null, "registrationId must not be null");
-        checkArgument(time != null, "time must not be null");
-
-        return simple(
-                "addAutomaticRegistration",
-                operations -> operations.addAutomaticRegistration(
-                        registrationId,
-                        time));
+        return commitAutomaticRegistration(
+                registrationId,
+                effectiveTime,
+                TimingData.TagSource.ANT,
+                TimingData.AutomaticTimeSource.OBS);
     }
 
-    /** Direct IF-03 simulation with a caller-supplied effective time. */
+    /** Commits one automatic registration with explicit source provenance. */
     public static LogBookCommand<RegistrationResult>
-            simulateAutomaticRegistration(
+            commitAutomaticRegistration(
                     RegistrationId registrationId,
-                    TimingTimestamp time) {
+                    TimingTimestamp effectiveTime,
+                    TimingData.TagSource tagSource,
+                    TimingData.AutomaticTimeSource timeSource) {
 
         checkArgument(registrationId != null, "registrationId must not be null");
-        checkArgument(time != null, "time must not be null");
+        checkArgument(effectiveTime != null, "effectiveTime must not be null");
+        checkArgument(tagSource != null, "tagSource must not be null");
+        checkArgument(timeSource != null, "timeSource must not be null");
+
         return simple(
-                "simulateAutomaticRegistration",
-                operations -> operations.simulateAutomaticRegistration(registrationId, time));
+                "commitAutomaticRegistration",
+                operations -> operations.commitAutomaticRegistration(
+                        registrationId,
+                        effectiveTime,
+                        tagSource,
+                        timeSource));
     }
 
-    /** Direct IF-03 simulation; capture TimeSource on the node's serial lane. */
+    /** Commits one automatic registration using current node time. */
     public static LogBookCommand<RegistrationResult>
-            simulateAutomaticRegistrationNow(RegistrationId registrationId) {
+            commitAutomaticRegistrationNow(
+                    RegistrationId registrationId,
+                    TimingData.TagSource tagSource) {
 
         checkArgument(registrationId != null, "registrationId must not be null");
+        checkArgument(tagSource != null, "tagSource must not be null");
+
         return simple(
-                "simulateAutomaticRegistrationNow",
-                operations -> operations.simulateAutomaticRegistrationNow(registrationId));
+                "commitAutomaticRegistrationNow",
+                operations -> operations.commitAutomaticRegistrationNow(
+                        registrationId,
+                        tagSource));
     }
 
     /**

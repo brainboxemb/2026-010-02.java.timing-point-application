@@ -16,6 +16,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServic
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamTaskState;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
@@ -325,7 +326,7 @@ public final class TimingNodeFixture {
                         tagLane,
                         TAG_WORKER);
 
-        TimingNode node = new TimingNode(logBook, nodeService, tagProcessor);
+        TimingNode node = new TimingNode(new AntennaId("1"), logBook, nodeService, tagProcessor);
 
         return new Components(
                 node,

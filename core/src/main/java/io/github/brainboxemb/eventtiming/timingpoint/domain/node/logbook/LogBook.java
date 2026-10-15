@@ -264,15 +264,14 @@ public final class LogBook implements LogBookAccessor {
     private <R> R applyCommand(LogBookCommand<R> command) throws Exception {
 
         Status before = logBookState.status();
-        int committedBefore = logBookState.committedTimingDataCount();
+        long headBefore = logBookState.timingDataHead();
 
         R result = command.apply(logBookOperations);
 
         Status after = logBookState.status();
         logBookStatus.publishCurrent(after);
 
-        int committedAfter = logBookState.committedTimingDataCount();
-        if (committedAfter > committedBefore) {
+        if (logBookState.timingDataHead() > headBefore) {
             newDataEntryEvent.emit(logBookState.latestCommittedTimingData());
         }
 

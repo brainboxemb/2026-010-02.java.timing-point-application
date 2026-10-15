@@ -272,6 +272,38 @@ public final class TimingNodeTypes {
         public boolean hasProblems() {
             return !problems.isEmpty();
         }
+
+        /** Compares immutable status snapshots by their published values. */
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof Status)) {
+                return false;
+            }
+            Status that = (Status) other;
+            if (!timingNodeId.equals(that.timingNodeId)
+                    || state != that.state
+                    || timingDataTailRepaired != that.timingDataTailRepaired
+                    || !problems.equals(that.problems)) {
+                return false;
+            }
+            return locationId == null
+                    ? that.locationId == null
+                    : locationId.equals(that.locationId);
+        }
+
+        /** Returns a hash consistent with Status value equality. */
+        @Override
+        public int hashCode() {
+            int result = timingNodeId.hashCode();
+            result = 31 * result + state.hashCode();
+            result = 31 * result + (locationId == null ? 0 : locationId.hashCode());
+            result = 31 * result + (timingDataTailRepaired ? 1 : 0);
+            result = 31 * result + problems.hashCode();
+            return result;
+        }
     }
 
     /**

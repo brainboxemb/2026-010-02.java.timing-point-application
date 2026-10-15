@@ -18,8 +18,7 @@ public class AntennaManagerConfigRegistryTest {
         TimingSystemConfigRegistry systems =
                 systems();
         AntennaManagerConfig binding =
-                binding(
-                        new NodeId("A"));
+                binding("A");
 
         AntennaManagerConfigRegistry registry =
                 new AntennaManagerConfigRegistry(
@@ -37,18 +36,17 @@ public class AntennaManagerConfigRegistryTest {
     }
 
     @Test
-    public void rejectsTargetOutsideBoundTimingSystem() {
+    public void rejectsUnknownTimingSystemBinding() {
         try {
             new AntennaManagerConfigRegistry(
                     Collections.singletonList(
-                            binding(
-                                    new NodeId("B"))),
+                            binding("B")),
                     systems());
-            fail("Expected out-of-system antenna target to be rejected");
+            fail("Expected unknown TimingSystem binding to be rejected");
         } catch (IllegalArgumentException expected) {
             assertTrue(
                     expected.getMessage().contains(
-                            "routes to a TimingNode outside TimingSystem A: B"));
+                            "Unknown or duplicate AntennaManager TimingSystem binding"));
         }
     }
 
@@ -71,15 +69,13 @@ public class AntennaManagerConfigRegistryTest {
     }
 
     private static AntennaManagerConfig binding(
-            NodeId target) {
+            String timingSystemId) {
         return new AntennaManagerConfig(
-                "A",
+                timingSystemId,
                 Collections.singletonList(
                         new AntennaManagerConfig.AntennaConfig(
                                 new AntennaId("1"),
-                                "simulated",
-                                Collections.singletonList(
-                                        target))),
+                                "simulated")),
                 Collections.<AntennaId>emptyList(),
                 null);
     }

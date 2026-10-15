@@ -8,6 +8,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
@@ -32,6 +33,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 public final class TimingNode {
     private static final Logger LOG = LoggerFactory.getLogger(TimingNode.class);
     private final NodeId timingNodeId;
+    private final AntennaId antennaId;
     private final LogBookAccessor logBook;
     private final TagProcessor tagProcessor;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
@@ -42,30 +44,27 @@ public final class TimingNode {
                     (node, source) -> source.subscribe(node.tagProcessor::onTagObserved));
 
     /** Creates the top-level node owner around its already composed child components. */
-    public TimingNode(LogBook logBook, NodeService nodeService, TagProcessor tagProcessor) {
+    public TimingNode(
+            AntennaId antennaId,
+            LogBook logBook,
+            NodeService nodeService,
+            TagProcessor tagProcessor) {
 
+        checkArgument(antennaId != null, "antennaId must not be null");
         checkArgument(logBook != null, "logBook must not be null");
         checkArgument(nodeService != null, "nodeService must not be null");
         checkArgument(tagProcessor != null, "tagProcessor must not be null");
 
         this.timingNodeId = logBook.timingNodeId();
+        this.antennaId = antennaId;
         this.logBook = logBook;
         this.tagProcessor = tagProcessor;
         lifecycle.register(nodeService, NodeService::activate, NodeService::deactivate);
         lifecycle.register(logBook, LogBook::activate, LogBook::deactivate);
         lifecycle.register(tagProcessor, TagProcessor::activate, TagProcessor::deactivate);
 
-        /*
-         * LogBook emits committed/startup TimingData synchronously on the Data
-         * Lane. NodeService owns the internal handlers and only queues the
-         * corresponding Task Lane work.
-         */
-        nodeService.bind(
-                NodeService.INITIAL_TIMING_DATA,
-                logBook.initialDataLoadedEvent());
-        nodeService.bind(
-                NodeService.COMMITTED_TIMING_DATA,
-                logBook.newDataEntryEvent());
+        nodeService.bind(NodeService.INITIAL_TIMING_DATA, logBook.initialDataLoadedEvent());
+        nodeService.bind(NodeService.COMMITTED_TIMING_DATA, logBook.newDataEntryEvent());
 
         /*
          * TagProcessor emits synchronously on its own lane. The named handler
@@ -92,6 +91,12 @@ public final class TimingNode {
     public NodeId timingNodeId() {
 
         return timingNodeId;
+    }
+
+    /** Returns the resolved antenna identity for this TimingNode. */
+    public AntennaId antennaId() {
+
+        return antennaId;
     }
 
     /**

@@ -59,9 +59,6 @@ public class TimingSystemConductorTest {
         SerialLane lane = new SerialLane(8, "system-conductor-test", newWorker("worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
                 TimingNodeList.builder().add(first).add(second).build(), manager.settings(), lane);
-        conductor.bind(first);
-        conductor.bind(second);
-
         manager.activate();
         conductor.activate();
         try {
@@ -98,8 +95,6 @@ public class TimingSystemConductorTest {
                         TimingNodeList.of(node),
                         manager.settings(),
                         lane);
-        conductor.bind(node);
-
         manager.activate();
         final Throwable[] activationFailure = new Throwable[1];
         Thread activationCaller =
@@ -157,8 +152,6 @@ public class TimingSystemConductorTest {
         SerialLane lane = new SerialLane(4, "conductor-event-test", newWorker("conductor-event-worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
                 TimingNodeList.of(node), manager.settings(), lane);
-        conductor.bind(node);
-
         manager.activate();
         conductor.activate();
         CountDownLatch started = new CountDownLatch(1);
@@ -191,8 +184,6 @@ public class TimingSystemConductorTest {
         SerialLane lane = new SerialLane(4, "conductor-coalesce-test", newWorker("coalesce-worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
                 TimingNodeList.of(node), manager.settings(), lane);
-        conductor.bind(node);
-
         manager.activate();
         conductor.activate();
         CountDownLatch started = new CountDownLatch(1);

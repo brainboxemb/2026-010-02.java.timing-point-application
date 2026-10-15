@@ -682,8 +682,15 @@ public class YamlLoaderTest {
     }
 
     @Test
-    public void loadsAntennaRoutingAndInventoryGroup() throws Exception {
-        Config config = load(twoTimingNodes()
+    public void loadsNodeAntennaIdsAndInventoryGroup() throws Exception {
+        Config config = load(
+                "timingSystems:\n"
+                + "  - systemId: 9\n"
+                + "    timingNodes:\n"
+                + "      - nodeId: A\n"
+                + "        antennaId: 1\n"
+                + "      - nodeId: B\n"
+                + "        antennaId: 2\n"
                 + timingDataStorageNodes()
                 + "  devices:\n"
                 + "    antennaManagers:\n"
@@ -692,31 +699,24 @@ public class YamlLoaderTest {
                 + "          - id: 1\n"
                 + "            provider: simulated\n"
                 + "            type: rfid\n"
-                + "            timingNodes: [A, B]\n"
                 + "          - id: 2\n"
                 + "            provider: simulated\n"
                 + "            type: rfid\n"
-                + "            timingNodes: [B]\n"
                 + "        inventoryGroup:\n"
                 + "          members: [1, 2]\n"
                 + "          intervalMillis: 500\n");
-        assertEquals(1, config.antennaManagers().size());
+
+        assertEquals("1", config.timingNode(new NodeId("A")).antennaId().value());
+        assertEquals("2", config.timingNode(new NodeId("B")).antennaId().value());
         assertEquals(2, config.antennaManagers().get(0).antennas().size());
-        assertEquals(2, config.antennaManagers().get(0).antennas().get(0).timingNodes().size());
         assertEquals(500L, config.antennaManagers().get(0).inventoryInterval().toMillis());
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void rejectsCrossSystemAntennaRoute() throws Exception {
-        load(timingNode("A") + timingDataStorage()
-                + "  devices:\n"
-                + "    antennaManagers:\n"
-                + "      - systemId: A\n"
-                + "        antennas:\n"
-                + "          - id: 1\n"
-                + "            provider: simulated\n"
-                + "            type: rfid\n"
-                + "            timingNodes: [B]\n");
+    @Test
+    public void timingNodeAntennaIdIsOptionalInYaml() throws Exception {
+        Config config = load(timingNode("A") + timingDataStorage());
+
+        assertNull(config.timingNode(new NodeId("A")).antennaId());
     }
 
 
@@ -737,8 +737,7 @@ public class YamlLoaderTest {
                         + "        antennas:\n"
                         + "          1:\n"
                         + "            provider: simulated\n"
-                        + "            type: rfid\n"
-                        + "            timingNodes: [A]\n");
+                        + "            type: rfid\n");
     }
 
     private void assertInvalidAntennaCollection(String expected, String bindingYaml)

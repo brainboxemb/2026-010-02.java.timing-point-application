@@ -83,6 +83,12 @@ public final class LogBookData {
         return records.size();
     }
 
+    /** Returns the newest committed TimingData record. */
+    public TimingData latest() {
+        checkState(!records.isEmpty(), "no committed TimingData is available");
+        return records.get(records.size() - 1);
+    }
+
     /**
      * Visits at most {@code limit} committed records starting at the inclusive
      * source sequence.

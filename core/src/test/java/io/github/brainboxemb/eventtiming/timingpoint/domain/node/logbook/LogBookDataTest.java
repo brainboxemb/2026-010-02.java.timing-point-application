@@ -34,6 +34,18 @@ public class LogBookDataTest {
     }
 
     @Test
+    public void latestReturnsNewestCommittedRecord() {
+        LogBookData logBookData = new LogBookData(new NodeId("A"));
+        TimingData first = data("A", 1L, "1001");
+        TimingData second = data("A", 2L, "1002");
+
+        logBookData.add(first);
+        logBookData.add(second);
+
+        assertEquals(second, logBookData.latest());
+    }
+
+    @Test
     public void rejectsSequenceGap() {
         LogBookData logBookData = new LogBookData(new NodeId("A"));
 

@@ -23,9 +23,9 @@ import org.slf4j.LoggerFactory;
 /**
  * Coordinates one TimingSystem.
  *
- * <p>The containing TimingSystem binds each TimingNode to this conductor before
- * activation. The conductor owns the node-specific status subscription details,
- * Domain coordination and TimingNode lifecycle.</p>
+ * <p>The conductor owns its TimingNodes, their lifecycle and the node-status
+ * subscriptions used for system coordination. These fixed relationships are
+ * established during construction, before activation starts execution.</p>
  *
  * <p>A status event only wakes the control task. The subsequent run reads
  * every TimingNode's CURRENT status and publishes the desired inventory state
@@ -62,35 +62,12 @@ public final class TimingSystemConductor extends AbstractConductor implements Yi
                     "TimingNode " + node.timingNodeId().value(),
                     node::activate,
                     node::deactivate);
+            node.logBook().statusChangedEvent().subscribe(ignored -> wakeReconciliation());
         }
     }
 
-    /**
-     * Binds one owned TimingNode to this conductor during system composition.
-     *
-     * <p>The TimingSystem selects the node relationship; the conductor owns the
-     * internal status subscription used to wake reconciliation.</p>
-     */
-    public void bind(TimingNode node) {
-
-        if (!containsNode(node)) {
-            throw new IllegalArgumentException("TimingNode does not belong to this TimingSystem");
-        }
-
-        node.logBook().statusChangedEvent().subscribe(
-                status -> onTimingNodeStatusChanged(node, status));
-    }
-
-    /** Accepts one authoritative post-change TimingNode Status. */
-    private void onTimingNodeStatusChanged(TimingNode node, Status status) {
-
-        if (status == null) {
-            throw new IllegalArgumentException("status must not be null");
-        }
-
-        if (!containsNode(node)) {
-            throw new IllegalArgumentException("TimingNode does not belong to this TimingSystem");
-        }
+    /** Wakes system reconciliation after one TimingNode Status change. */
+    private void wakeReconciliation() {
 
         /*
          * A TimingNode may finish its first recovery while this Conductor is
@@ -146,11 +123,6 @@ public final class TimingSystemConductor extends AbstractConductor implements Yi
             antennaSettings.update(settingsUpdate);
         }
         return TaskStep.done();
-    }
-
-    private boolean containsNode(TimingNode node) {
-
-        return nodes.contains(node);
     }
 
     private void onControlTaskFailure(Throwable failure) {

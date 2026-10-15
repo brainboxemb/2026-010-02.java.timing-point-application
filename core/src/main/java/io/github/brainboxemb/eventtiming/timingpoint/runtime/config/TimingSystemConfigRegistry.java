@@ -154,17 +154,4 @@ final class TimingSystemConfigRegistry {
                         nodes.values()));
     }
 
-    Set<NodeId> timingNodeIds(
-            String timingSystemId) {
-        Config.TimingSystemConfig timingSystem =
-                system(timingSystemId);
-        Set<NodeId> result =
-                new LinkedHashSet<NodeId>();
-        for (Config.TimingNodeConfig timingNode
-                : timingSystem.timingNodes()) {
-            result.add(
-                    timingNode.timingNodeId());
-        }
-        return Collections.unmodifiableSet(result);
-    }
 }

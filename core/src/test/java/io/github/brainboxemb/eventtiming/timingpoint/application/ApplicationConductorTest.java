@@ -142,8 +142,7 @@ public class ApplicationConductorTest {
                     label,
                     timingNodes,
                     manager,
-                    timingSystemConductor,
-                    Collections.<AntennaId, TimingNodeList>emptyMap());
+                    timingSystemConductor);
         }
 
         @Override

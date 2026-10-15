@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
 
 /**
  * Passive mutable state behind one LogBook component.
@@ -153,18 +152,9 @@ final class LogBookState {
         return new Status(timingNodeId, state, locationId, timingDataTailRepaired, problems);
     }
 
-    /** Returns the committed record count without repeating operational validation. */
-    int committedTimingDataCount() {
-
-        return logBookData.size();
-    }
-
     /** Returns the newest committed TimingData record. */
     TimingData latestCommittedTimingData() {
 
-        final TimingData[] latest = new TimingData[1];
-        logBookData.visitLatest(1, data -> latest[0] = data);
-        checkState(latest[0] != null, "no committed TimingData is available");
-        return latest[0];
+        return logBookData.latest();
     }
 }

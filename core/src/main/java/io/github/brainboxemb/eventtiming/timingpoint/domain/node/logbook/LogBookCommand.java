@@ -6,9 +6,10 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Typed state-changing operation for the node LogBook component.
  *
  * <p>A command is an immutable description of one state-changing domain action.
- * Public callers create commands through {@link LogBookCommands}; only the
- * logbook package can apply them through package-private {@link LogBookOperations}.
- * {@link LogBook} owns ordered execution, timeout and failure handling.</p>
+ * It may commit at most one TimingData record. Public callers create commands
+ * through {@link LogBookCommands}; only the logbook package can apply them through
+ * package-private {@link LogBookOperations}. {@link LogBook} owns ordered
+ * execution, timeout, post-commit publication and failure handling.</p>
  */
 public final class LogBookCommand<R> {
     /** Package-private command body applied by LogBook to its owned operations. */

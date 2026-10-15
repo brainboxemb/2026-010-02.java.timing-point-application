@@ -148,6 +148,7 @@ public final class YamlLoader {
                 configuredNodes.add(
                         new Config.TimingNodeConfig(
                                 timingNode.timingNodeId(),
+                                timingNode.antennaId(),
                                 timingDataPaths.get(
                                         timingNode.timingNodeId()),
                                 timingNode.tagProcessingPolicy()));
