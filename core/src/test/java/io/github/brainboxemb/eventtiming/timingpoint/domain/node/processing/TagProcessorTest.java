@@ -23,6 +23,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.Se
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -311,7 +312,7 @@ public class TagProcessorTest {
                 newTagExecution("tp-tag-test");
         TagProcessingPolicy startup = policy(8);
         ApplicationConfiguration configuration =
-                ApplicationConfiguration.singleTimingNode(
+                applicationConfiguration(
                         new NodeId("A"),
                         startup);
         TagProcessor processor = new TagProcessor(
@@ -378,7 +379,7 @@ public class TagProcessorTest {
                 newTagExecution("tp-tag-test");
         TagProcessingPolicy startup = policy(8);
         ApplicationConfiguration configuration =
-                ApplicationConfiguration.singleTimingNode(
+                applicationConfiguration(
                         new NodeId("A"),
                         startup);
         TagProcessor processor = new TagProcessor(
@@ -503,6 +504,16 @@ public class TagProcessorTest {
         assertFalse(stopper.isAlive());
         assertEquals(1L, metrics.snapshot().mapped());
         assertTrue(store.appended.isEmpty());
+    }
+
+    /** Creates one-node test configuration through the production map constructor. */
+    private static ApplicationConfiguration applicationConfiguration(
+            NodeId nodeId,
+            TagProcessingPolicy startupPolicy) {
+        return new ApplicationConfiguration(
+                Collections.singletonMap(
+                        nodeId,
+                        startupPolicy));
     }
 
     private static TagProcessingPolicy policy(int queueCapacity) {
