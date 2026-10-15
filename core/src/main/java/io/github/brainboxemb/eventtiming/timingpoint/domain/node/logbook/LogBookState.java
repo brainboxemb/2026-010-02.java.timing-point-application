@@ -152,12 +152,6 @@ final class LogBookState {
         return new Status(timingNodeId, state, locationId, timingDataTailRepaired, problems);
     }
 
-    /** Returns the committed record count without repeating operational validation. */
-    int committedTimingDataCount() {
-
-        return logBookData.size();
-    }
-
     /** Returns the newest committed TimingData record. */
     TimingData latestCommittedTimingData() {
 
