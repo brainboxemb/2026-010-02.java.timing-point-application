@@ -109,40 +109,14 @@ final class LogBookOperations {
         return CloseResult.CLOSED;
     }
 
-    /** Commits one antenna-originated automatic registration. */
-    RegistrationResult addAutomaticRegistration(
-            RegistrationId registrationId, TimingTimestamp time)
-            throws TimingDataPersistence.PersistenceException {
-        return commitAutomaticRegistration(
-                registrationId,
-                time,
-                TimingData.TagSource.ANT,
-                TimingData.AutomaticTimeSource.OBS);
-    }
-
-    /** Commits one IF-03 simulation registration with an API-supplied effective time. */
-    RegistrationResult simulateAutomaticRegistration(
-            RegistrationId registrationId, TimingTimestamp time)
-            throws TimingDataPersistence.PersistenceException {
-        return commitAutomaticRegistration(
-                registrationId,
-                time,
-                TimingData.TagSource.API,
-                TimingData.AutomaticTimeSource.API);
-    }
-
-    /** Commits one IF-03 simulation registration using current node time. */
-    RegistrationResult simulateAutomaticRegistrationNow(RegistrationId registrationId)
-            throws TimingDataPersistence.PersistenceException {
-        return commitAutomaticRegistration(
-                registrationId,
-                atCentisecond(timeSource.now()),
-                TimingData.TagSource.API,
-                TimingData.AutomaticTimeSource.NODE);
-    }
-
-    /** Commits one automatic registration after validating node and commit availability. */
-    private RegistrationResult commitAutomaticRegistration(
+    /**
+     * Commits one automatic registration with caller-selected source provenance.
+     *
+     * <p>LogBook does not interpret why the registration was created. Antenna,
+     * simulation and other node-level use cases select provenance before creating
+     * this LogBook operation.</p>
+     */
+    RegistrationResult commitAutomaticRegistration(
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
             TimingData.TagSource tagSource,
@@ -162,6 +136,19 @@ final class LogBookOperations {
                         timeProvenance),
                 registrationId);
         return commitRegistration(data);
+    }
+
+    /** Commits one automatic registration using current node time as effective time. */
+    RegistrationResult commitAutomaticRegistrationNow(
+            RegistrationId registrationId,
+            TimingData.TagSource tagSource)
+            throws TimingDataPersistence.PersistenceException {
+
+        return commitAutomaticRegistration(
+                registrationId,
+                atCentisecond(timeSource.now()),
+                tagSource,
+                TimingData.AutomaticTimeSource.NODE);
     }
 
     /** Commits one manually entered registration using the supplied effective-time source. */
