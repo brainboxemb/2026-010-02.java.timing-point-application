@@ -13,8 +13,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExec
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
@@ -211,10 +209,10 @@ public final class LogBook implements LogBookAccessor {
     }
 
     /**
-     * Publishes the immutable TimingData history loaded during node startup.
+     * Publishes transient immutable startup history for one-time derived-state reconstruction.
      *
-     * <p>Task Lane-derived state can initialize from this fact without receiving
-     * the mutable LogBook itself.</p>
+     * <p>The list comes directly from immutable TimingDataPersistence.LoadResult data.
+     * Consumers must process and release it rather than retain a second full LogBook history.</p>
      */
     public EventSource<List<TimingData>> initialDataLoadedEvent() {
         return initialDataLoadedEvent;
@@ -378,10 +376,9 @@ public final class LogBook implements LogBookAccessor {
         publishedStatus = status;
     }
 
-    /** Emits an immutable startup-history snapshot to node-local derived-state consumers. */
+    /** Emits immutable LoadResult history without allocating another full-list snapshot. */
     private void publishInitialLoadedData(List<TimingData> loadedData) {
-        List<TimingData> snapshot = Collections.unmodifiableList(new ArrayList<TimingData>(loadedData));
-        Event.DeliveryReport delivery = initialDataLoadedEvent.emit(snapshot);
+        Event.DeliveryReport delivery = initialDataLoadedEvent.emit(loadedData);
         if (!delivery.successful()) {
             LOG.warn(
                     "Persisted TimingData loaded but "
