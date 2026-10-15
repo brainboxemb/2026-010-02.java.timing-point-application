@@ -143,26 +143,22 @@ public final class TagProcessor {
      * when possible, and closes the TagProcessor lane.
      */
     public void deactivate() {
-        boolean drainRemaining;
         synchronized (lifecycleLock) {
             if (state == State.INACTIVE) {
                 return;
             }
+
             if (state == State.NEW) {
                 state = State.INACTIVE;
-                lane.close();
-                inputQueue.clear();
-                return;
-            }
-
-            state = State.INACTIVE;
-            closeHousekeepingLocked();
-            drainRemaining = !inputQueue.isEmpty();
-            if (drainRemaining) {
-                try {
-                    lane.execute(this::drainAll);
-                } catch (RejectedExecutionException ex) {
-                    inputQueue.clear();
+            } else {
+                state = State.INACTIVE;
+                closeHousekeepingLocked();
+                if (!inputQueue.isEmpty()) {
+                    try {
+                        lane.execute(this::drainAll);
+                    } catch (RejectedExecutionException ex) {
+                        inputQueue.clear();
+                    }
                 }
             }
         }
@@ -330,8 +326,9 @@ public final class TagProcessor {
             if (state != State.ACTIVE) {
                 return;
             }
+            Runnable policyChange = () -> applyPolicyChange(change);
             try {
-                lane.execute(() -> applyPolicyChange(change));
+                lane.execute(policyChange);
             } catch (RejectedExecutionException ex) {
                 LOG.warn("Could not queue TagProcessor policy change", ex);
             }

@@ -27,6 +27,7 @@ public final class UniqueTeamRegistrations {
     private final Map<RegistrationId, Integer> activeRegistrations =
             new LinkedHashMap<RegistrationId, Integer>();
 
+    /** Records one additional active registration for the RegistrationId. */
     public void registered(RegistrationId registrationId) {
         requireRegistrationId(registrationId);
         Integer current =
@@ -39,6 +40,7 @@ public final class UniqueTeamRegistrations {
                                 : current.intValue() + 1));
     }
 
+    /** Removes one active registration occurrence when present. */
     public void revoked(RegistrationId registrationId) {
         requireRegistrationId(registrationId);
         Integer current =
@@ -81,6 +83,7 @@ public final class UniqueTeamRegistrations {
         return uniqueTeams.size();
     }
 
+    /** Returns the number of RegistrationIds that currently have active registrations. */
     public int activeRegistrationIdCount() {
         return activeRegistrations.size();
     }
@@ -90,6 +93,7 @@ public final class UniqueTeamRegistrations {
         activeRegistrations.clear();
     }
 
+    /** Validates the RegistrationId required by active-registration state changes. */
     private static void requireRegistrationId(
             RegistrationId registrationId) {
         checkArgument(registrationId != null, "registrationId must not be null");

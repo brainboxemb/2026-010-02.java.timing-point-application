@@ -27,6 +27,7 @@ final class UpstreamDataSync {
      */
     private long appliedSequence;
 
+    /** Creates RACE_DATA synchronization state over the Task Lane-owned state boundary. */
     UpstreamDataSync(NodeId nodeId, UpstreamStream stream, UpstreamTaskState taskState) {
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(stream != null, "stream must not be null");
@@ -50,25 +51,21 @@ final class UpstreamDataSync {
         checkArgument(receivedSequence >= 1L && receivedSequence <= TimingData.MAX_SEQUENCE_NUMBER,
                 "RACE_DATA sequence is outside the supported range");
 
+        long expectedSequence = appliedSequence + 1L;
         if (receivedSequence <= appliedSequence) {
             sendAck(appliedSequence);
-            return;
-        }
-
-        long expectedSequence = appliedSequence + 1L;
-        if (receivedSequence != expectedSequence) {
+        } else if (receivedSequence != expectedSequence) {
             stream.send(DefaultUpstreamData.req(
                     nodeId,
                     UpstreamData.Stream.RACE_DATA,
                     expectedSequence));
-            return;
+        } else {
+            // RaceData is Task Lane-owned. ACK only after the complete change set
+            // validated and was atomically applied to the current task state.
+            taskState.applyRaceData(raceData);
+            appliedSequence = receivedSequence;
+            sendAck(receivedSequence);
         }
-
-        // RaceData is Task Lane-owned. ACK only after the complete change set
-        // validated and was atomically applied to the current task state.
-        taskState.applyRaceData(raceData);
-        appliedSequence = receivedSequence;
-        sendAck(receivedSequence);
     }
 
     /**
@@ -84,23 +81,19 @@ final class UpstreamDataSync {
         checkArgument(sourceHead >= 0L && sourceHead <= TimingData.MAX_SEQUENCE_NUMBER,
                 "SYNC sequence is outside the supported range");
 
-        if (sourceHead == appliedSequence) {
-            return;
-        }
-
         if (sourceHead > appliedSequence) {
             stream.send(DefaultUpstreamData.req(
                     nodeId,
                     UpstreamData.Stream.RACE_DATA,
                     appliedSequence + 1L));
-            return;
+        } else if (sourceHead < appliedSequence) {
+            throw new IllegalStateException(
+                    "Central RACE_DATA source head " + sourceHead
+                            + " is behind already applied sequence " + appliedSequence);
         }
-
-        throw new IllegalStateException(
-                "Central RACE_DATA source head " + sourceHead
-                        + " is behind already applied sequence " + appliedSequence);
     }
 
+    /** Sends the cumulative acknowledgement for the highest locally applied RACE_DATA sequence. */
     private void sendAck(long sequence) {
         stream.send(DefaultUpstreamData.ack(
                 nodeId,

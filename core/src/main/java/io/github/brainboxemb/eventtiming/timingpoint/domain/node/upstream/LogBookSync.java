@@ -35,6 +35,7 @@ final class LogBookSync {
     private long nextSequence;
     private long syncHead;
 
+    /** Creates TIMING_DATA synchronization state for one node-scoped upstream stream. */
     LogBookSync(NodeId nodeId, UpstreamStream stream, LogBookAccessor logBook) {
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(stream != null, "stream must not be null");
@@ -54,6 +55,7 @@ final class LogBookSync {
         }
     }
 
+    /** Returns the directly published committed TIMING_DATA source head. */
     long headSequence() {
         return logBook.query(
                 LogBookQueries.timingDataHead(),
@@ -78,18 +80,19 @@ final class LogBookSync {
         long capturedHead = headSequence();
         if (fromSequence > capturedHead) {
             syncActive = false;
-            return;
+        } else {
+            nextSequence = fromSequence;
+            syncHead = capturedHead;
+            syncActive = true;
         }
-
-        nextSequence = fromSequence;
-        syncHead = capturedHead;
-        syncActive = true;
     }
 
+    /** Reports whether a captured TIMING_DATA synchronization run still has records to send. */
     boolean syncPending() {
         return syncActive;
     }
 
+    /** Cancels the current captured synchronization run without changing LogBook state. */
     void cancelSync() {
         syncActive = false;
     }

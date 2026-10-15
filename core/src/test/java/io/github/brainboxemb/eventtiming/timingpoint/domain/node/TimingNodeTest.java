@@ -160,6 +160,37 @@ public class TimingNodeTest {
     }
 
     @Test
+    public void failedPersistedDataLoadPublishesInitialErrorStatus() throws Exception {
+        TimingNode node = TimingNodeFixture.createDirect(
+                new NodeId("A"),
+                new FailingLoadPersistence(),
+                new DefaultTimingDataFactory(),
+                TimingNodeTest::now);
+        CountDownLatch initialStatusPublished = new CountDownLatch(1);
+        node.logBook().statusChangedEvent().subscribe(
+                status -> initialStatusPublished.countDown());
+
+        node.activate();
+        try {
+            assertTrue(
+                    "initial ERROR status was not published after failed persisted-data load",
+                    initialStatusPublished.await(1L, TimeUnit.SECONDS));
+
+            TimingNodeTypes.Status current =
+                    node.logBook().query(
+                            LogBookQueries.status(),
+                            ReadConsistency.CURRENT);
+            assertEquals(TimingNodeTypes.State.ERROR, current.state());
+            assertEquals(1, current.problems().size());
+            assertEquals(
+                    TimingNodeTypes.ProblemCode.TIMING_DATA_LOAD_FAILED,
+                    current.problems().get(0).code());
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
     public void openAppliesRequestedLocationAtomically() {
         TimingNode node = node(new NodeId("A"));
         LocationId openLocation = new LocationId(24);
@@ -871,6 +902,19 @@ public class TimingNodeTest {
         @Override
         public void append(TimingData data) {
             records.add(data);
+        }
+    }
+
+    private static final class FailingLoadPersistence implements TimingDataPersistence {
+        @Override
+        public LoadResult load()
+                throws PersistenceException {
+            throw new PersistenceException("test load failure");
+        }
+
+        @Override
+        public void append(TimingData data) {
+            // Failed startup-load test only.
         }
     }
 
