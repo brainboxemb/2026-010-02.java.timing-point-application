@@ -56,13 +56,12 @@ public final class TimingNode {
         lifecycle.register(tagProcessor, TagProcessor::activate, TagProcessor::deactivate);
 
         /*
-         * LogBook emits committed/startup TimingData synchronously on the Data
-         * Lane. NodeService owns the internal handlers and only queues the
-         * corresponding Task Lane work.
+         * LogBook exposes startup completion without publishing its history.
+         * NodeService recovery semantics are a separate design concern.
          */
         nodeService.bind(
-                NodeService.INITIAL_TIMING_DATA,
-                logBook.initialDataLoadedEvent());
+                NodeService.DATA_LOADED,
+                logBook.dataLoadedEvent());
         nodeService.bind(
                 NodeService.COMMITTED_TIMING_DATA,
                 logBook.newDataEntryEvent());
@@ -110,8 +109,7 @@ public final class TimingNode {
      * Activates the node-owned execution contexts in dependency order.
      *
      * <p>The Task Lane starts first because its lifecycle is independent of
-     * LogBook state and it consumes initial TimingData after that data has been
-     * loaded. LogBook then starts the Data Lane and queues the persisted
+     * LogBook state. LogBook then starts the Data Lane and queues the persisted
      * TimingData load as its first ordered task. TagProcessor ingress starts last.
      * Rollback and reverse deactivation are owned by the lifecycle manager.</p>
      */
