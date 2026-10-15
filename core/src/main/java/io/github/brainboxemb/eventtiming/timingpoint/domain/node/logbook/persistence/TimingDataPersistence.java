@@ -17,14 +17,18 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  */
 public interface TimingDataPersistence {
 
+    /** Loads and validates the complete persisted TimingData stream. */
     LoadResult load() throws PersistenceException;
 
+    /** Appends one committed TimingData record durably. */
     void append(TimingData data) throws PersistenceException;
 
+    /** Immutable result of loading persisted TimingData history. */
     final class LoadResult {
         private final List<TimingData> records;
         private final boolean repairedIncompleteTail;
 
+        /** Creates one immutable load result from validated records and tail-repair state. */
         public LoadResult(
                 List<TimingData> records,
                 boolean repairedIncompleteTail) {
@@ -38,20 +42,25 @@ public interface TimingDataPersistence {
             this.repairedIncompleteTail = repairedIncompleteTail;
         }
 
+        /** Returns the immutable validated TimingData records in source order. */
         public List<TimingData> records() {
             return records;
         }
 
+        /** Reports whether the lower append-only store repaired an incomplete final record. */
         public boolean repairedIncompleteTail() {
             return repairedIncompleteTail;
         }
     }
 
+    /** Checked failure while loading, validating or appending TimingData persistence. */
     final class PersistenceException extends Exception {
+        /** Creates a persistence failure without a lower-level cause. */
         public PersistenceException(String message) {
             super(message);
         }
 
+        /** Creates a persistence failure with its lower-level cause. */
         public PersistenceException(String message, Throwable cause) {
             super(message, cause);
         }
