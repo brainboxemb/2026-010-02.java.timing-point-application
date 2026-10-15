@@ -93,7 +93,8 @@ public final class NodeService {
         if (serialLane.isExecutingOnCurrentThread()) {
             return buildStageTiming(raceTimeZone);
         }
-        return submitAndWait(() -> buildStageTiming(raceTimeZone), "stageTiming");
+        Callable<List<StageTime>> rankingQuery = () -> buildStageTiming(raceTimeZone);
+        return submitAndWait(rankingQuery, "stageTiming");
     }
 
     /** Builds the derived stage ranking while the Task Lane owns mutable derived state. */
