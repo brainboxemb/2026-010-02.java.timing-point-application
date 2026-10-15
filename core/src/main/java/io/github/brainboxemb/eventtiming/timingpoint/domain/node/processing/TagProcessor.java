@@ -97,6 +97,8 @@ public final class TagProcessor {
         duplicateFilter = new RegistrationDuplicateFilter(policyConfiguration, monotonicClock);
         observationFilter = new TagObservationFilter(
                 policyConfiguration, monotonicClock, metrics, this::processValidObservation);
+
+        policyConfiguration.changes().subscribe(this::onPolicyConfigurationChanged);
     }
 
     /**
@@ -275,13 +277,8 @@ public final class TagProcessor {
         }
     }
 
-    /**
-     * Queues one composition-wired processing-policy change onto the TagProcessor lane.
-     *
-     * <p>Runtime composition installs this callback before activation. The event
-     * graph is not changed during component activation or deactivation.</p>
-     */
-    public void onPolicyConfigurationChanged(ConfigurationChange<TagProcessingPolicy> change) {
+    /** Queues one policy change from the processor-owned configuration binding. */
+    private void onPolicyConfigurationChanged(ConfigurationChange<TagProcessingPolicy> change) {
         synchronized (lifecycleLock) {
             if (state != State.ACTIVE) {
                 return;
