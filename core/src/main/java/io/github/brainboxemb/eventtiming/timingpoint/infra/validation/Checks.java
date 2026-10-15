@@ -12,42 +12,24 @@ public final class Checks {
     }
 
     /** Throws IllegalStateException when the required program state is not present. */
-    public static void checkState(
-            boolean condition,
-            String message,
-            Object... arguments) {
+    public static void checkState(boolean condition, String message, Object... arguments) {
         if (!condition) {
-            throw new IllegalStateException(
-                    format(
-                            message,
-                            arguments));
+            throw new IllegalStateException(format(message, arguments));
         }
     }
 
     /** Throws IllegalArgumentException when a supplied argument violates its contract. */
-    public static void checkArgument(
-            boolean condition,
-            String message,
-            Object... arguments) {
+    public static void checkArgument(boolean condition, String message, Object... arguments) {
         if (!condition) {
-            throw new IllegalArgumentException(
-                    format(
-                            message,
-                            arguments));
+            throw new IllegalArgumentException(format(message, arguments));
         }
     }
 
     /** Formats a contract-check message using locale-independent formatting. */
-    private static String format(
-            String message,
-            Object... arguments) {
-        if (arguments == null
-                || arguments.length == 0) {
+    private static String format(String message, Object... arguments) {
+        if (arguments == null || arguments.length == 0) {
             return message;
         }
-        return String.format(
-                Locale.ROOT,
-                message,
-                arguments);
+        return String.format(Locale.ROOT, message, arguments);
     }
 }
