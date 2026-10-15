@@ -15,12 +15,12 @@ import java.util.concurrent.TimeUnit;
 /**
  * Central construction and lifecycle owner for runtime execution resources.
  *
- * <p>Logical serial lanes remain per TimingNode/TagProcessor, but physical
- * workers are shared by functional role. This keeps per-node FIFO/admission
+ * <p>Logical serial lanes remain per TimingNode/TagProcessor, but backing
+ * executors are shared by functional role. This keeps per-node FIFO/admission
  * state without multiplying Java threads as nodes are added on the Raspberry Pi
  * Zero baseline.</p>
  *
- * <p>Blocking I/O remains separate from the Domain processing workers. All
+ * <p>Blocking I/O remains separate from the Domain processing executors. All
  * project-owned threads deliberately use the JVM default priority; correctness
  * and progress never depend on priority.</p>
  */
@@ -33,28 +33,28 @@ final class RuntimeExecutors implements AutoCloseable {
     static final int CONDUCTOR_QUEUE_CAPACITY = 8;
 
     /*
-     * Step-5 baseline: one physical blocking-I/O worker.
+     * Step-5 baseline: one physical blocking-I/O thread.
      *
      * Additional physical I/O parallelism is a measurement-driven decision.
      * V01 must demonstrate a real bottleneck before this count is increased.
      */
-    private static final int SHARED_IO_WORKERS = 1;
+    private static final int SHARED_IO_THREADS = 1;
 
     static final class TimingNodeLanes {
         private final SerialLane dataLane;
         private final SerialLane taskLane;
-        private final SerialLane tagProcessor;
-        private final ScheduledExecutorService tagProcessorScheduler;
+        private final SerialLane tagProcessorLane;
+        private final ScheduledExecutorService tagProcessorScheduledExecutor;
 
         private TimingNodeLanes(
                 SerialLane dataLane,
                 SerialLane taskLane,
-                SerialLane tagProcessor,
-                ScheduledExecutorService tagProcessorScheduler) {
+                SerialLane tagProcessorLane,
+                ScheduledExecutorService tagProcessorScheduledExecutor) {
             this.dataLane = dataLane;
             this.taskLane = taskLane;
-            this.tagProcessor = tagProcessor;
-            this.tagProcessorScheduler = tagProcessorScheduler;
+            this.tagProcessorLane = tagProcessorLane;
+            this.tagProcessorScheduledExecutor = tagProcessorScheduledExecutor;
         }
 
         SerialLane dataLane() {
@@ -65,12 +65,12 @@ final class RuntimeExecutors implements AutoCloseable {
             return taskLane;
         }
 
-        SerialLane tagProcessor() {
-            return tagProcessor;
+        SerialLane tagProcessorLane() {
+            return tagProcessorLane;
         }
 
-        ScheduledExecutorService tagProcessorScheduler() {
-            return tagProcessorScheduler;
+        ScheduledExecutorService tagProcessorScheduledExecutor() {
+            return tagProcessorScheduledExecutor;
         }
     }
 
@@ -83,59 +83,59 @@ final class RuntimeExecutors implements AutoCloseable {
      * lanes rather than by registration volume. Registration/command overload
      * remains bounded and visible in the lane-local queues.
      */
-    private final ThreadPoolExecutor timingNodeWorker;
-    private final ScheduledThreadPoolExecutor tagProcessorWorker;
+    private final ThreadPoolExecutor timingNodeExecutor;
+    private final ScheduledThreadPoolExecutor tagProcessorScheduledExecutor;
 
     /**
-     * Shared worker for TimingSystem coordination lanes.
+     * Shared executor for TimingSystem coordination lanes.
      *
      * <p>TimingSystem coordination must not run synchronously on the emitting
      * Domain or I/O component thread. Logical system-Conductor lanes therefore use
-     * this separate worker.</p>
+     * this separate executor.</p>
      */
-    private final ThreadPoolExecutor coordinationWorker;
+    private final ThreadPoolExecutor coordinationExecutor;
 
     /**
-     * Shared physical I/O worker. It is scheduled-capable because AntennaManager
+     * Shared scheduled I/O executor. AntennaManager
      * needs delayed multiplex rotation, while normal provider calls use the same
-     * worker as immediate tasks.
+     * executor for immediate tasks.
      */
-    private final ScheduledThreadPoolExecutor sharedIoWorker;
+    private final ScheduledThreadPoolExecutor sharedIoScheduledExecutor;
 
     private boolean started;
     private boolean closed;
 
     RuntimeExecutors() {
-        timingNodeWorker = new ThreadPoolExecutor(
+        timingNodeExecutor = new ThreadPoolExecutor(
                 1,
                 1,
                 0L,
                 TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>(),
-                threadFactory("tp-dl-node-worker"),
+                threadFactory("tp-dl-node"),
                 new ThreadPoolExecutor.AbortPolicy());
-        tagProcessorWorker = new ScheduledThreadPoolExecutor(
+        tagProcessorScheduledExecutor = new ScheduledThreadPoolExecutor(
                 1,
-                threadFactory("tp-dl-tagproc-worker"));
-        tagProcessorWorker.setRemoveOnCancelPolicy(true);
+                threadFactory("tp-dl-tagproc"));
+        tagProcessorScheduledExecutor.setRemoveOnCancelPolicy(true);
 
-        coordinationWorker = new ThreadPoolExecutor(
+        coordinationExecutor = new ThreadPoolExecutor(
                 1,
                 1,
                 0L,
                 TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>(),
-                threadFactory("tp-dl-system-worker"),
+                threadFactory("tp-dl-system"),
                 new ThreadPoolExecutor.AbortPolicy());
 
-        sharedIoWorker = new ScheduledThreadPoolExecutor(
-                SHARED_IO_WORKERS,
-                threadFactory("tp-io-shared-worker"));
-        sharedIoWorker.setRemoveOnCancelPolicy(true);
+        sharedIoScheduledExecutor = new ScheduledThreadPoolExecutor(
+                SHARED_IO_THREADS,
+                threadFactory("tp-io-shared"));
+        sharedIoScheduledExecutor.setRemoveOnCancelPolicy(true);
     }
 
     /**
-     * Starts the physical workers owned by this Runtime.
+     * Prestarts the Java threads owned by this Runtime's executors.
      *
      * <p>Construction deliberately does not start threads. Runtime composition
      * calls this method only after the complete object graph has been constructed
@@ -150,37 +150,37 @@ final class RuntimeExecutors implements AutoCloseable {
             return;
         }
 
-        timingNodeWorker.prestartAllCoreThreads();
-        tagProcessorWorker.prestartAllCoreThreads();
-        coordinationWorker.prestartAllCoreThreads();
-        sharedIoWorker.prestartAllCoreThreads();
+        timingNodeExecutor.prestartAllCoreThreads();
+        tagProcessorScheduledExecutor.prestartAllCoreThreads();
+        coordinationExecutor.prestartAllCoreThreads();
+        sharedIoScheduledExecutor.prestartAllCoreThreads();
         started = true;
     }
 
     /**
-     * Creates one node-local set of logical lanes on shared Runtime workers.
+     * Creates one node-local set of logical lanes on shared Runtime executors.
      *
      * <p>The Data Lane and Task Lane are distinct SerialLane instances with
      * independent bounded queues and FIFO ordering, but they deliberately share
-     * the same physical node worker. TagProcessor keeps its separately scheduled
-     * role worker. Logical responsibility therefore does not imply another
+     * the same TimingNode executor. TagProcessor keeps its separately scheduled
+     * scheduled executor. Logical responsibility therefore does not imply another
      * Java thread.</p>
      */
     synchronized TimingNodeLanes createTimingNodeLanes() {
         SerialLane dataLane = new SerialLane(
                 TIMING_NODE_DATA_QUEUE_CAPACITY,
                 "TimingNodeData",
-                timingNodeWorker);
+                timingNodeExecutor);
         SerialLane taskLane = new SerialLane(
                 TIMING_NODE_TASK_QUEUE_CAPACITY,
                 "TimingNodeTask",
-                timingNodeWorker);
+                timingNodeExecutor);
 
         SerialLane tagProcessor =
                 new SerialLane(
                         TAG_PROCESSOR_LANE_QUEUE_CAPACITY,
                         "TagProcessor",
-                        tagProcessorWorker);
+                        tagProcessorScheduledExecutor);
 
         serialLanes.add(dataLane);
         serialLanes.add(taskLane);
@@ -189,21 +189,21 @@ final class RuntimeExecutors implements AutoCloseable {
                 dataLane,
                 taskLane,
                 tagProcessor,
-                tagProcessorWorker);
+                tagProcessorScheduledExecutor);
     }
 
     /**
      * Creates a logical coordination lane for one Domain system Conductor.
      *
      * <p>The lane is logically owned by that system Conductor. Runtime owns the physical
-     * coordination worker underneath it.</p>
+     * coordination executor underneath it.</p>
      */
     synchronized SerialLane createSystemConductorLane() {
         SerialLane conductor =
                 new SerialLane(
                         CONDUCTOR_QUEUE_CAPACITY,
                         "SystemConductor",
-                        coordinationWorker);
+                        coordinationExecutor);
         serialLanes.add(conductor);
         return conductor;
     }
@@ -219,18 +219,18 @@ final class RuntimeExecutors implements AutoCloseable {
                 new SerialLane(
                         ANTENNA_CONTROL_QUEUE_CAPACITY,
                         "AntennaManager",
-                        sharedIoWorker);
+                        sharedIoScheduledExecutor);
         serialLanes.add(antennaControl);
         return antennaControl;
     }
 
     ScheduledExecutorService sharedIoScheduler() {
-        return sharedIoWorker;
+        return sharedIoScheduledExecutor;
     }
 
     /**
      * Creates the engineering simulated-tag lane on the shared scheduled I/O
-     * worker. Scenario delays therefore release the physical worker while still
+     * executor. Scenario delays therefore release its thread while still
      * keeping a bounded logical execution lane.
      */
     synchronized SerialLane createSimulationLane() {
@@ -238,7 +238,7 @@ final class RuntimeExecutors implements AutoCloseable {
                 new SerialLane(
                         SIMULATION_QUEUE_CAPACITY,
                         "SimulatedTagScenario",
-                        sharedIoWorker);
+                        sharedIoScheduledExecutor);
         serialLanes.add(simulation);
         return simulation;
     }
@@ -265,45 +265,37 @@ final class RuntimeExecutors implements AutoCloseable {
             }
         }
 
-        tagProcessorWorker.shutdownNow();
-        timingNodeWorker.shutdownNow();
-        coordinationWorker.shutdownNow();
-        sharedIoWorker.shutdownNow();
+        tagProcessorScheduledExecutor.shutdownNow();
+        timingNodeExecutor.shutdownNow();
+        coordinationExecutor.shutdownNow();
+        sharedIoScheduledExecutor.shutdownNow();
 
-        awaitTermination(tagProcessorWorker);
-        awaitTermination(timingNodeWorker);
-        awaitTermination(coordinationWorker);
-        awaitTermination(sharedIoWorker);
+        awaitTermination(tagProcessorScheduledExecutor);
+        awaitTermination(timingNodeExecutor);
+        awaitTermination(coordinationExecutor);
+        awaitTermination(sharedIoScheduledExecutor);
     }
 
     /**
-     * Creates one named normal-priority Runtime worker.
+     * Creates one named normal-priority Runtime thread.
      *
      * <p>Keeping thread construction here makes the constructor describe the
      * execution topology instead of repeating JVM thread boilerplate.</p>
      */
-    private static ThreadFactory threadFactory(
-            String threadName) {
+    private static ThreadFactory threadFactory(String threadName) {
         return runnable -> {
-            Thread thread =
-                    new Thread(
-                            runnable,
-                            threadName);
-            thread.setPriority(
-                    Thread.NORM_PRIORITY);
+            Thread thread = new Thread(runnable, threadName);
+            thread.setPriority(Thread.NORM_PRIORITY);
             return thread;
         };
     }
 
-    private static void awaitTermination(
-            ExecutorService executor) {
+    private static void awaitTermination(ExecutorService executor) {
         boolean interrupted = false;
         try {
             while (!executor.isTerminated()) {
                 try {
-                    executor.awaitTermination(
-                            100L,
-                            TimeUnit.MILLISECONDS);
+                    executor.awaitTermination(100L, TimeUnit.MILLISECONDS);
                 } catch (InterruptedException ex) {
                     interrupted = true;
                 }
