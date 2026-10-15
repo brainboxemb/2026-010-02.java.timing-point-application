@@ -14,7 +14,7 @@ import static org.junit.Assert.assertTrue;
 public class RuntimeExecutorsTest {
 
     @Test
-    public void timingNodeDataLanesShareOnePhysicalNodeWorker()
+    public void timingNodeDataLanesShareOneExecutorThread()
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
         RuntimeExecutors.TimingNodeLanes first =
@@ -45,7 +45,7 @@ public class RuntimeExecutorsTest {
 
             assertTrue(done.await(1, TimeUnit.SECONDS));
             assertEquals(
-                    "tp-dl-node-worker",
+                    "tp-dl-node",
                     firstThread.get());
             assertEquals(
                     firstThread.get(),
@@ -58,7 +58,7 @@ public class RuntimeExecutorsTest {
     }
 
     @Test
-    public void timingNodeDataAndTaskLanesShareTheSamePhysicalWorker()
+    public void timingNodeDataAndTaskLanesShareTheSameExecutorThread()
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
         RuntimeExecutors.TimingNodeLanes lanes =
@@ -87,7 +87,7 @@ public class RuntimeExecutorsTest {
 
             assertTrue(done.await(1, TimeUnit.SECONDS));
             assertEquals(
-                    "tp-dl-node-worker",
+                    "tp-dl-node",
                     dataThread.get());
             assertEquals(
                     dataThread.get(),
@@ -100,7 +100,7 @@ public class RuntimeExecutorsTest {
     }
 
     @Test
-    public void systemConductorUsesSharedSystemCoordinationWorker()
+    public void systemConductorUsesCoordinationExecutorThread()
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
         SerialLane conductor =
@@ -125,7 +125,7 @@ public class RuntimeExecutorsTest {
                             1,
                             TimeUnit.SECONDS));
             assertEquals(
-                    "tp-dl-system-worker",
+                    "tp-dl-system",
                     threadName.get());
         } finally {
             conductor.close();
@@ -134,7 +134,7 @@ public class RuntimeExecutorsTest {
     }
 
     @Test
-    public void antennaControlLanesUseRuntimeOwnedSharedIoWorkers()
+    public void antennaControlLanesUseSharedIoExecutorThread()
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
         SerialLane first =
@@ -166,7 +166,7 @@ public class RuntimeExecutorsTest {
                             TimeUnit.SECONDS));
             assertTrue(
                     firstThread.get()
-                            .equals("tp-io-shared-worker"));
+                            .equals("tp-io-shared"));
 
             first.close();
 
@@ -181,7 +181,7 @@ public class RuntimeExecutorsTest {
                             TimeUnit.SECONDS));
             assertTrue(
                     secondThread.get()
-                            .startsWith("tp-io-shared-"));
+                            .startsWith("tp-io-shared"));
         } finally {
             first.close();
             second.close();
@@ -190,7 +190,7 @@ public class RuntimeExecutorsTest {
     }
 
     @Test
-    public void tagProcessorsShareOnePhysicalScheduledWorker()
+    public void tagProcessorsShareOneScheduledExecutorThread()
             throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
         RuntimeExecutors.TimingNodeLanes first =
@@ -205,15 +205,15 @@ public class RuntimeExecutorsTest {
                 new AtomicReference<String>();
         CountDownLatch done = new CountDownLatch(2);
 
-        first.tagProcessor().start();
-        second.tagProcessor().start();
+        first.tagProcessorLane().start();
+        second.tagProcessorLane().start();
         try {
-            first.tagProcessor().execute(() -> {
+            first.tagProcessorLane().execute(() -> {
                         firstThread.set(
                                 Thread.currentThread().getName());
                         done.countDown();
                     });
-            second.tagProcessor().execute(() -> {
+            second.tagProcessorLane().execute(() -> {
                         secondThread.set(
                                 Thread.currentThread().getName());
                         done.countDown();
@@ -221,14 +221,14 @@ public class RuntimeExecutorsTest {
 
             assertTrue(done.await(1, TimeUnit.SECONDS));
             assertEquals(
-                    "tp-dl-tagproc-worker",
+                    "tp-dl-tagproc",
                     firstThread.get());
             assertEquals(
                     firstThread.get(),
                     secondThread.get());
         } finally {
-            first.tagProcessor().close();
-            second.tagProcessor().close();
+            first.tagProcessorLane().close();
+            second.tagProcessorLane().close();
             runtime.close();
         }
     }

@@ -27,7 +27,7 @@ import java.util.List;
  * <p>This is the visible composition root and owner of process-level Runtime
  * resources. Provider discovery is resolved before normal object composition;
  * the Application Conductor owns application lifecycle and each system Conductor owns its TimingNodes.
- * Runtime owns shared workers and the outer Presentation lifecycle.</p>
+ * Runtime owns shared executors and the outer Presentation lifecycle.</p>
  */
 public final class TimingApplicationRuntime {
     public enum State {
@@ -320,7 +320,7 @@ public final class TimingApplicationRuntime {
 
     /**
      * Stops outer Presentation first, then the Application Conductor (which
-     * stops system components in reverse order), then Runtime-owned workers.
+     * stops system components in reverse order), then Runtime-owned executors.
      */
     public synchronized void deactivate() {
         shutdownSignal.request();

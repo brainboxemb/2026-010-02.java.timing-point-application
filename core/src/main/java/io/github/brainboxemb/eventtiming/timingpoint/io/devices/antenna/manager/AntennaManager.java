@@ -73,15 +73,15 @@ public final class AntennaManager implements YieldingTask {
     public AntennaManager(
             AntennaSet antennaSet,
             SerialLane controlLane,
-            ScheduledExecutorService scheduler,
+            ScheduledExecutorService scheduledExecutor,
             Duration controlTimeout) {
-        this(antennaSet, controlLane, scheduler, controlTimeout, new AntennaSettings());
+        this(antennaSet, controlLane, scheduledExecutor, controlTimeout, new AntennaSettings());
     }
 
     public AntennaManager(
             AntennaSet antennaSet,
             SerialLane controlLane,
-            ScheduledExecutorService scheduler,
+            ScheduledExecutorService scheduledExecutor,
             Duration controlTimeout,
             AntennaSettings settings) {
         checkArgument(settings != null, "settings must not be null");
@@ -89,11 +89,11 @@ public final class AntennaManager implements YieldingTask {
         inventoryEnabledSetting = settings.inventorySetting();
         checkArgument(antennaSet != null, "antennaSet must not be null");
         checkArgument(controlLane != null, "controlLane must not be null");
-        checkArgument(scheduler != null, "scheduler must not be null");
+        checkArgument(scheduledExecutor != null, "scheduledExecutor must not be null");
 
         antennaSet.seal();
         this.antennaSet = antennaSet;
-        taskRunner = new SerialTaskRunner(controlLane, scheduler, controlTimeout);
+        taskRunner = new SerialTaskRunner(controlLane, scheduledExecutor, controlTimeout);
         stateMachine = new YieldingTaskController(
                 taskRunner,
                 this,

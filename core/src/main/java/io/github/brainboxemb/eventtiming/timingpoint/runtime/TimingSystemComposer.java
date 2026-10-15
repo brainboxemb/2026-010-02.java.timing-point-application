@@ -26,7 +26,7 @@ import java.util.Map;
 /**
  * Constructs concrete Domain and I/O components for one configured system.
  *
- * <p>Only the physical worker pools and application coordination are shared.
+ * <p>Only the backing executor resources and application coordination are shared.
  * Nodes, their persistence, logical lanes, antenna set and AntennaManager are
  * built independently for each system. Runtime passes the shared
  * AntennaSettings to the Domain Conductor, not AntennaManager itself.
@@ -80,7 +80,7 @@ final class TimingSystemComposer {
                 ? null : new AntennaManager(
                         antennaSet,
                         executors.createAntennaControlLane(),
-                        executors.sharedIoScheduler(),
+                        executors.sharedIoScheduledExecutor(),
                         ANTENNA_CONTROL_TIMEOUT,
                         antennaSettings);
 

@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Adds delayed admission to an existing {@link SerialLane}.
  *
  * <p>This is a timing helper, not another lane. The lane remains the sole owner
- * of FIFO ordering and serial execution; the JDK scheduler only decides when an
+ * of FIFO ordering and serial execution; the JDK scheduled executor only decides when an
  * operation becomes eligible for admission.</p>
  */
 public final class LaneScheduler {
@@ -40,20 +40,18 @@ public final class LaneScheduler {
     }
 
     private final SerialLane lane;
-    private final ScheduledExecutorService scheduler;
+    private final ScheduledExecutorService scheduledExecutor;
 
     /** Creates delayed admission support for one existing SerialLane. */
-    public LaneScheduler(
-            SerialLane lane,
-            ScheduledExecutorService scheduler) {
+    public LaneScheduler(SerialLane lane, ScheduledExecutorService scheduledExecutor) {
         if (lane == null) {
             throw new IllegalArgumentException("lane must not be null");
         }
-        if (scheduler == null) {
-            throw new IllegalArgumentException("scheduler must not be null");
+        if (scheduledExecutor == null) {
+            throw new IllegalArgumentException("scheduledExecutor must not be null");
         }
         this.lane = lane;
-        this.scheduler = scheduler;
+        this.scheduledExecutor = scheduledExecutor;
     }
 
     /** Schedules one Callable for later admission to the owning serial lane. */
@@ -78,7 +76,7 @@ public final class LaneScheduler {
     /**
      * Schedules recurring fire-and-forget work with delay measured after each lane turn.
      *
-     * <p>The scheduler only wakes the operation. The callback itself always runs
+     * <p>The scheduled executor only wakes the operation. The callback itself always runs
      * on the owning serial lane. If that bounded lane is temporarily full, the
      * next normal delay is used rather than creating a second queue.</p>
      */
@@ -133,7 +131,7 @@ public final class LaneScheduler {
         private void schedule() {
             try {
                 trigger =
-                        scheduler.schedule(
+                        scheduledExecutor.schedule(
                                 this::admit,
                                 delayNanos,
                                 TimeUnit.NANOSECONDS);
@@ -242,7 +240,7 @@ public final class LaneScheduler {
                 }
                 try {
                     trigger =
-                            scheduler.schedule(
+                            scheduledExecutor.schedule(
                                     this::admit,
                                     delayNanos,
                                     TimeUnit.NANOSECONDS);
