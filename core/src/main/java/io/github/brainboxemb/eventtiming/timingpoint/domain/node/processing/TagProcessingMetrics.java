@@ -71,6 +71,7 @@ public final class TagProcessingMetrics {
                 duplicateCount.get());
     }
 
+    /** Immutable pull-based view of the current TagProcessor counters. */
     public static final class Snapshot {
         private final long observations;
         private final long observationQueueFull;
