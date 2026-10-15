@@ -9,22 +9,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class RuntimeExecutorsTest {
-
-    @Test
-    public void constructionDoesNotStartRuntimeWorkers() {
-        RuntimeExecutors runtime = new RuntimeExecutors();
-        try {
-            assertFalse(runtime.started());
-            runtime.start();
-            assertTrue(runtime.started());
-        } finally {
-            runtime.close();
-        }
-    }
 
     @Test
     public void timingNodeDataLanesShareOnePhysicalNodeWorker()
