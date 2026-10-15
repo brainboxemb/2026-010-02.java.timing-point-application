@@ -12,6 +12,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.StageStartTimes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.TeamAssignments;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
@@ -47,7 +48,7 @@ public class StageTimingTest {
 
         List<StageTime> ranking =
                 fixture.stageTiming.ranking(
-                        Arrays.<TimingData>asList(
+                        active(Arrays.<TimingData>asList(
                                 automatic(
                                         1L,
                                         "RT-A-0001",
@@ -57,7 +58,7 @@ public class StageTimingTest {
                                         2L,
                                         "RT-A-0002",
                                         Instant.parse("2026-10-13T12:00:10Z"),
-                                        TimingData.RegistrationAction.ADD)),
+                                        TimingData.RegistrationAction.ADD))),
                         ZoneOffset.UTC);
 
         assertEquals(2, ranking.size());
@@ -77,7 +78,7 @@ public class StageTimingTest {
 
         List<StageTime> ranking =
                 fixture.stageTiming.ranking(
-                        Arrays.<TimingData>asList(
+                        active(Arrays.<TimingData>asList(
                                 automatic(
                                         1L,
                                         "RT-A-0001",
@@ -87,7 +88,7 @@ public class StageTimingTest {
                                         2L,
                                         "RT-A-0002",
                                         Instant.parse("2026-10-13T12:00:10Z"),
-                                        TimingData.RegistrationAction.ADD)),
+                                        TimingData.RegistrationAction.ADD))),
                         ZoneOffset.UTC);
 
         assertEquals(1, ranking.get(0).rank());
@@ -104,12 +105,12 @@ public class StageTimingTest {
 
         List<StageTime> ranking =
                 fixture.stageTiming.ranking(
-                        Collections.<TimingData>singletonList(
+                        active(Collections.<TimingData>singletonList(
                                 automatic(
                                         1L,
                                         "RT-A-0001",
                                         Instant.parse("2026-10-13T22:00:10Z"),
-                                        TimingData.RegistrationAction.ADD)),
+                                        TimingData.RegistrationAction.ADD))),
                         ZoneId.of("Europe/Amsterdam"));
 
         assertEquals(1, ranking.size());
@@ -126,12 +127,12 @@ public class StageTimingTest {
 
         List<StageTime> ranking =
                 fixture.stageTiming.ranking(
-                        Collections.<TimingData>singletonList(
+                        active(Collections.<TimingData>singletonList(
                                 automatic(
                                         1L,
                                         "RT-A-0001",
                                         Instant.parse("2026-10-13T22:00:10Z"),
-                                        TimingData.RegistrationAction.ADD)),
+                                        TimingData.RegistrationAction.ADD))),
                         ZoneId.of("Europe/Amsterdam"));
 
         assertEquals(Duration.ofSeconds(20), ranking.get(0).elapsed());
@@ -150,12 +151,12 @@ public class StageTimingTest {
 
         List<StageTime> ranking =
                 fixture.stageTiming.ranking(
-                        Collections.<TimingData>singletonList(
+                        active(Collections.<TimingData>singletonList(
                                 automatic(
                                         1L,
                                         "RT-R-0001",
                                         Instant.parse("2026-10-13T12:00:30Z"),
-                                        TimingData.RegistrationAction.ADD)),
+                                        TimingData.RegistrationAction.ADD))),
                         ZoneOffset.UTC);
 
         assertEquals(1, ranking.size());
@@ -197,11 +198,7 @@ public class StageTimingTest {
 
         List<StageTime> ranking =
                 fixture.stageTiming.ranking(
-                        Arrays.asList(
-                                add,
-                                lifecycle,
-                                revoke,
-                                unresolved),
+                        active(Arrays.asList(add, lifecycle, revoke, unresolved)),
                         ZoneOffset.UTC);
 
         assertTrue(ranking.isEmpty());
@@ -222,18 +219,14 @@ public class StageTimingTest {
                 LocalTime.NOON,
                 null);
         List<StageTime> first =
-                fixture.stageTiming.ranking(
-                        Collections.singletonList(record),
-                        ZoneOffset.UTC);
+                fixture.stageTiming.ranking(active(Collections.singletonList(record)), ZoneOffset.UTC);
 
         fixture.setStart(
                 "0001",
                 LocalTime.of(12, 0, 30),
                 null);
         List<StageTime> second =
-                fixture.stageTiming.ranking(
-                        Collections.singletonList(record),
-                        ZoneOffset.UTC);
+                fixture.stageTiming.ranking(active(Collections.singletonList(record)), ZoneOffset.UTC);
 
         assertEquals(Duration.ofSeconds(60), first.get(0).elapsed());
         assertEquals(Duration.ofSeconds(30), second.get(0).elapsed());
@@ -293,6 +286,15 @@ public class StageTimingTest {
         } finally {
             node.deactivate();
         }
+    }
+
+    /** Folds committed test records into the compact active-registration view used by StageTiming. */
+    private static ActiveRegistrations active(Iterable<TimingData> records) {
+        ActiveRegistrations active = new ActiveRegistrations();
+        for (TimingData record : records) {
+            active.apply(record);
+        }
+        return active;
     }
 
     private static TimingData.AutomaticRegistration automatic(

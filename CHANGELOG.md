@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep LogBook as the sole full TimingData history owner: startup history is handed to NodeService without extra list copies, NodeServiceState stores only compact active-registration/unique-team derived state, and StageTiming no longer refolds or retains full committed history.
+
 - Reflow recently refactored TimingNode code to DR-18: keep readable statements on one line up to the 120-character limit instead of mechanically wrapping around 80 columns.
 
 - Make `LogBook.activate()` read linearly by naming the persisted-load scheduling and rejection-cleanup `Runnable` values before passing them to `SafeExecute.run(...)`.

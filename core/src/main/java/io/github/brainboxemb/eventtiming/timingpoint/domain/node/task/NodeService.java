@@ -8,7 +8,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTim
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
@@ -64,7 +63,7 @@ public final class NodeService {
      * Starts the Task Lane execution context.
      *
      * <p>Activation does not wait for LogBook data. Derived timing becomes
-     * available only after the initial TimingData snapshot arrives.</p>
+     * available only after transient startup history has rebuilt compact derived state.</p>
      */
     public void activate() {
         serialLane.start();
@@ -100,29 +99,21 @@ public final class NodeService {
     /** Builds the derived stage ranking while the Task Lane owns mutable derived state. */
     private List<StageTime> buildStageTiming(ZoneId raceTimeZone) {
         requireTaskLane("stageTiming");
-        return stageTiming.ranking(state.committedTimingDataSnapshot(), raceTimeZone);
+        return stageTiming.ranking(state.activeRegistrations(), raceTimeZone);
     }
 
-    /** Hands the immutable startup history from the Data Lane to Task Lane-derived state. */
+    /** Hands transient immutable startup history from the Data Lane to compact Task Lane state. */
     private void onInitialTimingDataLoaded(List<TimingData> loadedData) {
-        List<TimingData> snapshot = new ArrayList<TimingData>(loadedData);
-        handoffTimingFact(
-                /*
-                 * Defer rebuilding until the SerialLane owns the passive
-                 * NodeServiceState.
-                 */
-                () -> rebuildDerivedTiming(snapshot),
-                "initial TimingData");
+        // Runnable defers the one-time history fold until the Task Lane owns derived state.
+        Runnable rebuildInitialState = () -> rebuildDerivedTiming(loadedData);
+        handoffTimingFact(rebuildInitialState, "initial TimingData");
     }
 
     /** Hands one committed TimingData fact from the Data Lane to Task Lane-derived state. */
     private void onTimingDataCommitted(TimingData data) {
-        handoffTimingFact(
-                /*
-                 * Defer the derived-state update to preserve Task Lane order.
-                 */
-                () -> applyCommittedTimingData(data),
-                "committed TimingData");
+        // Runnable defers the compact derived-state update to preserve Task Lane order.
+        Runnable applyCommittedData = () -> applyCommittedTimingData(data);
+        handoffTimingFact(applyCommittedData, "committed TimingData");
     }
 
     /**
@@ -146,7 +137,7 @@ public final class NodeService {
     }
 
     /** Rebuilds derived timing while this service owns the SerialLane turn. */
-    private void rebuildDerivedTiming(List<TimingData> loadedData) {
+    private void rebuildDerivedTiming(Iterable<TimingData> loadedData) {
         requireTaskLane("rebuildDerivedTiming");
         state.rebuildDerivedTiming(loadedData);
     }
