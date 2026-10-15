@@ -20,9 +20,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnl
 /**
  * Composes the child components owned by one {@link TimingNode}.
  *
- * <p>This class only builds one node. System-level concerns such as
- * AntennaManager, SystemConductor and routing between nodes remain in
- * {@link TimingSystemComposer}.</p>
+ * <p>This class only builds one node. System-level construction such as
+ * AntennaManager, TimingSystemConductor and antenna-to-node mapping remains in
+ * {@link TimingSystemComposer}; the resulting TimingSystem owns system-level
+ * wiring and lifecycle.</p>
  */
 final class TimingNodeComposer {
     private final ApplicationConfiguration configuration;
@@ -34,6 +35,7 @@ final class TimingNodeComposer {
             ApplicationConfiguration configuration,
             RuntimeExecutors executors,
             MonotonicClock monotonicClock) {
+
         this.configuration = configuration;
         this.executors = executors;
         this.monotonicClock = monotonicClock;
@@ -44,6 +46,7 @@ final class TimingNodeComposer {
             Config.TimingNodeConfig nodeConfig,
             TimingSystemResolvedData system,
             TimeSource timeSource) {
+
         RuntimeExecutors.TimingNodeExecutionResources execution =
                 executors.createTimingNodeExecutionResources();
         ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
@@ -74,7 +77,7 @@ final class TimingNodeComposer {
         NodeService nodeService =
                 new NodeService(nodeConfig.timingNodeId(), execution.taskLane(), nodeServiceState);
 
-        TagProcessor tags =
+        TagProcessor tagProcessor =
                 new TagProcessor(
                         system.eventData(),
                         tagConfiguration,
@@ -83,8 +86,8 @@ final class TimingNodeComposer {
                         execution.tagProcessorLane(),
                         execution.tagProcessorScheduledExecutor());
 
-        tagConfiguration.changes().subscribe(tags::onPolicyConfigurationChanged);
+        tagConfiguration.changes().subscribe(tagProcessor::onPolicyConfigurationChanged);
 
-        return new TimingNode(logBook, nodeService, tags);
+        return new TimingNode(logBook, nodeService, tagProcessor);
     }
 }
