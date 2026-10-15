@@ -231,24 +231,20 @@ public final class SerialLane implements Executor, AutoCloseable {
 
     /** Throws the standard rejection exception when this lane is not accepting work. */
     private void ensureRunning() {
-        if (state == State.RUNNING) {
-            return;
+        if (state != State.RUNNING) {
+            metrics.recordNotRunning();
+            throw new RejectedExecutionException(
+                    "Serial lane " + laneName + " is not running");
         }
-
-        metrics.recordNotRunning();
-        throw new RejectedExecutionException(
-                "Serial lane " + laneName + " is not running");
     }
 
     /** Adds one task to the bounded queue or throws when no queue capacity remains. */
     private void addTaskToQueue(TrackedTask task) {
-        if (queue.offer(task)) {
-            return;
+        if (!queue.offer(task)) {
+            metrics.recordFull();
+            throw new RejectedExecutionException(
+                    "Serial lane " + laneName + " queue is full");
         }
-
-        metrics.recordFull();
-        throw new RejectedExecutionException(
-                "Serial lane " + laneName + " queue is full");
     }
 
     /**
@@ -365,29 +361,27 @@ public final class SerialLane implements Executor, AutoCloseable {
     public synchronized void close() {
         if (state == State.NEW) {
             state = State.STOPPED;
-            return;
-        }
-        if (state == State.RUNNING) {
-            state = State.STOPPING;
-        }
-        if (state == State.STOPPED) {
-            return;
-        }
-
-        if (state != State.FAILED) {
-            boolean interrupted = false;
-            while (executionScheduled
-                    || taskRunning
-                    || !queue.isEmpty()) {
-                try {
-                    wait(100L);
-                } catch (InterruptedException ex) {
-                    interrupted = true;
-                }
+        } else {
+            if (state == State.RUNNING) {
+                state = State.STOPPING;
             }
-            state = State.STOPPED;
-            if (interrupted) {
-                Thread.currentThread().interrupt();
+
+            if (state != State.STOPPED
+                    && state != State.FAILED) {
+                boolean interrupted = false;
+                while (executionScheduled
+                        || taskRunning
+                        || !queue.isEmpty()) {
+                    try {
+                        wait(100L);
+                    } catch (InterruptedException ex) {
+                        interrupted = true;
+                    }
+                }
+                state = State.STOPPED;
+                if (interrupted) {
+                    Thread.currentThread().interrupt();
+                }
             }
         }
     }
