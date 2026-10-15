@@ -22,9 +22,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Top-level owner for one logical timing node.
  *
  * <p>Runtime composes the LogBook, Task and Tag children before construction.
- * TimingNode owns their lifecycle and the one-way registration link from
- * TagProcessor to LogBook. Child-specific operations stay on their
- * explicit access boundaries rather than being copied onto this class.</p>
+ * TimingNode owns their lifecycle and the node-internal event links between
+ * those children. Child-specific operations stay on their explicit access
+ * boundaries rather than being copied onto this class.</p>
  */
 public final class TimingNode {
     private static final Logger LOG = LoggerFactory.getLogger(TimingNode.class);
@@ -43,6 +43,13 @@ public final class TimingNode {
         lifecycle.register(nodeService, NodeService::activate, NodeService::deactivate);
         lifecycle.register(logBook, LogBook::activate, LogBook::deactivate);
         lifecycle.register(tagProcessor, TagProcessor::activate, TagProcessor::deactivate);
+
+        /*
+         * LogBook emits committed/startup TimingData synchronously on the Data
+         * Lane. NodeService handlers only queue the corresponding Task Lane work.
+         */
+        logBook.initialDataLoadedEvent().subscribe(nodeService::onInitialTimingDataLoaded);
+        logBook.newDataEntryEvent().subscribe(nodeService::onTimingDataCommitted);
 
         /*
          * TagProcessor emits synchronously on its own lane. The named handler

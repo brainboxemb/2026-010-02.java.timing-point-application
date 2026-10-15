@@ -195,11 +195,7 @@ public class UpstreamHandlerTest {
         NodeServiceState taskState =
                 new NodeServiceState(
                         eventData);
-        NodeService tasks =
-                new NodeService(
-                        logBook,
-                        taskLane,
-                        taskState);
+        NodeService tasks = new NodeService(new NodeId("A"), taskLane, taskState);
         UpstreamHandler upstreamHandler =
                 new UpstreamHandler(
                         new NodeId("A"),

@@ -1,8 +1,9 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.task;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
@@ -30,35 +31,29 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * <p>The Task Lane is a bounded logical serial queue, not a dedicated thread:
  * the supplied executor may share Runtime's physical worker with the Data Lane.
  * Mutable Task Lane state lives in {@link NodeServiceState}; the service itself
- * owns lifecycle, queueing and orchestration. The Data Lane supplies only
- * immutable initial-loaded/committed TimingData facts and bounded LogBook reads.</p>
+ * owns lifecycle, queueing and orchestration. {@link TimingNode} wires the
+ * LogBook's immutable startup-history and committed-data events to this service;
+ * NodeService has no LogBook lifecycle or storage dependency of its own.</p>
  */
 public final class NodeService {
     private static final Logger LOG = LoggerFactory.getLogger(NodeService.class);
     private static final long TASK_QUERY_TIMEOUT_MILLIS = 2000L;
 
-    private final LogBook logBook;
+    private final NodeId nodeId;
     private final SerialLane serialLane;
     private final NodeServiceState state;
     private final StageTiming stageTiming;
 
     /** Creates the Task Lane service around explicitly composed passive state. */
-    public NodeService(LogBook logBook, SerialLane serialLane, NodeServiceState state) {
-        checkArgument(logBook != null, "logBook must not be null");
+    public NodeService(NodeId nodeId, SerialLane serialLane, NodeServiceState state) {
+        checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(serialLane != null, "serialLane must not be null");
         checkArgument(state != null, "state must not be null");
 
-        this.logBook = logBook;
+        this.nodeId = nodeId;
         this.serialLane = serialLane;
         this.state = state;
         this.stageTiming = new StageTiming(state.eventData(), state.teamAssignments(), state.stageStartTimes());
-
-        /*
-         * Composition-time wiring. Event delivery itself is synchronous on the
-         * Data Lane; these listeners only perform a bounded Task Lane handoff.
-         */
-        logBook.initialDataLoadedEvent().subscribe(this::onInitialTimingDataLoaded);
-        logBook.newDataEntryEvent().subscribe(this::onTimingDataCommitted);
     }
 
     /**
@@ -105,15 +100,25 @@ public final class NodeService {
         return stageTiming.ranking(state.activeRegistrations(), raceTimeZone);
     }
 
-    /** Hands transient immutable startup history from the Data Lane to compact Task Lane state. */
-    private void onInitialTimingDataLoaded(List<TimingData> loadedData) {
+    /**
+     * Receives transient immutable startup history from the LogBook Data Lane.
+     *
+     * <p>{@link TimingNode} installs this composition-time event link. The
+     * handler only queues the history fold onto the Task Lane and returns.</p>
+     */
+    public void onInitialTimingDataLoaded(List<TimingData> loadedData) {
         // Runnable defers the one-time history fold until the Task Lane owns derived state.
         Runnable rebuildInitialState = () -> rebuildDerivedTiming(loadedData);
         handoffTimingFact(rebuildInitialState, "initial TimingData");
     }
 
-    /** Hands one committed TimingData fact from the Data Lane to Task Lane-derived state. */
-    private void onTimingDataCommitted(TimingData data) {
+    /**
+     * Receives one committed TimingData fact from the LogBook Data Lane.
+     *
+     * <p>{@link TimingNode} installs this composition-time event link. The
+     * handler only queues the derived-state update onto the Task Lane and returns.</p>
+     */
+    public void onTimingDataCommitted(TimingData data) {
         // Runnable defers the compact derived-state update to preserve Task Lane order.
         Runnable applyCommittedData = () -> applyCommittedTimingData(data);
         handoffTimingFact(applyCommittedData, "committed TimingData");
@@ -133,7 +138,7 @@ public final class NodeService {
             LOG.error(
                     "Task Lane rejected {} for node {}; derived timing state is stale",
                     fact,
-                    logBook.timingNodeId().value(),
+                    nodeId.value(),
                     ex);
         };
 

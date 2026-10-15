@@ -44,8 +44,7 @@ final class TimingNodeComposer {
             Config.TimingNodeConfig nodeConfig,
             TimingSystemResolvedData system,
             TimeSource timeSource) {
-        RuntimeExecutors.TimingNodeLanes lanes =
-                executors.createTimingNodeLanes();
+        RuntimeExecutors.TimingNodeLanes lanes = executors.createTimingNodeLanes();
         ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
                 configuration.timingNode(
                         nodeConfig.timingNodeId())
@@ -69,15 +68,10 @@ final class TimingNodeComposer {
                         lanes.dataLane(),
                         LogBook.DEFAULT_OPERATION_TIMEOUT_MILLIS);
 
-        NodeServiceState nodeServiceState =
-                new NodeServiceState(
-                        system.eventData());
+        NodeServiceState nodeServiceState = new NodeServiceState(system.eventData());
 
         NodeService nodeService =
-                new NodeService(
-                        logBook,
-                        lanes.taskLane(),
-                        nodeServiceState);
+                new NodeService(nodeConfig.timingNodeId(), lanes.taskLane(), nodeServiceState);
 
         TagProcessor tags =
                 new TagProcessor(
@@ -88,15 +82,9 @@ final class TimingNodeComposer {
                         lanes.tagProcessor(),
                         lanes.tagProcessorScheduler());
 
-        tagConfiguration.changes()
-                .subscribe(
-                        tags::onPolicyConfigurationChanged);
+        tagConfiguration.changes().subscribe(tags::onPolicyConfigurationChanged);
 
-        TimingNode node =
-                new TimingNode(
-                        logBook,
-                        nodeService,
-                        tags);
+        TimingNode node = new TimingNode(logBook, nodeService, tags);
         return new TimingNodeComponents(
                 node,
                 tags);
