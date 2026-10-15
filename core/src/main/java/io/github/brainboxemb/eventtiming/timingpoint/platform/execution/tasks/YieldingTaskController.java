@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.YieldingTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -21,7 +21,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * domain or device state.</p>
  */
 public final class YieldingTaskController {
-    private final YieldingTaskRunner runner;
+    private final TaskSerialLane lane;
     private final YieldingTask task;
     private final Consumer<Throwable> failureHandler;
 
@@ -30,12 +30,12 @@ public final class YieldingTaskController {
 
     /** Creates coalescing wake-up control around one reusable yielding task. */
     public YieldingTaskController(
-            YieldingTaskRunner runner, YieldingTask task, Consumer<Throwable> failureHandler) {
-        checkArgument(runner != null, "runner must not be null");
+            TaskSerialLane lane, YieldingTask task, Consumer<Throwable> failureHandler) {
+        checkArgument(lane != null, "lane must not be null");
         checkArgument(task != null, "task must not be null");
         checkArgument(failureHandler != null, "failureHandler must not be null");
 
-        this.runner = runner;
+        this.lane = lane;
         this.task = task;
         this.failureHandler = failureHandler;
     }
@@ -78,11 +78,11 @@ public final class YieldingTaskController {
         return wakePending;
     }
 
-    /** Starts one runner-owned execution and attaches completion handling. */
+    /** Starts one task-lane execution and attaches completion handling. */
     private void startRun() {
         final CompletableFuture<Void> run;
         try {
-            run = runner.runTask(
+            run = lane.runTask(
                     task);
         } catch (RuntimeException ex) {
             runCompleted(
