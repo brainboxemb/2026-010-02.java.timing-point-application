@@ -13,6 +13,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExec
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.RejectedExecutionException;
+import java.util.function.Consumer;
+
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 /**
@@ -105,12 +108,17 @@ public final class TimingNode {
                 registration.registrationId(),
                 registration.observedAt());
 
-        SafeExecute.runOrHandleRejection(
-                () -> logBook.execute(command),
+        Runnable queueRegistration =
+                () -> logBook.execute(command);
+        Consumer<RejectedExecutionException> onRejected =
                 ex -> LOG.warn(
                         "Automatic registration {} for node {} could not be queued on the LogBook Data Lane",
                         registration.registrationId().value(),
                         timingNodeId.value(),
-                        ex));
+                        ex);
+
+        SafeExecute.runOrHandleRejection(
+                queueRegistration,
+                onRejected);
     }
 }
