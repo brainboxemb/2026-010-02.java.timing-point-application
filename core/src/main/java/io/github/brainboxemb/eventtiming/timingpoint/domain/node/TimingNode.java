@@ -50,7 +50,6 @@ public final class TimingNode {
             NodeService nodeService,
             TagProcessor tagProcessor) {
 
-        checkArgument(antennaId != null, "antennaId must not be null");
         checkArgument(logBook != null, "logBook must not be null");
         checkArgument(nodeService != null, "nodeService must not be null");
         checkArgument(tagProcessor != null, "tagProcessor must not be null");
@@ -93,7 +92,10 @@ public final class TimingNode {
         return timingNodeId;
     }
 
-    /** Returns the configured antenna supplying observations to this node. */
+    /**
+     * Returns the explicitly configured antenna, or {@code null} when system
+     * composition may select the sole available antenna.
+     */
     public AntennaId antennaId() {
 
         return antennaId;
