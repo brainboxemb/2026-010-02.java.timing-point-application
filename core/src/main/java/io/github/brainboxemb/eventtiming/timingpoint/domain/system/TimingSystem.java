@@ -55,7 +55,7 @@ public final class TimingSystem {
                 "observationRoutes require an AntennaManager");
 
         this.id = id.trim();
-        this.timingNodes = timingNodes.copy();
+        this.timingNodes = timingNodes;
         this.antennaManager = antennaManager;
         this.timingSystemConductor = timingSystemConductor;
 
@@ -77,10 +77,10 @@ public final class TimingSystem {
         return id;
     }
 
-    /** Returns an independent ordered list of the system's TimingNodes. */
+    /** Returns the immutable ordered TimingNodes contained by this TimingSystem. */
     public TimingNodeList timingNodes() {
 
-        return timingNodes.copy();
+        return timingNodes;
     }
 
     /** Returns the optional AntennaManager owned by this system. */
@@ -137,11 +137,6 @@ public final class TimingSystem {
     /** Reports whether the supplied node is one of this system's owned TimingNodes. */
     private boolean containsNode(TimingNode node) {
 
-        for (TimingNode candidate : timingNodes) {
-            if (candidate == node) {
-                return true;
-            }
-        }
-        return false;
+        return timingNodes.contains(node);
     }
 }
