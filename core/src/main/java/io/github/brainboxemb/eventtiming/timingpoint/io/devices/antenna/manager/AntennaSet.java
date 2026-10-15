@@ -102,10 +102,6 @@ public final class AntennaSet {
         return antennas.isEmpty();
     }
 
-    int size() {
-        return antennas.size();
-    }
-
     boolean allSelfTestsPassed() {
         for (ManagedAntenna antenna : antennas) {
             if (!antenna.selfTestPassed()) {
