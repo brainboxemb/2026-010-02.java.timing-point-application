@@ -104,21 +104,9 @@ public final class SystemConductor extends AbstractConductor implements Yielding
     public TaskStep runStep() {
         boolean required = false;
         for (TimingNode node : nodes) {
-            final Status status;
-            try {
-                status = node.logBook().query(
-                        LogBookQueries.status(),
-                        ReadConsistency.CURRENT);
-            } catch (OperationException ex) {
-                if (ex.reason() == OperationException.Reason.UNAVAILABLE) {
-                    /*
-                     * Activation starts node recovery asynchronously. Do not wait
-                     * here and do not publish a partial system decision. The
-                     * node's first Status publication wakes a later reconciliation.
-                     */
-                    return TaskStep.done();
-                }
-                throw ex;
+            Status status = currentStatusIfAvailable(node);
+            if (status == null) {
+                return TaskStep.done();
             }
 
             if (status.state() == State.OPEN) {
@@ -133,6 +121,26 @@ public final class SystemConductor extends AbstractConductor implements Yielding
             antennaSettings.update(settingsUpdate);
         }
         return TaskStep.done();
+    }
+
+    /**
+     * Returns the current published status, or null while startup recovery has
+     * not published one yet.
+     *
+     * <p>UNAVAILABLE is expected during asynchronous activation. Other query
+     * failures remain control-task failures and propagate unchanged.</p>
+     */
+    private Status currentStatusIfAvailable(TimingNode node) {
+        try {
+            return node.logBook().query(
+                    LogBookQueries.status(),
+                    ReadConsistency.CURRENT);
+        } catch (OperationException ex) {
+            if (ex.reason() == OperationException.Reason.UNAVAILABLE) {
+                return null;
+            }
+            throw ex;
+        }
     }
 
     private boolean containsNode(TimingNode node) {
