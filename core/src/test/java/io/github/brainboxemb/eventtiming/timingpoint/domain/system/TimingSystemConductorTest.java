@@ -58,7 +58,7 @@ public class TimingSystemConductorTest {
         AntennaManager manager = newAntennaManager(antenna);
         SerialLane lane = new SerialLane(8, "system-conductor-test", newWorker("worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
-                new TimingNodeList().add(first).add(second), manager.settings(), lane);
+                TimingNodeList.builder().add(first).add(second).build(), manager.settings(), lane);
         first.logBook().statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(first, status));
         second.logBook().statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(second, status));
 
@@ -95,7 +95,7 @@ public class TimingSystemConductorTest {
                         newWorker("conductor-startup-worker"));
         TimingSystemConductor conductor =
                 new TimingSystemConductor(
-                        new TimingNodeList().add(node),
+                        TimingNodeList.of(node),
                         manager.settings(),
                         lane);
         node.logBook().statusChangedEvent().subscribe(
