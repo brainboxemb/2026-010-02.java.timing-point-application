@@ -111,13 +111,14 @@ final class TimingApplicationAssembler {
                 }
             }
 
+            TimingNodeList allTimingNodes = timingNodes.build();
             ConfigurationControl configurationControl =
                     createConfigurationControl(
                             applicationConfiguration);
             PresentationGateway presentationGateway =
                     new PresentationGateway(
                             buildIdentity,
-                            timingNodes,
+                            allTimingNodes,
                             configurationControl,
                             simulationRunner);
             ShutdownSignal shutdownSignal =
