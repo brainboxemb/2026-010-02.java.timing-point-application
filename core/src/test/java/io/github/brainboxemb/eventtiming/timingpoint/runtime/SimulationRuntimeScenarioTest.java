@@ -93,7 +93,7 @@ public class SimulationRuntimeScenarioTest {
         application.activate();
         try {
             await(
-                    () -> application.systemStatus().antennaReady(),
+                    application.antennaManager()::isReady,
                     2000L);
 
             TimingNodeProxy node =
@@ -228,7 +228,7 @@ public class SimulationRuntimeScenarioTest {
         application.activate();
         try {
             await(
-                    () -> application.systemStatus().antennaReady(),
+                    application.antennaManager()::isReady,
                     2000L);
             TimingNodeProxy node =
                     application

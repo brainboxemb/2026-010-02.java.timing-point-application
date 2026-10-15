@@ -15,10 +15,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.system.SystemStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaOperation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
@@ -77,9 +77,7 @@ public class TimingApplicationRuntimeTest {
         }
         Config config = new Config(systems, managers, new Presentation(null, null), null, null);
         TimingApplicationRuntime application = TimingApplicationRuntime.create(identity(), config);
-        assertEquals(2, application.systemStatuses().size());
-        assertTrue(application.systemStatuses().get(0).hasAntennaManager());
-        assertTrue(application.systemStatuses().get(1).hasAntennaManager());
+        assertEquals(2, application.antennaManagers().size());
         application.activate();
         try {
             assertEquals(2, application.presentationGateway().timingNodes().size());
@@ -154,7 +152,8 @@ public class TimingApplicationRuntimeTest {
         assertEquals(
                 2,
                 application.timingNodes().size());
-        assertFalse(application.systemStatus().hasAntennaManager());
+        assertTrue(
+                application.antennaManager() == null);
 
         application.activate();
         try {
@@ -258,9 +257,9 @@ public class TimingApplicationRuntimeTest {
         assertEquals(
                 2,
                 application.timingNodes().size());
-        assertEquals(2, application.systemStatuses().size());
-        assertFalse(application.systemStatuses().get(0).hasAntennaManager());
-        assertFalse(application.systemStatuses().get(1).hasAntennaManager());
+        assertEquals(
+                0,
+                application.antennaManagers().size());
 
         application.activate();
         try {
@@ -391,8 +390,8 @@ public class TimingApplicationRuntimeTest {
                         windows);
 
         assertTrue(
-                "Windows normal composition should include antenna capability",
-                application.systemStatus().hasAntennaManager());
+                "Windows normal composition should include AntennaManager",
+                application.antennaManager() != null);
         assertTrue(
                 "The composed Windows simulated antenna and nonempty reference EventData "
                         + "should enable engineering tag scenarios",
@@ -404,20 +403,31 @@ public class TimingApplicationRuntimeTest {
         application.activate();
         try {
             await(
-                    () -> application.systemStatus().antennaReady(),
+                    application.antennaManager()::isReady,
                     1000L);
-            assertTrue(application.systemStatus().antenna("1").selfTestPassed());
+            assertTrue(
+                    application.antennaManager()
+                            .status(
+                                    new AntennaId("1"))
+                            .selfTestPassed());
             assertEquals(
-                    SystemStatus.AntennaOperation.INACTIVE,
-                    application.systemStatus().antenna("1").operation());
+                    AntennaOperation.INACTIVE,
+                    application.antennaManager()
+                            .status(
+                                    new AntennaId("1"))
+                            .operation());
 
             application.timingNode().logBook().process(
                     LogBookCommands.open(
                             new LocationId(24)));
 
             await(
-                    () -> application.systemStatus().antenna("1").operation()
-                            == SystemStatus.AntennaOperation.INVENTORY,
+                    () -> application
+                            .antennaManager()
+                            .status(
+                                    new AntennaId("1"))
+                            .operation()
+                            == AntennaOperation.INVENTORY,
                     1000L);
 
             // Verify not just the advertised flag: reference EventData must
@@ -445,8 +455,12 @@ public class TimingApplicationRuntimeTest {
                     LogBookCommands.close());
 
             await(
-                    () -> application.systemStatus().antenna("1").operation()
-                            == SystemStatus.AntennaOperation.INACTIVE,
+                    () -> application
+                            .antennaManager()
+                            .status(
+                                    new AntennaId("1"))
+                            .operation()
+                            == AntennaOperation.INACTIVE,
                     1000L);
         } finally {
             application.deactivate();
@@ -527,10 +541,11 @@ public class TimingApplicationRuntimeTest {
                     application.state());
             assertFalse(
                     "Runtime must be ACTIVE before antenna startup is ready",
-                    application.systemStatus().antennaReady());
+                    application.antennaManager()
+                            .isReady());
 
             await(
-                    () -> application.systemStatus().antennaReady(),
+                    application.antennaManager()::isReady,
                     1750L);
         } finally {
             application.deactivate();
@@ -560,9 +575,9 @@ public class TimingApplicationRuntimeTest {
                         config(file),
                         linux);
 
-        assertFalse(
-                "non-Windows no-config composition should omit antenna capability",
-                application.systemStatus().hasAntennaManager());
+        assertTrue(
+                "non-Windows no-config composition should omit AntennaManager",
+                application.antennaManager() == null);
 
         application.activate();
         try {

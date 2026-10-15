@@ -2,17 +2,13 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -36,7 +32,6 @@ public final class TimingSystem {
     private final TimingNodeList timingNodes;
     private final AntennaManager antennaManager;
     private final TimingSystemConductor timingSystemConductor;
-    private final SystemStatus systemStatus;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
 
     /**
@@ -63,7 +58,6 @@ public final class TimingSystem {
         this.timingNodes = timingNodes;
         this.antennaManager = antennaManager;
         this.timingSystemConductor = timingSystemConductor;
-        this.systemStatus = new SystemStatus(this.id, timingNodeIds(timingNodes));
 
         wireNodeStatus();
         wireAntennaObservations(
@@ -89,124 +83,32 @@ public final class TimingSystem {
         return timingNodes;
     }
 
-    /** Returns the complete current semantic status of this TimingSystem. */
-    public SystemStatus.Snapshot systemStatus() {
+    /** Returns the optional AntennaManager owned by this system. */
+    public AntennaManager antennaManager() {
 
-        refreshAntennaStatus();
-        return systemStatus.current();
+        return antennaManager;
     }
 
     /** Activates I/O before Domain coordination. */
     public void activate() {
 
-        try {
-            lifecycle.activateAll();
-            systemStatus.markActive();
-        } catch (RuntimeException | Error failure) {
-            systemStatus.markFailed(failure);
-            throw failure;
-        }
+        lifecycle.activateAll();
     }
 
     /** Deactivates children in reverse activation order. */
     public void deactivate() {
 
-        try {
-            lifecycle.deactivateAll();
-            systemStatus.markInactive();
-        } catch (RuntimeException | Error failure) {
-            systemStatus.markFailed(failure);
-            throw failure;
-        }
+        lifecycle.deactivateAll();
     }
 
     /** Installs node-status wake links owned by this system boundary. */
     private void wireNodeStatus() {
 
         for (TimingNode node : timingNodes) {
-            Consumer<Status> onStatusChanged = status -> onTimingNodeStatusChanged(node, status);
+            Consumer<Status> onStatusChanged =
+                    status -> timingSystemConductor.onTimingNodeStatusChanged(node, status);
             node.logBook().statusChangedEvent().subscribe(onStatusChanged);
         }
-    }
-
-    /** Updates SystemStatus and wakes system coordination for one authoritative node status. */
-    private void onTimingNodeStatusChanged(TimingNode node, Status status) {
-
-        systemStatus.onTimingNodeStatus(status);
-        timingSystemConductor.onTimingNodeStatusChanged(node, status);
-    }
-
-    /** Refreshes semantic antenna status without exposing the concrete AntennaManager. */
-    private void refreshAntennaStatus() {
-
-        if (antennaManager == null) {
-            systemStatus.clearAntennaManager();
-            return;
-        }
-
-        List<SystemStatus.AntennaStatus> statuses = new ArrayList<SystemStatus.AntennaStatus>();
-        for (AntennaManagerTypes.AntennaStatus status : antennaManager.statuses()) {
-            Throwable failure = status.failure();
-            statuses.add(
-                    new SystemStatus.AntennaStatus(
-                            status.antennaId().value(),
-                            status.selfTestPassed(),
-                            antennaOperation(status.operation()),
-                            failure != null,
-                            failure == null ? null : failure.getMessage()));
-        }
-
-        systemStatus.updateAntennaManager(
-                antennaManagerState(antennaManager.state()),
-                antennaManager.isReady(),
-                statuses);
-    }
-
-    /** Maps I/O AntennaManager lifecycle to its Domain SystemStatus value. */
-    private static SystemStatus.AntennaManagerState antennaManagerState(AntennaManagerTypes.State state) {
-
-        switch (state) {
-            case NEW:
-                return SystemStatus.AntennaManagerState.NEW;
-            case ACTIVE:
-                return SystemStatus.AntennaManagerState.ACTIVE;
-            case DEACTIVATING:
-                return SystemStatus.AntennaManagerState.DEACTIVATING;
-            case INACTIVE:
-                return SystemStatus.AntennaManagerState.INACTIVE;
-            case FAILED:
-                return SystemStatus.AntennaManagerState.FAILED;
-            default:
-                throw new IllegalStateException("Unsupported AntennaManager state " + state);
-        }
-    }
-
-    /** Maps I/O antenna operation to its Domain SystemStatus value. */
-    private static SystemStatus.AntennaOperation antennaOperation(
-            AntennaManagerTypes.AntennaOperation operation) {
-
-        switch (operation) {
-            case INACTIVE:
-                return SystemStatus.AntennaOperation.INACTIVE;
-            case PREPARING:
-                return SystemStatus.AntennaOperation.PREPARING;
-            case READY:
-                return SystemStatus.AntennaOperation.READY;
-            case INVENTORY:
-                return SystemStatus.AntennaOperation.INVENTORY;
-            default:
-                throw new IllegalStateException("Unsupported antenna operation " + operation);
-        }
-    }
-
-    /** Extracts immutable node identities used by the SystemStatus component. */
-    private static List<NodeId> timingNodeIds(TimingNodeList timingNodes) {
-
-        List<NodeId> ids = new ArrayList<NodeId>();
-        for (TimingNode node : timingNodes) {
-            ids.add(node.timingNodeId());
-        }
-        return Collections.unmodifiableList(ids);
     }
 
     /** Connects AntennaManager observations to mapped TimingNode boundaries. */
