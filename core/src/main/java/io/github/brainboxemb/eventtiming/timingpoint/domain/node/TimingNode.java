@@ -49,15 +49,10 @@ public final class TimingNode {
         }
     }
 
-    /** Supported external event inputs of a TimingNode. */
-    public static final class Inputs {
-        public static final Input<TagObservation> TAG_OBSERVATIONS =
-                new Input<TagObservation>(
-                        (node, source) -> source.subscribe(node.tagProcessor::onTagObserved));
-
-        private Inputs() {
-        }
-    }
+    /** Antenna observation input; internally consumed by the TagProcessor. */
+    public static final Input<TagObservation> TAG_OBSERVATIONS =
+            new Input<TagObservation>(
+                    (node, source) -> source.subscribe(node.tagProcessor::onTagObserved));
 
     /** Creates the top-level node owner around its already composed child components. */
     public TimingNode(LogBook logBook, NodeService nodeService, TagProcessor tagProcessor) {
