@@ -9,18 +9,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persist
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,8 +33,7 @@ public final class LogBook implements LogBookAccessor {
     public static final long DEFAULT_OPERATION_TIMEOUT_MILLIS = 2000L;
 
     private final LogBookState logBookState;
-    private final SerialLane serialLane;
-    private final long operationTimeoutMillis;
+    private final LogBookDataLane dataLane;
     private final MonotonicClock monotonicClock;
     private final LogBookMetrics metrics;
 
@@ -85,8 +76,7 @@ public final class LogBook implements LogBookAccessor {
                 timeSource,
                 monotonicClock,
                 metrics);
-        this.serialLane = serialLane;
-        this.operationTimeoutMillis = operationTimeoutMillis;
+        this.dataLane = new LogBookDataLane(serialLane, operationTimeoutMillis);
         this.monotonicClock = monotonicClock;
         this.metrics = metrics;
     }
@@ -108,16 +98,7 @@ public final class LogBook implements LogBookAccessor {
      * until that first ordered task has rebuilt the LogBook and published status.</p>
      */
     public void activate() {
-        serialLane.start();
-
-        // Startup loading is the Data Lane's first ordered task. Failed scheduling closes the lane.
-        Runnable schedulePersistedDataLoad = () -> serialLane.execute(this::loadPersistedData);
-        Runnable closeRejectedStartup = serialLane::close;
-
-        SafeExecute.run(
-                schedulePersistedDataLoad,
-                closeRejectedStartup,
-                "Persisted TimingData load could not be scheduled");
+        dataLane.activate(this::loadPersistedData);
     }
 
     /**
@@ -127,7 +108,7 @@ public final class LogBook implements LogBookAccessor {
      * does not implement a second shutdown queue.</p>
      */
     public void deactivate() {
-        serialLane.close();
+        dataLane.deactivate();
         publishedStatus = null;
     }
 
@@ -136,8 +117,7 @@ public final class LogBook implements LogBookAccessor {
      */
     public <R> R process(LogBookCommand<R> command) {
         checkArgument(command != null, "command must not be null");
-        Callable<R> commandApplication = () -> applyCommand(command);
-        return submitAndWait(commandApplication, command.name());
+        return dataLane.submitAndWait(() -> applyCommand(command), command.name());
     }
 
     /**
@@ -150,7 +130,7 @@ public final class LogBook implements LogBookAccessor {
     public void execute(LogBookCommand<?> command) {
         checkArgument(command != null, "command must not be null");
         Runnable queuedCommand = () -> executeQueuedCommand(command);
-        serialLane.execute(queuedCommand);
+        dataLane.execute(queuedCommand);
     }
 
     /**
@@ -179,11 +159,10 @@ public final class LogBook implements LogBookAccessor {
                  * ordered view directly avoids self-queueing/waiting while
                  * preserving the same ordering guarantee.
                  */
-                if (serialLane.isExecutingOnCurrentThread()) {
+                if (dataLane.isExecutingOnCurrentThread()) {
                     return query.readOrdered(logBookState);
                 }
-                Callable<R> orderedRead = () -> query.readOrdered(logBookState);
-                return submitAndWait(orderedRead, query.name());
+                return dataLane.submitAndWait(() -> query.readOrdered(logBookState), query.name());
             default:
                 throw new IllegalStateException("Unsupported read consistency " + consistency);
         }
@@ -216,12 +195,12 @@ public final class LogBook implements LogBookAccessor {
 
     /** Returns the latest safely published CURRENT status or explains why none is available. */
     Status publishedStatus() {
-        SerialLane.State state = serialLane.state();
+        SerialLane.State state = dataLane.state();
         if (state == SerialLane.State.FAILED) {
             throw new OperationException(
                     OperationException.Reason.FAILED,
                     "status CURRENT result is unavailable because the Data Lane failed",
-                    serialLane.failure());
+                    dataLane.failure());
         }
         if (state != SerialLane.State.RUNNING) {
             throw new OperationException(
@@ -388,95 +367,6 @@ public final class LogBook implements LogBookAccessor {
                             + data.sequenceNumber(),
                     delivery.failures().get(0));
         }
-    }
-
-    /**
-     * Submits one result-bearing operation to the SerialLane and waits for its
-     * ordered result.
-     */
-    private <R> R submitAndWait(Callable<R> work, String operation) {
-        if (serialLane.isExecutingOnCurrentThread()) {
-            throw new IllegalStateException(
-                    "Reentrant ORDERED TimingNode operation "
-                            + operation
-                            + " cannot wait for the same Data Lane");
-        }
-
-        final Future<R> future;
-        try {
-            future = serialLane.submit(work);
-        } catch (RejectedExecutionException ex) {
-            throw rejectedOperation(operation, ex);
-        }
-        return await(future, operation);
-    }
-
-    /** Converts Future completion into the stable LogBook operation exception contract. */
-    private <R> R await(Future<R> future, String operation) {
-        try {
-            return future.get(operationTimeoutMillis, TimeUnit.MILLISECONDS);
-        } catch (TimeoutException ex) {
-            throw new OperationException(
-                    OperationException.Reason.TIMEOUT,
-                    operation
-                            + " timed out; final TimingNode outcome is unknown",
-                    ex);
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new OperationException(
-                    OperationException.Reason.INTERRUPTED,
-                    operation
-                            + " was interrupted while waiting for the TimingNode result",
-                    ex);
-        } catch (CancellationException ex) {
-            throw new OperationException(
-                    OperationException.Reason.FAILED,
-                    operation
-                            + " was cancelled because the TimingNode Data Lane failed",
-                    ex);
-        } catch (ExecutionException ex) {
-            Throwable cause =
-                    ex.getCause();
-            String detail =
-                    cause == null
-                            ? null
-                            : cause.getMessage();
-            throw new OperationException(
-                    OperationException.Reason.FAILED,
-                    operation
-                            + " failed while executing on the TimingNode Data Lane"
-                            + (detail == null
-                                    || detail.trim().isEmpty()
-                                            ? ""
-                                            : ": "
-                                                    + detail.trim()),
-                    cause);
-        }
-    }
-
-    /**
-     * Maps standard lane rejection to the LogBook operation categories used by result-bearing calls.
-     *
-     * <p>The lane state distinguishes a stopped/failed owner from ordinary bounded-queue pressure;
-     * SerialLane itself keeps the standard RejectedExecutionException API.</p>
-     */
-    private OperationException rejectedOperation(String operation, RejectedExecutionException rejection) {
-        if (serialLane.state() == SerialLane.State.FAILED) {
-            return new OperationException(
-                    OperationException.Reason.FAILED,
-                    operation + " could not run because the TimingNode Data Lane failed",
-                    serialLane.failure() == null ? rejection : serialLane.failure());
-        }
-        if (serialLane.state() != SerialLane.State.RUNNING) {
-            return new OperationException(
-                    OperationException.Reason.UNAVAILABLE,
-                    operation + " could not be queued because the TimingNode Data Lane is not running",
-                    rejection);
-        }
-        return new OperationException(
-                OperationException.Reason.BUSY,
-                operation + " could not be queued because the TimingNode Data Lane is full",
-                rejection);
     }
 
     /** Compares immutable status values without depending on object identity. */
