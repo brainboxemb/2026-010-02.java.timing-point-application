@@ -26,6 +26,7 @@ public final class YieldingTaskController {
     private boolean running;
     private boolean wakePending;
 
+    /** Creates coalescing wake-up control around one reusable yielding task. */
     public YieldingTaskController(
             YieldingTaskRunner runner,
             YieldingTask task,
@@ -76,14 +77,17 @@ public final class YieldingTaskController {
         wakePending = false;
     }
 
+    /** Reports whether one controlled task run is currently active. */
     public synchronized boolean isRunning() {
         return running;
     }
 
+    /** Reports whether one coalesced follow-up wake is remembered. */
     public synchronized boolean wakePending() {
         return wakePending;
     }
 
+    /** Starts one runner-owned execution and attaches completion handling. */
     private void startRun() {
         final CompletableFuture<Void> run;
         try {
@@ -105,6 +109,7 @@ public final class YieldingTaskController {
                 this::runCompleted);
     }
 
+    /** Completes one run and starts the coalesced follow-up only after successful completion. */
     private void runCompleted(
             Void ignored,
             Throwable failure) {
@@ -125,10 +130,7 @@ public final class YieldingTaskController {
                 failureHandler.accept(
                         failure);
             }
-            return;
-        }
-
-        if (restart) {
+        } else if (restart) {
             startRun();
         }
     }
