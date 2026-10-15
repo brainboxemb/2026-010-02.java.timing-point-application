@@ -110,13 +110,11 @@ public final class LogBook implements LogBookAccessor {
     public void activate() {
         serialLane.start();
 
-        // Runnable without arguments that schedules persisted-data loading on the SerialLane.
-        Runnable scheduleLoad = () -> serialLane.execute(this::loadPersistedData);
-
-        // Cleanup Runnable invoked by SafeExecute when scheduling is rejected.
-        Runnable cleanup = serialLane::close;
-
-        SafeExecute.run(scheduleLoad, cleanup, "Persisted TimingData load could not be scheduled");
+        // Startup loading is the Data Lane's first ordered task. Failed scheduling closes the lane.
+        SafeExecute.run(
+                () -> serialLane.execute(this::loadPersistedData),
+                serialLane::close,
+                "Persisted TimingData load could not be scheduled");
     }
 
     /**
@@ -135,10 +133,6 @@ public final class LogBook implements LogBookAccessor {
      */
     public <R> R process(LogBookCommand<R> command) {
         checkArgument(command != null, "command must not be null");
-        /*
-         * () means this Callable has no arguments; -> introduces the command application
-         * that SerialLane executes later in order. Its return value becomes the command result.
-         */
         return submitAndWait(() -> applyCommand(command), command.name());
     }
 
@@ -151,11 +145,6 @@ public final class LogBook implements LogBookAccessor {
      */
     public void execute(LogBookCommand<?> command) {
         checkArgument(command != null, "command must not be null");
-        /*
-         * () means this Runnable has no arguments; -> introduces the command
-         * work that SerialLane executes later. This fire-and-forget path
-         * contains execution-time command failure inside executeQueuedCommand.
-         */
         serialLane.execute(() -> executeQueuedCommand(command));
     }
 
@@ -188,10 +177,6 @@ public final class LogBook implements LogBookAccessor {
                 if (serialLane.isExecutingOnCurrentThread()) {
                     return query.readOrdered(logBookState);
                 }
-                /*
-                 * () means this Callable has no arguments; -> introduces the ordered LogBook read
-                 * that SerialLane executes later.
-                 */
                 return submitAndWait(() -> query.readOrdered(logBookState), query.name());
             default:
                 throw new IllegalStateException("Unsupported read consistency " + consistency);
@@ -247,40 +232,33 @@ public final class LogBook implements LogBookAccessor {
         return status;
     }
 
-    /** Loads persisted TimingData and publishes the reconstructed LogBook state. */
+    /** Loads persisted history, then publishes initial status on either outcome. */
     private void loadPersistedData() {
         LOG.info("TimingNode {} persisted TimingData load started", timingNodeId().value());
 
-        final TimingDataPersistence.LoadResult loadResult;
         try {
-            loadResult = logBookState.loadPersistedTimingData();
-        } catch (TimingDataPersistence.PersistenceException
-                | RuntimeException ex) {
+            TimingDataPersistence.LoadResult loadResult = logBookState.loadPersistedTimingData();
+            LOG.info(
+                    "TimingNode {} persisted TimingData load completed: records={}, tailRepaired={}",
+                    timingNodeId().value(),
+                    loadResult.records().size(),
+                    loadResult.repairedIncompleteTail());
+            if (loadResult.repairedIncompleteTail()) {
+                LOG.warn(
+                        "TimingNode {} repaired an incomplete final TimingData record tail during load",
+                        timingNodeId().value());
+            }
+
+            publishInitialLoadedData(loadResult.records());
+        } catch (TimingDataPersistence.PersistenceException | RuntimeException ex) {
             logBookState.markTimingDataLoadFailed(ex);
             LOG.error(
                     "Persisted TimingData load failed for {}; TimingNode remains available in ERROR state",
                     timingNodeId().value(),
                     ex);
-            publishStatusAfterInitialLoad();
-            return;
         }
 
-        LOG.info(
-                "TimingNode {} persisted TimingData load completed: records={}, tailRepaired={}",
-                timingNodeId().value(),
-                loadResult.records().size(),
-                loadResult.repairedIncompleteTail());
-        if (loadResult.repairedIncompleteTail()) {
-            LOG.warn("TimingNode {} repaired an incomplete final TimingData record tail during load",
-                    timingNodeId().value());
-        }
-
-        publishInitialLoadedData(loadResult.records());
-        publishStatusAfterInitialLoad();
-    }
-
-    /** Publishes the first immutable status after startup loading finishes or fails. */
-    private void publishStatusAfterInitialLoad() {
+        // Both loaded and ERROR states become visible once the startup attempt has finished.
         Status initialStatus = logBookState.status();
         publishCurrentStatus(initialStatus);
         publishInitialStatus(initialStatus);
