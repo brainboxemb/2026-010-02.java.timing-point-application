@@ -61,8 +61,7 @@ final class TimingApplicationAssembler {
             RuntimeTimeSources runtimeTimeSources =
                     new RuntimeTimeSources(
                             platform);
-            TimingNodeList timingNodes =
-                    new TimingNodeList();
+            TimingNodeList.Builder timingNodes = TimingNodeList.builder();
             List<TimingSystem> systems = new ArrayList<TimingSystem>();
             ApplicationConductor applicationConductor =
                     new ApplicationConductor();
