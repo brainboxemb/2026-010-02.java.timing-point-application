@@ -39,8 +39,8 @@ final class TimingNodeComposer {
         this.monotonicClock = monotonicClock;
     }
 
-    /** Builds one complete TimingNode child-component set from resolved runtime configuration. */
-    TimingNodeComponents compose(
+    /** Builds one complete TimingNode from resolved runtime configuration. */
+    TimingNode compose(
             Config.TimingNodeConfig nodeConfig,
             TimingSystemResolvedData system,
             TimeSource timeSource) {
@@ -85,9 +85,6 @@ final class TimingNodeComposer {
 
         tagConfiguration.changes().subscribe(tags::onPolicyConfigurationChanged);
 
-        TimingNode node = new TimingNode(logBook, nodeService, tags);
-        return new TimingNodeComponents(
-                node,
-                tags);
+        return new TimingNode(logBook, nodeService, tags);
     }
 }
