@@ -16,6 +16,7 @@ public final class RuntimeMeasurementReader {
     private final LogBookMetrics logBookMetrics;
     private final TagProcessingMetrics tagProcessingMetrics;
 
+    /** Creates a pull reader over the supplied component-owned metric sources. */
     public RuntimeMeasurementReader(
             SerialLaneMetrics timingNodeLaneMetrics,
             LogBookMetrics logBookMetrics,
@@ -34,16 +35,19 @@ public final class RuntimeMeasurementReader {
         this.tagProcessingMetrics = tagProcessingMetrics;
     }
 
+    /** Returns one current TimingNode Data Lane/LogBook engineering snapshot. */
     public TimingNodeRuntimeSnapshot timingNode() {
         return new TimingNodeRuntimeSnapshot(
                 timingNodeLaneMetrics.snapshot(),
                 logBookMetrics.snapshot());
     }
 
+    /** Returns one current TagProcessor engineering snapshot. */
     public TagProcessingMetrics.Snapshot tagProcessing() {
         return tagProcessingMetrics.snapshot();
     }
 
+    /** Captures one current JVM/process snapshot for the runtime role workers. */
     public JvmRuntimeSnapshot jvm() {
         return new JvmRuntimeSnapshot(
                 RuntimeObservation.capture(),

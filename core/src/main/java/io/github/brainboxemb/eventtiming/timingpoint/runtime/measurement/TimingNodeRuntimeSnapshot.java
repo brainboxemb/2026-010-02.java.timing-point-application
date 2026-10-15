@@ -19,42 +19,80 @@ public final class TimingNodeRuntimeSnapshot {
     }
 
     /** Returns the current Data Lane queue depth. */
-    public int queueDepth() { return lane.queueDepth(); }
+    public int queueDepth() {
+        return lane.queueDepth();
+    }
     /** Returns the largest observed Data Lane queue depth. */
-    public int queueHighWaterMark() { return lane.queueHighWaterMark(); }
+    public int queueHighWaterMark() {
+        return lane.queueHighWaterMark();
+    }
     /** Returns how many Data Lane tasks were successfully queued. */
-    public long queuedTaskCount() { return lane.queuedCount(); }
+    public long queuedTaskCount() {
+        return lane.queuedCount();
+    }
     /** Returns how many Data Lane tasks were rejected because the queue was full. */
-    public long queueFullCount() { return lane.fullCount(); }
+    public long queueFullCount() {
+        return lane.fullCount();
+    }
     /** Returns how many Data Lane tasks were rejected because the lane was not running. */
-    public long queueNotRunningCount() { return lane.notRunningCount(); }
+    public long queueNotRunningCount() {
+        return lane.notRunningCount();
+    }
     /** Returns how many Data Lane tasks completed execution. */
-    public long queueCompletedCount() { return lane.completedCount(); }
+    public long queueCompletedCount() {
+        return lane.completedCount();
+    }
     /** Returns cumulative Data Lane queue-wait time. */
-    public long totalQueueWaitNanos() { return lane.totalQueueWaitNanos(); }
+    public long totalQueueWaitNanos() {
+        return lane.totalQueueWaitNanos();
+    }
     /** Returns the longest observed Data Lane queue wait. */
-    public long maxQueueWaitNanos() { return lane.maxQueueWaitNanos(); }
+    public long maxQueueWaitNanos() {
+        return lane.maxQueueWaitNanos();
+    }
     /** Returns cumulative Data Lane task execution time. */
-    public long totalExecutionNanos() { return lane.totalExecutionNanos(); }
+    public long totalExecutionNanos() {
+        return lane.totalExecutionNanos();
+    }
     /** Returns the longest observed Data Lane task execution time. */
-    public long maxExecutionNanos() { return lane.maxExecutionNanos(); }
+    public long maxExecutionNanos() {
+        return lane.maxExecutionNanos();
+    }
 
     /** Returns TimingData persistence append attempts. */
-    public long timingDataAppendAttempts() { return logBook.timingDataAppendAttempts(); }
+    public long timingDataAppendAttempts() {
+        return logBook.timingDataAppendAttempts();
+    }
     /** Returns TimingData persistence append failures. */
-    public long timingDataAppendFailures() { return logBook.timingDataAppendFailures(); }
+    public long timingDataAppendFailures() {
+        return logBook.timingDataAppendFailures();
+    }
     /** Returns successfully committed TimingData records. */
-    public long timingDataCommitCount() { return logBook.timingDataCommitCount(); }
+    public long timingDataCommitCount() {
+        return logBook.timingDataCommitCount();
+    }
     /** Returns cumulative TimingData append duration. */
-    public long totalTimingDataAppendNanos() { return logBook.totalTimingDataAppendNanos(); }
+    public long totalTimingDataAppendNanos() {
+        return logBook.totalTimingDataAppendNanos();
+    }
     /** Returns the longest observed TimingData append duration. */
-    public long maxTimingDataAppendNanos() { return logBook.maxTimingDataAppendNanos(); }
+    public long maxTimingDataAppendNanos() {
+        return logBook.maxTimingDataAppendNanos();
+    }
     /** Returns TimingData event deliveries after commit. */
-    public long timingDataEventDeliveries() { return logBook.timingDataEventDeliveries(); }
+    public long timingDataEventDeliveries() {
+        return logBook.timingDataEventDeliveries();
+    }
     /** Returns TimingData event-listener failures. */
-    public long timingDataEventListenerFailures() { return logBook.timingDataEventListenerFailures(); }
+    public long timingDataEventListenerFailures() {
+        return logBook.timingDataEventListenerFailures();
+    }
     /** Returns cumulative TimingData event-delivery duration. */
-    public long totalTimingDataEventNanos() { return logBook.totalTimingDataEventNanos(); }
+    public long totalTimingDataEventNanos() {
+        return logBook.totalTimingDataEventNanos();
+    }
     /** Returns the longest observed TimingData event-delivery duration. */
-    public long maxTimingDataEventNanos() { return logBook.maxTimingDataEventNanos(); }
+    public long maxTimingDataEventNanos() {
+        return logBook.maxTimingDataEventNanos();
+    }
 }

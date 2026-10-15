@@ -14,6 +14,7 @@ import java.lang.management.ThreadMXBean;
  * made by the management APIs occur outside the per-registration hot path.</p>
  */
 public final class RuntimeObservation {
+    /** Prevents construction of this stateless observation utility. */
     private RuntimeObservation() {
     }
 
@@ -116,6 +117,7 @@ public final class RuntimeObservation {
         private final long gcCollectionCount;
         private final long gcCollectionTimeMillis;
 
+        /** Creates one immutable explicit-capture JVM observation snapshot. */
         private Snapshot(
                 long heapUsedBytes,
                 int liveThreadCount,
@@ -127,18 +129,22 @@ public final class RuntimeObservation {
             this.gcCollectionTimeMillis = gcCollectionTimeMillis;
         }
 
+        /** Returns currently used heap bytes at capture time. */
         public long heapUsedBytes() {
             return heapUsedBytes;
         }
 
+        /** Returns the live JVM thread count at capture time. */
         public int liveThreadCount() {
             return liveThreadCount;
         }
 
+        /** Returns aggregate GC count, or -1 when the JVM reports it as unknown. */
         public long gcCollectionCount() {
             return gcCollectionCount;
         }
 
+        /** Returns aggregate GC time in milliseconds, or -1 when unknown. */
         public long gcCollectionTimeMillis() {
             return gcCollectionTimeMillis;
         }
