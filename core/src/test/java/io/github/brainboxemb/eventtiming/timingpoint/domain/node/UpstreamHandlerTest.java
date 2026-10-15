@@ -229,7 +229,7 @@ public class UpstreamHandlerTest {
         timingNode.activate();
         try {
             // Barrier behind initial recovery before occupying the Data Lane.
-            timingNode.logBook().query(LogBookQueries.status());
+            timingNode.logBook().process(LogBookQueries.status());
 
             Future<Void> blocker =
                     dataLane.submit(
@@ -535,7 +535,7 @@ public class UpstreamHandlerTest {
                     second.records().get(0).sequenceNumber());
             assertEquals(
                     258L,
-                    node.node().logBook().query(
+                    node.node().logBook().process(
                             LogBookQueries.timingDataHead(),
                             LogBookQuery.ReadConsistency.CURRENT)
                             .longValue());
