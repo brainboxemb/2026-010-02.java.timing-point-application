@@ -9,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
@@ -16,6 +17,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.Ta
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
+import java.util.Optional;
 import java.util.function.Consumer;
 
 import org.slf4j.Logger;
@@ -45,6 +47,26 @@ public final class TimingSystemConductor extends AbstractConductor {
     private final AntennaSettings antennaSettings;
     private final TaskSerialLane taskLane;
     private final MainTask mainTask = new MainTask();
+
+    private final class MainTask extends AbstractTask {
+
+        @Override
+        protected void resetForRun() {
+            // Main task state is owned by TimingSystemConductor.
+        }
+
+        @Override
+        public TaskStep runStep() {
+            return evaluateNodeStatus();
+        }
+
+        @Override
+        protected void onRunCompleted(Throwable failure) {
+            if (failure != null) {
+                LOG.error("TimingSystem Conductor main task failed", failure);
+            }
+        }
+    }
 
     public TimingSystemConductor(
             TimingNodeList timingNodes,
@@ -96,30 +118,24 @@ public final class TimingSystemConductor extends AbstractConductor {
         mainTask.wake(taskLane);
     }
 
-    private TaskStep runMainTask() {
+    private TaskStep evaluateNodeStatus() {
 
         boolean required = false;
         for (TimingNode node : nodes) {
-            final Status status;
-            try {
-                status = node.logBook().process(
-                        LogBookQueries.status(),
-                        ReadConsistency.CURRENT);
-            } catch (OperationException ex) {
+            Optional<Status> status = SafeExecute.callOrEmpty(
+                    () -> node.logBook().process(LogBookQueries.status(), ReadConsistency.CURRENT),
+                    OperationException.class,
+                    ex -> ex.reason() == OperationException.Reason.UNAVAILABLE);
 
-                if (ex.reason() != OperationException.Reason.UNAVAILABLE) {
-                    throw ex;
-                }
-
-                /*
-                 * Activation starts node recovery asynchronously. Do not wait
-                 * here and do not publish a partial system decision. The
-                 * node's first Status publication wakes the main task again.
-                 */
+            /*
+             * Recovery is asynchronous. Until the node is available, publish no
+             * partial system decision; its first Status event wakes MainTask again.
+             */
+            if (!status.isPresent()) {
                 return TaskStep.done();
             }
 
-            if (status.state() == State.OPEN) {
+            if (status.get().state() == State.OPEN) {
                 required = true;
             }
         }
@@ -133,23 +149,4 @@ public final class TimingSystemConductor extends AbstractConductor {
         return TaskStep.done();
     }
 
-    private final class MainTask extends AbstractTask {
-
-        @Override
-        protected void resetForRun() {
-            // Main task state is owned by TimingSystemConductor.
-        }
-
-        @Override
-        public TaskStep runStep() {
-            return runMainTask();
-        }
-
-        @Override
-        protected void onRunCompleted(Throwable failure) {
-            if (failure != null) {
-                LOG.error("TimingSystem Conductor main task failed", failure);
-            }
-        }
-    }
 }
