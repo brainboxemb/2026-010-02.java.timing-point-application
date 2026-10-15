@@ -34,6 +34,7 @@ final class UpstreamHeartbeat {
                     0L,
                     false);
 
+    /** Creates heartbeat protocol state for one node-scoped upstream stream. */
     UpstreamHeartbeat(NodeId nodeId, UpstreamStream stream) {
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(stream != null, "stream must not be null");
@@ -91,10 +92,12 @@ final class UpstreamHeartbeat {
         }
     }
 
+    /** Returns the latest immutable heartbeat status published by the Task Lane. */
     UpstreamHandlerTypes.HeartbeatStatus status() {
         return publishedStatus;
     }
 
+    /** Publishes the current mutable heartbeat counters as one immutable direct-read snapshot. */
     private void publishStatus() {
         publishedStatus =
                 new UpstreamHandlerTypes.HeartbeatStatus(
