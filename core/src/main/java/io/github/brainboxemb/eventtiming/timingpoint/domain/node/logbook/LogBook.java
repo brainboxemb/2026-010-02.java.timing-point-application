@@ -32,6 +32,7 @@ public final class LogBook implements LogBookAccessor {
     public static final long DEFAULT_OPERATION_TIMEOUT_MILLIS = 2000L;
 
     private final LogBookState logBookState;
+    private final LogBookOperations logBookOperations;
     private final LogBookDataLane dataLane;
     private final LogBookStatus logBookStatus;
     private final MonotonicClock monotonicClock;
@@ -65,8 +66,9 @@ public final class LogBook implements LogBookAccessor {
         checkArgument(serialLane != null, "serialLane must not be null");
         checkArgument(operationTimeoutMillis > 0L, "operationTimeoutMillis must be positive");
 
-        this.logBookState = new LogBookState(
-                timingNodeId,
+        this.logBookState = new LogBookState(timingNodeId);
+        this.logBookOperations = new LogBookOperations(
+                logBookState,
                 timingDataPersistence,
                 timingDataFactory,
                 timeSource,
@@ -200,7 +202,7 @@ public final class LogBook implements LogBookAccessor {
         LOG.info("TimingNode {} persisted TimingData load started", timingNodeId().value());
 
         try {
-            TimingDataPersistence.LoadResult loadResult = logBookState.loadPersistedTimingData();
+            TimingDataPersistence.LoadResult loadResult = logBookOperations.loadPersistedTimingData();
             LOG.info(
                     "TimingNode {} persisted TimingData load completed: records={}, tailRepaired={}",
                     timingNodeId().value(),
@@ -214,7 +216,7 @@ public final class LogBook implements LogBookAccessor {
 
             publishInitialLoadedData(loadResult.records());
         } catch (TimingDataPersistence.PersistenceException | RuntimeException ex) {
-            logBookState.markTimingDataLoadFailed(ex);
+            logBookOperations.markTimingDataLoadFailed(ex);
             LOG.error(
                     "Persisted TimingData load failed for {}; TimingNode remains available in ERROR state",
                     timingNodeId().value(),
@@ -242,7 +244,7 @@ public final class LogBook implements LogBookAccessor {
         Status before = logBookState.status();
         int committedBefore = logBookState.committedTimingDataCount();
 
-        R result = command.apply(logBookState);
+        R result = command.apply(logBookOperations);
 
         Status after = logBookState.status();
         logBookStatus.publishCurrent(after);
