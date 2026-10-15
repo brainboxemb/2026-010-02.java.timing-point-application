@@ -129,7 +129,7 @@ public class ApplicationConductorTest {
                             Duration.ofSeconds(1));
 
             TimingNodeList timingNodes =
-                    new TimingNodeList().add(node);
+                    TimingNodeList.of(node);
             timingSystemConductor =
                     new TimingSystemConductor(
                             timingNodes,
