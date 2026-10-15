@@ -32,6 +32,7 @@ import java.util.List;
  */
 final class TimingSystemComposer {
     private static final Duration ANTENNA_CONTROL_TIMEOUT = Duration.ofSeconds(2);
+    private static final AntennaId DEFAULT_ANTENNA_ID = new AntennaId("1");
 
     private final RuntimeExecutors executors;
     private final TimingNodeComposer nodeComposer;
@@ -57,8 +58,8 @@ final class TimingSystemComposer {
             AntennaSet implicitAntennas,
             TimeSource timeSource) {
 
-        TimingNodeList nodes = createNodes(system, timeSource);
         AntennaSet antennaSet = createAntennas(managerBinding, implicitAntennas);
+        TimingNodeList nodes = createNodes(system, antennaSet, timeSource);
 
         AntennaSettings antennaSettings = antennaSet.isEmpty() ? null : new AntennaSettings();
         AntennaManager antennaManager = antennaSet.isEmpty()
@@ -81,16 +82,48 @@ final class TimingSystemComposer {
                 timingSystemConductor);
     }
 
-    /** Composes all TimingNodes configured for this resolved timing system. */
+    /** Composes all TimingNodes after resolving their antenna configuration. */
     private TimingNodeList createNodes(
             TimingSystemResolvedData system,
+            AntennaSet antennas,
             TimeSource timeSource) {
 
         TimingNodeList.Builder nodes = TimingNodeList.builder();
         for (Config.TimingNodeConfig nodeConfig : system.configuration().timingNodes()) {
-            nodes.add(nodeComposer.compose(nodeConfig, system, timeSource));
+            AntennaId antennaId = resolveAntennaId(nodeConfig, antennas);
+            nodes.add(nodeComposer.compose(nodeConfig, antennaId, system, timeSource));
         }
         return nodes.build();
+    }
+
+    /** Resolves an optional node antenna id against the antennas available to this system. */
+    private static AntennaId resolveAntennaId(
+            Config.TimingNodeConfig nodeConfig,
+            AntennaSet antennas) {
+
+        AntennaId configured = nodeConfig.antennaId();
+        List<AntennaId> available = antennas.antennaIds();
+
+        if (configured != null) {
+            if (!available.isEmpty() && !available.contains(configured)) {
+                throw new IllegalArgumentException(
+                        "TimingNode " + nodeConfig.timingNodeId().value()
+                                + " references unknown AntennaId " + configured.value());
+            }
+            return configured;
+        }
+
+        if (available.size() == 1) {
+            return available.get(0);
+        }
+
+        if (available.isEmpty()) {
+            return DEFAULT_ANTENNA_ID;
+        }
+
+        throw new IllegalArgumentException(
+                "TimingNode " + nodeConfig.timingNodeId().value()
+                        + " requires antennaId because multiple antennas are configured");
     }
 
     /** Creates the system antenna set from explicit binding or implicit composition input. */
