@@ -143,11 +143,11 @@ public final class TagProcessor {
      * when possible, and closes the TagProcessor lane.
      */
     public void deactivate() {
-        if (state == State.INACTIVE) {
-            return;
-        }
-
         synchronized (lifecycleLock) {
+            if (state == State.INACTIVE) {
+                return;
+            }
+
             if (state == State.NEW) {
                 state = State.INACTIVE;
             } else {
