@@ -24,6 +24,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServic
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServiceState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
@@ -214,6 +215,7 @@ public class UpstreamHandlerTest {
                         tagWorker);
         TimingNode timingNode =
                 new TimingNode(
+                        new AntennaId("1"),
                         logBook,
                         tasks,
                         tags);
