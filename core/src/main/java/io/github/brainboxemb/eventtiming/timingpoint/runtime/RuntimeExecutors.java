@@ -40,13 +40,14 @@ final class RuntimeExecutors implements AutoCloseable {
      */
     private static final int SHARED_IO_THREADS = 1;
 
-    static final class TimingNodeLanes {
+    /** Node-local logical lanes plus the scheduled executor needed by TagProcessor timing. */
+    static final class TimingNodeExecutionResources {
         private final SerialLane dataLane;
         private final SerialLane taskLane;
         private final SerialLane tagProcessorLane;
         private final ScheduledExecutorService tagProcessorScheduledExecutor;
 
-        private TimingNodeLanes(
+        private TimingNodeExecutionResources(
                 SerialLane dataLane,
                 SerialLane taskLane,
                 SerialLane tagProcessorLane,
@@ -151,7 +152,7 @@ final class RuntimeExecutors implements AutoCloseable {
     }
 
     /**
-     * Creates one node-local set of logical lanes on shared Runtime executors.
+     * Creates one node-local execution-resource set on shared Runtime executors.
      *
      * <p>The Data Lane and Task Lane are distinct SerialLane instances with
      * independent bounded queues and FIFO ordering, but they deliberately share
@@ -159,7 +160,7 @@ final class RuntimeExecutors implements AutoCloseable {
      * executor. Logical responsibility therefore does not imply another
      * Java thread.</p>
      */
-    synchronized TimingNodeLanes createTimingNodeLanes() {
+    synchronized TimingNodeExecutionResources createTimingNodeExecutionResources() {
         SerialLane dataLane =
                 new SerialLane(TIMING_NODE_DATA_QUEUE_CAPACITY, "TimingNodeData", timingNodeExecutor);
         SerialLane taskLane =
@@ -171,7 +172,7 @@ final class RuntimeExecutors implements AutoCloseable {
         serialLanes.add(dataLane);
         serialLanes.add(taskLane);
         serialLanes.add(tagProcessorLane);
-        return new TimingNodeLanes(dataLane, taskLane, tagProcessorLane, tagProcessorScheduledExecutor);
+        return new TimingNodeExecutionResources(dataLane, taskLane, tagProcessorLane, tagProcessorScheduledExecutor);
     }
 
     /**

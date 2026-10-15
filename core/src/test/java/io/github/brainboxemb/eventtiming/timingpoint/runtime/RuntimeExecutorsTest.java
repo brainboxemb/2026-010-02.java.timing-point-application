@@ -16,8 +16,8 @@ public class RuntimeExecutorsTest {
     @Test
     public void timingNodeDataLanesShareOneExecutorThread() throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
-        RuntimeExecutors.TimingNodeLanes first = runtime.createTimingNodeLanes();
-        RuntimeExecutors.TimingNodeLanes second = runtime.createTimingNodeLanes();
+        RuntimeExecutors.TimingNodeExecutionResources first = runtime.createTimingNodeExecutionResources();
+        RuntimeExecutors.TimingNodeExecutionResources second = runtime.createTimingNodeExecutionResources();
         runtime.start();
 
         AtomicReference<String> firstThread = new AtomicReference<String>();
@@ -49,21 +49,22 @@ public class RuntimeExecutorsTest {
     @Test
     public void timingNodeDataAndTaskLanesShareTheSameExecutorThread() throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
-        RuntimeExecutors.TimingNodeLanes lanes = runtime.createTimingNodeLanes();
+        RuntimeExecutors.TimingNodeExecutionResources execution =
+                runtime.createTimingNodeExecutionResources();
         runtime.start();
 
         AtomicReference<String> dataThread = new AtomicReference<String>();
         AtomicReference<String> taskThread = new AtomicReference<String>();
         CountDownLatch done = new CountDownLatch(2);
 
-        lanes.dataLane().start();
-        lanes.taskLane().start();
+        execution.dataLane().start();
+        execution.taskLane().start();
         try {
-            lanes.dataLane().execute(() -> {
+            execution.dataLane().execute(() -> {
                         dataThread.set(Thread.currentThread().getName());
                         done.countDown();
                     });
-            lanes.taskLane().execute(() -> {
+            execution.taskLane().execute(() -> {
                         taskThread.set(Thread.currentThread().getName());
                         done.countDown();
                     });
@@ -72,8 +73,8 @@ public class RuntimeExecutorsTest {
             assertEquals("tp-dl-node", dataThread.get());
             assertEquals(dataThread.get(), taskThread.get());
         } finally {
-            lanes.taskLane().close();
-            lanes.dataLane().close();
+            execution.taskLane().close();
+            execution.dataLane().close();
             runtime.close();
         }
     }
@@ -144,8 +145,8 @@ public class RuntimeExecutorsTest {
     @Test
     public void tagProcessorsShareOneScheduledExecutorThread() throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
-        RuntimeExecutors.TimingNodeLanes first = runtime.createTimingNodeLanes();
-        RuntimeExecutors.TimingNodeLanes second = runtime.createTimingNodeLanes();
+        RuntimeExecutors.TimingNodeExecutionResources first = runtime.createTimingNodeExecutionResources();
+        RuntimeExecutors.TimingNodeExecutionResources second = runtime.createTimingNodeExecutionResources();
         runtime.start();
 
         AtomicReference<String> firstThread = new AtomicReference<String>();
