@@ -35,10 +35,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 public final class NodeServiceState implements UpstreamTaskState {
     private final EventData eventData;
     private final RaceDataState raceData;
-    private final UniqueTeamRegistrations uniqueTeamRegistrations =
-            new UniqueTeamRegistrations();
-    private final List<TimingData> committedTimingData =
-            new ArrayList<TimingData>();
+    private final UniqueTeamRegistrations uniqueTeamRegistrations = new UniqueTeamRegistrations();
+    private final List<TimingData> committedTimingData = new ArrayList<TimingData>();
 
     private boolean derivedTimingReady;
 
@@ -121,8 +119,7 @@ public final class NodeServiceState implements UpstreamTaskState {
     void ensureDerivedTimingAvailable() {
         if (!derivedTimingReady || derivedTimingStale) {
             throw new OperationException(
-                    OperationException.Reason.UNAVAILABLE,
-                    "Task Lane derived timing state is not available");
+                    OperationException.Reason.UNAVAILABLE, "Task Lane derived timing state is not available");
         }
     }
 
@@ -157,13 +154,11 @@ public final class NodeServiceState implements UpstreamTaskState {
         final TimingData.RegistrationAction action;
 
         if (data instanceof TimingData.AutomaticRegistration) {
-            TimingData.AutomaticRegistration registration =
-                    (TimingData.AutomaticRegistration) data;
+            TimingData.AutomaticRegistration registration = (TimingData.AutomaticRegistration) data;
             registrationId = registration.registrationId();
             action = registration.action();
         } else if (data instanceof TimingData.ManualRegistration) {
-            TimingData.ManualRegistration registration =
-                    (TimingData.ManualRegistration) data;
+            TimingData.ManualRegistration registration = (TimingData.ManualRegistration) data;
             registrationId = registration.registrationId();
             action = registration.action();
         } else {
