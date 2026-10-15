@@ -3,7 +3,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.system.SystemStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
@@ -289,24 +288,6 @@ public final class TimingApplicationRuntime {
 
     TimingNodeList timingNodes() {
         return timingNodes;
-    }
-
-    SystemStatus.Snapshot systemStatus() {
-
-        if (systems.size() != 1) {
-            throw new IllegalStateException(
-                    "Operation requires exactly one TimingSystem; composed=" + systems.size());
-        }
-        return systems.get(0).systemStatus();
-    }
-
-    List<SystemStatus.Snapshot> systemStatuses() {
-
-        List<SystemStatus.Snapshot> statuses = new ArrayList<SystemStatus.Snapshot>();
-        for (TimingSystem system : systems) {
-            statuses.add(system.systemStatus());
-        }
-        return Collections.unmodifiableList(statuses);
     }
 
     public synchronized State state() {
