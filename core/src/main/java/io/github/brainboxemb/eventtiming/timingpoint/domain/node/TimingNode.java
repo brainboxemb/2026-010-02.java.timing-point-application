@@ -10,13 +10,13 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServic
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.RejectedExecutionException;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
@@ -36,22 +36,9 @@ public final class TimingNode {
     private final TagProcessor tagProcessor;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
 
-    /** Named, strongly typed composition-time input of a TimingNode. */
-    public static final class Input<T> {
-        private final BiConsumer<TimingNode, EventSource<T>> binder;
-
-        private Input(BiConsumer<TimingNode, EventSource<T>> binder) {
-            this.binder = binder;
-        }
-
-        private void bind(TimingNode node, EventSource<T> source) {
-            binder.accept(node, source);
-        }
-    }
-
     /** Antenna observation input; internally consumed by the TagProcessor. */
-    public static final Input<TagObservation> TAG_OBSERVATIONS =
-            new Input<TagObservation>(
+    public static final EventInput<TimingNode, TagObservation> TAG_OBSERVATIONS =
+            EventInput.of(
                     (node, source) -> source.subscribe(node.tagProcessor::onTagObserved));
 
     /** Creates the top-level node owner around its already composed child components. */
@@ -89,7 +76,7 @@ public final class TimingNode {
      * input and supplies the source; TimingNode owns the internal subscription and
      * does not expose the child component that consumes the event.</p>
      */
-    public <T> void bind(Input<T> input, EventSource<T> source) {
+    public <T> void bind(EventInput<TimingNode, T> input, EventSource<T> source) {
 
         checkArgument(input != null, "input must not be null");
         checkArgument(source != null, "source must not be null");
