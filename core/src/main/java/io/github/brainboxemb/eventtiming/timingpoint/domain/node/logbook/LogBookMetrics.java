@@ -5,10 +5,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventMetric
 /**
  * Component-owned engineering counters for the LogBook commit/event path.
  *
- * <p>All writes occur on the Data Lane, so recording uses simple
- * primitive fields. Fields are volatile only so an engineering reader on
- * another thread can take a safe non-transactional snapshot without locking the
- * registration path.</p>
+ * <p>Append/commit writes occur on the Data Lane and use simple primitive
+ * fields. TimingData event delivery is measured by the reusable EventWithMetrics
+ * infrastructure and included here through its thread-safe EventMetrics source.
+ * Volatile component fields allow engineering readers to take a safe
+ * non-transactional snapshot without locking the registration path.</p>
  */
 public final class LogBookMetrics {
     private volatile long timingDataAppendAttempts;
