@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
-import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.ConsolePromptControl;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevelControl;
 import io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api.HttpEndpoint;
@@ -86,25 +85,6 @@ final class PresentationRuntime {
                                 webSocketConfig.bindAddress(),
                                 webSocketConfig.port(),
                                 gateway);
-
-        if (webSocket != null) {
-            /*
-             * Presentation event wiring is fixed during composition. Endpoint
-             * start/close changes transport lifecycle, not the application graph.
-             */
-            for (TimingNodeProxy timingNode : gateway.timingNodes()) {
-                timingNode.statusChangedEvent()
-                        .subscribe(
-                                webSocket::onTimingNodeStatusChanged);
-                timingNode.newDataEntryEvent()
-                        .subscribe(
-                                webSocket::onTimingDataCommitted);
-            }
-            gateway.configuration()
-                    .changes()
-                    .subscribe(
-                            webSocket::onConfigurationChanged);
-        }
 
         Presentation.RemoteShell shellConfig =
                 configuration.remoteShell();
