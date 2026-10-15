@@ -10,11 +10,13 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServic
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.RejectedExecutionException;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
@@ -22,9 +24,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Top-level owner for one logical timing node.
  *
- * <p>Runtime composes the LogBook, Task and Tag children before construction.
- * TimingNode owns their lifecycle and node-internal event links. System-level
- * routing talks to this component boundary rather than reaching directly into
+ * <p>Runtime constructs the LogBook, Task and Tag children before construction.
+ * TimingNode owns their lifecycle and node-internal event links. The containing
+ * TimingSystem binds typed event sources to this component without exposing
  * TagProcessor or other child objects.</p>
  */
 public final class TimingNode {
@@ -33,6 +35,29 @@ public final class TimingNode {
     private final LogBookAccessor logBook;
     private final TagProcessor tagProcessor;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
+
+    /** Named, strongly typed composition-time input of a TimingNode. */
+    public static final class Input<T> {
+        private final BiConsumer<TimingNode, EventSource<T>> binder;
+
+        private Input(BiConsumer<TimingNode, EventSource<T>> binder) {
+            this.binder = binder;
+        }
+
+        private void bind(TimingNode node, EventSource<T> source) {
+            binder.accept(node, source);
+        }
+    }
+
+    /** Supported external event inputs of a TimingNode. */
+    public static final class Inputs {
+        public static final Input<TagObservation> TAG_OBSERVATIONS =
+                new Input<TagObservation>(
+                        (node, source) -> source.subscribe(node.tagProcessor::onTagObserved));
+
+        private Inputs() {
+        }
+    }
 
     /** Creates the top-level node owner around its already composed child components. */
     public TimingNode(LogBook logBook, NodeService nodeService, TagProcessor tagProcessor) {
@@ -62,10 +87,18 @@ public final class TimingNode {
         tagProcessor.newRegistrationEvent().subscribe(this::onNewRegistration);
     }
 
-    /** Accepts one system-routed antenna observation at the TimingNode boundary. */
-    public void onTagObserved(TagObservation observation) {
+    /**
+     * Binds one typed event source to a supported TimingNode input.
+     *
+     * <p>Binding is a composition-time operation. The caller selects the semantic
+     * input and supplies the source; TimingNode owns the internal subscription and
+     * does not expose the child component that consumes the event.</p>
+     */
+    public <T> void bind(Input<T> input, EventSource<T> source) {
 
-        tagProcessor.onTagObserved(observation);
+        checkArgument(input != null, "input must not be null");
+        checkArgument(source != null, "source must not be null");
+        input.bind(this, source);
     }
 
     /** Returns the immutable identity of this logical timing node. */
