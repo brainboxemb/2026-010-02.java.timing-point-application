@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
 import java.util.concurrent.RejectedExecutionException;
+import java.util.function.Consumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
@@ -40,4 +41,24 @@ public final class SafeExecute {
                     ex);
         }
     }
+    /**
+     * Runs one operation and delegates queue rejection to the caller's policy.
+     *
+     * <p>Only RejectedExecutionException is handled. Other RuntimeExceptions
+     * propagate unchanged. The caller owns any warning, metric or recovery
+     * decision; the execution guard owns no component-specific policy.</p>
+     */
+    public static void runOrHandleRejection(
+            Runnable operation,
+            Consumer<RejectedExecutionException> onRejection) {
+        checkArgument(operation != null, "operation must not be null");
+        checkArgument(onRejection != null, "onRejection must not be null");
+
+        try {
+            operation.run();
+        } catch (RejectedExecutionException ex) {
+            onRejection.accept(ex);
+        }
+    }
+
 }
