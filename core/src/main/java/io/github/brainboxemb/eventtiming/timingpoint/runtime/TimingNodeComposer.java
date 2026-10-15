@@ -79,8 +79,8 @@ final class TimingNodeComposer {
                         tagConfiguration,
                         monotonicClock,
                         new TagProcessingMetrics(),
-                        lanes.tagProcessor(),
-                        lanes.tagProcessorScheduler());
+                        lanes.tagProcessorLane(),
+                        lanes.tagProcessorScheduledExecutor());
 
         tagConfiguration.changes().subscribe(tags::onPolicyConfigurationChanged);
 
