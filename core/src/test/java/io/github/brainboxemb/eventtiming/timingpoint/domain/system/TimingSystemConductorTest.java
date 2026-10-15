@@ -59,8 +59,8 @@ public class TimingSystemConductorTest {
         SerialLane lane = new SerialLane(8, "system-conductor-test", newWorker("worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
                 TimingNodeList.builder().add(first).add(second).build(), manager.settings(), lane);
-        first.logBook().statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(first, status));
-        second.logBook().statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(second, status));
+        conductor.bind(first);
+        conductor.bind(second);
 
         manager.activate();
         conductor.activate();
@@ -98,8 +98,7 @@ public class TimingSystemConductorTest {
                         TimingNodeList.of(node),
                         manager.settings(),
                         lane);
-        node.logBook().statusChangedEvent().subscribe(
-                status -> conductor.onTimingNodeStatusChanged(node, status));
+        conductor.bind(node);
 
         manager.activate();
         final Throwable[] activationFailure = new Throwable[1];
@@ -158,7 +157,7 @@ public class TimingSystemConductorTest {
         SerialLane lane = new SerialLane(4, "conductor-event-test", newWorker("conductor-event-worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
                 TimingNodeList.of(node), manager.settings(), lane);
-        node.logBook().statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(node, status));
+        conductor.bind(node);
 
         manager.activate();
         conductor.activate();
@@ -192,7 +191,7 @@ public class TimingSystemConductorTest {
         SerialLane lane = new SerialLane(4, "conductor-coalesce-test", newWorker("coalesce-worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
                 TimingNodeList.of(node), manager.settings(), lane);
-        node.logBook().statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(node, status));
+        conductor.bind(node);
 
         manager.activate();
         conductor.activate();

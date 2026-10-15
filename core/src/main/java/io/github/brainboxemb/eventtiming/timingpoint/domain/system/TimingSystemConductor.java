@@ -23,10 +23,9 @@ import org.slf4j.LoggerFactory;
 /**
  * Coordinates one TimingSystem.
  *
- * <p>The containing TimingSystem wires each TimingNode's
- * statusChangedEvent() to {@link #onTimingNodeStatusChanged(TimingNode, Status)}
- * before activation. TimingSystemConductor owns Domain coordination and TimingNode
- * lifecycle; the TimingSystem owner owns system-level cross-component wiring.</p>
+ * <p>The containing TimingSystem binds each TimingNode to this conductor before
+ * activation. The conductor owns the node-specific status subscription details,
+ * Domain coordination and TimingNode lifecycle.</p>
  *
  * <p>A status event only wakes the control task. The subsequent run reads
  * every TimingNode's CURRENT status and publishes the desired inventory state
@@ -67,14 +66,23 @@ public final class TimingSystemConductor extends AbstractConductor implements Yi
     }
 
     /**
-     * Accepts one authoritative post-change TimingNode Status.
+     * Binds one owned TimingNode to this conductor during system composition.
      *
-     * <p>The subscription is installed by the owning TimingSystem, not by this
-     * Conductor. This handler validates node ownership and only wakes the
-     * coalesced control task. The later run reads CURRENT published state;
-     * the event payload is not cached or treated as a control command.</p>
+     * <p>The TimingSystem selects the node relationship; the conductor owns the
+     * internal status subscription used to wake reconciliation.</p>
      */
-    public void onTimingNodeStatusChanged(TimingNode node, Status status) {
+    public void bind(TimingNode node) {
+
+        if (!containsNode(node)) {
+            throw new IllegalArgumentException("TimingNode does not belong to this TimingSystem");
+        }
+
+        node.logBook().statusChangedEvent().subscribe(
+                status -> onTimingNodeStatusChanged(node, status));
+    }
+
+    /** Accepts one authoritative post-change TimingNode Status. */
+    private void onTimingNodeStatusChanged(TimingNode node, Status status) {
 
         if (status == null) {
             throw new IllegalArgumentException("status must not be null");

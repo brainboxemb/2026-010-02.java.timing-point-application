@@ -325,8 +325,6 @@ public final class TimingNodeFixture {
                         tagLane,
                         TAG_WORKER);
 
-        tagConfiguration.changes().subscribe(tagProcessor::onPolicyConfigurationChanged);
-
         TimingNode node = new TimingNode(logBook, nodeService, tagProcessor);
 
         return new Components(

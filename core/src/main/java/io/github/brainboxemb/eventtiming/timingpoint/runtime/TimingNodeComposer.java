@@ -86,8 +86,6 @@ final class TimingNodeComposer {
                         execution.tagProcessorLane(),
                         execution.tagProcessorScheduledExecutor());
 
-        tagConfiguration.changes().subscribe(tagProcessor::onPolicyConfigurationChanged);
-
         return new TimingNode(logBook, nodeService, tagProcessor);
     }
 }

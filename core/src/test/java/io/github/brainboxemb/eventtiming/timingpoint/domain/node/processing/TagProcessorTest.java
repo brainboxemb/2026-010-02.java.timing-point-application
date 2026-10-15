@@ -325,10 +325,6 @@ public class TagProcessorTest {
                 execution.lane,
                 execution.scheduler);
         connectToNode(processor, node);
-        configuration.timingNode(new NodeId("A"))
-                .tagProcessing()
-                .changes()
-                .subscribe(processor::onPolicyConfigurationChanged);
         CountDownLatch committed = new CountDownLatch(1);
         node.logBook().newDataEntryEvent().subscribe(data -> {
             if (data instanceof AutomaticRegistration) {
@@ -388,10 +384,6 @@ public class TagProcessorTest {
                 new TagProcessingMetrics(),
                 execution.lane,
                 execution.scheduler);
-        configuration.timingNode(new NodeId("A"))
-                .tagProcessing()
-                .changes()
-                .subscribe(processor::onPolicyConfigurationChanged);
 
         processor.activate();
         try {
