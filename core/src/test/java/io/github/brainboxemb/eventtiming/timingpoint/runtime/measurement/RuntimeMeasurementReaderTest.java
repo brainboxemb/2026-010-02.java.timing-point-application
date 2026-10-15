@@ -134,7 +134,7 @@ public class RuntimeMeasurementReaderTest {
              */
             assertEquals(
                     2,
-                    node.logBook().query(
+                    node.logBook().process(
                                     LogBookQueries.timingDataCount())
                             .intValue());
 
