@@ -251,16 +251,9 @@ public final class TimingNodeProxy {
     }
 
     private void updateStatus(Status status) {
+
         TimingNodeStatus update = timingNodeStatus(status);
-        Event.DeliveryReport delivery = statusChangedEvent.emit(update);
-        if (!delivery.successful()) {
-            LOG.warn(
-                    "TimingNode status changed but "
-                            + delivery.failureCount()
-                            + " status listener(s) failed for "
-                            + update.timingNodeId().value(),
-                    delivery.failures().get(0));
-        }
+        statusChangedEvent.emit(update);
     }
 
     private static TimingNodeStatus timingNodeStatus(Status status) {
