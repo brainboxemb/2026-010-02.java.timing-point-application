@@ -7,6 +7,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
  * worker or protocol responsibility of its own.</p>
  */
 public final class UpstreamHandlerTypes {
+    /** Prevents instantiation of this source-code grouping class. */
     private UpstreamHandlerTypes() {
     }
 
@@ -19,6 +20,7 @@ public final class UpstreamHandlerTypes {
         private final long missedIntervals;
         private final boolean answerPending;
 
+        /** Creates one immutable heartbeat diagnostic snapshot. */
         HeartbeatStatus(
                 long requestsSent,
                 long answersReceived,
@@ -30,18 +32,22 @@ public final class UpstreamHandlerTypes {
             this.answerPending = answerPending;
         }
 
+        /** Returns the number of heartbeat requests sent by this node. */
         public long requestsSent() {
             return requestsSent;
         }
 
+        /** Returns matching heartbeat answers received by this node. */
         public long answersReceived() {
             return answersReceived;
         }
 
+        /** Returns intervals in which the previous heartbeat remained unanswered. */
         public long missedIntervals() {
             return missedIntervals;
         }
 
+        /** Reports whether the latest heartbeat request still awaits its matching answer. */
         public boolean answerPending() {
             return answerPending;
         }
