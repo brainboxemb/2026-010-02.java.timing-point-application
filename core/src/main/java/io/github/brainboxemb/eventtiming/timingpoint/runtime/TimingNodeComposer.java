@@ -21,9 +21,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnl
  * Composes the child components owned by one {@link TimingNode}.
  *
  * <p>This class only builds one node. System-level construction such as
- * AntennaManager, TimingSystemConductor and antenna-to-node mapping remains in
- * {@link TimingSystemComposer}; the resulting TimingSystem owns system-level
- * wiring and lifecycle.</p>
+ * AntennaManager and TimingSystemConductor remains in {@link TimingSystemComposer};
+ * the resulting TimingSystem owns system-level wiring and lifecycle.</p>
  */
 final class TimingNodeComposer {
     private final ApplicationConfiguration configuration;
@@ -86,6 +85,6 @@ final class TimingNodeComposer {
                         execution.tagProcessorLane(),
                         execution.tagProcessorScheduledExecutor());
 
-        return new TimingNode(logBook, nodeService, tagProcessor);
+        return new TimingNode(nodeConfig.antennaId(), logBook, nodeService, tagProcessor);
     }
 }
