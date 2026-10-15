@@ -129,13 +129,13 @@ public final class NodeService {
     private void handoffTimingFact(Runnable operation, String fact) {
         Runnable queueTimingFact = () -> serialLane.execute(operation);
         Consumer<RejectedExecutionException> onRejected = ex -> {
-                    state.markDerivedTimingStale();
-                    LOG.error(
-                            "Task Lane rejected {} for node {}; derived timing state is stale",
-                            fact,
-                            logBook.timingNodeId().value(),
-                            ex);
-                };
+            state.markDerivedTimingStale();
+            LOG.error(
+                    "Task Lane rejected {} for node {}; derived timing state is stale",
+                    fact,
+                    logBook.timingNodeId().value(),
+                    ex);
+        };
 
         SafeExecute.runOrHandleRejection(queueTimingFact, onRejected);
     }
