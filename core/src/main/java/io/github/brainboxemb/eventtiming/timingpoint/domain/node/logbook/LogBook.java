@@ -111,8 +111,9 @@ public final class LogBook implements LogBookAccessor {
         serialLane.start();
 
         // Startup loading is the Data Lane's first ordered task. Failed scheduling closes the lane.
+        Runnable schedulePersistedDataLoad = () -> serialLane.execute(this::loadPersistedData);
         SafeExecute.run(
-                () -> serialLane.execute(this::loadPersistedData),
+                schedulePersistedDataLoad,
                 serialLane::close,
                 "Persisted TimingData load could not be scheduled");
     }
@@ -133,7 +134,8 @@ public final class LogBook implements LogBookAccessor {
      */
     public <R> R process(LogBookCommand<R> command) {
         checkArgument(command != null, "command must not be null");
-        return submitAndWait(() -> applyCommand(command), command.name());
+        Callable<R> commandApplication = () -> applyCommand(command);
+        return submitAndWait(commandApplication, command.name());
     }
 
     /**
@@ -145,7 +147,8 @@ public final class LogBook implements LogBookAccessor {
      */
     public void execute(LogBookCommand<?> command) {
         checkArgument(command != null, "command must not be null");
-        serialLane.execute(() -> executeQueuedCommand(command));
+        Runnable queuedCommand = () -> executeQueuedCommand(command);
+        serialLane.execute(queuedCommand);
     }
 
     /**
@@ -177,7 +180,8 @@ public final class LogBook implements LogBookAccessor {
                 if (serialLane.isExecutingOnCurrentThread()) {
                     return query.readOrdered(logBookState);
                 }
-                return submitAndWait(() -> query.readOrdered(logBookState), query.name());
+                Callable<R> orderedRead = () -> query.readOrdered(logBookState);
+                return submitAndWait(orderedRead, query.name());
             default:
                 throw new IllegalStateException("Unsupported read consistency " + consistency);
         }
