@@ -7,8 +7,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.Configu
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.scheduling.LaneScheduler;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
@@ -16,7 +15,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -49,14 +47,13 @@ public final class TagProcessor {
     private final RegistrationDuplicateFilter duplicateFilter;
     private final TagProcessingMetrics metrics;
     private final TagObservationFilter observationFilter;
-    private final SerialLane lane;
-    private final LaneScheduler scheduler;
+    private final ScheduledSerialLane lane;
     private final ArrayBlockingQueue<TagObservation> inputQueue;
     private final AtomicBoolean drainScheduled = new AtomicBoolean();
     private final Object lifecycleLock = new Object();
 
     private volatile State state = State.NEW;
-    private volatile LaneScheduler.ScheduledRegistration housekeepingTask;
+    private volatile ScheduledSerialLane.ScheduledRegistration housekeepingTask;
     private volatile List<TagPassageSnapshot> passageSnapshots = Collections.emptyList();
 
     /** Creates a TagProcessor with one fixed startup policy. */
@@ -65,9 +62,8 @@ public final class TagProcessor {
             TagProcessingPolicy policy,
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
-            SerialLane lane,
-            ScheduledExecutorService scheduledExecutor) {
-        this(eventData, ReadOnlyConfiguration.fixed(policy), monotonicClock, metrics, lane, scheduledExecutor);
+            ScheduledSerialLane lane) {
+        this(eventData, ReadOnlyConfiguration.fixed(policy), monotonicClock, metrics, lane);
     }
 
     /** Creates a TagProcessor backed by the supplied live read-only policy configuration. */
@@ -76,14 +72,12 @@ public final class TagProcessor {
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
-            SerialLane lane,
-            ScheduledExecutorService scheduledExecutor) {
+            ScheduledSerialLane lane) {
         checkArgument(eventData != null, "eventData must not be null");
         checkArgument(policyConfiguration != null, "policyConfiguration must not be null");
         checkArgument(monotonicClock != null, "monotonicClock must not be null");
         checkArgument(metrics != null, "metrics must not be null");
         checkArgument(lane != null, "lane must not be null");
-        checkArgument(scheduledExecutor != null, "scheduledExecutor must not be null");
 
         TagProcessingPolicy startupPolicy = policyConfiguration.startupValue();
         checkArgument(startupPolicy != null, "policyConfiguration.startupValue must not be null");
@@ -92,7 +86,6 @@ public final class TagProcessor {
         this.policyConfiguration = policyConfiguration;
         this.metrics = metrics;
         this.lane = lane;
-        this.scheduler = new LaneScheduler(lane, scheduledExecutor);
         this.inputQueue = new ArrayBlockingQueue<>(startupPolicy.observationQueueCapacity());
         duplicateFilter = new RegistrationDuplicateFilter(policyConfiguration, monotonicClock);
         observationFilter = new TagObservationFilter(
@@ -271,7 +264,7 @@ public final class TagProcessor {
             if (state != State.ACTIVE || housekeepingTask != null) {
                 return;
             }
-            housekeepingTask = scheduler.scheduleWithFixedDelay(
+            housekeepingTask = lane.scheduleWithFixedDelay(
                     this::housekeeping,
                     policyConfiguration.currentValue().sweepCadenceNanos());
         }
