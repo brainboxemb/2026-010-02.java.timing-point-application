@@ -11,6 +11,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.ConsolePrompt
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevelControl;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.simulation.SimulatedTagScenarioRunner;
@@ -288,6 +289,29 @@ public final class TimingApplicationRuntime {
 
     TimingNodeList timingNodes() {
         return timingNodes;
+    }
+
+    AntennaManager antennaManager() {
+        List<AntennaManager> managers = antennaManagers();
+        if (managers.isEmpty()) {
+            return null;
+        }
+        if (managers.size() != 1) {
+            throw new IllegalStateException(
+                    "Operation requires at most one AntennaManager; composed=" + managers.size());
+        }
+        return managers.get(0);
+    }
+
+    List<AntennaManager> antennaManagers() {
+
+        List<AntennaManager> managers = new ArrayList<AntennaManager>();
+        for (TimingSystem system : systems) {
+            if (system.antennaManager() != null) {
+                managers.add(system.antennaManager());
+            }
+        }
+        return Collections.unmodifiableList(managers);
     }
 
     public synchronized State state() {
