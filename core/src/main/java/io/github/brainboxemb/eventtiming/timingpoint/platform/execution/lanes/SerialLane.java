@@ -37,7 +37,7 @@ public final class SerialLane implements Executor, AutoCloseable {
      */
     private static final ThreadLocal<SerialLane> CURRENT_LANE = new ThreadLocal<SerialLane>();
 
-    /** Lifecycle of this logical lane, independent of any shared worker lifecycle. */
+    /** Lifecycle of this logical lane, independent of any backing-executor lifecycle. */
     public enum State {
         NEW,
         RUNNING,
@@ -119,7 +119,7 @@ public final class SerialLane implements Executor, AutoCloseable {
     private Throwable failure;
 
     /**
-     * True while this lane has a queued execution turn running or waiting on the worker.
+     * True while this lane has a queued execution turn running or waiting on the backing executor.
      * At most one execution turn per lane is scheduled at a time.
      */
     private boolean executionScheduled;
@@ -160,7 +160,7 @@ public final class SerialLane implements Executor, AutoCloseable {
         return laneName.trim();
     }
 
-    /** Starts or restarts this logical lane on the externally owned worker. */
+    /** Starts or restarts this logical lane on the externally owned executor. */
     public synchronized void start() {
         if (state != State.NEW && state != State.STOPPED) {
             throw new IllegalStateException("SerialLane cannot start from " + state);
@@ -263,7 +263,7 @@ public final class SerialLane implements Executor, AutoCloseable {
     /**
      * Executes one queued lane item and schedules another turn when work remains.
      *
-     * <p>Processing one item per worker turn is intentional: on a shared
+     * <p>Processing one item per executor turn is intentional: on a shared
      * single-thread Executor, a sibling lane already waiting can run before this
      * lane schedules its next item.</p>
      */
@@ -349,7 +349,7 @@ public final class SerialLane implements Executor, AutoCloseable {
     /**
      * Stops accepting new work and waits for queued/running work to finish.
      *
-     * <p>Closing the lane never shuts down its externally owned worker.</p>
+     * <p>Closing the lane never shuts down its externally owned executor.</p>
      */
     @Override
     public synchronized void close() {
