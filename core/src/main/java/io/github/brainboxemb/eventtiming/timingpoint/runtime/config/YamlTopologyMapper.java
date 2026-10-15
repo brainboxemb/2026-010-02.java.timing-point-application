@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime.config;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -19,6 +20,7 @@ final class YamlTopologyMapper {
     private static final String TIMING_DATA_PROVIDER = "timingDataProvider";
     private static final String TIMING_NODES = "timingNodes";
     private static final String NODE_ID = "nodeId";
+    private static final String ANTENNA_ID = "antennaId";
     private static final String TAG_PROCESSING = "tagProcessing";
     private static final String QUIET_TIMEOUT_MILLIS = "quietTimeoutMillis";
     private static final String MAX_BURST_DURATION_MILLIS =
@@ -152,6 +154,7 @@ final class YamlTopologyMapper {
                         timingNode,
                         timingNodeField,
                         NODE_ID,
+                        ANTENNA_ID,
                         TAG_PROCESSING);
 
                 if (!timingNode.containsKey(NODE_ID)) {
@@ -170,6 +173,21 @@ final class YamlTopologyMapper {
                                         timingNodeField
                                                 + "."
                                                 + NODE_ID));
+                if (!timingNode.containsKey(ANTENNA_ID)) {
+                    throw new IllegalArgumentException(
+                            "Missing required configuration field: "
+                                    + timingNodeField
+                                    + "."
+                                    + ANTENNA_ID);
+                }
+                AntennaId antennaId =
+                        new AntennaId(
+                                YamlValues.requireCompactId(
+                                        timingNode.get(
+                                                ANTENNA_ID),
+                                        timingNodeField
+                                                + "."
+                                                + ANTENNA_ID));
                 if (!nodeIds.add(timingNodeId)) {
                     throw new IllegalArgumentException(
                             "Duplicate application-wide TimingNodeId "
@@ -180,6 +198,7 @@ final class YamlTopologyMapper {
                         new TimingNodeStartup(
                                 timingSystemId,
                                 timingNodeId,
+                                antennaId,
                                 mapTagProcessing(
                                         timingNode,
                                         timingNodeField)));
@@ -351,14 +370,17 @@ final class YamlTopologyMapper {
     static final class TimingNodeStartup {
         private final String timingSystemId;
         private final NodeId timingNodeId;
+        private final AntennaId antennaId;
         private final TagProcessingPolicy tagProcessingPolicy;
 
         TimingNodeStartup(
                 String timingSystemId,
                 NodeId timingNodeId,
+                AntennaId antennaId,
                 TagProcessingPolicy tagProcessingPolicy) {
             this.timingSystemId = timingSystemId;
             this.timingNodeId = timingNodeId;
+            this.antennaId = antennaId;
             this.tagProcessingPolicy = tagProcessingPolicy;
         }
 
@@ -368,6 +390,10 @@ final class YamlTopologyMapper {
 
         NodeId timingNodeId() {
             return timingNodeId;
+        }
+
+        AntennaId antennaId() {
+            return antennaId;
         }
 
         TagProcessingPolicy tagProcessingPolicy() {
