@@ -96,7 +96,7 @@ final class LogBookStatus {
         checkArgument(before != null, "before must not be null");
         checkArgument(after != null, "after must not be null");
 
-        if (sameStatus(before, after)) {
+        if (before.equals(after)) {
             return;
         }
 
@@ -113,23 +113,4 @@ final class LogBookStatus {
         statusChangedEvent.emit(after);
     }
 
-    /** Compares immutable Status values without depending on object identity. */
-    private static boolean sameStatus(Status left, Status right) {
-        if (!left.timingNodeId().equals(right.timingNodeId())) {
-            return false;
-        }
-        if (left.state() != right.state()) {
-            return false;
-        }
-        if (left.timingDataTailRepaired() != right.timingDataTailRepaired()) {
-            return false;
-        }
-        if (!left.problems().equals(right.problems())) {
-            return false;
-        }
-        if (!left.hasLocation()) {
-            return !right.hasLocation();
-        }
-        return right.hasLocation() && left.locationId().equals(right.locationId());
-    }
 }
