@@ -25,10 +25,11 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
 
 /**
- * State-changing LogBook operations executed on the TimingNode Data Lane.
+ * TimingData commit operations executed on the LogBook Data Lane.
  *
- * <p>This class owns TimingData creation, time capture, durable append/commit,
- * startup reconstruction and the domain decisions behind LogBook commands.
+ * <p>This class owns TimingData creation, time capture, durable append/commit
+ * and startup reconstruction. TimingNode runtime-state decisions stay outside
+ * this component.
  * Mutable facts and committed in-memory history remain in {@link LogBookState};
  * queueing/waiting remains in {@link LogBookDataLane}.</p>
  */
@@ -203,7 +204,7 @@ final class LogBookOperations {
         return loadResult;
     }
 
-    /** Moves passive node state to ERROR after startup recovery failed. */
+    /** Records a LogBook recovery problem after startup loading fails. */
     void markTimingDataLoadFailed(Throwable failure) {
 
         checkArgument(failure != null, "failure must not be null");
