@@ -52,6 +52,7 @@ final class RuntimeExecutors implements AutoCloseable {
                 SerialLane taskLane,
                 SerialLane tagProcessorLane,
                 ScheduledExecutorService tagProcessorScheduledExecutor) {
+
             this.dataLane = dataLane;
             this.taskLane = taskLane;
             this.tagProcessorLane = tagProcessorLane;
@@ -59,18 +60,22 @@ final class RuntimeExecutors implements AutoCloseable {
         }
 
         SerialLane dataLane() {
+
             return dataLane;
         }
 
         SerialLane taskLane() {
+
             return taskLane;
         }
 
         SerialLane tagProcessorLane() {
+
             return tagProcessorLane;
         }
 
         ScheduledExecutorService tagProcessorScheduledExecutor() {
+
             return tagProcessorScheduledExecutor;
         }
     }
@@ -106,6 +111,7 @@ final class RuntimeExecutors implements AutoCloseable {
     private boolean closed;
 
     RuntimeExecutors() {
+
         timingNodeExecutor = new ThreadPoolExecutor(
                 1, 1,
                 0L, TimeUnit.MILLISECONDS,
@@ -202,6 +208,7 @@ final class RuntimeExecutors implements AutoCloseable {
     }
 
     ScheduledExecutorService sharedIoScheduledExecutor() {
+
         return sharedIoScheduledExecutor;
     }
 
@@ -219,6 +226,7 @@ final class RuntimeExecutors implements AutoCloseable {
 
     @Override
     public synchronized void close() {
+
         if (closed) {
             return;
         }
@@ -233,6 +241,7 @@ final class RuntimeExecutors implements AutoCloseable {
             try {
                 serialLanes.get(index).close();
             } catch (Exception ignored) {
+
                 // Preserve application/component shutdown failures instead.
             }
         }
@@ -255,6 +264,7 @@ final class RuntimeExecutors implements AutoCloseable {
      * execution topology instead of repeating JVM thread boilerplate.</p>
      */
     private static ThreadFactory threadFactory(String threadName) {
+
         return runnable -> {
             Thread thread = new Thread(runnable, threadName);
             thread.setPriority(Thread.NORM_PRIORITY);
@@ -263,12 +273,14 @@ final class RuntimeExecutors implements AutoCloseable {
     }
 
     private static void awaitTermination(ExecutorService executor) {
+
         boolean interrupted = false;
         try {
             while (!executor.isTerminated()) {
                 try {
                     executor.awaitTermination(100L, TimeUnit.MILLISECONDS);
                 } catch (InterruptedException ex) {
+
                     interrupted = true;
                 }
             }
