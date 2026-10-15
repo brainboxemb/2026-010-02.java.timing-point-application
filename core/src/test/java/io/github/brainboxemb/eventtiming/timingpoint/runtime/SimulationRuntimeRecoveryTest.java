@@ -26,6 +26,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Presentation
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -374,15 +375,26 @@ public class SimulationRuntimeRecoveryTest {
     private static Config config(
             Path timingDataFile,
             TagProcessingPolicy policy) {
+        Config.TimingNodeConfig timingNode =
+                new Config.TimingNodeConfig(
+                        new NodeId("A"),
+                        timingDataFile,
+                        policy);
+        Config.TimingSystemConfig timingSystem =
+                new Config.TimingSystemConfig(
+                        "A",
+                        Collections.singletonList(
+                                timingNode),
+                        Config.REFERENCE_PROVIDER_ID,
+                        Config.REFERENCE_PROVIDER_ID);
         return new Config(
-                new NodeId("A"),
+                Collections.singletonList(
+                        timingSystem),
                 new Presentation(
                         null,
                         null),
                 null,
-                null,
-                timingDataFile,
-                policy);
+                null);
     }
 
     private static BuildIdentity identity() {

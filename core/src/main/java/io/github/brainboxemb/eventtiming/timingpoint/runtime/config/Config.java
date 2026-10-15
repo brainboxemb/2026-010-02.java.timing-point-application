@@ -17,9 +17,6 @@ public final class Config {
     /** Built-in IF-11 provider selection used when deployment does not override it. */
     public static final String REFERENCE_PROVIDER_ID = "reference";
 
-    // The compact multi-node default is distinct from normal A/B node IDs.
-    private static final String DEFAULT_MULTINODE_SYSTEM_ID = "9";
-
     /** Effective startup configuration for one TimingNode. */
     public static final class TimingNodeConfig {
         private final NodeId timingNodeId;
@@ -160,128 +157,6 @@ public final class Config {
     private final LoggingServerConfig loggingServer;
 
     public Config(
-            NodeId timingNodeId,
-            Presentation presentation) {
-        this(
-                timingNodeId,
-                presentation,
-                null,
-                null,
-                null,
-                TagProcessingPolicy.defaults(),
-                REFERENCE_PROVIDER_ID,
-                REFERENCE_PROVIDER_ID);
-    }
-
-    public Config(
-            NodeId timingNodeId,
-            Presentation presentation,
-            LoggingConfig logging) {
-        this(
-                timingNodeId,
-                presentation,
-                logging,
-                null,
-                null,
-                TagProcessingPolicy.defaults(),
-                REFERENCE_PROVIDER_ID,
-                REFERENCE_PROVIDER_ID);
-    }
-
-    public Config(
-            NodeId timingNodeId,
-            Presentation presentation,
-            LoggingConfig logging,
-            LoggingServerConfig loggingServer) {
-        this(
-                timingNodeId,
-                presentation,
-                logging,
-                loggingServer,
-                null,
-                TagProcessingPolicy.defaults(),
-                REFERENCE_PROVIDER_ID,
-                REFERENCE_PROVIDER_ID);
-    }
-
-    public Config(
-            NodeId timingNodeId,
-            Presentation presentation,
-            LoggingConfig logging,
-            LoggingServerConfig loggingServer,
-            Path timingDataPath) {
-        this(
-                timingNodeId,
-                presentation,
-                logging,
-                loggingServer,
-                timingDataPath,
-                TagProcessingPolicy.defaults(),
-                REFERENCE_PROVIDER_ID,
-                REFERENCE_PROVIDER_ID);
-    }
-
-    public Config(
-            NodeId timingNodeId,
-            Presentation presentation,
-            LoggingConfig logging,
-            LoggingServerConfig loggingServer,
-            Path timingDataPath,
-            TagProcessingPolicy tagProcessingPolicy) {
-        this(
-                timingNodeId,
-                presentation,
-                logging,
-                loggingServer,
-                timingDataPath,
-                tagProcessingPolicy,
-                REFERENCE_PROVIDER_ID,
-                REFERENCE_PROVIDER_ID);
-    }
-
-    public Config(
-            NodeId timingNodeId,
-            Presentation presentation,
-            LoggingConfig logging,
-            LoggingServerConfig loggingServer,
-            Path timingDataPath,
-            TagProcessingPolicy tagProcessingPolicy,
-            String eventDataProviderId,
-            String timingDataProviderId) {
-        this(
-                oneTimingSystemConfig(
-                        oneTimingNodeConfig(
-                                timingNodeId,
-                                timingDataPath,
-                                tagProcessingPolicy),
-                        eventDataProviderId,
-                        timingDataProviderId),
-                presentation,
-                logging,
-                loggingServer);
-    }
-
-    /**
-     * Compatibility constructor for the current one-TimingSystem callers.
-     */
-    public Config(
-            List<TimingNodeConfig> timingNodes,
-            Presentation presentation,
-            LoggingConfig logging,
-            LoggingServerConfig loggingServer,
-            String eventDataProviderId,
-            String timingDataProviderId) {
-        this(
-                oneTimingSystemConfig(
-                        timingNodes,
-                        eventDataProviderId,
-                        timingDataProviderId),
-                presentation,
-                logging,
-                loggingServer);
-    }
-
-    public Config(
             List<TimingSystemConfig> timingSystems,
             Presentation presentation,
             LoggingConfig logging,
@@ -356,37 +231,6 @@ public final class Config {
 
     public LoggingServerConfig loggingServer() {
         return loggingServer;
-    }
-
-    private static List<TimingNodeConfig> oneTimingNodeConfig(
-            NodeId timingNodeId,
-            Path timingDataPath,
-            TagProcessingPolicy tagProcessingPolicy) {
-        List<TimingNodeConfig> result =
-                new ArrayList<TimingNodeConfig>();
-        result.add(
-                new TimingNodeConfig(
-                        timingNodeId,
-                        timingDataPath,
-                        tagProcessingPolicy));
-        return result;
-    }
-
-    private static List<TimingSystemConfig> oneTimingSystemConfig(
-            List<TimingNodeConfig> timingNodes,
-            String eventDataProviderId,
-            String timingDataProviderId) {
-        List<TimingSystemConfig> result =
-                new ArrayList<TimingSystemConfig>();
-        result.add(
-                new TimingSystemConfig(
-                        timingNodes.size() == 1
-                                ? timingNodes.get(0).timingNodeId().value()
-                                : DEFAULT_MULTINODE_SYSTEM_ID,
-                        timingNodes,
-                        eventDataProviderId,
-                        timingDataProviderId));
-        return result;
     }
 
     private static String requireProviderId(
