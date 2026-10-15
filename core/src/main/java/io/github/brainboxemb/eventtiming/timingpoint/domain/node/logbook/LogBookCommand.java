@@ -11,13 +11,16 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * {@link LogBook} owns ordered execution, timeout and failure handling.</p>
  */
 public final class LogBookCommand<R> {
+    /** Package-private command body applied by LogBook to its owned state. */
     interface Action<R> {
+        /** Applies the command body to the current Data Lane-owned LogBookState. */
         R apply(LogBookState logBookState) throws Exception;
     }
 
     private final String name;
     private final Action<R> action;
 
+    /** Creates one immutable named command around its deferred domain action. */
     LogBookCommand(
             String name,
             Action<R> action) {
@@ -29,10 +32,12 @@ public final class LogBookCommand<R> {
         this.action = action;
     }
 
+    /** Returns the stable diagnostic operation name used by LogBook execution. */
     String name() {
         return name;
     }
 
+    /** Applies this command to the supplied Data Lane-owned LogBook state. */
     R apply(LogBookState logBookState) throws Exception {
         return action.apply(logBookState);
     }

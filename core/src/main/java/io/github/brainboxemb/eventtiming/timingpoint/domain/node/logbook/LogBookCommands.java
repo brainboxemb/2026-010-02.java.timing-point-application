@@ -16,9 +16,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * <p>The factory validates command input at creation time. Execution belongs to
  * {@link LogBook}, which applies the command on the Data Lane.</p>
  *
- * <p>Factory lambdas use {@code logBookState -> ...}: {@code logBookState} is
- * the state supplied later by LogBook when the command executes, and {@code ->}
- * introduces that deferred command body.</p>
+ * <p>Factory methods validate caller input and capture only the values needed
+ * by the immutable command. LogBook later applies that command to its owned
+ * LogBookState on the Data Lane.</p>
  */
 public final class LogBookCommands {
     private static final LogBookCommand<CloseResult> CLOSE =
