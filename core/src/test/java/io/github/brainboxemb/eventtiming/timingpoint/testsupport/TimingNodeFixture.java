@@ -309,7 +309,7 @@ public final class TimingNodeFixture {
 
         NodeService nodeService =
                 new NodeService(
-                        logBook,
+                        nodeId,
                         taskLane,
                         nodeServiceState);
 
