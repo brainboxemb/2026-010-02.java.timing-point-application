@@ -157,10 +157,6 @@ final class RuntimeExecutors implements AutoCloseable {
         started = true;
     }
 
-    synchronized boolean started() {
-        return started;
-    }
-
     /**
      * Creates one node-local set of logical lanes on shared Runtime workers.
      *
