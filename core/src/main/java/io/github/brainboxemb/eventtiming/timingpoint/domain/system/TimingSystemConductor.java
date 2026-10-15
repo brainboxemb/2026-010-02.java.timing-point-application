@@ -33,14 +33,14 @@ import org.slf4j.LoggerFactory;
  * through the shared AntennaSettings. It does not retain a second copy of
  * node state or invoke AntennaManager directly.</p>
  */
-public final class TimingTimingSystemConductor extends AbstractConductor implements YieldingTask {
-    private static final Logger LOG = LoggerFactory.getLogger(TimingTimingSystemConductor.class);
+public final class TimingSystemConductor extends AbstractConductor implements YieldingTask {
+    private static final Logger LOG = LoggerFactory.getLogger(TimingSystemConductor.class);
 
     private final TimingNodeList nodes;
     private final AntennaSettings antennaSettings;
     private final YieldingTaskController taskController;
 
-    public TimingTimingSystemConductor(
+    public TimingSystemConductor(
             TimingNodeList timingNodes,
             AntennaSettings antennaSettings,
             SerialLane coordinationLane) {
