@@ -89,7 +89,7 @@ public final class TimingNode {
         nodeService.bind(NodeService.INITIAL_TIMING_DATA, logBook.initialDataLoadedEvent());
         nodeService.bind(NodeService.COMMITTED_TIMING_DATA, logBook.newDataEntryEvent());
         logBook.recoveryStatusChangedEvent().subscribe(this::onLogBookRecoveryCompleted);
-        logBook.newDataEntryEvent().subscribe(this::onCommittedTimingData);
+        logBook.nodeLifecycleCommittedEvent().subscribe(this::onCommittedTimingData);
 
         /*
          * TagProcessor emits synchronously on its own lane. The named handler
