@@ -3,10 +3,8 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 
-import java.util.List;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
@@ -76,24 +74,13 @@ public final class TimingSystem {
         lifecycle.deactivateAll();
     }
 
-    /** Binds each TimingNode to its configured or sole available antenna. */
+    /** Binds each TimingNode to its already resolved antenna. */
     private void bindAntennaObservations() {
 
-        List<AntennaId> antennaIds = antennaManager.antennaIds();
-
         for (TimingNode node : timingNodes) {
-            AntennaId antennaId = node.antennaId();
-
-            if (antennaId == null) {
-                checkArgument(
-                        antennaIds.size() == 1,
-                        "TimingNode %s requires antennaId when TimingSystem %s has multiple antennas",
-                        node.timingNodeId().value(),
-                        id);
-                antennaId = antennaIds.get(0);
-            }
-
-            node.bind(TimingNode.TAG_OBSERVATIONS, antennaManager.tagObservedEvent(antennaId));
+            node.bind(
+                    TimingNode.TAG_OBSERVATIONS,
+                    antennaManager.tagObservedEvent(node.antennaId()));
         }
     }
 
