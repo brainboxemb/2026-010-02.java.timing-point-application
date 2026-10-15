@@ -25,12 +25,14 @@ final class RegistrationDuplicateFilter {
     private boolean cleanupStarted;
     private long lastCleanupNanos;
 
+    /** Creates a filter with a fixed processing policy. */
     RegistrationDuplicateFilter(
             TagProcessingPolicy policy,
             MonotonicClock monotonicClock) {
         this(ReadOnlyConfiguration.fixed(policy), monotonicClock);
     }
 
+    /** Creates a filter that follows the live TagProcessor policy configuration. */
     RegistrationDuplicateFilter(
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
             MonotonicClock monotonicClock) {
@@ -42,6 +44,7 @@ final class RegistrationDuplicateFilter {
         this.monotonicClock = monotonicClock;
     }
 
+    /** Reports whether the registration is still inside its configured duplicate window. */
     boolean isDuplicate(RegistrationId registrationId) {
         requireRegistrationId(registrationId);
 
@@ -65,6 +68,7 @@ final class RegistrationDuplicateFilter {
         return false;
     }
 
+    /** Starts or refreshes the duplicate window after a registration was accepted. */
     void recordRegistration(RegistrationId registrationId) {
         requireRegistrationId(registrationId);
         long duplicateWindowNanos =
@@ -77,10 +81,12 @@ final class RegistrationDuplicateFilter {
                 monotonicClock.nowNanos());
     }
 
+    /** Performs due expiry cleanup using the current monotonic time. */
     void periodic() {
         removeOldEntriesWhenDue(monotonicClock.nowNanos());
     }
 
+    /** Reconciles remembered duplicate state with the newly active policy. */
     void onPolicyChanged() {
         long duplicateWindowNanos =
                 policyConfiguration.currentValue().duplicateWindowNanos();
@@ -104,11 +110,13 @@ final class RegistrationDuplicateFilter {
         }
     }
 
+    /** Reports whether remembered registrations still require duplicate-window housekeeping. */
     boolean hasPendingState() {
         return policyConfiguration.currentValue().duplicateWindowNanos() != 0L
                 && !registrations.isEmpty();
     }
 
+    /** Removes expired duplicate entries only when the cleanup cadence is due. */
     private void removeOldEntriesWhenDue(long now) {
         long duplicateWindowNanos =
                 policyConfiguration.currentValue().duplicateWindowNanos();
@@ -132,6 +140,7 @@ final class RegistrationDuplicateFilter {
         }
     }
 
+    /** Validates the RegistrationId required by duplicate-filter operations. */
     private static void requireRegistrationId(RegistrationId registrationId) {
         checkArgument(registrationId != null, "registrationId must not be null");
     }
