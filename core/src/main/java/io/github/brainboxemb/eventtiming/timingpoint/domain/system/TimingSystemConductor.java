@@ -48,6 +48,14 @@ public final class TimingSystemConductor extends AbstractConductor {
     private final TaskSerialLane taskLane;
     private final MainTask mainTask = new MainTask();
 
+    /** Binds one typed event source to a TimingSystemConductor input. */
+    private <T> void bind(
+            EventInput<TimingSystemConductor, T> input,
+            EventSource<T> source) {
+
+        input.bind(this, source);
+    }
+
     private final class MainTask extends AbstractTask {
 
         @Override
@@ -90,13 +98,6 @@ public final class TimingSystemConductor extends AbstractConductor {
                     node::deactivate);
             bind(NODE_STATUS_CHANGED, node.logBook().statusChangedEvent());
         }
-    }
-
-    private <T> void bind(
-            EventInput<TimingSystemConductor, T> input,
-            EventSource<T> source) {
-
-        input.bind(this, source);
     }
 
     /** Wakes the main task after one TimingNode status change. */
