@@ -61,7 +61,7 @@ public final class TimingNodeProxy {
     /** Returns the current authoritative node status. */
     public TimingNodeStatus status() {
         return timingNodeStatus(
-                logBook.query(
+                logBook.process(
                         LogBookQueries.status(),
                         ReadConsistency.CURRENT));
     }
@@ -204,7 +204,7 @@ public final class TimingNodeProxy {
 
     /** Returns the number of committed records in this node LogBook. */
     public int logBookCount() {
-        return logBook.query(LogBookQueries.timingDataCount());
+        return logBook.process(LogBookQueries.timingDataCount());
     }
 
     /**
@@ -216,7 +216,7 @@ public final class TimingNodeProxy {
             long fromSequence,
             int limit,
             Consumer<TimingData> visitor) {
-        return logBook.query(
+        return logBook.process(
                 LogBookQueries.visitTimingDataRange(
                         fromSequence,
                         limit,
@@ -231,7 +231,7 @@ public final class TimingNodeProxy {
     public int visitLatestLogBook(
             int limit,
             Consumer<TimingData> visitor) {
-        return logBook.query(
+        return logBook.process(
                 LogBookQueries.visitLatestTimingData(limit, visitor));
     }
 
@@ -252,7 +252,15 @@ public final class TimingNodeProxy {
 
     private void updateStatus(Status status) {
         TimingNodeStatus update = timingNodeStatus(status);
-        statusChangedEvent.emit(update);
+        Event.DeliveryReport delivery = statusChangedEvent.emit(update);
+        if (!delivery.successful()) {
+            LOG.warn(
+                    "TimingNode status changed but "
+                            + delivery.failureCount()
+                            + " status listener(s) failed for "
+                            + update.timingNodeId().value(),
+                    delivery.failures().get(0));
+        }
     }
 
     private static TimingNodeStatus timingNodeStatus(Status status) {
