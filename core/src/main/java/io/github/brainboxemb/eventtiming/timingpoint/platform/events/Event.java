@@ -5,6 +5,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * Small typed local event for post-fact notifications.
  *
@@ -34,12 +37,15 @@ import java.util.function.Consumer;
  * their owning event can be emitted concurrently.</p>
  *
  * <p>Ordinary listener {@link RuntimeException}s are isolated per listener:
- * later listeners are still invoked and the failures are returned in a
- * {@link DeliveryReport}. Fatal {@link Error}s are not swallowed.</p>
+ * later listeners are still invoked, infrastructure logs the failure, and the
+ * failures remain available in the returned {@link DeliveryReport}. Domain
+ * event producers do not need subscriber-specific failure handling. Fatal
+ * {@link Error}s are not swallowed.</p>
  *
  * @param <T> immutable/read-only value delivered to listeners
  */
 public final class Event<T> implements EventSource<T> {
+    private static final Logger LOG = LoggerFactory.getLogger(Event.class);
 
     /*
      * Compact composition-built listener representation:
@@ -161,6 +167,7 @@ public final class Event<T> implements EventSource<T> {
             return DeliveryReport.success(
                     1);
         } catch (RuntimeException ex) {
+            logListenerFailure(listener, ex);
             return DeliveryReport.failure(
                     1,
                     ex);
@@ -180,6 +187,7 @@ public final class Event<T> implements EventSource<T> {
                 listener.accept(
                         value);
             } catch (RuntimeException ex) {
+                logListenerFailure(listener, ex);
                 if (failures == null) {
                     failures =
                             new ArrayList<RuntimeException>();
@@ -195,6 +203,14 @@ public final class Event<T> implements EventSource<T> {
                 : new DeliveryReport(
                         snapshot.length,
                         failures);
+    }
+
+    /** Reports an unexpected subscriber failure without involving the event producer. */
+    private static void logListenerFailure(Consumer<?> listener, RuntimeException failure) {
+        LOG.warn(
+                "Event listener {} failed during synchronous delivery",
+                listener.getClass().getName(),
+                failure);
     }
 
     private static void requireListener(
