@@ -108,7 +108,7 @@ public class RuntimeExecutorsTest {
     public void antennaControlLanesUseSharedIoExecutorThread() throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
         SerialLane first = runtime.createAntennaControlLane(Duration.ofSeconds(1));
-        SerialLane second = runtime.createAntennaControlLane();
+        SerialLane second = runtime.createAntennaControlLane(Duration.ofSeconds(1));
         runtime.start();
 
         AtomicReference<String> firstThread = new AtomicReference<String>();
