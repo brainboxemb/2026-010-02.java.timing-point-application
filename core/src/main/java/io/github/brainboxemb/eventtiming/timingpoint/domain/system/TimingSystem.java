@@ -23,7 +23,6 @@ public final class TimingSystem {
     private final String id;
     private final TimingNodeList timingNodes;
     private final AntennaManager antennaManager;
-    private final TimingSystemConductor timingSystemConductor;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
 
     /**
@@ -49,7 +48,6 @@ public final class TimingSystem {
         this.id = id.trim();
         this.timingNodes = timingNodes;
         this.antennaManager = antennaManager;
-        this.timingSystemConductor = timingSystemConductor;
 
         if (antennaManager != null) {
             bindAntennaObservations(antennaToNodes);
@@ -100,21 +98,14 @@ public final class TimingSystem {
 
             for (TimingNode node : targets) {
                 checkArgument(
-                        containsNode(node),
+                        timingNodes.contains(node),
                         "observation route target %s does not belong to TimingSystem %s",
                         node.timingNodeId().value(),
                         id);
 
-                node.bind(
-                        TimingNode.TAG_OBSERVATIONS,
-                        antennaManager.tagObservedEvent(antennaId));
+                node.bind(TimingNode.TAG_OBSERVATIONS, antennaManager.tagObservedEvent(antennaId));
             }
         }
     }
 
-    /** Reports whether the supplied node is one of this system's owned TimingNodes. */
-    private boolean containsNode(TimingNode node) {
-
-        return timingNodes.contains(node);
-    }
 }
