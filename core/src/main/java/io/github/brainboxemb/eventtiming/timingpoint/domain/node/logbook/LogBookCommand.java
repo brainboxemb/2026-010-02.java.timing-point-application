@@ -24,6 +24,7 @@ public final class LogBookCommand<R> {
     LogBookCommand(
             String name,
             Action<R> action) {
+
         checkArgument(
                 name != null && !name.trim().isEmpty(),
                 "name must not be blank");
@@ -34,11 +35,13 @@ public final class LogBookCommand<R> {
 
     /** Returns the stable diagnostic operation name used by LogBook execution. */
     String name() {
+
         return name;
     }
 
     /** Applies this command through the supplied Data Lane-owned operations. */
     R apply(LogBookOperations operations) throws Exception {
+
         return action.apply(operations);
     }
 
