@@ -18,11 +18,12 @@ public class TimingSystemConfigRegistryTest {
     @Test
     public void singleNodeConfigUsesMatchingSystemId() {
         Config config =
-                new Config(
-                        new NodeId("A"),
-                        new Presentation(
-                                null,
-                                null));
+                config(
+                        system(
+                                "A",
+                                node(
+                                        "A",
+                                        null)));
 
         assertEquals(
                 "A",
@@ -32,15 +33,23 @@ public class TimingSystemConfigRegistryTest {
     }
 
     @Test
-    public void multiNodeDefaultIsNine() {
-        Config config = new Config(
-                Arrays.asList(node("A", path("a.jsonl")),
-                        node("B", path("b.jsonl"))),
-                new Presentation(null, null),
-                null, null,
-                Config.REFERENCE_PROVIDER_ID,
-                Config.REFERENCE_PROVIDER_ID);
-        assertEquals("9", config.timingSystems().get(0).timingSystemId());
+    public void multiNodeConfigUsesExplicitSystemId() {
+        Config config =
+                config(
+                        system(
+                                "9",
+                                node(
+                                        "A",
+                                        path("a.jsonl")),
+                                node(
+                                        "B",
+                                        path("b.jsonl"))));
+
+        assertEquals(
+                "9",
+                config.timingSystems()
+                        .get(0)
+                        .timingSystemId());
     }
 
     @Test
@@ -186,6 +195,18 @@ public class TimingSystemConfigRegistryTest {
                             + second,
                     expected.getMessage());
         }
+    }
+
+    private static Config config(
+            Config.TimingSystemConfig system) {
+        return new Config(
+                Collections.singletonList(
+                        system),
+                new Presentation(
+                        null,
+                        null),
+                null,
+                null);
     }
 
     private static Config.TimingSystemConfig system(
