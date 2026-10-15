@@ -103,7 +103,7 @@ public final class TimingNode {
      */
     private void onNewRegistration(TagProcessor.NewRegistration registration) {
         try {
-            logBook.execute(
+            logBook.queue(
                     LogBookCommands.addAutomaticRegistration(
                             registration.registrationId(),
                             registration.observedAt()));
