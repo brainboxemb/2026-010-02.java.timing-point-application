@@ -37,22 +37,22 @@ public final class TimingSystem {
     /**
      * Creates one complete TimingSystem and fixes its internal event graph.
      *
-     * @param observationRoutes antenna-to-node routing prepared by Runtime composition
+     * @param antennaToNodes antenna-to-node mapping prepared by Runtime composition
      */
     public TimingSystem(
             String id,
             TimingNodeList timingNodes,
             AntennaManager antennaManager,
             TimingSystemConductor timingSystemConductor,
-            Map<AntennaId, TimingNodeList> observationRoutes) {
+            Map<AntennaId, TimingNodeList> antennaToNodes) {
 
         checkArgument(id != null && !id.trim().isEmpty(), "TimingSystem id must not be blank");
         checkArgument(timingNodes != null && !timingNodes.isEmpty(), "timingNodes must not be empty");
         checkArgument(timingSystemConductor != null, "timingSystemConductor must not be null");
-        checkArgument(observationRoutes != null, "observationRoutes must not be null");
+        checkArgument(antennaToNodes != null, "antennaToNodes must not be null");
         checkArgument(
-                antennaManager != null || observationRoutes.isEmpty(),
-                "observationRoutes require an AntennaManager");
+                antennaManager != null || antennaToNodes.isEmpty(),
+                "antennaToNodes require an AntennaManager");
 
         this.id = id.trim();
         this.timingNodes = timingNodes;
@@ -63,7 +63,7 @@ public final class TimingSystem {
         wireAntennaObservations(
                 antennaManager == null
                         ? Collections.<AntennaId, TimingNodeList>emptyMap()
-                        : observationRoutes);
+                        : antennaToNodes);
 
         if (antennaManager != null) {
             lifecycle.register(antennaManager, AntennaManager::activate, AntennaManager::deactivate);
@@ -111,10 +111,10 @@ public final class TimingSystem {
         }
     }
 
-    /** Installs antenna observation routes without exposing TimingNode internals. */
-    private void wireAntennaObservations(Map<AntennaId, TimingNodeList> observationRoutes) {
+    /** Connects AntennaManager observations to mapped TimingNode boundaries. */
+    private void wireAntennaObservations(Map<AntennaId, TimingNodeList> antennaToNodes) {
 
-        for (Map.Entry<AntennaId, TimingNodeList> route : observationRoutes.entrySet()) {
+        for (Map.Entry<AntennaId, TimingNodeList> route : antennaToNodes.entrySet()) {
             AntennaId antennaId = route.getKey();
             TimingNodeList targets = route.getValue();
 
