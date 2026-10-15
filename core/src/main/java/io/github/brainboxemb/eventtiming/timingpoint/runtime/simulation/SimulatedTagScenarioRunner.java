@@ -106,8 +106,8 @@ public final class SimulatedTagScenarioRunner
         lane.close();
     }
 
-    @Override
     /** Starts one named simulated registration scenario when runtime simulation is active. */
+    @Override
     public StartResult startRegistration(
             RegistrationId registrationId,
             String profileId) {
