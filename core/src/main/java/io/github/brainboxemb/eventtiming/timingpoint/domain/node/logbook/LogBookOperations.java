@@ -7,13 +7,10 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory.Context;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Problem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ProblemCode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ProblemSeverity;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
@@ -72,41 +69,28 @@ final class LogBookOperations {
         this.metrics = metrics;
     }
 
-    /** Opens the node at the requested location and commits the lifecycle record first. */
-    OpenResult open(LocationId newLocationId) throws TimingDataPersistence.PersistenceException {
+    /** Commits one NODE_OPEN record for the node-selected location. */
+    void commitNodeOpen(LocationId locationId) throws TimingDataPersistence.PersistenceException {
 
-        checkArgument(newLocationId != null, "locationId must not be null");
+        checkArgument(locationId != null, "locationId must not be null");
         state.ensureOperational();
-        if (state.state() == State.OPEN) {
-            return OpenResult.ALREADY_OPEN;
-        }
         ensureTimingDataCommitAvailable();
 
-        TimingTimestamp transitionTime = currentLifecycleTime();
         TimingData data = timingDataFactory.createNodeOpen(
-                nextContext(newLocationId, transitionTime));
+                nextContext(locationId, currentLifecycleTime()));
         commitTimingData(data);
-
-        state.markOpen(newLocationId);
-        return OpenResult.OPENED;
     }
 
-    /** Closes the node and durably commits its lifecycle record before changing state. */
-    CloseResult close() throws TimingDataPersistence.PersistenceException {
+    /** Commits one NODE_CLOSE record for the node-selected location. */
+    void commitNodeClose(LocationId locationId) throws TimingDataPersistence.PersistenceException {
 
+        checkArgument(locationId != null, "locationId must not be null");
         state.ensureOperational();
-        if (state.state() == State.CLOSED) {
-            return CloseResult.ALREADY_CLOSED;
-        }
         ensureTimingDataCommitAvailable();
 
-        TimingTimestamp transitionTime = currentLifecycleTime();
         TimingData data = timingDataFactory.createNodeClose(
-                nextContext(state.locationId(), transitionTime));
+                nextContext(locationId, currentLifecycleTime()));
         commitTimingData(data);
-
-        state.markClosed();
-        return CloseResult.CLOSED;
     }
 
     /**
@@ -117,20 +101,19 @@ final class LogBookOperations {
      * this LogBook operation.</p>
      */
     RegistrationResult commitAutomaticRegistration(
+            LocationId locationId,
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
             TimingData.TagSource tagSource,
             TimingData.AutomaticTimeSource timeProvenance)
             throws TimingDataPersistence.PersistenceException {
+        checkArgument(locationId != null, "locationId must not be null");
         state.ensureOperational();
-        if (state.state() != State.OPEN) {
-            return RegistrationResult.nodeNotOpen();
-        }
         ensureTimingDataCommitAvailable();
 
         TimingData data = timingDataFactory.createAutomaticRegistration(
                 nextRegistrationContext(
-                        state.locationId(),
+                        locationId,
                         normalizeRegistrationTime(effectiveTime),
                         tagSource,
                         timeProvenance),
@@ -140,11 +123,13 @@ final class LogBookOperations {
 
     /** Commits one automatic registration using current node time as effective time. */
     RegistrationResult commitAutomaticRegistrationNow(
+            LocationId locationId,
             RegistrationId registrationId,
             TimingData.TagSource tagSource)
             throws TimingDataPersistence.PersistenceException {
 
         return commitAutomaticRegistration(
+                locationId,
                 registrationId,
                 atCentisecond(timeSource.now()),
                 tagSource,
@@ -153,18 +138,17 @@ final class LogBookOperations {
 
     /** Commits one manually entered registration using the supplied effective-time source. */
     RegistrationResult commitManualRegistration(
+            LocationId locationId,
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
             ManualTimeSource registrationTimeSource)
             throws TimingDataPersistence.PersistenceException {
+        checkArgument(locationId != null, "locationId must not be null");
         state.ensureOperational();
-        if (state.state() != State.OPEN) {
-            return RegistrationResult.nodeNotOpen();
-        }
         ensureTimingDataCommitAvailable();
 
         TimingData data = timingDataFactory.createManualRegistration(
-                nextContext(state.locationId(), normalizeRegistrationTime(effectiveTime)),
+                nextContext(locationId, normalizeRegistrationTime(effectiveTime)),
                 registrationId,
                 registrationTimeSource);
         return commitRegistration(data);
