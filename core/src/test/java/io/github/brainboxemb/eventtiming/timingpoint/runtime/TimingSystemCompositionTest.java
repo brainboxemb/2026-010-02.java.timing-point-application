@@ -51,8 +51,7 @@ public class TimingSystemCompositionTest {
                     nodeId,
                     Collections.singletonList(new AntennaManagerConfig.AntennaConfig(
                             new AntennaId("1"),
-                            "simulated",
-                            Collections.singletonList(new NodeId(nodeId)))),
+                            "simulated")),
                     Collections.<AntennaId>emptyList(),
                     null));
         }
