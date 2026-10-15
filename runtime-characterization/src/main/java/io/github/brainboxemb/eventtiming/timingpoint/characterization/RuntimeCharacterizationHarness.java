@@ -272,7 +272,7 @@ final class RuntimeCharacterizationHarness
 
         node.activate();
         nodeActive = true;
-        logBook.execute(
+        logBook.queue(
                 LogBookCommands.open(
                         LOCATION_ID));
 
@@ -378,7 +378,7 @@ final class RuntimeCharacterizationHarness
                     new TimingTimestamp(
                             INPUT_TIME_BASE.minusSeconds(
                                     count - index));
-            if (!logBook.process(
+            if (!logBook.execute(
                             LogBookCommands.addAutomaticRegistration(
                                     new RegistrationId(
                                             String.format(
