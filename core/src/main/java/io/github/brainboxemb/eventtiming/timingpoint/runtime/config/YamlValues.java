@@ -65,6 +65,18 @@ final class YamlValues {
         return (String) value;
     }
 
+    /** Accepts YAML integer scalars represented as Integer or Long. */
+    static long requireLong(Object value, String field) {
+        if (value instanceof Integer) {
+            return ((Integer) value).longValue();
+        }
+        if (value instanceof Long) {
+            return ((Long) value).longValue();
+        }
+        throw new IllegalArgumentException(
+                field + " must be a YAML integer");
+    }
+
     /** Requires a strictly positive YAML integer. */
     static int requirePositiveInteger(Object value, String field) {
         if (!(value instanceof Integer)
