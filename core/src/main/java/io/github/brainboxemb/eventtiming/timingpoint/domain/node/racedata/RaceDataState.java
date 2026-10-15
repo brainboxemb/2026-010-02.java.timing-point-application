@@ -21,6 +21,7 @@ public final class RaceDataState {
     private final TeamAssignments teamAssignments = new TeamAssignments();
     private final StageStartTimes stageStartTimes = new StageStartTimes();
 
+    /** Creates node-local mutable race data over immutable EventData reference data. */
     public RaceDataState(EventData eventData) {
         checkArgument(eventData != null, "eventData must not be null");
         this.eventData = eventData;
@@ -31,10 +32,12 @@ public final class RaceDataState {
         return teamAssignments;
     }
 
+    /** Returns the Task Lane-owned live stage-start state used by derived timing. */
     public StageStartTimes stageStartTimes() {
         return stageStartTimes;
     }
 
+    /** Resolves TeamId from fixed EventData first, then live upstream assignment state. */
     public TeamId teamIdFor(RegistrationId registrationId) {
         checkArgument(registrationId != null, "registrationId must not be null");
         TeamId configuredTeamId = eventData.teamIdFor(registrationId);
@@ -43,10 +46,12 @@ public final class RaceDataState {
                 : teamAssignments.teamIdFor(registrationId);
     }
 
+    /** Returns the current live stage start for the TeamId, or null when none is assigned. */
     public TimingTimestamp stageStartTimeFor(TeamId teamId) {
         return stageStartTimes.startFor(teamId);
     }
 
+    /** Validates and atomically applies one complete Central RACE_DATA change set. */
     public void applyChanges(UpstreamData.RaceData changes) {
         checkArgument(changes != null, "raceData must not be null");
 
@@ -60,6 +65,7 @@ public final class RaceDataState {
         stageStartTimes.replaceWith(updatedStarts);
     }
 
+    /** Applies team-assignment changes to the uncommitted transactional copy. */
     private void applyTeamAssignmentChanges(
             TeamAssignments updatedAssignments, UpstreamData.RaceData changes) {
         checkArgument(changes.teamAssignmentChanges() != null,
@@ -84,6 +90,7 @@ public final class RaceDataState {
         }
     }
 
+    /** Applies stage-start changes to the uncommitted transactional copy. */
     private static void applyStageStartChanges(
             StageStartTimes updatedStarts, UpstreamData.RaceData changes) {
         checkArgument(changes.stageStartTimeChanges() != null,
