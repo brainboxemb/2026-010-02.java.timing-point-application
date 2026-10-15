@@ -230,7 +230,7 @@ public final class AntennaManager {
         return true;
     }
 
-    /** Wakes reconciliation after one committed desired-settings revision. */
+    /** Wakes the main task after one committed desired-settings revision. */
     private void onSettingsChanged(long ignoredRevision) {
         if (state == State.ACTIVE) {
             mainTask.wake(taskLane);
@@ -242,7 +242,7 @@ public final class AntennaManager {
      * the task and is read from that task when WAIT_SELF_TEST is processed.
      */
     private void onSelfTestCompleted(AntennaTaskResult ignored) {
-        stateMachine.wake();
+        mainTask.wake(taskLane);
     }
 
     /**
@@ -250,7 +250,7 @@ public final class AntennaManager {
      * the task and is read from that task when WAIT_INVENTORY is processed.
      */
     private void onInventoryCompleted(AntennaTaskResult ignored) {
-        stateMachine.wake();
+        mainTask.wake(taskLane);
     }
 
     /**
