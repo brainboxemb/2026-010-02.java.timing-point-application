@@ -293,7 +293,7 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
                 requireLane(lane),
                 new LaneScheduler(
                         lane,
-                        requireScheduler(scheduledExecutor)),
+                        requireScheduledExecutor(scheduledExecutor)),
                 timeoutNanos(timeout));
     }
 
@@ -421,14 +421,13 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
         return lane;
     }
 
-    /** Validates the scheduler dependency when delayed task steps are enabled. */
-    private static ScheduledExecutorService requireScheduler(
-            ScheduledExecutorService scheduler) {
-        if (scheduler == null) {
-            throw new IllegalArgumentException(
-                    "scheduledExecutor must not be null");
+    /** Validates the scheduled-executor dependency when delayed task steps are enabled. */
+    private static ScheduledExecutorService requireScheduledExecutor(
+            ScheduledExecutorService scheduledExecutor) {
+        if (scheduledExecutor == null) {
+            throw new IllegalArgumentException("scheduledExecutor must not be null");
         }
-        return scheduler;
+        return scheduledExecutor;
     }
 
     /** Converts and validates the optional public wait timeout. */
