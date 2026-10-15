@@ -174,9 +174,10 @@ final class ManagedAntenna {
             return;
         }
 
-        checkState(preparedForInventory(), "Antenna %s is not prepared for inventory", antennaId);
-        checkState(operation == AntennaOperation.READY,
-                "Antenna %s cannot start inventory from %s", antennaId, operation);
+        checkState(
+                preparedForInventory(),
+                "Antenna %s is not prepared for inventory",
+                antennaId);
 
         try {
             antenna.startInventory();
