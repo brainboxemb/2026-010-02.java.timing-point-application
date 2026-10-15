@@ -8,11 +8,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.concurrent.RejectedExecutionException;
-
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 /**
@@ -24,8 +19,6 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * explicit access boundaries rather than being copied onto this class.</p>
  */
 public final class TimingNode {
-    private static final Logger LOG = LoggerFactory.getLogger(TimingNode.class);
-
     private final NodeId timingNodeId;
     private final LogBookAccessor logBook;
     private final ComponentLifecycleManager lifecycle =
@@ -102,17 +95,9 @@ public final class TimingNode {
      * the synchronous source event callback.
      */
     private void onNewRegistration(TagProcessor.NewRegistration registration) {
-        try {
-            logBook.execute(
-                    LogBookCommands.addAutomaticRegistration(
-                            registration.registrationId(),
-                            registration.observedAt()));
-        } catch (RejectedExecutionException ex) {
-            LOG.warn(
-                    "Automatic registration {} for node {} could not be queued on the LogBook Data Lane",
-                    registration.registrationId().value(),
-                    timingNodeId.value(),
-                    ex);
-        }
+        logBook.execute(
+                LogBookCommands.addAutomaticRegistration(
+                        registration.registrationId(),
+                        registration.observedAt()));
     }
 }
