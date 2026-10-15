@@ -23,11 +23,10 @@ import org.slf4j.LoggerFactory;
 /**
  * Coordinates one TimingSystem.
  *
- * <p>Runtime composition wires each TimingNode's statusChangedEvent() to
- * {@link #onTimingNodeStatusChanged(TimingNode, Status)} before activation.
- * This class deliberately does not subscribe to its own dependencies in its
- * constructor: event wiring belongs to the composition root and is visible
- * alongside the rest of the application graph.</p>
+ * <p>The owning application TimingSystem wires each TimingNode's
+ * statusChangedEvent() to {@link #onTimingNodeStatusChanged(TimingNode, Status)}
+ * before activation. SystemConductor owns Domain coordination and TimingNode
+ * lifecycle; the TimingSystem owner owns system-level cross-component wiring.</p>
  *
  * <p>A status event only wakes the control task. The subsequent run reads
  * every TimingNode's CURRENT status and publishes the desired inventory state
@@ -69,7 +68,7 @@ public final class SystemConductor extends AbstractConductor implements Yielding
     /**
      * Accepts one authoritative post-change TimingNode Status.
      *
-     * <p>The subscription is installed by runtime composition, not by this
+     * <p>The subscription is installed by the owning TimingSystem, not by this
      * Conductor. This handler validates node ownership and only wakes the
      * coalesced control task. The later run reads CURRENT published state;
      * the event payload is not cached or treated as a control command.</p>
