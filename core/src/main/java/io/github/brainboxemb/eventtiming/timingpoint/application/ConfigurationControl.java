@@ -311,10 +311,10 @@ public final class ConfigurationControl {
 
         DynamicConfiguration<TagProcessingPolicy> configuration =
                 requireNode(nodeId);
-        final TagProcessingPolicy candidate;
+        final TagProcessingPolicy proposedPolicy;
         try {
-            candidate =
-                    candidate(
+            proposedPolicy =
+                    proposedPolicy(
                             configuration.currentValue(),
                             patch);
         } catch (IllegalArgumentException ex) {
@@ -324,7 +324,7 @@ public final class ConfigurationControl {
         }
 
         ConfigurationUpdateResult result =
-                configuration.override(candidate);
+                configuration.override(proposedPolicy);
         return new Update(
                 UpdateResult.valueOf(result.name()),
                 view(configuration));
@@ -368,7 +368,8 @@ public final class ConfigurationControl {
                 configuration.overridden());
     }
 
-    private static TagProcessingPolicy candidate(
+    /** Applies one presentation patch to the current policy without mutating state. */
+    private static TagProcessingPolicy proposedPolicy(
             TagProcessingPolicy current,
             TagProcessingPatch patch) {
         int queueCapacity =
