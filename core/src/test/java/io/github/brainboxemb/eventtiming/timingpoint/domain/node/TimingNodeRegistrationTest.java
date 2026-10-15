@@ -63,7 +63,7 @@ public class TimingNodeRegistrationTest {
 
             assertEquals(2, store.appended.size());
             assertSame(data, store.appended.get(1));
-            assertEquals(2, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(2, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
             assertSame(data, delivered.get(1));
         } finally {
             node.deactivate();
@@ -160,7 +160,7 @@ public class TimingNodeRegistrationTest {
                     TimingNodeTypes.RegistrationResult.Outcome.NODE_NOT_OPEN,
                     rejected.outcome());
             assertEquals(0, store.attempts);
-            assertEquals(0, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(0, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
 
             node.logBook().process(LogBookCommands.open(new LocationId(24)));
             TimingNodeTypes.RegistrationResult committed =
@@ -195,7 +195,7 @@ public class TimingNodeRegistrationTest {
             assertSame(result.timingData(), store.appended.get(1));
 
             TimingData[] visited = new TimingData[1];
-            int totalCount = node.logBook().query(
+            int totalCount = node.logBook().process(
                     LogBookQueries.visitTimingDataRange(
                             2L,
                             1,
@@ -238,7 +238,7 @@ public class TimingNodeRegistrationTest {
 
             assertEquals(2L, first.timingData().sequenceNumber());
             assertEquals(3L, second.timingData().sequenceNumber());
-            assertEquals(3, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(3, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
         } finally {
             node.deactivate();
         }
@@ -261,7 +261,7 @@ public class TimingNodeRegistrationTest {
                     TimingNodeTypes.RegistrationResult.Outcome.NODE_NOT_OPEN,
                     rejected.outcome());
             assertEquals(0, store.appended.size());
-            assertEquals(0, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(0, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
 
             node.logBook().process(LogBookCommands.open(new LocationId(24)));
             TimingNodeTypes.RegistrationResult committed = node.logBook().process(LogBookCommands.commitManualRegistration(
@@ -296,7 +296,7 @@ public class TimingNodeRegistrationTest {
                         expected.reason());
             }
 
-            assertEquals(1, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(1, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
             assertEquals(2, store.attempts);
 
             try {
@@ -312,7 +312,7 @@ public class TimingNodeRegistrationTest {
             }
 
             assertEquals(2, store.attempts);
-            assertEquals(1, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(1, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
         } finally {
             node.deactivate();
         }
@@ -346,7 +346,7 @@ public class TimingNodeRegistrationTest {
                     ManualTimeSource.OPERATOR_ENTERED));
 
             assertEquals(2, store.appended.size());
-            assertEquals(2, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(2, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
             assertEquals(2, delivered.size());
             assertSame(committed.timingData(), delivered.get(1));
 
@@ -381,7 +381,7 @@ public class TimingNodeRegistrationTest {
             }
 
             assertTrue(delivered.isEmpty());
-            assertEquals(1, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(1, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
         } finally {
             node.deactivate();
         }
@@ -410,7 +410,7 @@ public class TimingNodeRegistrationTest {
 
             assertTrue(committed.committed());
             assertEquals(2, store.appended.size());
-            assertEquals(2, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(2, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
             assertEquals(1, delivered.size());
             assertSame(committed.timingData(), delivered.get(0));
         } finally {
@@ -487,7 +487,7 @@ public class TimingNodeRegistrationTest {
 
         node.activate();
         try {
-            assertEquals(1, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(1, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
             assertTrue(delivered.isEmpty());
         } finally {
             node.deactivate();
@@ -503,11 +503,11 @@ public class TimingNodeRegistrationTest {
 
         node.activate();
         try {
-            TimingNodeTypes.Status status = node.logBook().query(LogBookQueries.status());
+            TimingNodeTypes.Status status = node.logBook().process(LogBookQueries.status());
             assertEquals(TimingNodeTypes.State.CLOSED, status.state());
             assertFalse(status.hasLocation());
             assertFalse(status.timingDataTailRepaired());
-            assertEquals(2, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
+            assertEquals(2, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
 
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
@@ -532,8 +532,8 @@ public class TimingNodeRegistrationTest {
 
         node.activate();
         try {
-            assertTrue(node.logBook().query(LogBookQueries.status()).timingDataTailRepaired());
-            assertEquals(1, node.logBook().query(LogBookQueries.timingDataCount()).intValue());
+            assertTrue(node.logBook().process(LogBookQueries.status()).timingDataTailRepaired());
+            assertEquals(1, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
         } finally {
             node.deactivate();
         }
@@ -547,7 +547,7 @@ public class TimingNodeRegistrationTest {
 
         node.activate();
         try {
-            TimingNodeTypes.Status status = node.logBook().query(LogBookQueries.status());
+            TimingNodeTypes.Status status = node.logBook().process(LogBookQueries.status());
             assertEquals(TimingNodeTypes.State.ERROR, status.state());
             assertFalse(status.hasLocation());
             assertEquals(1, status.problems().size());
@@ -572,7 +572,7 @@ public class TimingNodeRegistrationTest {
             }
 
             try {
-                node.logBook().query(LogBookQueries.timingDataCount());
+                node.logBook().process(LogBookQueries.timingDataCount());
                 fail("expected ERROR node to reject LogBook query");
             } catch (TimingNodeTypes.OperationException expected) {
                 assertEquals(
