@@ -345,10 +345,28 @@ public final class TimingNode {
                 recoveryStatus.problems());
     }
 
-    /** Returns current status and rejects state-changing work while the node is in ERROR. */
+    /**
+     * Returns status for a state-changing operation.
+     *
+     * <p>When startup recovery is still queued, the first state-changing call
+     * waits for that ordered LogBook recovery result. Plain {@link #status()}
+     * remains a non-waiting CURRENT read.</p>
+     */
     private Status requireOperationalStatus() {
 
-        Status status = status();
+        Status status = currentStatus;
+        if (status == null) {
+            LogBookRecoveryStatus recoveryStatus =
+                    logBook.process(
+                            LogBookQueries.recoveryStatus(),
+                            ReadConsistency.ORDERED);
+            status = currentStatus;
+            if (status == null) {
+                status = statusFromRecovery(recoveryStatus);
+                publishStatus(status);
+            }
+        }
+
         if (status.state() == State.ERROR) {
             String detail = status.hasProblems()
                     ? status.problems().get(0).message()
