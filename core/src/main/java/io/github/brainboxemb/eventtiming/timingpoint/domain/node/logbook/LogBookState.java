@@ -34,6 +34,7 @@ final class LogBookState {
 
     /** Creates empty passive LogBook state for one TimingNode. */
     LogBookState(NodeId timingNodeId) {
+
         checkArgument(timingNodeId != null, "timingNodeId must not be null");
         this.timingNodeId = timingNodeId;
         this.logBookData = new LogBookData(timingNodeId);
@@ -41,26 +42,31 @@ final class LogBookState {
 
     /** Returns the immutable identity of the owning TimingNode. */
     NodeId timingNodeId() {
+
         return timingNodeId;
     }
 
     /** Returns the safely published committed TimingData source head. */
     long timingDataHead() {
+
         return logBookData.headSequence();
     }
 
     /** Returns the current lifecycle state. */
     State state() {
+
         return state;
     }
 
     /** Returns the current location, or null when no location is available. */
     LocationId locationId() {
+
         return locationId;
     }
 
     /** Marks a successful OPEN transition after its TimingData commit. */
     void markOpen(LocationId newLocationId) {
+
         checkArgument(newLocationId != null, "newLocationId must not be null");
         locationId = newLocationId;
         state = State.OPEN;
@@ -68,16 +74,19 @@ final class LogBookState {
 
     /** Marks a successful CLOSE transition after its TimingData commit. */
     void markClosed() {
+
         state = State.CLOSED;
     }
 
     /** Records whether startup recovery repaired an incomplete persisted tail. */
     void timingDataTailRepaired(boolean repaired) {
+
         timingDataTailRepaired = repaired;
     }
 
     /** Moves state to ERROR after startup recovery failed. */
     void markTimingDataLoadFailed(Problem problem) {
+
         checkArgument(problem != null, "problem must not be null");
         state = State.ERROR;
         locationId = null;
@@ -87,6 +96,7 @@ final class LogBookState {
 
     /** Rejects normal LogBook access after startup recovery entered ERROR state. */
     void ensureOperational() {
+
         if (state == State.ERROR) {
             String detail = problems.isEmpty() ? "TimingNode is in ERROR" : problems.get(0).message();
             throw new IllegalStateException(detail);
@@ -95,22 +105,26 @@ final class LogBookState {
 
     /** Returns the next sequence implied by committed history without consuming it. */
     long nextTimingDataSequence() {
+
         return logBookData.nextSequence();
     }
 
     /** Adds one already durably committed TimingData value to in-memory history. */
     void addCommittedTimingData(TimingData data) {
+
         logBookData.add(data);
     }
 
     /** Returns the committed TimingData count while the LogBook is operational. */
     int timingDataCount() {
+
         ensureOperational();
         return logBookData.size();
     }
 
     /** Returns a bounded immutable copy of committed TimingData in source order. */
     List<TimingData> timingDataRange(long fromSequence, int limit) {
+
         ensureOperational();
         List<TimingData> records = new ArrayList<TimingData>();
         logBookData.visitRange(fromSequence, limit, records::add);
@@ -119,6 +133,7 @@ final class LogBookState {
 
     /** Visits a bounded committed range and returns the current total record count. */
     int visitTimingDataRange(long fromSequence, int limit, Consumer<TimingData> visitor) {
+
         ensureOperational();
         logBookData.visitRange(fromSequence, limit, visitor);
         return logBookData.size();
@@ -126,6 +141,7 @@ final class LogBookState {
 
     /** Visits the newest committed records and returns the current total record count. */
     int visitLatestTimingData(int limit, Consumer<TimingData> visitor) {
+
         ensureOperational();
         logBookData.visitLatest(limit, visitor);
         return logBookData.size();
@@ -133,16 +149,19 @@ final class LogBookState {
 
     /** Builds the current immutable node status from passive state. */
     Status status() {
+
         return new Status(timingNodeId, state, locationId, timingDataTailRepaired, problems);
     }
 
     /** Returns the committed record count without repeating operational validation. */
     int committedTimingDataCount() {
+
         return logBookData.size();
     }
 
     /** Returns the newest committed TimingData record. */
     TimingData latestCommittedTimingData() {
+
         final TimingData[] latest = new TimingData[1];
         logBookData.visitLatest(1, data -> latest[0] = data);
         checkState(latest[0] != null, "no committed TimingData is available");
