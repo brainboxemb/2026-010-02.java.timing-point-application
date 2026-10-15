@@ -131,13 +131,23 @@ public class TimingSystemCompositionTest {
 
     @Test
     public void rejectsImplicitRoutingForMultipleNodes() {
-        Config config = new Config(
-                Arrays.asList(node("A"), node("B")),
-                new Presentation(null, null),
-                null,
-                null,
-                Config.REFERENCE_PROVIDER_ID,
-                Config.REFERENCE_PROVIDER_ID);
+        Config.TimingSystemConfig timingSystem =
+                new Config.TimingSystemConfig(
+                        "9",
+                        Arrays.asList(
+                                node("A"),
+                                node("B")),
+                        Config.REFERENCE_PROVIDER_ID,
+                        Config.REFERENCE_PROVIDER_ID);
+        Config config =
+                new Config(
+                        Collections.singletonList(
+                                timingSystem),
+                        new Presentation(
+                                null,
+                                null),
+                        null,
+                        null);
 
         AntennaSet antennaSet = new AntennaSet()
                 .add(new AntennaId("1"), new SimulatedAntenna());
