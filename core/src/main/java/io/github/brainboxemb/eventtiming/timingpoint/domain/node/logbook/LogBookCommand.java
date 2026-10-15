@@ -7,14 +7,14 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  *
  * <p>A command is an immutable description of one state-changing domain action.
  * Public callers create commands through {@link LogBookCommands}; only the
- * logbook package can apply them to package-private {@link LogBookState}.
+ * logbook package can apply them through package-private {@link LogBookOperations}.
  * {@link LogBook} owns ordered execution, timeout and failure handling.</p>
  */
 public final class LogBookCommand<R> {
-    /** Package-private command body applied by LogBook to its owned state. */
+    /** Package-private command body applied by LogBook to its owned operations. */
     interface Action<R> {
-        /** Applies the command body to the current Data Lane-owned LogBookState. */
-        R apply(LogBookState logBookState) throws Exception;
+        /** Applies the command body through the current Data Lane-owned LogBookOperations. */
+        R apply(LogBookOperations operations) throws Exception;
     }
 
     private final String name;
@@ -37,9 +37,9 @@ public final class LogBookCommand<R> {
         return name;
     }
 
-    /** Applies this command to the supplied Data Lane-owned LogBook state. */
-    R apply(LogBookState logBookState) throws Exception {
-        return action.apply(logBookState);
+    /** Applies this command through the supplied Data Lane-owned operations. */
+    R apply(LogBookOperations operations) throws Exception {
+        return action.apply(operations);
     }
 
 }
