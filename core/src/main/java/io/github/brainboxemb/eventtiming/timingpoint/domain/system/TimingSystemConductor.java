@@ -2,11 +2,9 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
@@ -96,7 +94,7 @@ public final class TimingSystemConductor extends AbstractConductor {
                     "TimingNode " + node.timingNodeId().value(),
                     node::activate,
                     node::deactivate);
-            bind(NODE_STATUS_CHANGED, node.logBook().statusChangedEvent());
+            bind(NODE_STATUS_CHANGED, node.statusChangedEvent());
         }
     }
 
@@ -124,7 +122,7 @@ public final class TimingSystemConductor extends AbstractConductor {
         boolean required = false;
         for (TimingNode node : nodes) {
             Optional<Status> status = SafeExecute.callOrEmpty(
-                    () -> node.logBook().process(LogBookQueries.status(), ReadConsistency.CURRENT),
+                    node::status,
                     OperationException.class,
                     ex -> ex.reason() == OperationException.Reason.UNAVAILABLE);
 
