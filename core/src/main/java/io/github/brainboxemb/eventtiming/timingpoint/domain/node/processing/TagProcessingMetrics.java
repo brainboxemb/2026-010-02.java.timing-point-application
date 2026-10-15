@@ -19,30 +19,37 @@ public final class TagProcessingMetrics {
     private final AtomicLong unmappedCount = new AtomicLong();
     private final AtomicLong duplicateCount = new AtomicLong();
 
+    /** Records one observation accepted by TagProcessor ingress. */
     void recordObservation() {
         observationCount.incrementAndGet();
     }
 
+    /** Records one observation rejected because the bounded queue was full. */
     void recordObservationQueueFull() {
         observationQueueFullCount.incrementAndGet();
     }
 
+    /** Records one observation rejected because TagProcessor was not running. */
     void recordProcessorNotRunning() {
         processorNotRunningCount.incrementAndGet();
     }
 
+    /** Records one passage burst closed by filter policy. */
     void recordClosedBurst() {
         closedBurstCount.incrementAndGet();
     }
 
+    /** Records one observation mapped to a RegistrationId. */
     void recordMapped() {
         mappedCount.incrementAndGet();
     }
 
+    /** Records one observation without a RegistrationId mapping. */
     void recordUnmapped() {
         unmappedCount.incrementAndGet();
     }
 
+    /** Records one selected registration suppressed by the duplicate window. */
     void recordDuplicate() {
         duplicateCount.incrementAndGet();
     }
@@ -73,6 +80,7 @@ public final class TagProcessingMetrics {
         private final long unmapped;
         private final long duplicates;
 
+        /** Creates one immutable metric snapshot from current counters. */
         private Snapshot(
                 long observations,
                 long observationQueueFull,
@@ -90,30 +98,37 @@ public final class TagProcessingMetrics {
             this.duplicates = duplicates;
         }
 
+        /** Returns accepted observation ingress count. */
         public long observations() {
             return observations;
         }
 
+        /** Returns observation rejections caused by a full queue. */
         public long observationQueueFull() {
             return observationQueueFull;
         }
 
+        /** Returns observation rejections while TagProcessor was not running. */
         public long processorNotRunning() {
             return processorNotRunning;
         }
 
+        /** Returns the number of passage bursts closed by filter policy. */
         public long closedBursts() {
             return closedBursts;
         }
 
+        /** Returns observations successfully mapped to registrations. */
         public long mapped() {
             return mapped;
         }
 
+        /** Returns observations without a registration mapping. */
         public long unmapped() {
             return unmapped;
         }
 
+        /** Returns selected registrations suppressed as duplicates. */
         public long duplicates() {
             return duplicates;
         }
