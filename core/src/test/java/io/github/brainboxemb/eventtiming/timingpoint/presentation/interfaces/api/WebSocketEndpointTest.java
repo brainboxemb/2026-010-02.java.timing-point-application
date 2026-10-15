@@ -61,9 +61,6 @@ public class WebSocketEndpointTest {
                 0,
                 fixture.handler,
                 EVENT_CLOCK);
-        wireApplicationEvents(
-                server,
-                fixture.handler);
         server.start();
 
         try {
@@ -100,9 +97,6 @@ public class WebSocketEndpointTest {
                 0,
                 fixture.handler,
                 EVENT_CLOCK);
-        wireApplicationEvents(
-                server,
-                fixture.handler);
         server.start();
         TestClient client = connect(server.boundPort());
 
@@ -158,9 +152,6 @@ public class WebSocketEndpointTest {
                 0,
                 fixture.handler,
                 EVENT_CLOCK);
-        wireApplicationEvents(
-                server,
-                fixture.handler);
         server.start();
         TestClient client = connect(server.boundPort());
 
@@ -301,9 +292,6 @@ public class WebSocketEndpointTest {
                         0,
                         gateway,
                         EVENT_CLOCK);
-        wireApplicationEvents(
-                server,
-                gateway);
         server.start();
 
         TestClient client = connect(server.boundPort());
@@ -345,9 +333,6 @@ public class WebSocketEndpointTest {
                 0,
                 handler,
                 EVENT_CLOCK);
-        wireApplicationEvents(
-                server,
-                handler);
         server.start();
 
         try {
@@ -371,23 +356,6 @@ public class WebSocketEndpointTest {
             server.close();
             node.deactivate();
         }
-    }
-
-    private static void wireApplicationEvents(
-            WebSocketEndpoint endpoint,
-            PresentationGateway gateway) {
-        for (TimingNodeProxy timingNode : gateway.timingNodes()) {
-            timingNode.statusChangedEvent()
-                    .subscribe(
-                            endpoint::onTimingNodeStatusChanged);
-            timingNode.newDataEntryEvent()
-                    .subscribe(
-                            endpoint::onTimingDataCommitted);
-        }
-        gateway.configuration()
-                .changes()
-                .subscribe(
-                        endpoint::onConfigurationChanged);
     }
 
     private static TestClient connect(int port) throws Exception {
