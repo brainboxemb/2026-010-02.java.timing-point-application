@@ -46,6 +46,26 @@ public final class TimingSystemConductor extends AbstractConductor {
     private final TaskSerialLane taskLane;
     private final MainTask mainTask = new MainTask();
 
+    private final class MainTask extends AbstractTask {
+
+        @Override
+        protected void resetForRun() {
+            // Main task state is owned by TimingSystemConductor.
+        }
+
+        @Override
+        public TaskStep runStep() {
+            return evaluateNodeStatus();
+        }
+
+        @Override
+        protected void onRunCompleted(Throwable failure) {
+            if (failure != null) {
+                LOG.error("TimingSystem Conductor main task failed", failure);
+            }
+        }
+    }
+
     public TimingSystemConductor(
             TimingNodeList timingNodes,
             AntennaSettings antennaSettings,
@@ -96,7 +116,7 @@ public final class TimingSystemConductor extends AbstractConductor {
         mainTask.wake(taskLane);
     }
 
-    private TaskStep runMainTask() {
+    private TaskStep evaluateNodeStatus() {
 
         boolean required = false;
         for (TimingNode node : nodes) {
@@ -133,23 +153,4 @@ public final class TimingSystemConductor extends AbstractConductor {
         return TaskStep.done();
     }
 
-    private final class MainTask extends AbstractTask {
-
-        @Override
-        protected void resetForRun() {
-            // Main task state is owned by TimingSystemConductor.
-        }
-
-        @Override
-        public TaskStep runStep() {
-            return runMainTask();
-        }
-
-        @Override
-        protected void onRunCompleted(Throwable failure) {
-            if (failure != null) {
-                LOG.error("TimingSystem Conductor main task failed", failure);
-            }
-        }
-    }
 }
