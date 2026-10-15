@@ -7,6 +7,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTim
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import java.time.ZoneId;
 import java.util.List;
@@ -25,13 +27,23 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * the supplied executor may share Runtime's physical worker with the Data Lane.
  * Mutable Task Lane state lives in {@link NodeServiceState}; {@link NodeTaskLane}
  * owns Task Lane execution/wait mechanics and the service owns semantic orchestration.
- * {@link TimingNode} wires the LogBook's immutable startup-history and committed-data
- * events to this service;
- * NodeService has no LogBook lifecycle or storage dependency of its own.</p>
+ * {@link TimingNode} binds the LogBook's immutable startup-history and committed-data
+ * event sources to this service; NodeService owns the internal handlers but has no
+ * LogBook lifecycle or storage dependency of its own.</p>
  */
 public final class NodeService {
     private static final Logger LOG = LoggerFactory.getLogger(NodeService.class);
     private static final long TASK_QUERY_TIMEOUT_MILLIS = 2000L;
+
+    /** Initial LogBook history input used to rebuild derived timing state. */
+    public static final EventInput<NodeService, List<TimingData>> INITIAL_TIMING_DATA =
+            EventInput.of(
+                    (service, source) -> source.subscribe(service::onInitialTimingDataLoaded));
+
+    /** Newly committed LogBook TimingData input used for incremental updates. */
+    public static final EventInput<NodeService, TimingData> COMMITTED_TIMING_DATA =
+            EventInput.of(
+                    (service, source) -> source.subscribe(service::onTimingDataCommitted));
 
     private final NodeId nodeId;
     private final NodeTaskLane taskLane;
@@ -50,6 +62,19 @@ public final class NodeService {
         this.state = state;
         this.stageTiming = new StageTiming(
                 state.eventData(), state.teamAssignments(), state.stageStartTimes());
+    }
+
+    /**
+     * Binds one typed event source to a supported NodeService input.
+     *
+     * <p>The caller selects the semantic input while NodeService keeps the
+     * concrete handler private.</p>
+     */
+    public <T> void bind(EventInput<NodeService, T> input, EventSource<T> source) {
+
+        checkArgument(input != null, "input must not be null");
+        checkArgument(source != null, "source must not be null");
+        input.bind(this, source);
     }
 
     /**
@@ -105,7 +130,7 @@ public final class NodeService {
      * <p>{@link TimingNode} installs this composition-time event link. The
      * handler only queues the history fold onto the Task Lane and returns.</p>
      */
-    public void onInitialTimingDataLoaded(List<TimingData> loadedData) {
+    private void onInitialTimingDataLoaded(List<TimingData> loadedData) {
 
         // Runnable defers the one-time history fold until the Task Lane owns derived state.
         Runnable rebuildInitialState = () -> rebuildDerivedTiming(loadedData);
@@ -118,7 +143,7 @@ public final class NodeService {
      * <p>{@link TimingNode} installs this composition-time event link. The
      * handler only queues the derived-state update onto the Task Lane and returns.</p>
      */
-    public void onTimingDataCommitted(TimingData data) {
+    private void onTimingDataCommitted(TimingData data) {
 
         // Runnable defers the compact derived-state update to preserve Task Lane order.
         Runnable applyCommittedData = () -> applyCommittedTimingData(data);
