@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationConductor;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.SystemConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
@@ -28,25 +28,24 @@ import java.util.Map;
  * Nodes, their persistence, logical lanes, antenna set and AntennaManager are
  * built independently for each system. Runtime passes the shared
  * AntennaSettings to the Domain Conductor, not AntennaManager itself.
- * This class installs only system-level event routing before activation.
- * Node-internal child composition belongs to {@link TimingNodeComposer}.
- * It has no lifecycle.</p>
+ * Runtime builds the children and a pure antenna-to-node routing plan. The
+ * resulting {@link TimingSystem} owns system-level event wiring and lifecycle.
+ * Node-internal child composition belongs to {@link TimingNodeComposer}. This
+ * composer has no lifecycle.</p>
  */
 final class TimingSystemComposer {
     private static final Duration ANTENNA_CONTROL_TIMEOUT = Duration.ofSeconds(2);
 
     private final RuntimeExecutors executors;
-    private final ApplicationConductor applicationConductor;
     private final TimingNodeComposer nodeComposer;
 
     /** Creates a stateless composer over shared runtime infrastructure. */
     TimingSystemComposer(
             ApplicationConfiguration configuration,
             RuntimeExecutors executors,
-            PlatformEnvironment platform,
-            ApplicationConductor applicationConductor) {
+            PlatformEnvironment platform) {
+
         this.executors = executors;
-        this.applicationConductor = applicationConductor;
         this.nodeComposer =
                 new TimingNodeComposer(
                         configuration,
@@ -54,8 +53,8 @@ final class TimingSystemComposer {
                         platform.monotonicClock());
     }
 
-    /** Composes one configured timing system and installs its event routing. */
-    TimingSystemComponents compose(
+    /** Composes one complete TimingSystem from already resolved runtime inputs. */
+    TimingSystem compose(
             TimingSystemResolvedData system,
             AntennaManagerConfig managerBinding,
             AntennaSet implicitAntennas,
@@ -81,26 +80,15 @@ final class TimingSystemComposer {
                 antennaSettings,
                 executors.createSystemConductorLane());
 
-        applicationConductor.registerTimingSystem(antennaManager, conductor);
+        Map<AntennaId, TimingNodeList> observationRoutes =
+                createObservationRoutes(antennaSet, managerBinding, nodes);
 
-        // Composition owns the event graph: each node signals the Conductor,
-        // whose handler only wakes its task. The task later reads CURRENT
-        // node status, so event payloads need not be buffered or replayed.
-        for (TimingNode node : nodes) {
-            node.logBook()
-                    .statusChangedEvent()
-                    .subscribe(
-                            status ->
-                                    conductor.onTimingNodeStatusChanged(
-                                            node,
-                                            status));
-        }
-        if (antennaManager != null) {
-            routeObservations(antennaManager, antennaSet, managerBinding, nodes);
-        }
-
-        return new TimingSystemComponents(
-                system.configuration().timingSystemId(), nodes, antennaManager);
+        return new TimingSystem(
+                system.configuration().timingSystemId(),
+                nodes,
+                antennaManager,
+                conductor,
+                observationRoutes);
     }
 
     /** Composes all TimingNodes configured for this resolved timing system. */
@@ -139,12 +127,16 @@ final class TimingSystemComposer {
         return antennas;
     }
 
-    /** Connects antenna observation events to configured TimingNode component boundaries. */
-    private static void routeObservations(
-            AntennaManager manager,
+    /** Builds pure antenna-to-node routing data for the TimingSystem owner. */
+    private static Map<AntennaId, TimingNodeList> createObservationRoutes(
             AntennaSet antennas,
             AntennaManagerConfig binding,
             TimingNodeList nodes) {
+
+        Map<AntennaId, TimingNodeList> routes = new LinkedHashMap<AntennaId, TimingNodeList>();
+        if (antennas.isEmpty()) {
+            return routes;
+        }
 
         Map<NodeId, TimingNode> byId = new LinkedHashMap<NodeId, TimingNode>();
         for (TimingNode node : nodes) {
@@ -155,21 +147,25 @@ final class TimingSystemComposer {
             // Compatibility for the one-system, one-node test/Windows setup.
             TimingNode node = nodes.get(0);
             for (AntennaId antennaId : antennas.antennaIds()) {
-                manager.tagObservedEvent(antennaId).subscribe(node::onTagObserved);
+                routes.put(antennaId, new TimingNodeList().add(node));
             }
-        } else {
-            for (AntennaManagerConfig.AntennaConfig antenna : binding.antennas()) {
-                for (NodeId target : antenna.timingNodes()) {
-                    TimingNode node = byId.get(target);
-                    if (node == null) {
-                        throw new IllegalArgumentException(
-                                "Antenna " + antenna.id()
-                                        + " targets unknown TimingNode "
-                                        + target.value());
-                    }
-                    manager.tagObservedEvent(antenna.id()).subscribe(node::onTagObserved);
-                }
-            }
+            return routes;
         }
+
+        for (AntennaManagerConfig.AntennaConfig antenna : binding.antennas()) {
+            TimingNodeList targets = new TimingNodeList();
+            for (NodeId target : antenna.timingNodes()) {
+                TimingNode node = byId.get(target);
+                if (node == null) {
+                    throw new IllegalArgumentException(
+                            "Antenna " + antenna.id()
+                                    + " targets unknown TimingNode "
+                                    + target.value());
+                }
+                targets.add(node);
+            }
+            routes.put(antenna.id(), targets);
+        }
+        return routes;
     }
 }

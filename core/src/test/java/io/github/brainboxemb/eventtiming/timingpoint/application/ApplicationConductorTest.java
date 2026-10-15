@@ -39,9 +39,7 @@ public class ApplicationConductorTest {
                 new SystemFixture("A", "one");
         ApplicationConductor conductor =
                 new ApplicationConductor();
-        conductor.registerTimingSystem(
-                system.manager,
-                system.conductor);
+        conductor.registerTimingSystem(system.system);
 
         try {
             conductor.activate();
@@ -66,12 +64,8 @@ public class ApplicationConductorTest {
                 new SystemFixture("B", "two");
         ApplicationConductor conductor =
                 new ApplicationConductor();
-        conductor.registerTimingSystem(
-                first.manager,
-                first.conductor);
-        conductor.registerTimingSystem(
-                second.manager,
-                second.conductor);
+        conductor.registerTimingSystem(first.system);
+        conductor.registerTimingSystem(second.system);
 
         try {
             conductor.activate();
@@ -109,6 +103,7 @@ public class ApplicationConductorTest {
 
         private final AntennaManager manager;
         private final SystemConductor conductor;
+        private final TimingSystem system;
 
         private SystemFixture(
                 String nodeId,
@@ -142,6 +137,12 @@ public class ApplicationConductorTest {
                                     8,
                                     "app-system-" + label,
                                     systemWorker));
+            system = new TimingSystem(
+                    label,
+                    timingNodes,
+                    manager,
+                    conductor,
+                    Collections.<AntennaId, TimingNodeList>emptyMap());
         }
 
         @Override

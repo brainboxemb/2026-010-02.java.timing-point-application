@@ -4,6 +4,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
@@ -21,7 +22,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.simulation.Simulate
 
 import java.io.Reader;
 import java.io.Writer;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Builds the complete runtime object graph from already resolved system data. */
@@ -60,8 +63,7 @@ final class TimingApplicationAssembler {
                             platform);
             TimingNodeList timingNodes =
                     new TimingNodeList();
-            TimingSystemComponentsList systems =
-                    new TimingSystemComponentsList();
+            List<TimingSystem> systems = new ArrayList<TimingSystem>();
             ApplicationConductor applicationConductor =
                     new ApplicationConductor();
             SimulatedTagScenarioRunner simulationRunner =
@@ -71,14 +73,13 @@ final class TimingApplicationAssembler {
                     new TimingSystemComposer(
                             applicationConfiguration,
                             executors,
-                            platform,
-                            applicationConductor);
+                            platform);
 
             for (TimingSystemResolvedData resolvedSystem
                     : resolvedSystems) {
                 TimeSource timeSource =
                         runtimeTimeSources.createTimeSource();
-                TimingSystemComponents system =
+                TimingSystem system =
                         systemComposer.compose(
                                 resolvedSystem,
                                 config.antennaManager(
@@ -87,15 +88,14 @@ final class TimingApplicationAssembler {
                                                 .timingSystemId()),
                                 antennaSet,
                                 timeSource);
-                systems.add(
-                        system);
-                for (TimingNode node : system.nodes()) {
-                    timingNodes.add(
-                            node);
+                systems.add(system);
+                applicationConductor.registerTimingSystem(system);
+                for (TimingNode node : system.timingNodes()) {
+                    timingNodes.add(node);
                 }
 
                 if (resolvedSystems.size() == 1
-                        && system.nodes().size() == 1
+                        && system.timingNodes().size() == 1
                         && resolvedSystem
                                 .tagScenarioSimulationEnabled()
                         && simulatedAntenna != null
