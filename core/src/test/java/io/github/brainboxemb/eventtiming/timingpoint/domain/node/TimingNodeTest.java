@@ -10,6 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixtu
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookRecoveryStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
 
 import java.time.Instant;
@@ -147,19 +148,22 @@ public class TimingNodeTest {
                     persistence.executedOnNodeLane);
 
             try {
-                node.logBook().process(
-                        LogBookQueries.status(),
-                        ReadConsistency.CURRENT);
-                fail("CURRENT status must remain unavailable during persisted-data load");
+                node.status();
+                fail("TimingNode status must remain unavailable during persisted-data load");
             } catch (TimingNodeTypes.OperationException expected) {
                 assertEquals(
                         TimingNodeTypes.OperationException.Reason.UNAVAILABLE,
                         expected.reason());
             }
 
-            node.logBook().execute(
-                    LogBookCommands.open(
-                            new LocationId(24)));
+            try {
+                node.open(new LocationId(24));
+                fail("open must remain unavailable during persisted-data load");
+            } catch (TimingNodeTypes.OperationException expected) {
+                assertEquals(
+                        TimingNodeTypes.OperationException.Reason.UNAVAILABLE,
+                        expected.reason());
+            }
 
             persistence.releaseLoad.countDown();
             assertTrue(
@@ -168,19 +172,11 @@ public class TimingNodeTest {
                             1L,
                             TimeUnit.SECONDS));
 
-            TimingNodeTypes.Status ordered =
-                    node.logBook().process(
-                            LogBookQueries.status(),
-                            ReadConsistency.ORDERED);
+            assertEquals(TimingNodeTypes.State.CLOSED, node.status().state());
             assertEquals(
-                    TimingNodeTypes.State.OPEN,
-                    ordered.state());
-            assertEquals(
-                    TimingNodeTypes.State.OPEN,
-                    node.logBook().process(
-                            LogBookQueries.status(),
-                            ReadConsistency.CURRENT)
-                            .state());
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.open(new LocationId(24)));
+            assertEquals(TimingNodeTypes.State.OPEN, node.status().state());
         } finally {
             persistence.releaseLoad.countDown();
             activationCaller.join(1000L);
@@ -205,10 +201,7 @@ public class TimingNodeTest {
                     "initial ERROR status was not published after failed persisted-data load",
                     initialStatusPublished.await(1L, TimeUnit.SECONDS));
 
-            TimingNodeTypes.Status current =
-                    node.logBook().process(
-                            LogBookQueries.status(),
-                            ReadConsistency.CURRENT);
+            TimingNodeTypes.Status current = node.status();
             assertEquals(TimingNodeTypes.State.ERROR, current.state());
             assertEquals(1, current.problems().size());
             assertEquals(
@@ -377,7 +370,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void openCommandRequiresLocation() {
+    public void openRequiresLocation() {
         try {
             node(new NodeId("A")).open(null);
             fail("expected location validation failure");
@@ -455,7 +448,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void stateDependentOperationsAreDecidedInQueueOrder() throws Exception {
+    public void concurrentLifecycleOperationsRemainOrderedByTimingNode() throws Exception {
         SerialLane executor = newSerialLane(4, "timing-node-test");
         TimingNode node = node(
                 new NodeId("A"),
@@ -477,11 +470,9 @@ public class TimingNodeTest {
             final TimingNodeTypes.CloseResult[] closeResult = new TimingNodeTypes.CloseResult[1];
 
             Thread openCaller = new Thread(
-                    () -> openResult[0] =
-                            node.open(new LocationId(24)));
+                    () -> openResult[0] = node.open(new LocationId(24)));
             Thread closeCaller = new Thread(
-                    () -> closeResult[0] =
-                            node.close());
+                    () -> closeResult[0] = node.close());
 
             openCaller.start();
             long queueDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
@@ -491,11 +482,10 @@ public class TimingNodeTest {
             assertEquals(1, executor.metrics().snapshot().queueDepth());
 
             closeCaller.start();
-            queueDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
-            while (executor.metrics().snapshot().queueDepth() < 2 && System.nanoTime() < queueDeadline) {
-                Thread.yield();
-            }
-            assertEquals(2, executor.metrics().snapshot().queueDepth());
+            assertEquals(
+                    "close waits behind the in-flight node lifecycle operation",
+                    1,
+                    executor.metrics().snapshot().queueDepth());
 
             releaseBlocker.countDown();
 
