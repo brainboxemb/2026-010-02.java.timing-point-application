@@ -17,6 +17,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * lifecycle or architecture responsibility of its own.</p>
  */
 public final class TimingNodeTypes {
+    /** Prevents instantiation of this source-code grouping class. */
     private TimingNodeTypes() {
     }
 
@@ -71,18 +72,22 @@ public final class TimingNodeTypes {
             this.message = message.trim();
         }
 
+        /** Returns the stable machine-readable problem category. */
         public ProblemCode code() {
             return code;
         }
 
+        /** Returns the severity exposed to operators and presentation code. */
         public ProblemSeverity severity() {
             return severity;
         }
 
+        /** Returns the human-readable diagnostic detail for this problem. */
         public String message() {
             return message;
         }
 
+        /** Compares problem values by code, severity and diagnostic message. */
         @Override
         public boolean equals(Object other) {
             if (this == other) {
@@ -97,6 +102,7 @@ public final class TimingNodeTypes {
                     && message.equals(that.message);
         }
 
+        /** Returns a hash consistent with value equality. */
         @Override
         public int hashCode() {
             int result = code.hashCode();
@@ -143,23 +149,28 @@ public final class TimingNodeTypes {
         private final Outcome outcome;
         private final TimingData timingData;
 
+        /** Creates one immutable registration command result. */
         private RegistrationResult(Outcome outcome, TimingData timingData) {
             this.outcome = outcome;
             this.timingData = timingData;
         }
 
+        /** Creates a successful result carrying the committed TimingData record. */
         public static RegistrationResult committed(TimingData timingData) {
             return new RegistrationResult(Outcome.COMMITTED, timingData);
         }
 
+        /** Creates a result for a registration rejected because the node is not open. */
         public static RegistrationResult nodeNotOpen() {
             return new RegistrationResult(Outcome.NODE_NOT_OPEN, null);
         }
 
+        /** Returns the stable registration outcome category. */
         public Outcome outcome() {
             return outcome;
         }
 
+        /** Reports whether this result contains a committed TimingData record. */
         public boolean committed() {
             return outcome == Outcome.COMMITTED;
         }
@@ -226,14 +237,17 @@ public final class TimingNodeTypes {
                     new ArrayList<Problem>(problems));
         }
 
+        /** Returns the node identity represented by this status snapshot. */
         public NodeId timingNodeId() {
             return timingNodeId;
         }
 
+        /** Returns the logical node state represented by this snapshot. */
         public State state() {
             return state;
         }
 
+        /** Reports whether this status contains a location value. */
         public boolean hasLocation() {
             return locationId != null;
         }
@@ -246,14 +260,17 @@ public final class TimingNodeTypes {
             return locationId;
         }
 
+        /** Reports whether startup repaired an incomplete persisted-data tail. */
         public boolean timingDataTailRepaired() {
             return timingDataTailRepaired;
         }
 
+        /** Returns the immutable problem entries attached to this status. */
         public List<Problem> problems() {
             return problems;
         }
 
+        /** Reports whether this status exposes one or more problems. */
         public boolean hasProblems() {
             return !problems.isEmpty();
         }
@@ -264,6 +281,7 @@ public final class TimingNodeTypes {
      * available.
      */
     public static final class StartupException extends RuntimeException {
+        /** Creates a startup failure with its underlying cause. */
         StartupException(String message, Throwable cause) {
             super(message, cause);
         }
@@ -299,16 +317,19 @@ public final class TimingNodeTypes {
 
         private final Reason reason;
 
+        /** Creates an operation failure without a lower-level cause. */
         public OperationException(Reason reason, String message) {
             super(message);
             this.reason = reason;
         }
 
+        /** Creates an operation failure with the underlying execution cause. */
         public OperationException(Reason reason, String message, Throwable cause) {
             super(message, cause);
             this.reason = reason;
         }
 
+        /** Returns the stable caller-visible failure category. */
         public Reason reason() {
             return reason;
         }
