@@ -3,10 +3,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime.config;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
-import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingConfig;
-import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingFileConfig;
-import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevel;
-import io.github.brainboxemb.eventtiming.timingpoint.infra.loggingserver.LoggingServerConfig;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,7 +12,6 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -64,19 +59,8 @@ public final class YamlLoader {
     private static final String POWER = "power";
     private static final String TIMING_DATA = "timingData";
     private static final String LOGGING = "logging";
-    private static final String LEVEL = "level";
-    private static final String FILE = "file";
     private static final String PATH = "path";
     private static final String STORAGE_NODES = "nodes";
-    private static final String ROTATE_BYTES = "rotateBytes";
-    private static final String RETAINED_FILES = "retainedFiles";
-    private static final String LIVE = "live";
-    private static final String REMOTE_SHELL = "remoteShell";
-    private static final String API = "api";
-    private static final String HTTP = "http";
-    private static final String WEB_SOCKET = "webSocket";
-    private static final String BIND_ADDRESS = "bindAddress";
-    private static final String PORT = "port";
 
     private YamlLoader() {
     }
@@ -99,8 +83,8 @@ public final class YamlLoader {
 
         document = YamlTemplateResolver.resolve(document);
 
-        Map<?, ?> root = requireMapping(document, "configuration root");
-        rejectUnknownFields(
+        Map<?, ?> root = YamlValues.requireMapping(document, "configuration root");
+        YamlValues.rejectUnknownFields(
                 root,
                 "configuration root",
                 TIMING_SYSTEMS,
@@ -154,9 +138,9 @@ public final class YamlLoader {
         return new Config(
                 configuredSystems,
                 mapAntennaManagers(root.get(IO)),
-                mapPresentation(root.get(PRESENTATION)),
-                mapLogging(root.get(LOGGING)),
-                mapLoggingLive(root.get(LOGGING)));
+                YamlPresentationMapper.map(root.get(PRESENTATION)),
+                YamlLoggingMapper.map(root.get(LOGGING)),
+                YamlLoggingMapper.mapLive(root.get(LOGGING)));
     }
 
     private static List<TimingSystemStartup> mapTimingSystems(
@@ -168,7 +152,7 @@ public final class YamlLoader {
         }
 
         List<?> timingSystems =
-                requireList(rawTimingSystems, TIMING_SYSTEMS);
+                YamlValues.requireList(rawTimingSystems, TIMING_SYSTEMS);
         if (timingSystems.isEmpty()) {
             throw new IllegalArgumentException(
                     TIMING_SYSTEMS
@@ -186,8 +170,8 @@ public final class YamlLoader {
         for (int systemIndex = 0; systemIndex < timingSystems.size(); systemIndex++) {
             String timingSystemField = TIMING_SYSTEMS + "[" + systemIndex + "]";
             Map<?, ?> timingSystem =
-                    requireMapping(timingSystems.get(systemIndex), timingSystemField);
-            rejectUnknownFields(
+                    YamlValues.requireMapping(timingSystems.get(systemIndex), timingSystemField);
+            YamlValues.rejectUnknownFields(
                     timingSystem,
                     timingSystemField,
                     SYSTEM_ID,
@@ -205,7 +189,7 @@ public final class YamlLoader {
             }
 
             String timingSystemId =
-                    requireCompactId(
+                    YamlValues.requireCompactId(
                             timingSystem.get(
                                     SYSTEM_ID),
                             timingSystemField
@@ -240,7 +224,7 @@ public final class YamlLoader {
                             + "."
                             + TIMING_NODES;
             List<?> timingNodes =
-                    requireList(timingSystem.get(TIMING_NODES), timingNodesField);
+                    YamlValues.requireList(timingSystem.get(TIMING_NODES), timingNodesField);
             if (timingNodes.isEmpty()) {
                 throw new IllegalArgumentException(
                         timingNodesField
@@ -254,8 +238,8 @@ public final class YamlLoader {
             for (int nodeIndex = 0; nodeIndex < timingNodes.size(); nodeIndex++) {
                 String timingNodeField = timingNodesField + "[" + nodeIndex + "]";
                 Map<?, ?> timingNode =
-                        requireMapping(timingNodes.get(nodeIndex), timingNodeField);
-                rejectUnknownFields(
+                        YamlValues.requireMapping(timingNodes.get(nodeIndex), timingNodeField);
+                YamlValues.rejectUnknownFields(
                         timingNode,
                         timingNodeField,
                         NODE_ID,
@@ -272,7 +256,7 @@ public final class YamlLoader {
 
                 NodeId timingNodeId =
                         new NodeId(
-                                requireCompactId(
+                                YamlValues.requireCompactId(
                                         timingNode.get(
                                                 NODE_ID),
                                         timingNodeField
@@ -323,10 +307,10 @@ public final class YamlLoader {
         String field =
                 timingNodeField + "." + TAG_PROCESSING;
         Map<?, ?> values =
-                requireMapping(
+                YamlValues.requireMapping(
                         timingNode.get(TAG_PROCESSING),
                         field);
-        rejectUnknownFields(
+        YamlValues.rejectUnknownFields(
                 values,
                 field,
                 QUIET_TIMEOUT_MILLIS,
@@ -439,36 +423,36 @@ public final class YamlLoader {
         if (rawIo == null) {
             return Collections.emptyList();
         }
-        Map<?, ?> io = requireMapping(rawIo, IO);
+        Map<?, ?> io = YamlValues.requireMapping(rawIo, IO);
         if (!io.containsKey(DEVICES)) {
             return Collections.emptyList();
         }
-        Map<?, ?> devices = requireMapping(io.get(DEVICES), IO + "." + DEVICES);
-        rejectUnknownFields(devices, IO + "." + DEVICES, ANTENNA_MANAGERS);
+        Map<?, ?> devices = YamlValues.requireMapping(io.get(DEVICES), IO + "." + DEVICES);
+        YamlValues.rejectUnknownFields(devices, IO + "." + DEVICES, ANTENNA_MANAGERS);
         if (!devices.containsKey(ANTENNA_MANAGERS)) {
             return Collections.emptyList();
         }
         String root = IO + "." + DEVICES + "." + ANTENNA_MANAGERS;
-        List<?> bindings = requireList(devices.get(ANTENNA_MANAGERS), root);
+        List<?> bindings = YamlValues.requireList(devices.get(ANTENNA_MANAGERS), root);
         List<AntennaManagerConfig> result = new ArrayList<AntennaManagerConfig>();
         for (int bindingIndex = 0; bindingIndex < bindings.size(); bindingIndex++) {
             String field = root + "[" + bindingIndex + "]";
-            Map<?, ?> binding = requireMapping(bindings.get(bindingIndex), field);
-            rejectUnknownFields(binding, field, SYSTEM_ID, ANTENNAS, INVENTORY_GROUP);
-            String systemId = requireCompactId(binding.get(SYSTEM_ID),
+            Map<?, ?> binding = YamlValues.requireMapping(bindings.get(bindingIndex), field);
+            YamlValues.rejectUnknownFields(binding, field, SYSTEM_ID, ANTENNAS, INVENTORY_GROUP);
+            String systemId = YamlValues.requireCompactId(binding.get(SYSTEM_ID),
                     field + "." + SYSTEM_ID);
             String antennasField = field + "." + ANTENNAS;
-            List<?> antennas = requireList(binding.get(ANTENNAS), antennasField);
+            List<?> antennas = YamlValues.requireList(binding.get(ANTENNAS), antennasField);
             List<AntennaManagerConfig.AntennaConfig> configured =
                     new ArrayList<AntennaManagerConfig.AntennaConfig>();
             for (int antennaIndex = 0; antennaIndex < antennas.size(); antennaIndex++) {
                 String antennaField = antennasField + "[" + antennaIndex + "]";
-                Map<?, ?> values = requireMapping(antennas.get(antennaIndex), antennaField);
-                rejectUnknownFields(values, antennaField,
+                Map<?, ?> values = YamlValues.requireMapping(antennas.get(antennaIndex), antennaField);
+                YamlValues.rejectUnknownFields(values, antennaField,
                         "id", PROVIDER, TYPE, TIMING_NODES, POWER);
                 AntennaId antennaId = new AntennaId(
-                        requireCompactId(values.get("id"), antennaField + ".id"));
-                String type = requireString(values.get(TYPE), antennaField + "." + TYPE);
+                        YamlValues.requireCompactId(values.get("id"), antennaField + ".id"));
+                String type = YamlValues.requireString(values.get(TYPE), antennaField + "." + TYPE);
                 if (!"rfid".equals(type)) {
                     throw new IllegalArgumentException(antennaField + ".type must be rfid");
                 }
@@ -476,24 +460,24 @@ public final class YamlLoader {
                     throw new IllegalArgumentException(
                             antennaField + ".power is not supported without an external power registry");
                 }
-                List<?> rawNodes = requireList(values.get(TIMING_NODES),
+                List<?> rawNodes = YamlValues.requireList(values.get(TIMING_NODES),
                         antennaField + "." + TIMING_NODES);
                 List<NodeId> nodes = new ArrayList<NodeId>();
                 for (Object rawNode : rawNodes) {
-                    nodes.add(new NodeId(requireCompactId(
+                    nodes.add(new NodeId(YamlValues.requireCompactId(
                             rawNode, antennaField + "." + TIMING_NODES)));
                 }
                 configured.add(new AntennaManagerConfig.AntennaConfig(
                         antennaId,
-                        requireString(values.get(PROVIDER), antennaField + "." + PROVIDER),
+                        YamlValues.requireString(values.get(PROVIDER), antennaField + "." + PROVIDER),
                         nodes));
             }
             List<AntennaId> members = new ArrayList<AntennaId>();
             Duration interval = null;
             if (binding.containsKey(INVENTORY_GROUP)) {
                 String groupField = field + "." + INVENTORY_GROUP;
-                Map<?, ?> group = requireMapping(binding.get(INVENTORY_GROUP), groupField);
-                rejectUnknownFields(group, groupField, MEMBERS, INTERVAL_MILLIS);
+                Map<?, ?> group = YamlValues.requireMapping(binding.get(INVENTORY_GROUP), groupField);
+                YamlValues.rejectUnknownFields(group, groupField, MEMBERS, INTERVAL_MILLIS);
                 Object rawMembers = group.get(MEMBERS);
                 if (!(rawMembers instanceof List)) {
                     throw new IllegalArgumentException(groupField + ".members must be a YAML list");
@@ -518,8 +502,8 @@ public final class YamlLoader {
                     "Missing required configuration field: " + IO);
         }
 
-        Map<?, ?> io = requireMapping(rawIo, IO);
-        rejectUnknownFields(io, IO, STORAGE, DEVICES);
+        Map<?, ?> io = YamlValues.requireMapping(rawIo, IO);
+        YamlValues.rejectUnknownFields(io, IO, STORAGE, DEVICES);
         if (!io.containsKey(STORAGE)) {
             throw new IllegalArgumentException(
                     "Missing required configuration field: "
@@ -528,10 +512,10 @@ public final class YamlLoader {
 
         String storageField = IO + "." + STORAGE;
         Map<?, ?> storage =
-                requireMapping(
+                YamlValues.requireMapping(
                         io.get(STORAGE),
                         storageField);
-        rejectUnknownFields(
+        YamlValues.rejectUnknownFields(
                 storage,
                 storageField,
                 TIMING_DATA);
@@ -546,10 +530,10 @@ public final class YamlLoader {
         String timingDataField =
                 storageField + "." + TIMING_DATA;
         Map<?, ?> timingData =
-                requireMapping(
+                YamlValues.requireMapping(
                         storage.get(TIMING_DATA),
                         timingDataField);
-        rejectUnknownFields(
+        YamlValues.rejectUnknownFields(
                 timingData,
                 timingDataField,
                 PATH,
@@ -601,7 +585,7 @@ public final class YamlLoader {
         String nodesField =
                 timingDataField + "." + STORAGE_NODES;
         Map<?, ?> bindings =
-                requireMapping(
+                YamlValues.requireMapping(
                         timingData.get(STORAGE_NODES),
                         nodesField);
         if (bindings.isEmpty()) {
@@ -633,10 +617,10 @@ public final class YamlLoader {
             String bindingField =
                     nodesField + "." + bindingName;
             Map<?, ?> binding =
-                    requireMapping(
+                    YamlValues.requireMapping(
                             entry.getValue(),
                             bindingField);
-            rejectUnknownFields(
+            YamlValues.rejectUnknownFields(
                     binding,
                     bindingField,
                     NODE_ID,
@@ -644,7 +628,7 @@ public final class YamlLoader {
 
             NodeId nodeId =
                     new NodeId(
-                            requireString(
+                            YamlValues.requireString(
                                     binding.get(NODE_ID),
                                     bindingField
                                             + "."
@@ -697,7 +681,7 @@ public final class YamlLoader {
             Object rawPath,
             String field) {
         String value =
-                requireTemplateString(
+                YamlValues.requireTemplateString(
                         rawPath,
                         field)
                         .trim();
@@ -745,195 +729,6 @@ public final class YamlLoader {
                 path);
     }
 
-    private static LoggingConfig mapLogging(Object rawLogging) {
-        if (rawLogging == null) {
-            return null;
-        }
-
-        Map<?, ?> logging = requireMapping(rawLogging, LOGGING);
-        rejectUnknownFields(logging, LOGGING, LEVEL, FILE, LIVE);
-        if (!logging.containsKey(LEVEL)) {
-            throw new IllegalArgumentException(
-                    "Missing required configuration field: " + LOGGING + "." + LEVEL);
-        }
-        if (!logging.containsKey(FILE)) {
-            throw new IllegalArgumentException(
-                    "Missing required configuration field: " + LOGGING + "." + FILE);
-        }
-
-        String rawLevel = requireString(logging.get(LEVEL), LOGGING + "." + LEVEL);
-        LoggingLevel level;
-        try {
-            level = LoggingLevel.valueOf(rawLevel.trim().toUpperCase());
-        } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException(
-                    LOGGING + "." + LEVEL + " must be TRACE, DEBUG, INFO, WARN or ERROR",
-                    ex);
-        }
-
-        return new LoggingConfig(level, mapLoggingFile(logging.get(FILE)));
-    }
-
-    private static LoggingFileConfig mapLoggingFile(Object rawFile) {
-        String field = LOGGING + "." + FILE;
-        Map<?, ?> values = requireMapping(rawFile, field);
-        rejectUnknownFields(values, field, PATH, ROTATE_BYTES, RETAINED_FILES);
-        return new LoggingFileConfig(
-                requireString(values.get(PATH), field + "." + PATH),
-                requirePositiveInteger(values.get(ROTATE_BYTES), field + "." + ROTATE_BYTES),
-                requirePositiveInteger(values.get(RETAINED_FILES), field + "." + RETAINED_FILES));
-    }
-
-    private static LoggingServerConfig mapLoggingLive(Object rawLogging) {
-        if (rawLogging == null) {
-            return null;
-        }
-        Map<?, ?> logging = requireMapping(rawLogging, LOGGING);
-        Object rawLive = logging.get(LIVE);
-        if (rawLive == null) {
-            return null;
-        }
-        String field = LOGGING + "." + LIVE;
-        Map<?, ?> values = endpointMapping(rawLive, field);
-        return new LoggingServerConfig(
-                requireString(values.get(BIND_ADDRESS), field + "." + BIND_ADDRESS),
-                requirePort(values.get(PORT), field + "." + PORT));
-    }
-
-    private static Presentation mapPresentation(Object rawPresentation) {
-        if (rawPresentation == null) {
-            return new Presentation(null, null);
-        }
-
-        Map<?, ?> presentation = requireMapping(rawPresentation, PRESENTATION);
-        rejectUnknownFields(presentation, PRESENTATION, REMOTE_SHELL, API);
-
-        return new Presentation(
-                mapRemoteShell(presentation.get(REMOTE_SHELL)),
-                mapApi(presentation.get(API)));
-    }
-
-    private static Presentation.RemoteShell mapRemoteShell(Object raw) {
-        if (raw == null) {
-            return null;
-        }
-        Map<?, ?> values = endpointMapping(raw, PRESENTATION + "." + REMOTE_SHELL);
-        return new Presentation.RemoteShell(
-                requireString(values.get(BIND_ADDRESS),
-                        PRESENTATION + "." + REMOTE_SHELL + "." + BIND_ADDRESS),
-                requirePort(values.get(PORT),
-                        PRESENTATION + "." + REMOTE_SHELL + "." + PORT));
-    }
-
-    private static Api mapApi(Object raw) {
-        if (raw == null) {
-            return null;
-        }
-        String field = PRESENTATION + "." + API;
-        Map<?, ?> values = requireMapping(raw, field);
-        rejectUnknownFields(values, field, HTTP, WEB_SOCKET);
-        return new Api(
-                mapApiHttp(values.get(HTTP)),
-                mapApiWebSocket(values.get(WEB_SOCKET)));
-    }
-
-    private static Api.Http mapApiHttp(Object raw) {
-        if (raw == null) {
-            return null;
-        }
-        String field = PRESENTATION + "." + API + "." + HTTP;
-        Map<?, ?> values = endpointMapping(raw, field);
-        return new Api.Http(
-                requireString(values.get(BIND_ADDRESS), field + "." + BIND_ADDRESS),
-                requirePort(values.get(PORT), field + "." + PORT));
-    }
-
-    private static Api.WebSocket mapApiWebSocket(Object raw) {
-        if (raw == null) {
-            return null;
-        }
-        String field = PRESENTATION + "." + API + "." + WEB_SOCKET;
-        Map<?, ?> values = endpointMapping(raw, field);
-        return new Api.WebSocket(
-                requireString(values.get(BIND_ADDRESS), field + "." + BIND_ADDRESS),
-                requirePort(values.get(PORT), field + "." + PORT));
-    }
-
-    private static Map<?, ?> endpointMapping(Object raw, String field) {
-        Map<?, ?> values = requireMapping(raw, field);
-        rejectUnknownFields(values, field, BIND_ADDRESS, PORT);
-        if (!values.containsKey(BIND_ADDRESS)) {
-            throw new IllegalArgumentException(
-                    "Missing required configuration field: " + field + "." + BIND_ADDRESS);
-        }
-        if (!values.containsKey(PORT)) {
-            throw new IllegalArgumentException(
-                    "Missing required configuration field: " + field + "." + PORT);
-        }
-        return values;
-    }
-
-    private static int requirePositiveInteger(Object value, String field) {
-        if (!(value instanceof Integer) || ((Integer) value).intValue() <= 0) {
-            throw new IllegalArgumentException(field + " must be a positive YAML integer");
-        }
-        return ((Integer) value).intValue();
-    }
-
-    private static int requirePort(Object value, String field) {
-        if (!(value instanceof Integer)) {
-            throw new IllegalArgumentException(field + " must be a YAML integer");
-        }
-        return ((Integer) value).intValue();
-    }
-
-    /** Topology has ordered YAML lists; identities live only in explicit ID fields. */
-    private static List<?> requireList(Object value, String field) {
-        if (!(value instanceof List)) {
-            throw new IllegalArgumentException(field + " must be a YAML list");
-        }
-        return (List<?>) value;
-    }
-
-    private static Map<?, ?> requireMapping(Object value, String field) {
-        if (!(value instanceof Map)) {
-            throw new IllegalArgumentException(field + " must be a YAML mapping");
-        }
-        return (Map<?, ?>) value;
-    }
-
-    /**
-     * Bare numeric YAML scalars such as 9 are parsed as Integer.
-     * The effective IDs remain textual (9 and "9" mean the same thing).
-     */
-    private static String requireCompactId(Object value, String field) {
-        if (value instanceof Integer) {
-            return Integer.toString(((Integer) value).intValue());
-        }
-        return requireString(value, field);
-    }
-
-    private static String requireString(Object value, String field) {
-        String result =
-                requireTemplateString(
-                        value,
-                        field);
-        YamlTemplateResolver.rejectContextPlaceholders(
-                result,
-                field);
-        return result;
-    }
-
-    private static String requireTemplateString(
-            Object value,
-            String field) {
-        if (!(value instanceof String)) {
-            throw new IllegalArgumentException(
-                    field + " must be a YAML string");
-        }
-        return (String) value;
-    }
-
     private static String providerId(
             Map<?, ?> timingSystem,
             String timingSystemField,
@@ -943,7 +738,7 @@ public final class YamlLoader {
         }
 
         String value =
-                requireString(
+                YamlValues.requireString(
                         timingSystem.get(name),
                         timingSystemField + "." + name)
                         .trim();
@@ -957,18 +752,6 @@ public final class YamlLoader {
         return value;
     }
 
-    private static void rejectUnknownFields(
-            Map<?, ?> values,
-            String field,
-            String... allowedFields) {
-        for (Object key : values.keySet()) {
-            if (!(key instanceof String)
-                    || !Arrays.asList(allowedFields).contains((String) key)) {
-                throw new IllegalArgumentException(
-                        "Unsupported configuration field in " + field + ": " + key);
-            }
-        }
-    }
     private static final class TimingNodeStartup {
         private final String timingSystemId;
         private final NodeId timingNodeId;
