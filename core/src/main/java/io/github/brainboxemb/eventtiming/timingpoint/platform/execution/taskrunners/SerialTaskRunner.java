@@ -17,6 +17,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+
 /**
  * Runs {@link YieldingTask}s on one existing {@link SerialLane}.
  *
@@ -309,16 +312,9 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
 
     /** Starts one cooperative task and returns a Future completed when the task finishes. */
     @Override
-    public CompletableFuture<Void> runTask(
-            YieldingTask task) {
-        if (task == null) {
-            throw new IllegalArgumentException(
-                    "task must not be null");
-        }
-
-        return new TaskRun(
-                task)
-                .start();
+    public CompletableFuture<Void> runTask(YieldingTask task) {
+        checkArgument(task != null, "task must not be null");
+        return new TaskRun(task).start();
     }
 
     /** Starts the owned serial lane before tasks or ordinary operations are submitted. */
@@ -327,22 +323,14 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
     }
 
     /** Queues one ordinary short operation on the same serial lane without waiting. */
-    public void execute(
-            Runnable operation) {
+    public void execute(Runnable operation) {
         lane.execute(operation);
     }
 
     /** Waits for one cooperative task completion using this runner's configured timeout. */
-    public void await(
-            CompletableFuture<Void> future) {
-        if (timeoutNanos <= 0L) {
-            throw new IllegalStateException(
-                    "This SerialTaskRunner has no configured wait timeout");
-        }
-        if (future == null) {
-            throw new IllegalArgumentException(
-                    "future must not be null");
-        }
+    public void await(CompletableFuture<Void> future) {
+        checkState(timeoutNanos > 0L, "This SerialTaskRunner has no configured wait timeout");
+        checkArgument(future != null, "future must not be null");
 
         try {
             future.get(
@@ -412,33 +400,21 @@ public final class SerialTaskRunner implements YieldingTaskRunner {
     }
 
     /** Validates the mandatory serial lane dependency. */
-    private static SerialLane requireLane(
-            SerialLane lane) {
-        if (lane == null) {
-            throw new IllegalArgumentException(
-                    "lane must not be null");
-        }
+    private static SerialLane requireLane(SerialLane lane) {
+        checkArgument(lane != null, "lane must not be null");
         return lane;
     }
 
     /** Validates the scheduled-executor dependency when delayed task steps are enabled. */
     private static ScheduledExecutorService requireScheduledExecutor(
             ScheduledExecutorService scheduledExecutor) {
-        if (scheduledExecutor == null) {
-            throw new IllegalArgumentException("scheduledExecutor must not be null");
-        }
+        checkArgument(scheduledExecutor != null, "scheduledExecutor must not be null");
         return scheduledExecutor;
     }
 
     /** Converts and validates the optional public wait timeout. */
-    private static long timeoutNanos(
-            Duration timeout) {
-        if (timeout == null
-                || timeout.isZero()
-                || timeout.isNegative()) {
-            throw new IllegalArgumentException(
-                    "timeout must be positive");
-        }
+    private static long timeoutNanos(Duration timeout) {
+        checkArgument(timeout != null && !timeout.isZero() && !timeout.isNegative(), "timeout must be positive");
         try {
             return timeout.toNanos();
         } catch (ArithmeticException ex) {
