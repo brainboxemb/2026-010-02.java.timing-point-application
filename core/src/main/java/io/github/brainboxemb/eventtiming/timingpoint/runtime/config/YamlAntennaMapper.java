@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime.config;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 
 import java.time.Duration;
@@ -9,7 +8,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-/** Maps antenna-manager device routing from the IO YAML section. */
+/** Maps antenna-manager devices from the IO YAML section. */
 final class YamlAntennaMapper {
     private static final String IO = "io";
     private static final String DEVICES = "devices";
@@ -18,7 +17,6 @@ final class YamlAntennaMapper {
     private static final String SYSTEM_ID = "systemId";
     private static final String PROVIDER = "provider";
     private static final String TYPE = "type";
-    private static final String TIMING_NODES = "timingNodes";
     private static final String POWER = "power";
     private static final String INVENTORY_GROUP = "inventoryGroup";
     private static final String MEMBERS = "members";
@@ -27,7 +25,7 @@ final class YamlAntennaMapper {
     private YamlAntennaMapper() {
     }
 
-    /** Maps optional antenna-manager routing and inventory-group bindings. */
+    /** Maps optional antenna-manager devices and inventory-group bindings. */
     static List<AntennaManagerConfig> map(Object rawIo) {
         if (rawIo == null) {
             return Collections.emptyList();
@@ -130,7 +128,6 @@ final class YamlAntennaMapper {
                         "id",
                         PROVIDER,
                         TYPE,
-                        TIMING_NODES,
                         POWER);
 
                 AntennaId antennaId =
@@ -158,25 +155,6 @@ final class YamlAntennaMapper {
                                     + ".power is not supported without an external power registry");
                 }
 
-                List<?> rawNodes =
-                        YamlValues.requireList(
-                                values.get(
-                                        TIMING_NODES),
-                                antennaField
-                                        + "."
-                                        + TIMING_NODES);
-                List<NodeId> nodes =
-                        new ArrayList<NodeId>();
-                for (Object rawNode : rawNodes) {
-                    nodes.add(
-                            new NodeId(
-                                    YamlValues.requireCompactId(
-                                            rawNode,
-                                            antennaField
-                                                    + "."
-                                                    + TIMING_NODES)));
-                }
-
                 configured.add(
                         new AntennaManagerConfig.AntennaConfig(
                                 antennaId,
@@ -185,8 +163,7 @@ final class YamlAntennaMapper {
                                                 PROVIDER),
                                         antennaField
                                                 + "."
-                                                + PROVIDER),
-                                nodes));
+                                                + PROVIDER)));
             }
 
             List<AntennaId> members =
