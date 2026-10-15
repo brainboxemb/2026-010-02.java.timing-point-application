@@ -59,6 +59,7 @@ final class TimingSystemComposer {
             AntennaManagerConfig managerBinding,
             AntennaSet implicitAntennas,
             TimeSource timeSource) {
+
         TimingNodeList nodes = createNodes(system, timeSource);
         if (managerBinding == null && !implicitAntennas.isEmpty() && nodes.size() != 1) {
             throw new IllegalArgumentException(
@@ -107,6 +108,7 @@ final class TimingSystemComposer {
     private static AntennaSet createAntennas(
             AntennaManagerConfig binding,
             AntennaSet implicitAntennas) {
+
         if (binding == null) {
             return implicitAntennas;
         }
