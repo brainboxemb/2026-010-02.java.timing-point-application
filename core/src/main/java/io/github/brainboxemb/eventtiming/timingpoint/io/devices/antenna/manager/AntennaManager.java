@@ -148,8 +148,8 @@ public final class AntennaManager implements YieldingTask {
     /**
      * Explicitly requests inventory to become enabled.
      *
-     * <p>Unlike {@link #setInventoryEnabled(boolean)}, repeating this request is
-     * a new retry request.</p>
+     * <p>Unlike re-publishing the same desired setting, repeating this call is
+     * an explicit new retry request.</p>
      */
     public boolean requestEnableInventory() {
         return requestInventory(true);
