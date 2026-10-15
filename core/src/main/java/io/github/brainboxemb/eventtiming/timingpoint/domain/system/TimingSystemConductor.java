@@ -62,20 +62,15 @@ public final class TimingSystemConductor extends AbstractConductor implements Yi
                     "TimingNode " + node.timingNodeId().value(),
                     node::activate,
                     node::deactivate);
-            node.logBook().statusChangedEvent().subscribe(
-                    status -> onTimingNodeStatusChanged(node, status));
+            node.logBook().statusChangedEvent().subscribe(this::onTimingNodeStatusChanged);
         }
     }
 
-    /** Accepts one authoritative post-change TimingNode Status. */
-    private void onTimingNodeStatusChanged(TimingNode node, Status status) {
+    /** Wakes system reconciliation after one TimingNode Status change. */
+    private void onTimingNodeStatusChanged(Status status) {
 
         if (status == null) {
             throw new IllegalArgumentException("status must not be null");
-        }
-
-        if (!containsNode(node)) {
-            throw new IllegalArgumentException("TimingNode does not belong to this TimingSystem");
         }
 
         /*
@@ -132,11 +127,6 @@ public final class TimingSystemConductor extends AbstractConductor implements Yi
             antennaSettings.update(settingsUpdate);
         }
         return TaskStep.done();
-    }
-
-    private boolean containsNode(TimingNode node) {
-
-        return nodes.contains(node);
     }
 
     private void onControlTaskFailure(Throwable failure) {
