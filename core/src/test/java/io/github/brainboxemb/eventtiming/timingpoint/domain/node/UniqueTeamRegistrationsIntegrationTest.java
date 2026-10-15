@@ -75,7 +75,7 @@ public class UniqueTeamRegistrationsIntegrationTest {
                     components.upstreamTaskState().uniqueTeamRegistrationCount());
             assertEquals(
                     Integer.valueOf(2),
-                    node.logBook().query(
+                    node.logBook().process(
                             LogBookQueries.timingDataCount()));
         } finally {
             node.deactivate();
