@@ -80,15 +80,15 @@ final class TimingSystemComposer {
                 antennaSettings,
                 executors.createTimingSystemConductorLane());
 
-        Map<AntennaId, TimingNodeList> observationRoutes =
-                createObservationRoutes(antennaSet, managerBinding, nodes);
+        Map<AntennaId, TimingNodeList> antennaToNodes =
+                mapAntennasToNodes(antennaSet, managerBinding, nodes);
 
         return new TimingSystem(
                 system.configuration().timingSystemId(),
                 nodes,
                 antennaManager,
                 timingSystemConductor,
-                observationRoutes);
+                antennaToNodes);
     }
 
     /** Composes all TimingNodes configured for this resolved timing system. */
@@ -127,8 +127,8 @@ final class TimingSystemComposer {
         return antennas;
     }
 
-    /** Builds pure antenna-to-node routing data for the TimingSystem owner. */
-    private static Map<AntennaId, TimingNodeList> createObservationRoutes(
+    /** Builds the antenna-to-node mapping consumed by the TimingSystem. */
+    private static Map<AntennaId, TimingNodeList> mapAntennasToNodes(
             AntennaSet antennas,
             AntennaManagerConfig binding,
             TimingNodeList nodes) {
