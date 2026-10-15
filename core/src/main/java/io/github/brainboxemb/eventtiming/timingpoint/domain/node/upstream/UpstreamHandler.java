@@ -29,8 +29,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * these domain helpers owns a transport thread or executor.</p>
  */
 public final class UpstreamHandler {
-    private static final Logger LOG =
-            LoggerFactory.getLogger(UpstreamHandler.class);
+    private static final Logger LOG = LoggerFactory.getLogger(UpstreamHandler.class);
 
     private final NodeId nodeId;
     private final SerialLane dataSerialLane;
@@ -67,8 +66,7 @@ public final class UpstreamHandler {
         this.taskSerialLane = taskSerialLane;
         this.stream = stream;
         this.heartbeat = new UpstreamHeartbeat(nodeId, stream);
-        this.upstreamDataSync =
-                new UpstreamDataSync(nodeId, stream, taskState);
+        this.upstreamDataSync = new UpstreamDataSync(nodeId, stream, taskState);
         this.logBookSync = new LogBookSync(nodeId, stream, logBook);
     }
 
@@ -160,8 +158,7 @@ public final class UpstreamHandler {
             case PING:
                 checkArgument(data instanceof UpstreamData.Ping,
                         "PING has incompatible semantic type");
-                UpstreamData.Ping ping =
-                        (UpstreamData.Ping) data;
+                UpstreamData.Ping ping = (UpstreamData.Ping) data;
                 Runnable handlePing = () -> heartbeat.handle(ping);
                 executeTaskOrWarn(handlePing, "PING");
                 break;
@@ -200,29 +197,22 @@ public final class UpstreamHandler {
     }
 
     /** Executes one Task Lane operation and contains rejection at the upstream callback boundary. */
-    private void executeTaskOrWarn(
-            Runnable task,
-            String operation) {
-        Runnable queueTask =
-                () -> taskSerialLane.execute(task);
-        Consumer<RejectedExecutionException> onRejected =
-                ex -> LOG.warn(
-                        "Dropped upstream {} for node {} because the Task Lane rejected execution",
-                        operation,
-                        nodeId.value(),
-                        ex);
+    private void executeTaskOrWarn(Runnable task, String operation) {
+        Runnable queueTask = () -> taskSerialLane.execute(task);
+        Consumer<RejectedExecutionException> onRejected = ex -> LOG.warn(
+                "Dropped upstream {} for node {} because the Task Lane rejected execution",
+                operation,
+                nodeId.value(),
+                ex);
 
-        SafeExecute.runOrHandleRejection(
-                queueTask,
-                onRejected);
+        SafeExecute.runOrHandleRejection(queueTask, onRejected);
     }
 
     /**
      * Keeps exactly one upstream operation pending while work remains.
      */
     private void scheduleNextTurnOrRelease() {
-        boolean workRemaining =
-                stream.isAvailable() && (logBookSync.syncPending() || stream.hasMessage());
+        boolean workRemaining = stream.isAvailable() && (logBookSync.syncPending() || stream.hasMessage());
         boolean nextTurnScheduled = false;
 
         if (workRemaining) {
