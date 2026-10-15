@@ -12,7 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTaskController;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.SerialTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.util.function.Consumer;
@@ -42,7 +42,7 @@ public final class TimingSystemConductor extends AbstractConductor implements Yi
     public TimingSystemConductor(
             TimingNodeList timingNodes,
             AntennaSettings antennaSettings,
-            SerialLane coordinationLane) {
+            TaskSerialLane coordinationLane) {
 
         super(coordinationLane);
 
@@ -53,7 +53,7 @@ public final class TimingSystemConductor extends AbstractConductor implements Yi
         this.nodes = timingNodes;
         this.antennaSettings = antennaSettings;
         taskController = new YieldingTaskController(
-                new SerialTaskRunner(coordinationLane()),
+                coordinationLane,
                 this,
                 this::onControlTaskFailure);
 
