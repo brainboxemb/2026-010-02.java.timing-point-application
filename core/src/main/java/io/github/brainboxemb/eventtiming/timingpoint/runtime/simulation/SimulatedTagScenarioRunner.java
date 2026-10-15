@@ -240,10 +240,7 @@ public final class SimulatedTagScenarioRunner
         if (nextIndex
                 >= scenario.steps.size()) {
             finishScenario();
-            return;
-        }
-
-        if (!scheduleStep(
+        } else if (!scheduleStep(
                 scenario,
                 nextIndex,
                 baseTime,
