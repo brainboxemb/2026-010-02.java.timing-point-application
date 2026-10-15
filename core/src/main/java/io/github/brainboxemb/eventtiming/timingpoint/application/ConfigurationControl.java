@@ -15,8 +15,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Application use-case boundary for current configuration query and runtime
@@ -28,8 +26,6 @@ import org.slf4j.LoggerFactory;
  * semantics for reading and changing them.</p>
  */
 public final class ConfigurationControl {
-    private static final Logger LOG =
-            LoggerFactory.getLogger(ConfigurationControl.class);
 
     public enum UpdateResult {
         APPLIED,
@@ -419,15 +415,9 @@ public final class ConfigurationControl {
     private void publishChange(
             NodeId nodeId,
             DynamicConfiguration<TagProcessingPolicy> configuration) {
-        Event.DeliveryReport report =
-                changes.emit(
-                        new Change(
-                                nodeId,
-                                view(configuration)));
-        if (!report.successful()) {
-            LOG.warn(
-                    "ConfigurationControl change listener failure(s): {}",
-                    report.failureCount());
-        }
+        changes.emit(
+                new Change(
+                        nodeId,
+                        view(configuration)));
     }
 }
