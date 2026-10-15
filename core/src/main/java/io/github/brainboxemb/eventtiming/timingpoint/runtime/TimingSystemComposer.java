@@ -96,11 +96,11 @@ final class TimingSystemComposer {
             TimingSystemResolvedData system,
             TimeSource timeSource) {
 
-        TimingNodeList nodes = new TimingNodeList();
+        TimingNodeList.Builder nodes = TimingNodeList.builder();
         for (Config.TimingNodeConfig nodeConfig : system.configuration().timingNodes()) {
             nodes.add(nodeComposer.compose(nodeConfig, system, timeSource));
         }
-        return nodes;
+        return nodes.build();
     }
 
     /** Creates the system antenna set from explicit binding or implicit composition input. */
@@ -147,13 +147,13 @@ final class TimingSystemComposer {
             // Compatibility for the one-system, one-node test/Windows setup.
             TimingNode node = nodes.get(0);
             for (AntennaId antennaId : antennas.antennaIds()) {
-                routes.put(antennaId, new TimingNodeList().add(node));
+                routes.put(antennaId, TimingNodeList.of(node));
             }
             return routes;
         }
 
         for (AntennaManagerConfig.AntennaConfig antenna : binding.antennas()) {
-            TimingNodeList targets = new TimingNodeList();
+            TimingNodeList.Builder targets = TimingNodeList.builder();
             for (NodeId target : antenna.timingNodes()) {
                 TimingNode node = byId.get(target);
                 if (node == null) {
@@ -164,7 +164,7 @@ final class TimingSystemComposer {
                 }
                 targets.add(node);
             }
-            routes.put(antenna.id(), targets);
+            routes.put(antenna.id(), targets.build());
         }
         return routes;
     }
