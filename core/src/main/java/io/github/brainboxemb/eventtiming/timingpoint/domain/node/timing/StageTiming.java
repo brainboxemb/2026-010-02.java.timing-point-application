@@ -18,6 +18,7 @@ import java.util.Comparator;
 import java.util.List;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
 
 /**
  * Derives the current elapsed stage times and ranking for one TimingNode.
@@ -32,10 +33,7 @@ public final class StageTiming {
     private final StageStartTimes stageStartTimes;
 
     /** Creates the read-side timing calculator over current reference and race data. */
-    public StageTiming(
-            EventData eventData,
-            TeamAssignments teamAssignments,
-            StageStartTimes stageStartTimes) {
+    public StageTiming(EventData eventData, TeamAssignments teamAssignments, StageStartTimes stageStartTimes) {
         checkArgument(eventData != null, "eventData must not be null");
         checkArgument(teamAssignments != null, "teamAssignments must not be null");
         checkArgument(stageStartTimes != null, "stageStartTimes must not be null");
@@ -71,9 +69,7 @@ public final class StageTiming {
             }
 
             TimingTimestamp registrationTime = registration.effectiveTime();
-            if (!registrationTime.isAbsolute()) {
-                throw new IllegalStateException("committed TimingData effectiveTime must be absolute");
-            }
+            checkState(registrationTime.isAbsolute(), "committed TimingData effectiveTime must be absolute");
 
             TimingTimestamp resolvedStart = resolveStart(start, registrationTime, raceTimeZone);
             resolved.add(new StageTime(
