@@ -1,22 +1,21 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import java.util.List;
 import java.util.function.Consumer;
 
 /**
  * Standard read operations owned by the LogBook/Data Lane component.
  *
- * <p>Status and the published LogBook source head support CURRENT direct reads
- * as well as ORDERED reads. Mutable LogBook record/range access remains ORDERED.</p>
+ * <p>Recovery status and the published LogBook source head support CURRENT
+ * direct reads as well as ORDERED reads. Mutable record/range access remains ORDERED.</p>
  */
 public final class LogBookQueries {
-    private static final LogBookQuery<Status> STATUS =
+    private static final LogBookQuery<LogBookRecoveryStatus> RECOVERY_STATUS =
             new LogBookQuery<>(
-                    "status",
-                    LogBookState::status,
-                    LogBook::publishedStatus);
+                    "recoveryStatus",
+                    LogBookState::recoveryStatus,
+                    LogBook::publishedRecoveryStatus);
     private static final LogBookQuery<Integer> TIMING_DATA_COUNT =
             new LogBookQuery<>(
                     "timingDataCount",
@@ -31,9 +30,9 @@ public final class LogBookQueries {
     private LogBookQueries() {
     }
 
-    /** Returns the node's logical status snapshot. */
-    public static LogBookQuery<Status> status() {
-        return STATUS;
+    /** Returns the completed LogBook startup recovery result. */
+    public static LogBookQuery<LogBookRecoveryStatus> recoveryStatus() {
+        return RECOVERY_STATUS;
     }
 
     /** Returns the number of committed TimingData records. */
@@ -71,7 +70,7 @@ public final class LogBookQueries {
      * Visits at most {@code limit} LogBook records on the Data Lane.
      *
      * <p>The visitor must be short/non-blocking and must not make a result-bearing
-     * ORDERED call back into the same TimingNode. CURRENT status reads are safe.</p>
+     * ORDERED call back into the same TimingNode. CURRENT recovery reads are safe.</p>
      */
     public static LogBookQuery<Integer> visitTimingDataRange(
             long fromSequence,
