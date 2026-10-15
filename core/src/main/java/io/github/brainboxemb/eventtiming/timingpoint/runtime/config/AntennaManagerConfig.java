@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime.config;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 
 import java.time.Duration;
@@ -12,35 +11,22 @@ import java.util.Set;
 
 /** IF-11 antenna binding owned by exactly one configured TimingSystem. */
 public final class AntennaManagerConfig {
-    /** One antenna and its explicit observation recipients. */
+    /** One configured antenna. */
     public static final class AntennaConfig {
         private final AntennaId id;
         private final String providerId;
-        private final List<NodeId> timingNodes;
 
         public AntennaConfig(
                 AntennaId id,
-                String providerId,
-                List<NodeId> timingNodes) {
+                String providerId) {
             if (id == null) {
                 throw new IllegalArgumentException("AntennaId must not be null");
             }
             if (providerId == null || providerId.trim().isEmpty()) {
                 throw new IllegalArgumentException("Antenna provider must not be blank");
             }
-            if (timingNodes == null || timingNodes.isEmpty()) {
-                throw new IllegalArgumentException("Antenna " + id + " needs at least one TimingNode");
-            }
-            Set<NodeId> nodes = new LinkedHashSet<NodeId>();
-            for (NodeId nodeId : timingNodes) {
-                if (nodeId == null || !nodes.add(nodeId)) {
-                    throw new IllegalArgumentException(
-                            "Duplicate or null TimingNode route for Antenna " + id);
-                }
-            }
             this.id = id;
             this.providerId = providerId.trim();
-            this.timingNodes = Collections.unmodifiableList(new ArrayList<NodeId>(nodes));
         }
 
         public AntennaId id() {
@@ -51,9 +37,6 @@ public final class AntennaManagerConfig {
             return providerId;
         }
 
-        public List<NodeId> timingNodes() {
-            return timingNodes;
-        }
     }
 
     private final String timingSystemId;
