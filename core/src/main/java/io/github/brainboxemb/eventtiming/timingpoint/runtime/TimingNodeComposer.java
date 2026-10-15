@@ -75,7 +75,7 @@ final class TimingNodeComposer {
 
         NodeService nodeService =
                 new NodeService(
-                        logBook,
+                        nodeConfig.timingNodeId(),
                         lanes.taskLane(),
                         nodeServiceState);
 
