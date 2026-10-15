@@ -6,10 +6,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObser
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTaskController;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.util.List;
@@ -28,7 +27,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Task results remain owned by the tasks that produced them; manager transitions
  * read that authoritative task state in {@link #runStep()}.</p>
  */
-public final class AntennaManager implements YieldingTask {
+public final class AntennaManager {
     private static final Logger LOG = LoggerFactory.getLogger(AntennaManager.class);
 
     /**
@@ -60,13 +59,8 @@ public final class AntennaManager implements YieldingTask {
     private volatile Phase phase = Phase.STOPPED;
     private volatile Throwable failure;
 
-    /**
-     * Generic wake/coalescing controller for this manager state machine.
-     *
-     * <p>The manager owns antenna state and transitions. The controller owns
-     * only whether one cooperative run is active or another wake is pending.</p>
-     */
-    private final YieldingTaskController stateMachine;
+    /** Cooperative main task for the AntennaManager control state. */
+    private final MainTask mainTask = new MainTask();
 
     public AntennaManager(
             AntennaSet antennaSet,
@@ -87,10 +81,6 @@ public final class AntennaManager implements YieldingTask {
         antennaSet.seal();
         this.antennaSet = antennaSet;
         this.taskLane = taskLane;
-        stateMachine = new YieldingTaskController(
-                taskLane,
-                this,
-                this::onStateMachineFailure);
         selfTestTask = new SelfTestTask(antennaSet.antennas());
         inventoryTask = new InventoryTask(
                 antennaSet.antennas(),
@@ -115,7 +105,7 @@ public final class AntennaManager implements YieldingTask {
         state = State.ACTIVE;
         phase = Phase.START_SELF_TEST;
         failure = null;
-        stateMachine.wake();
+        mainTask.wake(taskLane);
     }
 
     public boolean isBusy() {
@@ -189,7 +179,7 @@ public final class AntennaManager implements YieldingTask {
         }
 
         inventoryEnabledSetting.request(Boolean.FALSE);
-        stateMachine.clearPendingWake();
+        mainTask.cancel();
         selfTestTask.cancel();
         inventoryTask.cancel();
 
@@ -236,14 +226,14 @@ public final class AntennaManager implements YieldingTask {
         }
 
         inventoryEnabledSetting.request(Boolean.valueOf(enabled));
-        stateMachine.wake();
+        mainTask.wake(taskLane);
         return true;
     }
 
-    /** Wakes reconciliation after one committed desired-settings revision. */
+    /** Wakes the main task after one committed desired-settings revision. */
     private void onSettingsChanged(long ignoredRevision) {
         if (state == State.ACTIVE) {
-            stateMachine.wake();
+            mainTask.wake(taskLane);
         }
     }
 
@@ -252,7 +242,7 @@ public final class AntennaManager implements YieldingTask {
      * the task and is read from that task when WAIT_SELF_TEST is processed.
      */
     private void onSelfTestCompleted(AntennaTaskResult ignored) {
-        stateMachine.wake();
+        mainTask.wake(taskLane);
     }
 
     /**
@@ -260,7 +250,7 @@ public final class AntennaManager implements YieldingTask {
      * the task and is read from that task when WAIT_INVENTORY is processed.
      */
     private void onInventoryCompleted(AntennaTaskResult ignored) {
-        stateMachine.wake();
+        mainTask.wake(taskLane);
     }
 
     /**
@@ -269,8 +259,7 @@ public final class AntennaManager implements YieldingTask {
      * <p>The task stops whenever it must wait for a child task or external
      * request. That later input requests another run of this same state machine.</p>
      */
-    @Override
-    public TaskStep runStep() {
+    private TaskStep runMainTask() {
         if (state != State.ACTIVE) {
             return TaskStep.done();
         }
@@ -352,12 +341,7 @@ public final class AntennaManager implements YieldingTask {
         return TaskStep.again();
     }
 
-    /**
-     * Handles execution failure of the manager state machine.
-     *
-     * <p>Wake/coalescing bookkeeping belongs to YieldingTaskController;
-     * this method contains only AntennaManager failure semantics.</p>
-     */
+    /** Handles execution failure of the manager main task. */
     private synchronized void onStateMachineFailure(
             Throwable taskFailure) {
         recordFailure(
@@ -366,6 +350,26 @@ public final class AntennaManager implements YieldingTask {
         LOG.warn(
                 "AntennaManager state machine failed",
                 taskFailure);
+    }
+
+    private final class MainTask extends AbstractTask {
+
+        @Override
+        protected void resetForRun() {
+            // Main task state is owned by AntennaManager.
+        }
+
+        @Override
+        public TaskStep runStep() {
+            return runMainTask();
+        }
+
+        @Override
+        protected void onRunCompleted(Throwable failure) {
+            if (failure != null) {
+                onStateMachineFailure(failure);
+            }
+        }
     }
 
     private void recordFailure(Throwable cause) {

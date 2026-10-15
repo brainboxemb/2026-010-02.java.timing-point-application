@@ -16,7 +16,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
-public class YieldingTaskControllerTest {
+public class AbstractTaskTest {
 
     @Test
     public void wakeWhileRunningCoalescesIntoOneFollowUpRun()
@@ -26,7 +26,7 @@ public class YieldingTaskControllerTest {
         TaskSerialLane lane =
                 new TaskSerialLane(
                         8,
-                        "controller-coalesce",
+                        "task-coalesce",
                         worker);
         lane.start();
 
@@ -35,43 +35,45 @@ public class YieldingTaskControllerTest {
         CountDownLatch releaseFirst = new CountDownLatch(1);
         CountDownLatch secondRan = new CountDownLatch(1);
 
-        YieldingTaskController controller =
-                new YieldingTaskController(
-                        lane,
-                        () -> {
-                            int run = runs.incrementAndGet();
-                            if (run == 1) {
-                                firstEntered.countDown();
-                                try {
-                                    releaseFirst.await();
-                                } catch (InterruptedException ex) {
-                                    Thread.currentThread().interrupt();
-                                    throw new IllegalStateException(
-                                            "test interrupted",
-                                            ex);
-                                }
-                            } else {
-                                secondRan.countDown();
+        AbstractTask task =
+                new AbstractTask() {
+                    @Override
+                    protected void resetForRun() {
+                        // No per-run state.
+                    }
+
+                    @Override
+                    public TaskStep runStep() {
+                        int run = runs.incrementAndGet();
+                        if (run == 1) {
+                            firstEntered.countDown();
+                            try {
+                                releaseFirst.await();
+                            } catch (InterruptedException ex) {
+                                Thread.currentThread().interrupt();
+                                throw new IllegalStateException(
+                                        "test interrupted",
+                                        ex);
                             }
-                            return TaskStep.done();
-                        },
-                        failure -> {
-                            throw new AssertionError(failure);
-                        });
+                        } else {
+                            secondRan.countDown();
+                        }
+                        return TaskStep.done();
+                    }
+                };
 
         try {
-            controller.wake();
+            task.wake(lane);
             assertTrue(
                     firstEntered.await(
                             1L,
                             TimeUnit.SECONDS));
 
-            controller.wake();
-            controller.wake();
+            task.wake(lane);
+            task.wake(lane);
 
             assertEquals(1, runs.get());
-            assertTrue(controller.isRunning());
-            assertTrue(controller.wakePending());
+            assertTrue(task.isRunning());
 
             releaseFirst.countDown();
 
@@ -80,11 +82,10 @@ public class YieldingTaskControllerTest {
                             1L,
                             TimeUnit.SECONDS));
             await(
-                    () -> !controller.isRunning(),
+                    () -> !task.isRunning(),
                     1000L);
 
             assertEquals(2, runs.get());
-            assertFalse(controller.wakePending());
         } finally {
             releaseFirst.countDown();
             lane.close();
@@ -93,40 +94,63 @@ public class YieldingTaskControllerTest {
     }
 
     @Test
-    public void executionFailureIsReportedWithoutRestart()
+    public void failedWakeDoesNotStartRememberedFollowUp()
             throws Exception {
         ScheduledExecutorService worker =
                 Executors.newSingleThreadScheduledExecutor();
         TaskSerialLane lane =
                 new TaskSerialLane(
                         8,
-                        "controller-failure",
+                        "task-failure",
                         worker);
         lane.start();
 
         AtomicInteger runs = new AtomicInteger();
         AtomicReference<Throwable> observed =
                 new AtomicReference<Throwable>();
-        CountDownLatch failureObserved =
-                new CountDownLatch(1);
-        RuntimeException failure =
-                new RuntimeException("boom");
+        CountDownLatch firstEntered = new CountDownLatch(1);
+        CountDownLatch releaseFailure = new CountDownLatch(1);
+        CountDownLatch failureObserved = new CountDownLatch(1);
+        RuntimeException failure = new RuntimeException("boom");
 
-        YieldingTaskController controller =
-                new YieldingTaskController(
-                        lane,
-                        () -> {
-                            runs.incrementAndGet();
-                            throw failure;
-                        },
-                        observedFailure -> {
-                            observed.set(observedFailure);
-                            failureObserved.countDown();
-                        });
+        AbstractTask task =
+                new AbstractTask() {
+                    @Override
+                    protected void resetForRun() {
+                        // No per-run state.
+                    }
+
+                    @Override
+                    public TaskStep runStep() {
+                        runs.incrementAndGet();
+                        firstEntered.countDown();
+                        try {
+                            releaseFailure.await();
+                        } catch (InterruptedException ex) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException(
+                                    "test interrupted",
+                                    ex);
+                        }
+                        throw failure;
+                    }
+
+                    @Override
+                    protected void onRunCompleted(Throwable currentFailure) {
+                        observed.set(currentFailure);
+                        failureObserved.countDown();
+                    }
+                };
 
         try {
-            controller.wake();
-            controller.wake();
+            task.wake(lane);
+            assertTrue(
+                    firstEntered.await(
+                            1L,
+                            TimeUnit.SECONDS));
+
+            task.wake(lane);
+            releaseFailure.countDown();
 
             assertTrue(
                     failureObserved.await(
@@ -134,8 +158,9 @@ public class YieldingTaskControllerTest {
                             TimeUnit.SECONDS));
             assertSame(failure, observed.get());
             assertEquals(1, runs.get());
-            assertFalse(controller.isRunning());
+            assertFalse(task.isRunning());
         } finally {
+            releaseFailure.countDown();
             lane.close();
             worker.shutdownNow();
         }

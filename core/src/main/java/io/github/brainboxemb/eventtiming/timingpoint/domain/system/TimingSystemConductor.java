@@ -9,10 +9,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTaskController;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.util.function.Consumer;
@@ -32,12 +31,13 @@ import org.slf4j.LoggerFactory;
  * through the shared AntennaSettings. It does not retain a second copy of
  * node state or invoke AntennaManager directly.</p>
  */
-public final class TimingSystemConductor extends AbstractConductor implements YieldingTask {
+public final class TimingSystemConductor extends AbstractConductor {
     private static final Logger LOG = LoggerFactory.getLogger(TimingSystemConductor.class);
 
     private final TimingNodeList nodes;
     private final AntennaSettings antennaSettings;
-    private final YieldingTaskController taskController;
+    private final TaskSerialLane taskLane;
+    private final MainTask mainTask = new MainTask();
 
     public TimingSystemConductor(
             TimingNodeList timingNodes,
@@ -52,43 +52,37 @@ public final class TimingSystemConductor extends AbstractConductor implements Yi
 
         this.nodes = timingNodes;
         this.antennaSettings = antennaSettings;
-        taskController = new YieldingTaskController(
-                coordinationLane,
-                this,
-                this::onControlTaskFailure);
+        this.taskLane = coordinationLane;
 
         for (TimingNode node : timingNodes) {
             registerComponent(
                     "TimingNode " + node.timingNodeId().value(),
                     node::activate,
                     node::deactivate);
-            node.logBook().statusChangedEvent().subscribe(ignored -> wakeReconciliation());
+            node.logBook().statusChangedEvent().subscribe(ignored -> wakeMainTask());
         }
     }
 
-    /** Wakes system reconciliation after one TimingNode Status change. */
-    private void wakeReconciliation() {
+    /** Wakes the main task after one TimingNode status change. */
+    private void wakeMainTask() {
 
         /*
          * A TimingNode may finish its first recovery while this Conductor is
          * still activating its children. onActivated() always requests the first
-         * reconciliation, so an event arriving before this lane is RUNNING does
-         * not need to be retained separately.
+         * main-task run, so an earlier event does not need to be retained.
          */
         if (coordinationLane().state() == SerialLane.State.RUNNING) {
-            taskController.wake();
+            mainTask.wake(taskLane);
         }
     }
 
     @Override
     protected void onActivated() {
 
-        taskController.clearPendingWake();
-        taskController.wake();
+        mainTask.wake(taskLane);
     }
 
-    @Override
-    public TaskStep runStep() {
+    private TaskStep runMainTask() {
 
         boolean required = false;
         for (TimingNode node : nodes) {
@@ -106,7 +100,7 @@ public final class TimingSystemConductor extends AbstractConductor implements Yi
                 /*
                  * Activation starts node recovery asynchronously. Do not wait
                  * here and do not publish a partial system decision. The
-                 * node's first Status publication wakes a later reconciliation.
+                 * node's first Status publication wakes the main task again.
                  */
                 return TaskStep.done();
             }
@@ -125,8 +119,23 @@ public final class TimingSystemConductor extends AbstractConductor implements Yi
         return TaskStep.done();
     }
 
-    private void onControlTaskFailure(Throwable failure) {
+    private final class MainTask extends AbstractTask {
 
-        LOG.error("TimingSystem Conductor control task failed", failure);
+        @Override
+        protected void resetForRun() {
+            // Main task state is owned by TimingSystemConductor.
+        }
+
+        @Override
+        public TaskStep runStep() {
+            return runMainTask();
+        }
+
+        @Override
+        protected void onRunCompleted(Throwable failure) {
+            if (failure != null) {
+                LOG.error("TimingSystem Conductor main task failed", failure);
+            }
+        }
     }
 }

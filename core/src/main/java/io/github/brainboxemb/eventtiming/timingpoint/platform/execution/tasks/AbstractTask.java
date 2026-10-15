@@ -8,61 +8,73 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Base class for a reusable yielding task.
  *
- * <p>The concrete task owns its operation/control state. This base class owns only the
- * execution lifecycle that would otherwise be repeated in every task:
- * starting one run, remembering its Future, cancellation and completion.</p>
- *
- * <p>{@code currentRunFuture} is execution infrastructure, not task/domain
- * state. It is therefore private here instead of being repeated in every
- * concrete task.</p>
+ * <p>The concrete task owns its operation/control state. This base class owns
+ * execution lifecycle: starting a run, remembering whether it is active,
+ * coalescing wake requests, cancellation and completion.</p>
  */
 public abstract class AbstractTask implements YieldingTask {
 
-    /** Completion returned by the task lane for the currently active run. */
     private CompletableFuture<Void> currentRunFuture;
+    private TaskSerialLane currentLane;
+    private boolean wakePending;
 
     /**
      * Starts this task when no earlier run is still active.
      *
-     * <p>{@link #resetForRun()} resets only the concrete task state. The
-     * supplied task lane owns how individual runStep() calls are scheduled.</p>
+     * <p>This is the ordinary operation-task entry point. A new run resets the
+     * concrete task state through {@link #resetForRun()}.</p>
      *
      * @return false when this task already has a current run
      */
     public final synchronized boolean start(TaskSerialLane taskLane) {
-        if (taskLane == null) {
-            throw new IllegalArgumentException("taskLane must not be null");
-        }
+        checkLane(taskLane);
         if (isRunning()) {
             return false;
         }
 
-        resetForRun();
-
-        currentRunFuture = taskLane.runTask(this);
-
-        /*
-         * whenComplete is only the bridge from execution infrastructure back to
-         * this task lifecycle. The named method keeps completion behaviour out
-         * of an inline lambda.
-         */
-        currentRunFuture.whenComplete(this::runCompleted);
+        wakePending = false;
+        startRun(taskLane);
         return true;
     }
 
-    /** Cancels the current run when one exists. */
+    /**
+     * Requests a run of this task.
+     *
+     * <p>If a run is already active, repeated wake requests collapse into one
+     * follow-up run after the current run completes successfully.</p>
+     */
+    public final void wake(TaskSerialLane taskLane) {
+        checkLane(taskLane);
+
+        synchronized (this) {
+            if (isRunning()) {
+                wakePending = true;
+                return;
+            }
+
+            wakePending = false;
+            try {
+                startRun(taskLane);
+                return;
+            } catch (RuntimeException ex) {
+                completeFailedWake(ex);
+                return;
+            } catch (Error error) {
+                completeFailedWake(error);
+                throw error;
+            }
+        }
+    }
+
+    /** Cancels the current run and drops any remembered follow-up wake. */
     public final synchronized void cancel() {
+        wakePending = false;
         if (currentRunFuture != null) {
             currentRunFuture.cancel(true);
         }
     }
 
-    /**
-     * Returns whether this task still owns a current run.
-     *
-     * <p>The Future is cleared by runCompleted(). A new run therefore cannot be
-     * admitted while completion of the previous run is still being processed.</p>
-     */
+    /** Returns whether this task still owns a current run. */
     public final synchronized boolean isRunning() {
         return currentRunFuture != null;
     }
@@ -79,21 +91,44 @@ public abstract class AbstractTask implements YieldingTask {
         // Most reusable tasks need no completion action.
     }
 
-    /**
-     * Completes the execution lifecycle of one run.
-     *
-     * <p>The Future is cleared before the concrete completion hook runs. A
-     * concrete task may therefore start a follow-up run from onRunCompleted().</p>
-     */
+    private void startRun(TaskSerialLane taskLane) {
+        resetForRun();
+        currentLane = taskLane;
+        currentRunFuture = taskLane.runTask(this);
+        currentRunFuture.whenComplete(this::runCompleted);
+    }
+
     private void runCompleted(Void ignored, Throwable failure) {
+        final TaskSerialLane restartLane;
+
         synchronized (this) {
             currentRunFuture = null;
+
+            if (failure == null && wakePending) {
+                wakePending = false;
+                restartLane = currentLane;
+            } else {
+                restartLane = null;
+            }
         }
 
-        if (failure instanceof CancellationException) {
-            return;
+        if (!(failure instanceof CancellationException)) {
+            onRunCompleted(failure);
         }
 
+        if (restartLane != null) {
+            wake(restartLane);
+        }
+    }
+
+    private void completeFailedWake(Throwable failure) {
+        currentRunFuture = null;
         onRunCompleted(failure);
+    }
+
+    private static void checkLane(TaskSerialLane taskLane) {
+        if (taskLane == null) {
+            throw new IllegalArgumentException("taskLane must not be null");
+        }
     }
 }
