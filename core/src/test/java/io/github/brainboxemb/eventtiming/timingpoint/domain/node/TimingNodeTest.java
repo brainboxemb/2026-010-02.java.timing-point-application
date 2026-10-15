@@ -156,14 +156,16 @@ public class TimingNodeTest {
                         expected.reason());
             }
 
-            try {
-                node.open(new LocationId(24));
-                fail("open must remain unavailable during persisted-data load");
-            } catch (TimingNodeTypes.OperationException expected) {
-                assertEquals(
-                        TimingNodeTypes.OperationException.Reason.UNAVAILABLE,
-                        expected.reason());
-            }
+            final TimingNodeTypes.OpenResult[] openResult =
+                    new TimingNodeTypes.OpenResult[1];
+            Thread openCaller = new Thread(
+                    () -> openResult[0] = node.open(new LocationId(24)),
+                    "timing-node-open-caller");
+            openCaller.start();
+            openCaller.join(100L);
+            assertTrue(
+                    "open() must remain ordered behind persisted-data recovery",
+                    openCaller.isAlive());
 
             persistence.releaseLoad.countDown();
             assertTrue(
@@ -171,11 +173,10 @@ public class TimingNodeTest {
                     firstStatusPublished.await(
                             1L,
                             TimeUnit.SECONDS));
+            openCaller.join(1000L);
+            assertFalse(openCaller.isAlive());
 
-            assertEquals(TimingNodeTypes.State.CLOSED, node.status().state());
-            assertEquals(
-                    TimingNodeTypes.OpenResult.OPENED,
-                    node.open(new LocationId(24)));
+            assertEquals(TimingNodeTypes.OpenResult.OPENED, openResult[0]);
             assertEquals(TimingNodeTypes.State.OPEN, node.status().state());
         } finally {
             persistence.releaseLoad.countDown();
