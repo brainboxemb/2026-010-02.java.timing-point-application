@@ -326,8 +326,9 @@ public final class TagProcessor {
             if (state != State.ACTIVE) {
                 return;
             }
+            Runnable policyChange = () -> applyPolicyChange(change);
             try {
-                lane.execute(() -> applyPolicyChange(change));
+                lane.execute(policyChange);
             } catch (RejectedExecutionException ex) {
                 LOG.warn("Could not queue TagProcessor policy change", ex);
             }
