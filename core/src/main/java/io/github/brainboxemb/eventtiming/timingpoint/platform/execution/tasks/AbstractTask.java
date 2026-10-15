@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.YieldingTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -18,20 +18,20 @@ import java.util.concurrent.CompletableFuture;
  */
 public abstract class AbstractTask implements YieldingTask {
 
-    /** Completion returned by the runner for the currently active run. */
+    /** Completion returned by the task lane for the currently active run. */
     private CompletableFuture<Void> currentRunFuture;
 
     /**
      * Starts this task when no earlier run is still active.
      *
      * <p>{@link #resetForRun()} resets only the concrete task state. The
-     * supplied runner owns how individual runStep() calls are scheduled.</p>
+     * supplied task lane owns how individual runStep() calls are scheduled.</p>
      *
      * @return false when this task already has a current run
      */
-    public final synchronized boolean start(YieldingTaskRunner taskRunner) {
-        if (taskRunner == null) {
-            throw new IllegalArgumentException("taskRunner must not be null");
+    public final synchronized boolean start(TaskSerialLane taskLane) {
+        if (taskLane == null) {
+            throw new IllegalArgumentException("taskLane must not be null");
         }
         if (isRunning()) {
             return false;
@@ -39,7 +39,7 @@ public abstract class AbstractTask implements YieldingTask {
 
         resetForRun();
 
-        currentRunFuture = taskRunner.runTask(this);
+        currentRunFuture = taskLane.runTask(this);
 
         /*
          * whenComplete is only the bridge from execution infrastructure back to
