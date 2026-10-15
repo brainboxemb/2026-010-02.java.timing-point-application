@@ -326,20 +326,31 @@ public class SimulationRuntimeScenarioTest {
                         .toPath()
                         .resolve(
                                 "scenario-timing-data.jsonl");
+        Config.TimingNodeConfig timingNode =
+                new Config.TimingNodeConfig(
+                        new NodeId("A"),
+                        timingData,
+                        new TagProcessingPolicy(
+                                Duration.ofMillis(200),
+                                Duration.ofMillis(1000),
+                                Duration.ofMillis(500),
+                                Duration.ofMillis(10),
+                                32));
+        Config.TimingSystemConfig timingSystem =
+                new Config.TimingSystemConfig(
+                        "A",
+                        Collections.singletonList(
+                                timingNode),
+                        Config.REFERENCE_PROVIDER_ID,
+                        Config.REFERENCE_PROVIDER_ID);
         return new Config(
-                new NodeId("A"),
+                Collections.singletonList(
+                        timingSystem),
                 new Presentation(
                         null,
                         null),
                 null,
-                null,
-                timingData,
-                new TagProcessingPolicy(
-                        Duration.ofMillis(200),
-                        Duration.ofMillis(1000),
-                        Duration.ofMillis(500),
-                        Duration.ofMillis(10),
-                        32));
+                null);
     }
 
     private static EventData eventData() {
