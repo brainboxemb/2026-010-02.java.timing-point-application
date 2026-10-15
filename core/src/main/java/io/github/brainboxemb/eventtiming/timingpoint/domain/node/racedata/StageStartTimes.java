@@ -19,27 +19,32 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 public final class StageStartTimes {
     private final Map<TeamId, TimingTimestamp> starts;
 
+    /** Creates empty live stage-start state. */
     public StageStartTimes() {
         this.starts =
                 new LinkedHashMap<TeamId, TimingTimestamp>();
     }
 
+    /** Creates an independent mutable copy from existing stage-start values. */
     private StageStartTimes(
             Map<TeamId, TimingTimestamp> starts) {
         this.starts =
                 new LinkedHashMap<TeamId, TimingTimestamp>(starts);
     }
 
+    /** Returns an independent mutable copy for transactional validation. */
     public StageStartTimes copy() {
         return new StageStartTimes(starts);
     }
 
+    /** Returns the current stage start for the TeamId, or null when none is configured. */
     public TimingTimestamp startFor(
             TeamId teamId) {
         checkArgument(teamId != null, "teamId must not be null");
         return starts.get(teamId);
     }
 
+    /** Sets the current stage start for one TeamId. */
     public void set(
             TeamId teamId,
             TimingTimestamp start) {
@@ -50,12 +55,14 @@ public final class StageStartTimes {
                 start);
     }
 
+    /** Removes any current stage start for the TeamId. */
     public void remove(
             TeamId teamId) {
         checkArgument(teamId != null, "teamId must not be null");
         starts.remove(teamId);
     }
 
+    /** Replaces live state with a transactional stage-start copy. */
     public void replaceWith(
             StageStartTimes updatedStartTimes) {
         checkArgument(updatedStartTimes != null, "updatedStartTimes must not be null");
