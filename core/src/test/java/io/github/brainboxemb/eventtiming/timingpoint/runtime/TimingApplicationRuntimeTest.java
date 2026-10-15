@@ -129,11 +129,8 @@ public class TimingApplicationRuntimeTest {
                         TagProcessingPolicy.defaults()));
 
         Config config =
-                new Config(
+                config(
                         timingNodes,
-                        new Presentation(null, null),
-                        null,
-                        null,
                         Config.REFERENCE_PROVIDER_ID,
                         Config.REFERENCE_PROVIDER_ID);
 
@@ -826,9 +823,9 @@ public class TimingApplicationRuntimeTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void createRejectsMissingTimingDataPath() {
-        Config config = new Config(
-                new NodeId("A"),
-                new Presentation(null, null));
+        Config config =
+                config(
+                        null);
 
         TimingApplicationRuntime.create(identity(), config);
     }
@@ -854,15 +851,42 @@ public class TimingApplicationRuntimeTest {
             TagProcessingPolicy tagProcessingPolicy,
             String eventDataProviderId,
             String timingDataProviderId) {
-        return new Config(
-                new NodeId("A"),
-                new Presentation(null, null),
-                null,
-                null,
-                timingDataPath,
-                tagProcessingPolicy,
+        List<Config.TimingNodeConfig> timingNodes =
+                Collections.singletonList(
+                        new Config.TimingNodeConfig(
+                                new NodeId("A"),
+                                timingDataPath,
+                                tagProcessingPolicy));
+        return config(
+                timingNodes,
                 eventDataProviderId,
                 timingDataProviderId);
+    }
+
+    private static Config config(
+            List<Config.TimingNodeConfig> timingNodes,
+            String eventDataProviderId,
+            String timingDataProviderId) {
+        String timingSystemId =
+                timingNodes.size() == 1
+                        ? timingNodes.get(0)
+                                .timingNodeId()
+                                .value()
+                        : "9";
+        Config.TimingSystemConfig timingSystem =
+                new Config.TimingSystemConfig(
+                        timingSystemId,
+                        timingNodes,
+                        eventDataProviderId,
+                        timingDataProviderId);
+        return new Config(
+                Collections.singletonList(
+                        timingSystem),
+                new Presentation(
+                        null,
+                        null),
+                null,
+                null);
     }
 
     private static EventData eventData(
