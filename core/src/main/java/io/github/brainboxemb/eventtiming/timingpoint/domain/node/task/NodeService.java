@@ -5,6 +5,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
 import java.time.ZoneId;
@@ -16,6 +17,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -125,16 +127,21 @@ public final class NodeService {
      * explicitly stale rather than silently losing synchronization.</p>
      */
     private void handoffTimingFact(Runnable operation, String fact) {
-        try {
-            serialLane.execute(operation);
-        } catch (RejectedExecutionException ex) {
-            state.markDerivedTimingStale();
-            LOG.error(
-                    "Task Lane rejected {} for node {}; derived timing state is stale",
-                    fact,
-                    logBook.timingNodeId().value(),
-                    ex);
-        }
+        Runnable queueTimingFact =
+                () -> serialLane.execute(operation);
+        Consumer<RejectedExecutionException> onRejected =
+                ex -> {
+                    state.markDerivedTimingStale();
+                    LOG.error(
+                            "Task Lane rejected {} for node {}; derived timing state is stale",
+                            fact,
+                            logBook.timingNodeId().value(),
+                            ex);
+                };
+
+        SafeExecute.runOrHandleRejection(
+                queueTimingFact,
+                onRejected);
     }
 
     /** Rebuilds derived timing while this service owns the SerialLane turn. */
