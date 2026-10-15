@@ -56,6 +56,7 @@ final class LogBookOperations {
             TimeSource timeSource,
             MonotonicClock monotonicClock,
             LogBookMetrics metrics) {
+
         checkArgument(state != null, "state must not be null");
         checkArgument(timingDataPersistence != null, "timingDataPersistence must not be null");
         checkArgument(timingDataFactory != null, "timingDataFactory must not be null");
@@ -73,6 +74,7 @@ final class LogBookOperations {
 
     /** Opens the node at the requested location and commits the lifecycle record first. */
     OpenResult open(LocationId newLocationId) throws TimingDataPersistence.PersistenceException {
+
         checkArgument(newLocationId != null, "locationId must not be null");
         state.ensureOperational();
         if (state.state() == State.OPEN) {
@@ -91,6 +93,7 @@ final class LogBookOperations {
 
     /** Closes the node and durably commits its lifecycle record before changing state. */
     CloseResult close() throws TimingDataPersistence.PersistenceException {
+
         state.ensureOperational();
         if (state.state() == State.CLOSED) {
             return CloseResult.ALREADY_CLOSED;
@@ -231,6 +234,7 @@ final class LogBookOperations {
 
     /** Moves passive node state to ERROR after startup recovery failed. */
     void markTimingDataLoadFailed(Throwable failure) {
+
         checkArgument(failure != null, "failure must not be null");
 
         String detail = failure.getMessage();
@@ -248,12 +252,14 @@ final class LogBookOperations {
 
     /** Builds the next registration context using the node's current location. */
     private Context nextRegistrationContext(TimingTimestamp effectiveTime) {
+
         return nextRegistrationContext(state.locationId(), effectiveTime);
     }
 
     /** Builds the next registration context with explicit location and recorded time. */
     private Context nextRegistrationContext(
             LocationId recordLocationId, TimingTimestamp effectiveTime) {
+
         return new Context(
                 state.timingNodeId(),
                 state.nextTimingDataSequence(),
@@ -268,6 +274,7 @@ final class LogBookOperations {
             TimingTimestamp effectiveTime,
             TimingData.TagSource tagSource,
             TimingData.AutomaticTimeSource timeProvenance) {
+
         return new Context(
                 state.timingNodeId(),
                 state.nextTimingDataSequence(),
@@ -281,6 +288,7 @@ final class LogBookOperations {
     /** Builds the next lifecycle-record context at the supplied effective time. */
     private Context nextLifecycleContext(
             LocationId lifecycleLocation, TimingTimestamp effectiveTime) {
+
         return new Context(
                 state.timingNodeId(),
                 state.nextTimingDataSequence(),
@@ -291,28 +299,33 @@ final class LogBookOperations {
 
     /** Captures reference lifecycle time at centisecond resolution. */
     private TimingTimestamp currentLifecycleTime() {
+
         return atCentisecond(timeSource.now());
     }
 
     /** Normalizes an accepted registration effective time to centisecond precision. */
     private static TimingTimestamp normalizeRegistrationTime(TimingTimestamp time) {
+
         checkArgument(time != null, "registration time must not be null");
         return atCentisecond(time.instant());
     }
 
     /** Truncates an Instant to the configured centisecond effective-time precision. */
     private static TimingTimestamp atCentisecond(Instant instant) {
+
         long nanos = (instant.getNano() / 10_000_000L) * 10_000_000L;
         return new TimingTimestamp(Instant.ofEpochSecond(instant.getEpochSecond(), nanos));
     }
 
     /** Captures record-creation bookkeeping at millisecond resolution. */
     private TimingTimestamp currentRecordedTime() {
+
         return new TimingTimestamp(timeSource.now().truncatedTo(ChronoUnit.MILLIS));
     }
 
     /** Blocks later commits after an earlier persistence or in-memory commit failure. */
     private void ensureTimingDataCommitAvailable() {
+
         if (timingDataCommitFailure != null) {
             throw new IllegalStateException(
                     "TimingData commit is blocked after an earlier persistence failure",
@@ -337,6 +350,7 @@ final class LogBookOperations {
         try {
             timingDataPersistence.append(data);
         } catch (TimingDataPersistence.PersistenceException ex) {
+
             metrics.recordAppendDuration(monotonicClock.nowNanos() - appendStartedNanos);
             metrics.recordAppendFailure();
             timingDataCommitFailure = ex;
@@ -347,6 +361,7 @@ final class LogBookOperations {
         try {
             state.addCommittedTimingData(data);
         } catch (RuntimeException ex) {
+
             timingDataCommitFailure = ex;
             throw ex;
         }
@@ -357,6 +372,7 @@ final class LogBookOperations {
 
     /** Logs one successfully committed TimingData record with type-specific context. */
     private void logCommittedTimingData(TimingData data) {
+
         String type = timingDataType(data);
         String location = data.locationId() == null ? "-" : String.valueOf(data.locationId().value());
 
@@ -375,6 +391,7 @@ final class LogBookOperations {
                     registration.tagSource(),
                     registration.registrationTimeSource());
         } else if (data instanceof TimingData.ManualRegistration) {
+
             TimingData.ManualRegistration registration = (TimingData.ManualRegistration) data;
             LOG.info(
                     "TimingData committed: node={}, sequence={}, type={}, registrationId={}, action={}, "
@@ -400,6 +417,7 @@ final class LogBookOperations {
 
     /** Returns the compact diagnostic record-family label used in commit logging. */
     private static String timingDataType(TimingData data) {
+
         if (data instanceof TimingData.AutomaticRegistration) {
             return "AUTO_REG";
         }
