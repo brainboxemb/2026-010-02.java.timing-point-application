@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
@@ -32,8 +31,8 @@ public interface LogBookAccessor {
     /** Processes one query with the explicitly requested consistency model. */
     <R> R process(LogBookQuery<R> query, ReadConsistency consistency);
 
-    /** Publishes the first available status and later effective status changes. */
-    EventSource<Status> statusChangedEvent();
+    /** Publishes the completed LogBook startup recovery result. */
+    EventSource<LogBookRecoveryStatus> recoveryStatusChangedEvent();
 
     /** Publishes each TimingData record after a successful durable commit. */
     EventSource<TimingData> newDataEntryEvent();
