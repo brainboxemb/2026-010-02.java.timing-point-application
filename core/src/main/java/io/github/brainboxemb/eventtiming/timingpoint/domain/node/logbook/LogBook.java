@@ -117,20 +117,17 @@ public final class LogBook
     public void activate() {
         serialLane.start();
 
+        // Runnable without arguments that schedules persisted-data loading on the SerialLane.
+        Runnable scheduleLoad =
+                () -> serialLane.execute(this::loadPersistedData);
+
+        // Cleanup Runnable invoked by SafeExecute when scheduling is rejected.
+        Runnable cleanup =
+                serialLane::close;
+
         SafeExecute.run(
-                /*
-                 * () means this Runnable has no arguments; -> introduces the
-                 * code it executes. Running it asks SerialLane to queue
-                 * loadPersistedData, represented by this::loadPersistedData.
-                 */
-                () -> serialLane.execute(this::loadPersistedData),
-
-                /*
-                 * serialLane::close is the cleanup Runnable that SafeExecute
-                 * invokes only when scheduling is rejected.
-                 */
-                serialLane::close,
-
+                scheduleLoad,
+                cleanup,
                 "Persisted TimingData load could not be scheduled");
     }
 
