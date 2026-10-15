@@ -89,7 +89,8 @@ public final class TimingNode {
         nodeService.bind(NodeService.INITIAL_TIMING_DATA, logBook.initialDataLoadedEvent());
         nodeService.bind(NodeService.COMMITTED_TIMING_DATA, logBook.newDataEntryEvent());
         logBook.recoveryStatusChangedEvent().subscribe(this::onLogBookRecoveryCompleted);
-        logBook.nodeLifecycleCommittedEvent().subscribe(this::onCommittedTimingData);
+        logBook.nodeLifecycleStateEvent().subscribe(this::onCommittedTimingData);
+        logBook.nodeLifecycleCommittedEvent().subscribe(this::onLifecycleCommitPublished);
 
         /*
          * TagProcessor emits synchronously on its own lane. The named handler
@@ -311,19 +312,28 @@ public final class TimingNode {
         }
 
         if (timingData instanceof TimingData.NodeOpen) {
-            publishStatus(new Status(
+            setStatus(new Status(
                     timingNodeId,
                     State.OPEN,
                     timingData.locationId(),
                     status.timingDataTailRepaired(),
                     status.problems()));
         } else if (timingData instanceof TimingData.NodeClose) {
-            publishStatus(new Status(
+            setStatus(new Status(
                     timingNodeId,
                     State.CLOSED,
                     timingData.locationId(),
                     status.timingDataTailRepaired(),
                     status.problems()));
+        }
+    }
+
+    /** Publishes the already-applied lifecycle status after committed-data delivery. */
+    private void onLifecycleCommitPublished(TimingData timingData) {
+
+        Status status = currentStatus;
+        if (status != null) {
+            statusChangedEvent.emit(status);
         }
     }
 
@@ -378,13 +388,19 @@ public final class TimingNode {
         return status;
     }
 
-    /** Publishes one new immutable node-state snapshot. */
-    private void publishStatus(Status status) {
+    /** Stores one new immutable node-state snapshot. */
+    private void setStatus(Status status) {
 
         synchronized (stateLock) {
             currentStatus = status;
             registrationsEnabled = status.state() == State.OPEN;
         }
+    }
+
+    /** Stores and publishes one new immutable node-state snapshot. */
+    private void publishStatus(Status status) {
+
+        setStatus(status);
         statusChangedEvent.emit(status);
     }
 
