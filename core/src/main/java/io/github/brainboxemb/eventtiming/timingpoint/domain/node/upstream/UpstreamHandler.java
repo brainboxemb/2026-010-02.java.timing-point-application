@@ -4,11 +4,13 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -201,15 +203,18 @@ public final class UpstreamHandler {
     private void executeTaskOrWarn(
             Runnable task,
             String operation) {
-        try {
-            taskSerialLane.execute(task);
-        } catch (RejectedExecutionException ex) {
-            LOG.warn(
-                    "Dropped upstream {} for node {} because the Task Lane rejected execution",
-                    operation,
-                    nodeId.value(),
-                    ex);
-        }
+        Runnable queueTask =
+                () -> taskSerialLane.execute(task);
+        Consumer<RejectedExecutionException> onRejected =
+                ex -> LOG.warn(
+                        "Dropped upstream {} for node {} because the Task Lane rejected execution",
+                        operation,
+                        nodeId.value(),
+                        ex);
+
+        SafeExecute.runOrHandleRejection(
+                queueTask,
+                onRejected);
     }
 
     /**
