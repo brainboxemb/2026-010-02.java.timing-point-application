@@ -44,6 +44,7 @@ public final class TimingSystemConductor extends AbstractConductor implements Yi
             TimingNodeList timingNodes,
             AntennaSettings antennaSettings,
             SerialLane coordinationLane) {
+
         super(coordinationLane);
 
         if (timingNodes == null || timingNodes.isEmpty()) {
@@ -74,6 +75,7 @@ public final class TimingSystemConductor extends AbstractConductor implements Yi
      * the event payload is not cached or treated as a control command.</p>
      */
     public void onTimingNodeStatusChanged(TimingNode node, Status status) {
+
         if (status == null) {
             throw new IllegalArgumentException("status must not be null");
         }
@@ -95,12 +97,14 @@ public final class TimingSystemConductor extends AbstractConductor implements Yi
 
     @Override
     protected void onActivated() {
+
         taskController.clearPendingWake();
         taskController.wake();
     }
 
     @Override
     public TaskStep runStep() {
+
         boolean required = false;
         for (TimingNode node : nodes) {
             final Status status;
@@ -109,6 +113,7 @@ public final class TimingSystemConductor extends AbstractConductor implements Yi
                         LogBookQueries.status(),
                         ReadConsistency.CURRENT);
             } catch (OperationException ex) {
+
                 if (ex.reason() != OperationException.Reason.UNAVAILABLE) {
                     throw ex;
                 }
@@ -136,10 +141,12 @@ public final class TimingSystemConductor extends AbstractConductor implements Yi
     }
 
     private boolean containsNode(TimingNode node) {
+
         return nodes.contains(node);
     }
 
     private void onControlTaskFailure(Throwable failure) {
+
         LOG.error("TimingSystem Conductor control task failed", failure);
     }
 }
