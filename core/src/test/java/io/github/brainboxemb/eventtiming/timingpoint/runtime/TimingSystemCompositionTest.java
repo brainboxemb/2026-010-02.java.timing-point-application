@@ -5,9 +5,10 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.system.SystemStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaOperation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.AntennaManagerConfig;
@@ -60,33 +61,31 @@ public class TimingSystemCompositionTest {
                 systems, bindings, new Presentation(null, null), null, null);
         TimingApplicationRuntime application =
                 TimingApplicationRuntime.create(identity(), config);
-        assertEquals(2, application.systemStatuses().size());
-        assertTrue(application.systemStatuses().get(0).hasAntennaManager());
-        assertTrue(application.systemStatuses().get(1).hasAntennaManager());
+        AntennaManager first = application.antennaManagers().get(0);
+        AntennaManager second = application.antennaManagers().get(1);
+        assertNotSame(first, second);
 
         application.activate();
         try {
-            await(() -> application.systemStatuses().get(0).antennaReady());
-            await(() -> application.systemStatuses().get(1).antennaReady());
+            await(first::isReady);
+            await(second::isReady);
             application.presentationGateway().timingNode(new NodeId("A"))
                     .open(new LocationId(24));
-            await(() -> application.systemStatuses().get(0).antenna("1").operation()
-                    == SystemStatus.AntennaOperation.INVENTORY);
-            assertEquals(
-                    SystemStatus.AntennaOperation.INACTIVE,
-                    application.systemStatuses().get(1).antenna("1").operation());
+            await(() -> first.status(new AntennaId("1")).operation()
+                    == AntennaOperation.INVENTORY);
+            assertEquals(AntennaOperation.INACTIVE,
+                    second.status(new AntennaId("1")).operation());
 
             application.presentationGateway().timingNode(new NodeId("A")).close();
-            await(() -> application.systemStatuses().get(0).antenna("1").operation()
-                    == SystemStatus.AntennaOperation.INACTIVE);
+            await(() -> first.status(new AntennaId("1")).operation()
+                    == AntennaOperation.INACTIVE);
 
             application.presentationGateway().timingNode(new NodeId("B"))
                     .open(new LocationId(24));
-            await(() -> application.systemStatuses().get(1).antenna("1").operation()
-                    == SystemStatus.AntennaOperation.INVENTORY);
-            assertEquals(
-                    SystemStatus.AntennaOperation.INACTIVE,
-                    application.systemStatuses().get(0).antenna("1").operation());
+            await(() -> second.status(new AntennaId("1")).operation()
+                    == AntennaOperation.INVENTORY);
+            assertEquals(AntennaOperation.INACTIVE,
+                    first.status(new AntennaId("1")).operation());
         } finally {
             application.deactivate();
         }

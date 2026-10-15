@@ -254,7 +254,7 @@ public class SimulationRuntimeRecoveryTest {
             int locationId)
             throws Exception {
         await(
-                () -> application.systemStatus().antennaReady(),
+                application.antennaManager()::isReady,
                 1000L);
 
         node.open(
