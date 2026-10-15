@@ -16,6 +16,7 @@ public final class StageTime {
     private final RegistrationId registrationId;
     private final Duration elapsed;
 
+    /** Creates one resolved ranking row. */
     StageTime(
             int rank,
             TeamId teamId,
@@ -31,18 +32,22 @@ public final class StageTime {
         this.elapsed = elapsed;
     }
 
+    /** Returns the competition rank, where equal elapsed times share a rank. */
     public int rank() {
         return rank;
     }
 
+    /** Returns the resolved team identity for this ranking row. */
     public TeamId teamId() {
         return teamId;
     }
 
+    /** Returns the registration that produced this elapsed-time row. */
     public RegistrationId registrationId() {
         return registrationId;
     }
 
+    /** Returns elapsed time between the resolved stage start and registration. */
     public Duration elapsed() {
         return elapsed;
     }
