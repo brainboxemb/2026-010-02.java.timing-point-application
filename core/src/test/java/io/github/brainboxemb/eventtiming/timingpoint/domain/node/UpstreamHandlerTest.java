@@ -228,7 +228,7 @@ public class UpstreamHandlerTest {
         timingNode.activate();
         try {
             // Barrier behind initial recovery before occupying the Data Lane.
-            timingNode.logBook().process(LogBookQueries.status());
+            timingNode.status();
 
             Future<Void> blocker =
                     dataLane.submit(
@@ -507,7 +507,7 @@ public class UpstreamHandlerTest {
         try {
             stream.onNextSend(
                     () -> node.node().logBook().execute(
-                            LogBookCommands.open(
+                            LogBookCommands.commitNodeOpen(
                                     new LocationId(24))));
 
             stream.receive(
