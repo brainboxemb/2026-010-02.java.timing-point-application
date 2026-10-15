@@ -34,7 +34,7 @@ public final class LogBook implements LogBookAccessor {
     private final LogBookState logBookState;
     private final LogBookOperations logBookOperations;
     private final LogBookDataLane dataLane;
-    private final LogBookStatus logBookStatus;
+    private final LogBookRecoveryView recoveryView;
     private final LogBookMetrics metrics;
 
     private final EventWithMetrics<TimingData> newDataEntryEvent;
@@ -77,7 +77,7 @@ public final class LogBook implements LogBookAccessor {
                 monotonicClock,
                 metrics);
         this.dataLane = new LogBookDataLane(serialLane, operationTimeoutMillis);
-        this.logBookStatus = new LogBookStatus(timingNodeId, dataLane);
+        this.recoveryView = new LogBookRecoveryView(timingNodeId, dataLane);
         this.metrics = metrics;
         this.newDataEntryEvent =
                 new EventWithMetrics<TimingData>(
@@ -109,7 +109,7 @@ public final class LogBook implements LogBookAccessor {
     }
 
     /**
-     * Stops new Data Lane work and makes CURRENT status unavailable.
+     * Stops new Data Lane work and makes the CURRENT recovery result unavailable.
      *
      * <p>Lane shutdown/drain semantics are owned by {@link SerialLane}; LogBook
      * does not implement a second shutdown queue.</p>
@@ -117,7 +117,7 @@ public final class LogBook implements LogBookAccessor {
     public void deactivate() {
 
         dataLane.deactivate();
-        logBookStatus.clear();
+        recoveryView.clear();
     }
 
     /**
@@ -183,7 +183,7 @@ public final class LogBook implements LogBookAccessor {
     /** Publishes the completed startup recovery result on the Data Lane. */
     public EventSource<LogBookRecoveryStatus> recoveryStatusChangedEvent() {
 
-        return logBookStatus.recoveryStatusChangedEvent();
+        return recoveryView.recoveryStatusChangedEvent();
     }
 
     /** Publishes each newly committed TimingData record on the Data Lane. */
@@ -232,10 +232,10 @@ public final class LogBook implements LogBookAccessor {
     /** Returns the latest safely published CURRENT recovery result. */
     LogBookRecoveryStatus publishedRecoveryStatus() {
 
-        return logBookStatus.current();
+        return recoveryView.current();
     }
 
-    /** Loads persisted history, then publishes initial status on either outcome. */
+    /** Loads persisted history, then publishes the recovery result on either outcome. */
     private void loadPersistedData() {
 
         LOG.info("TimingNode {} persisted TimingData load started", timingNodeId().value());
@@ -258,12 +258,12 @@ public final class LogBook implements LogBookAccessor {
 
             logBookOperations.markTimingDataLoadFailed(ex);
             LOG.error(
-                    "Persisted TimingData load failed for {}; TimingNode remains available in ERROR state",
+                    "Persisted TimingData load failed for {}",
                     timingNodeId().value(),
                     ex);
         }
 
-        logBookStatus.publishInitial(logBookState.recoveryStatus());
+        recoveryView.publishInitial(logBookState.recoveryStatus());
     }
 
     /** Executes one previously queued fire-and-forget command and contains its later failure. */
@@ -274,7 +274,7 @@ public final class LogBook implements LogBookAccessor {
         } catch (Exception ex) {
 
             LOG.warn(
-                    "Queued TimingNode command {} failed during Data Lane execution",
+                    "Queued LogBook command {} failed during Data Lane execution",
                     command.name(),
                     ex);
         }
