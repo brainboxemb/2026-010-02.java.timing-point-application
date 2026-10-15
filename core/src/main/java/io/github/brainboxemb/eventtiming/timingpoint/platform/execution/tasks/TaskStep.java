@@ -7,9 +7,13 @@ import java.time.Duration;
  */
 public final class TaskStep {
 
+    /** Stable continuation categories interpreted by a YieldingTaskRunner. */
     public enum Type {
+        /** Re-admit the task at the back of the same serial lane immediately. */
         AGAIN,
+        /** Re-admit the task only after the supplied delay. */
         AFTER,
+        /** Complete the current yielding-task run. */
         DONE
     }
 
@@ -25,6 +29,7 @@ public final class TaskStep {
     private final Type type;
     private final Duration delay;
 
+    /** Creates one immutable continuation decision. */
     private TaskStep(
             Type type,
             Duration delay) {
@@ -63,10 +68,12 @@ public final class TaskStep {
         return DONE;
     }
 
+    /** Returns the continuation category for this step. */
     public Type type() {
         return type;
     }
 
+    /** Returns the delay for AFTER, or null for AGAIN/DONE. */
     public Duration delay() {
         return delay;
     }

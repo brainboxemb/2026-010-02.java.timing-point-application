@@ -25,7 +25,7 @@ public abstract class AbstractTask implements YieldingTask {
      * Starts this task when no earlier run is still active.
      *
      * <p>{@link #resetForRun()} resets only the concrete task state. The
-     * The supplied runner owns how individual runStep() calls are scheduled.</p>
+     * supplied runner owns how individual runStep() calls are scheduled.</p>
      *
      * @return false when this task already has a current run
      */
