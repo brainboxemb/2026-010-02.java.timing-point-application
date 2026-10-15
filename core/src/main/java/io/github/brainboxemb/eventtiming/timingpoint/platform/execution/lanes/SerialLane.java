@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
 
 /**
  * One bounded FIFO execution lane that never runs two of its tasks concurrently.
@@ -134,37 +135,19 @@ public final class SerialLane implements Executor, AutoCloseable {
      * lane never shuts it down.</p>
      */
     public SerialLane(int capacity, String laneName, Executor backingExecutor) {
-        validateCapacity(capacity);
+        checkArgument(capacity >= 1, "capacity must be positive");
+        checkArgument(laneName != null && !laneName.trim().isEmpty(), "laneName must not be blank");
         checkArgument(backingExecutor != null, "backingExecutor must not be null");
 
-        this.laneName = requireLaneName(laneName);
+        this.laneName = laneName.trim();
         this.backingExecutor = backingExecutor;
         this.queue = new ArrayBlockingQueue<TrackedTask>(capacity);
         this.metrics = new SerialLaneMetrics(queue::size);
     }
 
-    /** Rejects an invalid bounded queue capacity during construction. */
-    private static void validateCapacity(int capacity) {
-        if (capacity < 1) {
-            throw new IllegalArgumentException(
-                    "capacity must be positive");
-        }
-    }
-
-    /** Validates and normalizes the diagnostic lane name. */
-    private static String requireLaneName(String laneName) {
-        if (laneName == null || laneName.trim().isEmpty()) {
-            throw new IllegalArgumentException(
-                    "laneName must not be blank");
-        }
-        return laneName.trim();
-    }
-
     /** Starts or restarts this logical lane on the externally owned executor. */
     public synchronized void start() {
-        if (state != State.NEW && state != State.STOPPED) {
-            throw new IllegalStateException("SerialLane cannot start from " + state);
-        }
+        checkState(state == State.NEW || state == State.STOPPED, "SerialLane cannot start from %s", state);
         state = State.RUNNING;
     }
 
@@ -177,9 +160,7 @@ public final class SerialLane implements Executor, AutoCloseable {
      */
     @Override
     public void execute(Runnable work) {
-        if (work == null) {
-            throw new IllegalArgumentException("work must not be null");
-        }
+        checkArgument(work != null, "work must not be null");
         queueTask(new TrackedRunnable(work));
     }
 
@@ -190,9 +171,7 @@ public final class SerialLane implements Executor, AutoCloseable {
      * immediately with {@link RejectedExecutionException}.</p>
      */
     public <R> Future<R> submit(Callable<R> work) {
-        if (work == null) {
-            throw new IllegalArgumentException("work must not be null");
-        }
+        checkArgument(work != null, "work must not be null");
 
         TrackedFutureTask<R> task = new TrackedFutureTask<R>(work);
         queueTask(task);
