@@ -57,7 +57,7 @@ final class LogBookSync {
 
     /** Returns the directly published committed TIMING_DATA source head. */
     long headSequence() {
-        return logBook.query(
+        return logBook.process(
                 LogBookQueries.timingDataHead(),
                 ReadConsistency.CURRENT);
     }
@@ -108,7 +108,7 @@ final class LogBookSync {
                 syncHead - nextSequence + 1L);
 
         List<TimingData> records =
-                logBook.query(
+                logBook.process(
                         LogBookQueries.timingDataRange(
                                 nextSequence,
                                 limit));

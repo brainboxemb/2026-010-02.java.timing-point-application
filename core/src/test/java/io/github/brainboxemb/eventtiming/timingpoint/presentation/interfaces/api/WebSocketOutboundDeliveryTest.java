@@ -160,7 +160,7 @@ public class WebSocketOutboundDeliveryTest {
             assertEquals(
                     "all TimingNode commits must complete even after the slow client is disconnected",
                     11,
-                    node.logBook().query(
+                    node.logBook().process(
                             LogBookQueries.timingDataCount())
                             .intValue());
             assertEquals(

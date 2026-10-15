@@ -8,8 +8,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
 /**
  * Intentional access boundary for one TimingNode LogBook.
  *
- * <p>Internal and external consumers use the same typed command/query/event
- * contract. The accessor does not expose LogBook lifecycle, lane mechanics,
+ * <p>Internal and external consumers use the same typed operation/event
+ * contract. {@code execute(...)} submits a command without a caller result;
+ * {@code process(...)} handles a command or query and returns its result.
+ * The accessor does not expose LogBook lifecycle, lane mechanics,
  * startup-loading internals or engineering metrics.</p>
  */
 public interface LogBookAccessor {
@@ -24,13 +26,11 @@ public interface LogBookAccessor {
      */
     void execute(LogBookCommand<?> command);
 
-    /** Executes one ordered query and waits for its result. */
-    <R> R query(LogBookQuery<R> query);
+    /** Processes one query with ORDERED consistency and returns its result. */
+    <R> R process(LogBookQuery<R> query);
 
-    /** Reads one query with the explicitly requested consistency model. */
-    <R> R query(
-            LogBookQuery<R> query,
-            ReadConsistency consistency);
+    /** Processes one query with the explicitly requested consistency model. */
+    <R> R process(LogBookQuery<R> query, ReadConsistency consistency);
 
     /** Publishes the first available status and later effective status changes. */
     EventSource<Status> statusChangedEvent();

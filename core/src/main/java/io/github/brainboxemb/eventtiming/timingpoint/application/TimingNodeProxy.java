@@ -64,7 +64,7 @@ public final class TimingNodeProxy {
     /** Returns the current authoritative node status. */
     public TimingNodeStatus status() {
         return timingNodeStatus(
-                logBook.query(
+                logBook.process(
                         LogBookQueries.status(),
                         ReadConsistency.CURRENT));
     }
@@ -207,7 +207,7 @@ public final class TimingNodeProxy {
 
     /** Returns the number of committed records in this node LogBook. */
     public int logBookCount() {
-        return logBook.query(LogBookQueries.timingDataCount());
+        return logBook.process(LogBookQueries.timingDataCount());
     }
 
     /**
@@ -219,7 +219,7 @@ public final class TimingNodeProxy {
             long fromSequence,
             int limit,
             Consumer<TimingData> visitor) {
-        return logBook.query(
+        return logBook.process(
                 LogBookQueries.visitTimingDataRange(
                         fromSequence,
                         limit,
@@ -234,7 +234,7 @@ public final class TimingNodeProxy {
     public int visitLatestLogBook(
             int limit,
             Consumer<TimingData> visitor) {
-        return logBook.query(
+        return logBook.process(
                 LogBookQueries.visitLatestTimingData(limit, visitor));
     }
 
