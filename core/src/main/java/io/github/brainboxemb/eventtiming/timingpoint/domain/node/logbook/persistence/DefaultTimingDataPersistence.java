@@ -22,6 +22,7 @@ public final class DefaultTimingDataPersistence implements TimingDataPersistence
     private final NodeId timingNodeId;
     private final TimingDataCodec codec;
 
+    /** Creates TimingData persistence over one node-scoped append-only record store. */
     public DefaultTimingDataPersistence(
             AppendOnlyRecordStore recordStore,
             NodeId timingNodeId,
@@ -34,6 +35,7 @@ public final class DefaultTimingDataPersistence implements TimingDataPersistence
         this.codec = codec;
     }
 
+    /** Loads, decodes and validates the complete node-owned TimingData stream. */
     @Override
     public LoadResult load() throws PersistenceException {
         final AppendOnlyRecordStore.LoadResult raw;
@@ -55,6 +57,7 @@ public final class DefaultTimingDataPersistence implements TimingDataPersistence
         return new LoadResult(records, raw.repairedIncompleteTail());
     }
 
+    /** Encodes and durably appends one TimingData record owned by this TimingNode. */
     @Override
     public void append(TimingData data) throws PersistenceException {
         checkArgument(data != null, "data must not be null");
@@ -82,6 +85,7 @@ public final class DefaultTimingDataPersistence implements TimingDataPersistence
         }
     }
 
+    /** Decodes one physical record and adds its source record number to failures. */
     private TimingData decode(byte[] payload, int recordNumber)
             throws PersistenceException {
         try {
@@ -93,6 +97,7 @@ public final class DefaultTimingDataPersistence implements TimingDataPersistence
         }
     }
 
+    /** Validates TimingNode identity and contiguous source sequence for one loaded record. */
     private void validateStreamRecord(
             TimingData data,
             long expectedSequence,

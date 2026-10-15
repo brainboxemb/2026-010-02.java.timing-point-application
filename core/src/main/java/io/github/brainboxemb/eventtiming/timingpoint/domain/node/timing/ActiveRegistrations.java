@@ -30,9 +30,6 @@ public final class ActiveRegistrations {
         checkArgument(data != null, "data must not be null");
 
         TimingData.RegistrationAction action = registrationAction(data);
-        if (action == null) {
-            return;
-        }
         if (action == TimingData.RegistrationAction.ADD) {
             active.add(data);
         } else if (action == TimingData.RegistrationAction.REV) {
@@ -59,7 +56,7 @@ public final class ActiveRegistrations {
                     && Objects.equals(revoke.locationId(), activeRegistration.locationId())
                     && revoke.effectiveTime().equals(activeRegistration.effectiveTime())) {
                 active.remove(index);
-                return;
+                break;
             }
         }
     }
