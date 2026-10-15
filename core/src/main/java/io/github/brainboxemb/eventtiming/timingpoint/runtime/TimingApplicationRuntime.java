@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
@@ -18,6 +19,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.Appli
 
 import java.io.Reader;
 import java.io.Writer;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 
@@ -26,7 +29,8 @@ import java.util.List;
  *
  * <p>This is the visible composition root and owner of process-level Runtime
  * resources. Provider discovery is resolved before normal object composition;
- * the Application Conductor owns application lifecycle and each system Conductor owns its TimingNodes.
+ * the Application Conductor owns application lifecycle, each TimingSystem owns
+ * system-level wiring/lifecycle, and each SystemConductor owns its TimingNodes.
  * Runtime owns shared executors and the outer Presentation lifecycle.</p>
  */
 public final class TimingApplicationRuntime {
@@ -41,7 +45,7 @@ public final class TimingApplicationRuntime {
     private final ApplicationConfiguration configuration;
     private final PresentationGateway presentationGateway;
     private final RuntimeExecutors runtimeExecutors;
-    private final TimingSystemComponentsList systems;
+    private final List<TimingSystem> systems;
     private final SimulatedTagScenarioRunner simulationRunner;
     private final ApplicationConductor applicationConductor;
     private final PresentationRuntime presentationRuntime;
@@ -55,7 +59,7 @@ public final class TimingApplicationRuntime {
             ApplicationConfiguration configuration,
             PresentationGateway presentationGateway,
             RuntimeExecutors runtimeExecutors,
-            TimingSystemComponentsList systems,
+            List<TimingSystem> systems,
             SimulatedTagScenarioRunner simulationRunner,
             ApplicationConductor applicationConductor,
             PresentationRuntime presentationRuntime,
@@ -65,7 +69,7 @@ public final class TimingApplicationRuntime {
         this.configuration = configuration;
         this.presentationGateway = presentationGateway;
         this.runtimeExecutors = runtimeExecutors;
-        this.systems = systems.copy();
+        this.systems = Collections.unmodifiableList(new ArrayList<TimingSystem>(systems));
         this.simulationRunner = simulationRunner;
         this.applicationConductor = applicationConductor;
         this.presentationRuntime = presentationRuntime;
@@ -300,7 +304,14 @@ public final class TimingApplicationRuntime {
     }
 
     List<AntennaManager> antennaManagers() {
-        return systems.antennaManagers();
+
+        List<AntennaManager> managers = new ArrayList<AntennaManager>();
+        for (TimingSystem system : systems) {
+            if (system.antennaManager() != null) {
+                managers.add(system.antennaManager());
+            }
+        }
+        return Collections.unmodifiableList(managers);
     }
 
     public synchronized State state() {
