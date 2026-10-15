@@ -25,22 +25,16 @@ public final class SafeExecute {
      * <p>The supplied cleanup runs only after {@link RejectedExecutionException}.
      * Other runtime failures propagate unchanged.</p>
      */
-    public static void run(
-            Runnable operation,
-            Runnable cleanup,
-            String message) {
+    public static void run(Runnable operation, Runnable cleanup, String message) {
         checkArgument(operation != null, "operation must not be null");
         checkArgument(cleanup != null, "cleanup must not be null");
-        checkArgument(message != null && !message.trim().isEmpty(),
-                "message must not be blank");
+        checkArgument(message != null && !message.trim().isEmpty(), "message must not be blank");
 
         try {
             operation.run();
         } catch (RejectedExecutionException ex) {
             cleanup.run();
-            throw new IllegalStateException(
-                    message,
-                    ex);
+            throw new IllegalStateException(message, ex);
         }
     }
 
@@ -52,8 +46,7 @@ public final class SafeExecute {
      * decision; the execution guard owns no component-specific policy.</p>
      */
     public static void runOrHandleRejection(
-            Runnable operation,
-            Consumer<RejectedExecutionException> onRejection) {
+            Runnable operation, Consumer<RejectedExecutionException> onRejection) {
         checkArgument(operation != null, "operation must not be null");
         checkArgument(onRejection != null, "onRejection must not be null");
 
@@ -63,5 +56,4 @@ public final class SafeExecute {
             onRejection.accept(ex);
         }
     }
-
 }
