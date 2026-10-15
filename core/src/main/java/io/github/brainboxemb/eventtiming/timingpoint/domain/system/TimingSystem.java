@@ -17,7 +17,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Java component for one TimingSystem architecture responsibility.
  *
- * <p>A TimingSystem contains one or more TimingNodes and one SystemConductor and
+ * <p>A TimingSystem contains one or more TimingNodes and one TimingSystemConductor and
  * uses associated I/O components such as AntennaManager. It installs the fixed
  * system-level event links between those components before activation and owns
  * their lifecycle relationship. Runtime supplies already constructed components
@@ -31,7 +31,7 @@ public final class TimingSystem {
     private final String id;
     private final TimingNodeList timingNodes;
     private final AntennaManager antennaManager;
-    private final SystemConductor systemConductor;
+    private final TimingSystemConductor timingSystemConductor;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
 
     /**
@@ -43,12 +43,12 @@ public final class TimingSystem {
             String id,
             TimingNodeList timingNodes,
             AntennaManager antennaManager,
-            SystemConductor systemConductor,
+            TimingSystemConductor timingSystemConductor,
             Map<AntennaId, TimingNodeList> observationRoutes) {
 
         checkArgument(id != null && !id.trim().isEmpty(), "TimingSystem id must not be blank");
         checkArgument(timingNodes != null && !timingNodes.isEmpty(), "timingNodes must not be empty");
-        checkArgument(systemConductor != null, "systemConductor must not be null");
+        checkArgument(timingSystemConductor != null, "timingSystemConductor must not be null");
         checkArgument(observationRoutes != null, "observationRoutes must not be null");
         checkArgument(
                 antennaManager != null || observationRoutes.isEmpty(),
@@ -57,7 +57,7 @@ public final class TimingSystem {
         this.id = id.trim();
         this.timingNodes = timingNodes.copy();
         this.antennaManager = antennaManager;
-        this.systemConductor = systemConductor;
+        this.timingSystemConductor = timingSystemConductor;
 
         wireNodeStatus();
         wireAntennaObservations(
@@ -68,7 +68,7 @@ public final class TimingSystem {
         if (antennaManager != null) {
             lifecycle.register(antennaManager, AntennaManager::activate, AntennaManager::deactivate);
         }
-        lifecycle.register(systemConductor, SystemConductor::activate, SystemConductor::deactivate);
+        lifecycle.register(timingSystemConductor, TimingSystemConductor::activate, TimingSystemConductor::deactivate);
     }
 
     /** Returns the configured TimingSystem identity. */
@@ -106,7 +106,7 @@ public final class TimingSystem {
 
         for (TimingNode node : timingNodes) {
             Consumer<Status> onStatusChanged =
-                    status -> systemConductor.onTimingNodeStatusChanged(node, status);
+                    status -> timingSystemConductor.onTimingNodeStatusChanged(node, status);
             node.logBook().statusChangedEvent().subscribe(onStatusChanged);
         }
     }
