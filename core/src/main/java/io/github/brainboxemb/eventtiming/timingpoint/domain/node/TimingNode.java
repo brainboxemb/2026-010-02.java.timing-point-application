@@ -33,6 +33,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
@@ -88,6 +89,7 @@ public final class TimingNode {
         nodeService.bind(NodeService.INITIAL_TIMING_DATA, logBook.initialDataLoadedEvent());
         nodeService.bind(NodeService.COMMITTED_TIMING_DATA, logBook.newDataEntryEvent());
         logBook.recoveryStatusChangedEvent().subscribe(this::onLogBookRecoveryCompleted);
+        logBook.newDataEntryEvent().subscribe(this::onCommittedTimingData);
 
         /*
          * TagProcessor emits synchronously on its own lane. The named handler
@@ -157,12 +159,6 @@ public final class TimingNode {
             }
 
             logBook.process(LogBookCommands.commitNodeOpen(locationId));
-            publishStatus(new Status(
-                    timingNodeId,
-                    State.OPEN,
-                    locationId,
-                    status.timingDataTailRepaired(),
-                    status.problems()));
             return OpenResult.OPENED;
         }
     }
@@ -179,17 +175,15 @@ public final class TimingNode {
             disableRegistrations();
             try {
                 logBook.process(LogBookCommands.commitNodeClose(status.locationId()));
+            } catch (OperationException ex) {
+                if (ex.reason() != OperationException.Reason.TIMEOUT) {
+                    enableRegistrationsFor(status);
+                }
+                throw ex;
             } catch (RuntimeException ex) {
                 enableRegistrationsFor(status);
                 throw ex;
             }
-
-            publishStatus(new Status(
-                    timingNodeId,
-                    State.CLOSED,
-                    status.locationId(),
-                    status.timingDataTailRepaired(),
-                    status.problems()));
             return CloseResult.CLOSED;
         }
     }
@@ -305,6 +299,31 @@ public final class TimingNode {
         synchronized (stateLock) {
             currentStatus = null;
             registrationsEnabled = false;
+        }
+    }
+
+    /** Applies newly committed lifecycle records to this node's runtime state. */
+    private void onCommittedTimingData(TimingData timingData) {
+
+        Status status = currentStatus;
+        if (status == null) {
+            return;
+        }
+
+        if (timingData instanceof TimingData.NodeOpen) {
+            publishStatus(new Status(
+                    timingNodeId,
+                    State.OPEN,
+                    timingData.locationId(),
+                    status.timingDataTailRepaired(),
+                    status.problems()));
+        } else if (timingData instanceof TimingData.NodeClose) {
+            publishStatus(new Status(
+                    timingNodeId,
+                    State.CLOSED,
+                    timingData.locationId(),
+                    status.timingDataTailRepaired(),
+                    status.problems()));
         }
     }
 
