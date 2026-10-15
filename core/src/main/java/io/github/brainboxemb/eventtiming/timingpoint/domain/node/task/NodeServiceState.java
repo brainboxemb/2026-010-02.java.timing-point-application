@@ -9,12 +9,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.StageStartTimes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.TeamAssignments;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.UniqueTeamRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamTaskState;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
-import java.util.ArrayList;
-import java.util.List;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
@@ -22,7 +21,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Passive Task Lane-owned state behind {@link NodeService}.
  *
  * <p>This object owns mutable race/reference data and derived registration
- * history. It has no executor or lifecycle of its own. Normal state mutation
+ * state. It has no executor or lifecycle of its own. Normal state mutation
  * and consistent reads happen only while the NodeService Task Lane is current.
  * The one exception is the volatile stale marker: the Data Lane may set it when
  * a required Data-to-Task handoff could not be queued.</p>
@@ -35,8 +34,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 public final class NodeServiceState implements UpstreamTaskState {
     private final EventData eventData;
     private final RaceDataState raceData;
+    private final ActiveRegistrations activeRegistrations = new ActiveRegistrations();
     private final UniqueTeamRegistrations uniqueTeamRegistrations = new UniqueTeamRegistrations();
-    private final List<TimingData> committedTimingData = new ArrayList<TimingData>();
 
     private boolean derivedTimingReady;
 
@@ -81,15 +80,15 @@ public final class NodeServiceState implements UpstreamTaskState {
         derivedTimingStale = true;
     }
 
-    /** Rebuilds derived registration state from the committed startup history. */
-    void rebuildDerivedTiming(List<TimingData> loadedData) {
+    /** Rebuilds compact derived registration state from transient startup history. */
+    void rebuildDerivedTiming(Iterable<TimingData> loadedData) {
         checkArgument(loadedData != null, "loadedData must not be null");
 
-        committedTimingData.clear();
+        activeRegistrations.reset();
         uniqueTeamRegistrations.reset();
 
         for (TimingData data : loadedData) {
-            committedTimingData.add(data);
+            activeRegistrations.apply(data);
             updateUniqueTeamRegistrations(data);
         }
 
@@ -105,14 +104,14 @@ public final class NodeServiceState implements UpstreamTaskState {
             return;
         }
 
-        committedTimingData.add(data);
+        activeRegistrations.apply(data);
         updateUniqueTeamRegistrations(data);
     }
 
-    /** Returns a defensive copy of committed TimingData after availability checks. */
-    List<TimingData> committedTimingDataSnapshot() {
+    /** Returns compact active-registration state after availability checks. */
+    ActiveRegistrations activeRegistrations() {
         ensureDerivedTimingAvailable();
-        return new ArrayList<TimingData>(committedTimingData);
+        return activeRegistrations;
     }
 
     /** Fails when derived timing has not been initialized or became stale. */
