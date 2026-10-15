@@ -42,9 +42,7 @@ public final class LogBookQuery<R> {
             String name,
             Function<LogBookState, R> orderedReader,
             Function<LogBook, R> currentReader) {
-        checkArgument(
-                name != null && !name.trim().isEmpty(),
-                "name must not be blank");
+        checkArgument(name != null && !name.trim().isEmpty(), "name must not be blank");
         checkArgument(orderedReader != null, "orderedReader must not be null");
         this.name = name;
         this.orderedReader = orderedReader;
@@ -63,10 +61,7 @@ public final class LogBookQuery<R> {
 
     /** Reads the safely published CURRENT view or rejects unsupported consistency. */
     R readCurrent(LogBook logBook) {
-        if (currentReader == null) {
-            throw new IllegalArgumentException(
-                    "LogBook query " + name + " does not support CURRENT consistency");
-        }
+        checkArgument(currentReader != null, "LogBook query %s does not support CURRENT consistency", name);
         return currentReader.apply(logBook);
     }
 }

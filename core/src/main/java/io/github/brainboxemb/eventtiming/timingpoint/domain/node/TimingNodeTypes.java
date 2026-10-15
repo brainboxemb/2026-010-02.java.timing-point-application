@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
 
 /**
  * Public value/result types used by the TimingNode component boundary.
@@ -182,10 +183,7 @@ public final class TimingNodeTypes {
          *         {@link Outcome#COMMITTED}
          */
         public TimingData timingData() {
-            if (timingData == null) {
-                throw new IllegalStateException(
-                        "registration did not commit TimingData");
-            }
+            checkState(timingData != null, "registration did not commit TimingData");
             return timingData;
         }
     }

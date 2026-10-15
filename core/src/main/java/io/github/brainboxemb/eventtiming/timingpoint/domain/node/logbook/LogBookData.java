@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
 
 /**
  * Passive committed TimingData history owned by one TimingNode Data Lane.
@@ -51,9 +52,7 @@ public final class LogBookData {
         if (head == 0L) {
             return 1L;
         }
-        if (head >= TimingData.MAX_SEQUENCE_NUMBER) {
-            throw new IllegalStateException("TimingData sequence space is exhausted");
-        }
+        checkState(head < TimingData.MAX_SEQUENCE_NUMBER, "TimingData sequence space is exhausted");
         return head + 1L;
     }
 
@@ -62,17 +61,17 @@ public final class LogBookData {
      */
     public void add(TimingData data) {
         checkArgument(data != null, "data must not be null");
-        if (!timingNodeId.equals(data.timingNodeId())) {
-            throw new IllegalArgumentException(
-                    "TimingData belongs to a different TimingNode: " + data.timingNodeId());
-        }
+        checkArgument(
+                timingNodeId.equals(data.timingNodeId()),
+                "TimingData belongs to a different TimingNode: %s",
+                data.timingNodeId());
 
         long expectedSequence = nextSequence();
-        if (data.sequenceNumber() != expectedSequence) {
-            throw new IllegalArgumentException(
-                    "TimingData sequence must be " + expectedSequence
-                            + " but was " + data.sequenceNumber());
-        }
+        checkArgument(
+                data.sequenceNumber() == expectedSequence,
+                "TimingData sequence must be %s but was %s",
+                expectedSequence,
+                data.sequenceNumber());
         records.add(data);
 
         // Publish only after the committed record is present in the lane-owned list.
@@ -91,10 +90,7 @@ public final class LogBookData {
      * <p>The owner calls this while the Data Lane is current. The visitor is
      * invoked synchronously and must remain short/non-blocking.</p>
      */
-    public void visitRange(
-            long fromSequence,
-            int limit,
-            Consumer<TimingData> visitor) {
+    public void visitRange(long fromSequence, int limit, Consumer<TimingData> visitor) {
         checkArgument(fromSequence >= 1L, "fromSequence must be >= 1");
         checkArgument(limit >= 1, "limit must be >= 1");
         checkArgument(visitor != null, "visitor must not be null");
@@ -123,5 +119,4 @@ public final class LogBookData {
             visitor.accept(records.get(index));
         }
     }
-
 }
