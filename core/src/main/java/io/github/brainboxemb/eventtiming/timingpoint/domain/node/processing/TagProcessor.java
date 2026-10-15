@@ -340,7 +340,7 @@ public final class TagProcessor {
 
     /** Cancels the current housekeeping registration while holding the lifecycle lock. */
     private void closeHousekeepingLocked() {
-        LaneScheduler.ScheduledRegistration task = housekeepingTask;
+        ScheduledSerialLane.ScheduledRegistration task = housekeepingTask;
         housekeepingTask = null;
         if (task != null) {
             task.close();
