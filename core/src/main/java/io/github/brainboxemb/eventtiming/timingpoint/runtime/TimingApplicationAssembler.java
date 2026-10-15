@@ -135,7 +135,7 @@ final class TimingApplicationAssembler {
 
             return new TimingApplicationRuntime(
                     buildIdentity,
-                    timingNodes,
+                    allTimingNodes,
                     applicationConfiguration,
                     presentationGateway,
                     executors,
