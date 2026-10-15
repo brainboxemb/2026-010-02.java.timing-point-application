@@ -140,12 +140,12 @@ public class WebSocketOutboundDeliveryTest {
                                         "seq-" + data.sequenceNumber());
                             });
 
-            node.logBook().process(
+            node.logBook().execute(
                     LogBookCommands.open(
                             new LocationId(24)));
 
             for (int index = 1; index <= 10; index++) {
-                node.logBook().process(
+                node.logBook().execute(
                         LogBookCommands.addAutomaticRegistration(
                                 new RegistrationId(
                                         String.format(
