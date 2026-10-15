@@ -132,21 +132,17 @@ public final class NodeService {
      * explicitly stale rather than silently losing synchronization.</p>
      */
     private void handoffTimingFact(Runnable operation, String fact) {
-        Runnable queueTimingFact =
-                () -> serialLane.execute(operation);
-        Consumer<RejectedExecutionException> onRejected =
-                ex -> {
-                    state.markDerivedTimingStale();
-                    LOG.error(
-                            "Task Lane rejected {} for node {}; derived timing state is stale",
-                            fact,
-                            nodeId.value(),
-                            ex);
-                };
+        Runnable queueTimingFact = () -> serialLane.execute(operation);
+        Consumer<RejectedExecutionException> onRejected = ex -> {
+            state.markDerivedTimingStale();
+            LOG.error(
+                    "Task Lane rejected {} for node {}; derived timing state is stale",
+                    fact,
+                    nodeId.value(),
+                    ex);
+        };
 
-        SafeExecute.runOrHandleRejection(
-                queueTimingFact,
-                onRejected);
+        SafeExecute.runOrHandleRejection(queueTimingFact, onRejected);
     }
 
     /** Rebuilds derived timing while this service owns the SerialLane turn. */
@@ -232,6 +228,5 @@ public final class NodeService {
                 operation + " could not be queued because the TimingNode Task Lane is full",
                 rejection);
     }
-
 
 }
