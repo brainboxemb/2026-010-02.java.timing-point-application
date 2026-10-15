@@ -57,10 +57,15 @@ public final class TimingNode {
 
         /*
          * LogBook emits committed/startup TimingData synchronously on the Data
-         * Lane. NodeService handlers only queue the corresponding Task Lane work.
+         * Lane. NodeService owns the internal handlers and only queues the
+         * corresponding Task Lane work.
          */
-        logBook.initialDataLoadedEvent().subscribe(nodeService::onInitialTimingDataLoaded);
-        logBook.newDataEntryEvent().subscribe(nodeService::onTimingDataCommitted);
+        nodeService.bind(
+                NodeService.INITIAL_TIMING_DATA,
+                logBook.initialDataLoadedEvent());
+        nodeService.bind(
+                NodeService.COMMITTED_TIMING_DATA,
+                logBook.newDataEntryEvent());
 
         /*
          * TagProcessor emits synchronously on its own lane. The named handler
