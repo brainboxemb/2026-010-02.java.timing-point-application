@@ -161,12 +161,11 @@ public class AntennaManagerTest {
                                 antenna,
                                 power,
                                 Duration.ofMillis(200)),
-                        new SerialLane(
+                        new TaskSerialLane(
                                 8,
                                 "antenna-manager-test",
-                                shared),
-                        shared,
-                        Duration.ofSeconds(1));
+                                shared,
+                                Duration.ofSeconds(1)));
 
         try {
             manager.activate();
@@ -213,12 +212,11 @@ public class AntennaManagerTest {
                                 antenna,
                                 power,
                                 stabilization),
-                        new SerialLane(
+                        new TaskSerialLane(
                                 8,
                                 "antenna-manager-test",
-                                shared),
-                        shared,
-                        Duration.ofSeconds(1));
+                                shared,
+                                Duration.ofSeconds(1)));
 
         SerialLane sibling =
                 new SerialLane(
