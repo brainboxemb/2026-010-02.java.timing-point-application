@@ -93,11 +93,9 @@ public final class TimingNodeProxy {
         switch (action) {
             case ADD:
                 return logBook.process(
-                        LogBookCommands.commitAutomaticRegistration(
+                        LogBookCommands.addAutomaticRegistration(
                                 registrationId,
-                                time,
-                                TimingData.TagSource.ANT,
-                                TimingData.AutomaticTimeSource.OBS));
+                                time));
             default:
                 throw new IllegalArgumentException(
                         "Unsupported automatic registration action " + action);
