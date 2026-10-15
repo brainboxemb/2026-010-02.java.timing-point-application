@@ -80,10 +80,7 @@ final class UpstreamHeartbeat {
                     UpstreamData.PingOperation.ANS,
                     ping.mode(),
                     ping.pingId()));
-            return;
-        }
-
-        if (ping.operation() == UpstreamData.PingOperation.ANS
+        } else if (ping.operation() == UpstreamData.PingOperation.ANS
                 && ping.mode() == UpstreamData.PingMode.HB
                 && answerPending
                 && pendingPingId != null
