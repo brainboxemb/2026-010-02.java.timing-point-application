@@ -83,4 +83,55 @@ public class SafeExecuteTest {
             assertFalse(cleaned.get());
         }
     }
+
+    /** Verifies that a successful guarded operation does not call the rejection handler. */
+    @Test
+    public void handledRejectionSuccessDoesNotCallHandler() {
+        AtomicBoolean executed = new AtomicBoolean();
+        AtomicBoolean rejected = new AtomicBoolean();
+
+        SafeExecute.runOrHandleRejection(
+                () -> executed.set(true),
+                ex -> rejected.set(true));
+
+        assertTrue(executed.get());
+        assertFalse(rejected.get());
+    }
+
+    /** Verifies that the rejection policy receives the original exception. */
+    @Test
+    public void handledRejectionReceivesOriginalException() {
+        RejectedExecutionException rejection =
+                new RejectedExecutionException("full");
+        RejectedExecutionException[] reported =
+                new RejectedExecutionException[1];
+
+        SafeExecute.runOrHandleRejection(
+                () -> {
+                    throw rejection;
+                },
+                ex -> reported[0] = ex);
+
+        assertSame(rejection, reported[0]);
+    }
+
+    /** Verifies that unrelated runtime failures are not swallowed. */
+    @Test
+    public void handledRejectionDoesNotSwallowOtherFailures() {
+        IllegalArgumentException failure = new IllegalArgumentException("invalid");
+        AtomicBoolean rejected = new AtomicBoolean();
+
+        try {
+            SafeExecute.runOrHandleRejection(
+                    () -> {
+                        throw failure;
+                    },
+                    ex -> rejected.set(true));
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            assertSame(failure, expected);
+            assertFalse(rejected.get());
+        }
+    }
+
 }
