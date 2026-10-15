@@ -34,6 +34,7 @@ public final class TimingNode {
 
     /** Creates the top-level node owner around its already composed child components. */
     public TimingNode(LogBook logBook, NodeService nodeService, TagProcessor tagProcessor) {
+
         checkArgument(logBook != null, "logBook must not be null");
         checkArgument(nodeService != null, "nodeService must not be null");
         checkArgument(tagProcessor != null, "tagProcessor must not be null");
@@ -60,6 +61,7 @@ public final class TimingNode {
 
     /** Returns the immutable identity of this logical timing node. */
     public NodeId timingNodeId() {
+
         return timingNodeId;
     }
 
@@ -71,6 +73,7 @@ public final class TimingNode {
      * startup loading, lane ownership and metrics remain internal to the node composition.</p>
      */
     public LogBookAccessor logBook() {
+
         return logBook;
     }
 
@@ -84,11 +87,13 @@ public final class TimingNode {
      * Rollback and reverse deactivation are owned by the lifecycle manager.</p>
      */
     public void activate() {
+
         lifecycle.activateAll();
     }
 
     /** Deactivates all owned child components in reverse lifecycle order. */
     public void deactivate() {
+
         lifecycle.deactivateAll();
     }
 
@@ -97,6 +102,7 @@ public final class TimingNode {
      * the synchronous source event callback.
      */
     private void onNewRegistration(TagProcessor.NewRegistration registration) {
+
         LogBookCommand<?> command = LogBookCommands.addAutomaticRegistration(
                 registration.registrationId(), registration.observedAt());
 
