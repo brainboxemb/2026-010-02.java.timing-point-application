@@ -15,6 +15,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.Se
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.taskrunners.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
+import java.util.function.Consumer;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -124,13 +126,11 @@ public final class SystemConductor extends AbstractConductor implements Yielding
             }
         }
         if (antennaSettings != null) {
-            // Capture the aggregate decision for this run. update() executes
-            // the lambda synchronously as one settings transaction: the editor
-            // sets the desired value, which is published only after the lambda
-            // completes. An unchanged value publishes nothing. Hardware
-            // reconciliation remains asynchronous in AntennaManager.
-            final boolean enabled = required;
-            antennaSettings.update(edit -> edit.inventoryEnabled(enabled));
+            final boolean inventoryRequired = required;
+            Consumer<AntennaSettings.Edit> settingsUpdate =
+                    edit -> edit.inventoryEnabled(inventoryRequired);
+
+            antennaSettings.update(settingsUpdate);
         }
         return TaskStep.done();
     }
