@@ -50,7 +50,7 @@ public final class TimingSystemConductor extends AbstractConductor implements Yi
             throw new IllegalArgumentException("timingNodes must not be empty");
         }
 
-        this.nodes = timingNodes.copy();
+        this.nodes = timingNodes;
         this.antennaSettings = antennaSettings;
         taskController = new YieldingTaskController(
                 new SerialTaskRunner(coordinationLane()),
@@ -136,12 +136,7 @@ public final class TimingSystemConductor extends AbstractConductor implements Yi
     }
 
     private boolean containsNode(TimingNode node) {
-        for (TimingNode candidate : nodes) {
-            if (candidate == node) {
-                return true;
-            }
-        }
-        return false;
+        return nodes.contains(node);
     }
 
     private void onControlTaskFailure(Throwable failure) {
