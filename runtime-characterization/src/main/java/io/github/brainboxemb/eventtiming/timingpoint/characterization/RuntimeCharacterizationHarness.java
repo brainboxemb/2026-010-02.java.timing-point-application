@@ -18,6 +18,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServiceState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.DefaultTimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
@@ -25,7 +26,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
-import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.ClockTimeSource;
@@ -202,12 +202,14 @@ final class RuntimeCharacterizationHarness
                         dataLane,
                         LogBook.DEFAULT_OPERATION_TIMEOUT_MILLIS);
 
+        NodeServiceState nodeServiceState =
+                new NodeServiceState(
+                        nodeEventData);
         nodeService =
                 new NodeService(
                         logBook,
                         taskLane,
-                        nodeEventData,
-                        UpstreamStream.unavailable());
+                        nodeServiceState);
 
         tagProcessor =
                 new TagProcessor(
@@ -376,7 +378,7 @@ final class RuntimeCharacterizationHarness
                     new TimingTimestamp(
                             INPUT_TIME_BASE.minusSeconds(
                                     count - index));
-            if (!logBook.execute(
+            if (!logBook.process(
                             LogBookCommands.addAutomaticRegistration(
                                     new RegistrationId(
                                             String.format(
