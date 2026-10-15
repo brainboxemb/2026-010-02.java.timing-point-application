@@ -17,12 +17,12 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * {@link LogBook}, which applies the command on the Data Lane.</p>
  *
  * <p>Factory methods validate caller input and capture only the values needed
- * by the immutable command. LogBook later applies that command to its owned
- * LogBookState on the Data Lane.</p>
+ * by the immutable command. LogBook later applies that command through its owned
+ * LogBookOperations on the Data Lane.</p>
  */
 public final class LogBookCommands {
     private static final LogBookCommand<CloseResult> CLOSE =
-            simple("close", LogBookState::close);
+            simple("close", LogBookOperations::close);
 
     /** Prevents construction of this stateless command factory. */
     private LogBookCommands() {
@@ -38,7 +38,7 @@ public final class LogBookCommands {
         checkArgument(locationId != null, "locationId must not be null");
         return simple(
                 "open",
-                logBookState -> logBookState.open(locationId));
+                operations -> operations.open(locationId));
     }
 
     /**
@@ -62,7 +62,7 @@ public final class LogBookCommands {
 
         return simple(
                 "addAutomaticRegistration",
-                logBookState -> logBookState.addAutomaticRegistration(
+                operations -> operations.addAutomaticRegistration(
                         registrationId,
                         time));
     }
@@ -76,7 +76,7 @@ public final class LogBookCommands {
         checkArgument(time != null, "time must not be null");
         return simple(
                 "simulateAutomaticRegistration",
-                logBookState -> logBookState.simulateAutomaticRegistration(registrationId, time));
+                operations -> operations.simulateAutomaticRegistration(registrationId, time));
     }
 
     /** Direct IF-03 simulation; capture TimeSource on the node's serial lane. */
@@ -85,7 +85,7 @@ public final class LogBookCommands {
         checkArgument(registrationId != null, "registrationId must not be null");
         return simple(
                 "simulateAutomaticRegistrationNow",
-                logBookState -> logBookState.simulateAutomaticRegistrationNow(registrationId));
+                operations -> operations.simulateAutomaticRegistrationNow(registrationId));
     }
 
     /**
@@ -104,7 +104,7 @@ public final class LogBookCommands {
 
         return simple(
                 "commitManualRegistration",
-                logBookState -> logBookState.commitManualRegistration(
+                operations -> operations.commitManualRegistration(
                         registrationId,
                         effectiveTime,
                         registrationTimeSource));
@@ -124,7 +124,7 @@ public final class LogBookCommands {
                 originalTime);
         return simple(
                 "revokeAutomaticRegistration",
-                logBookState -> logBookState.revokeAutomaticRegistration(
+                operations -> operations.revokeAutomaticRegistration(
                         originalLocationId,
                         registrationId,
                         originalTime));
@@ -148,7 +148,7 @@ public final class LogBookCommands {
                 "originalTimeSource must not be null");
         return simple(
                 "revokeManualRegistration",
-                logBookState -> logBookState.revokeManualRegistration(
+                operations -> operations.revokeManualRegistration(
                         originalLocationId,
                         registrationId,
                         originalTime,
@@ -171,7 +171,7 @@ public final class LogBookCommands {
                 "originalTime must not be null");
     }
 
-    /** Creates one named typed command from its deferred LogBookState action. */
+    /** Creates one named typed command from its deferred LogBookOperations action. */
     private static <R> LogBookCommand<R> simple(
             String name,
             LogBookCommand.Action<R> action) {
