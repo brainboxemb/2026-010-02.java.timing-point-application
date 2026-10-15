@@ -132,11 +132,8 @@ public final class TimingNode {
      */
     private void onNewRegistration(TagProcessor.NewRegistration registration) {
 
-        LogBookCommand<?> command = LogBookCommands.commitAutomaticRegistration(
-                registration.registrationId(),
-                registration.observedAt(),
-                io.github.brainboxemb.eventtiming.timingdata.TimingData.TagSource.ANT,
-                io.github.brainboxemb.eventtiming.timingdata.TimingData.AutomaticTimeSource.OBS);
+        LogBookCommand<?> command = LogBookCommands.addAutomaticRegistration(
+                registration.registrationId(), registration.observedAt());
 
         Runnable queueRegistration = () -> logBook.execute(command);
         Consumer<RejectedExecutionException> onRejected = ex -> LOG.warn(
