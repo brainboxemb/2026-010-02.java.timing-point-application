@@ -108,7 +108,7 @@ final class TimingApplicationAssembler {
                                     resolvedSystem.eventData(),
                                     timeSource,
                                     executors.createSimulationLane(),
-                                    executors.sharedIoScheduler());
+                                    executors.sharedIoScheduledExecutor());
                 }
             }
 
