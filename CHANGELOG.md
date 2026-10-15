@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make `LogBook.activate()` read linearly by naming the persisted-load scheduling and rejection-cleanup `Runnable` values before passing them to `SafeExecute.run(...)`.
+
 - Restore `LogBookCommands` to the shared validation/comment conventions: command preconditions use `Checks.checkArgument(...)`, private helpers are documented, and the repeated deferred `logBookState -> ...` command lambda is explained once at the factory boundary.
 
 - Remove unused `LogBookState` getters and its unused convenience constructor, and document every remaining state/helper method plus the missing `LogBookData` constructor/size contracts.
