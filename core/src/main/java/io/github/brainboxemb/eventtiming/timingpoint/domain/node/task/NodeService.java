@@ -86,9 +86,9 @@ public final class NodeService {
         checkArgument(raceTimeZone != null, "raceTimeZone must not be null");
 
         /*
-         * A query already running on this SerialLane can read the owned state
-         * directly. Otherwise, () means the Callable has no arguments and ->
-         * introduces the ranking code that SerialLane executes later in order.
+         * A query already running on this Task Lane has satisfied its ordering
+         * requirement and can read owned state directly. External callers queue
+         * one named result-bearing query and wait for that ordered result.
          */
         if (serialLane.isExecutingOnCurrentThread()) {
             return buildStageTiming(raceTimeZone);
