@@ -134,7 +134,7 @@ public final class UpstreamHandler {
                 UpstreamData.RaceData raceData = (UpstreamData.RaceData) data;
                 Runnable applyRaceData = () -> upstreamDataSync.handleRaceData(raceData);
                 executeTaskOrWarn(applyRaceData, "RACE_DATA");
-                return;
+                break;
 
             case SYNC:
                 checkArgument(data instanceof UpstreamData.Sync,
@@ -147,13 +147,13 @@ public final class UpstreamHandler {
                     throw new UnsupportedOperationException(
                             "Inbound SYNC supports RACE_DATA only");
                 }
-                return;
+                break;
 
             case REQ:
                 checkArgument(data instanceof UpstreamData.Req,
                         "REQ has incompatible semantic type");
                 logBookSync.handleReq((UpstreamData.Req) data);
-                return;
+                break;
 
             case PING:
                 checkArgument(data instanceof UpstreamData.Ping,
@@ -162,7 +162,7 @@ public final class UpstreamHandler {
                         (UpstreamData.Ping) data;
                 Runnable handlePing = () -> heartbeat.handle(ping);
                 executeTaskOrWarn(handlePing, "PING");
-                return;
+                break;
 
             default:
                 throw new UnsupportedOperationException(

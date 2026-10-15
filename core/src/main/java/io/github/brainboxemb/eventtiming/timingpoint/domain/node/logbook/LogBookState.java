@@ -444,13 +444,12 @@ final class LogBookState {
 
     /** Rejects normal LogBook operations after this node entered ERROR state. */
     private void ensureOperational() {
-        if (state != State.ERROR) {
-            return;
+        if (state == State.ERROR) {
+            String detail = problems.isEmpty()
+                    ? "TimingNode is in ERROR"
+                    : problems.get(0).message();
+            throw new IllegalStateException(detail);
         }
-        String detail = problems.isEmpty()
-                ? "TimingNode is in ERROR"
-                : problems.get(0).message();
-        throw new IllegalStateException(detail);
     }
 
     /** Blocks further commits after an earlier persistence or in-memory commit failure. */

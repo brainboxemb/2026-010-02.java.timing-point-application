@@ -278,22 +278,20 @@ public final class TagProcessor {
             LOG.debug(
                     "Tag observation ignored because TagId {} is unmapped",
                     observation.tagId().value());
-            return;
+        } else {
+            metrics.recordMapped();
+            if (duplicateFilter.isDuplicate(registrationId)) {
+                metrics.recordDuplicate();
+                LOG.debug(
+                        "Tag observation suppressed as duplicate: registrationId={}, tagId={}",
+                        registrationId.value(),
+                        observation.tagId().value());
+            } else {
+                observationFilter.add(registrationId, observation);
+                publishPassageSnapshots();
+                ensureHousekeeping();
+            }
         }
-
-        metrics.recordMapped();
-        if (duplicateFilter.isDuplicate(registrationId)) {
-            metrics.recordDuplicate();
-            LOG.debug(
-                    "Tag observation suppressed as duplicate: registrationId={}, tagId={}",
-                    registrationId.value(),
-                    observation.tagId().value());
-            return;
-        }
-
-        observationFilter.add(registrationId, observation);
-        publishPassageSnapshots();
-        ensureHousekeeping();
     }
 
     /** Ensures one periodic housekeeping registration exists while timed filter state is active. */
