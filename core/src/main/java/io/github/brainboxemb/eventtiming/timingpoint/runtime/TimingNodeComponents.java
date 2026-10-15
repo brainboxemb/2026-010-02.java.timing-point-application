@@ -2,7 +2,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 
 /**
  * Runtime-only result of composing one TimingNode and the child reference needed
@@ -11,16 +10,13 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.Upstre
 final class TimingNodeComponents {
     private final TimingNode node;
     private final TagProcessor tagProcessor;
-    private final UpstreamHandler upstreamHandler;
 
     /** Creates the runtime-only references produced while composing one TimingNode. */
     TimingNodeComponents(
             TimingNode node,
-            TagProcessor tagProcessor,
-            UpstreamHandler upstreamHandler) {
+            TagProcessor tagProcessor) {
         this.node = node;
         this.tagProcessor = tagProcessor;
-        this.upstreamHandler = upstreamHandler;
     }
 
     /** Returns the composed TimingNode domain owner. */
@@ -33,8 +29,4 @@ final class TimingNodeComponents {
         return tagProcessor;
     }
 
-    /** Returns the node-scoped upstream boundary for runtime I/O wiring. */
-    UpstreamHandler upstreamHandler() {
-        return upstreamHandler;
-    }
 }
