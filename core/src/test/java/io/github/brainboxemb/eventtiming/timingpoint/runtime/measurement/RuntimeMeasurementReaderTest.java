@@ -127,11 +127,11 @@ public class RuntimeMeasurementReaderTest {
 
         node.activate();
         try {
-            node.logBook().process(
+            node.logBook().execute(
                     LogBookCommands.open(
                             new LocationId(24)));
             assertTrue(
-                    node.logBook().process(
+                    node.logBook().execute(
                                     LogBookCommands.addAutomaticRegistration(
                                             new RegistrationId("N0001"),
                                             EVENT_TIME))
