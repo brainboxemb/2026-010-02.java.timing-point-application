@@ -6,6 +6,8 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * Coalescing wake-up controller for one long-lived cooperative control task.
  *
@@ -28,21 +30,10 @@ public final class YieldingTaskController {
 
     /** Creates coalescing wake-up control around one reusable yielding task. */
     public YieldingTaskController(
-            YieldingTaskRunner runner,
-            YieldingTask task,
-            Consumer<Throwable> failureHandler) {
-        if (runner == null) {
-            throw new IllegalArgumentException(
-                    "runner must not be null");
-        }
-        if (task == null) {
-            throw new IllegalArgumentException(
-                    "task must not be null");
-        }
-        if (failureHandler == null) {
-            throw new IllegalArgumentException(
-                    "failureHandler must not be null");
-        }
+            YieldingTaskRunner runner, YieldingTask task, Consumer<Throwable> failureHandler) {
+        checkArgument(runner != null, "runner must not be null");
+        checkArgument(task != null, "task must not be null");
+        checkArgument(failureHandler != null, "failureHandler must not be null");
 
         this.runner = runner;
         this.task = task;
