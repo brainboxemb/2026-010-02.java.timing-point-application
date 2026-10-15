@@ -112,11 +112,7 @@ public final class AntennaManager implements YieldingTask {
          */
         selfTestTask.completedEvent().subscribe(this::onSelfTestCompleted);
         inventoryTask.completedEvent().subscribe(this::onInventoryCompleted);
-        settings.changedEvent().subscribe(ignored -> {
-            if (state == State.ACTIVE) {
-                stateMachine.wake();
-            }
-        });
+        settings.changedEvent().subscribe(this::onSettingsChanged);
     }
 
     public synchronized void activate() {
@@ -143,16 +139,6 @@ public final class AntennaManager implements YieldingTask {
         return state == State.ACTIVE
                 && current != Phase.START_SELF_TEST
                 && current != Phase.WAIT_SELF_TEST;
-    }
-
-    /** Compatibility adapter for existing controls; prefer shared Settings updates. */
-    public synchronized boolean setInventoryEnabled(boolean enabled) {
-        if (state != State.ACTIVE) {
-            return false;
-        }
-
-        settings.update(edit -> edit.inventoryEnabled(enabled));
-        return true;
     }
 
     public AntennaSettings settings() {
@@ -254,6 +240,13 @@ public final class AntennaManager implements YieldingTask {
         inventoryEnabledSetting.request(Boolean.valueOf(enabled));
         stateMachine.wake();
         return true;
+    }
+
+    /** Wakes reconciliation after one committed desired-settings revision. */
+    private void onSettingsChanged(long ignoredRevision) {
+        if (state == State.ACTIVE) {
+            stateMachine.wake();
+        }
     }
 
     /**
