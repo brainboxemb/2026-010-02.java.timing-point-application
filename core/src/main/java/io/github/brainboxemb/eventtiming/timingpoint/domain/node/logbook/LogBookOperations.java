@@ -84,7 +84,7 @@ final class LogBookOperations {
 
         TimingTimestamp transitionTime = currentLifecycleTime();
         TimingData data = timingDataFactory.createNodeOpen(
-                nextLifecycleContext(newLocationId, transitionTime));
+                nextContext(newLocationId, transitionTime));
         commitTimingData(data);
 
         state.markOpen(newLocationId);
@@ -102,7 +102,7 @@ final class LogBookOperations {
 
         TimingTimestamp transitionTime = currentLifecycleTime();
         TimingData data = timingDataFactory.createNodeClose(
-                nextLifecycleContext(state.locationId(), transitionTime));
+                nextContext(state.locationId(), transitionTime));
         commitTimingData(data);
 
         state.markClosed();
@@ -164,7 +164,7 @@ final class LogBookOperations {
         ensureTimingDataCommitAvailable();
 
         TimingData data = timingDataFactory.createManualRegistration(
-                nextRegistrationContext(normalizeRegistrationTime(effectiveTime)),
+                nextContext(state.locationId(), normalizeRegistrationTime(effectiveTime)),
                 registrationId,
                 registrationTimeSource);
         return commitRegistration(data);
@@ -201,7 +201,7 @@ final class LogBookOperations {
         ensureTimingDataCommitAvailable();
 
         TimingData data = timingDataFactory.createManualRegistration(
-                nextRegistrationContext(originalLocationId, originalTime),
+                nextContext(originalLocationId, originalTime),
                 registrationId,
                 originalTimeSource,
                 TimingData.RegistrationAction.REV);
@@ -237,27 +237,22 @@ final class LogBookOperations {
         state.markTimingDataLoadFailed(problem);
     }
 
-    /** Builds the next registration context using the node's current location. */
-    private Context nextRegistrationContext(TimingTimestamp effectiveTime) {
-
-        return nextRegistrationContext(state.locationId(), effectiveTime);
-    }
-
-    /** Builds the next registration context with explicit location and recorded time. */
-    private Context nextRegistrationContext(
-            LocationId recordLocationId, TimingTimestamp effectiveTime) {
+    /** Builds the next TimingData context with sequence and recorded time. */
+    private Context nextContext(
+            LocationId locationId,
+            TimingTimestamp effectiveTime) {
 
         return new Context(
                 state.timingNodeId(),
                 state.nextTimingDataSequence(),
-                recordLocationId,
+                locationId,
                 effectiveTime,
                 currentRecordedTime());
     }
 
     /** Builds the next automatic-registration context including source provenance. */
     private Context nextRegistrationContext(
-            LocationId recordLocationId,
+            LocationId locationId,
             TimingTimestamp effectiveTime,
             TimingData.TagSource tagSource,
             TimingData.AutomaticTimeSource timeProvenance) {
@@ -265,23 +260,11 @@ final class LogBookOperations {
         return new Context(
                 state.timingNodeId(),
                 state.nextTimingDataSequence(),
-                recordLocationId,
+                locationId,
                 effectiveTime,
                 currentRecordedTime(),
                 tagSource,
                 timeProvenance);
-    }
-
-    /** Builds the next lifecycle-record context at the supplied effective time. */
-    private Context nextLifecycleContext(
-            LocationId lifecycleLocation, TimingTimestamp effectiveTime) {
-
-        return new Context(
-                state.timingNodeId(),
-                state.nextTimingDataSequence(),
-                lifecycleLocation,
-                effectiveTime,
-                currentRecordedTime());
     }
 
     /** Captures reference lifecycle time at centisecond resolution. */
