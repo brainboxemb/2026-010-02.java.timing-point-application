@@ -27,18 +27,18 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * the supplied executor may share Runtime's physical worker with the Data Lane.
  * Mutable Task Lane state lives in {@link NodeServiceState}; {@link NodeTaskLane}
  * owns Task Lane execution/wait mechanics and the service owns semantic orchestration.
- * {@link TimingNode} binds the LogBook's immutable startup-history and committed-data
- * event sources to this service; NodeService owns the internal handlers but has no
- * LogBook lifecycle or storage dependency of its own.</p>
+ * {@link TimingNode} binds LogBook lifecycle/data notifications to this service.
+ * Recovery of derived Task Lane state is intentionally not designed here; NodeService
+ * has no LogBook lifecycle or storage dependency of its own.</p>
  */
 public final class NodeService {
     private static final Logger LOG = LoggerFactory.getLogger(NodeService.class);
     private static final long TASK_QUERY_TIMEOUT_MILLIS = 2000L;
 
-    /** Initial LogBook history input used to rebuild derived timing state. */
-    public static final EventInput<NodeService, List<TimingData>> INITIAL_TIMING_DATA =
+    /** Successful LogBook load notification; carries only the loaded record count. */
+    public static final EventInput<NodeService, Integer> DATA_LOADED =
             EventInput.of(
-                    (service, source) -> source.subscribe(service::onInitialTimingDataLoaded));
+                    (service, source) -> source.subscribe(service::onDataLoaded));
 
     /** Newly committed LogBook TimingData input used for incremental updates. */
     public static final EventInput<NodeService, TimingData> COMMITTED_TIMING_DATA =
@@ -125,16 +125,18 @@ public final class NodeService {
     }
 
     /**
-     * Receives transient immutable startup history from the LogBook Data Lane.
+     * Receives successful LogBook load completion without exposing loaded history.
      *
-     * <p>{@link TimingNode} installs this composition-time event link. The
-     * handler only queues the history fold onto the Task Lane and returns.</p>
+     * <p>The future recovery design for Task Lane-derived state is deliberately
+     * left open. This notification currently records only that startup loading
+     * completed and how many records were loaded.</p>
      */
-    private void onInitialTimingDataLoaded(List<TimingData> loadedData) {
+    private void onDataLoaded(Integer recordCount) {
 
-        // Runnable defers the one-time history fold until the Task Lane owns derived state.
-        Runnable rebuildInitialState = () -> rebuildDerivedTiming(loadedData);
-        handoffTimingFact(rebuildInitialState, "initial TimingData");
+        LOG.debug(
+                "LogBook startup load completed for node {}: records={}",
+                nodeId.value(),
+                recordCount);
     }
 
     /**
@@ -170,13 +172,6 @@ public final class NodeService {
         };
 
         SafeExecute.runOrHandleRejection(queueTimingFact, onRejected);
-    }
-
-    /** Rebuilds derived timing while this service owns the SerialLane turn. */
-    private void rebuildDerivedTiming(Iterable<TimingData> loadedData) {
-
-        taskLane.requireCurrentThread("rebuildDerivedTiming");
-        state.rebuildDerivedTiming(loadedData);
     }
 
     /** Applies one newly committed TimingData fact during the owned SerialLane turn. */
