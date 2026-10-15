@@ -140,19 +140,19 @@ public final class LogBook implements LogBookAccessor {
     }
 
     /**
-     * Executes an ORDERED query and waits until earlier queued Data Lane work
+     * Processes an ORDERED query and waits until earlier queued Data Lane work
      * has been processed.
      */
-    public <R> R query(LogBookQuery<R> query) {
+    public <R> R process(LogBookQuery<R> query) {
 
-        return query(query, LogBookQuery.ReadConsistency.ORDERED);
+        return process(query, LogBookQuery.ReadConsistency.ORDERED);
     }
 
     /**
-     * Reads either the directly published CURRENT view or an ORDERED Data Lane
-     * view, according to the requested consistency.
+     * Processes either the directly published CURRENT view or an ORDERED Data
+     * Lane view, according to the requested consistency.
      */
-    public <R> R query(LogBookQuery<R> query, LogBookQuery.ReadConsistency consistency) {
+    public <R> R process(LogBookQuery<R> query, LogBookQuery.ReadConsistency consistency) {
 
         checkArgument(query != null, "query must not be null");
         checkArgument(consistency != null, "consistency must not be null");
