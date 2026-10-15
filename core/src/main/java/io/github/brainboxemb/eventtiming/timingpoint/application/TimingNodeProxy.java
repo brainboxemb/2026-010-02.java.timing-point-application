@@ -14,7 +14,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
@@ -41,6 +40,7 @@ public final class TimingNodeProxy {
     }
 
     private final NodeId timingNodeId;
+    private final TimingNode timingNode;
     private final LogBookAccessor logBook;
     private final Event<TimingNodeStatus> statusChangedEvent = new Event<>();
 
@@ -49,8 +49,9 @@ public final class TimingNodeProxy {
             throw new IllegalArgumentException("timingNode must not be null");
         }
         this.timingNodeId = timingNode.timingNodeId();
+        this.timingNode = timingNode;
         this.logBook = timingNode.logBook();
-        logBook.statusChangedEvent().subscribe(this::updateStatus);
+        timingNode.statusChangedEvent().subscribe(this::updateStatus);
     }
 
     /** Returns the stable identity of the proxied TimingNode. */
@@ -60,20 +61,17 @@ public final class TimingNodeProxy {
 
     /** Returns the current authoritative node status. */
     public TimingNodeStatus status() {
-        return timingNodeStatus(
-                logBook.process(
-                        LogBookQueries.status(),
-                        ReadConsistency.CURRENT));
+        return timingNodeStatus(timingNode.status());
     }
 
     /** Opens the node at the requested LocationId. */
     public OpenResult open(LocationId locationId) {
-        return logBook.process(LogBookCommands.open(locationId));
+        return timingNode.open(locationId);
     }
 
     /** Closes the node. */
     public CloseResult close() {
-        return logBook.process(LogBookCommands.close());
+        return timingNode.close();
     }
 
     /**
