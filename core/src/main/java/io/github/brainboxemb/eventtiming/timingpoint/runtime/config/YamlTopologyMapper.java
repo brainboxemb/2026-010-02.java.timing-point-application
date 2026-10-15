@@ -275,7 +275,7 @@ final class YamlTopologyMapper {
         }
 
         long millis =
-                requireYamlLong(
+                YamlValues.requireLong(
                         values.get(
                                 name),
                         field
@@ -318,21 +318,6 @@ final class YamlTopologyMapper {
                             + " must be a positive YAML integer");
         }
         return ((Integer) raw).intValue();
-    }
-
-    /** Accepts YAML integer scalars represented as Integer or Long. */
-    static long requireYamlLong(
-            Object value,
-            String field) {
-        if (value instanceof Integer) {
-            return ((Integer) value).longValue();
-        }
-        if (value instanceof Long) {
-            return ((Long) value).longValue();
-        }
-        throw new IllegalArgumentException(
-                field
-                        + " must be a YAML integer");
     }
 
     /** Resolves an optional provider selection to its effective provider id. */
