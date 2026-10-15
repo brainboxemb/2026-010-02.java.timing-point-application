@@ -8,6 +8,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persist
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventWithMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
@@ -35,10 +36,9 @@ public final class LogBook implements LogBookAccessor {
     private final LogBookOperations logBookOperations;
     private final LogBookDataLane dataLane;
     private final LogBookStatus logBookStatus;
-    private final MonotonicClock monotonicClock;
     private final LogBookMetrics metrics;
 
-    private final Event<TimingData> newDataEntryEvent = new Event<TimingData>();
+    private final EventWithMetrics<TimingData> newDataEntryEvent;
     private final Event<List<TimingData>> initialDataLoadedEvent = new Event<List<TimingData>>();
 
     /**
@@ -77,8 +77,11 @@ public final class LogBook implements LogBookAccessor {
                 metrics);
         this.dataLane = new LogBookDataLane(serialLane, operationTimeoutMillis);
         this.logBookStatus = new LogBookStatus(timingNodeId, dataLane);
-        this.monotonicClock = monotonicClock;
         this.metrics = metrics;
+        this.newDataEntryEvent =
+                new EventWithMetrics<TimingData>(
+                        monotonicClock,
+                        metrics.timingDataEventMetrics());
     }
 
     /** Returns immutable node identity without entering the Data Lane. */
@@ -229,7 +232,7 @@ public final class LogBook implements LogBookAccessor {
                         timingNodeId().value());
             }
 
-            publishInitialLoadedData(loadResult.records());
+            initialDataLoadedEvent.emit(loadResult.records());
         } catch (TimingDataPersistence.PersistenceException | RuntimeException ex) {
 
             logBookOperations.markTimingDataLoadFailed(ex);
@@ -270,26 +273,11 @@ public final class LogBook implements LogBookAccessor {
 
         int committedAfter = logBookState.committedTimingDataCount();
         if (committedAfter > committedBefore) {
-            publishNewData(logBookState.latestCommittedTimingData());
+            newDataEntryEvent.emit(logBookState.latestCommittedTimingData());
         }
 
         logBookStatus.publishChanged(before, after);
         return result;
     }
-
-    /** Emits immutable LoadResult history without allocating another full-list snapshot. */
-    private void publishInitialLoadedData(List<TimingData> loadedData) {
-
-        initialDataLoadedEvent.emit(loadedData);
-    }
-
-    /** Publishes one successfully committed TimingData record and records delivery metrics. */
-    private void publishNewData(TimingData data) {
-
-        long eventStartedNanos = monotonicClock.nowNanos();
-        Event.DeliveryReport delivery = newDataEntryEvent.emit(data);
-        metrics.recordEventDelivery(monotonicClock.nowNanos() - eventStartedNanos, delivery.failureCount());
-    }
-
 
 }

@@ -209,7 +209,7 @@ final class RuntimeCharacterizationHarness
                         nodeEventData);
         nodeService =
                 new NodeService(
-                        logBook,
+                        NODE_ID,
                         taskLane,
                         nodeServiceState);
 
@@ -221,10 +221,6 @@ final class RuntimeCharacterizationHarness
                         tagMetrics,
                         tagLane,
                         tagWorker);
-        tagConfiguration.changes()
-                .subscribe(
-                        tagProcessor::onPolicyConfigurationChanged);
-
         node =
                 new TimingNode(
                         logBook,
@@ -245,11 +241,10 @@ final class RuntimeCharacterizationHarness
                         ioWorker,
                         ANTENNA_CONTROL_TIMEOUT);
 
-        antennaManager
-                .tagObservedEvent(
-                        ANTENNA_ID)
-                .subscribe(
-                        tagProcessor::onTagObserved);
+        node.bind(
+                TimingNode.TAG_OBSERVATIONS,
+                antennaManager.tagObservedEvent(
+                        ANTENNA_ID));
         logBook.newDataEntryEvent()
                 .subscribe(
                         ignored ->
@@ -314,7 +309,7 @@ final class RuntimeCharacterizationHarness
         }
 
         int historyAtMeasurementStart =
-                logBook.query(
+                logBook.process(
                         LogBookQueries.timingDataCount());
 
         TimingNodeRuntimeSnapshot nodeBefore =
@@ -433,7 +428,7 @@ final class RuntimeCharacterizationHarness
         long started =
                 System.nanoTime();
         int total =
-                logBook.query(
+                logBook.process(
                         LogBookQueries.visitLatestTimingData(
                                 config.queryLimit(),
                                 ignored ->

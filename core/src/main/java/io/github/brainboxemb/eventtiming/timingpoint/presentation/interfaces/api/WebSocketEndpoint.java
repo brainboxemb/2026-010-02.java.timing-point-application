@@ -99,14 +99,11 @@ public final class WebSocketEndpoint implements AutoCloseable {
         this.timingDataCodec = new DefaultTimingDataCodec();
         this.outboundDelivery =
                 new WebSocketOutboundDelivery();
+
+        bindApplicationEvents();
     }
 
-    /**
-     * Starts the WebSocket listener.
-     *
-     * <p>Application-event wiring is completed by PresentationRuntime during
-     * composition, before this endpoint is activated.</p>
-     */
+    /** Starts the WebSocket listener after constructor-time application binding. */
     public synchronized void start() throws IOException {
         if (server != null) {
             throw new IllegalStateException("WebSocket IF-03 server is already started");
@@ -163,7 +160,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
     /**
      * Composition-wired application event callback.
      */
-    public void onTimingNodeStatusChanged(
+    private void onTimingNodeStatusChanged(
             TimingNodeStatus status) {
         if (status == null) {
             throw new IllegalArgumentException(
@@ -180,7 +177,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
     /**
      * Composition-wired application event callback.
      */
-    public void onTimingDataCommitted(
+    private void onTimingDataCommitted(
             TimingData data) {
         Server current = currentServer();
         if (current == null) {
@@ -205,7 +202,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
     /**
      * Composition-wired application event callback.
      */
-    public void onConfigurationChanged(
+    private void onConfigurationChanged(
             ConfigurationControl.Change change) {
         Server current = currentServer();
         if (current != null) {
@@ -214,6 +211,22 @@ public final class WebSocketEndpoint implements AutoCloseable {
                             clock.instant(),
                             change));
         }
+    }
+
+    /**
+     * Binds the endpoint to the transport-independent application event sources.
+     *
+     * <p>The endpoint owns these subscriptions because consuming gateway events is
+     * intrinsic adapter behaviour; Runtime only constructs and starts the adapter.</p>
+     */
+    private void bindApplicationEvents() {
+        for (TimingNodeProxy timingNode : presentationGateway.timingNodes()) {
+            timingNode.statusChangedEvent().subscribe(this::onTimingNodeStatusChanged);
+            timingNode.newDataEntryEvent().subscribe(this::onTimingDataCommitted);
+        }
+        presentationGateway.configuration()
+                .changes()
+                .subscribe(this::onConfigurationChanged);
     }
 
     private synchronized Server currentServer() {

@@ -212,9 +212,6 @@ public class UpstreamHandlerTest {
                         new TagProcessingMetrics(),
                         tagLane,
                         tagWorker);
-        tagConfiguration.changes()
-                .subscribe(
-                        tags::onPolicyConfigurationChanged);
         TimingNode timingNode =
                 new TimingNode(
                         logBook,

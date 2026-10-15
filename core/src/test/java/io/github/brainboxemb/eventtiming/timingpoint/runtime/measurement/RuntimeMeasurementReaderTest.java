@@ -101,7 +101,6 @@ public class RuntimeMeasurementReaderTest {
                         tagMetrics,
                         tagLane,
                         tagWorker);
-        tagConfiguration.changes().subscribe(tags::onPolicyConfigurationChanged);
         TimingNode node = new TimingNode(logBook, nodeService, tags);
 
         RuntimeMeasurementReader reader =
