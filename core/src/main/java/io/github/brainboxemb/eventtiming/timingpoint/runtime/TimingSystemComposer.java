@@ -5,7 +5,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationCond
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.SystemConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
@@ -18,7 +17,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -62,13 +60,7 @@ final class TimingSystemComposer {
             AntennaManagerConfig managerBinding,
             AntennaSet implicitAntennas,
             TimeSource timeSource) {
-        List<TimingNodeComponents> nodeComponents =
-                createNodes(
-                        system,
-                        timeSource);
-        TimingNodeList nodes =
-                timingNodes(
-                        nodeComponents);
+        TimingNodeList nodes = createNodes(system, timeSource);
         if (managerBinding == null && !implicitAntennas.isEmpty() && nodes.size() != 1) {
             throw new IllegalArgumentException(
                     "Implicit antenna routing requires exactly one TimingNode");
@@ -104,11 +96,7 @@ final class TimingSystemComposer {
                                             status));
         }
         if (antennaManager != null) {
-            routeObservations(
-                    antennaManager,
-                    antennaSet,
-                    managerBinding,
-                    nodeComponents);
+            routeObservations(antennaManager, antennaSet, managerBinding, nodes);
         }
 
         return new TimingSystemComponents(
@@ -116,30 +104,13 @@ final class TimingSystemComposer {
     }
 
     /** Composes all TimingNodes configured for this resolved timing system. */
-    private List<TimingNodeComponents> createNodes(
+    private TimingNodeList createNodes(
             TimingSystemResolvedData system,
             TimeSource timeSource) {
-        List<TimingNodeComponents> nodes =
-                new ArrayList<TimingNodeComponents>();
-        for (Config.TimingNodeConfig nodeConfig
-                : system.configuration().timingNodes()) {
-            nodes.add(
-                    nodeComposer.compose(
-                            nodeConfig,
-                            system,
-                            timeSource));
-        }
-        return nodes;
-    }
 
-    /** Extracts the composed domain TimingNodes in configuration order. */
-    private static TimingNodeList timingNodes(
-            List<TimingNodeComponents> components) {
-        TimingNodeList nodes =
-                new TimingNodeList();
-        for (TimingNodeComponents component : components) {
-            nodes.add(
-                    component.node());
+        TimingNodeList nodes = new TimingNodeList();
+        for (Config.TimingNodeConfig nodeConfig : system.configuration().timingNodes()) {
+            nodes.add(nodeComposer.compose(nodeConfig, system, timeSource));
         }
         return nodes;
     }
@@ -168,43 +139,35 @@ final class TimingSystemComposer {
         return antennas;
     }
 
-    /** Connects antenna observation events to each configured target TimingNode TagProcessor. */
+    /** Connects antenna observation events to configured TimingNode component boundaries. */
     private static void routeObservations(
             AntennaManager manager,
             AntennaSet antennas,
             AntennaManagerConfig binding,
-            List<TimingNodeComponents> nodes) {
-        Map<NodeId, TimingNodeComponents> byId =
-                new LinkedHashMap<NodeId, TimingNodeComponents>();
-        for (TimingNodeComponents components : nodes) {
-            byId.put(
-                    components.node().timingNodeId(),
-                    components);
+            TimingNodeList nodes) {
+
+        Map<NodeId, TimingNode> byId = new LinkedHashMap<NodeId, TimingNode>();
+        for (TimingNode node : nodes) {
+            byId.put(node.timingNodeId(), node);
         }
 
         if (binding == null) {
             // Compatibility for the one-system, one-node test/Windows setup.
-            TagProcessor tags =
-                    nodes.get(0).tagProcessor();
+            TimingNode node = nodes.get(0);
             for (AntennaId antennaId : antennas.antennaIds()) {
-                manager.tagObservedEvent(antennaId)
-                        .subscribe(
-                                tags::onTagObserved);
+                manager.tagObservedEvent(antennaId).subscribe(node::onTagObserved);
             }
         } else {
             for (AntennaManagerConfig.AntennaConfig antenna : binding.antennas()) {
                 for (NodeId target : antenna.timingNodes()) {
-                    TimingNodeComponents components =
-                            byId.get(target);
-                    if (components == null) {
+                    TimingNode node = byId.get(target);
+                    if (node == null) {
                         throw new IllegalArgumentException(
                                 "Antenna " + antenna.id()
                                         + " targets unknown TimingNode "
                                         + target.value());
                     }
-                    manager.tagObservedEvent(antenna.id())
-                            .subscribe(
-                                    components.tagProcessor()::onTagObserved);
+                    manager.tagObservedEvent(antenna.id()).subscribe(node::onTagObserved);
                 }
             }
         }
