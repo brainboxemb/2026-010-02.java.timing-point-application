@@ -23,6 +23,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persist
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
@@ -52,6 +53,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Direct engineering composition for repeatable runtime characterization.
@@ -284,11 +286,10 @@ final class RuntimeCharacterizationHarness
         await(
                 antennaManager::isReady,
                 "AntennaManager ready");
-        if (!antennaManager.setInventoryEnabled(
-                true)) {
-            throw new IllegalStateException(
-                    "AntennaManager rejected desired inventory state");
-        }
+        Consumer<AntennaSettings.Edit> enableInventory =
+                edit -> edit.inventoryEnabled(true);
+        antennaManager.settings().update(
+                enableInventory);
         await(
                 antenna::inventoryRunning,
                 "simulated antenna inventory");
