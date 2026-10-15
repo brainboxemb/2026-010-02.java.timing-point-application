@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.SystemStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
@@ -11,7 +12,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.ConsolePrompt
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevelControl;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.simulation.SimulatedTagScenarioRunner;
@@ -291,27 +291,22 @@ public final class TimingApplicationRuntime {
         return timingNodes;
     }
 
-    AntennaManager antennaManager() {
-        List<AntennaManager> managers = antennaManagers();
-        if (managers.isEmpty()) {
-            return null;
-        }
-        if (managers.size() != 1) {
+    SystemStatus.Snapshot systemStatus() {
+
+        if (systems.size() != 1) {
             throw new IllegalStateException(
-                    "Operation requires at most one AntennaManager; composed=" + managers.size());
+                    "Operation requires exactly one TimingSystem; composed=" + systems.size());
         }
-        return managers.get(0);
+        return systems.get(0).systemStatus();
     }
 
-    List<AntennaManager> antennaManagers() {
+    List<SystemStatus.Snapshot> systemStatuses() {
 
-        List<AntennaManager> managers = new ArrayList<AntennaManager>();
+        List<SystemStatus.Snapshot> statuses = new ArrayList<SystemStatus.Snapshot>();
         for (TimingSystem system : systems) {
-            if (system.antennaManager() != null) {
-                managers.add(system.antennaManager());
-            }
+            statuses.add(system.systemStatus());
         }
-        return Collections.unmodifiableList(managers);
+        return Collections.unmodifiableList(statuses);
     }
 
     public synchronized State state() {
