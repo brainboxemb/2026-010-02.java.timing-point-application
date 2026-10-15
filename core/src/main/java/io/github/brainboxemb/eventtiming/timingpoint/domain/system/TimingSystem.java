@@ -124,7 +124,7 @@ public final class TimingSystem {
                         id);
 
                 node.bind(
-                        TimingNode.Inputs.TAG_OBSERVATIONS,
+                        TimingNode.TAG_OBSERVATIONS,
                         antennaManager.tagObservedEvent(antennaId));
             }
         }
