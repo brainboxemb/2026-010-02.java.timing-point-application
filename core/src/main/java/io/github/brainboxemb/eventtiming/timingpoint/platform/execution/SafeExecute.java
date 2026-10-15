@@ -1,22 +1,52 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution;
 
+import java.util.Optional;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 /**
- * Small guard for execution boundaries that handle queue rejection explicitly.
+ * Small guards for execution boundaries that handle expected runtime failures explicitly.
  *
- * <p>The guarded operation and component-owned rejection policy remain visible
- * at the call site while repeated {@link RejectedExecutionException}
- * try/catch boilerplate stays in this utility. Other runtime failures are not
- * treated as queue rejection.</p>
+ * <p>The guarded operation and component-owned failure policy remain visible at
+ * the call site while repeated try/catch boilerplate stays in this utility.</p>
  */
 public final class SafeExecute {
 
     /** Prevents construction of this stateless execution utility. */
     private SafeExecute() {
+    }
+
+    /**
+     * Calls one operation and returns empty when the selected runtime failure is handled.
+     *
+     * <p>Failures of another type, or selected failures rejected by the handler
+     * predicate, propagate unchanged.</p>
+     */
+    public static <T, E extends RuntimeException> Optional<T> callOrEmpty(
+            Supplier<T> operation,
+            Class<E> failureType,
+            Predicate<E> handledFailure) {
+        checkArgument(operation != null, "operation must not be null");
+        checkArgument(failureType != null, "failureType must not be null");
+        checkArgument(handledFailure != null, "handledFailure must not be null");
+
+        try {
+            return Optional.ofNullable(operation.get());
+        } catch (RuntimeException ex) {
+            if (!failureType.isInstance(ex)) {
+                throw ex;
+            }
+
+            E failure = failureType.cast(ex);
+            if (!handledFailure.test(failure)) {
+                throw ex;
+            }
+            return Optional.empty();
+        }
     }
 
     /**
