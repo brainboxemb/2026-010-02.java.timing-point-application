@@ -74,8 +74,7 @@ final class RuntimeExecutors implements AutoCloseable {
         }
     }
 
-    private final List<AutoCloseable> serialLanes =
-            new ArrayList<AutoCloseable>();
+    private final List<AutoCloseable> serialLanes = new ArrayList<AutoCloseable>();
 
     /*
      * Each serial lane schedules at most one drain token at a time, so these
@@ -107,30 +106,24 @@ final class RuntimeExecutors implements AutoCloseable {
 
     RuntimeExecutors() {
         timingNodeExecutor = new ThreadPoolExecutor(
-                1,
-                1,
-                0L,
-                TimeUnit.MILLISECONDS,
+                1, 1,
+                0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>(),
                 threadFactory("tp-dl-node"),
                 new ThreadPoolExecutor.AbortPolicy());
-        tagProcessorScheduledExecutor = new ScheduledThreadPoolExecutor(
-                1,
-                threadFactory("tp-dl-tagproc"));
+        tagProcessorScheduledExecutor =
+                new ScheduledThreadPoolExecutor(1, threadFactory("tp-dl-tagproc"));
         tagProcessorScheduledExecutor.setRemoveOnCancelPolicy(true);
 
         coordinationExecutor = new ThreadPoolExecutor(
-                1,
-                1,
-                0L,
-                TimeUnit.MILLISECONDS,
+                1, 1,
+                0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>(),
                 threadFactory("tp-dl-system"),
                 new ThreadPoolExecutor.AbortPolicy());
 
-        sharedIoScheduledExecutor = new ScheduledThreadPoolExecutor(
-                SHARED_IO_THREADS,
-                threadFactory("tp-io-shared"));
+        sharedIoScheduledExecutor =
+                new ScheduledThreadPoolExecutor(SHARED_IO_THREADS, threadFactory("tp-io-shared"));
         sharedIoScheduledExecutor.setRemoveOnCancelPolicy(true);
     }
 
@@ -167,14 +160,10 @@ final class RuntimeExecutors implements AutoCloseable {
      * Java thread.</p>
      */
     synchronized TimingNodeLanes createTimingNodeLanes() {
-        SerialLane dataLane = new SerialLane(
-                TIMING_NODE_DATA_QUEUE_CAPACITY,
-                "TimingNodeData",
-                timingNodeExecutor);
-        SerialLane taskLane = new SerialLane(
-                TIMING_NODE_TASK_QUEUE_CAPACITY,
-                "TimingNodeTask",
-                timingNodeExecutor);
+        SerialLane dataLane =
+                new SerialLane(TIMING_NODE_DATA_QUEUE_CAPACITY, "TimingNodeData", timingNodeExecutor);
+        SerialLane taskLane =
+                new SerialLane(TIMING_NODE_TASK_QUEUE_CAPACITY, "TimingNodeTask", timingNodeExecutor);
 
         SerialLane tagProcessorLane = new SerialLane(
                 TAG_PROCESSOR_LANE_QUEUE_CAPACITY, "TagProcessor", tagProcessorScheduledExecutor);
@@ -239,9 +228,7 @@ final class RuntimeExecutors implements AutoCloseable {
          * intentional and idempotent: this is the bootstrap/failure fallback
          * for a partially built or partially started graph.
          */
-        for (int index = serialLanes.size() - 1;
-                index >= 0;
-                index--) {
+        for (int index = serialLanes.size() - 1; index >= 0; index--) {
             try {
                 serialLanes.get(index).close();
             } catch (Exception ignored) {
