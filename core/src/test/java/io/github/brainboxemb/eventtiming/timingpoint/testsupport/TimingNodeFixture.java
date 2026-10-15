@@ -303,15 +303,9 @@ public final class TimingNodeFixture {
                         dataLane,
                         operationTimeoutMillis);
 
-        NodeServiceState nodeServiceState =
-                new NodeServiceState(
-                        eventData);
+        NodeServiceState nodeServiceState = new NodeServiceState(eventData);
 
-        NodeService nodeService =
-                new NodeService(
-                        nodeId,
-                        taskLane,
-                        nodeServiceState);
+        NodeService nodeService = new NodeService(nodeId, taskLane, nodeServiceState);
 
         UpstreamHandler upstreamHandler =
                 new UpstreamHandler(
@@ -331,15 +325,9 @@ public final class TimingNodeFixture {
                         tagLane,
                         TAG_WORKER);
 
-        tagConfiguration.changes()
-                .subscribe(
-                        tagProcessor::onPolicyConfigurationChanged);
+        tagConfiguration.changes().subscribe(tagProcessor::onPolicyConfigurationChanged);
 
-        TimingNode node =
-                new TimingNode(
-                        logBook,
-                        nodeService,
-                        tagProcessor);
+        TimingNode node = new TimingNode(logBook, nodeService, tagProcessor);
 
         return new Components(
                 node,
