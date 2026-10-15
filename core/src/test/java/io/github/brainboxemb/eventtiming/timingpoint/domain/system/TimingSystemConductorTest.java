@@ -40,7 +40,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class SystemConductorTest {
+public class TimingSystemConductorTest {
     private final List<ExecutorService> workers = new ArrayList<ExecutorService>();
 
     @After
@@ -57,8 +57,8 @@ public class SystemConductorTest {
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
         SerialLane lane = new SerialLane(8, "system-conductor-test", newWorker("worker"));
-        SystemConductor conductor = new SystemConductor(
-                new TimingNodeList().add(first).add(second), manager.settings(), lane);
+        TimingSystemConductor conductor = new TimingSystemConductor(
+                TimingNodeList.builder().add(first).add(second).build(), manager.settings(), lane);
         first.logBook().statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(first, status));
         second.logBook().statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(second, status));
 
@@ -93,9 +93,9 @@ public class SystemConductorTest {
                         4,
                         "conductor-startup-test",
                         newWorker("conductor-startup-worker"));
-        SystemConductor conductor =
-                new SystemConductor(
-                        new TimingNodeList().add(node),
+        TimingSystemConductor conductor =
+                new TimingSystemConductor(
+                        TimingNodeList.of(node),
                         manager.settings(),
                         lane);
         node.logBook().statusChangedEvent().subscribe(
@@ -123,7 +123,7 @@ public class SystemConductorTest {
                             TimeUnit.SECONDS));
             activationCaller.join(250L);
             assertFalse(
-                    "SystemConductor activation waited for TimingNode recovery",
+                    "TimingSystemConductor activation waited for TimingNode recovery",
                     activationCaller.isAlive());
             assertNull(activationFailure[0]);
             assertEquals(
@@ -156,8 +156,8 @@ public class SystemConductorTest {
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
         SerialLane lane = new SerialLane(4, "conductor-event-test", newWorker("conductor-event-worker"));
-        SystemConductor conductor = new SystemConductor(
-                new TimingNodeList().add(node), manager.settings(), lane);
+        TimingSystemConductor conductor = new TimingSystemConductor(
+                TimingNodeList.of(node), manager.settings(), lane);
         node.logBook().statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(node, status));
 
         manager.activate();
@@ -190,8 +190,8 @@ public class SystemConductorTest {
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
         SerialLane lane = new SerialLane(4, "conductor-coalesce-test", newWorker("coalesce-worker"));
-        SystemConductor conductor = new SystemConductor(
-                new TimingNodeList().add(node), manager.settings(), lane);
+        TimingSystemConductor conductor = new TimingSystemConductor(
+                TimingNodeList.of(node), manager.settings(), lane);
         node.logBook().statusChangedEvent().subscribe(status -> conductor.onTimingNodeStatusChanged(node, status));
 
         manager.activate();
@@ -230,7 +230,7 @@ public class SystemConductorTest {
         TimingNode first = newTimingNode("A");
         TimingNode second = newTimingNode("B");
 
-        TimingNodeList nodes = new TimingNodeList().add(first).add(second);
+        TimingNodeList nodes = TimingNodeList.builder().add(first).add(second).build();
 
         assertEquals(2, nodes.size());
         assertSame(first, nodes.get(0));
@@ -240,13 +240,13 @@ public class SystemConductorTest {
     @Test
     public void timingNodeListRejectsDuplicateInstance() {
         TimingNode node = newTimingNode("A");
-        TimingNodeList nodes = new TimingNodeList().add(node);
+        TimingNodeList.Builder nodes = TimingNodeList.builder().add(node);
 
         try {
             nodes.add(node);
             fail("Duplicate TimingNode accepted");
         } catch (IllegalArgumentException expected) {
-            assertEquals(1, nodes.size());
+            assertEquals(1, nodes.build().size());
         }
     }
 
@@ -255,7 +255,7 @@ public class SystemConductorTest {
                 new NodeId(id),
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),
-                SystemConductorTest::now);
+                TimingSystemConductorTest::now);
     }
 
     private TimingNode newTimingNode(
@@ -265,7 +265,7 @@ public class SystemConductorTest {
                 new NodeId(id),
                 persistence,
                 new DefaultTimingDataFactory(),
-                SystemConductorTest::now);
+                TimingSystemConductorTest::now);
     }
 
     private AntennaManager newAntennaManager(SimulatedAntenna antenna) {
@@ -347,7 +347,7 @@ public class SystemConductorTest {
 
         @Override
         public void append(TimingData data) {
-            // SystemConductor tests exercise coordination, not persistence.
+            // TimingSystemConductor tests exercise coordination, not persistence.
         }
     }
 }

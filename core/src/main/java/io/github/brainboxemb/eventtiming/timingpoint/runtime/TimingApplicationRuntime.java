@@ -3,7 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
-import io.github.brainboxemb.eventtiming.timingpoint.application.TimingSystem;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
@@ -30,7 +30,7 @@ import java.util.List;
  * <p>This is the visible composition root and owner of process-level Runtime
  * resources. Provider discovery is resolved before normal object composition;
  * the Application Conductor owns application lifecycle, each TimingSystem owns
- * system-level wiring/lifecycle, and each SystemConductor owns its TimingNodes.
+ * system-level wiring/lifecycle, and each TimingSystemConductor owns its TimingNodes.
  * Runtime owns shared executors and the outer Presentation lifecycle.</p>
  */
 public final class TimingApplicationRuntime {
@@ -65,7 +65,7 @@ public final class TimingApplicationRuntime {
             PresentationRuntime presentationRuntime,
             ShutdownSignal shutdownSignal) {
         this.buildIdentity = buildIdentity;
-        this.timingNodes = timingNodes.copy();
+        this.timingNodes = timingNodes;
         this.configuration = configuration;
         this.presentationGateway = presentationGateway;
         this.runtimeExecutors = runtimeExecutors;
@@ -288,7 +288,7 @@ public final class TimingApplicationRuntime {
     }
 
     TimingNodeList timingNodes() {
-        return timingNodes.copy();
+        return timingNodes;
     }
 
     AntennaManager antennaManager() {

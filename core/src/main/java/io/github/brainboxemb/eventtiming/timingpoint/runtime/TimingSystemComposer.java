@@ -1,8 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.application.TimingSystem;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.system.SystemConductor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystem;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystemConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
@@ -59,6 +59,7 @@ final class TimingSystemComposer {
             AntennaManagerConfig managerBinding,
             AntennaSet implicitAntennas,
             TimeSource timeSource) {
+
         TimingNodeList nodes = createNodes(system, timeSource);
         if (managerBinding == null && !implicitAntennas.isEmpty() && nodes.size() != 1) {
             throw new IllegalArgumentException(
@@ -75,20 +76,20 @@ final class TimingSystemComposer {
                         ANTENNA_CONTROL_TIMEOUT,
                         antennaSettings);
 
-        SystemConductor conductor = new SystemConductor(
+        TimingSystemConductor timingSystemConductor = new TimingSystemConductor(
                 nodes,
                 antennaSettings,
-                executors.createSystemConductorLane());
+                executors.createTimingSystemConductorLane());
 
-        Map<AntennaId, TimingNodeList> observationRoutes =
-                createObservationRoutes(antennaSet, managerBinding, nodes);
+        Map<AntennaId, TimingNodeList> antennaToNodes =
+                mapAntennasToNodes(antennaSet, managerBinding, nodes);
 
         return new TimingSystem(
                 system.configuration().timingSystemId(),
                 nodes,
                 antennaManager,
-                conductor,
-                observationRoutes);
+                timingSystemConductor,
+                antennaToNodes);
     }
 
     /** Composes all TimingNodes configured for this resolved timing system. */
@@ -96,17 +97,18 @@ final class TimingSystemComposer {
             TimingSystemResolvedData system,
             TimeSource timeSource) {
 
-        TimingNodeList nodes = new TimingNodeList();
+        TimingNodeList.Builder nodes = TimingNodeList.builder();
         for (Config.TimingNodeConfig nodeConfig : system.configuration().timingNodes()) {
             nodes.add(nodeComposer.compose(nodeConfig, system, timeSource));
         }
-        return nodes;
+        return nodes.build();
     }
 
     /** Creates the system antenna set from explicit binding or implicit composition input. */
     private static AntennaSet createAntennas(
             AntennaManagerConfig binding,
             AntennaSet implicitAntennas) {
+
         if (binding == null) {
             return implicitAntennas;
         }
@@ -127,8 +129,8 @@ final class TimingSystemComposer {
         return antennas;
     }
 
-    /** Builds pure antenna-to-node routing data for the TimingSystem owner. */
-    private static Map<AntennaId, TimingNodeList> createObservationRoutes(
+    /** Builds the antenna-to-node mapping consumed by the TimingSystem. */
+    private static Map<AntennaId, TimingNodeList> mapAntennasToNodes(
             AntennaSet antennas,
             AntennaManagerConfig binding,
             TimingNodeList nodes) {
@@ -147,13 +149,13 @@ final class TimingSystemComposer {
             // Compatibility for the one-system, one-node test/Windows setup.
             TimingNode node = nodes.get(0);
             for (AntennaId antennaId : antennas.antennaIds()) {
-                routes.put(antennaId, new TimingNodeList().add(node));
+                routes.put(antennaId, TimingNodeList.of(node));
             }
             return routes;
         }
 
         for (AntennaManagerConfig.AntennaConfig antenna : binding.antennas()) {
-            TimingNodeList targets = new TimingNodeList();
+            TimingNodeList.Builder targets = TimingNodeList.builder();
             for (NodeId target : antenna.timingNodes()) {
                 TimingNode node = byId.get(target);
                 if (node == null) {
@@ -164,7 +166,7 @@ final class TimingSystemComposer {
                 }
                 targets.add(node);
             }
-            routes.put(antenna.id(), targets);
+            routes.put(antenna.id(), targets.build());
         }
         return routes;
     }

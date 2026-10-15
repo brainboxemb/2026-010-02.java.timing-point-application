@@ -4,7 +4,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ApplicationConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
-import io.github.brainboxemb.eventtiming.timingpoint.application.TimingSystem;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
@@ -61,8 +61,7 @@ final class TimingApplicationAssembler {
             RuntimeTimeSources runtimeTimeSources =
                     new RuntimeTimeSources(
                             platform);
-            TimingNodeList timingNodes =
-                    new TimingNodeList();
+            TimingNodeList.Builder timingNodes = TimingNodeList.builder();
             List<TimingSystem> systems = new ArrayList<TimingSystem>();
             ApplicationConductor applicationConductor =
                     new ApplicationConductor();
@@ -112,13 +111,14 @@ final class TimingApplicationAssembler {
                 }
             }
 
+            TimingNodeList allTimingNodes = timingNodes.build();
             ConfigurationControl configurationControl =
                     createConfigurationControl(
                             applicationConfiguration);
             PresentationGateway presentationGateway =
                     new PresentationGateway(
                             buildIdentity,
-                            timingNodes,
+                            allTimingNodes,
                             configurationControl,
                             simulationRunner);
             ShutdownSignal shutdownSignal =
@@ -135,7 +135,7 @@ final class TimingApplicationAssembler {
 
             return new TimingApplicationRuntime(
                     buildIdentity,
-                    timingNodes,
+                    allTimingNodes,
                     applicationConfiguration,
                     presentationGateway,
                     executors,

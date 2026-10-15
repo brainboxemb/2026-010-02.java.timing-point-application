@@ -4,7 +4,8 @@ import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.system.SystemConductor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystem;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystemConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
@@ -102,7 +103,7 @@ public class ApplicationConductorTest {
                 Executors.newSingleThreadScheduledExecutor();
 
         private final AntennaManager manager;
-        private final SystemConductor conductor;
+        private final TimingSystemConductor timingSystemConductor;
         private final TimingSystem system;
 
         private SystemFixture(
@@ -128,9 +129,9 @@ public class ApplicationConductorTest {
                             Duration.ofSeconds(1));
 
             TimingNodeList timingNodes =
-                    new TimingNodeList().add(node);
-            conductor =
-                    new SystemConductor(
+                    TimingNodeList.of(node);
+            timingSystemConductor =
+                    new TimingSystemConductor(
                             timingNodes,
                             manager.settings(),
                             new SerialLane(
@@ -141,7 +142,7 @@ public class ApplicationConductorTest {
                     label,
                     timingNodes,
                     manager,
-                    conductor,
+                    timingSystemConductor,
                     Collections.<AntennaId, TimingNodeList>emptyMap());
         }
 

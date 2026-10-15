@@ -731,12 +731,12 @@ public class HttpEndpointTest {
 
     private static TimingNodeList nodes(
             TimingNode... timingNodes) {
-        TimingNodeList result =
-                new TimingNodeList();
+
+        TimingNodeList.Builder result = TimingNodeList.builder();
         for (TimingNode timingNode : timingNodes) {
             result.add(timingNode);
         }
-        return result;
+        return result.build();
     }
 
     private static final class Fixture implements AutoCloseable {

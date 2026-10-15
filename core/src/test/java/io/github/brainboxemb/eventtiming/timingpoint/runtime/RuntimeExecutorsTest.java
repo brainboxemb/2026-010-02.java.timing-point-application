@@ -80,9 +80,9 @@ public class RuntimeExecutorsTest {
     }
 
     @Test
-    public void systemConductorUsesCoordinationExecutorThread() throws Exception {
+    public void timingSystemConductorUsesCoordinationExecutorThread() throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
-        SerialLane conductor = runtime.createSystemConductorLane();
+        SerialLane conductor = runtime.createTimingSystemConductorLane();
         runtime.start();
 
         AtomicReference<String> threadName = new AtomicReference<String>();

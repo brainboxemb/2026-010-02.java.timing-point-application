@@ -1,9 +1,8 @@
-package io.github.brainboxemb.eventtiming.timingpoint.application;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.system;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.system.SystemConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
@@ -16,60 +15,60 @@ import java.util.function.Consumer;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 /**
- * Top-level application component for one configured timing system.
+ * Java component for one TimingSystem architecture responsibility.
  *
- * <p>The system owns the application-level relationship between its I/O-side
- * AntennaManager and Domain-side SystemConductor/TimingNodes. It installs those
- * fixed event links during construction and owns their activation order. Runtime
- * supplies already constructed children and routing data; it does not retain
- * responsibility for the system's internal graph.</p>
+ * <p>A TimingSystem contains one or more TimingNodes and one TimingSystemConductor and
+ * uses associated I/O components such as AntennaManager. It installs the fixed
+ * system-level event links between those components before activation and owns
+ * their lifecycle relationship. Runtime supplies already constructed components
+ * and resolved routing data.</p>
  *
- * <p>This component is also the natural owner for a future central SystemStatus,
- * because it can observe system coordination, TimingNode state and antenna state
- * without introducing I/O dependencies into Domain classes.</p>
+ * <p>This component is also the natural owner for the system-level SystemStatus,
+ * which combines semantic state from the contained TimingNodes with relevant
+ * operational state from the I/O components used by this TimingSystem.</p>
  */
 public final class TimingSystem {
     private final String id;
     private final TimingNodeList timingNodes;
     private final AntennaManager antennaManager;
-    private final SystemConductor systemConductor;
+    private final TimingSystemConductor timingSystemConductor;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
 
     /**
      * Creates one complete TimingSystem and fixes its internal event graph.
      *
-     * @param observationRoutes antenna-to-node routing prepared by Runtime composition
+     * @param antennaToNodes antenna-to-node mapping prepared by Runtime composition
      */
     public TimingSystem(
             String id,
             TimingNodeList timingNodes,
             AntennaManager antennaManager,
-            SystemConductor systemConductor,
-            Map<AntennaId, TimingNodeList> observationRoutes) {
+            TimingSystemConductor timingSystemConductor,
+            Map<AntennaId, TimingNodeList> antennaToNodes) {
 
         checkArgument(id != null && !id.trim().isEmpty(), "TimingSystem id must not be blank");
         checkArgument(timingNodes != null && !timingNodes.isEmpty(), "timingNodes must not be empty");
-        checkArgument(systemConductor != null, "systemConductor must not be null");
-        checkArgument(observationRoutes != null, "observationRoutes must not be null");
+        checkArgument(timingSystemConductor != null, "timingSystemConductor must not be null");
+        checkArgument(antennaToNodes != null, "antennaToNodes must not be null");
         checkArgument(
-                antennaManager != null || observationRoutes.isEmpty(),
-                "observationRoutes require an AntennaManager");
+                antennaManager != null || antennaToNodes.isEmpty(),
+                "antennaToNodes require an AntennaManager");
 
         this.id = id.trim();
-        this.timingNodes = timingNodes.copy();
+        this.timingNodes = timingNodes;
         this.antennaManager = antennaManager;
-        this.systemConductor = systemConductor;
+        this.timingSystemConductor = timingSystemConductor;
 
         wireNodeStatus();
         wireAntennaObservations(
                 antennaManager == null
                         ? Collections.<AntennaId, TimingNodeList>emptyMap()
-                        : observationRoutes);
+                        : antennaToNodes);
 
         if (antennaManager != null) {
             lifecycle.register(antennaManager, AntennaManager::activate, AntennaManager::deactivate);
         }
-        lifecycle.register(systemConductor, SystemConductor::activate, SystemConductor::deactivate);
+        lifecycle.register(timingSystemConductor, TimingSystemConductor::activate, TimingSystemConductor::deactivate);
     }
 
     /** Returns the configured TimingSystem identity. */
@@ -78,10 +77,10 @@ public final class TimingSystem {
         return id;
     }
 
-    /** Returns an independent ordered list of the system's TimingNodes. */
+    /** Returns the immutable ordered TimingNodes contained by this TimingSystem. */
     public TimingNodeList timingNodes() {
 
-        return timingNodes.copy();
+        return timingNodes;
     }
 
     /** Returns the optional AntennaManager owned by this system. */
@@ -107,15 +106,15 @@ public final class TimingSystem {
 
         for (TimingNode node : timingNodes) {
             Consumer<Status> onStatusChanged =
-                    status -> systemConductor.onTimingNodeStatusChanged(node, status);
+                    status -> timingSystemConductor.onTimingNodeStatusChanged(node, status);
             node.logBook().statusChangedEvent().subscribe(onStatusChanged);
         }
     }
 
-    /** Installs antenna observation routes without exposing TimingNode internals. */
-    private void wireAntennaObservations(Map<AntennaId, TimingNodeList> observationRoutes) {
+    /** Connects AntennaManager observations to mapped TimingNode boundaries. */
+    private void wireAntennaObservations(Map<AntennaId, TimingNodeList> antennaToNodes) {
 
-        for (Map.Entry<AntennaId, TimingNodeList> route : observationRoutes.entrySet()) {
+        for (Map.Entry<AntennaId, TimingNodeList> route : antennaToNodes.entrySet()) {
             AntennaId antennaId = route.getKey();
             TimingNodeList targets = route.getValue();
 
@@ -138,11 +137,6 @@ public final class TimingSystem {
     /** Reports whether the supplied node is one of this system's owned TimingNodes. */
     private boolean containsNode(TimingNode node) {
 
-        for (TimingNode candidate : timingNodes) {
-            if (candidate == node) {
-                return true;
-            }
-        }
-        return false;
+        return timingNodes.contains(node);
     }
 }

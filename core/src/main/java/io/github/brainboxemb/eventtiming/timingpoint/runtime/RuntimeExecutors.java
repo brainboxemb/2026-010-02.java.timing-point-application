@@ -30,7 +30,7 @@ final class RuntimeExecutors implements AutoCloseable {
     static final int TAG_PROCESSOR_LANE_QUEUE_CAPACITY = 32;
     static final int ANTENNA_CONTROL_LANE_QUEUE_CAPACITY = 8;
     static final int SIMULATION_LANE_QUEUE_CAPACITY = 32;
-    static final int SYSTEM_CONDUCTOR_LANE_QUEUE_CAPACITY = 8;
+    static final int TIMING_SYSTEM_CONDUCTOR_LANE_QUEUE_CAPACITY = 8;
 
     /*
      * Step-5 baseline: one physical blocking-I/O thread.
@@ -52,6 +52,7 @@ final class RuntimeExecutors implements AutoCloseable {
                 SerialLane taskLane,
                 SerialLane tagProcessorLane,
                 ScheduledExecutorService tagProcessorScheduledExecutor) {
+
             this.dataLane = dataLane;
             this.taskLane = taskLane;
             this.tagProcessorLane = tagProcessorLane;
@@ -59,18 +60,22 @@ final class RuntimeExecutors implements AutoCloseable {
         }
 
         SerialLane dataLane() {
+
             return dataLane;
         }
 
         SerialLane taskLane() {
+
             return taskLane;
         }
 
         SerialLane tagProcessorLane() {
+
             return tagProcessorLane;
         }
 
         ScheduledExecutorService tagProcessorScheduledExecutor() {
+
             return tagProcessorScheduledExecutor;
         }
     }
@@ -87,13 +92,13 @@ final class RuntimeExecutors implements AutoCloseable {
     private final ScheduledThreadPoolExecutor tagProcessorScheduledExecutor;
 
     /**
-     * Shared executor for TimingSystem Conductor lanes.
+     * Shared executor for TimingSystemConductor lanes.
      *
-     * <p>TimingSystem Conductor work must not run synchronously on the emitting
-     * Domain or I/O component thread. Logical system-Conductor lanes therefore use
+     * <p>TimingSystemConductor work must not run synchronously on the emitting
+     * Domain or I/O component thread. Logical TimingSystemConductor lanes therefore use
      * this separate executor.</p>
      */
-    private final ThreadPoolExecutor systemConductorExecutor;
+    private final ThreadPoolExecutor timingSystemConductorExecutor;
 
     /**
      * Shared scheduled I/O executor. AntennaManager
@@ -106,6 +111,7 @@ final class RuntimeExecutors implements AutoCloseable {
     private boolean closed;
 
     RuntimeExecutors() {
+
         timingNodeExecutor = new ThreadPoolExecutor(
                 1, 1,
                 0L, TimeUnit.MILLISECONDS,
@@ -116,7 +122,7 @@ final class RuntimeExecutors implements AutoCloseable {
                 new ScheduledThreadPoolExecutor(1, threadFactory("tp-dl-tagproc"));
         tagProcessorScheduledExecutor.setRemoveOnCancelPolicy(true);
 
-        systemConductorExecutor = new ThreadPoolExecutor(
+        timingSystemConductorExecutor = new ThreadPoolExecutor(
                 1, 1,
                 0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>(),
@@ -146,7 +152,7 @@ final class RuntimeExecutors implements AutoCloseable {
 
         timingNodeExecutor.prestartAllCoreThreads();
         tagProcessorScheduledExecutor.prestartAllCoreThreads();
-        systemConductorExecutor.prestartAllCoreThreads();
+        timingSystemConductorExecutor.prestartAllCoreThreads();
         sharedIoScheduledExecutor.prestartAllCoreThreads();
         started = true;
     }
@@ -176,14 +182,14 @@ final class RuntimeExecutors implements AutoCloseable {
     }
 
     /**
-     * Creates a logical coordination lane for one Domain system Conductor.
+     * Creates a logical coordination lane for one Domain TimingSystemConductor.
      *
-     * <p>The lane is logically owned by that system Conductor. Runtime owns the physical
+     * <p>The lane is logically owned by that TimingSystemConductor. Runtime owns the physical
      * coordination executor underneath it.</p>
      */
-    synchronized SerialLane createSystemConductorLane() {
+    synchronized SerialLane createTimingSystemConductorLane() {
         SerialLane conductorLane = new SerialLane(
-                SYSTEM_CONDUCTOR_LANE_QUEUE_CAPACITY, "SystemConductor", systemConductorExecutor);
+                TIMING_SYSTEM_CONDUCTOR_LANE_QUEUE_CAPACITY, "TimingSystemConductor", timingSystemConductorExecutor);
         serialLanes.add(conductorLane);
         return conductorLane;
     }
@@ -202,6 +208,7 @@ final class RuntimeExecutors implements AutoCloseable {
     }
 
     ScheduledExecutorService sharedIoScheduledExecutor() {
+
         return sharedIoScheduledExecutor;
     }
 
@@ -219,6 +226,7 @@ final class RuntimeExecutors implements AutoCloseable {
 
     @Override
     public synchronized void close() {
+
         if (closed) {
             return;
         }
@@ -233,18 +241,19 @@ final class RuntimeExecutors implements AutoCloseable {
             try {
                 serialLanes.get(index).close();
             } catch (Exception ignored) {
+
                 // Preserve application/component shutdown failures instead.
             }
         }
 
         tagProcessorScheduledExecutor.shutdownNow();
         timingNodeExecutor.shutdownNow();
-        systemConductorExecutor.shutdownNow();
+        timingSystemConductorExecutor.shutdownNow();
         sharedIoScheduledExecutor.shutdownNow();
 
         awaitTermination(tagProcessorScheduledExecutor);
         awaitTermination(timingNodeExecutor);
-        awaitTermination(systemConductorExecutor);
+        awaitTermination(timingSystemConductorExecutor);
         awaitTermination(sharedIoScheduledExecutor);
     }
 
@@ -255,6 +264,7 @@ final class RuntimeExecutors implements AutoCloseable {
      * execution topology instead of repeating JVM thread boilerplate.</p>
      */
     private static ThreadFactory threadFactory(String threadName) {
+
         return runnable -> {
             Thread thread = new Thread(runnable, threadName);
             thread.setPriority(Thread.NORM_PRIORITY);
@@ -263,12 +273,14 @@ final class RuntimeExecutors implements AutoCloseable {
     }
 
     private static void awaitTermination(ExecutorService executor) {
+
         boolean interrupted = false;
         try {
             while (!executor.isTerminated()) {
                 try {
                     executor.awaitTermination(100L, TimeUnit.MILLISECONDS);
                 } catch (InterruptedException ex) {
+
                     interrupted = true;
                 }
             }

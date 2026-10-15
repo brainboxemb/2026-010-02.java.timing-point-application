@@ -10,56 +10,87 @@ import java.util.Map;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 /**
- * Ordered collection of distinct TimingNode instances belonging to a system.
+ * Immutable ordered collection of distinct TimingNode instances belonging to a system.
  *
- * <p>Membership is based on instance identity. A node is added only once,
- * even when different TimingNodes happen to report the same identifier.</p>
+ * <p>Membership is based on instance identity. Composition uses {@link Builder};
+ * once built, the collection can be shared safely without defensive copying.</p>
  */
 public final class TimingNodeList implements Iterable<TimingNode> {
-    private final List<TimingNode> nodes =
-            new ArrayList<TimingNode>();
-    private final Map<TimingNode, Boolean> members =
-            new IdentityHashMap<TimingNode, Boolean>();
+    private final List<TimingNode> nodes;
 
-    /** Adds one distinct TimingNode instance and returns this list for composition chaining. */
-    public TimingNodeList add(TimingNode node) {
-        checkArgument(node != null, "TimingNode must not be null");
-        checkArgument(
-                !members.containsKey(node),
-                "TimingNode instance is already present");
+    /** Creates one immutable list from builder-owned composition state. */
+    private TimingNodeList(List<TimingNode> nodes) {
 
-        nodes.add(node);
-        members.put(node, Boolean.TRUE);
-        return this;
+        this.nodes = Collections.unmodifiableList(new ArrayList<TimingNode>(nodes));
     }
 
-    /** Returns an independent ordered list containing the same TimingNode instances. */
-    public TimingNodeList copy() {
-        TimingNodeList copy = new TimingNodeList();
-        for (TimingNode node : nodes) {
-            copy.add(node);
-        }
-        return copy;
+    /** Starts composition of one TimingNode list. */
+    public static Builder builder() {
+
+        return new Builder();
     }
 
-    /** Reports whether the system currently contains no TimingNode instances. */
+    /** Creates one immutable single-node list. */
+    public static TimingNodeList of(TimingNode node) {
+
+        return builder().add(node).build();
+    }
+
+    /** Reports whether the system contains no TimingNode instances. */
     public boolean isEmpty() {
+
         return nodes.isEmpty();
     }
 
     /** Returns the number of TimingNode instances in composition order. */
     public int size() {
+
         return nodes.size();
     }
 
     /** Returns the TimingNode at the requested composition-order index. */
     public TimingNode get(int index) {
+
         return nodes.get(index);
     }
 
-    /** Iterates over the TimingNodes without exposing list mutation. */
+    /** Reports whether this immutable list contains the supplied TimingNode instance. */
+    public boolean contains(TimingNode node) {
+
+        for (TimingNode candidate : nodes) {
+            if (candidate == node) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Iterates over the TimingNodes without exposing mutation. */
     @Override
     public Iterator<TimingNode> iterator() {
-        return Collections.unmodifiableList(nodes).iterator();
+
+        return nodes.iterator();
+    }
+
+    /** Mutable composition helper; the built TimingNodeList is independent and immutable. */
+    public static final class Builder {
+        private final List<TimingNode> nodes = new ArrayList<TimingNode>();
+        private final Map<TimingNode, Boolean> members = new IdentityHashMap<TimingNode, Boolean>();
+
+        /** Adds one distinct TimingNode instance in composition order. */
+        public Builder add(TimingNode node) {
+
+            checkArgument(node != null, "TimingNode must not be null");
+            checkArgument(!members.containsKey(node), "TimingNode instance is already present");
+            nodes.add(node);
+            members.put(node, Boolean.TRUE);
+            return this;
+        }
+
+        /** Builds one immutable TimingNodeList snapshot of the composed nodes. */
+        public TimingNodeList build() {
+
+            return new TimingNodeList(nodes);
+        }
     }
 }

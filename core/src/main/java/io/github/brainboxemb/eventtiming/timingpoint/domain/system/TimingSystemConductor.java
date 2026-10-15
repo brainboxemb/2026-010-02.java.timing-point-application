@@ -23,9 +23,9 @@ import org.slf4j.LoggerFactory;
 /**
  * Coordinates one TimingSystem.
  *
- * <p>The owning application TimingSystem wires each TimingNode's
+ * <p>The containing TimingSystem wires each TimingNode's
  * statusChangedEvent() to {@link #onTimingNodeStatusChanged(TimingNode, Status)}
- * before activation. SystemConductor owns Domain coordination and TimingNode
+ * before activation. TimingSystemConductor owns Domain coordination and TimingNode
  * lifecycle; the TimingSystem owner owns system-level cross-component wiring.</p>
  *
  * <p>A status event only wakes the control task. The subsequent run reads
@@ -33,24 +33,25 @@ import org.slf4j.LoggerFactory;
  * through the shared AntennaSettings. It does not retain a second copy of
  * node state or invoke AntennaManager directly.</p>
  */
-public final class SystemConductor extends AbstractConductor implements YieldingTask {
-    private static final Logger LOG = LoggerFactory.getLogger(SystemConductor.class);
+public final class TimingSystemConductor extends AbstractConductor implements YieldingTask {
+    private static final Logger LOG = LoggerFactory.getLogger(TimingSystemConductor.class);
 
     private final TimingNodeList nodes;
     private final AntennaSettings antennaSettings;
     private final YieldingTaskController taskController;
 
-    public SystemConductor(
+    public TimingSystemConductor(
             TimingNodeList timingNodes,
             AntennaSettings antennaSettings,
             SerialLane coordinationLane) {
+
         super(coordinationLane);
 
         if (timingNodes == null || timingNodes.isEmpty()) {
             throw new IllegalArgumentException("timingNodes must not be empty");
         }
 
-        this.nodes = timingNodes.copy();
+        this.nodes = timingNodes;
         this.antennaSettings = antennaSettings;
         taskController = new YieldingTaskController(
                 new SerialTaskRunner(coordinationLane()),
@@ -74,6 +75,7 @@ public final class SystemConductor extends AbstractConductor implements Yielding
      * the event payload is not cached or treated as a control command.</p>
      */
     public void onTimingNodeStatusChanged(TimingNode node, Status status) {
+
         if (status == null) {
             throw new IllegalArgumentException("status must not be null");
         }
@@ -95,12 +97,14 @@ public final class SystemConductor extends AbstractConductor implements Yielding
 
     @Override
     protected void onActivated() {
+
         taskController.clearPendingWake();
         taskController.wake();
     }
 
     @Override
     public TaskStep runStep() {
+
         boolean required = false;
         for (TimingNode node : nodes) {
             final Status status;
@@ -109,6 +113,7 @@ public final class SystemConductor extends AbstractConductor implements Yielding
                         LogBookQueries.status(),
                         ReadConsistency.CURRENT);
             } catch (OperationException ex) {
+
                 if (ex.reason() != OperationException.Reason.UNAVAILABLE) {
                     throw ex;
                 }
@@ -136,15 +141,12 @@ public final class SystemConductor extends AbstractConductor implements Yielding
     }
 
     private boolean containsNode(TimingNode node) {
-        for (TimingNode candidate : nodes) {
-            if (candidate == node) {
-                return true;
-            }
-        }
-        return false;
+
+        return nodes.contains(node);
     }
 
     private void onControlTaskFailure(Throwable failure) {
+
         LOG.error("TimingSystem Conductor control task failed", failure);
     }
 }
