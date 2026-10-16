@@ -381,7 +381,7 @@ public class WebSocketEndpointTest {
         long deadline =
                 System.nanoTime()
                         + TimeUnit.SECONDS.toNanos(1L);
-        while (proxy.operationalState()
+        while (proxy.status().opState()
                 == io.github.brainboxemb.eventtiming.timingpoint.domain.node
                         .TimingNodeTypes.OperationalState.INIT) {
             if (System.nanoTime() >= deadline) {
