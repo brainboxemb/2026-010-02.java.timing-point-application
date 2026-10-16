@@ -92,18 +92,17 @@ final class LogBookOperations {
     }
 
     /**
-     * Commits one automatic registration with caller-selected source provenance.
+     * Commits one automatic registration with explicit tag and time sources.
      *
-     * <p>LogBook does not interpret why the registration was created. Antenna,
-     * simulation and other node-level use cases select provenance before creating
-     * this LogBook operation.</p>
+     * <p>The caller determines where the registration and effective time came from;
+     * LogBook stores those source values with the TimingData record.</p>
      */
     RegistrationResult commitAutomaticRegistration(
             LocationId locationId,
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
             TimingData.TagSource tagSource,
-            TimingData.AutomaticTimeSource timeProvenance)
+            TimingData.AutomaticTimeSource registrationTimeSource)
             throws TimingDataPersistence.PersistenceException {
         checkArgument(locationId != null, "locationId must not be null");
         state.ensureOperational();
@@ -114,24 +113,9 @@ final class LogBookOperations {
                         locationId,
                         normalizeRegistrationTime(effectiveTime),
                         tagSource,
-                        timeProvenance),
+                        registrationTimeSource),
                 registrationId);
         return commitRegistration(data);
-    }
-
-    /** Commits one automatic registration using current node time as effective time. */
-    RegistrationResult commitAutomaticRegistrationNow(
-            LocationId locationId,
-            RegistrationId registrationId,
-            TimingData.TagSource tagSource)
-            throws TimingDataPersistence.PersistenceException {
-
-        return commitAutomaticRegistration(
-                locationId,
-                registrationId,
-                atCentisecond(timeSource.now()),
-                tagSource,
-                TimingData.AutomaticTimeSource.NODE);
     }
 
     /** Commits one manually entered registration using the supplied effective-time source. */
@@ -228,12 +212,12 @@ final class LogBookOperations {
                 currentRecordedTime());
     }
 
-    /** Builds the next automatic-registration context including source provenance. */
+    /** Builds the next automatic-registration context with explicit tag and time sources. */
     private Context nextRegistrationContext(
             LocationId locationId,
             TimingTimestamp effectiveTime,
             TimingData.TagSource tagSource,
-            TimingData.AutomaticTimeSource timeProvenance) {
+            TimingData.AutomaticTimeSource registrationTimeSource) {
 
         return new Context(
                 state.timingNodeId(),
@@ -242,7 +226,7 @@ final class LogBookOperations {
                 effectiveTime,
                 currentRecordedTime(),
                 tagSource,
-                timeProvenance);
+                registrationTimeSource);
     }
 
     /** Captures reference lifecycle time at centisecond resolution. */
