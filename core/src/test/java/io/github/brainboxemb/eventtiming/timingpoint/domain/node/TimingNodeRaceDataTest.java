@@ -19,6 +19,8 @@ import java.util.Collections;
 
 import org.junit.Test;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.activate;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
@@ -30,7 +32,7 @@ public class TimingNodeRaceDataTest {
     @Test
     public void firstRaceDataSequenceAppliesAndSendsAck() {
         Fixture fixture = fixture();
-        fixture.node.activate();
+        activate(fixture.node);
         try {
             fixture.receive(
                     raceDataSet(
@@ -51,7 +53,7 @@ public class TimingNodeRaceDataTest {
                             new RegistrationId(
                                     "RT-R-0001")));
         } finally {
-            fixture.node.deactivate();
+            deactivate(fixture.node);
         }
     }
 
@@ -59,7 +61,7 @@ public class TimingNodeRaceDataTest {
     @Test
     public void gapDoesNotApplyAndSendsReqForFirstMissingSequence() {
         Fixture fixture = fixture();
-        fixture.node.activate();
+        activate(fixture.node);
         try {
             fixture.receive(
                     raceDataSet(
@@ -79,7 +81,7 @@ public class TimingNodeRaceDataTest {
                             new RegistrationId(
                                     "RT-R-0001")));
         } finally {
-            fixture.node.deactivate();
+            deactivate(fixture.node);
         }
     }
 
@@ -87,7 +89,7 @@ public class TimingNodeRaceDataTest {
     @Test
     public void duplicateSequenceSendsCumulativeAckWithoutApplyingAgain() {
         Fixture fixture = fixture();
-        fixture.node.activate();
+        activate(fixture.node);
         try {
             fixture.receive(
                     raceDataSet(
@@ -115,7 +117,7 @@ public class TimingNodeRaceDataTest {
                             new RegistrationId(
                                     "RT-R-0001")));
         } finally {
-            fixture.node.deactivate();
+            deactivate(fixture.node);
         }
     }
 
@@ -123,7 +125,7 @@ public class TimingNodeRaceDataTest {
     @Test
     public void invalidFixedTeamOverrideDoesNotAdvanceOrRespond() {
         Fixture fixture = fixture();
-        fixture.node.activate();
+        activate(fixture.node);
         try {
             fixture.receive(
                     raceDataSet(
@@ -138,7 +140,7 @@ public class TimingNodeRaceDataTest {
                             new RegistrationId(
                                     "RT-A-0001")));
         } finally {
-            fixture.node.deactivate();
+            deactivate(fixture.node);
         }
     }
 
@@ -146,7 +148,7 @@ public class TimingNodeRaceDataTest {
     @Test
     public void invalidRaceDataIsAtomicAcrossSections() {
         Fixture fixture = fixture();
-        fixture.node.activate();
+        activate(fixture.node);
         try {
             fixture.receive(
                     DefaultUpstreamData.raceData(
@@ -166,7 +168,7 @@ public class TimingNodeRaceDataTest {
                     fixture.state.stageStartTimeFor(
                             new TeamId("0042")));
         } finally {
-            fixture.node.deactivate();
+            deactivate(fixture.node);
         }
     }
 
@@ -174,7 +176,7 @@ public class TimingNodeRaceDataTest {
     @Test
     public void stageStartTimesFollowRaceDataSequence() {
         Fixture fixture = fixture();
-        fixture.node.activate();
+        activate(fixture.node);
         try {
             fixture.receive(
                     DefaultUpstreamData.raceData(
@@ -213,7 +215,7 @@ public class TimingNodeRaceDataTest {
                     fixture.state.stageStartTimeFor(
                             new TeamId("0042")));
         } finally {
-            fixture.node.deactivate();
+            deactivate(fixture.node);
         }
     }
 
