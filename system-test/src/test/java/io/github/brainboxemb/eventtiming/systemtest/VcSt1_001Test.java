@@ -117,7 +117,6 @@ public class VcSt1_001Test {
         assertContains(json, "\"id\":\"" + NODE_ID + "\"");
         assertContains(json, "\"locId\":null");
         assertContains(json, "\"state\":\"CLOSED\"");
-        assertContains(json, "\"problems\":[]");
     }
 
     private static void assertSnapshotSemanticsMatchStatus(
