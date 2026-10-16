@@ -7,9 +7,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory.Context;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Problem;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ProblemCode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ProblemSeverity;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
@@ -200,7 +197,7 @@ final class LogBookOperations {
         for (TimingData data : loadResult.records()) {
             state.addCommittedTimingData(data);
         }
-        state.timingDataTailRepaired(loadResult.repairedIncompleteTail());
+        state.repairedIncompleteTail(loadResult.repairedIncompleteTail());
         return loadResult;
     }
 
@@ -215,11 +212,7 @@ final class LogBookOperations {
             message += ": " + detail.trim();
         }
 
-        Problem problem = new Problem(
-                ProblemCode.TIMING_DATA_LOAD_FAILED,
-                ProblemSeverity.ERROR,
-                message);
-        state.markTimingDataLoadFailed(problem);
+        state.markTimingDataLoadFailed(message);
     }
 
     /** Builds the next TimingData context with sequence and recorded time. */
