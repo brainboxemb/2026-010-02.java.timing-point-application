@@ -10,11 +10,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleCo
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventWithMetrics;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.List;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
@@ -186,15 +186,13 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
 
         checkArgument(command != null, "command must not be null");
         Runnable queuedCommand = () -> executeQueuedCommand(command);
-        try {
-            dataLane.execute(queuedCommand);
-        } catch (RejectedExecutionException ex) {
-            LOG.error(
-                    "LogBook command {} for node {} could not be queued on the Data Lane",
-                    command.name(),
-                    timingNodeId().value(),
-                    ex);
-        }
+        SafeExecute.runOrHandleRejection(
+                () -> dataLane.execute(queuedCommand),
+                ex -> LOG.error(
+                        "LogBook command {} for node {} could not be queued on the Data Lane",
+                        command.name(),
+                        timingNodeId().value(),
+                        ex));
     }
 
     /**
