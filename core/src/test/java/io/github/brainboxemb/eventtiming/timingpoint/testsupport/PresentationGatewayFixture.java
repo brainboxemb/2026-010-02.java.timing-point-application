@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.testsupport;
 
+import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
@@ -65,7 +66,7 @@ public final class PresentationGatewayFixture implements AutoCloseable {
                 timingNodes.build(),
                 configuration);
         for (TimingNode node : nodes) {
-            node.activate();
+            LifecycleTestSupport.activate(node);
         }
         for (NodeId nodeId : ids) {
             awaitInitialStatus(nodeId);
@@ -110,7 +111,7 @@ public final class PresentationGatewayFixture implements AutoCloseable {
     @Override
     public void close() {
         for (TimingNode node : nodes) {
-            node.deactivate();
+            LifecycleTestSupport.deactivate(node);
         }
     }
 
