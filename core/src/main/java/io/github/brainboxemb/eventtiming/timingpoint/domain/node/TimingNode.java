@@ -177,7 +177,9 @@ public final class TimingNode extends LifecycleComponent {
     /**
      * Opens this node at the requested location.
      *
-     * <p>This call blocks until NODE_OPEN is committed to the LogBook or the operation fails.</p>
+     * <p>This call blocks until NODE_OPEN is committed to the LogBook or the operation fails.
+     * After a successful commit, TimingNode applies the OPEN runtime status and publishes
+     * {@link #STATUS_CHANGED} itself.</p>
      *
      * @throws OperationException when the node operation cannot return its normal result
      */
@@ -205,7 +207,9 @@ public final class TimingNode extends LifecycleComponent {
     /**
      * Closes this node and retains its last location.
      *
-     * <p>This call blocks until NODE_CLOSE is committed to the LogBook or the operation fails.</p>
+     * <p>This call blocks until NODE_CLOSE is committed to the LogBook or the operation fails.
+     * After a successful commit, TimingNode applies the CLOSED runtime status and publishes
+     * {@link #STATUS_CHANGED} itself.</p>
      *
      * @throws OperationException when the node operation cannot return its normal result;
      *         timeout means the final close outcome is unknown
