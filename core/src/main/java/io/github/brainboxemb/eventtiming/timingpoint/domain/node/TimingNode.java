@@ -59,9 +59,9 @@ public final class TimingNode extends LifecycleComponent {
     private final LogBookAccessor logBook;
     private final TagProcessor tagProcessor;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
-    private final Event<TimingData> timingDataCommitted = new Event<TimingData>();
-    private final Event<Status> statusChanged = new Event<Status>();
-    private final Event<ErrorStatus> errorStatusChanged = new Event<ErrorStatus>();
+    private final Event<TimingData> timingDataCommittedEvent = new Event<TimingData>();
+    private final Event<Status> statusChangedEvent = new Event<Status>();
+    private final Event<ErrorStatus> errorStatusChangedEvent = new Event<ErrorStatus>();
     private final Object operationLock = new Object();
     private final Object stateLock = new Object();
 
@@ -99,13 +99,13 @@ public final class TimingNode extends LifecycleComponent {
      * <p>This event reports durable LogBook facts only. Runtime OPEN/CLOSED
      * status is owned and published separately by TimingNode open/close.</p>
      */
-    public final EventSource<TimingData> TIMING_DATA_COMMITTED = timingDataCommitted;
+    public final EventSource<TimingData> TIMING_DATA_COMMITTED = timingDataCommittedEvent;
 
     /** OPEN/CLOSED operation-status changes for this TimingNode. */
-    public final EventSource<Status> STATUS_CHANGED = statusChanged;
+    public final EventSource<Status> STATUS_CHANGED = statusChangedEvent;
 
     /** TimingNode error-status changes. */
-    public final EventSource<ErrorStatus> ERROR_STATUS_CHANGED = errorStatusChanged;
+    public final EventSource<ErrorStatus> ERROR_STATUS_CHANGED = errorStatusChangedEvent;
 
     /** Creates one TimingNode with its clock and child components. */
     public TimingNode(
@@ -198,7 +198,7 @@ public final class TimingNode extends LifecycleComponent {
                 Status openedStatus =
                         new Status(State.OPEN, locationId);
                 setStatus(openedStatus);
-                statusChanged.emit(openedStatus);
+                statusChangedEvent.emit(openedStatus);
             }
             return result;
         }
@@ -237,7 +237,7 @@ public final class TimingNode extends LifecycleComponent {
                 Status closedStatus =
                         new Status(State.CLOSED, status.locationId);
                 setStatus(closedStatus);
-                statusChanged.emit(closedStatus);
+                statusChangedEvent.emit(closedStatus);
             }
             return result;
         }
@@ -358,7 +358,7 @@ public final class TimingNode extends LifecycleComponent {
      */
     private void onTimingDataCommitted(TimingData timingData) {
 
-        timingDataCommitted.emit(timingData);
+        timingDataCommittedEvent.emit(timingData);
     }
 
     /**
@@ -376,7 +376,7 @@ public final class TimingNode extends LifecycleComponent {
 
         currentErrorStatus = error;
         if (error != null) {
-            errorStatusChanged.emit(error);
+            errorStatusChangedEvent.emit(error);
         }
     }
 
