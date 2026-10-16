@@ -132,6 +132,39 @@ public class SafeExecuteTest {
         }
     }
 
+    /** Verifies that runtime failure handling runs before the same failure is rethrown. */
+    @Test
+    public void runtimeFailureHandlerRunsBeforeRethrow() {
+        IllegalStateException failure = new IllegalStateException("expected");
+        RuntimeException[] handled = new RuntimeException[1];
+
+        try {
+            SafeExecute.runOrRethrow(
+                    () -> {
+                        throw failure;
+                    },
+                    ex -> handled[0] = ex);
+            fail("expected IllegalStateException");
+        } catch (IllegalStateException expected) {
+            assertSame(failure, expected);
+            assertSame(failure, handled[0]);
+        }
+    }
+
+    /** Verifies that successful runtime-guarded work does not invoke the failure handler. */
+    @Test
+    public void successfulRuntimeGuardDoesNotInvokeFailureHandler() {
+        AtomicBoolean executed = new AtomicBoolean();
+        AtomicBoolean handled = new AtomicBoolean();
+
+        SafeExecute.runOrRethrow(
+                () -> executed.set(true),
+                ex -> handled.set(true));
+
+        assertTrue(executed.get());
+        assertFalse(handled.get());
+    }
+
     /** Verifies that a successful guarded operation does not call the rejection handler. */
     @Test
     public void handledRejectionSuccessDoesNotCallHandler() {
