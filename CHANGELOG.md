@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- IF-03 status JSON uses the compact fields `id`, `locId`, `state` and `opState`; the Java `TimingNodeStatus` remains the operator-facing functional status while IF-03 adds operational state when encoding its four-field node status.
+
 - Keep operator-facing `TimingNodeStatus` small: NodeId, OPEN/CLOSED state and LocationId. Expose operational INIT/OK/ERROR and problem details separately; IF-03 combines them only when producing diagnostic status JSON, where the functional field is simply `state`.
 
 - Decouple TimingNode OPEN/CLOSED runtime state from lifecycle LogBook persistence. OPEN/CLOSE now apply state at the registration-admission boundary, submit lifecycle history asynchronously, and no longer use a CLOSE-only registration-block flag or SafeExecute catch/rethrow path.
