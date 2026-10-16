@@ -77,7 +77,7 @@ public final class PresentationGatewayFixture implements AutoCloseable {
         long deadline =
                 System.nanoTime()
                         + java.util.concurrent.TimeUnit.SECONDS.toNanos(1L);
-        while (handler.timingNode(nodeId).status().operationalState()
+        while (handler.timingNode(nodeId).operationalState()
                 == OperationalState.INIT) {
             if (System.nanoTime() >= deadline) {
                 throw new IllegalStateException(
