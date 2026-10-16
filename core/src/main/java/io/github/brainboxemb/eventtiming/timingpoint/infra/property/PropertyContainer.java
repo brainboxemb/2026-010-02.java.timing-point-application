@@ -6,14 +6,13 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
- * Tracks related current values and publishes one grouped change event.
+ * Owns related properties and publishes one grouped change event.
  *
- * <p>The owner changes its normal fields first and then calls {@link #update()}.
- * The container compares the tracked values with its previous snapshot and emits
- * one event containing every property that changed.</p>
+ * <p>The owner changes one or more Property values first and then calls
+ * {@link #update()}. The container emits one event containing all properties
+ * changed since the previous update.</p>
  */
 public final class PropertyContainer {
     private final List<Property<?>> properties = new ArrayList<Property<?>>();
@@ -22,18 +21,13 @@ public final class PropertyContainer {
     /** One change source containing all properties changed by the last update. */
     public final EventSource<List<Property<?>>> CHANGED = changedEvent;
 
-    /**
-     * Adds one named value to this container and returns the container for chaining.
-     */
-    public synchronized <T> PropertyContainer track(
+    /** Creates one typed property owned by this container. */
+    public synchronized <T> Property<T> property(
             String name,
-            Supplier<T> source) {
+            T initialValue) {
 
         if (name == null || name.trim().isEmpty()) {
             throw new IllegalArgumentException("property name must not be blank");
-        }
-        if (source == null) {
-            throw new IllegalArgumentException("property source must not be null");
         }
 
         String normalized = name.trim();
@@ -43,16 +37,16 @@ public final class PropertyContainer {
             }
         }
 
-        properties.add(new Property<T>(normalized, source));
-        return this;
+        Property<T> property =
+                new Property<T>(
+                        this,
+                        normalized,
+                        initialValue);
+        properties.add(property);
+        return property;
     }
 
-    /**
-     * Publishes one event when one or more tracked values changed.
-     *
-     * <p>The event is emitted after the snapshot has been updated and outside the
-     * container lock.</p>
-     */
+    /** Publishes one event when one or more owned properties changed. */
     public void update() {
 
         List<Property<?>> changed = new ArrayList<Property<?>>();

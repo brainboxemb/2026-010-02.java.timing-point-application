@@ -11,19 +11,22 @@ import static org.junit.Assert.assertTrue;
 public class PropertyContainerTest {
 
     @Test
-    public void publishesOneEventForSeveralChangedValues() {
-        MutableValues values = new MutableValues();
-        PropertyContainer properties =
-                new PropertyContainer()
-                        .track("state", () -> values.state)
-                        .track("locationId", () -> values.locationId);
-        List<List<Property<?>>> changes = new ArrayList<List<Property<?>>>();
+    public void publishesOneEventForSeveralChangedProperties() {
+        PropertyContainer properties = new PropertyContainer();
+        Property<String> state =
+                properties.property("state", "CLOSED");
+        Property<Integer> location =
+                properties.property("locationId", null);
+        List<List<Property<?>>> changes =
+                new ArrayList<List<Property<?>>>();
         properties.CHANGED.subscribe(changes::add);
 
-        values.locationId = Integer.valueOf(24);
-        values.state = "OPEN";
+        location.set(Integer.valueOf(24));
+        state.set("OPEN");
         properties.update();
 
+        assertEquals("OPEN", state.get());
+        assertEquals(Integer.valueOf(24), location.get());
         assertEquals(1, changes.size());
         assertEquals(2, changes.get(0).size());
         assertEquals("state", changes.get(0).get(0).name);
@@ -31,12 +34,11 @@ public class PropertyContainerTest {
     }
 
     @Test
-    public void unchangedValuesPublishNothing() {
-        MutableValues values = new MutableValues();
-        PropertyContainer properties =
-                new PropertyContainer()
-                        .track("state", () -> values.state);
-        List<List<Property<?>>> changes = new ArrayList<List<Property<?>>>();
+    public void unchangedPropertiesPublishNothing() {
+        PropertyContainer properties = new PropertyContainer();
+        properties.property("state", "CLOSED");
+        List<List<Property<?>>> changes =
+                new ArrayList<List<Property<?>>>();
         properties.CHANGED.subscribe(changes::add);
 
         properties.update();
@@ -46,14 +48,8 @@ public class PropertyContainerTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsDuplicatePropertyName() {
-        MutableValues values = new MutableValues();
-        new PropertyContainer()
-                .track("state", () -> values.state)
-                .track("state", () -> values.state);
-    }
-
-    private static final class MutableValues {
-        private String state = "CLOSED";
-        private Integer locationId;
+        PropertyContainer properties = new PropertyContainer();
+        properties.property("state", "CLOSED");
+        properties.property("state", "OPEN");
     }
 }
