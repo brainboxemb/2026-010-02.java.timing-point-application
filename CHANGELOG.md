@@ -4,9 +4,9 @@
 
 - Simplify TimingNode current state back to functional OPEN/CLOSED plus LocationId. Remove the premature operational-health state/problem layer and keep lifecycle-history queue failures as LogBook diagnostics instead of a second TimingNode status model.
 
-- Store TimingNode functional state, operational state, LocationId and operational problem as separate generic `Property<T>` values in one `PropertyContainer`; subscribers receive one container change describing the properties changed by a committed update.
+- Use strongly typed `Property<T>` values for TimingNode functional state and LocationId. `PropertyContainer.update()` emits one grouped `PropertyUpdate` containing every changed property; lifecycle teardown uses `sync()` so it does not emit a normal runtime change event.
 
-- Define `TimingNodeStatus` as the four-value client status: node id, current location, OPEN/CLOSED state and INIT/OK/ERROR operational state. IF-03 maps these directly to compact `id`, `locId`, `state` and `opState` fields; problem details remain separate.
+- Move generic active/inactive lifecycle state into `LifecycleComponent`; TimingNode no longer duplicates that state and maps inactive lifecycle to its operation contract through the explicit `failIfInactive()` guard.
 
 - Decouple TimingNode OPEN/CLOSED runtime state from lifecycle LogBook persistence. OPEN/CLOSE now apply state at the registration-admission boundary, submit lifecycle history asynchronously, and no longer use a CLOSE-only registration-block flag or SafeExecute catch/rethrow path.
 
