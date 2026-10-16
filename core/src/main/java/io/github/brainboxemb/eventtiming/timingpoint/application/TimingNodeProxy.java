@@ -61,7 +61,7 @@ public final class TimingNodeProxy {
         this.timingNodeId = timingNode.timingNodeId();
         this.timingNode = timingNode;
         this.logBook = timingNode.logBook();
-        this.NEW_DATA_ENTRY = logBook.newDataEntryEvent();
+        this.NEW_DATA_ENTRY = timingNode.TIMING_DATA_COMMITTED;
         NODE_STATUS_CHANGED.bind(this, timingNode.STATUS_CHANGED);
     }
 

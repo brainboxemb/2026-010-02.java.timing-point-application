@@ -11,8 +11,9 @@ import java.util.function.Consumer;
  *
  * <p>Subscription is a composition-time operation. Subscribing does not create
  * an asynchronous boundary: when the owning Event emits a value, listeners run
- * synchronously on the emitting thread. A listener that needs slower work must
- * queue that work itself and return quickly.</p>
+ * synchronously on the emitting thread, in subscription order. Fixed composition
+ * may therefore establish a deliberate short-handler ordering between consumers.
+ * A listener that needs slower work must queue that work itself and return quickly.</p>
  *
  * @param <T> value delivered by the event
  */

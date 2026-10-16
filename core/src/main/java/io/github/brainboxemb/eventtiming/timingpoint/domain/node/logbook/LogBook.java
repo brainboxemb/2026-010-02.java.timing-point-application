@@ -38,8 +38,6 @@ public final class LogBook implements LogBookAccessor {
     private final LogBookMetrics metrics;
 
     private final EventWithMetrics<TimingData> newDataEntry;
-    private final Event<TimingData> operationStateCommitted = new Event<TimingData>();
-    private final Event<TimingData> operationStateCommitPublished = new Event<TimingData>();
     private final Event<List<TimingData>> initialDataLoaded = new Event<List<TimingData>>();
 
     /** Completed startup-recovery source. */
@@ -50,12 +48,6 @@ public final class LogBook implements LogBookAccessor {
 
     /** Transient startup-history source for one-time derived-state reconstruction. */
     public final EventSource<List<TimingData>> INITIAL_DATA_LOADED = initialDataLoaded;
-
-    /** NODE_OPEN/NODE_CLOSE source emitted immediately after commit. */
-    public final EventSource<TimingData> OPERATION_STATE_COMMITTED = operationStateCommitted;
-
-    /** NODE_OPEN/NODE_CLOSE source emitted after general committed-data publication. */
-    public final EventSource<TimingData> OPERATION_STATE_COMMIT_PUBLISHED = operationStateCommitPublished;
 
     /**
      * Creates one LogBook bound to the supplied Data Lane.
@@ -281,18 +273,7 @@ public final class LogBook implements LogBookAccessor {
         R result = command.apply(logBookOperations);
 
         if (logBookState.timingDataHead() > headBefore) {
-            TimingData committed = logBookState.latestCommittedTimingData();
-            boolean operationStateRecord = committed instanceof TimingData.NodeOpen
-                    || committed instanceof TimingData.NodeClose;
-            if (operationStateRecord) {
-                operationStateCommitted.emit(committed);
-            }
-
-            newDataEntry.emit(committed);
-
-            if (operationStateRecord) {
-                operationStateCommitPublished.emit(committed);
-            }
+            newDataEntry.emit(logBookState.latestCommittedTimingData());
         }
         return result;
     }
