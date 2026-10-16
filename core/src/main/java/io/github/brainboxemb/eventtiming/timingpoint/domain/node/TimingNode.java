@@ -22,10 +22,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Consumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
@@ -45,7 +41,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
  * transition but does not reconstruct current state.</p>
  */
 public final class TimingNode extends LifecycleComponent {
-    private static final Logger LOG = LoggerFactory.getLogger(TimingNode.class);
     private final NodeId timingNodeId;
     private final AntennaId antennaId;
     private final TimeSource timeSource;
@@ -183,14 +178,7 @@ public final class TimingNode extends LifecycleComponent {
                 synchronized (stateLock) {
                     locationIdProp.set(locationId);
                     functionalStateProp.set(FunctionalState.OPEN);
-                    try {
-                        logBook.execute(LogBookCommands.commitNodeOpen(locationId));
-                    } catch (RejectedExecutionException ex) {
-                        LOG.error(
-                                "NODE_OPEN history for node {} could not be queued on the LogBook Data Lane",
-                                timingNodeId.value(),
-                                ex);
-                    }
+                    logBook.execute(LogBookCommands.commitNodeOpen(locationId));
                 }
                 properties.update();
                 result = OpenResult.OPENED;
@@ -216,14 +204,7 @@ public final class TimingNode extends LifecycleComponent {
                 LocationId currentLocation = locationIdProp.get();
                 synchronized (stateLock) {
                     functionalStateProp.set(FunctionalState.CLOSED);
-                    try {
-                        logBook.execute(LogBookCommands.commitNodeClose(currentLocation));
-                    } catch (RejectedExecutionException ex) {
-                        LOG.error(
-                                "NODE_CLOSE history for node {} could not be queued on the LogBook Data Lane",
-                                timingNodeId.value(),
-                                ex);
-                    }
+                    logBook.execute(LogBookCommands.commitNodeClose(currentLocation));
                 }
                 properties.update();
                 result = CloseResult.CLOSED;
@@ -360,19 +341,11 @@ public final class TimingNode extends LifecycleComponent {
                 return;
             }
 
-            try {
-                logBook.execute(
-                        LogBookCommands.commitAntennaRegistration(
-                                locationIdProp.get(),
-                                registration.registrationId(),
-                                registration.observedAt()));
-            } catch (RejectedExecutionException ex) {
-                LOG.error(
-                        "Automatic registration {} for node {} could not be queued on the LogBook Data Lane",
-                        registration.registrationId().value(),
-                        timingNodeId.value(),
-                        ex);
-            }
+            logBook.execute(
+                    LogBookCommands.commitAntennaRegistration(
+                            locationIdProp.get(),
+                            registration.registrationId(),
+                            registration.observedAt()));
         }
     }
 
