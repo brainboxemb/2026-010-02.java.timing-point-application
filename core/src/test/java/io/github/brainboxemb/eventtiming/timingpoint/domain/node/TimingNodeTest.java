@@ -10,6 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixtu
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookTestControl;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookRecoveryStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
 
@@ -462,6 +463,45 @@ public class TimingNodeTest {
             assertNull(status.locationId);
         } finally {
             releaseBlocker.countDown();
+            deactivate(node);
+        }
+    }
+
+    @Test
+    public void testWriteTimeoutUsesNormalCommitTimeoutAndStillCommitsLater()
+            throws Exception {
+        SerialLane executor = newSerialLane(4, "timing-node-test-hook");
+        TimingNode node = TimingNodeFixture.createWithDataLane(
+                new NodeId("A"),
+                new NoOpPersistence(),
+                new DefaultTimingDataFactory(),
+                TimingNodeTest::now,
+                executor,
+                25L,
+                1000L);
+
+        activate(node);
+        try {
+            node.testNextLogBookWriteFailure(
+                    LogBookTestControl.WriteFailure.TIMEOUT);
+
+            try {
+                node.open(new LocationId(24));
+                fail("expected timeout");
+            } catch (TimingNodeTypes.OperationException expected) {
+                assertEquals(
+                        TimingNodeTypes.OperationException.Reason.TIMEOUT,
+                        expected.reason());
+            }
+
+            List<TimingData> committed =
+                    node.logBook().process(
+                            LogBookQueries.timingDataRange(1L, 1));
+            assertEquals(1, committed.size());
+            assertTrue(committed.get(0) instanceof TimingData.NodeOpen);
+            assertEquals(TimingNodeTypes.State.CLOSED, node.status().state);
+            assertNull(node.status().locationId);
+        } finally {
             deactivate(node);
         }
     }
