@@ -420,7 +420,6 @@ public class WebSocketEndpointTest {
 
         private void start() throws Exception {
             LifecycleTestSupport.activate(node);
-            awaitStatus(handler.timingNode(new NodeId("A")));
         }
 
         @Override
