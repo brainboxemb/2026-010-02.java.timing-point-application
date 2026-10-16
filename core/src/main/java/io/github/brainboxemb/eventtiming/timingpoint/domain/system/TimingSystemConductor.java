@@ -13,7 +13,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.Ta
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -46,34 +45,6 @@ public final class TimingSystemConductor extends AbstractConductor {
     private final TaskSerialLane taskLane;
     private final MainTask mainTask = new MainTask();
 
-    /** Binds one typed event source to a TimingSystemConductor input. */
-    private <T> void bind(
-            EventInput<TimingSystemConductor, T> input,
-            EventSource<T> source) {
-
-        input.bind(this, source);
-    }
-
-    private final class MainTask extends AbstractTask {
-
-        @Override
-        protected void resetForRun() {
-            // Main task state is owned by TimingSystemConductor.
-        }
-
-        @Override
-        public TaskStep runStep() {
-            return evaluateNodeStatus();
-        }
-
-        @Override
-        protected void onRunCompleted(Throwable failure) {
-            if (failure != null) {
-                LOG.error("TimingSystem Conductor main task failed", failure);
-            }
-        }
-    }
-
     public TimingSystemConductor(
             TimingNodeList timingNodes,
             AntennaSettings antennaSettings,
@@ -94,7 +65,7 @@ public final class TimingSystemConductor extends AbstractConductor {
                     "TimingNode " + node.timingNodeId().value(),
                     node::activate,
                     node::deactivate);
-            bind(NODE_STATUS_CHANGED, node.statusChangedEvent());
+            NODE_STATUS_CHANGED.bind(this, node.statusChangedEvent());
         }
     }
 
@@ -115,6 +86,26 @@ public final class TimingSystemConductor extends AbstractConductor {
     protected void onActivated() {
 
         mainTask.wake(taskLane);
+    }
+
+    private final class MainTask extends AbstractTask {
+
+        @Override
+        protected void resetForRun() {
+            // Main task state is owned by TimingSystemConductor.
+        }
+
+        @Override
+        public TaskStep runStep() {
+            return evaluateNodeStatus();
+        }
+
+        @Override
+        protected void onRunCompleted(Throwable failure) {
+            if (failure != null) {
+                LOG.error("TimingSystem Conductor main task failed", failure);
+            }
+        }
     }
 
     private TaskStep evaluateNodeStatus() {
