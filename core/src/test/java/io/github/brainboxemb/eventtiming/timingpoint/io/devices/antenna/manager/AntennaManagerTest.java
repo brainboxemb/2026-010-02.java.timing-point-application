@@ -546,14 +546,14 @@ public class AntennaManagerTest {
             blocking.release();
 
             awaitCondition(
-                    () -> !manager.isBusy(),
+                    manager::isReady,
                     1000L);
 
             assertEquals(
                     State.ACTIVE,
                     manager.state());
-            assertTrue(
-                    manager.isReady());
+            assertFalse(
+                    manager.isBusy());
             assertTrue(
                     manager.status(
                             new AntennaId("1"))
