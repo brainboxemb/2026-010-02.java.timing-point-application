@@ -4,7 +4,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
 
 /**
- * Immutable result of one LogBook startup recovery attempt.
+ * Result of one LogBook startup recovery attempt.
  *
  * <p>This describes only LogBook recovery facts. It does not represent the
  * current OPEN/CLOSED state of the owning TimingNode.</p>
