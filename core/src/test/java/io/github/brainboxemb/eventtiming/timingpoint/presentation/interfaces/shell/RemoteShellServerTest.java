@@ -129,7 +129,7 @@ public class RemoteShellServerTest {
                             client.getOutputStream(),
                             StandardCharsets.UTF_8);
             writer.write(
-                    "test-write:A fail\n"
+                    "test:A logbook write fail\n"
                             + "open:A 24\n"
                             + "open:A 24\n"
                             + "quit\n");
