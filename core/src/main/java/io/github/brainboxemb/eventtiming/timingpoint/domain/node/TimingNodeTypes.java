@@ -32,24 +32,16 @@ public final class TimingNodeTypes {
         TIMING_DATA_LOAD_FAILED
     }
 
-    /** TimingNode error status, independent from its OPEN/CLOSED operation status. */
+    /** Immutable TimingNode error data. */
     public static final class ErrorStatus {
-        private final ErrorCode code;
-        private final String message;
+        public final ErrorCode code;
+        public final String message;
 
         public ErrorStatus(ErrorCode code, String message) {
             checkArgument(code != null, "code must not be null");
             checkArgument(message != null && !message.trim().isEmpty(), "message must not be blank");
             this.code = code;
             this.message = message.trim();
-        }
-
-        public ErrorCode code() {
-            return code;
-        }
-
-        public String message() {
-            return message;
         }
 
         @Override
@@ -144,34 +136,27 @@ public final class TimingNodeTypes {
         }
     }
 
-    /** OPEN/CLOSED operation status reported by TimingNode. */
-    public static final class OperationStatus {
-        private final State state;
-        private final LocationId locationId;
+    /**
+     * Immutable TimingNode status data.
+     *
+     * <p>Java 8 has no record/struct type; this final class deliberately exposes
+     * its immutable fields directly because it is only a small data carrier.</p>
+     */
+    public static final class Status {
+        public final State state;
+        public final LocationId locationId;
 
-        public OperationStatus(State state, LocationId locationId) {
+        public Status(State state, LocationId locationId) {
             checkArgument(state != null, "state must not be null");
             this.state = state;
             this.locationId = locationId;
         }
 
-        public State state() {
-            return state;
-        }
-
-        public boolean hasLocation() {
-            return locationId != null;
-        }
-
-        public LocationId locationId() {
-            return locationId;
-        }
-
         @Override
         public boolean equals(Object other) {
             if (this == other) return true;
-            if (!(other instanceof OperationStatus)) return false;
-            OperationStatus that = (OperationStatus) other;
+            if (!(other instanceof Status)) return false;
+            Status that = (Status) other;
             if (state != that.state) return false;
             return locationId == null ? that.locationId == null : locationId.equals(that.locationId);
         }
