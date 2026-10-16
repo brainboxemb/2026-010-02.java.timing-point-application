@@ -7,17 +7,18 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class PropertyContainerTest {
 
     @Test
-    public void commitsSeveralPropertiesBeforePublishingOneChange() {
+    public void commitsSeveralPropertiesBeforePublishingChanges() {
         PropertyContainer properties = new PropertyContainer();
         Property<String> state = properties.property("state", "CLOSED");
         Property<Integer> location = properties.property("locationId", null);
-        List<PropertyContainer.Change> changes = new ArrayList<PropertyContainer.Change>();
+        List<Property<?>> changes = new ArrayList<Property<?>>();
         properties.subscribe(changes::add);
 
         PropertyContainer.Update update = properties.update();
@@ -35,17 +36,16 @@ public class PropertyContainerTest {
 
         update.publish();
 
-        assertEquals(1, changes.size());
-        assertEquals(2, changes.get(0).properties.size());
-        assertTrue(changes.get(0).contains("state"));
-        assertTrue(changes.get(0).contains("locationId"));
+        assertEquals(2, changes.size());
+        assertSame(location, changes.get(0));
+        assertSame(state, changes.get(1));
     }
 
     @Test
-    public void unchangedValuesEmitNothing() {
+    public void unchangedValuesPublishNothing() {
         PropertyContainer properties = new PropertyContainer();
         Property<String> state = properties.property("state", "CLOSED");
-        List<PropertyContainer.Change> changes = new ArrayList<PropertyContainer.Change>();
+        List<Property<?>> changes = new ArrayList<Property<?>>();
         properties.subscribe(changes::add);
 
         PropertyContainer.Update update = properties.update();
