@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Clarify the CLOSE antenna-ingress gate: block new antenna registrations before NODE_CLOSE admission, restore the gate only when BUSY/UNAVAILABLE prove CLOSE was not accepted, and keep ingress blocked for TIMEOUT/INTERRUPTED/FAILED because the final close outcome may be unresolved.
+- Clarify the CLOSE antenna-ingress gate and lifecycle commit results: `commitNodeOpen`/`commitNodeClose` now return `OPENED`/`CLOSED` directly to `TimingNode`; the separate close-failure restoration helper is removed; BUSY/UNAVAILABLE restore the temporary antenna ingress gate locally while ambiguous accepted failures remain fail-closed.
 
 - Separate result-bearing LogBook wait guards into a 5-second TimingData commit wait timeout and a 2-second ORDERED-query wait timeout; log caller-visible operation failures centrally with NodeId/operation/reason context and log TimingData persistence/in-memory commit failures with record context.
 
