@@ -2,8 +2,6 @@
 
 ## Unreleased
 
-- Expose separate functional state, operational health, location and problem queries on `TimingNodeProxy`; retain `TimingNodeStatus` only as an immutable presentation snapshot for HTTP/WebSocket and terminal views.
-
 - Decouple TimingNode OPEN/CLOSED runtime state from lifecycle LogBook persistence. OPEN/CLOSE now apply state at the registration-admission boundary, submit lifecycle history asynchronously, and no longer use a CLOSE-only registration-block flag or SafeExecute catch/rethrow path.
 
 - Simplify `TimingNode.close()` failure handling: use the shared result-bearing `SafeExecute.callOrRethrow(...)` guard and model the temporary CLOSE ingress block as the simple `blockRegistrations` flag instead of manually repairing a derived `registrationsAllowed` flag.

@@ -70,11 +70,7 @@ public class PresentationGatewayTest {
 
         activate(node);
         try {
-            TimingNodeProxy proxy = gateway.timingNode(new NodeId("A"));
-            TimingNodeStatus status = awaitErrorStatus(proxy);
-            assertEquals(TimingNodeTypes.FunctionalState.CLOSED, proxy.functionalState());
-            assertEquals(TimingNodeTypes.OperationalState.ERROR, proxy.operationalState());
-            assertTrue(proxy.operationalProblem().isPresent());
+            TimingNodeStatus status = awaitErrorStatus(gateway.timingNode(new NodeId("A")));
             assertEquals(
                     TimingNodeTypes.OperationalState.ERROR,
                     status.operationalState());
@@ -111,16 +107,10 @@ public class PresentationGatewayTest {
             assertFalse(capabilities.tagScenarioSimulationEnabled());
 
             assertFalse(proxy.status().hasLocation());
-            assertEquals(TimingNodeTypes.FunctionalState.CLOSED, proxy.functionalState());
-            assertEquals(TimingNodeTypes.OperationalState.OK, proxy.operationalState());
-            assertFalse(proxy.operationalProblem().isPresent());
 
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
                     proxy.open(new LocationId(24)));
-            assertEquals(TimingNodeTypes.FunctionalState.OPEN, proxy.functionalState());
-            assertEquals(TimingNodeTypes.OperationalState.OK, proxy.operationalState());
-            assertEquals(new LocationId(24), proxy.locationId());
             assertEquals(1, statusChanges.size());
             assertEquals(
                     TimingNodeTypes.FunctionalState.OPEN,
@@ -165,9 +155,6 @@ public class PresentationGatewayTest {
             assertSame(registration.timingData(), visited.get(1));
 
             assertEquals(TimingNodeTypes.CloseResult.CLOSED, proxy.close());
-            assertEquals(TimingNodeTypes.FunctionalState.CLOSED, proxy.functionalState());
-            assertEquals(TimingNodeTypes.OperationalState.OK, proxy.operationalState());
-            assertEquals(new LocationId(24), proxy.locationId());
             assertEquals(2, statusChanges.size());
             assertEquals(
                     TimingNodeTypes.FunctionalState.CLOSED,
