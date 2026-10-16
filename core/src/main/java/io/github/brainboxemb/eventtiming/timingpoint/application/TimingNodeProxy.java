@@ -13,14 +13,14 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ErrorStatus;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.NodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
+import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
@@ -32,10 +32,15 @@ import java.util.function.Consumer;
  */
 public final class TimingNodeProxy {
 
-    /** Domain node-status input mapped to presentation-facing status values. */
-    private static final EventInput<TimingNodeProxy, NodeStatus> NODE_STATUS_CHANGED =
+    /** Domain operation-status input mapped to presentation-facing status values. */
+    private static final EventInput<TimingNodeProxy, OperationStatus> OPERATION_STATUS_CHANGED =
             EventInput.of(
-                    (proxy, source) -> source.subscribe(proxy::updateStatus));
+                    (proxy, source) -> source.subscribe(proxy::updateOperationStatus));
+
+    /** Domain error-status input mapped to presentation-facing status values. */
+    private static final EventInput<TimingNodeProxy, ErrorStatus> ERROR_STATUS_CHANGED =
+            EventInput.of(
+                    (proxy, source) -> source.subscribe(proxy::updateErrorStatus));
 
     /** Registration record family supplied by a higher interpreting layer. */
     public enum RegistrationRecordType {
@@ -62,7 +67,8 @@ public final class TimingNodeProxy {
         this.timingNode = timingNode;
         this.logBook = timingNode.logBook();
         this.NEW_DATA_ENTRY = timingNode.TIMING_DATA_COMMITTED;
-        NODE_STATUS_CHANGED.bind(this, timingNode.STATUS_CHANGED);
+        OPERATION_STATUS_CHANGED.bind(this, timingNode.OPERATION_STATUS_CHANGED);
+        ERROR_STATUS_CHANGED.bind(this, timingNode.ERROR_STATUS_CHANGED);
     }
 
     /** Returns this node's ID. */
@@ -75,9 +81,13 @@ public final class TimingNodeProxy {
         return timingNode.timeSource();
     }
 
-    /** Returns the current status reported by TimingNode. */
+    /** Returns the current presentation status for this TimingNode. */
     public TimingNodeStatus status() {
-        return timingNodeStatus(timingNode.status());
+        Optional<ErrorStatus> error = timingNode.errorStatus();
+        if (error.isPresent()) {
+            return errorStatus(error.get());
+        }
+        return operationStatus(timingNode.operationStatus());
     }
 
     /** Opens the node at the requested LocationId. */
@@ -225,25 +235,29 @@ public final class TimingNodeProxy {
                 LogBookQueries.visitLatestTimingData(limit, visitor));
     }
 
-    private void updateStatus(NodeStatus status) {
+    private void updateOperationStatus(OperationStatus status) {
 
-        TimingNodeStatus update = timingNodeStatus(status);
-        statusChanged.emit(update);
+        statusChanged.emit(operationStatus(status));
     }
 
-    private static TimingNodeStatus timingNodeStatus(NodeStatus status) {
-        if (status instanceof ErrorStatus) {
-            ErrorStatus error = (ErrorStatus) status;
-            return TimingNodeStatus.error(
-                    timingNodeId,
-                    error.code(),
-                    error.message());
-        }
+    private void updateErrorStatus(ErrorStatus error) {
 
-        Status operational = (Status) status;
+        statusChanged.emit(errorStatus(error));
+    }
+
+    private TimingNodeStatus operationStatus(OperationStatus status) {
+
         return TimingNodeStatus.operational(
                 timingNodeId,
-                operational.state(),
-                operational.locationId());
+                status.state(),
+                status.locationId());
+    }
+
+    private TimingNodeStatus errorStatus(ErrorStatus error) {
+
+        return TimingNodeStatus.error(
+                timingNodeId,
+                error.code(),
+                error.message());
     }
 }
