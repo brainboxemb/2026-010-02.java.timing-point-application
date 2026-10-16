@@ -28,6 +28,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.Test;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.activate;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -50,11 +52,11 @@ public class AntennaManagerTest {
             manager.settings().update(edit -> edit.inventoryEnabled(true));
             assertFalse(antenna.inventoryRunning());
 
-            manager.activate();
+            activate(manager);
             awaitCondition(antenna::inventoryRunning, 1000L);
             assertTrue(antenna.inventoryRunning());
         } finally {
-            manager.deactivate();
+            deactivate(manager);
             shared.shutdownNow();
         }
     }
@@ -83,7 +85,7 @@ public class AntennaManagerTest {
                                 Duration.ofSeconds(1)));
 
         try {
-            manager.activate();
+            activate(manager);
 
             awaitCondition(
                     power::powered,
@@ -111,7 +113,7 @@ public class AntennaManagerTest {
                             new AntennaId("1"))
                             .selfTestPassed());
         } finally {
-            manager.deactivate();
+            deactivate(manager);
             shared.shutdownNow();
         }
     }
@@ -127,19 +129,19 @@ public class AntennaManagerTest {
                 Duration.ofSeconds(1));
 
         try {
-            manager.activate();
+            activate(manager);
             awaitCondition(manager::isReady, 1000L);
-            manager.deactivate();
+            deactivate(manager);
 
             assertEquals(State.INACTIVE, manager.state());
 
-            manager.activate();
+            activate(manager);
             awaitCondition(manager::isReady, 1000L);
 
             assertEquals(State.ACTIVE, manager.state());
             assertTrue(manager.status(new AntennaId("1")).selfTestPassed());
         } finally {
-            manager.deactivate();
+            deactivate(manager);
             shared.shutdownNow();
         }
     }
@@ -168,7 +170,7 @@ public class AntennaManagerTest {
                                 Duration.ofSeconds(1)));
 
         try {
-            manager.activate();
+            activate(manager);
             awaitCondition(
                     power::powered,
                     500L);
@@ -187,7 +189,7 @@ public class AntennaManagerTest {
             assertFalse(
                     power.powered());
         } finally {
-            manager.deactivate();
+            deactivate(manager);
             shared.shutdownNow();
         }
     }
@@ -226,7 +228,7 @@ public class AntennaManagerTest {
         sibling.start();
 
         try {
-            manager.activate();
+            activate(manager);
 
             awaitCondition(
                     power::powered,
@@ -281,7 +283,7 @@ public class AntennaManagerTest {
                     1000L);
         } finally {
             try {
-                manager.deactivate();
+                deactivate(manager);
             } finally {
                 sibling.close();
                 shared.shutdownNow();
@@ -317,7 +319,7 @@ public class AntennaManagerTest {
                         received::set);
 
         try {
-            manager.activate();
+            activate(manager);
             awaitCondition(
                     manager::isReady,
                     1000L);
@@ -340,7 +342,7 @@ public class AntennaManagerTest {
                     observation,
                     received.get());
         } finally {
-            manager.deactivate();
+            deactivate(manager);
             shared.shutdownNow();
         }
     }
@@ -381,7 +383,7 @@ public class AntennaManagerTest {
                 Duration.ofSeconds(1));
 
         try {
-            manager.activate();
+            activate(manager);
             awaitCondition(manager::isReady, 1000L);
 
             assertEquals(State.ACTIVE, manager.state());
@@ -399,7 +401,7 @@ public class AntennaManagerTest {
             assertTrue(first.inventoryRunning());
             assertTrue(failedSelfTest.inventoryRunning());
         } finally {
-            manager.deactivate();
+            deactivate(manager);
             shared.shutdownNow();
         }
     }
@@ -416,7 +418,7 @@ public class AntennaManagerTest {
                 Duration.ofSeconds(1));
 
         try {
-            manager.activate();
+            activate(manager);
             awaitCondition(manager::isReady, 1000L);
 
             antenna.setFailurePoint(
@@ -465,7 +467,7 @@ public class AntennaManagerTest {
                     1,
                     antenna.inventoryStartCount());
         } finally {
-            manager.deactivate();
+            deactivate(manager);
             shared.shutdownNow();
         }
     }
@@ -482,7 +484,7 @@ public class AntennaManagerTest {
                 Duration.ofSeconds(1));
 
         try {
-            manager.activate();
+            activate(manager);
             awaitCondition(manager::isReady, 1000L);
 
             antenna.setFailurePoint(SimulatedAntenna.FailurePoint.START_INVENTORY);
@@ -505,7 +507,7 @@ public class AntennaManagerTest {
 
             assertTrue(antenna.inventoryRunning());
         } finally {
-            manager.deactivate();
+            deactivate(manager);
             shared.shutdownNow();
         }
     }
@@ -526,7 +528,7 @@ public class AntennaManagerTest {
                         Duration.ofSeconds(1));
 
         try {
-            manager.activate();
+            activate(manager);
 
             assertTrue(
                     blocking.awaitEntered(
@@ -553,7 +555,7 @@ public class AntennaManagerTest {
                             .selfTestPassed());
         } finally {
             blocking.release();
-            manager.deactivate();
+            deactivate(manager);
             shared.shutdownNow();
         }
     }
