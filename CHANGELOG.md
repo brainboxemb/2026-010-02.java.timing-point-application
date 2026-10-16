@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Stabilize asynchronous AntennaManager and TimingNode tests by waiting for semantic readiness/startup completion before asserting or constructing full-queue scenarios.
+
 - Give `AbstractConductor` an explicit construction-time diagnostic name so generic start/stop lifecycle logs identify the concrete conductor.
 
 - Generalize grouped desired settings with `SettingKey<T>`, `SettingContainer` and grouped `SettingUpdate`. `Setting<T>` keeps requested/applied/pending semantics, while `AntennaSettings` is reduced to the antenna-specific inventory setting declaration and manager-owned handle.
