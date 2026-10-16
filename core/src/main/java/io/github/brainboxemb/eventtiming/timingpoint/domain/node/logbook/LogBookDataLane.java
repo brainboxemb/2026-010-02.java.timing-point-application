@@ -154,7 +154,7 @@ final class LogBookDataLane {
             return future.get(timeoutMillis, TimeUnit.MILLISECONDS);
         } catch (TimeoutException ex) {
             LOG.error(
-                    "TimingNode {} LogBook {} {} timed out after {} ms; final outcome is unknown",
+                    "TimingNode {} LogBook {} {} failed: reason=TIMEOUT, timeoutMillis={}, outcome=UNKNOWN",
                     nodeId.value(),
                     operationType,
                     operation,
@@ -168,7 +168,7 @@ final class LogBookDataLane {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             LOG.warn(
-                    "TimingNode {} LogBook {} {} was interrupted while waiting for its result",
+                    "TimingNode {} LogBook {} {} failed: reason=INTERRUPTED",
                     nodeId.value(),
                     operationType,
                     operation,
@@ -179,7 +179,7 @@ final class LogBookDataLane {
                     ex);
         } catch (CancellationException ex) {
             LOG.error(
-                    "TimingNode {} LogBook {} {} was cancelled because the Data Lane failed",
+                    "TimingNode {} LogBook {} {} failed: reason=FAILED, cause=Data Lane cancellation",
                     nodeId.value(),
                     operationType,
                     operation,
@@ -192,7 +192,7 @@ final class LogBookDataLane {
             Throwable cause = ex.getCause();
             String detail = cause == null ? null : cause.getMessage();
             LOG.error(
-                    "TimingNode {} LogBook {} {} failed during Data Lane execution",
+                    "TimingNode {} LogBook {} {} failed: reason=FAILED, cause=Data Lane execution",
                     nodeId.value(),
                     operationType,
                     operation,
@@ -215,7 +215,7 @@ final class LogBookDataLane {
         if (serialLane.state() == SerialLane.State.FAILED) {
             Throwable cause = serialLane.failure() == null ? rejection : serialLane.failure();
             LOG.error(
-                    "TimingNode {} LogBook {} {} rejected because the Data Lane failed",
+                    "TimingNode {} LogBook {} {} failed: reason=FAILED, cause=Data Lane failure",
                     nodeId.value(),
                     operationType,
                     operation,
@@ -227,7 +227,7 @@ final class LogBookDataLane {
         }
         if (serialLane.state() != SerialLane.State.RUNNING) {
             LOG.warn(
-                    "TimingNode {} LogBook {} {} rejected because the Data Lane is unavailable",
+                    "TimingNode {} LogBook {} {} failed: reason=UNAVAILABLE",
                     nodeId.value(),
                     operationType,
                     operation,
@@ -239,7 +239,7 @@ final class LogBookDataLane {
         }
 
         LOG.warn(
-                "TimingNode {} LogBook {} {} rejected because the Data Lane is full",
+                "TimingNode {} LogBook {} {} failed: reason=BUSY",
                 nodeId.value(),
                 operationType,
                 operation,
