@@ -45,8 +45,12 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 /**
  * Coordinates one timing node.
  *
- * <p>It owns the node's OPEN/CLOSED operation state and coordinates its LogBook,
- * NodeService and TagProcessor.</p>
+ * <p>It owns the node's OPEN/CLOSED operation state and current LocationId and
+ * coordinates its LogBook, NodeService and TagProcessor. That operation state is
+ * transient runtime state: after a process restart, successful LogBook recovery
+ * starts the node CLOSED without a LocationId. Persisted NODE_OPEN/NODE_CLOSE
+ * history is deliberately not replayed here to reconstruct operation state; a
+ * future persistent/reconstructed state model is a separate architecture choice.</p>
  */
 public final class TimingNode {
     private static final Logger LOG = LoggerFactory.getLogger(TimingNode.class);
@@ -74,15 +78,10 @@ public final class TimingNode {
             EventInput.of(
                     (node, source) -> source.subscribe(node::onLogBookRecoveryCompleted));
 
-    /** Committed operation-state input used to update CURRENT status before general publication. */
-    private static final EventInput<TimingNode, TimingData> NODE_OPERATION_STATE_COMMITTED =
+    /** Committed LogBook data input used to maintain transient runtime operation state. */
+    private static final EventInput<TimingNode, TimingData> LOGBOOK_TIMING_DATA_COMMITTED =
             EventInput.of(
-                    (node, source) -> source.subscribe(node::onOperationStateCommitted));
-
-    /** Post-publication operation-state input used to publish the resulting node status. */
-    private static final EventInput<TimingNode, TimingData> NODE_OPERATION_STATE_COMMIT_PUBLISHED =
-            EventInput.of(
-                    (node, source) -> source.subscribe(node::onOperationStateCommitPublished));
+                    (node, source) -> source.subscribe(node::onTimingDataCommitted));
 
     /** Selected registration input from the TagProcessor lane. */
     private static final EventInput<TimingNode, TagProcessor.NewRegistration> NEW_REGISTRATION =
@@ -120,11 +119,14 @@ public final class TimingNode {
         lifecycle.register(logBook, LogBook::activate, LogBook::deactivate);
         lifecycle.register(tagProcessor, TagProcessor::activate, TagProcessor::deactivate);
 
+        /*
+         * Consume committed TimingData first so NODE_OPEN/NODE_CLOSE updates the
+         * TimingNode-owned current state before later NEW_DATA_ENTRY consumers run.
+         */
+        LOGBOOK_TIMING_DATA_COMMITTED.bind(this, logBook.NEW_DATA_ENTRY);
         NodeService.INITIAL_TIMING_DATA.bind(nodeService, logBook.INITIAL_DATA_LOADED);
         NodeService.COMMITTED_TIMING_DATA.bind(nodeService, logBook.NEW_DATA_ENTRY);
         LOGBOOK_RECOVERY_STATUS.bind(this, logBook.RECOVERY_STATUS_CHANGED);
-        NODE_OPERATION_STATE_COMMITTED.bind(this, logBook.OPERATION_STATE_COMMITTED);
-        NODE_OPERATION_STATE_COMMIT_PUBLISHED.bind(this, logBook.OPERATION_STATE_COMMIT_PUBLISHED);
 
         // Listener runs synchronously on the TagProcessor lane; it must not block.
         NEW_REGISTRATION.bind(this, tagProcessor.NEW_REGISTRATION);
@@ -308,44 +310,44 @@ public final class TimingNode {
         }
     }
 
-    /** Called synchronously on the LogBook Data Lane after NODE_OPEN or NODE_CLOSE commits. */
-    private void onOperationStateCommitted(TimingData timingData) {
+    /**
+     * Maintains transient operation state from successfully committed TimingData.
+     *
+     * <p>NEW_DATA_ENTRY is emitted only after the LogBook commit has completed.
+     * Consuming that fact also covers an accepted open/close command that commits
+     * after its waiting caller timed out. Persisted startup history is not replayed
+     * through this path, so restart does not reconstruct OPEN/CLOSED or LocationId.</p>
+     */
+    private void onTimingDataCommitted(TimingData timingData) {
 
-        NodeStatus nodeStatus = currentStatus;
-        if (!(nodeStatus instanceof Status)) {
+        if (!(currentStatus instanceof Status)) {
             return;
         }
-        Status status = (Status) nodeStatus;
 
         if (timingData instanceof TimingData.NodeOpen) {
-            setStatus(new Status(
+            publishStatus(new Status(
                     timingNodeId,
                     State.OPEN,
                     timingData.locationId()));
         } else if (timingData instanceof TimingData.NodeClose) {
-            setStatus(new Status(
+            publishStatus(new Status(
                     timingNodeId,
                     State.CLOSED,
                     timingData.locationId()));
         }
     }
 
-    /** Called synchronously on the LogBook Data Lane after committed-data publication. */
-    private void onOperationStateCommitPublished(TimingData timingData) {
-
-        NodeStatus status = currentStatus;
-        if (status != null) {
-            statusChanged.emit(status);
-        }
-    }
-
-    /** Applies LogBook recovery facts to the node's initial runtime status. */
+    /**
+     * Applies LogBook readiness/failure to the initial runtime status.
+     *
+     * <p>Successful recovery does not reconstruct operation state from history.</p>
+     */
     private void onLogBookRecoveryCompleted(LogBookRecoveryStatus recoveryStatus) {
 
         publishStatus(statusFromRecovery(recoveryStatus));
     }
 
-    /** Builds initial node status from LogBook recovery without reconstructing OPEN state. */
+    /** Builds the transient post-restart status: CLOSED/no location after successful recovery. */
     private NodeStatus statusFromRecovery(LogBookRecoveryStatus recoveryStatus) {
 
         if (recoveryStatus.failed()) {
