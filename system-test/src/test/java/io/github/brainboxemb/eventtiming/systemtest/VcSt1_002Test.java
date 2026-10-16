@@ -95,7 +95,7 @@ public class VcSt1_002Test {
 
             String initialSnapshot = events.awaitEvent("STATUS_SNAPSHOT");
             assertContains(initialSnapshot, "\"id\":\"" + NODE_ID + "\"");
-            assertContains(initialSnapshot, "\"locationId\":null");
+            assertContains(initialSnapshot, "\"locId\":null");
             assertContains(initialSnapshot, "\"state\":\"CLOSED\"");
 
             Response capabilities = http.get("/api/v1/capabilities");
@@ -110,7 +110,7 @@ public class VcSt1_002Test {
 
             Response open = http.post(
                     nodePath("/open"),
-                    "{\"locationId\":24}");
+                    "{\"locId\":24}");
             assertEquals("Unexpected open status", 200, open.status());
             assertContains(open.body(), "\"result\":\"OPENED\"");
 
@@ -119,7 +119,7 @@ public class VcSt1_002Test {
             assertLifecycle(openCommitted, 1L, "OPEN", 24);
 
             String openedEvent = events.awaitEvent("STATUS_CHANGED");
-            assertContains(openedEvent, "\"locationId\":24");
+            assertContains(openedEvent, "\"locId\":24");
             assertContains(openedEvent, "\"state\":\"OPEN\"");
 
             Response registration = http.post(
@@ -156,7 +156,7 @@ public class VcSt1_002Test {
 
             String closedEvent = events.awaitEvent("STATUS_CHANGED");
             assertContains(closedEvent, "\"state\":\"CLOSED\"");
-            assertContains(closedEvent, "\"locationId\":24");
+            assertContains(closedEvent, "\"locId\":24");
 
             events.closeQuietly();
             events = null;
@@ -166,7 +166,7 @@ public class VcSt1_002Test {
                     reconnect.awaitEvent("STATUS_SNAPSHOT");
             assertContains(reconnectSnapshot, "\"id\":\"" + NODE_ID + "\"");
             assertContains(reconnectSnapshot, "\"state\":\"CLOSED\"");
-            assertContains(reconnectSnapshot, "\"locationId\":24");
+            assertContains(reconnectSnapshot, "\"locId\":24");
             reconnect.assertNoEvent("TIMING_DATA_COMMITTED", 750L);
 
             assertLogBook(
@@ -202,7 +202,7 @@ public class VcSt1_002Test {
                     events.awaitEvent("STATUS_SNAPSHOT");
             assertContains(recoveredSnapshot, "\"id\":\"" + NODE_ID + "\"");
             assertContains(recoveredSnapshot, "\"state\":\"CLOSED\"");
-            assertContains(recoveredSnapshot, "\"locationId\":null");
+            assertContains(recoveredSnapshot, "\"locId\":null");
             events.assertNoEvent("TIMING_DATA_COMMITTED", 750L);
 
             assertLogBook(
