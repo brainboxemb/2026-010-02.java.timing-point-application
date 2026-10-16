@@ -23,11 +23,11 @@ import org.slf4j.LoggerFactory;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 /**
- * Data Lane component for one TimingNode's committed timing history.
+ * Data Lane component for one TimingNode's committed TimingData.
  *
  * <p>LogBook is the single execution boundary for ordered commands,
  * ORDERED queries, persisted-data startup loading, durable TimingData commit and publication of immutable
- * recovery/history views. It owns no physical thread: the supplied
+ * recovery/read views. It owns no physical thread: the supplied
  * {@link SerialLane} may share a Runtime-owned worker with other logical
  * lanes.</p>
  */
@@ -58,7 +58,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     /** Failed LogBook command source. */
     public final EventSource<LogBookFailure> COMMAND_FAILED = commandFailedEvent;
 
-    /** Transient startup-history source for one-time derived-state reconstruction. */
+    /** Transient persisted-data source for one-time derived-state reconstruction. */
     public final EventSource<List<TimingData>> INITIAL_DATA_LOADED = initialDataLoadedEvent;
 
     /**
@@ -269,7 +269,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         return recoveryView.current();
     }
 
-    /** Loads persisted history, then publishes the recovery result on either outcome. */
+    /** Loads persisted TimingData, then publishes the recovery result on either outcome. */
     private void loadPersistedData() {
 
         LOG.info("TimingNode {} persisted TimingData load started", timingNodeId().value());

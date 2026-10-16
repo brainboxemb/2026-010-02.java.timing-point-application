@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replace generic LogBook `history` wording with concrete `TimingData` record, registration, committed-data and persisted-data terminology.
+
 - Filter TimingSystemConductor wakeups through the existing grouped property event: EventSource supports composition-time predicates, TimingNode exposes typed immutable property keys, and unrelated property updates no longer queue reconciliation work.
 
 - Move the reusable inactive-component guard into `LifecycleComponent`; concrete components configure their caller-visible inactive failure at construction instead of reimplementing the active-state check.
