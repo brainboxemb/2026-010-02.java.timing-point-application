@@ -126,7 +126,7 @@ public class WebSocketEndpointTest {
             assertTrue(openCommitted.contains("\"code\":[\"OPEN\"]"));
 
             assertTrue(opened.contains("\"eventType\":\"STATUS_CHANGED\""));
-            assertTrue(opened.contains("\"locationId\":24"));
+            assertTrue(opened.contains("\"locId\":24"));
             assertTrue(opened.contains("\"state\":\"OPEN\""));
 
             fixture.handler.timingNode(new NodeId("A")).addTestAutomaticRegistration(
@@ -311,9 +311,9 @@ public class WebSocketEndpointTest {
             assertTrue(snapshot.contains(
                     "\"eventType\":\"STATUS_SNAPSHOT\""));
             assertTrue(snapshot.contains(
-                    "{\"id\":\"A\",\"locationId\":null,\"state\":\"CLOSED\",\"operationalState\":\"OK\"}"));
+                    "{\"id\":\"A\",\"locId\":null,\"state\":\"CLOSED\",\"opState\":\"OK\"}"));
             assertTrue(snapshot.contains(
-                    "{\"id\":\"B\",\"locationId\":24,\"state\":\"OPEN\",\"operationalState\":\"OK\"}"));
+                    "{\"id\":\"B\",\"locId\":24,\"state\":\"OPEN\",\"opState\":\"OK\"}"));
         } finally {
             client.closeBlocking();
             server.close();
@@ -351,9 +351,9 @@ public class WebSocketEndpointTest {
                 assertNotNull(snapshot);
                 assertTrue(snapshot.contains("\"eventType\":\"STATUS_SNAPSHOT\""));
                 assertTrue(snapshot.contains("\"id\":\"A\""));
-                assertTrue(snapshot.contains("\"locationId\":null"));
+                assertTrue(snapshot.contains("\"locId\":null"));
                 assertTrue(snapshot.contains("\"state\":\"CLOSED\""));
-                assertTrue(snapshot.contains("\"operationalState\":\"ERROR\""));
+                assertTrue(snapshot.contains("\"opState\":\"ERROR\""));
                 assertTrue(snapshot.contains(
                         "\"code\":\"TIMING_DATA_LOAD_FAILED\""));
                 assertTrue(snapshot.contains("\"severity\":\"ERROR\""));
@@ -401,10 +401,10 @@ public class WebSocketEndpointTest {
         assertTrue(json.contains("\"eventType\":\"STATUS_SNAPSHOT\""));
         assertTrue(json.contains("\"occurredAt\":\"2026-10-01T12:00:02Z\""));
         assertTrue(json.contains("\"id\":\"" + timingNodeId + "\""));
-        assertTrue(json.contains("\"locationId\":" + locationJson));
+        assertTrue(json.contains("\"locId\":" + locationJson));
         assertTrue(json.contains(
                 "\"state\":\"" + functionalState + "\""));
-        assertTrue(json.contains("\"operationalState\":\"OK\""));
+        assertTrue(json.contains("\"opState\":\"OK\""));
         assertTrue(json.contains("\"problems\":[]"));
     }
 
