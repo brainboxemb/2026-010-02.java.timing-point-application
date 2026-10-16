@@ -96,7 +96,7 @@ public class VcSt1_006Test {
 
             Response open = http.post(
                     nodePath("/open"),
-                    "{\"locId\":24}");
+                    "{\"locationId\":24}");
             assertEquals(200, open.status());
             assertContains(open.body(), "\"result\":\"OPENED\"");
             assertLifecycleOpen(
@@ -156,7 +156,7 @@ public class VcSt1_006Test {
                     nodePath("/registration/revoke"),
                     "{"
                             + "\"recordType\":\"MAN_REG\","
-                            + "\"locId\":24,"
+                            + "\"locationId\":24,"
                             + "\"regId\":\"" + REGISTRATION_ID + "\","
                             + "\"time\":\"" + REGISTRATION_TIME + "\""
                             + "}");
@@ -329,7 +329,7 @@ public class VcSt1_006Test {
     private static String revokeBody() {
         return "{"
                 + "\"recordType\":\"AUTO_REG\","
-                + "\"locId\":24,"
+                + "\"locationId\":24,"
                 + "\"regId\":\"" + REGISTRATION_ID + "\","
                 + "\"time\":\"" + REGISTRATION_TIME + "\""
                 + "}";
