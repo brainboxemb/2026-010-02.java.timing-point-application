@@ -4,11 +4,13 @@
 
 - Move the reusable inactive-component guard into `LifecycleComponent`; concrete components configure their caller-visible inactive failure at construction instead of reimplementing the active-state check.
 
+- Keep fire-and-forget LogBook queue rejection inside the LogBook execution boundary and use `SafeExecute` there, leaving TimingNode OPEN/CLOSE and registration flow free of repeated queue-specific `try/catch` blocks.
+
 - Simplify TimingNode current state back to functional OPEN/CLOSED plus LocationId. Remove the premature operational-health state/problem layer and keep lifecycle-history queue failures as LogBook diagnostics instead of a second TimingNode status model.
 
 - Use strongly typed `Property<T>` values for TimingNode functional state and LocationId. `PropertyContainer.update()` emits one grouped `PropertyUpdate` containing every changed property; lifecycle teardown uses `sync()` so it does not emit a normal runtime change event.
 
-- Move generic active/inactive lifecycle state into `LifecycleComponent`; TimingNode no longer duplicates that state and maps inactive lifecycle to its operation contract through the explicit `failIfInactive()` guard.
+- Move generic active/inactive lifecycle state and the reusable `failIfInactive()` guard into `LifecycleComponent`; TimingNode configures its caller-visible inactive failure at construction instead of reimplementing the lifecycle check.
 
 - Decouple TimingNode OPEN/CLOSED runtime state from lifecycle LogBook persistence. OPEN/CLOSE now apply state at the registration-admission boundary, submit lifecycle history asynchronously, and no longer use a CLOSE-only registration-block flag or SafeExecute catch/rethrow path.
 
