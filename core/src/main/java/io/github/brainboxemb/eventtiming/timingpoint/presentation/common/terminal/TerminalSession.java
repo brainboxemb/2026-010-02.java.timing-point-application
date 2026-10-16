@@ -757,6 +757,9 @@ public final class TerminalSession {
                 "  test logbook write <fail|timeout>"
                         + "  Fail or delay next LogBook write");
         output.println(
+                "  test:A logbook write fail   "
+                        + "Example: fail next write for node A");
+        output.println(
                 "  config                       "
                         + "Show current configuration");
         output.println(
