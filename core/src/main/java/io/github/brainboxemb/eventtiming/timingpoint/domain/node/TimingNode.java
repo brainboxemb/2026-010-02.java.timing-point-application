@@ -57,9 +57,9 @@ public final class TimingNode extends LifecycleComponent {
 
     // Current TimingNode state.
     private final PropertyContainer properties = new PropertyContainer();
-    private final Property<FunctionalState> functionalState =
+    private final Property<FunctionalState> functionalStateProp =
             properties.property("functionalState", FunctionalState.CLOSED);
-    private final Property<LocationId> locationId =
+    private final Property<LocationId> locationIdProp =
             properties.property("locationId", null);
 
     private final Object operationLock = new Object();
@@ -151,13 +151,13 @@ public final class TimingNode extends LifecycleComponent {
     /** Returns the current functional OPEN/CLOSED state. */
     public FunctionalState functionalState() {
 
-        return functionalState.get();
+        return functionalStateProp.get();
     }
 
     /** Returns the current location, or null when no location is assigned. */
     public LocationId locationId() {
 
-        return locationId.get();
+        return locationIdProp.get();
     }
 
     /**
@@ -175,7 +175,7 @@ public final class TimingNode extends LifecycleComponent {
         synchronized (operationLock) {
             requireActive();
 
-            if (functionalState.get() == FunctionalState.OPEN) {
+            if (functionalStateProp.get() == FunctionalState.OPEN) {
                 return OpenResult.ALREADY_OPEN;
             }
 
@@ -197,11 +197,11 @@ public final class TimingNode extends LifecycleComponent {
     public CloseResult close() {
 
         synchronized (operationLock) {
-            if (functionalState.get() == FunctionalState.CLOSED) {
+            if (functionalStateProp.get() == FunctionalState.CLOSED) {
                 return CloseResult.ALREADY_CLOSED;
             }
 
-            LocationId currentLocation = locationId.get();
+            LocationId currentLocation = locationIdProp.get();
             setFunctionalState(
                     FunctionalState.CLOSED,
                     currentLocation,
@@ -233,12 +233,12 @@ public final class TimingNode extends LifecycleComponent {
 
         synchronized (operationLock) {
             RegistrationResult result;
-            if (functionalState.get() != FunctionalState.OPEN) {
+            if (functionalStateProp.get() != FunctionalState.OPEN) {
                 result = RegistrationResult.nodeNotOpen();
             } else {
                 result = logBook.process(
                         LogBookCommands.commitAutomaticRegistration(
-                                locationId.get(),
+                                locationIdProp.get(),
                                 registrationId,
                                 effectiveTime,
                                 TimingData.TagSource.API,
@@ -264,12 +264,12 @@ public final class TimingNode extends LifecycleComponent {
 
         synchronized (operationLock) {
             RegistrationResult result;
-            if (functionalState.get() != FunctionalState.OPEN) {
+            if (functionalStateProp.get() != FunctionalState.OPEN) {
                 result = RegistrationResult.nodeNotOpen();
             } else {
                 result = logBook.process(
                         LogBookCommands.commitManualRegistration(
-                                locationId.get(),
+                                locationIdProp.get(),
                                 registrationId,
                                 effectiveTime,
                                 registrationTimeSource));
@@ -309,8 +309,8 @@ public final class TimingNode extends LifecycleComponent {
         active = false;
         lifecycle.deactivateAll();
         synchronized (stateLock) {
-            functionalState.set(FunctionalState.CLOSED);
-            locationId.set(null);
+            functionalStateProp.set(FunctionalState.CLOSED);
+            locationIdProp.set(null);
         }
         properties.update();
     }
@@ -339,8 +339,8 @@ public final class TimingNode extends LifecycleComponent {
             LogBookCommand<?> historyCommand) {
 
         synchronized (stateLock) {
-            locationId.set(newLocationId);
-            functionalState.set(state);
+            locationIdProp.set(newLocationId);
+            functionalStateProp.set(state);
             queueLogBook(historyCommand, "lifecycle history");
         }
         properties.update();
@@ -384,12 +384,12 @@ public final class TimingNode extends LifecycleComponent {
                 "Automatic registration "
                         + registration.registrationId().value();
         synchronized (stateLock) {
-            if (functionalState.get() != FunctionalState.OPEN) {
+            if (functionalStateProp.get() != FunctionalState.OPEN) {
                 return;
             }
 
             LogBookCommand<?> command = LogBookCommands.commitAntennaRegistration(
-                    locationId.get(),
+                    locationIdProp.get(),
                     registration.registrationId(),
                     registration.observedAt());
             queueLogBook(command, operation);
