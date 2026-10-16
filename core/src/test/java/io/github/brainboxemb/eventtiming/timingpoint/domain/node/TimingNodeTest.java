@@ -699,33 +699,51 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void lifecycleStatusIsPublishedByTimingNodeAfterCommitEvent() {
-        TimingNode node = node(new NodeId("A"));
-        final TimingNodeTypes.Status[] statusEventCurrent =
-                new TimingNodeTypes.Status[1];
-        final TimingNodeTypes.Status[] timingDataEventCurrent =
-                new TimingNodeTypes.Status[1];
+    public void functionalStateEventDoesNotWaitForHistoryCommit()
+            throws Exception {
+        SerialLane executor = newSerialLane(2, "timing-node-state-event-test");
+        TimingNode node = node(new NodeId("A"), executor, 1000L);
+        CountDownLatch blockerStarted = new CountDownLatch(1);
+        CountDownLatch releaseBlocker = new CountDownLatch(1);
+        CountDownLatch functionalEvent = new CountDownLatch(1);
+        CountDownLatch historyEvent = new CountDownLatch(1);
+
+        node.FUNCTIONAL_STATE_CHANGED.subscribe(
+                state -> {
+                    if (state == TimingNodeTypes.FunctionalState.OPEN) {
+                        functionalEvent.countDown();
+                    }
+                });
+        node.TIMING_DATA_COMMITTED.subscribe(
+                ignored -> historyEvent.countDown());
 
         activate(node);
         try {
-            node.STATUS_CHANGED.subscribe(
-                    ignored -> statusEventCurrent[0] = node.status());
-            node.TIMING_DATA_COMMITTED.subscribe(
-                    ignored -> timingDataEventCurrent[0] = node.status());
-
-            node.open(new LocationId(24));
+            executor.submit(() -> {
+                blockerStarted.countDown();
+                releaseBlocker.await();
+                return null;
+            });
+            assertTrue(blockerStarted.await(1L, TimeUnit.SECONDS));
 
             assertEquals(
-                    TimingNodeTypes.FunctionalState.CLOSED,
-                    timingDataEventCurrent[0].state);
-            assertNull(timingDataEventCurrent[0].locationId);
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.open(new LocationId(24)));
+
+            assertTrue(functionalEvent.await(250L, TimeUnit.MILLISECONDS));
             assertEquals(
                     TimingNodeTypes.FunctionalState.OPEN,
-                    statusEventCurrent[0].state);
+                    node.functionalState());
+            assertEquals(new LocationId(24), node.locationId());
             assertEquals(
-                    new LocationId(24),
-                    statusEventCurrent[0].locationId);
+                    "history must still be blocked on the Data Lane",
+                    1L,
+                    historyEvent.getCount());
+
+            releaseBlocker.countDown();
+            assertTrue(historyEvent.await(1L, TimeUnit.SECONDS));
         } finally {
+            releaseBlocker.countDown();
             deactivate(node);
         }
     }
@@ -804,7 +822,11 @@ public class TimingNodeTest {
 
         activate(node);
         try {
-            TimingNodeTypes.Status before = node.status();
+            TimingNodeTypes.FunctionalState functionalBefore =
+                    node.functionalState();
+            TimingNodeTypes.OperationalState operationalBefore =
+                    node.operationalState();
+            LocationId locationBefore = node.locationId();
 
             try {
                 activate(node);
@@ -813,7 +835,9 @@ public class TimingNodeTest {
                 // Existing active lifecycle remains authoritative.
             }
 
-            assertSame(before, node.status());
+            assertEquals(functionalBefore, node.functionalState());
+            assertEquals(operationalBefore, node.operationalState());
+            assertEquals(locationBefore, node.locationId());
         } finally {
             deactivate(node);
         }
