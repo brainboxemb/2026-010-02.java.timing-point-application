@@ -103,7 +103,7 @@ public class HttpEndpointTest {
                             server.boundPort(),
                             "POST",
                             "/api/v1/node/B/open",
-                            "{\"locId\":24}");
+                            "{\"locationId\":24}");
             assertEquals(200, opened.status);
             assertTrue(
                     opened.body.contains(
@@ -164,7 +164,7 @@ public class HttpEndpointTest {
                             server.boundPort(),
                             "POST",
                             "/api/v1/node/A/open",
-                            "{\"locId\":24}");
+                            "{\"locationId\":24}");
             assertEquals(200, opened.status);
             assertTrue(opened.body.contains("\"result\":\"OPENED\""));
 
@@ -178,7 +178,7 @@ public class HttpEndpointTest {
                             server.boundPort(),
                             "POST",
                             "/api/v1/node/A/open",
-                            "{\"locId\":25}");
+                            "{\"locationId\":25}");
             assertEquals(200, repeatedOpen.status);
             assertTrue(repeatedOpen.body.contains("\"result\":\"ALREADY_OPEN\""));
 
@@ -239,7 +239,7 @@ public class HttpEndpointTest {
                     "/api/v1/node/A/registration/revoke",
                     "{"
                             + "\"recordType\":\"AUTO_REG\","
-                            + "\"locId\":24,"
+                            + "\"locationId\":24,"
                             + "\"regId\":\"N0001\","
                             + "\"time\":\"2026-10-01T12:00:00.000000000Z\""
                             + "}");
@@ -285,7 +285,7 @@ public class HttpEndpointTest {
         try {
             assertEquals(200, request(
                     server.boundPort(), "POST", "/api/v1/node/A/open",
-                    "{\"locId\":24}").status);
+                    "{\"locationId\":24}").status);
 
             Response generated = request(server.boundPort(), "POST",
                     "/api/v1/dev/node/A/auto-reg",
@@ -399,7 +399,7 @@ public class HttpEndpointTest {
                     server.boundPort(),
                     "POST",
                     "/api/v1/node/A/open",
-                    "{\"locId\":24}");
+                    "{\"locationId\":24}");
             assertEquals(200, open.status);
 
             Response automaticTime = request(
@@ -620,7 +620,7 @@ public class HttpEndpointTest {
                     server.boundPort(),
                     "POST",
                     "/api/v1/node/A/open",
-                    "{\"locId\":24}");
+                    "{\"locationId\":24}");
             assertEquals(200, open.status);
             assertTrue(open.body.contains("\"result\":\"OPENED\""));
 
