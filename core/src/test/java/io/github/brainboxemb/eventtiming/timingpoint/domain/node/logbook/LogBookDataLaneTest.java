@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -77,7 +78,7 @@ public class LogBookDataLaneTest {
             } catch (OperationException expected) {
                 assertEquals(OperationException.Reason.TIMEOUT, expected.reason());
                 assertTrue(expected.getMessage().contains("25 ms"));
-                assertTrue(!expected.getMessage().contains("outcome is unknown"));
+                assertFalse(expected.getMessage().contains("outcome is unknown"));
             }
         } finally {
             releaseBlocker.countDown();
