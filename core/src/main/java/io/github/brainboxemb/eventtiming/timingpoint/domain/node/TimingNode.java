@@ -71,7 +71,8 @@ public final class TimingNode extends LifecycleComponent {
     /** Current error status, or null when no TimingNode error is active. */
     private volatile ErrorStatus currentErrorStatus;
 
-    private boolean registrationsAllowed;
+    /** Blocks new antenna registrations while CLOSE outcome is unresolved. */
+    private boolean blockRegistrations;
 
     /** Antenna observation input; internally consumed by the TagProcessor. */
     public static final EventInput<TimingNode, TagObservation> TAG_OBSERVATIONS =
@@ -222,21 +223,18 @@ public final class TimingNode extends LifecycleComponent {
             if (status.state == State.CLOSED) {
                 result = CloseResult.ALREADY_CLOSED;
             } else {
-                setRegistrationsAllowed(false);
+                setBlockRegistrations(true);
 
-                try {
-                    result = logBook.process(
-                            LogBookCommands.commitNodeClose(status.locationId));
-                } catch (OperationException ex) {
-                    if (closeWasNotAccepted(ex)) {
-                        setRegistrationsAllowed(true);
-                    }
-                    throw ex;
-                }
+                result = SafeExecute.callOrRethrow(
+                        () -> logBook.process(
+                                LogBookCommands.commitNodeClose(status.locationId)),
+                        OperationException.class,
+                        this::onCloseFailure);
 
                 Status closedStatus =
                         new Status(State.CLOSED, status.locationId);
                 setStatus(closedStatus);
+                setBlockRegistrations(false);
                 statusChangedEvent.emit(closedStatus);
             }
             return result;
@@ -344,7 +342,7 @@ public final class TimingNode extends LifecycleComponent {
         synchronized (stateLock) {
             currentStatus = new Status(State.CLOSED, null);
             currentErrorStatus = null;
-            registrationsAllowed = false;
+            blockRegistrations = false;
         }
     }
 
@@ -385,23 +383,30 @@ public final class TimingNode extends LifecycleComponent {
 
         synchronized (stateLock) {
             currentStatus = status;
-            registrationsAllowed = status.state == State.OPEN;
         }
     }
 
-    /** Enables or disables acceptance of new antenna registrations. */
-    private void setRegistrationsAllowed(boolean allowed) {
+    /** Blocks or allows new antenna registrations. */
+    private void setBlockRegistrations(boolean block) {
 
         synchronized (stateLock) {
-            registrationsAllowed = allowed;
+            blockRegistrations = block;
+        }
+    }
+
+    /** Allows registrations again when CLOSE was rejected before Data Lane admission. */
+    private void onCloseFailure(OperationException failure) {
+
+        if (closeWasNotAccepted(failure)) {
+            setBlockRegistrations(false);
         }
     }
 
     /** Returns whether CLOSE was rejected before it entered the Data Lane. */
-    private static boolean closeWasNotAccepted(OperationException ex) {
+    private static boolean closeWasNotAccepted(OperationException failure) {
 
-        return ex.reason() == OperationException.Reason.BUSY
-                || ex.reason() == OperationException.Reason.UNAVAILABLE;
+        return failure.reason() == OperationException.Reason.BUSY
+                || failure.reason() == OperationException.Reason.UNAVAILABLE;
     }
 
     /**
@@ -414,7 +419,7 @@ public final class TimingNode extends LifecycleComponent {
 
         synchronized (stateLock) {
             Status status = currentStatus;
-            if (!registrationsAllowed || status.state != State.OPEN) {
+            if (blockRegistrations || status.state != State.OPEN) {
                 return;
             }
 
