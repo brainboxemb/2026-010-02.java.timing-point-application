@@ -213,9 +213,19 @@ public final class TimingNode extends LifecycleComponent {
             if (status.state == State.CLOSED) {
                 result = CloseResult.ALREADY_CLOSED;
             } else {
+                /*
+                 * Stop antenna ingress before submitting NODE_CLOSE. Without this
+                 * gate, a TagProcessor callback could queue another registration
+                 * behind the close command while the close caller is still waiting.
+                 */
                 disableRegistrations();
-                Runnable commitClose = () -> logBook.process(LogBookCommands.commitNodeClose(status.locationId));
-                SafeExecute.runOrRethrow(commitClose, this::restoreRegistrationsAfterDefiniteCloseFailure);
+
+                Runnable commitClose =
+                        () -> logBook.process(
+                                LogBookCommands.commitNodeClose(status.locationId));
+                SafeExecute.runOrRethrow(
+                        commitClose,
+                        this::restoreRegistrationIngressIfCloseWasNotAccepted);
                 result = CloseResult.CLOSED;
             }
             return result;
@@ -389,7 +399,12 @@ public final class TimingNode extends LifecycleComponent {
         }
     }
 
-    /** Stops new antenna registrations before a close record is committed. */
+    /**
+     * Stops new antenna registrations while a CLOSE command is being admitted/committed.
+     *
+     * <p>This is an ingress gate, not a third TimingNode lifecycle state. The
+     * authoritative node state remains OPEN until NODE_CLOSE is committed.</p>
+     */
     private void disableRegistrations() {
 
         synchronized (stateLock) {
@@ -398,19 +413,35 @@ public final class TimingNode extends LifecycleComponent {
     }
 
     /**
-     * Restores registration ingress after a close failure with a definite non-commit outcome.
+     * Undoes the temporary CLOSE ingress gate only when CLOSE was not accepted.
      *
-     * <p>TIMEOUT is excluded because the accepted close may still commit later.</p>
+     * <p>{@link #close()} disables antenna registration ingress before submitting
+     * NODE_CLOSE so a concurrent TagProcessor callback cannot queue a registration
+     * behind the close. BUSY and UNAVAILABLE prove that NODE_CLOSE was not admitted,
+     * so the node is still OPEN and ingress can be restored.</p>
+     *
+     * <p>TIMEOUT and INTERRUPTED can occur after admission, and FAILED can occur
+     * after execution has started or even after durable persistence. Their final
+     * close outcome is therefore not safe to infer here; ingress stays disabled
+     * until an authoritative committed/status fact resolves the situation.</p>
      */
-    private void restoreRegistrationsAfterDefiniteCloseFailure(RuntimeException failure) {
+    private void restoreRegistrationIngressIfCloseWasNotAccepted(RuntimeException failure) {
 
-        if (failure instanceof OperationException
-                && ((OperationException) failure).reason() == OperationException.Reason.TIMEOUT) {
+        if (!(failure instanceof OperationException)) {
+            return;
+        }
+
+        OperationException.Reason reason =
+                ((OperationException) failure).reason();
+        if (reason != OperationException.Reason.BUSY
+                && reason != OperationException.Reason.UNAVAILABLE) {
             return;
         }
 
         synchronized (stateLock) {
-            registrationsEnabled = true;
+            if (currentStatus.state == State.OPEN) {
+                registrationsEnabled = true;
+            }
         }
     }
 
