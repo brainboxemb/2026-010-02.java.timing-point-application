@@ -44,9 +44,9 @@ public final class LogBookCommands {
                 });
     }
 
-    /** Commits one antenna-originated automatic registration. */
+    /** Commits one automatic registration selected from an antenna observation. */
     public static LogBookCommand<RegistrationResult>
-            addAutomaticRegistration(
+            commitAntennaRegistration(
                     LocationId locationId,
                     RegistrationId registrationId,
                     TimingTimestamp effectiveTime) {
@@ -82,25 +82,6 @@ public final class LogBookCommands {
                         effectiveTime,
                         tagSource,
                         timeSource));
-    }
-
-    /** Commits one automatic registration using current node time. */
-    public static LogBookCommand<RegistrationResult>
-            commitAutomaticRegistrationNow(
-                    LocationId locationId,
-                    RegistrationId registrationId,
-                    TimingData.TagSource tagSource) {
-
-        checkArgument(locationId != null, "locationId must not be null");
-        checkArgument(registrationId != null, "registrationId must not be null");
-        checkArgument(tagSource != null, "tagSource must not be null");
-
-        return simple(
-                "commitAutomaticRegistrationNow",
-                operations -> operations.commitAutomaticRegistrationNow(
-                        locationId,
-                        registrationId,
-                        tagSource));
     }
 
     /**
