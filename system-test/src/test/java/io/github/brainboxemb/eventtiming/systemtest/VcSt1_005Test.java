@@ -96,7 +96,7 @@ public class VcSt1_005Test {
 
             Response open = http.post(
                     nodePath("/open"),
-                    "{\"locId\":24}");
+                    "{\"locationId\":24}");
             assertEquals(200, open.status());
             assertContains(open.body(), "\"result\":\"OPENED\"");
             assertLifecycle(
@@ -110,7 +110,7 @@ public class VcSt1_005Test {
 
             Response alreadyOpen = http.post(
                     nodePath("/open"),
-                    "{\"locId\":24}");
+                    "{\"locationId\":24}");
             assertEquals(200, alreadyOpen.status());
             assertContains(
                     alreadyOpen.body(),
@@ -199,7 +199,7 @@ public class VcSt1_005Test {
 
             Response open = http.post(
                     nodePath("/open"),
-                    "{\"locId\":25}");
+                    "{\"locationId\":25}");
             assertEquals(200, open.status());
             assertContains(open.body(), "\"result\":\"OPENED\"");
             assertLifecycle(
