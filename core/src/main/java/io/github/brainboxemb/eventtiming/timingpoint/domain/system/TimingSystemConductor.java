@@ -2,10 +2,10 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.NodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ErrorStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
@@ -24,7 +24,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Coordinates one TimingSystem.
  *
- * <p>The conductor owns its TimingNodes, their lifecycle and the node-status
+ * <p>The conductor owns its TimingNodes, their lifecycle and the operation/error status
  * subscriptions used for system coordination. These fixed relationships are
  * established during construction, before activation starts execution.</p>
  *
@@ -36,7 +36,12 @@ import org.slf4j.LoggerFactory;
 public final class TimingSystemConductor extends AbstractConductor {
     private static final Logger LOG = LoggerFactory.getLogger(TimingSystemConductor.class);
 
-    private static final EventInput<TimingSystemConductor, NodeStatus> NODE_STATUS_CHANGED =
+    private static final EventInput<TimingSystemConductor, OperationStatus> OPERATION_STATUS_CHANGED =
+            EventInput.of(
+                    (conductor, source) ->
+                            source.subscribe(ignored -> conductor.wakeMainTask()));
+
+    private static final EventInput<TimingSystemConductor, ErrorStatus> ERROR_STATUS_CHANGED =
             EventInput.of(
                     (conductor, source) ->
                             source.subscribe(ignored -> conductor.wakeMainTask()));
@@ -66,7 +71,8 @@ public final class TimingSystemConductor extends AbstractConductor {
                     "TimingNode " + node.timingNodeId().value(),
                     node::activate,
                     node::deactivate);
-            NODE_STATUS_CHANGED.bind(this, node.STATUS_CHANGED);
+            OPERATION_STATUS_CHANGED.bind(this, node.OPERATION_STATUS_CHANGED);
+            ERROR_STATUS_CHANGED.bind(this, node.ERROR_STATUS_CHANGED);
         }
     }
 
@@ -113,8 +119,8 @@ public final class TimingSystemConductor extends AbstractConductor {
 
         boolean required = false;
         for (TimingNode node : nodes) {
-            Optional<NodeStatus> status = SafeExecute.callOrEmpty(
-                    node::status,
+            Optional<OperationStatus> status = SafeExecute.callOrEmpty(
+                    node::operationStatus,
                     OperationException.class,
                     ex -> ex.reason() == OperationException.Reason.UNAVAILABLE);
 
@@ -126,8 +132,7 @@ public final class TimingSystemConductor extends AbstractConductor {
                 return TaskStep.done();
             }
 
-            if (status.get() instanceof Status
-                    && ((Status) status.get()).state() == State.OPEN) {
+            if (status.get().state() == State.OPEN) {
                 required = true;
             }
         }
