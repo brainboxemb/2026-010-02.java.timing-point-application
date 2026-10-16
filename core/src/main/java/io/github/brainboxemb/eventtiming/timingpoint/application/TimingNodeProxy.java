@@ -12,6 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ErrorStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
@@ -90,13 +91,21 @@ public final class TimingNodeProxy {
         return statusValue(timingNode.status());
     }
 
-    /** Opens the node at the requested LocationId. */
-    public OpenResult open(LocationId locationId) {
+    /**
+     * Opens the node at the requested LocationId.
+     *
+     * @throws OperationException when the node operation cannot return its normal result
+     */
+    public OpenResult open(LocationId locationId) throws OperationException {
         return timingNode.open(locationId);
     }
 
-    /** Closes the node. */
-    public CloseResult close() {
+    /**
+     * Closes the node.
+     *
+     * @throws OperationException when the node operation cannot return its normal result
+     */
+    public CloseResult close() throws OperationException {
         return timingNode.close();
     }
 
@@ -106,11 +115,14 @@ public final class TimingNodeProxy {
      * <p>This call blocks on the TimingNode/LogBook commit path. The caller also
      * identifies whether the supplied time came from this node's TimeSource or
      * was explicitly supplied by an API client.</p>
+     *
+     * @throws OperationException when the node operation cannot return its normal result
      */
     public RegistrationResult addCustomAutomaticRegistration(
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
-            TimingData.AutomaticTimeSource registrationTimeSource) {
+            TimingData.AutomaticTimeSource registrationTimeSource)
+            throws OperationException {
         return timingNode.addCustomAutomaticRegistration(
                 registrationId,
                 effectiveTime,
@@ -120,11 +132,14 @@ public final class TimingNodeProxy {
     /**
      * Commits one normal manual registration with client-supplied effective
      * time and client-side time-selection classification.
+     *
+     * @throws OperationException when the node operation cannot return its normal result
      */
     public RegistrationResult addManualRegistration(
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
-            ManualTimeSource timeSource) {
+            ManualTimeSource timeSource)
+            throws OperationException {
         if (registrationId == null) {
             throw new IllegalArgumentException(
                     "registrationId must not be null");
@@ -150,13 +165,16 @@ public final class TimingNodeProxy {
      * <p>This boundary deliberately does not search or fold LogBook history.
      * Higher application/business logic selects the record family and original
      * values; TimingNode owns only ordered commit bookkeeping.</p>
+     *
+     * @throws OperationException when the ordered LogBook operation cannot return its normal result
      */
     public RegistrationResult revokeRegistration(
             RegistrationRecordType recordType,
             LocationId originalLocationId,
             RegistrationId registrationId,
             TimingTimestamp originalTime,
-            ManualTimeSource originalTimeSource) {
+            ManualTimeSource originalTimeSource)
+            throws OperationException {
         if (recordType == null) {
             throw new IllegalArgumentException(
                     "recordType must not be null");
@@ -202,8 +220,12 @@ public final class TimingNodeProxy {
         }
     }
 
-    /** Returns the number of committed records in this node LogBook. */
-    public int logBookCount() {
+    /**
+     * Returns the number of committed records in this node LogBook.
+     *
+     * @throws OperationException when the ordered LogBook read cannot return its result
+     */
+    public int logBookCount() throws OperationException {
         return logBook.process(LogBookQueries.timingDataCount());
     }
 
@@ -211,11 +233,13 @@ public final class TimingNodeProxy {
      * Visits a bounded committed LogBook range in source order.
      *
      * @return total committed LogBook count from the same ordered read
+     * @throws OperationException when the ordered LogBook read cannot return its result
      */
     public int visitLogBookFrom(
             long fromSequence,
             int limit,
-            Consumer<TimingData> visitor) {
+            Consumer<TimingData> visitor)
+            throws OperationException {
         return logBook.process(
                 LogBookQueries.visitTimingDataRange(
                         fromSequence,
@@ -227,10 +251,12 @@ public final class TimingNodeProxy {
      * Visits a bounded newest LogBook range in source order.
      *
      * @return total committed LogBook count from the same ordered read
+     * @throws OperationException when the ordered LogBook read cannot return its result
      */
     public int visitLatestLogBook(
             int limit,
-            Consumer<TimingData> visitor) {
+            Consumer<TimingData> visitor)
+            throws OperationException {
         return logBook.process(
                 LogBookQueries.visitLatestTimingData(limit, visitor));
     }
