@@ -243,7 +243,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void openAndCloseCommitLifecycleTimingDataInSourceOrder() {
+    public void openAndCloseCommitOperationStateTimingDataInSourceOrder() {
         NodeId id = new NodeId("A");
         RecordingPersistence persistence = new RecordingPersistence();
         TimingNode node = TimingNodeFixture.createDirect(
@@ -451,7 +451,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void concurrentLifecycleOperationsRemainOrderedByTimingNode() throws Exception {
+    public void concurrentOperationStateChangesRemainOrderedByTimingNode() throws Exception {
         SerialLane executor = newSerialLane(4, "timing-node-test");
         TimingNode node = node(
                 new NodeId("A"),
@@ -486,7 +486,7 @@ public class TimingNodeTest {
 
             closeCaller.start();
             assertEquals(
-                    "close waits behind the in-flight node lifecycle operation",
+                    "close waits behind the in-flight node operation-state change",
                     1,
                     executor.metrics().snapshot().queueDepth());
 
