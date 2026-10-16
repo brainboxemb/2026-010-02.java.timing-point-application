@@ -303,7 +303,7 @@ public class PresentationGatewayTest {
         long deadline =
                 System.nanoTime()
                         + java.util.concurrent.TimeUnit.SECONDS.toNanos(1L);
-        while (proxy.operationalState() != TimingNodeTypes.OperationalState.ERROR) {
+        while (proxy.status().opState() != TimingNodeTypes.OperationalState.ERROR) {
             if (System.nanoTime() >= deadline) {
                 throw new AssertionError("TimingNode operational ERROR did not become available");
             }
@@ -317,7 +317,7 @@ public class PresentationGatewayTest {
         long deadline =
                 System.nanoTime()
                         + java.util.concurrent.TimeUnit.SECONDS.toNanos(1L);
-        while (proxy.operationalState() == TimingNodeTypes.OperationalState.INIT) {
+        while (proxy.status().opState() == TimingNodeTypes.OperationalState.INIT) {
             if (System.nanoTime() >= deadline) {
                 throw new AssertionError("TimingNode operational state remained INIT");
             }
