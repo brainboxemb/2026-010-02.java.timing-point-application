@@ -9,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommand;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookFailure;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookRecoveryStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
@@ -34,22 +35,21 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ErrorCode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ErrorStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationalProblem;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationalState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 
 /**
  * Coordinates one timing node.
  *
- * <p>It owns the node's OPEN/CLOSED operation state and current LocationId and
- * coordinates its LogBook, NodeService and TagProcessor. That operation state is
- * transient runtime state: a new/restarted node starts CLOSED without a LocationId.
- * LogBook recovery is independent and persisted NODE_OPEN/NODE_CLOSE history is
- * deliberately not replayed to reconstruct this status. A future persistent or
- * reconstructed status model is a separate architecture choice.</p>
+ * <p>It owns separate functional OPEN/CLOSED state, operational INIT/OK/ERROR
+ * state and current LocationId, and coordinates its LogBook, NodeService and
+ * TagProcessor. Functional state is transient runtime state: a new/restarted node
+ * starts CLOSED without a LocationId. LogBook recovery and failures affect
+ * operational state but never reconstruct or replace functional state.</p>
  */
 public final class TimingNode extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(TimingNode.class);
@@ -60,16 +60,26 @@ public final class TimingNode extends LifecycleComponent {
     private final TagProcessor tagProcessor;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
     private final Event<TimingData> timingDataCommittedEvent = new Event<TimingData>();
-    private final Event<Status> statusChangedEvent = new Event<Status>();
-    private final Event<ErrorStatus> errorStatusChangedEvent = new Event<ErrorStatus>();
+    private final Event<FunctionalState> functionalStateChangedEvent =
+            new Event<FunctionalState>();
+    private final Event<OperationalState> operationalStateChangedEvent =
+            new Event<OperationalState>();
+    private final Event<OperationalProblem> operationalProblemChangedEvent =
+            new Event<OperationalProblem>();
     private final Object operationLock = new Object();
     private final Object stateLock = new Object();
 
-    /** Current transient node status; independent from LogBook recovery state. */
-    private volatile Status currentStatus = Status.closed(null);
+    /** Current functional state; independent from operational health. */
+    private volatile FunctionalState functionalState = FunctionalState.CLOSED;
 
-    /** Current error status, or null when no TimingNode error is active. */
-    private volatile ErrorStatus currentErrorStatus;
+    /** Current operational health; independent from functional OPEN/CLOSED state. */
+    private volatile OperationalState operationalState = OperationalState.INIT;
+
+    /** Current location, or null when no location is assigned. */
+    private volatile LocationId locationId;
+
+    /** Current operational problem detail, or null when none is active. */
+    private volatile OperationalProblem operationalProblem;
 
     /** True while this TimingNode is active and may accept functional commands. */
     private volatile boolean active;
@@ -84,10 +94,15 @@ public final class TimingNode extends LifecycleComponent {
             EventInput.of(
                     (node, source) -> source.subscribe(node::onLogBookRecoveryCompleted));
 
-    /** Committed LogBook data input used to maintain transient runtime operation state. */
+    /** Committed LogBook data input; this never drives functional state. */
     private static final EventInput<TimingNode, TimingData> LOGBOOK_TIMING_DATA_COMMITTED =
             EventInput.of(
                     (node, source) -> source.subscribe(node::onTimingDataCommitted));
+
+    /** Failed LogBook command input used to update operational health. */
+    private static final EventInput<TimingNode, LogBookFailure> LOGBOOK_COMMAND_FAILED =
+            EventInput.of(
+                    (node, source) -> source.subscribe(node::onLogBookCommandFailed));
 
     /** Selected registration input from the TagProcessor lane. */
     private static final EventInput<TimingNode, TagProcessor.NewRegistration> NEW_REGISTRATION =
@@ -102,11 +117,17 @@ public final class TimingNode extends LifecycleComponent {
      */
     public final EventSource<TimingData> TIMING_DATA_COMMITTED = timingDataCommittedEvent;
 
-    /** OPEN/CLOSED operation-status changes for this TimingNode. */
-    public final EventSource<Status> STATUS_CHANGED = statusChangedEvent;
+    /** Functional OPEN/CLOSED changes for this TimingNode. */
+    public final EventSource<FunctionalState> FUNCTIONAL_STATE_CHANGED =
+            functionalStateChangedEvent;
 
-    /** TimingNode error-status changes. */
-    public final EventSource<ErrorStatus> ERROR_STATUS_CHANGED = errorStatusChangedEvent;
+    /** Operational INIT/OK/ERROR changes for this TimingNode. */
+    public final EventSource<OperationalState> OPERATIONAL_STATE_CHANGED =
+            operationalStateChangedEvent;
+
+    /** Operational problem-detail changes for this TimingNode. */
+    public final EventSource<OperationalProblem> OPERATIONAL_PROBLEM_CHANGED =
+            operationalProblemChangedEvent;
 
     /** Creates one TimingNode with its clock and child components. */
     public TimingNode(
@@ -137,6 +158,7 @@ public final class TimingNode extends LifecycleComponent {
          * TimingNode open/close and does not depend on history persistence.
          */
         LOGBOOK_TIMING_DATA_COMMITTED.bind(this, logBook.NEW_DATA_ENTRY);
+        LOGBOOK_COMMAND_FAILED.bind(this, logBook.COMMAND_FAILED);
         NodeService.INITIAL_TIMING_DATA.bind(nodeService, logBook.INITIAL_DATA_LOADED);
         NodeService.COMMITTED_TIMING_DATA.bind(nodeService, TIMING_DATA_COMMITTED);
         LOGBOOK_RECOVERY_STATUS.bind(this, logBook.RECOVERY_STATUS_CHANGED);
@@ -163,16 +185,28 @@ public final class TimingNode extends LifecycleComponent {
         return timeSource;
     }
 
-    /** Returns the current transient OPEN/CLOSED status. */
-    public Status status() {
+    /** Returns the current functional OPEN/CLOSED state. */
+    public FunctionalState functionalState() {
 
-        return currentStatus;
+        return functionalState;
     }
 
-    /** Returns the current TimingNode error, if one is active. */
-    public Optional<ErrorStatus> errorStatus() {
+    /** Returns the current operational INIT/OK/ERROR state. */
+    public OperationalState operationalState() {
 
-        return Optional.ofNullable(currentErrorStatus);
+        return operationalState;
+    }
+
+    /** Returns the current location, or null when no location is assigned. */
+    public LocationId locationId() {
+
+        return locationId;
+    }
+
+    /** Returns the current operational problem, if one is active. */
+    public Optional<OperationalProblem> operationalProblem() {
+
+        return Optional.ofNullable(operationalProblem);
     }
 
     /**
@@ -188,15 +222,15 @@ public final class TimingNode extends LifecycleComponent {
 
         checkArgument(locationId != null, "locationId must not be null");
         synchronized (operationLock) {
-            requireOpenAvailable();
+            requireActive();
 
-            Status status = currentStatus;
             OpenResult result;
-            if (status.state == State.OPEN) {
+            if (functionalState == FunctionalState.OPEN) {
                 result = OpenResult.ALREADY_OPEN;
             } else {
-                applyLifecycleStatus(
-                        Status.open(locationId),
+                applyFunctionalState(
+                        FunctionalState.OPEN,
+                        locationId,
                         LogBookCommands.commitNodeOpen(locationId));
                 result = OpenResult.OPENED;
             }
@@ -214,14 +248,15 @@ public final class TimingNode extends LifecycleComponent {
     public CloseResult close() {
 
         synchronized (operationLock) {
-            Status status = currentStatus;
             CloseResult result;
-            if (status.state == State.CLOSED) {
+            if (functionalState == FunctionalState.CLOSED) {
                 result = CloseResult.ALREADY_CLOSED;
             } else {
-                applyLifecycleStatus(
-                        Status.closed(status.locationId),
-                        LogBookCommands.commitNodeClose(status.locationId));
+                LocationId currentLocation = locationId;
+                applyFunctionalState(
+                        FunctionalState.CLOSED,
+                        currentLocation,
+                        LogBookCommands.commitNodeClose(currentLocation));
                 result = CloseResult.CLOSED;
             }
             return result;
@@ -250,14 +285,13 @@ public final class TimingNode extends LifecycleComponent {
                 "test automatic registration time source must be API or NODE");
 
         synchronized (operationLock) {
-            Status status = currentStatus;
             RegistrationResult result;
-            if (status.state != State.OPEN) {
+            if (functionalState != FunctionalState.OPEN) {
                 result = RegistrationResult.nodeNotOpen();
             } else {
                 result = logBook.process(
                         LogBookCommands.commitAutomaticRegistration(
-                                status.locationId,
+                                locationId,
                                 registrationId,
                                 effectiveTime,
                                 TimingData.TagSource.API,
@@ -282,14 +316,13 @@ public final class TimingNode extends LifecycleComponent {
             throws OperationException {
 
         synchronized (operationLock) {
-            Status status = currentStatus;
             RegistrationResult result;
-            if (status.state != State.OPEN) {
+            if (functionalState != FunctionalState.OPEN) {
                 result = RegistrationResult.nodeNotOpen();
             } else {
                 result = logBook.process(
                         LogBookCommands.commitManualRegistration(
-                                status.locationId,
+                                locationId,
                                 registrationId,
                                 effectiveTime,
                                 registrationTimeSource));
@@ -329,18 +362,19 @@ public final class TimingNode extends LifecycleComponent {
         active = false;
         lifecycle.deactivateAll();
         synchronized (stateLock) {
-            currentStatus = Status.closed(null);
-            currentErrorStatus = null;
+            functionalState = FunctionalState.CLOSED;
+            operationalState = OperationalState.INIT;
+            locationId = null;
+            operationalProblem = null;
         }
     }
 
     /**
      * Publishes one successfully committed TimingData fact.
      *
-     * <p>LogBook history is not authoritative for the transient TimingNode
-     * OPEN/CLOSED state. Lifecycle status changes are applied directly by
-     * {@link #open(LocationId)} and {@link #close()}; this event reports only
-     * the separate durable history fact.</p>
+     * <p>LogBook history is not authoritative for functional OPEN/CLOSED state.
+     * {@link #open(LocationId)} and {@link #close()} change functional state
+     * directly; this event reports only the separate durable history fact.</p>
      */
     private void onTimingDataCommitted(TimingData timingData) {
 
@@ -348,63 +382,100 @@ public final class TimingNode extends LifecycleComponent {
     }
 
     /**
-     * Records LogBook recovery failure separately from TimingNode status.
+     * Updates operational health after initial LogBook recovery.
      *
-     * <p>Recovery never changes OPEN/CLOSED or LocationId.</p>
+     * <p>Recovery never changes functional OPEN/CLOSED state or LocationId.</p>
      */
     private void onLogBookRecoveryCompleted(LogBookRecoveryStatus recoveryStatus) {
 
-        ErrorStatus error = recoveryStatus.failed()
-                ? new ErrorStatus(
-                        ErrorCode.TIMING_DATA_LOAD_FAILED,
-                        recoveryStatus.failureMessage())
-                : null;
-
-        currentErrorStatus = error;
-        if (error != null) {
-            errorStatusChangedEvent.emit(error);
+        if (recoveryStatus.failed()) {
+            setOperationalError(
+                    new OperationalProblem(
+                            ErrorCode.TIMING_DATA_LOAD_FAILED,
+                            recoveryStatus.failureMessage()));
+        } else {
+            setOperationalHealthy();
         }
+    }
+
+    /** Marks a failed LogBook command as an operational TimingNode problem. */
+    private void onLogBookCommandFailed(LogBookFailure failure) {
+
+        setOperationalError(
+                new OperationalProblem(
+                        ErrorCode.TIMING_DATA_COMMIT_FAILED,
+                        "LogBook " + failure.operation + " failed: " + failure.message));
     }
 
     /**
-     * Applies one lifecycle status and submits its history record in the same
+     * Applies one functional state and submits its history record in the same
      * registration-admission critical section.
      *
      * <p>The LogBook submission is fire-and-forget. Queue or later persistence
-     * failure does not roll back the already applied runtime state.</p>
+     * failure changes operational health but never rolls back functional state.</p>
      */
-    private void applyLifecycleStatus(
-            Status status,
+    private void applyFunctionalState(
+            FunctionalState state,
+            LocationId newLocationId,
             LogBookCommand<?> historyCommand) {
 
         synchronized (stateLock) {
-            currentStatus = status;
+            functionalState = state;
+            locationId = newLocationId;
 
             Runnable queueHistory = () -> logBook.execute(historyCommand);
-            Consumer<RejectedExecutionException> onRejected = ex -> LOG.error(
-                    "Lifecycle history for node {} state {} could not be queued",
-                    timingNodeId.value(),
-                    status.state,
-                    ex);
+            Consumer<RejectedExecutionException> onRejected =
+                    ex -> onLogBookQueueRejected("lifecycle history", ex);
             SafeExecute.runOrHandleRejection(queueHistory, onRejected);
         }
 
-        statusChangedEvent.emit(status);
+        functionalStateChangedEvent.emit(state);
     }
 
-    /** Rejects OPEN while the TimingNode is inactive or has a blocking startup error. */
-    private void requireOpenAvailable() {
+    /** Records inability to queue required LogBook work as operational ERROR. */
+    private void onLogBookQueueRejected(
+            String operation,
+            RejectedExecutionException failure) {
+
+        LOG.error(
+                "{} for node {} could not be queued on the LogBook Data Lane",
+                operation,
+                timingNodeId.value(),
+                failure);
+        setOperationalError(
+                new OperationalProblem(
+                        ErrorCode.LOGBOOK_UNAVAILABLE,
+                        operation + " could not be queued"));
+    }
+
+    /** Changes operational state to OK and clears any current problem detail. */
+    private void setOperationalHealthy() {
+
+        synchronized (stateLock) {
+            operationalState = OperationalState.OK;
+            operationalProblem = null;
+        }
+        operationalStateChangedEvent.emit(OperationalState.OK);
+    }
+
+    /** Changes operational state to ERROR without changing functional state. */
+    private void setOperationalError(OperationalProblem problem) {
+
+        synchronized (stateLock) {
+            operationalState = OperationalState.ERROR;
+            operationalProblem = problem;
+        }
+        operationalProblemChangedEvent.emit(problem);
+        operationalStateChangedEvent.emit(OperationalState.ERROR);
+    }
+
+    /** Rejects functional commands only while the TimingNode itself is inactive. */
+    private void requireActive() {
 
         if (!active) {
             throw new OperationException(
                     OperationException.Reason.UNAVAILABLE,
                     "TimingNode " + timingNodeId.value() + " is not active");
-        }
-        if (currentErrorStatus != null) {
-            throw new OperationException(
-                    OperationException.Reason.FAILED,
-                    "TimingNode " + timingNodeId.value()
-                            + " has blocking error " + currentErrorStatus.code);
         }
     }
 
@@ -417,22 +488,21 @@ public final class TimingNode extends LifecycleComponent {
     private void onNewRegistration(TagProcessor.NewRegistration registration) {
 
         synchronized (stateLock) {
-            Status status = currentStatus;
-            if (status.state != State.OPEN) {
+            if (functionalState != FunctionalState.OPEN) {
                 return;
             }
 
             LogBookCommand<?> command = LogBookCommands.commitAntennaRegistration(
-                    status.locationId,
+                    locationId,
                     registration.registrationId(),
                     registration.observedAt());
 
             Runnable queueRegistration = () -> logBook.execute(command);
-            Consumer<RejectedExecutionException> onRejected = ex -> LOG.warn(
-                    "Automatic registration {} for node {} could not be queued on the LogBook Data Lane",
-                    registration.registrationId().value(),
-                    timingNodeId.value(),
-                    ex);
+            Consumer<RejectedExecutionException> onRejected =
+                    ex -> onLogBookQueueRejected(
+                            "Automatic registration "
+                                    + registration.registrationId().value(),
+                            ex);
 
             SafeExecute.runOrHandleRejection(queueRegistration, onRejected);
         }
