@@ -96,8 +96,8 @@ public final class TimingNode extends LifecycleComponent {
     /**
      * Committed TimingData source at the TimingNode boundary.
      *
-     * <p>For NODE_OPEN/NODE_CLOSE the current status is already updated
-     * when this event is delivered. STATUS_CHANGED follows afterwards.</p>
+     * <p>This event reports durable LogBook facts only. Runtime OPEN/CLOSED
+     * status is owned and published separately by TimingNode open/close.</p>
      */
     public final EventSource<TimingData> TIMING_DATA_COMMITTED = timingDataCommitted;
 
@@ -192,6 +192,11 @@ public final class TimingNode extends LifecycleComponent {
             } else {
                 result = logBook.process(
                         LogBookCommands.commitNodeOpen(locationId));
+
+                Status openedStatus =
+                        new Status(State.OPEN, locationId);
+                setStatus(openedStatus);
+                statusChanged.emit(openedStatus);
             }
             return result;
         }
@@ -223,6 +228,11 @@ public final class TimingNode extends LifecycleComponent {
                 try {
                     result = logBook.process(
                             LogBookCommands.commitNodeClose(status.locationId));
+
+                    Status closedStatus =
+                            new Status(State.CLOSED, status.locationId);
+                    setStatus(closedStatus);
+                    statusChanged.emit(closedStatus);
                 } catch (OperationException ex) {
                     if (ex.reason() == OperationException.Reason.BUSY
                             || ex.reason() == OperationException.Reason.UNAVAILABLE) {
@@ -345,37 +355,16 @@ public final class TimingNode extends LifecycleComponent {
     }
 
     /**
-     * Maintains transient operation state from successfully committed TimingData.
+     * Publishes one successfully committed TimingData fact.
      *
-     * <p>NEW_DATA_ENTRY is emitted only after the LogBook commit has completed.
-     * Consuming that fact also covers an accepted open/close command that commits
-     * after its waiting caller timed out. Persisted startup history is not replayed
-     * through this path, so restart does not reconstruct OPEN/CLOSED or LocationId.</p>
+     * <p>LogBook history is not authoritative for the transient TimingNode
+     * OPEN/CLOSED state. Lifecycle status changes are applied by
+     * {@link #open(LocationId)} and {@link #close()} after their commit command
+     * returns successfully.</p>
      */
     private void onTimingDataCommitted(TimingData timingData) {
 
-        Status changedStatus = null;
-        if (timingData instanceof TimingData.NodeOpen) {
-            changedStatus = new Status(
-                    State.OPEN,
-                    timingData.locationId());
-            setStatus(changedStatus);
-        } else if (timingData instanceof TimingData.NodeClose) {
-            changedStatus = new Status(
-                    State.CLOSED,
-                    timingData.locationId());
-            setStatus(changedStatus);
-        }
-
-        /*
-         * Preserve the public event order: committed TimingData is observable
-         * before the resulting operation-status change.
-         */
         timingDataCommitted.emit(timingData);
-
-        if (changedStatus != null) {
-            statusChanged.emit(changedStatus);
-        }
     }
 
     /**
