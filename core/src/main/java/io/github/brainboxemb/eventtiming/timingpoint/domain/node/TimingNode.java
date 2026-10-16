@@ -32,6 +32,9 @@ import java.util.function.Consumer;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ErrorCode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ErrorStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.NodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
@@ -53,12 +56,12 @@ public final class TimingNode {
     private final LogBookAccessor logBook;
     private final TagProcessor tagProcessor;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
-    private final Event<Status> statusChangedEvent = new Event<Status>();
+    private final Event<NodeStatus> statusChangedEvent = new Event<NodeStatus>();
     private final Object operationLock = new Object();
     private final Object stateLock = new Object();
 
     /** Current immutable node-state snapshot; null until LogBook recovery completes. */
-    private volatile Status currentStatus;
+    private volatile NodeStatus currentStatus;
     private boolean registrationsEnabled;
 
     /** Antenna observation input; internally consumed by the TagProcessor. */
@@ -126,9 +129,9 @@ public final class TimingNode {
     }
 
     /** Returns the current status determined by this TimingNode. */
-    public Status status() {
+    public NodeStatus status() {
 
-        Status status = currentStatus;
+        NodeStatus status = currentStatus;
         if (status != null) {
             return status;
         }
@@ -144,7 +147,7 @@ public final class TimingNode {
     }
 
     /** Publishes TimingNode status after this component has evaluated it. */
-    public EventSource<Status> statusChangedEvent() {
+    public EventSource<NodeStatus> statusChangedEvent() {
 
         return statusChangedEvent;
     }
@@ -306,32 +309,29 @@ public final class TimingNode {
     /** Applies newly committed lifecycle records to this node's runtime state. */
     private void onCommittedTimingData(TimingData timingData) {
 
-        Status status = currentStatus;
-        if (status == null) {
+        NodeStatus nodeStatus = currentStatus;
+        if (!(nodeStatus instanceof Status)) {
             return;
         }
+        Status status = (Status) nodeStatus;
 
         if (timingData instanceof TimingData.NodeOpen) {
             setStatus(new Status(
                     timingNodeId,
                     State.OPEN,
-                    timingData.locationId(),
-                    status.timingDataTailRepaired(),
-                    status.problems()));
+                    timingData.locationId()));
         } else if (timingData instanceof TimingData.NodeClose) {
             setStatus(new Status(
                     timingNodeId,
                     State.CLOSED,
-                    timingData.locationId(),
-                    status.timingDataTailRepaired(),
-                    status.problems()));
+                    timingData.locationId()));
         }
     }
 
     /** Publishes the already-applied lifecycle status after committed-data delivery. */
     private void onLifecycleCommitPublished(TimingData timingData) {
 
-        Status status = currentStatus;
+        NodeStatus status = currentStatus;
         if (status != null) {
             statusChangedEvent.emit(status);
         }
@@ -344,19 +344,22 @@ public final class TimingNode {
     }
 
     /** Builds initial node status from LogBook recovery without reconstructing OPEN state. */
-    private Status statusFromRecovery(LogBookRecoveryStatus recoveryStatus) {
+    private NodeStatus statusFromRecovery(LogBookRecoveryStatus recoveryStatus) {
 
-        State state = recoveryStatus.hasProblems() ? State.ERROR : State.CLOSED;
+        if (recoveryStatus.failed()) {
+            return new ErrorStatus(
+                    timingNodeId,
+                    ErrorCode.TIMING_DATA_LOAD_FAILED,
+                    recoveryStatus.failureMessage());
+        }
         return new Status(
                 timingNodeId,
-                state,
-                null,
-                recoveryStatus.timingDataTailRepaired(),
-                recoveryStatus.problems());
+                State.CLOSED,
+                null);
     }
 
     /**
-     * Returns status for a state-changing operation.
+     * Returns operational status for a state-changing operation.
      *
      * <p>When startup recovery is still queued, the first state-changing call
      * waits for that ordered LogBook recovery result. Plain {@link #status()}
@@ -364,41 +367,39 @@ public final class TimingNode {
      */
     private Status requireOperationalStatus() {
 
-        Status status = currentStatus;
-        if (status == null) {
+        NodeStatus nodeStatus = currentStatus;
+        if (nodeStatus == null) {
             LogBookRecoveryStatus recoveryStatus =
                     logBook.process(
                             LogBookQueries.recoveryStatus(),
                             ReadConsistency.ORDERED);
-            status = currentStatus;
-            if (status == null) {
-                status = statusFromRecovery(recoveryStatus);
-                publishStatus(status);
+            nodeStatus = currentStatus;
+            if (nodeStatus == null) {
+                nodeStatus = statusFromRecovery(recoveryStatus);
+                publishStatus(nodeStatus);
             }
         }
 
-        if (status.state() == State.ERROR) {
-            String detail = status.hasProblems()
-                    ? status.problems().get(0).message()
-                    : "TimingNode is in ERROR";
+        if (nodeStatus instanceof ErrorStatus) {
             throw new OperationException(
                     OperationException.Reason.FAILED,
-                    detail);
+                    ((ErrorStatus) nodeStatus).message());
         }
-        return status;
+        return (Status) nodeStatus;
     }
 
     /** Stores one new immutable node-state snapshot. */
-    private void setStatus(Status status) {
+    private void setStatus(NodeStatus status) {
 
         synchronized (stateLock) {
             currentStatus = status;
-            registrationsEnabled = status.state() == State.OPEN;
+            registrationsEnabled = status instanceof Status
+                    && ((Status) status).state() == State.OPEN;
         }
     }
 
     /** Stores and publishes one new immutable node-state snapshot. */
-    private void publishStatus(Status status) {
+    private void publishStatus(NodeStatus status) {
 
         setStatus(status);
         statusChangedEvent.emit(status);
@@ -427,8 +428,12 @@ public final class TimingNode {
     private void onNewRegistration(TagProcessor.NewRegistration registration) {
 
         synchronized (stateLock) {
-            Status status = currentStatus;
-            if (!registrationsEnabled || status == null || status.state() != State.OPEN) {
+            NodeStatus nodeStatus = currentStatus;
+            if (!registrationsEnabled || !(nodeStatus instanceof Status)) {
+                return;
+            }
+            Status status = (Status) nodeStatus;
+            if (status.state() != State.OPEN) {
                 return;
             }
 
@@ -447,4 +452,5 @@ public final class TimingNode {
             SafeExecute.runOrHandleRejection(queueRegistration, onRejected);
         }
     }
+
 }
