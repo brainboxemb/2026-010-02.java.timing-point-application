@@ -69,6 +69,9 @@ public final class TimingNode {
     /** Current transient node status; independent from LogBook recovery state. */
     private volatile Status currentStatus = new Status(State.CLOSED, null);
 
+    /** Latest LogBook startup-recovery result; separate from TimingNode Status. */
+    private volatile LogBookRecoveryStatus currentRecoveryStatus;
+
     /** Current error status, or null when no TimingNode error is active. */
     private volatile ErrorStatus currentErrorStatus;
 
@@ -313,6 +316,7 @@ public final class TimingNode {
         lifecycle.deactivateAll();
         synchronized (stateLock) {
             currentStatus = new Status(State.CLOSED, null);
+            currentRecoveryStatus = null;
             currentErrorStatus = null;
             registrationsEnabled = false;
         }
@@ -365,6 +369,7 @@ public final class TimingNode {
                         recoveryStatus.failureMessage())
                 : null;
 
+        currentRecoveryStatus = recoveryStatus;
         currentErrorStatus = error;
         if (error != null) {
             errorStatusChanged.emit(error);
@@ -378,10 +383,14 @@ public final class TimingNode {
      */
     private void requireLogBookReady() {
 
-        LogBookRecoveryStatus recoveryStatus =
-                logBook.process(
-                        LogBookQueries.recoveryStatus(),
-                        ReadConsistency.ORDERED);
+        LogBookRecoveryStatus recoveryStatus = currentRecoveryStatus;
+        if (recoveryStatus == null) {
+            recoveryStatus =
+                    logBook.process(
+                            LogBookQueries.recoveryStatus(),
+                            ReadConsistency.ORDERED);
+            currentRecoveryStatus = recoveryStatus;
+        }
 
         if (!recoveryStatus.failed()) {
             return;
