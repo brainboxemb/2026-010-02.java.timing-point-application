@@ -183,8 +183,10 @@ public final class TimingNode extends LifecycleComponent {
      * Opens this node at the requested location.
      *
      * <p>This call blocks until NODE_OPEN is committed to the LogBook or the operation fails.</p>
+     *
+     * @throws OperationException when the LogBook is unavailable, busy, failed, interrupted or times out
      */
-    public OpenResult open(LocationId locationId) {
+    public OpenResult open(LocationId locationId) throws OperationException {
 
         checkArgument(locationId != null, "locationId must not be null");
         synchronized (operationLock) {
@@ -203,8 +205,11 @@ public final class TimingNode extends LifecycleComponent {
      * Closes this node and retains its last location.
      *
      * <p>This call blocks until NODE_CLOSE is committed to the LogBook or the operation fails.</p>
+     *
+     * @throws OperationException when the LogBook is unavailable, busy, failed, interrupted or times out;
+     *         timeout means the final close outcome is unknown
      */
-    public CloseResult close() {
+    public CloseResult close() throws OperationException {
 
         synchronized (operationLock) {
             requireLogBookReady();
@@ -214,17 +219,8 @@ public final class TimingNode extends LifecycleComponent {
             }
 
             disableRegistrations();
-            try {
-                logBook.process(LogBookCommands.commitNodeClose(status.locationId));
-            } catch (OperationException ex) {
-                if (ex.reason() != OperationException.Reason.TIMEOUT) {
-                    enableRegistrationsFor(status);
-                }
-                throw ex;
-            } catch (RuntimeException ex) {
-                enableRegistrationsFor(status);
-                throw ex;
-            }
+            Runnable commitClose = () -> logBook.process(LogBookCommands.commitNodeClose(status.locationId));
+            SafeExecute.runOrRethrow(commitClose, this::restoreRegistrationsAfterDefiniteCloseFailure);
             return CloseResult.CLOSED;
         }
     }
@@ -236,11 +232,14 @@ public final class TimingNode extends LifecycleComponent {
      * rejected it because the node is not OPEN, or the operation fails. Custom
      * registrations always use {@code TagSource.API}; {@code registrationTimeSource}
      * records whether the supplied time came from the caller or this node's TimeSource.</p>
+     *
+     * @throws OperationException when the LogBook is unavailable, busy, failed, interrupted or times out
      */
     public RegistrationResult addCustomAutomaticRegistration(
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
-            TimingData.AutomaticTimeSource registrationTimeSource) {
+            TimingData.AutomaticTimeSource registrationTimeSource)
+            throws OperationException {
 
         checkArgument(
                 registrationTimeSource == TimingData.AutomaticTimeSource.API
@@ -268,11 +267,14 @@ public final class TimingNode extends LifecycleComponent {
      *
      * <p>This call blocks until the LogBook Data Lane has committed the record,
      * rejected it because the node is not OPEN, or the operation fails.</p>
+     *
+     * @throws OperationException when the LogBook is unavailable, busy, failed, interrupted or times out
      */
     public RegistrationResult addManualRegistration(
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
-            ManualTimeSource registrationTimeSource) {
+            ManualTimeSource registrationTimeSource)
+            throws OperationException {
 
         synchronized (operationLock) {
             requireLogBookReady();
@@ -395,21 +397,19 @@ public final class TimingNode extends LifecycleComponent {
             currentRecoveryStatus = recoveryStatus;
         }
 
-        if (!recoveryStatus.failed()) {
-            return;
+        if (recoveryStatus.failed()) {
+            ErrorStatus error = currentErrorStatus;
+            if (error == null) {
+                error = new ErrorStatus(
+                        ErrorCode.TIMING_DATA_LOAD_FAILED,
+                        recoveryStatus.failureMessage());
+                currentErrorStatus = error;
+                errorStatusChanged.emit(error);
+            }
+            throw new OperationException(
+                    OperationException.Reason.FAILED,
+                    error.message);
         }
-
-        ErrorStatus error = currentErrorStatus;
-        if (error == null) {
-            error = new ErrorStatus(
-                    ErrorCode.TIMING_DATA_LOAD_FAILED,
-                    recoveryStatus.failureMessage());
-            currentErrorStatus = error;
-            errorStatusChanged.emit(error);
-        }
-        throw new OperationException(
-                OperationException.Reason.FAILED,
-                error.message);
     }
 
     /** Stores one new immutable status snapshot. */
@@ -429,11 +429,20 @@ public final class TimingNode extends LifecycleComponent {
         }
     }
 
-    /** Restores registration ingress when a close commit fails. */
-    private void enableRegistrationsFor(Status status) {
+    /**
+     * Restores registration ingress after a close failure with a definite non-commit outcome.
+     *
+     * <p>TIMEOUT is excluded because the accepted close may still commit later.</p>
+     */
+    private void restoreRegistrationsAfterDefiniteCloseFailure(RuntimeException failure) {
+
+        if (failure instanceof OperationException
+                && ((OperationException) failure).reason() == OperationException.Reason.TIMEOUT) {
+            return;
+        }
 
         synchronized (stateLock) {
-            registrationsEnabled = status.state == State.OPEN;
+            registrationsEnabled = true;
         }
     }
 
