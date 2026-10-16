@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager;
 
+import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.setting.Setting;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
@@ -28,7 +29,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Task results remain owned by the tasks that produced them; manager transitions
  * read that authoritative task state in {@link #runStep()}.</p>
  */
-public final class AntennaManager {
+public final class AntennaManager extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(AntennaManager.class);
 
     /** Self-test completion input; the payload only wakes reconciliation. */
@@ -114,7 +115,8 @@ public final class AntennaManager {
         SETTINGS_CHANGED.bind(this, settings.CHANGED);
     }
 
-    public synchronized void activate() {
+    @Override
+    protected synchronized void onActivate() {
         checkState(state == State.NEW || state == State.INACTIVE, "AntennaManager cannot activate from %s", state);
 
         taskLane.start();
@@ -184,7 +186,8 @@ public final class AntennaManager {
         return antennaSet.status(antennaId);
     }
 
-    public void deactivate() {
+    @Override
+    protected void onDeactivate() {
         synchronized (this) {
             if (state == State.INACTIVE) {
                 return;
