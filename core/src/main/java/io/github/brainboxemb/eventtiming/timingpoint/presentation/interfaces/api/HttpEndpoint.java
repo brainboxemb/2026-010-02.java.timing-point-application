@@ -413,7 +413,7 @@ public final class HttpEndpoint implements AutoCloseable {
         }
 
         RegistrationResult result =
-                timingNode.addCustomAutomaticRegistration(
+                timingNode.addTestAutomaticRegistration(
                         registrationId,
                         effectiveTime,
                         timeSource);
