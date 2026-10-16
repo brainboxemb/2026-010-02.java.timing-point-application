@@ -58,7 +58,7 @@ public class VcSt1_004Test {
             String shellStatus =
                     RemoteShellClient.requestStatus(ports.shellPort());
             assertContains(shellStatus, "Id        : " + NODE_ID);
-            assertContains(shellStatus, "Function  : CLOSED");
+            assertContains(shellStatus, "State     : CLOSED");
             assertContains(shellStatus, "Operation : ERROR");
             assertContains(
                     shellStatus,
