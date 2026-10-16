@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add the node-scoped engineering terminal command `test-write <fail|timeout>` to arm a one-shot failure for the next LogBook write. `fail` returns the normal FAILED operation path; `timeout` delays the real Data Lane write beyond the commit wait guard so the existing TIMEOUT/outcome-unknown behavior is exercised while the accepted write may still commit later.
+
 - Simplify `TimingNode.close()`: use `setRegistrationsAllowed(boolean)` instead of a CLOSE-specific gate helper, keep status publication outside the LogBook try/catch, and name private `Event<T>` backing fields with an `Event` suffix.
 
 - Rename the engineering/test automatic-registration API from `addCustomAutomaticRegistration` to `addTestAutomaticRegistration` so the method name reflects that this path injects controlled test registrations rather than a normal production registration mode.
