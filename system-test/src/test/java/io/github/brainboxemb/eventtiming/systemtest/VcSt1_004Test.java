@@ -58,10 +58,11 @@ public class VcSt1_004Test {
             String shellStatus =
                     RemoteShellClient.requestStatus(ports.shellPort());
             assertContains(shellStatus, "Id        : " + NODE_ID);
-            assertContains(shellStatus, "State     : ERROR");
+            assertContains(shellStatus, "Function  : CLOSED");
+            assertContains(shellStatus, "Operation : ERROR");
             assertContains(
                     shellStatus,
-                    "Error     : TIMING_DATA_LOAD_FAILED");
+                    "Problem   : TIMING_DATA_LOAD_FAILED");
             assertContains(shellStatus, "Persisted TimingData load failed for " + NODE_ID);
             assertContains(shellStatus, "belongs to " + OTHER_NODE_ID);
 
@@ -69,15 +70,19 @@ public class VcSt1_004Test {
                     "/api/v1/node/" + NODE_ID + "/open",
                     "{\"locationId\":24}");
             assertEquals(
-                    "ERROR TimingNode must reject OPEN explicitly",
-                    503,
+                    "Functional OPEN must remain independent from LogBook recovery error",
+                    200,
                     open.status());
-            assertContains(open.body(), "\"code\":\"OPERATION_FAILED\"");
-            assertContains(open.body(), "Persisted TimingData load failed for " + NODE_ID);
+            assertContains(open.body(), "\"result\":\"OPENED\"");
 
-            Response afterRejectedOpen = http.get("/api/v1/status");
-            assertEquals(200, afterRejectedOpen.status());
-            assertErrorStatus(afterRejectedOpen.body());
+            Response afterOpen = http.get("/api/v1/status");
+            assertEquals(200, afterOpen.status());
+            assertContains(afterOpen.body(), "\"locationId\":24");
+            assertContains(afterOpen.body(), "\"functionalState\":\"OPEN\"");
+            assertContains(afterOpen.body(), "\"operationalState\":\"ERROR\"");
+            assertContains(
+                    afterOpen.body(),
+                    "\"code\":\"TIMING_DATA_LOAD_FAILED\"");
 
             events = fixture.connectEvents(ports);
             String firstSnapshot = events.awaitEvent("STATUS_SNAPSHOT");
@@ -132,7 +137,8 @@ public class VcSt1_004Test {
     private static void assertErrorStatus(String json) {
         assertContains(json, "\"id\":\"" + NODE_ID + "\"");
         assertContains(json, "\"locationId\":null");
-        assertContains(json, "\"state\":\"ERROR\"");
+        assertContains(json, "\"functionalState\":\"CLOSED\"");
+        assertContains(json, "\"operationalState\":\"ERROR\"");
         assertContains(
                 json,
                 "\"code\":\"TIMING_DATA_LOAD_FAILED\"");
