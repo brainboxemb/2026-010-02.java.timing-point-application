@@ -11,7 +11,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.DynamicConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationalState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 
@@ -67,30 +66,6 @@ public final class PresentationGatewayFixture implements AutoCloseable {
                 configuration);
         for (TimingNode node : nodes) {
             LifecycleTestSupport.activate(node);
-        }
-        for (NodeId nodeId : ids) {
-            awaitInitialStatus(nodeId);
-        }
-    }
-
-    private void awaitInitialStatus(NodeId nodeId) {
-        long deadline =
-                System.nanoTime()
-                        + java.util.concurrent.TimeUnit.SECONDS.toNanos(1L);
-        while (handler.timingNode(nodeId).status().opState()
-                == OperationalState.INIT) {
-            if (System.nanoTime() >= deadline) {
-                throw new IllegalStateException(
-                        "TimingNode remained in operational INIT");
-            }
-            try {
-                Thread.sleep(2L);
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException(
-                        "Interrupted waiting for test TimingNode readiness",
-                        interrupted);
-            }
         }
     }
 

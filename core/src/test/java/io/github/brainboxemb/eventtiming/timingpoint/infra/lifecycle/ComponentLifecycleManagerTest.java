@@ -7,6 +7,8 @@ import java.util.List;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.fail;
 
@@ -55,6 +57,22 @@ public class ComponentLifecycleManagerTest {
                         "activate",
                         "deactivate"),
                 calls);
+    }
+
+    @Test
+    public void lifecycleComponentOwnsActiveState() {
+        List<String> calls = new ArrayList<String>();
+        TestComponent component = new TestComponent(calls, "", null);
+        ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
+
+        lifecycle.register(component);
+        assertFalse(component.active());
+
+        lifecycle.activateAll();
+        assertTrue(component.active());
+
+        lifecycle.deactivateAll();
+        assertFalse(component.active());
     }
 
     @Test
@@ -125,6 +143,10 @@ public class ComponentLifecycleManagerTest {
             this.calls = calls;
             this.prefix = prefix;
             this.activationFailure = activationFailure;
+        }
+
+        private boolean active() {
+            return isActive();
         }
 
         @Override

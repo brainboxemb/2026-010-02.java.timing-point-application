@@ -8,7 +8,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationCo
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl.TimingNodeConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationalProblem;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 
@@ -16,7 +15,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 /** Explicit JSON mapping for the IF-03 v1 contract. */
 public final class MessageWriter {
@@ -42,19 +40,15 @@ public final class MessageWriter {
         }
 
         StringBuilder nodes = new StringBuilder();
-        StringBuilder problems = new StringBuilder();
         nodes.append('[');
-        problems.append('[');
 
         boolean firstNode = true;
-        boolean firstProblem = true;
         for (TimingNodeProxy timingNode : timingNodes) {
             if (timingNode == null) {
                 throw new IllegalArgumentException("timingNodes must not contain null");
             }
 
             TimingNodeStatus status = timingNode.status();
-            Optional<OperationalProblem> problem = timingNode.operationalProblem();
 
             if (!firstNode) {
                 nodes.append(',');
@@ -73,36 +67,12 @@ public final class MessageWriter {
                     .append(',')
                     .append("\"state\":")
                     .append(quote(status.state().name()))
-                    .append(',')
-                    .append("\"opState\":")
-                    .append(quote(status.opState().name()))
                     .append('}');
-
-            if (problem.isPresent()) {
-                if (!firstProblem) {
-                    problems.append(',');
-                }
-                firstProblem = false;
-                OperationalProblem currentProblem = problem.get();
-                problems.append('{')
-                        .append("\"code\":")
-                        .append(quote(currentProblem.code.name()))
-                        .append(',')
-                        .append("\"severity\":\"ERROR\",")
-                        .append("\"nodeId\":")
-                        .append(quote(status.timingNodeId().value()))
-                        .append(',')
-                        .append("\"message\":")
-                        .append(quote(currentProblem.message))
-                        .append('}');
-            }
         }
 
         nodes.append(']');
-        problems.append(']');
         return "{"
-                + "\"nodes\":" + nodes + ","
-                + "\"problems\":" + problems
+                + "\"nodes\":" + nodes
                 + "}";
     }
 

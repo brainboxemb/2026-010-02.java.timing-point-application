@@ -39,7 +39,6 @@ public class VcSt1_001Test {
                     "vc-st1-001-process-output");
             fixture.awaitReady(run, ports);
             HttpTestClient http = fixture.http(ports);
-            awaitOperationalOk(http);
 
             // 3. Query build/version identity.
             Response version = http.get("/api/v1/version");
@@ -105,22 +104,6 @@ public class VcSt1_001Test {
         }
     }
 
-    private static void awaitOperationalOk(HttpTestClient http)
-            throws Exception {
-        long deadline = System.currentTimeMillis() + 5000L;
-        while (System.currentTimeMillis() < deadline) {
-            Response status = http.get("/api/v1/status");
-            if (status.status() == 200
-                    && status.body().contains(
-                            "\"opState\":\"OK\"")) {
-                return;
-            }
-            Thread.sleep(20L);
-        }
-        throw new AssertionError(
-                "TimingNode did not reach operational OK");
-    }
-
     private static void assertSnapshot(String json) {
         assertContains(json, "\"eventType\":\"STATUS_SNAPSHOT\"");
         assertContains(json, "\"nodes\":[{");
@@ -134,7 +117,6 @@ public class VcSt1_001Test {
         assertContains(json, "\"id\":\"" + NODE_ID + "\"");
         assertContains(json, "\"locId\":null");
         assertContains(json, "\"state\":\"CLOSED\"");
-        assertContains(json, "\"problems\":[]");
     }
 
     private static void assertSnapshotSemanticsMatchStatus(
@@ -143,8 +125,7 @@ public class VcSt1_001Test {
         for (String field : new String[] {
                 "\"id\":\"" + NODE_ID + "\"",
                 "\"locId\":null",
-                "\"state\":\"CLOSED\"",
-                "\"opState\":\"OK\""
+                "\"state\":\"CLOSED\""
         }) {
             assertContains(snapshot, field);
             assertContains(status, field);

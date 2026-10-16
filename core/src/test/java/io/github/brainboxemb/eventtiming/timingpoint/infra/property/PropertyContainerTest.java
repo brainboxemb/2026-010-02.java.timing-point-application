@@ -6,82 +6,67 @@ import java.util.List;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class PropertyContainerTest {
 
     @Test
-    public void commitsSeveralPropertiesBeforePublishingChanges() {
+    public void publishesOneEventForSeveralChangedProperties() {
         PropertyContainer properties = new PropertyContainer();
-        Property<String> state = properties.property("state", "CLOSED");
-        Property<Integer> location = properties.property("locationId", null);
-        List<List<Property<?>>> changes = new ArrayList<List<Property<?>>>();
+        Property<String> state =
+                properties.property("state", "CLOSED");
+        Property<Integer> location =
+                properties.property("locationId", null);
+        List<PropertyUpdate> changes =
+                new ArrayList<PropertyUpdate>();
         properties.CHANGED.subscribe(changes::add);
 
-        PropertyContainer.Update update = properties.update();
-        update.set(location, Integer.valueOf(24));
-        update.set(state, "OPEN");
+        location.set(Integer.valueOf(24));
+        state.set("OPEN");
+        properties.update();
 
-        assertEquals("CLOSED", state.value());
-        assertEquals(null, location.value());
-
-        update.commit();
-
-        assertEquals("OPEN", state.value());
-        assertEquals(Integer.valueOf(24), location.value());
-        assertTrue(changes.isEmpty());
-
-        update.publish();
-
+        assertEquals("OPEN", state.get());
+        assertEquals(Integer.valueOf(24), location.get());
         assertEquals(1, changes.size());
-        assertEquals(2, changes.get(0).size());
-        assertSame(location, changes.get(0).get(0));
-        assertSame(state, changes.get(0).get(1));
+        assertEquals(2, changes.get(0).properties.size());
+        assertEquals("state", changes.get(0).properties.get(0).name);
+        assertEquals("locationId", changes.get(0).properties.get(1).name);
     }
 
     @Test
-    public void unchangedValuesPublishNothing() {
+    public void unchangedPropertiesPublishNothing() {
         PropertyContainer properties = new PropertyContainer();
-        Property<String> state = properties.property("state", "CLOSED");
-        List<List<Property<?>>> changes = new ArrayList<List<Property<?>>>();
+        properties.property("state", "CLOSED");
+        List<PropertyUpdate> changes =
+                new ArrayList<PropertyUpdate>();
         properties.CHANGED.subscribe(changes::add);
 
-        PropertyContainer.Update update = properties.update();
-        update.set(state, "CLOSED");
-        update.commit();
-        update.publish();
+        properties.update();
 
         assertTrue(changes.isEmpty());
     }
 
     @Test
-    public void finalStagedValueWinsForOneProperty() {
+    public void syncAcceptsCurrentValuesWithoutPublishing() {
         PropertyContainer properties = new PropertyContainer();
-        Property<String> state = properties.property("state", "CLOSED");
+        Property<String> state =
+                properties.property("state", "CLOSED");
+        List<PropertyUpdate> changes =
+                new ArrayList<PropertyUpdate>();
+        properties.CHANGED.subscribe(changes::add);
 
-        PropertyContainer.Update update = properties.update();
-        update.set(state, "OPEN");
-        update.set(state, "CLOSED");
-        update.commit();
-        update.publish();
+        state.set("OPEN");
+        properties.sync();
+        properties.update();
 
-        assertEquals("CLOSED", state.value());
+        assertTrue(changes.isEmpty());
+        assertEquals("OPEN", state.get());
     }
 
-    @Test
-    public void rejectsForeignProperty() {
-        PropertyContainer first = new PropertyContainer();
-        PropertyContainer second = new PropertyContainer();
-        Property<String> state = first.property("state", "CLOSED");
-
-        try {
-            second.update().set(state, "OPEN");
-            fail("foreign property must be rejected");
-        } catch (IllegalArgumentException expected) {
-            assertFalse(expected.getMessage().isEmpty());
-        }
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsDuplicatePropertyName() {
+        PropertyContainer properties = new PropertyContainer();
+        properties.property("state", "CLOSED");
+        properties.property("state", "OPEN");
     }
 }

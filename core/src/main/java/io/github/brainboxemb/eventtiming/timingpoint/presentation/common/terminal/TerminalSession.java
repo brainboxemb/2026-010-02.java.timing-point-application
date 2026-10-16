@@ -13,7 +13,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationCo
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationalProblem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookTestControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
@@ -29,7 +28,6 @@ import java.io.Reader;
 import java.io.Writer;
 import java.util.HashSet;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
 
 /** Shared line-oriented command session used by local and remote terminal transports. */
@@ -806,7 +804,6 @@ public final class TerminalSession {
     private void showStatus(NodeId nodeId, PrintWriter output) {
         TimingNodeProxy timingNode = timingNode(nodeId);
         TimingNodeStatus status = timingNode.status();
-        Optional<OperationalProblem> problem = timingNode.operationalProblem();
 
         output.println("Timing node");
         output.println(
@@ -816,20 +813,9 @@ public final class TerminalSession {
                 "  State     : "
                         + status.state().name());
         output.println(
-                "  Operation : "
-                        + status.opState().name());
-        output.println(
                 "  Location  : "
                         + (status.hasLocation()
                                 ? status.locationId().value()
                                 : "-"));
-        if (problem.isPresent()) {
-            output.println(
-                    "  Problem   : "
-                            + problem.get().code.name());
-            output.println(
-                    "  Detail    : "
-                            + problem.get().message);
-        }
     }
 }

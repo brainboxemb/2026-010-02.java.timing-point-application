@@ -14,13 +14,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationalProblem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
-import java.util.Optional;
 import java.util.function.Consumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
@@ -55,7 +53,7 @@ public final class TimingNodeProxy {
     TimingNodeProxy(TimingNode timingNode) {
 
         checkArgument(timingNode != null, "timingNode must not be null");
-        this.timingNodeId = timingNode.timingNodeId();
+        this.timingNodeId = timingNode.nodeId();
         this.timingNode = timingNode;
         this.logBook = timingNode.logBook();
         if (!(logBook instanceof LogBookTestControl)) {
@@ -83,13 +81,7 @@ public final class TimingNodeProxy {
         return TimingNodeStatus.current(
                 timingNodeId,
                 timingNode.functionalState(),
-                timingNode.operationalState(),
                 timingNode.locationId());
-    }
-
-    /** Returns the current operational problem, if one is active. */
-    public Optional<OperationalProblem> operationalProblem() {
-        return timingNode.operationalProblem();
     }
 
     /**

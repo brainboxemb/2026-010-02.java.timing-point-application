@@ -31,7 +31,7 @@ final class TimingNodeProxyRegistry
         }
 
         for (TimingNode timingNode : timingNodes) {
-            NodeId nodeId = timingNode.timingNodeId();
+            NodeId nodeId = timingNode.nodeId();
             if (proxies.containsKey(nodeId)) {
                 throw new IllegalArgumentException(
                         "Duplicate TimingNode id "

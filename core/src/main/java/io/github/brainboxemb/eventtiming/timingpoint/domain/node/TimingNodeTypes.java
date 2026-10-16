@@ -25,59 +25,6 @@ public final class TimingNodeTypes {
         OPEN
     }
 
-    /** Operational health of a TimingNode, independent from functional state. */
-    public enum OperationalState {
-        /** Startup/recovery readiness is still being established. */
-        INIT,
-
-        /** Required TimingNode capabilities are operating normally. */
-        OK,
-
-        /** One or more required TimingNode capabilities have failed. */
-        ERROR
-    }
-
-    /** Error categories reported by {@link OperationalProblem}. */
-    public enum ErrorCode {
-        /** Existing persisted TimingData could not be loaded or validated at startup. */
-        TIMING_DATA_LOAD_FAILED,
-
-        /** A TimingData command failed while being committed to the LogBook. */
-        TIMING_DATA_COMMIT_FAILED,
-
-        /** LogBook work could not be queued for execution. */
-        LOGBOOK_UNAVAILABLE
-    }
-
-    /** Immutable detail for the current TimingNode operational problem. */
-    public static final class OperationalProblem {
-        public final ErrorCode code;
-        public final String message;
-
-        public OperationalProblem(ErrorCode code, String message) {
-            checkArgument(code != null, "code must not be null");
-            checkArgument(message != null && !message.trim().isEmpty(), "message must not be blank");
-            this.code = code;
-            this.message = message.trim();
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (this == other) return true;
-            if (!(other instanceof OperationalProblem)) return false;
-            OperationalProblem that = (OperationalProblem) other;
-            return code == that.code
-                    && message.equals(that.message);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = code.hashCode();
-            result = 31 * result + message.hashCode();
-            return result;
-        }
-    }
-
     /** Result of the idempotent TimingNode open operation. */
     public enum OpenResult {
         /** The operation changed the TimingNode to OPEN. */
