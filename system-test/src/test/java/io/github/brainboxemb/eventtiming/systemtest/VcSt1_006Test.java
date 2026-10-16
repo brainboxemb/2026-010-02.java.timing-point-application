@@ -96,7 +96,7 @@ public class VcSt1_006Test {
 
             Response open = http.post(
                     nodePath("/open"),
-                    "{\"locationId\":24}");
+                    "{\"locId\":24}");
             assertEquals(200, open.status());
             assertContains(open.body(), "\"result\":\"OPENED\"");
             assertLifecycleOpen(
@@ -156,7 +156,7 @@ public class VcSt1_006Test {
                     nodePath("/registration/revoke"),
                     "{"
                             + "\"recordType\":\"MAN_REG\","
-                            + "\"locationId\":24,"
+                            + "\"locId\":24,"
                             + "\"regId\":\"" + REGISTRATION_ID + "\","
                             + "\"time\":\"" + REGISTRATION_TIME + "\""
                             + "}");
@@ -190,7 +190,7 @@ public class VcSt1_006Test {
             String snapshot =
                     events.awaitEvent("STATUS_SNAPSHOT");
             assertContains(snapshot, "\"state\":\"CLOSED\"");
-            assertContains(snapshot, "\"locationId\":null");
+            assertContains(snapshot, "\"locId\":null");
             events.assertNoEvent(
                     "TIMING_DATA_COMMITTED",
                     500L);
@@ -329,7 +329,7 @@ public class VcSt1_006Test {
     private static String revokeBody() {
         return "{"
                 + "\"recordType\":\"AUTO_REG\","
-                + "\"locationId\":24,"
+                + "\"locId\":24,"
                 + "\"regId\":\"" + REGISTRATION_ID + "\","
                 + "\"time\":\"" + REGISTRATION_TIME + "\""
                 + "}";
