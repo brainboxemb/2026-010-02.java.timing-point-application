@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Hide internal software-component lifecycle behind a shared `LifecycleComponent` base: composition registers components directly with `ComponentLifecycleManager`, while component-specific activation/deactivation hooks are protected instead of public functional API.
+
 - Simplify TimingNode status to a Java-8 immutable data carrier: `Status` is always present and contains only public final `state` and `locationId`; LogBook recovery is separate readiness/error information and never defines OPEN/CLOSED. `ErrorStatus` is independent error data.
 
 - Simplify TimingNode operation-state handling: OPEN/CLOSED and current LocationId remain TimingNode-owned transient runtime state, persisted history is not replayed to reconstruct it, and one normal LogBook `NEW_DATA_ENTRY` fact enters TimingNode, which updates status, republishes `TIMING_DATA_COMMITTED`, then publishes `STATUS_CHANGED`; remove the two LogBook-specific before/after sequencing events.
