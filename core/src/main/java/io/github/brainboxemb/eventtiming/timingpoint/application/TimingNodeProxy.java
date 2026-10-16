@@ -16,9 +16,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationalProblem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
-import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyContainer;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
@@ -35,13 +33,6 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * typed TimingNode commands/queries and exposes node-scoped application events.</p>
  */
 public final class TimingNodeProxy {
-
-    /** TimingNode property changes mapped to the client-visible status. */
-    private static final EventInput<TimingNodeProxy, PropertyContainer.Change>
-            PROPERTIES_CHANGED =
-                    EventInput.of(
-                            (proxy, source) ->
-                                    source.subscribe(ignored -> proxy.publishStatus()));
 
     /** Registration record family supplied by a higher interpreting layer. */
     public enum RegistrationRecordType {
@@ -73,7 +64,7 @@ public final class TimingNodeProxy {
         }
         this.logBookTestControl = (LogBookTestControl) logBook;
         this.NEW_DATA_ENTRY = timingNode.TIMING_DATA_COMMITTED;
-        PROPERTIES_CHANGED.bind(this, timingNode.PROPERTIES_CHANGED);
+        timingNode.PROPERTIES.subscribe(ignored -> publishStatus());
     }
 
     /** Returns this node's ID. */
