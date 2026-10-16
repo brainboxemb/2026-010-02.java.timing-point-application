@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
@@ -13,6 +14,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.Se
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.List;
+import java.util.concurrent.RejectedExecutionException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -134,8 +136,10 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
 
     /**
      * Processes one command in LogBook order and returns its domain result.
+     *
+     * @throws OperationException when the ordered operation cannot return its normal result
      */
-    public <R> R process(LogBookCommand<R> command) {
+    public <R> R process(LogBookCommand<R> command) throws OperationException {
 
         checkArgument(command != null, "command must not be null");
         return dataLane.submitAndWait(() -> applyCommand(command), command.name());
@@ -147,8 +151,10 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
      * <p>The method follows Executor-style semantics: it returns after the
      * command is queued and propagates RejectedExecutionException immediately
      * when the bounded SerialLane cannot queue it.</p>
+     *
+     * @throws RejectedExecutionException when the Data Lane cannot queue the command
      */
-    public void execute(LogBookCommand<?> command) {
+    public void execute(LogBookCommand<?> command) throws RejectedExecutionException {
 
         checkArgument(command != null, "command must not be null");
         Runnable queuedCommand = () -> executeQueuedCommand(command);
@@ -158,8 +164,10 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     /**
      * Processes an ORDERED query and waits until earlier queued Data Lane work
      * has been processed.
+     *
+     * @throws OperationException when the ordered query cannot return its normal result
      */
-    public <R> R process(LogBookQuery<R> query) {
+    public <R> R process(LogBookQuery<R> query) throws OperationException {
 
         return process(query, LogBookQuery.ReadConsistency.ORDERED);
     }
@@ -167,8 +175,11 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     /**
      * Processes either the directly published CURRENT view or an ORDERED Data
      * Lane view, according to the requested consistency.
+     *
+     * @throws OperationException when the requested query cannot return its normal result
      */
-    public <R> R process(LogBookQuery<R> query, LogBookQuery.ReadConsistency consistency) {
+    public <R> R process(LogBookQuery<R> query, LogBookQuery.ReadConsistency consistency)
+            throws OperationException {
 
         checkArgument(query != null, "query must not be null");
         checkArgument(consistency != null, "consistency must not be null");
