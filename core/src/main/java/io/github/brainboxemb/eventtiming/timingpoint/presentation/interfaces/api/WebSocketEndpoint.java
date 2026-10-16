@@ -5,7 +5,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationalState;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 
@@ -162,16 +161,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
         broadcastStatus("STATUS_CHANGED");
     }
 
-    /** Broadcasts the complete status after operational health changes. */
-    private void onOperationalStateChanged(
-            OperationalState state) {
-        if (state == null) {
-            throw new IllegalArgumentException(
-                    "state must not be null");
-        }
-        broadcastStatus("STATUS_CHANGED");
-    }
-
     /**
      * Composition-wired application event callback.
      */
@@ -220,7 +209,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
     private void bindApplicationEvents() {
         for (TimingNodeProxy timingNode : presentationGateway.timingNodes()) {
             timingNode.STATUS_CHANGED.subscribe(this::onTimingNodeStatusChanged);
-            timingNode.OPERATIONAL_STATE_CHANGED.subscribe(this::onOperationalStateChanged);
             timingNode.NEW_DATA_ENTRY.subscribe(this::onTimingDataCommitted);
         }
         presentationGateway.configuration()
