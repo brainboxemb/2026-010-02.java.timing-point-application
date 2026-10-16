@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Simplify TimingNode current state back to functional OPEN/CLOSED plus LocationId. Remove the premature operational-health state/problem layer and keep lifecycle-history queue failures as LogBook diagnostics instead of a second TimingNode status model.
+
 - Store TimingNode functional state, operational state, LocationId and operational problem as separate generic `Property<T>` values in one `PropertyContainer`; subscribers receive one container change describing the properties changed by a committed update.
 
 - Define `TimingNodeStatus` as the four-value client status: node id, current location, OPEN/CLOSED state and INIT/OK/ERROR operational state. IF-03 maps these directly to compact `id`, `locId`, `state` and `opState` fields; problem details remain separate.
