@@ -235,14 +235,14 @@ public final class TimingNodeProxy {
         if (status instanceof ErrorStatus) {
             ErrorStatus error = (ErrorStatus) status;
             return TimingNodeStatus.error(
-                    error.timingNodeId(),
+                    timingNodeId,
                     error.code(),
                     error.message());
         }
 
         Status operational = (Status) status;
         return TimingNodeStatus.operational(
-                operational.timingNodeId(),
+                timingNodeId,
                 operational.state(),
                 operational.locationId());
     }
