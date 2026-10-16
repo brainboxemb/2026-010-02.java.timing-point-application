@@ -481,7 +481,7 @@ public class TagProcessorTest {
         processor.onTagObserved(
                 observation("TAG-001", -42, OBSERVED_AT));
 
-        Thread stopper = new Thread(processor::deactivate);
+        Thread stopper = new Thread(() -> LifecycleTestSupport.deactivate(processor));
         stopper.start();
         releaseBlocker.countDown();
         stopper.join(1000);
