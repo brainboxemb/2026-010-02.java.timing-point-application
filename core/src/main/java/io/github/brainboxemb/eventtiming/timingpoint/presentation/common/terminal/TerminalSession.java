@@ -12,7 +12,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationCo
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Problem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.ConsolePromptControl;
@@ -766,6 +765,17 @@ public final class TerminalSession {
         output.println(
                 "  Id        : "
                         + status.timingNodeId().value());
+        if (status.error()) {
+            output.println("  State     : ERROR");
+            output.println(
+                    "  Error     : "
+                            + status.errorCode().name());
+            output.println(
+                    "  Detail    : "
+                            + status.errorMessage());
+            return;
+        }
+
         output.println(
                 "  State     : "
                         + status.state().name());
@@ -774,15 +784,5 @@ public final class TerminalSession {
                         + (status.hasLocation()
                                 ? status.locationId().value()
                                 : "-"));
-        for (Problem problem : status.problems()) {
-            output.println(
-                    "  Problem   : "
-                            + problem.severity().name()
-                            + " "
-                            + problem.code().name());
-            output.println(
-                    "  Detail    : "
-                            + problem.message());
-        }
     }
 }
