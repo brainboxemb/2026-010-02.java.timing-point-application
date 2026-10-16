@@ -257,7 +257,7 @@ public final class TimingNode extends LifecycleComponent {
      * Adds one test automatic registration with an explicitly supplied effective time.
      *
      * <p>This call blocks until the LogBook Data Lane has committed the record,
-     * rejected it because the node is not OPEN, or the operation fails. Custom
+     * rejected it because the node is not OPEN, or the operation fails. Test
      * registrations always use {@code TagSource.API}; {@code registrationTimeSource}
      * records whether the supplied time came from the caller or this node's TimeSource.</p>
      *
