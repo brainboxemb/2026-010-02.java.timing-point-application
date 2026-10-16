@@ -96,7 +96,7 @@ public class VcSt1_002Test {
             String initialSnapshot = events.awaitEvent("STATUS_SNAPSHOT");
             assertContains(initialSnapshot, "\"id\":\"" + NODE_ID + "\"");
             assertContains(initialSnapshot, "\"locationId\":null");
-            assertContains(initialSnapshot, "\"functionalState\":\"CLOSED\"");
+            assertContains(initialSnapshot, "\"state\":\"CLOSED\"");
 
             Response capabilities = http.get("/api/v1/capabilities");
             assertEquals(
@@ -120,7 +120,7 @@ public class VcSt1_002Test {
 
             String openedEvent = events.awaitEvent("STATUS_CHANGED");
             assertContains(openedEvent, "\"locationId\":24");
-            assertContains(openedEvent, "\"functionalState\":\"OPEN\"");
+            assertContains(openedEvent, "\"state\":\"OPEN\"");
 
             Response registration = http.post(
                     "/api/v1/dev/node/" + NODE_ID + "/auto-reg",
@@ -155,7 +155,7 @@ public class VcSt1_002Test {
             assertLifecycle(closeCommitted, 3L, "CLOSE", 24);
 
             String closedEvent = events.awaitEvent("STATUS_CHANGED");
-            assertContains(closedEvent, "\"functionalState\":\"CLOSED\"");
+            assertContains(closedEvent, "\"state\":\"CLOSED\"");
             assertContains(closedEvent, "\"locationId\":24");
 
             events.closeQuietly();
@@ -165,7 +165,7 @@ public class VcSt1_002Test {
             String reconnectSnapshot =
                     reconnect.awaitEvent("STATUS_SNAPSHOT");
             assertContains(reconnectSnapshot, "\"id\":\"" + NODE_ID + "\"");
-            assertContains(reconnectSnapshot, "\"functionalState\":\"CLOSED\"");
+            assertContains(reconnectSnapshot, "\"state\":\"CLOSED\"");
             assertContains(reconnectSnapshot, "\"locationId\":24");
             reconnect.assertNoEvent("TIMING_DATA_COMMITTED", 750L);
 
@@ -201,7 +201,7 @@ public class VcSt1_002Test {
             String recoveredSnapshot =
                     events.awaitEvent("STATUS_SNAPSHOT");
             assertContains(recoveredSnapshot, "\"id\":\"" + NODE_ID + "\"");
-            assertContains(recoveredSnapshot, "\"functionalState\":\"CLOSED\"");
+            assertContains(recoveredSnapshot, "\"state\":\"CLOSED\"");
             assertContains(recoveredSnapshot, "\"locationId\":null");
             events.assertNoEvent("TIMING_DATA_COMMITTED", 750L);
 
