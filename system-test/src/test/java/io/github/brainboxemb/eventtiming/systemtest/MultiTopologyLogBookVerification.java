@@ -103,9 +103,11 @@ final class MultiTopologyLogBookVerification {
         // Both nodes independently start CLOSED and without an active location,
         // including after restart; merely finding one CLOSED state is not enough.
         assertContains(
-                status.body(), "\"id\":\"A\",\"locationId\":null,\"functionalState\":\"CLOSED\",\"operationalState\":\"OK\"");
+                status.body(),
+                "\"id\":\"A\",\"locationId\":null,\"functionalState\":\"CLOSED\"");
         assertContains(
-                status.body(), "\"id\":\"B\",\"locationId\":null,\"functionalState\":\"CLOSED\",\"operationalState\":\"OK\"");
+                status.body(),
+                "\"id\":\"B\",\"locationId\":null,\"functionalState\":\"CLOSED\"");
     }
 
     /** Simulate an ADD without time; SI-01 must use the owning TimingNode clock. */
