@@ -4,7 +4,7 @@
 
 - Simplify TimingNode status to a Java-8 immutable data carrier: `Status` is always present and contains only public final `state` and `locationId`; LogBook recovery is separate readiness/error information and never defines OPEN/CLOSED. `ErrorStatus` is independent error data.
 
-- Simplify TimingNode operation-state handling: OPEN/CLOSED and current LocationId remain TimingNode-owned transient runtime state, restart recovery intentionally starts CLOSED without reconstructing historical state, and one normal LogBook `NEW_DATA_ENTRY` fact enters TimingNode, which updates operation state, republishes `TIMING_DATA_COMMITTED`, then publishes `STATUS_CHANGED`; remove the two LogBook-specific before/after sequencing events.
+- Simplify TimingNode operation-state handling: OPEN/CLOSED and current LocationId remain TimingNode-owned transient runtime state, persisted history is not replayed to reconstruct it, and one normal LogBook `NEW_DATA_ENTRY` fact enters TimingNode, which updates status, republishes `TIMING_DATA_COMMITTED`, then publishes `STATUS_CHANGED`; remove the two LogBook-specific before/after sequencing events.
 
 - Expose concrete LogBook events as named `EventSource` ports so fixed composition wiring uses the same `INPUT.bind(component, SOURCE)` form as TagProcessor and other components; keep getter methods only where `LogBookAccessor` requires method dispatch.
 
