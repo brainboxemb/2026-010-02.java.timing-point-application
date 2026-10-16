@@ -65,9 +65,6 @@ public final class TimingNode extends LifecycleComponent {
     private final Object operationLock = new Object();
     private final Object stateLock = new Object();
 
-    /** True while this TimingNode is active and may accept functional commands. */
-    private volatile boolean active;
-
     /** Antenna observation input; internally consumed by the TagProcessor. */
     public static final EventInput<TimingNode, TagObservation> TAG_OBSERVATIONS =
             EventInput.of(
@@ -173,7 +170,7 @@ public final class TimingNode extends LifecycleComponent {
 
         checkArgument(locationId != null, "locationId must not be null");
         synchronized (operationLock) {
-            requireActive();
+            failIfInactive();
 
             if (functionalStateProp.get() == FunctionalState.OPEN) {
                 return OpenResult.ALREADY_OPEN;
@@ -299,14 +296,12 @@ public final class TimingNode extends LifecycleComponent {
     protected void onActivate() {
 
         lifecycle.activateAll();
-        active = true;
     }
 
     /** Deactivates all owned child components in reverse lifecycle order. */
     @Override
     protected void onDeactivate() {
 
-        active = false;
         lifecycle.deactivateAll();
         synchronized (stateLock) {
             functionalStateProp.set(FunctionalState.CLOSED);
@@ -362,10 +357,10 @@ public final class TimingNode extends LifecycleComponent {
         }
     }
 
-    /** Rejects functional commands only while the TimingNode itself is inactive. */
-    private void requireActive() {
+    /** Fails a functional command when this TimingNode is not active. */
+    private void failIfInactive() {
 
-        if (!active) {
+        if (!isActive()) {
             throw new OperationException(
                     OperationException.Reason.UNAVAILABLE,
                     "TimingNode " + timingNodeId.value() + " is not active");
