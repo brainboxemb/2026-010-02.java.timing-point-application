@@ -533,7 +533,7 @@ public class TimingNodeRegistrationTest {
 
         node.activate();
         try {
-            TimingNodeTypes.OperationStatus status = node.operationStatus();
+            TimingNodeTypes.Status status = node.status();
             assertEquals(TimingNodeTypes.State.CLOSED, status.state());
             assertFalse(status.hasLocation());
             assertFalse(
@@ -583,7 +583,7 @@ public class TimingNodeRegistrationTest {
         try {
             assertEquals(
                     TimingNodeTypes.State.CLOSED,
-                    node.operationStatus().state());
+                    node.status().state());
             assertTrue(node.errorStatus().isPresent());
             TimingNodeTypes.ErrorStatus status = node.errorStatus().get();
             assertEquals(
