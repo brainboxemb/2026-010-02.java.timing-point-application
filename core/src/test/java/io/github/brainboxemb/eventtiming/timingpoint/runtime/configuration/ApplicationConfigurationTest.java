@@ -7,6 +7,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.Configu
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.DynamicConfiguration;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -23,7 +24,7 @@ public class ApplicationConfigurationTest {
     public void startsWithResolvedValueAndNoOverride() {
         TagProcessingPolicy startup = TagProcessingPolicy.defaults();
         ApplicationConfiguration configuration =
-                ApplicationConfiguration.singleTimingNode(
+                applicationConfiguration(
                         new NodeId("A"),
                         startup);
 
@@ -46,7 +47,7 @@ public class ApplicationConfigurationTest {
                 startup.observationQueueCapacity());
 
         ApplicationConfiguration configuration =
-                ApplicationConfiguration.singleTimingNode(
+                applicationConfiguration(
                         new NodeId("A"),
                         startup);
         DynamicConfiguration<TagProcessingPolicy> tagProcessing =
@@ -96,7 +97,7 @@ public class ApplicationConfigurationTest {
                 startup.observationQueueCapacity() + 1);
 
         ApplicationConfiguration configuration =
-                ApplicationConfiguration.singleTimingNode(
+                applicationConfiguration(
                         new NodeId("A"),
                         startup);
         DynamicConfiguration<TagProcessingPolicy> tagProcessing =
@@ -117,7 +118,7 @@ public class ApplicationConfigurationTest {
     public void nullOverrideIsInvalidAndProducesNoEvent() {
         TagProcessingPolicy startup = TagProcessingPolicy.defaults();
         ApplicationConfiguration configuration =
-                ApplicationConfiguration.singleTimingNode(
+                applicationConfiguration(
                         new NodeId("A"),
                         startup);
         DynamicConfiguration<TagProcessingPolicy> tagProcessing =
@@ -138,7 +139,7 @@ public class ApplicationConfigurationTest {
     public void sameValueIsNoChangeAndProducesNoEvent() {
         TagProcessingPolicy startup = TagProcessingPolicy.defaults();
         ApplicationConfiguration configuration =
-                ApplicationConfiguration.singleTimingNode(
+                applicationConfiguration(
                         new NodeId("A"),
                         startup);
         DynamicConfiguration<TagProcessingPolicy> tagProcessing =
@@ -154,6 +155,16 @@ public class ApplicationConfigurationTest {
                 ConfigurationUpdateResult.NO_CHANGE,
                 tagProcessing.clearOverride());
         assertEquals(0, changes.get());
+    }
+
+    /** Creates one-node test configuration through the production map constructor. */
+    private static ApplicationConfiguration applicationConfiguration(
+            NodeId nodeId,
+            TagProcessingPolicy startupPolicy) {
+        return new ApplicationConfiguration(
+                Collections.singletonMap(
+                        nodeId,
+                        startupPolicy));
     }
 
     private static TagProcessingPolicy policy(

@@ -51,17 +51,6 @@ public final class ApplicationConfiguration {
         timingNodes = Collections.unmodifiableMap(nodes);
     }
 
-    public static ApplicationConfiguration singleTimingNode(
-            NodeId nodeId,
-            TagProcessingPolicy startupPolicy) {
-        if (nodeId == null) {
-            throw new IllegalArgumentException("nodeId must not be null");
-        }
-        Map<NodeId, TagProcessingPolicy> policies = new LinkedHashMap<>();
-        policies.put(nodeId, startupPolicy);
-        return new ApplicationConfiguration(policies);
-    }
-
     public Set<NodeId> timingNodeIds() {
         return timingNodes.keySet();
     }
@@ -78,10 +67,11 @@ public final class ApplicationConfiguration {
         return node;
     }
 
+    /** Reports whether a proposed runtime policy preserves fixed queue capacity. */
     private static boolean runtimeCompatible(
             TagProcessingPolicy startup,
-            TagProcessingPolicy candidate) {
+            TagProcessingPolicy proposedPolicy) {
         return startup.observationQueueCapacity()
-                == candidate.observationQueueCapacity();
+                == proposedPolicy.observationQueueCapacity();
     }
 }
