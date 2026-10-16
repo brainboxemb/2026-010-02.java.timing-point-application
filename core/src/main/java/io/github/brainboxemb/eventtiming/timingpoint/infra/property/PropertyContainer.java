@@ -1,31 +1,34 @@
 package io.github.brainboxemb.eventtiming.timingpoint.infra.property;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
- * Owns related current properties and publishes one event for each committed update.
+ * Owns related current properties and notifies subscribers when a property changes.
  *
- * <p>An owner stages values with {@link Update#set(Property, Object)}, commits them
- * together, finishes any owner-specific critical-section work, and then calls
- * {@link Update#publish()}. Subscribers therefore never need a separate event object
- * per property. The event identifies every property changed by that update.</p>
+ * <p>An owner stages one or more values, commits them together and publishes only
+ * after the complete update is current. Subscribers attach directly to this container
+ * and receive the changed {@link Property}.</p>
  */
-public final class PropertyContainer implements EventSource<PropertyContainer.Change> {
-    private final Event<Change> changedEvent = new Event<Change>();
+public final class PropertyContainer {
+    private static final Logger LOG = LoggerFactory.getLogger(PropertyContainer.class);
+
     private final List<Property<?>> properties = new ArrayList<Property<?>>();
+    private volatile List<Consumer<Property<?>>> subscribers =
+            Collections.<Consumer<Property<?>>>emptyList();
 
     /** Creates one property owned by this container. Property names are unique per container. */
     public synchronized <T> Property<T> property(String name, T initialValue) {
         if (name == null || name.trim().isEmpty()) {
             throw new IllegalArgumentException("property name must not be blank");
         }
+
         String normalized = name.trim();
         for (Property<?> property : properties) {
             if (property.name.equals(normalized)) {
@@ -43,37 +46,47 @@ public final class PropertyContainer implements EventSource<PropertyContainer.Ch
         return new Update(this);
     }
 
-    /** Subscribes to committed changes from this container. */
-    @Override
-    public boolean subscribe(Consumer<Change> listener) {
-        return changedEvent.subscribe(listener);
-    }
-
-    /** Immutable description of the properties changed by one committed update. */
-    public static final class Change {
-        public final List<Property<?>> properties;
-
-        private Change(List<Property<?>> properties) {
-            this.properties = Collections.unmodifiableList(
-                    new ArrayList<Property<?>>(properties));
+    /**
+     * Subscribes to property changes from this container.
+     *
+     * <p>Subscribers run synchronously after the complete update has been committed.
+     * The same subscriber is added at most once according to equals().</p>
+     */
+    public synchronized boolean subscribe(Consumer<Property<?>> subscriber) {
+        if (subscriber == null) {
+            throw new IllegalArgumentException("subscriber must not be null");
+        }
+        if (subscribers.contains(subscriber)) {
+            return false;
         }
 
-        /** Returns true when the named property changed in this update. */
-        public boolean contains(String propertyName) {
-            for (Property<?> property : properties) {
-                if (property.name.equals(propertyName)) {
-                    return true;
-                }
+        List<Consumer<Property<?>>> updated =
+                new ArrayList<Consumer<Property<?>>>(subscribers);
+        updated.add(subscriber);
+        subscribers = Collections.unmodifiableList(updated);
+        return true;
+    }
+
+    /** Publishes one already committed property change. */
+    private void publish(Property<?> property) {
+        for (Consumer<Property<?>> subscriber : subscribers) {
+            try {
+                subscriber.accept(property);
+            } catch (RuntimeException ex) {
+                LOG.warn(
+                        "Property subscriber {} failed while handling {}",
+                        subscriber.getClass().getName(),
+                        property.name,
+                        ex);
             }
-            return false;
         }
     }
 
     /**
-     * Stages one or more values, commits them together, then publishes one container event.
+     * Stages one or more values, commits them together, then publishes changed properties.
      *
      * <p>Commit and publication are deliberately separate. A component may need to keep
-     * its own short lock after the values become current but before downstream listeners
+     * its own short lock after the values become current but before downstream subscribers
      * are called. Values are not visible until {@link #commit()}.</p>
      */
     public static final class Update {
@@ -101,6 +114,7 @@ public final class PropertyContainer implements EventSource<PropertyContainer.Ch
                     return this;
                 }
             }
+
             proposed.add(new ProposedValue<T>(property, value));
             return this;
         }
@@ -119,11 +133,12 @@ public final class PropertyContainer implements EventSource<PropertyContainer.Ch
                     }
                 }
             }
+
             changed = changedProperties;
             committed = true;
         }
 
-        /** Publishes one change event after commit; unchanged updates emit nothing. */
+        /** Publishes each changed property after the complete update has been committed. */
         public void publish() {
             if (!committed) {
                 throw new IllegalStateException("property update must be committed before publish");
@@ -131,10 +146,10 @@ public final class PropertyContainer implements EventSource<PropertyContainer.Ch
             if (published) {
                 throw new IllegalStateException("property update is already published");
             }
-            published = true;
 
-            if (!changed.isEmpty()) {
-                owner.changedEvent.emit(new Change(changed));
+            published = true;
+            for (Property<?> property : changed) {
+                owner.publish(property);
             }
         }
     }
