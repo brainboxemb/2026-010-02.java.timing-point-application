@@ -598,10 +598,13 @@ public class TimingApplicationRuntimeTest {
         application.activate();
         try {
             assertEquals(TimingApplicationRuntime.State.ACTIVE, application.state());
-            TimingNodeStatus status =
-                    awaitStatus(
-                            application.presentationGateway()
-                                    .timingNode(new NodeId("A")));
+            TimingNodeProxy proxy =
+                    application.presentationGateway()
+                            .timingNode(new NodeId("A"));
+            await(
+                    () -> proxy.status().error(),
+                    1000L);
+            TimingNodeStatus status = proxy.status();
             assertTrue(status.error());
             assertEquals(
                     TimingNodeTypes.ErrorCode.TIMING_DATA_LOAD_FAILED,
