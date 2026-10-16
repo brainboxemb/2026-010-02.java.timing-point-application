@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.common.terminal;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingData.AutomaticTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
@@ -280,12 +281,10 @@ public final class TerminalSession {
 
         RegistrationResult result =
                 timingNode(nodeId)
-                        .applyAutomaticRegistration(
-                                TimingNodeProxy
-                                        .AutomaticRegistrationAction
-                                        .ADD,
+                        .addCustomAutomaticRegistration(
                                 new RegistrationId(arguments[1]),
-                                TimingTimestamp.parse(arguments[2]));
+                                TimingTimestamp.parse(arguments[2]),
+                                AutomaticTimeSource.API);
 
         if (result.committed()) {
             output.println(
