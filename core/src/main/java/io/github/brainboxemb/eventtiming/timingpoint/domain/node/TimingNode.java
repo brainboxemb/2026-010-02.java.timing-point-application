@@ -228,8 +228,7 @@ public final class TimingNode extends LifecycleComponent {
                     result = logBook.process(
                             LogBookCommands.commitNodeClose(status.locationId));
                 } catch (OperationException ex) {
-                    if (ex.reason() == OperationException.Reason.BUSY
-                            || ex.reason() == OperationException.Reason.UNAVAILABLE) {
+                    if (closeWasNotAccepted(ex)) {
                         setRegistrationsAllowed(true);
                     }
                     throw ex;
@@ -396,6 +395,13 @@ public final class TimingNode extends LifecycleComponent {
         synchronized (stateLock) {
             registrationsAllowed = allowed;
         }
+    }
+
+    /** Returns whether CLOSE was rejected before it entered the Data Lane. */
+    private static boolean closeWasNotAccepted(OperationException ex) {
+
+        return ex.reason() == OperationException.Reason.BUSY
+                || ex.reason() == OperationException.Reason.UNAVAILABLE;
     }
 
     /**
