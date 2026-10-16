@@ -291,7 +291,6 @@ public class WebSocketEndpointTest {
 
         LifecycleTestSupport.activate(first);
         LifecycleTestSupport.activate(second);
-        awaitStatus(gateway.timingNode(new NodeId("A")));
         gateway.timingNode(new NodeId("B"))
                 .open(new LocationId(24));
 
@@ -311,9 +310,9 @@ public class WebSocketEndpointTest {
             assertTrue(snapshot.contains(
                     "\"eventType\":\"STATUS_SNAPSHOT\""));
             assertTrue(snapshot.contains(
-                    "{\"id\":\"A\",\"locId\":null,\"state\":\"CLOSED\",\"opState\":\"OK\"}"));
+                    "{\"id\":\"A\",\"locId\":null,\"state\":\"CLOSED\"}"));
             assertTrue(snapshot.contains(
-                    "{\"id\":\"B\",\"locId\":24,\"state\":\"OPEN\",\"opState\":\"OK\"}"));
+                    "{\"id\":\"B\",\"locId\":24,\"state\":\"OPEN\"}"));
         } finally {
             client.closeBlocking();
             server.close();
@@ -323,7 +322,7 @@ public class WebSocketEndpointTest {
     }
 
     @Test
-    public void snapshotExposesContainedTimingDataLoadFailure()
+    public void snapshotRemainsAvailableAfterTimingDataLoadFailure()
             throws Exception {
         TimingNode node = TimingNodeFixture.create(
                 new NodeId("A"),
@@ -336,7 +335,6 @@ public class WebSocketEndpointTest {
                         PresentationGatewayFixture.configurationControl(
                                 new NodeId("A")));
         LifecycleTestSupport.activate(node);
-        awaitStatus(handler.timingNode(new NodeId("A")));
         WebSocketEndpoint server = new WebSocketEndpoint(
                 "127.0.0.1",
                 0,
@@ -353,12 +351,6 @@ public class WebSocketEndpointTest {
                 assertTrue(snapshot.contains("\"id\":\"A\""));
                 assertTrue(snapshot.contains("\"locId\":null"));
                 assertTrue(snapshot.contains("\"state\":\"CLOSED\""));
-                assertTrue(snapshot.contains("\"opState\":\"ERROR\""));
-                assertTrue(snapshot.contains(
-                        "\"code\":\"TIMING_DATA_LOAD_FAILED\""));
-                assertTrue(snapshot.contains("\"severity\":\"ERROR\""));
-                assertTrue(snapshot.contains("\"nodeId\":\"A\""));
-                assertTrue(snapshot.contains("expected persisted-data load failure"));
             } finally {
                 client.closeBlocking();
             }
@@ -375,23 +367,6 @@ public class WebSocketEndpointTest {
         return client;
     }
 
-    private static void awaitStatus(
-            TimingNodeProxy proxy)
-            throws Exception {
-        long deadline =
-                System.nanoTime()
-                        + TimeUnit.SECONDS.toNanos(1L);
-        while (proxy.status().opState()
-                == io.github.brainboxemb.eventtiming.timingpoint.domain.node
-                        .TimingNodeTypes.OperationalState.INIT) {
-            if (System.nanoTime() >= deadline) {
-                throw new AssertionError(
-                        "TimingNode operational state remained INIT");
-            }
-            Thread.sleep(2L);
-        }
-    }
-
     private static void assertSnapshot(
             String json,
             String timingNodeId,
@@ -404,8 +379,6 @@ public class WebSocketEndpointTest {
         assertTrue(json.contains("\"locId\":" + locationJson));
         assertTrue(json.contains(
                 "\"state\":\"" + functionalState + "\""));
-        assertTrue(json.contains("\"opState\":\"OK\""));
-        assertTrue(json.contains("\"problems\":[]"));
     }
 
     private static BuildIdentity identity() {

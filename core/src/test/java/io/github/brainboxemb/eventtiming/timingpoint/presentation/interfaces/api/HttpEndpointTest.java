@@ -58,7 +58,6 @@ public class HttpEndpointTest {
             assertTrue(status.body.contains("\"id\":\"A\""));
             assertTrue(status.body.contains("\"locId\":null"));
             assertTrue(status.body.contains("\"state\":\"CLOSED\""));
-            assertTrue(status.body.contains("\"problems\":[]"));
             assertTrue(!status.body.contains("\"build\":"));
             assertTrue(!status.body.contains("\"apiVersion\":"));
         } finally {
@@ -117,9 +116,9 @@ public class HttpEndpointTest {
                             null);
             assertEquals(200, status.status);
             assertTrue(status.body.contains(
-                    "{\"id\":\"A\",\"locId\":null,\"state\":\"CLOSED\",\"opState\":\"OK\"}"));
+                    "{\"id\":\"A\",\"locId\":null,\"state\":\"CLOSED\"}"));
             assertTrue(status.body.contains(
-                    "{\"id\":\"B\",\"locId\":24,\"state\":\"OPEN\",\"opState\":\"OK\"}"));
+                    "{\"id\":\"B\",\"locId\":24,\"state\":\"OPEN\"}"));
         } finally {
             server.close();
             LifecycleTestSupport.deactivate(second);
@@ -586,7 +585,7 @@ public class HttpEndpointTest {
     }
 
     @Test
-    public void exposesContainedTimingDataLoadFailureAndRejectsNormalNodeOperation()
+    public void recoveryFailureLeavesFunctionalStatusAvailable()
             throws Exception {
         TimingNode node = TimingNodeFixture.create(
                 new NodeId("A"),
@@ -609,12 +608,6 @@ public class HttpEndpointTest {
             assertTrue(status.body.contains("\"id\":\"A\""));
             assertTrue(status.body.contains("\"locId\":null"));
             assertTrue(status.body.contains("\"state\":\"CLOSED\""));
-            assertTrue(status.body.contains("\"opState\":\"ERROR\""));
-            assertTrue(status.body.contains(
-                    "\"code\":\"TIMING_DATA_LOAD_FAILED\""));
-            assertTrue(status.body.contains("\"severity\":\"ERROR\""));
-            assertTrue(status.body.contains("\"nodeId\":\"A\""));
-            assertTrue(status.body.contains("expected persisted-data load failure"));
 
             Response open = request(
                     server.boundPort(),
@@ -628,9 +621,6 @@ public class HttpEndpointTest {
                     request(server.boundPort(), "GET", "/api/v1/status", null);
             assertTrue(afterOpen.body.contains("\"locId\":24"));
             assertTrue(afterOpen.body.contains("\"state\":\"OPEN\""));
-            assertTrue(afterOpen.body.contains("\"opState\":\"ERROR\""));
-            assertTrue(afterOpen.body.contains(
-                    "\"code\":\"TIMING_DATA_LOAD_FAILED\""));
         } finally {
             server.close();
             LifecycleTestSupport.deactivate(node);

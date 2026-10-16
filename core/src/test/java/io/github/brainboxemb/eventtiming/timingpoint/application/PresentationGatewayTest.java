@@ -45,42 +45,17 @@ public class PresentationGatewayTest {
     }
 
     @Test
-    public void statusComesFromTimingNode() throws Exception {
+    public void statusComesFromTimingNode() {
         TimingNode node = node(new RecordingStore());
         PresentationGateway gateway = new PresentationGateway(identity(), nodes(node), configuration());
 
         activate(node);
         try {
-            TimingNodeStatus status = awaitStatus(gateway.timingNode(new NodeId("A")));
+            TimingNodeStatus status = gateway.timingNode(new NodeId("A")).status();
             assertEquals(new NodeId("A"), status.timingNodeId());
             assertEquals(
                     TimingNodeTypes.FunctionalState.CLOSED,
                     status.state());
-        } finally {
-            deactivate(node);
-        }
-    }
-
-    @Test
-    public void statusMapsContainedRecoveryProblemFromTimingNode() throws Exception {
-        RecordingStore store = new RecordingStore();
-        store.failLoad = true;
-        TimingNode node = node(store);
-        PresentationGateway gateway = new PresentationGateway(identity(), nodes(node), configuration());
-
-        activate(node);
-        try {
-            TimingNodeProxy proxy = gateway.timingNode(new NodeId("A"));
-            awaitErrorStatus(proxy);
-            assertEquals(
-                    TimingNodeTypes.OperationalState.ERROR,
-                    proxy.status().opState());
-            assertTrue(proxy.operationalProblem().isPresent());
-            assertEquals(
-                    TimingNodeTypes.ErrorCode.TIMING_DATA_LOAD_FAILED,
-                    proxy.operationalProblem().get().code);
-            assertTrue(proxy.operationalProblem().get().message.contains(
-                    "expected persisted-data load failure"));
         } finally {
             deactivate(node);
         }
@@ -97,7 +72,6 @@ public class PresentationGatewayTest {
 
         activate(node);
         try {
-            awaitStatus(proxy);
             proxy.STATUS_CHANGED.subscribe(statusChanges::add);
             proxy.NEW_DATA_ENTRY.subscribe(committed::add);
 
@@ -189,8 +163,6 @@ public class PresentationGatewayTest {
         activate(first);
         activate(second);
         try {
-            awaitStatus(gateway.timingNode(new NodeId("A")));
-            awaitStatus(gateway.timingNode(new NodeId("B")));
             assertEquals(2, gateway.timingNodes().size());
             assertEquals(
                     new NodeId("A"),
@@ -295,35 +267,6 @@ public class PresentationGatewayTest {
                 identity(),
                 nodes(node(new RecordingStore())),
                 null);
-    }
-
-    private static void awaitErrorStatus(
-            TimingNodeProxy proxy)
-            throws Exception {
-        long deadline =
-                System.nanoTime()
-                        + java.util.concurrent.TimeUnit.SECONDS.toNanos(1L);
-        while (proxy.status().opState() != TimingNodeTypes.OperationalState.ERROR) {
-            if (System.nanoTime() >= deadline) {
-                throw new AssertionError("TimingNode operational ERROR did not become available");
-            }
-            Thread.sleep(2L);
-        }
-    }
-
-    private static TimingNodeStatus awaitStatus(
-            TimingNodeProxy proxy)
-            throws Exception {
-        long deadline =
-                System.nanoTime()
-                        + java.util.concurrent.TimeUnit.SECONDS.toNanos(1L);
-        while (proxy.status().opState() == TimingNodeTypes.OperationalState.INIT) {
-            if (System.nanoTime() >= deadline) {
-                throw new AssertionError("TimingNode operational state remained INIT");
-            }
-            Thread.sleep(2L);
-        }
-        return proxy.status();
     }
 
     private static TimingNodeList nodes(

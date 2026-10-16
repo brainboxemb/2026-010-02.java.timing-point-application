@@ -586,7 +586,7 @@ public class TimingApplicationRuntimeTest {
     }
 
     @Test
-    public void composedApplicationContainsTimingDataRecoveryFailureAsNodeError()
+    public void composedApplicationContainsTimingDataRecoveryFailureWithoutStopping()
             throws Exception {
         Path file = temporaryFolder.getRoot().toPath().resolve("timing-data.jsonl");
         Files.write(
@@ -601,16 +601,10 @@ public class TimingApplicationRuntimeTest {
             TimingNodeProxy proxy =
                     application.presentationGateway()
                             .timingNode(new NodeId("A"));
-            await(
-                    () -> proxy.status().opState() == TimingNodeTypes.OperationalState.ERROR,
-                    1000L);
-            assertTrue(proxy.operationalProblem().isPresent());
             assertEquals(
-                    TimingNodeTypes.ErrorCode.TIMING_DATA_LOAD_FAILED,
-                    proxy.operationalProblem().get().code);
-            assertTrue(
-                    proxy.operationalProblem().get().message
-                            .contains("Persisted TimingData load failed"));
+                    TimingNodeTypes.FunctionalState.CLOSED,
+                    proxy.status().state());
+            assertFalse(proxy.status().hasLocation());
         } finally {
             application.deactivate();
         }

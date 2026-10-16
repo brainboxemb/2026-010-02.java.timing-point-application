@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.shell;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationalState;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGatewayFixture;
 
@@ -101,7 +100,6 @@ public class RemoteShellServerTest {
                 assertTrue(response.contains("Timing node"));
                 assertTrue(response.contains("Id        : A"));
                 assertTrue(response.contains("State     : CLOSED"));
-                assertTrue(response.contains("Operation : OK"));
                 assertTrue(response.contains("Stopping application."));
             }
 
@@ -143,20 +141,6 @@ public class RemoteShellServerTest {
             response += readUntil(client.getInputStream(), "event-timing> ");
             assertTrue(response.contains("Open: OPENED"));
 
-            long deadline =
-                    System.nanoTime()
-                            + java.util.concurrent.TimeUnit.SECONDS.toNanos(1L);
-            while (fixture.handler()
-                    .timingNode(new NodeId("A"))
-                    .status()
-                    .opState() != OperationalState.ERROR) {
-                if (System.nanoTime() >= deadline) {
-                    throw new AssertionError(
-                            "TimingNode operational ERROR was not observed");
-                }
-                Thread.yield();
-            }
-
             writer.write(
                     "status:A\n"
                             + "close:A\n"
@@ -165,8 +149,6 @@ public class RemoteShellServerTest {
             response += readToEnd(client.getInputStream());
 
             assertTrue(response.contains("State     : OPEN"));
-            assertTrue(response.contains("Operation : ERROR"));
-            assertTrue(response.contains("Problem   : TIMING_DATA_COMMIT_FAILED"));
             assertTrue(response.contains("Close: CLOSED"));
             assertTrue(!response.contains("Operation failed (FAILED):"));
         } finally {

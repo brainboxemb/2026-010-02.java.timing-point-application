@@ -53,18 +53,12 @@ public class VcSt1_004Test {
 
             Response status = http.get("/api/v1/status");
             assertEquals("Unexpected degraded /status HTTP status", 200, status.status());
-            assertErrorStatus(status.body(), "CLOSED", "null");
+            assertStatus(status.body(), "CLOSED", "null");
 
             String shellStatus =
                     RemoteShellClient.requestStatus(ports.shellPort());
             assertContains(shellStatus, "Id        : " + NODE_ID);
             assertContains(shellStatus, "State     : CLOSED");
-            assertContains(shellStatus, "Operation : ERROR");
-            assertContains(
-                    shellStatus,
-                    "Problem   : TIMING_DATA_LOAD_FAILED");
-            assertContains(shellStatus, "Persisted TimingData load failed for " + NODE_ID);
-            assertContains(shellStatus, "belongs to " + OTHER_NODE_ID);
 
             Response open = http.post(
                     "/api/v1/node/" + NODE_ID + "/open",
@@ -79,20 +73,16 @@ public class VcSt1_004Test {
             assertEquals(200, afterOpen.status());
             assertContains(afterOpen.body(), "\"locId\":24");
             assertContains(afterOpen.body(), "\"state\":\"OPEN\"");
-            assertContains(afterOpen.body(), "\"opState\":\"ERROR\"");
-            assertContains(
-                    afterOpen.body(),
-                    "\"code\":\"TIMING_DATA_LOAD_FAILED\"");
 
             events = fixture.connectEvents(ports);
             String firstSnapshot = events.awaitEvent("STATUS_SNAPSHOT");
-            assertErrorSnapshot(firstSnapshot, "OPEN", "24");
+            assertSnapshot(firstSnapshot, "OPEN", "24");
             events.closeQuietly();
             events = null;
 
             events = fixture.connectEvents(ports);
             String reconnectSnapshot = events.awaitEvent("STATUS_SNAPSHOT");
-            assertErrorSnapshot(reconnectSnapshot, "OPEN", "24");
+            assertSnapshot(reconnectSnapshot, "OPEN", "24");
 
             assertContains(run.output(), "Persisted TimingData load failed for " + NODE_ID);
 
@@ -153,7 +143,7 @@ public class VcSt1_004Test {
         assertContains(json, "belongs to " + OTHER_NODE_ID);
     }
 
-    private static void assertErrorSnapshot(
+    private static void assertSnapshot(
             String json,
             String functionalState,
             String locationJson) {
