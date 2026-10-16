@@ -190,8 +190,8 @@ public final class TimingNode extends LifecycleComponent {
             if (status.state == State.OPEN) {
                 result = OpenResult.ALREADY_OPEN;
             } else {
-                logBook.process(LogBookCommands.commitNodeOpen(locationId));
-                result = OpenResult.OPENED;
+                result = logBook.process(
+                        LogBookCommands.commitNodeOpen(locationId));
             }
             return result;
         }
@@ -220,13 +220,20 @@ public final class TimingNode extends LifecycleComponent {
                  */
                 blockAntennaRegistrationIngressForClose();
 
-                Runnable commitClose =
-                        () -> logBook.process(
-                                LogBookCommands.commitNodeClose(status.locationId));
-                SafeExecute.runOrRethrow(
-                        commitClose,
-                        this::restoreRegistrationIngressIfCloseWasNotAccepted);
-                result = CloseResult.CLOSED;
+                try {
+                    result = logBook.process(
+                            LogBookCommands.commitNodeClose(status.locationId));
+                } catch (OperationException ex) {
+                    if (ex.reason() == OperationException.Reason.BUSY
+                            || ex.reason() == OperationException.Reason.UNAVAILABLE) {
+                        synchronized (stateLock) {
+                            if (currentStatus.state == State.OPEN) {
+                                registrationsEnabled = true;
+                            }
+                        }
+                    }
+                    throw ex;
+                }
             }
             return result;
         }
@@ -409,39 +416,6 @@ public final class TimingNode extends LifecycleComponent {
 
         synchronized (stateLock) {
             registrationsEnabled = false;
-        }
-    }
-
-    /**
-     * Undoes the temporary CLOSE ingress gate only when CLOSE was not accepted.
-     *
-     * <p>{@link #close()} disables antenna registration ingress before submitting
-     * NODE_CLOSE so a concurrent TagProcessor callback cannot queue a registration
-     * behind the close. BUSY and UNAVAILABLE prove that NODE_CLOSE was not admitted,
-     * so the node is still OPEN and ingress can be restored.</p>
-     *
-     * <p>TIMEOUT and INTERRUPTED can occur after admission, and FAILED can occur
-     * after execution has started or even after durable persistence. Their final
-     * close outcome is therefore not safe to infer here. Ingress stays disabled
-     * rather than accepting new antenna registrations in an uncertain/degraded state.</p>
-     */
-    private void restoreRegistrationIngressIfCloseWasNotAccepted(RuntimeException failure) {
-
-        if (!(failure instanceof OperationException)) {
-            return;
-        }
-
-        OperationException.Reason reason =
-                ((OperationException) failure).reason();
-        if (reason != OperationException.Reason.BUSY
-                && reason != OperationException.Reason.UNAVAILABLE) {
-            return;
-        }
-
-        synchronized (stateLock) {
-            if (currentStatus.state == State.OPEN) {
-                registrationsEnabled = true;
-            }
         }
     }
 
