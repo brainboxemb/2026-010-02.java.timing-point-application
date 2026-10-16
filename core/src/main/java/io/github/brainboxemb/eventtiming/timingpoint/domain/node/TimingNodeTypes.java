@@ -152,6 +152,17 @@ public final class TimingNodeTypes {
             this.locationId = locationId;
         }
 
+        /** Creates OPEN status for the selected location. */
+        public static Status open(LocationId locationId) {
+            checkArgument(locationId != null, "locationId must not be null");
+            return new Status(State.OPEN, locationId);
+        }
+
+        /** Creates CLOSED status while optionally retaining the last location. */
+        public static Status closed(LocationId locationId) {
+            return new Status(State.CLOSED, locationId);
+        }
+
         @Override
         public boolean equals(Object other) {
             if (this == other) return true;
