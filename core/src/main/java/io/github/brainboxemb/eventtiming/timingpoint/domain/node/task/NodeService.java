@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.task;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
@@ -30,7 +31,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * event sources to this service; NodeService owns the internal handlers but has no
  * LogBook lifecycle or storage dependency of its own.</p>
  */
-public final class NodeService {
+public final class NodeService extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(NodeService.class);
     private static final long TASK_QUERY_TIMEOUT_MILLIS = 2000L;
 
@@ -69,7 +70,8 @@ public final class NodeService {
      * <p>Activation does not wait for LogBook data. Derived timing becomes
      * available only after transient startup history has rebuilt compact derived state.</p>
      */
-    public void activate() {
+    @Override
+    protected void onActivate() {
 
         taskLane.activate();
     }
@@ -77,7 +79,8 @@ public final class NodeService {
     /**
      * Stops Task Lane work and marks derived timing unavailable.
      */
-    public void deactivate() {
+    @Override
+    protected void onDeactivate() {
 
         taskLane.deactivate();
         state.markDerivedTimingUnavailable();
