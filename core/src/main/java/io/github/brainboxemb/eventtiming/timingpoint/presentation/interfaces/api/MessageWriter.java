@@ -8,7 +8,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationCo
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl.TimingNodeConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Problem;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 
 import java.nio.charset.StandardCharsets;
@@ -57,45 +56,38 @@ public final class MessageWriter {
             }
             firstNode = false;
 
+            String state = status.error()
+                    ? "ERROR"
+                    : status.state().name();
             String location = status.hasLocation()
-                    ? Integer.toString(
-                            status.locationId().value())
+                    ? Integer.toString(status.locationId().value())
                     : "null";
             nodes.append('{')
                     .append("\"id\":")
-                    .append(quote(
-                            status.timingNodeId().value()))
+                    .append(quote(status.timingNodeId().value()))
                     .append(',')
                     .append("\"locationId\":")
                     .append(location)
                     .append(',')
                     .append("\"state\":")
-                    .append(quote(
-                            status.state().name()))
+                    .append(quote(state))
                     .append('}');
 
-            for (Problem problem : status.problems()) {
+            if (status.error()) {
                 if (!firstProblem) {
                     problems.append(',');
                 }
                 firstProblem = false;
                 problems.append('{')
                         .append("\"code\":")
-                        .append(quote(
-                                problem.code().name()))
+                        .append(quote(status.errorCode().name()))
                         .append(',')
-                        .append("\"severity\":")
-                        .append(quote(
-                                problem.severity().name()))
-                        .append(',')
+                        .append("\"severity\":\"ERROR\",")
                         .append("\"nodeId\":")
-                        .append(quote(
-                                status.timingNodeId()
-                                        .value()))
+                        .append(quote(status.timingNodeId().value()))
                         .append(',')
                         .append("\"message\":")
-                        .append(quote(
-                                problem.message()))
+                        .append(quote(status.errorMessage()))
                         .append('}');
             }
         }
