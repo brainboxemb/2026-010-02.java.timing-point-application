@@ -69,30 +69,6 @@ public final class SafeExecute {
     }
 
     /**
-     * Calls one operation, lets the caller handle a selected runtime failure,
-     * then rethrows the same failure unchanged.
-     *
-     * <p>Unrelated runtime failures propagate without invoking the handler.</p>
-     */
-    public static <T, E extends RuntimeException> T callOrRethrow(
-            Supplier<T> operation,
-            Class<E> failureType,
-            Consumer<E> onFailure) {
-        checkArgument(operation != null, "operation must not be null");
-        checkArgument(failureType != null, "failureType must not be null");
-        checkArgument(onFailure != null, "onFailure must not be null");
-
-        try {
-            return operation.get();
-        } catch (RuntimeException ex) {
-            if (failureType.isInstance(ex)) {
-                onFailure.accept(failureType.cast(ex));
-            }
-            throw ex;
-        }
-    }
-
-    /**
      * Runs one operation, lets the caller handle any runtime failure, then rethrows it unchanged.
      *
      * <p>The failure handler owns component-specific cleanup or recovery. This
