@@ -10,6 +10,7 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ConfigurationUpdateResult;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
@@ -36,6 +37,8 @@ import java.util.concurrent.TimeUnit;
 import org.junit.After;
 import org.junit.Test;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.activate;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -99,7 +102,7 @@ public class TagProcessorTest {
                 metrics,
                 execution.lane);
 
-        processor.activate();
+        activate(processor);
         try {
             processor.onTagObserved(
                     observation("TAG-001", -42, OBSERVED_AT));
@@ -109,7 +112,7 @@ public class TagProcessorTest {
                     1L,
                     metrics.snapshot().unmapped());
         } finally {
-            processor.deactivate();
+            deactivate(processor);
         }
     }
 
@@ -139,9 +142,9 @@ public class TagProcessorTest {
             }
         });
 
-        node.activate();
+        activate(node);
         node.open(new LocationId(24));
-        processor.activate();
+        activate(processor);
         try {
             processor.onTagObserved(
                     observation("TAG-A", -60, OBSERVED_AT));
@@ -179,8 +182,8 @@ public class TagProcessorTest {
             assertEquals(2L, snapshot.mapped());
             assertEquals(1L, snapshot.closedBursts());
         } finally {
-            processor.deactivate();
-            node.deactivate();
+            deactivate(processor);
+            deactivate(node);
         }
     }
 
@@ -210,9 +213,9 @@ public class TagProcessorTest {
             }
         });
 
-        node.activate();
+        activate(node);
         node.open(new LocationId(24));
-        processor.activate();
+        activate(processor);
         try {
             processor.onTagObserved(
                     observation("TAG-A", -60, OBSERVED_AT));
@@ -241,8 +244,8 @@ public class TagProcessorTest {
             assertEquals(1L, snapshot.duplicates());
             assertEquals(2, store.appended.size());
         } finally {
-            processor.deactivate();
-            node.deactivate();
+            deactivate(processor);
+            deactivate(node);
         }
     }
 
@@ -268,7 +271,7 @@ public class TagProcessorTest {
                 .subscribe(
                         ignored -> registrationPublished.countDown());
 
-        processor.activate();
+        activate(processor);
         try {
             processor.onTagObserved(
                     observation("TAG-A", -60, OBSERVED_AT));
@@ -293,7 +296,7 @@ public class TagProcessorTest {
             assertEquals(1L, snapshot.duplicates());
             assertEquals(1L, snapshot.closedBursts());
         } finally {
-            processor.deactivate();
+            deactivate(processor);
         }
     }
 
@@ -327,9 +330,9 @@ public class TagProcessorTest {
             }
         });
 
-        node.activate();
+        activate(node);
         node.open(new LocationId(24));
-        processor.activate();
+        activate(processor);
         try {
             processor.onTagObserved(
                     observation("TAG-A", -50, OBSERVED_AT));
@@ -355,8 +358,8 @@ public class TagProcessorTest {
             assertTrue(committed.await(1, TimeUnit.SECONDS));
             assertEquals(2, store.appended.size());
         } finally {
-            processor.deactivate();
-            node.deactivate();
+            deactivate(processor);
+            deactivate(node);
         }
     }
 
@@ -379,7 +382,7 @@ public class TagProcessorTest {
                 new TagProcessingMetrics(),
                 execution.lane);
 
-        processor.activate();
+        activate(processor);
         try {
             processor.onTagObserved(
                     observation("TAG-001", -42, OBSERVED_AT));
@@ -409,7 +412,7 @@ public class TagProcessorTest {
                     observation("TAG-002", -41, OBSERVED_AT));
             awaitLane(execution.lane);
         } finally {
-            processor.deactivate();
+            deactivate(processor);
         }
     }
 
@@ -429,7 +432,7 @@ public class TagProcessorTest {
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
-        processor.activate();
+        activate(processor);
         try {
             execution.lane.execute(() -> {
                         blockerStarted.countDown();
@@ -447,7 +450,7 @@ public class TagProcessorTest {
                     metrics.snapshot().observationQueueFull());
         } finally {
             releaseBlocker.countDown();
-            processor.deactivate();
+            deactivate(processor);
         }
     }
 
@@ -469,7 +472,7 @@ public class TagProcessorTest {
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
-        processor.activate();
+        activate(processor);
         execution.lane.execute(() -> {
                     blockerStarted.countDown();
                     await(releaseBlocker);
@@ -479,7 +482,7 @@ public class TagProcessorTest {
         processor.onTagObserved(
                 observation("TAG-001", -42, OBSERVED_AT));
 
-        Thread stopper = new Thread(processor::deactivate);
+        Thread stopper = new Thread(() -> LifecycleTestSupport.deactivate(processor));
         stopper.start();
         releaseBlocker.countDown();
         stopper.join(1000);

@@ -6,7 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Reusable lifecycle base for an system Conductor.
+ * Reusable lifecycle base for a system Conductor.
  *
  * <p>The base owns only generic lifecycle mechanics:</p>
  *
@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory;
  * about TimingNode, AntennaManager, providers, tracked properties or SI-01
  * rules.</p>
  */
-public abstract class AbstractConductor {
+public abstract class AbstractConductor extends LifecycleComponent {
     private static final Logger LOG =
             LoggerFactory.getLogger(AbstractConductor.class);
 
@@ -47,12 +47,10 @@ public abstract class AbstractConductor {
      */
     protected final void registerComponent(
             String name,
-            Runnable activate,
-            Runnable deactivate) {
+            LifecycleComponent component) {
         componentLifecycle.register(
                 name,
-                activate,
-                deactivate);
+                component);
     }
 
     /**
@@ -73,7 +71,8 @@ public abstract class AbstractConductor {
      * active components before rethrowing the original failure. Cleanup failures
      * are attached as suppressed failures.</p>
      */
-    public final void activate() {
+    @Override
+    protected final void onActivate() {
         LOG.info(
                 "Starting coordinator");
 
@@ -100,7 +99,8 @@ public abstract class AbstractConductor {
      * <p>Both cleanup phases are attempted. When more than one phase fails, the
      * first failure remains primary and later failures are suppressed.</p>
      */
-    public final void deactivate() {
+    @Override
+    protected final void onDeactivate() {
         LOG.info(
                 "Stopping coordinator");
 

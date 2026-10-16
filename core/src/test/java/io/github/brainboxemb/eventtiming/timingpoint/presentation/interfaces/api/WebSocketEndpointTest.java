@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api;
 
+import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
@@ -280,8 +281,8 @@ public class WebSocketEndpointTest {
                                 new NodeId("A"),
                                 new NodeId("B")));
 
-        first.activate();
-        second.activate();
+        LifecycleTestSupport.activate(first);
+        LifecycleTestSupport.activate(second);
         awaitStatus(gateway.timingNode(new NodeId("A")));
         gateway.timingNode(new NodeId("B"))
                 .open(new LocationId(24));
@@ -308,8 +309,8 @@ public class WebSocketEndpointTest {
         } finally {
             client.closeBlocking();
             server.close();
-            second.deactivate();
-            first.deactivate();
+            LifecycleTestSupport.deactivate(second);
+            LifecycleTestSupport.deactivate(first);
         }
     }
 
@@ -326,7 +327,7 @@ public class WebSocketEndpointTest {
                         nodes(node),
                         PresentationGatewayFixture.configurationControl(
                                 new NodeId("A")));
-        node.activate();
+        LifecycleTestSupport.activate(node);
         awaitStatus(handler.timingNode(new NodeId("A")));
         WebSocketEndpoint server = new WebSocketEndpoint(
                 "127.0.0.1",
@@ -354,7 +355,7 @@ public class WebSocketEndpointTest {
             }
         } finally {
             server.close();
-            node.deactivate();
+            LifecycleTestSupport.deactivate(node);
         }
     }
 
@@ -439,13 +440,13 @@ public class WebSocketEndpointTest {
         }
 
         private void start() throws Exception {
-            node.activate();
+            LifecycleTestSupport.activate(node);
             awaitStatus(handler.timingNode(new NodeId("A")));
         }
 
         @Override
         public void close() {
-            node.deactivate();
+            LifecycleTestSupport.deactivate(node);
         }
     }
 

@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager;
 
+import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.Antenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
@@ -57,7 +58,7 @@ public class AntennaMultiplexTest {
         AntennaManager manager = manager(antennaSet, shared, 8, Duration.ofSeconds(1));
 
         try {
-            manager.activate();
+            LifecycleTestSupport.activate(manager);
             await(
                     manager::isReady,
                     1000L);
@@ -87,7 +88,7 @@ public class AntennaMultiplexTest {
                     calls.indexOf("B.initialize")
                             < calls.indexOf("A.start"));
         } finally {
-            manager.deactivate();
+            LifecycleTestSupport.deactivate(manager);
             shared.shutdownNow();
         }
     }
@@ -113,7 +114,7 @@ public class AntennaMultiplexTest {
         AntennaManager manager = manager(antennaSet, shared, 8, Duration.ofSeconds(1));
 
         try {
-            manager.activate();
+            LifecycleTestSupport.activate(manager);
             await(
                     manager::isReady,
                     1000L);
@@ -143,7 +144,7 @@ public class AntennaMultiplexTest {
                             && !secondPower.powered(),
                     1000L);
         } finally {
-            manager.deactivate();
+            LifecycleTestSupport.deactivate(manager);
             shared.shutdownNow();
         }
     }
@@ -165,7 +166,7 @@ public class AntennaMultiplexTest {
         AntennaManager manager = manager(antennaSet, shared, 8, Duration.ofSeconds(1));
 
         try {
-            manager.activate();
+            LifecycleTestSupport.activate(manager);
             await(
                     manager::isReady,
                     1000L);
@@ -192,7 +193,7 @@ public class AntennaMultiplexTest {
             assertFalse(
                     failed.inventoryRunning());
         } finally {
-            manager.deactivate();
+            LifecycleTestSupport.deactivate(manager);
             shared.shutdownNow();
         }
     }
@@ -214,7 +215,7 @@ public class AntennaMultiplexTest {
         AntennaManager manager = manager(antennaSet, shared, 8, Duration.ofSeconds(1));
 
         try {
-            manager.activate();
+            LifecycleTestSupport.activate(manager);
             await(
                     manager::isReady,
                     1000L);
@@ -247,7 +248,7 @@ public class AntennaMultiplexTest {
 
             first.clearFailure();
         } finally {
-            manager.deactivate();
+            LifecycleTestSupport.deactivate(manager);
             shared.shutdownNow();
         }
     }

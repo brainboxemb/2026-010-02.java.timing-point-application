@@ -5,6 +5,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventWithMetrics;
@@ -27,7 +28,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * {@link SerialLane} may share a Runtime-owned worker with other logical
  * lanes.</p>
  */
-public final class LogBook implements LogBookAccessor {
+public final class LogBook extends LifecycleComponent implements LogBookAccessor {
     private static final Logger LOG = LoggerFactory.getLogger(LogBook.class);
     public static final long DEFAULT_OPERATION_TIMEOUT_MILLIS = 2000L;
 
@@ -112,7 +113,8 @@ public final class LogBook implements LogBookAccessor {
      * <p>The call does not wait for file I/O. CURRENT recovery status remains
      * unavailable until that first ordered task has completed startup recovery.</p>
      */
-    public void activate() {
+    @Override
+    protected void onActivate() {
 
         dataLane.activate(this::loadPersistedData);
     }
@@ -123,7 +125,8 @@ public final class LogBook implements LogBookAccessor {
      * <p>Lane shutdown/drain semantics are owned by {@link SerialLane}; LogBook
      * does not implement a second shutdown queue.</p>
      */
-    public void deactivate() {
+    @Override
+    protected void onDeactivate() {
 
         dataLane.deactivate();
         recoveryView.clear();

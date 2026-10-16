@@ -36,6 +36,8 @@ import java.util.concurrent.TimeUnit;
 import org.junit.After;
 import org.junit.Test;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.activate;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -66,8 +68,8 @@ public class TimingSystemConductorTest {
                         newScheduledWorker("worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
                 TimingNodeList.builder().add(first).add(second).build(), manager.settings(), lane);
-        manager.activate();
-        conductor.activate();
+        activate(manager);
+        activate(conductor);
         try {
             first.open(new LocationId(24));
             await(antenna::inventoryRunning, 1000L);
@@ -80,8 +82,8 @@ public class TimingSystemConductorTest {
             second.close();
             await(() -> !antenna.inventoryRunning(), 1000L);
         } finally {
-            conductor.deactivate();
-            manager.deactivate();
+            deactivate(conductor);
+            deactivate(manager);
         }
     }
 
@@ -102,13 +104,13 @@ public class TimingSystemConductorTest {
                         TimingNodeList.of(node),
                         manager.settings(),
                         lane);
-        manager.activate();
+        activate(manager);
         final Throwable[] activationFailure = new Throwable[1];
         Thread activationCaller =
                 new Thread(
                         () -> {
                             try {
-                                conductor.activate();
+                                activate(conductor);
                             } catch (Throwable failure) {
                                 activationFailure[0] = failure;
                             }
@@ -141,9 +143,9 @@ public class TimingSystemConductorTest {
             persistence.releaseLoad.countDown();
             activationCaller.join(1000L);
             if (!activationCaller.isAlive()) {
-                conductor.deactivate();
+                deactivate(conductor);
             }
-            manager.deactivate();
+            deactivate(manager);
         }
     }
 
@@ -159,8 +161,8 @@ public class TimingSystemConductorTest {
                         newScheduledWorker("conductor-event-worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
                 TimingNodeList.of(node), manager.settings(), lane);
-        manager.activate();
-        conductor.activate();
+        activate(manager);
+        activate(conductor);
         CountDownLatch started = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         try {
@@ -178,8 +180,8 @@ public class TimingSystemConductorTest {
             await(antenna::inventoryRunning, 1000L);
         } finally {
             release.countDown();
-            conductor.deactivate();
-            manager.deactivate();
+            deactivate(conductor);
+            deactivate(manager);
         }
     }
 
@@ -195,8 +197,8 @@ public class TimingSystemConductorTest {
                         newScheduledWorker("coalesce-worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
                 TimingNodeList.of(node), manager.settings(), lane);
-        manager.activate();
-        conductor.activate();
+        activate(manager);
+        activate(conductor);
         CountDownLatch started = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         try {
@@ -221,8 +223,8 @@ public class TimingSystemConductorTest {
                     manager.settings().revision());
         } finally {
             release.countDown();
-            conductor.deactivate();
-            manager.deactivate();
+            deactivate(conductor);
+            deactivate(manager);
         }
     }
 

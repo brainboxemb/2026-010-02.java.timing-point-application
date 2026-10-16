@@ -8,6 +8,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnl
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -33,7 +34,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * this processor. A completed passage is published as a {@link NewRegistration};
  * TagProcessor does not know where that registration is stored.</p>
  */
-public final class TagProcessor {
+public final class TagProcessor extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(TagProcessor.class);
 
     private enum State {
@@ -106,7 +107,8 @@ public final class TagProcessor {
     /**
      * Starts the TagProcessor lane and allows antenna observations to be queued.
      */
-    public void activate() {
+    @Override
+    protected void onActivate() {
         synchronized (lifecycleLock) {
             checkState(state != State.ACTIVE, "TagProcessor is already active");
             lane.start();
@@ -118,7 +120,8 @@ public final class TagProcessor {
      * Stops new observation intake, drains already queued local observations
      * when possible, and closes the TagProcessor lane.
      */
-    public void deactivate() {
+    @Override
+    protected void onDeactivate() {
         synchronized (lifecycleLock) {
             if (state == State.INACTIVE) {
                 return;

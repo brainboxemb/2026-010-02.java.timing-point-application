@@ -10,6 +10,8 @@ import java.util.concurrent.Executors;
 
 import org.junit.Test;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.activate;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.fail;
@@ -35,8 +37,8 @@ public class AbstractConductorTest {
                         null);
 
         try {
-            conductor.activate();
-            conductor.deactivate();
+            activate(conductor);
+            deactivate(conductor);
 
             assertEquals(
                     Arrays.asList(
@@ -75,7 +77,7 @@ public class AbstractConductorTest {
 
         try {
             try {
-                conductor.activate();
+                activate(conductor);
                 fail("expected activation failure");
             } catch (RuntimeException expected) {
                 assertSame(
@@ -97,6 +99,24 @@ public class AbstractConductorTest {
         }
     }
 
+    private static final class RecordingComponent extends LifecycleComponent {
+        private final List<String> calls;
+
+        private RecordingComponent(List<String> calls) {
+            this.calls = calls;
+        }
+
+        @Override
+        protected void onActivate() {
+            calls.add("component.activate");
+        }
+
+        @Override
+        protected void onDeactivate() {
+            calls.add("component.deactivate");
+        }
+    }
+
     private static final class TestConductor
             extends AbstractConductor {
         private final List<String> calls;
@@ -112,10 +132,7 @@ public class AbstractConductorTest {
 
             registerComponent(
                     "test-component",
-                    () -> calls.add(
-                            "component.activate"),
-                    () -> calls.add(
-                            "component.deactivate"));
+                    new RecordingComponent(calls));
         }
 
         @Override

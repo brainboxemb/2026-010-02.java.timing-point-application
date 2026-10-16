@@ -21,12 +21,10 @@ public class ComponentLifecycleManagerTest {
 
         lifecycle.register(
                 "first",
-                () -> calls.add("first.activate"),
-                () -> calls.add("first.deactivate"));
+                new TestComponent(calls, "first", null));
         lifecycle.register(
                 "second",
-                () -> calls.add("second.activate"),
-                () -> calls.add("second.deactivate"));
+                new TestComponent(calls, "second", null));
 
         lifecycle.activateAll();
         lifecycle.deactivateAll();
@@ -41,16 +39,13 @@ public class ComponentLifecycleManagerTest {
     }
 
     @Test
-    public void registersConcreteComponentWithoutReflectionOrLifecycleInterface() {
+    public void registersLifecycleComponentWithoutPublicLifecycleMethods() {
         List<String> calls = new ArrayList<String>();
-        TestComponent component = new TestComponent(calls);
+        TestComponent component = new TestComponent(calls, "", null);
         ComponentLifecycleManager lifecycle =
                 new ComponentLifecycleManager();
 
-        lifecycle.register(
-                component,
-                TestComponent::activate,
-                TestComponent::deactivate);
+        lifecycle.register(component);
 
         lifecycle.activateAll();
         lifecycle.deactivateAll();
@@ -67,7 +62,9 @@ public class ComponentLifecycleManagerTest {
         List<String> calls = new ArrayList<String>();
         ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
 
-        lifecycle.register("component", () -> calls.add("activate"), () -> calls.add("deactivate"));
+        lifecycle.register(
+                "component",
+                new TestComponent(calls, "", null));
 
         lifecycle.activateAll();
         lifecycle.deactivateAll();
@@ -89,15 +86,10 @@ public class ComponentLifecycleManagerTest {
 
         lifecycle.register(
                 "first",
-                () -> calls.add("first.activate"),
-                () -> calls.add("first.deactivate"));
+                new TestComponent(calls, "first", null));
         lifecycle.register(
                 "second",
-                () -> {
-                    calls.add("second.activate");
-                    throw failure;
-                },
-                () -> calls.add("second.deactivate"));
+                new TestComponent(calls, "second", failure));
 
         try {
             lifecycle.activateAll();
@@ -121,19 +113,37 @@ public class ComponentLifecycleManagerTest {
                 calls.size());
     }
 
-    private static final class TestComponent {
+    private static final class TestComponent extends LifecycleComponent {
         private final List<String> calls;
+        private final String prefix;
+        private final RuntimeException activationFailure;
 
-        private TestComponent(List<String> calls) {
+        private TestComponent(
+                List<String> calls,
+                String prefix,
+                RuntimeException activationFailure) {
             this.calls = calls;
+            this.prefix = prefix;
+            this.activationFailure = activationFailure;
         }
 
-        private void activate() {
-            calls.add("activate");
+        @Override
+        protected void onActivate() {
+            calls.add(label("activate"));
+            if (activationFailure != null) {
+                throw activationFailure;
+            }
         }
 
-        private void deactivate() {
-            calls.add("deactivate");
+        @Override
+        protected void onDeactivate() {
+            calls.add(label("deactivate"));
+        }
+
+        private String label(String action) {
+            return prefix.isEmpty()
+                    ? action
+                    : prefix + "." + action;
         }
     }
 }

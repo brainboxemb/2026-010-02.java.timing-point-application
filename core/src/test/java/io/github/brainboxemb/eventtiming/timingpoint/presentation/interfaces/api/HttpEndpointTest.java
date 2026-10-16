@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api;
 
+import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
@@ -87,8 +88,8 @@ public class HttpEndpointTest {
                                 new NodeId("A"),
                                 new NodeId("B")));
 
-        first.activate();
-        second.activate();
+        LifecycleTestSupport.activate(first);
+        LifecycleTestSupport.activate(second);
         HttpEndpoint server =
                 new HttpEndpoint(
                         "127.0.0.1",
@@ -121,8 +122,8 @@ public class HttpEndpointTest {
                     "{\"id\":\"B\",\"locationId\":24,\"state\":\"OPEN\"}"));
         } finally {
             server.close();
-            second.deactivate();
-            first.deactivate();
+            LifecycleTestSupport.deactivate(second);
+            LifecycleTestSupport.deactivate(first);
         }
     }
 
@@ -597,7 +598,7 @@ public class HttpEndpointTest {
                         nodes(node),
                         PresentationGatewayFixture.configurationControl(
                                 new NodeId("A")));
-        node.activate();
+        LifecycleTestSupport.activate(node);
         HttpEndpoint server = new HttpEndpoint("127.0.0.1", 0, handler);
         server.start();
 
@@ -628,7 +629,7 @@ public class HttpEndpointTest {
             assertTrue(unchanged.body.contains("\"state\":\"ERROR\""));
         } finally {
             server.close();
-            node.deactivate();
+            LifecycleTestSupport.deactivate(node);
         }
     }
 
@@ -764,12 +765,12 @@ public class HttpEndpointTest {
         }
 
         private void start() {
-            node.activate();
+            LifecycleTestSupport.activate(node);
         }
 
         @Override
         public void close() {
-            node.deactivate();
+            LifecycleTestSupport.deactivate(node);
         }
     }
 

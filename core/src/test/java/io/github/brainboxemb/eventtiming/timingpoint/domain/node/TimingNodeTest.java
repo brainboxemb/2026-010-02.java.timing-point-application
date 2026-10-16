@@ -27,6 +27,8 @@ import java.util.concurrent.TimeUnit;
 import org.junit.After;
 import org.junit.Test;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.activate;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -60,14 +62,14 @@ public class TimingNodeTest {
         NodeId id = new NodeId("A");
         TimingNode node = node(id);
 
-        node.activate();
+        activate(node);
         try {
             TimingNodeTypes.Status status = node.status();
 
             assertEquals(TimingNodeTypes.State.CLOSED, status.state);
             assertFalse(status.locationId != null);
         } finally {
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -79,7 +81,7 @@ public class TimingNodeTest {
 
         node.STATUS_CHANGED.subscribe(
                 status -> changes.add((TimingNodeTypes.Status) status));
-        node.activate();
+        activate(node);
         try {
             assertEquals(TimingNodeTypes.State.CLOSED, (node.status()).state);
 
@@ -96,7 +98,7 @@ public class TimingNodeTest {
             assertEquals(TimingNodeTypes.State.OPEN, changes.get(0).state);
             assertEquals(TimingNodeTypes.State.CLOSED, changes.get(1).state);
         } finally {
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -119,7 +121,7 @@ public class TimingNodeTest {
         Thread activationCaller = new Thread(
                 () -> {
                     try {
-                        node.activate();
+                        activate(node);
                     } catch (Throwable failure) {
                         activationFailure[0] = failure;
                     }
@@ -165,7 +167,7 @@ public class TimingNodeTest {
         } finally {
             persistence.releaseLoad.countDown();
             activationCaller.join(1000L);
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -180,7 +182,7 @@ public class TimingNodeTest {
         node.ERROR_STATUS_CHANGED.subscribe(
                 status -> initialStatusPublished.countDown());
 
-        node.activate();
+        activate(node);
         try {
             assertTrue(
                     "initial ERROR status was not published after failed persisted-data load",
@@ -196,7 +198,7 @@ public class TimingNodeTest {
                     current.code);
             assertTrue(current.message.contains("Persisted TimingData load failed"));
         } finally {
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -205,7 +207,7 @@ public class TimingNodeTest {
         TimingNode node = node(new NodeId("A"));
         LocationId openLocation = new LocationId(24);
 
-        node.activate();
+        activate(node);
         try {
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
@@ -223,7 +225,7 @@ public class TimingNodeTest {
             assertEquals(TimingNodeTypes.State.CLOSED, closedStatus.state);
             assertEquals(openLocation, closedStatus.locationId);
         } finally {
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -239,7 +241,7 @@ public class TimingNodeTest {
         List<TimingData> committedEvents = new ArrayList<TimingData>();
         node.logBook().newDataEntryEvent().subscribe(committedEvents::add);
 
-        node.activate();
+        activate(node);
         try {
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
@@ -259,7 +261,7 @@ public class TimingNodeTest {
             assertSame(persistence.records.get(0), committedEvents.get(0));
             assertSame(persistence.records.get(1), committedEvents.get(1));
         } finally {
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -277,7 +279,7 @@ public class TimingNodeTest {
                 new DefaultTimingDataFactory(),
                 () -> times[Math.min(call[0]++, times.length - 1)]);
 
-        node.activate();
+        activate(node);
         try {
             node.open(new LocationId(24));
 
@@ -291,7 +293,7 @@ public class TimingNodeTest {
                             "2026-10-02T08:00:00.134Z"),
                     open.recordedAt());
         } finally {
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -304,7 +306,7 @@ public class TimingNodeTest {
                 new DefaultTimingDataFactory(),
                 TimingNodeTest::now);
 
-        node.activate();
+        activate(node);
         try {
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
@@ -321,7 +323,7 @@ public class TimingNodeTest {
 
             assertEquals(2, persistence.records.size());
         } finally {
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -336,7 +338,7 @@ public class TimingNodeTest {
         List<TimingData> committedEvents = new ArrayList<TimingData>();
         node.logBook().newDataEntryEvent().subscribe(committedEvents::add);
 
-        node.activate();
+        activate(node);
         try {
             try {
                 node.open(new LocationId(24));
@@ -353,7 +355,7 @@ public class TimingNodeTest {
             assertFalse(status.locationId != null);
             assertTrue(committedEvents.isEmpty());
         } finally {
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -371,7 +373,7 @@ public class TimingNodeTest {
     public void repeatedStateCommandsReturnProcessedResults() {
         TimingNode node = node(new NodeId("A"));
 
-        node.activate();
+        activate(node);
         try {
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
@@ -388,7 +390,7 @@ public class TimingNodeTest {
             assertEquals(TimingNodeTypes.CloseResult.CLOSED, node.close());
             assertEquals(TimingNodeTypes.CloseResult.ALREADY_CLOSED, node.close());
         } finally {
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -402,7 +404,7 @@ public class TimingNodeTest {
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
-        node.activate();
+        activate(node);
         try {
             executor.submit(() -> {
                 blockerStarted.countDown();
@@ -431,7 +433,7 @@ public class TimingNodeTest {
             assertEquals(new LocationId(24), status.locationId);
         } finally {
             releaseBlocker.countDown();
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -445,7 +447,7 @@ public class TimingNodeTest {
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
-        node.activate();
+        activate(node);
         try {
             executor.submit(() -> {
                 blockerStarted.countDown();
@@ -489,7 +491,7 @@ public class TimingNodeTest {
             assertEquals(new LocationId(24), status.locationId);
         } finally {
             releaseBlocker.countDown();
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -505,7 +507,7 @@ public class TimingNodeTest {
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
         CountDownLatch producerReturned = new CountDownLatch(1);
-        node.activate();
+        activate(node);
         try {
             executor.submit(() -> {
                 blockerStarted.countDown();
@@ -538,7 +540,7 @@ public class TimingNodeTest {
                     (node.status()).locationId);
         } finally {
             releaseBlocker.countDown();
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -550,7 +552,7 @@ public class TimingNodeTest {
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
-        node.activate();
+        activate(node);
         try {
             executor.submit(() -> {
                 blockerStarted.countDown();
@@ -583,7 +585,7 @@ public class TimingNodeTest {
             assertEquals(TimingNodeTypes.State.OPEN, (node.status()).state);
         } finally {
             releaseBlocker.countDown();
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -595,7 +597,7 @@ public class TimingNodeTest {
         final TimingNodeTypes.Status[] timingDataEventCurrent =
                 new TimingNodeTypes.Status[1];
 
-        node.activate();
+        activate(node);
         try {
             node.STATUS_CHANGED.subscribe(
                     ignored -> statusEventCurrent[0] = node.status());
@@ -617,7 +619,7 @@ public class TimingNodeTest {
                     new LocationId(24),
                     statusEventCurrent[0].locationId);
         } finally {
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -625,7 +627,7 @@ public class TimingNodeTest {
     public void currentConsistencyRejectsOrderedOnlyLogBookQuery() {
         TimingNode node = node(new NodeId("A"));
 
-        node.activate();
+        activate(node);
         try {
             try {
                 node.logBook().process(
@@ -636,7 +638,7 @@ public class TimingNodeTest {
                 assertTrue(expected.getMessage().contains("CURRENT"));
             }
         } finally {
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -648,7 +650,7 @@ public class TimingNodeTest {
         final LogBookRecoveryStatus[] currentStatus =
                 new LogBookRecoveryStatus[1];
 
-        node.activate();
+        activate(node);
         try {
             node.open(new LocationId(24));
 
@@ -670,7 +672,7 @@ public class TimingNodeTest {
             assertFalse(orderedStatus[0].failed());
             assertFalse(currentStatus[0].failed());
         } finally {
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -681,9 +683,9 @@ public class TimingNodeTest {
         assertEquals(TimingNodeTypes.State.CLOSED, node.status().state);
         assertNull(node.status().locationId);
 
-        node.activate();
+        activate(node);
         assertEquals(TimingNodeTypes.State.CLOSED, node.status().state);
-        node.deactivate();
+        deactivate(node);
 
         assertEquals(TimingNodeTypes.State.CLOSED, node.status().state);
         assertNull(node.status().locationId);
@@ -693,12 +695,12 @@ public class TimingNodeTest {
     public void invalidSecondActivationDoesNotClearPublishedCurrentStatus() {
         TimingNode node = node(new NodeId("A"));
 
-        node.activate();
+        activate(node);
         try {
             TimingNodeTypes.Status before = node.status();
 
             try {
-                node.activate();
+                activate(node);
                 fail("expected duplicate activation failure");
             } catch (IllegalStateException expected) {
                 // Existing active lifecycle remains authoritative.
@@ -706,7 +708,7 @@ public class TimingNodeTest {
 
             assertSame(before, node.status());
         } finally {
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -723,14 +725,14 @@ public class TimingNodeTest {
         TimingNode node = node(new NodeId("A"), executor, 1000L);
 
         try {
-            node.activate();
+            activate(node);
             fail("expected activation failure");
         } catch (IllegalStateException expected) {
             assertTrue(
                     expected.getMessage()
                             .contains("Persisted TimingData load"));
         } finally {
-            node.deactivate();
+            deactivate(node);
         }
 
         assertEquals(TimingNodeTypes.State.CLOSED, node.status().state);

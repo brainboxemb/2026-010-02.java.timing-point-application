@@ -16,6 +16,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
@@ -52,7 +53,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
  * deliberately not replayed to reconstruct this status. A future persistent or
  * reconstructed status model is a separate architecture choice.</p>
  */
-public final class TimingNode {
+public final class TimingNode extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(TimingNode.class);
     private final NodeId timingNodeId;
     private final AntennaId antennaId;
@@ -130,9 +131,9 @@ public final class TimingNode {
         this.timeSource = timeSource;
         this.logBook = logBook;
         this.tagProcessor = tagProcessor;
-        lifecycle.register(nodeService, NodeService::activate, NodeService::deactivate);
-        lifecycle.register(logBook, LogBook::activate, LogBook::deactivate);
-        lifecycle.register(tagProcessor, TagProcessor::activate, TagProcessor::deactivate);
+        lifecycle.register(nodeService);
+        lifecycle.register(logBook);
+        lifecycle.register(tagProcessor);
 
         /*
          * LogBook publishes the durable commit fact once. TimingNode applies any
@@ -305,13 +306,15 @@ public final class TimingNode {
      * <p>The LogBook queues persisted-data recovery during activation; this call
      * returns without waiting for that recovery to finish.</p>
      */
-    public void activate() {
+    @Override
+    protected void onActivate() {
 
         lifecycle.activateAll();
     }
 
     /** Deactivates all owned child components in reverse lifecycle order. */
-    public void deactivate() {
+    @Override
+    protected void onDeactivate() {
 
         lifecycle.deactivateAll();
         synchronized (stateLock) {

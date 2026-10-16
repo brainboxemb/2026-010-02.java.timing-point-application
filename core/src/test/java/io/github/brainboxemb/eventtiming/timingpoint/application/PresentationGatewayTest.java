@@ -21,6 +21,8 @@ import java.util.List;
 
 import org.junit.Test;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.activate;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
@@ -47,7 +49,7 @@ public class PresentationGatewayTest {
         TimingNode node = node(new RecordingStore());
         PresentationGateway gateway = new PresentationGateway(identity(), nodes(node), configuration());
 
-        node.activate();
+        activate(node);
         try {
             TimingNodeStatus status = awaitStatus(gateway.timingNode(new NodeId("A")));
             assertEquals(new NodeId("A"), status.timingNodeId());
@@ -55,7 +57,7 @@ public class PresentationGatewayTest {
                     TimingNodeTypes.State.CLOSED,
                     status.state());
         } finally {
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -66,7 +68,7 @@ public class PresentationGatewayTest {
         TimingNode node = node(store);
         PresentationGateway gateway = new PresentationGateway(identity(), nodes(node), configuration());
 
-        node.activate();
+        activate(node);
         try {
             TimingNodeStatus status = awaitErrorStatus(gateway.timingNode(new NodeId("A")));
             assertTrue(status.error());
@@ -76,7 +78,7 @@ public class PresentationGatewayTest {
             assertTrue(status.errorMessage().contains(
                     "expected persisted-data load failure"));
         } finally {
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -89,7 +91,7 @@ public class PresentationGatewayTest {
         List<TimingNodeStatus> statusChanges = new ArrayList<>();
         List<TimingData> committed = new ArrayList<>();
 
-        node.activate();
+        activate(node);
         try {
             awaitStatus(proxy);
             proxy.STATUS_CHANGED.subscribe(statusChanges::add);
@@ -152,7 +154,7 @@ public class PresentationGatewayTest {
                     TimingNodeTypes.State.CLOSED,
                     statusChanges.get(1).state());
         } finally {
-            node.deactivate();
+            deactivate(node);
         }
     }
 
@@ -177,8 +179,8 @@ public class PresentationGatewayTest {
                                 new NodeId("A"),
                                 new NodeId("B")));
 
-        first.activate();
-        second.activate();
+        activate(first);
+        activate(second);
         try {
             awaitStatus(gateway.timingNode(new NodeId("A")));
             awaitStatus(gateway.timingNode(new NodeId("B")));
@@ -195,8 +197,8 @@ public class PresentationGatewayTest {
                     2,
                     gateway.timingNodeStatuses().size());
         } finally {
-            second.deactivate();
-            first.deactivate();
+            deactivate(second);
+            deactivate(first);
         }
     }
 

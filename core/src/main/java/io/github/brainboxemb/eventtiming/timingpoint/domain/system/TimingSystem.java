@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
@@ -15,7 +16,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * antenna-to-node bindings and lifecycle relationship between its components.
  * Runtime supplies already constructed components.</p>
  */
-public final class TimingSystem {
+public final class TimingSystem extends LifecycleComponent {
     private final String id;
     private final TimingNodeList timingNodes;
     private final AntennaManager antennaManager;
@@ -38,9 +39,9 @@ public final class TimingSystem {
 
         if (antennaManager != null) {
             bindAntennaObservations();
-            lifecycle.register(antennaManager, AntennaManager::activate, AntennaManager::deactivate);
+            lifecycle.register(antennaManager);
         }
-        lifecycle.register(timingSystemConductor, TimingSystemConductor::activate, TimingSystemConductor::deactivate);
+        lifecycle.register(timingSystemConductor);
     }
 
     /** Returns the configured TimingSystem identity. */
@@ -62,13 +63,15 @@ public final class TimingSystem {
     }
 
     /** Activates I/O before Domain coordination. */
-    public void activate() {
+    @Override
+    protected void onActivate() {
 
         lifecycle.activateAll();
     }
 
     /** Deactivates children in reverse activation order. */
-    public void deactivate() {
+    @Override
+    protected void onDeactivate() {
 
         lifecycle.deactivateAll();
     }

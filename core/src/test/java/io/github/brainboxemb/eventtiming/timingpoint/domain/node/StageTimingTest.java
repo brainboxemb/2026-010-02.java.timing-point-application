@@ -31,6 +31,8 @@ import java.util.List;
 
 import org.junit.Test;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.activate;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -259,7 +261,7 @@ public class StageTimingTest {
         TimingNode node =
                 components.node();
 
-        node.activate();
+        activate(node);
         try {
             stream.receive(
                     DefaultUpstreamData.raceData(
@@ -284,7 +286,7 @@ public class StageTimingTest {
             assertEquals(new TeamId("0001"), ranking.get(0).teamId());
             assertEquals(Duration.ofSeconds(20), ranking.get(0).elapsed());
         } finally {
-            node.deactivate();
+            deactivate(node);
         }
     }
 

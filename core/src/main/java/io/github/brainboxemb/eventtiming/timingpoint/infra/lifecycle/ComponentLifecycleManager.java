@@ -2,7 +2,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,10 +11,12 @@ import org.slf4j.LoggerFactory;
  * registered by an owning coordinator.
  *
  * <p>This helper owns no startup policy. The owning Application or TimingSystem
- * coordinator decides which components participate and when lifecycle execution is requested. This class
- * only preserves activation order, rolls back components that already activated
- * when a later activation fails, and deactivates active components in reverse
- * order.</p>
+ * coordinator decides which components participate and when lifecycle execution
+ * is requested. Internal lifecycle is driven through {@link LifecycleComponent}
+ * without exposing activate/deactivate methods in each component's public API.
+ * This class preserves activation order, rolls back components that already
+ * activated when a later activation fails, and deactivates active components in
+ * reverse order.</p>
  */
 public final class ComponentLifecycleManager {
     private static final Logger LOG =
@@ -29,16 +30,13 @@ public final class ComponentLifecycleManager {
 
     private static final class Component {
         private final String name;
-        private final Runnable activate;
-        private final Runnable deactivate;
+        private final LifecycleComponent lifecycleComponent;
 
         private Component(
                 String name,
-                Runnable activate,
-                Runnable deactivate) {
+                LifecycleComponent lifecycleComponent) {
             this.name = name;
-            this.activate = activate;
-            this.deactivate = deactivate;
+            this.lifecycleComponent = lifecycleComponent;
         }
     }
 
@@ -47,47 +45,29 @@ public final class ComponentLifecycleManager {
 
     private State state = State.NEW;
 
-    /**
-     * Registers one component using its concrete class name for diagnostics.
-     *
-     * <p>The lifecycle methods remain explicit compile-time method references.
-     * This avoids requiring a common lifecycle interface while also avoiding
-     * reflection-based discovery of activate/deactivate methods.</p>
-     */
-    public synchronized <T> void register(
-            T component,
-            Consumer<T> activate,
-            Consumer<T> deactivate) {
+    /** Registers one lifecycle component using its concrete class name for diagnostics. */
+    public synchronized void register(
+            LifecycleComponent component) {
+
         if (component == null) {
             throw new IllegalArgumentException(
                     "component must not be null");
         }
-        if (activate == null) {
-            throw new IllegalArgumentException(
-                    "activate must not be null");
-        }
-        if (deactivate == null) {
-            throw new IllegalArgumentException(
-                    "deactivate must not be null");
-        }
-
         register(
                 componentName(component),
-                () -> activate.accept(component),
-                () -> deactivate.accept(component));
+                component);
     }
 
     /**
-     * Registers one component in activation order with an explicit diagnostic
-     * name.
+     * Registers one lifecycle component with an explicit diagnostic name.
      *
-     * <p>Use this overload when the class name alone is not sufficiently
-     * descriptive, for example when several TimingNodes participate.</p>
+     * <p>Use this overload when several components of the same class participate,
+     * for example multiple TimingNodes.</p>
      */
     public synchronized void register(
             String name,
-            Runnable activate,
-            Runnable deactivate) {
+            LifecycleComponent component) {
+
         if (state != State.NEW) {
             throw new IllegalStateException(
                     "Components can only be registered before activation");
@@ -96,20 +76,15 @@ public final class ComponentLifecycleManager {
             throw new IllegalArgumentException(
                     "name must not be blank");
         }
-        if (activate == null) {
+        if (component == null) {
             throw new IllegalArgumentException(
-                    "activate must not be null");
-        }
-        if (deactivate == null) {
-            throw new IllegalArgumentException(
-                    "deactivate must not be null");
+                    "component must not be null");
         }
 
         components.add(
                 new Component(
                         name.trim(),
-                        activate,
-                        deactivate));
+                        component));
     }
 
     /**
@@ -130,7 +105,7 @@ public final class ComponentLifecycleManager {
                 LOG.info(
                         "Activating {}",
                         component.name);
-                component.activate.run();
+                component.lifecycleComponent.activateLifecycle();
                 activatedCount++;
                 LOG.info(
                         "{} activated",
@@ -174,7 +149,7 @@ public final class ComponentLifecycleManager {
                 LOG.info(
                         "Deactivating {}",
                         component.name);
-                component.deactivate.run();
+                component.lifecycleComponent.deactivateLifecycle();
                 LOG.info(
                         "{} deactivated",
                         component.name);
@@ -212,7 +187,7 @@ public final class ComponentLifecycleManager {
                 LOG.info(
                         "Rolling back {}",
                         component.name);
-                component.deactivate.run();
+                component.lifecycleComponent.deactivateLifecycle();
             } catch (RuntimeException ex) {
                 originalFailure.addSuppressed(ex);
             } catch (Error error) {
