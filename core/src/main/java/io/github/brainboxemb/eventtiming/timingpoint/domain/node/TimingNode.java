@@ -254,7 +254,7 @@ public final class TimingNode extends LifecycleComponent {
     }
 
     /**
-     * Adds one custom automatic registration with an explicitly supplied effective time.
+     * Adds one test automatic registration with an explicitly supplied effective time.
      *
      * <p>This call blocks until the LogBook Data Lane has committed the record,
      * rejected it because the node is not OPEN, or the operation fails. Custom
@@ -263,7 +263,7 @@ public final class TimingNode extends LifecycleComponent {
      *
      * @throws OperationException when the node operation cannot return its normal result
      */
-    public RegistrationResult addCustomAutomaticRegistration(
+    public RegistrationResult addTestAutomaticRegistration(
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
             TimingData.AutomaticTimeSource registrationTimeSource)
@@ -272,7 +272,7 @@ public final class TimingNode extends LifecycleComponent {
         checkArgument(
                 registrationTimeSource == TimingData.AutomaticTimeSource.API
                         || registrationTimeSource == TimingData.AutomaticTimeSource.NODE,
-                "custom automatic registration time source must be API or NODE");
+                "test automatic registration time source must be API or NODE");
 
         synchronized (operationLock) {
             Status status = currentStatus;
