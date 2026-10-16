@@ -38,8 +38,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
  *
  * <p>It owns the current OPEN/CLOSED state and LocationId, and coordinates its
  * LogBook, NodeService and TagProcessor. Runtime state is transient: a new or
- * restarted node starts CLOSED without a LocationId. LogBook history records the
- * transition but does not reconstruct current state.</p>
+ * restarted node starts CLOSED without a LocationId. LogBook stores the corresponding
+ * TimingData records but does not reconstruct current state from them.</p>
  */
 public final class TimingNode extends LifecycleComponent {
     /** Typed identity of the functional OPEN/CLOSED property. */
@@ -86,7 +86,7 @@ public final class TimingNode extends LifecycleComponent {
     /**
      * Committed TimingData source at the TimingNode boundary.
      *
-     * <p>This event reports durable LogBook facts only. Runtime OPEN/CLOSED
+     * <p>This event reports committed LogBook TimingData only. Runtime OPEN/CLOSED
      * status is owned and published separately by TimingNode open/close.</p>
      */
     public final EventSource<TimingData> TIMING_DATA_COMMITTED = timingDataCommittedEvent;
@@ -123,9 +123,9 @@ public final class TimingNode extends LifecycleComponent {
         lifecycle.register(tagProcessor);
 
         /*
-         * LogBook publishes durable TimingData facts once. TimingNode republishes
-         * those facts for node-level consumers; lifecycle status is owned by
-         * TimingNode open/close and does not depend on history persistence.
+         * LogBook publishes committed TimingData once. TimingNode republishes
+         * those records for node-level consumers; lifecycle status is owned by
+         * TimingNode open/close and does not depend on TimingData persistence.
          */
         LOGBOOK_TIMING_DATA_COMMITTED.bind(this, logBook.NEW_DATA_ENTRY);
         NodeService.INITIAL_TIMING_DATA.bind(nodeService, logBook.INITIAL_DATA_LOADED);
@@ -169,7 +169,7 @@ public final class TimingNode extends LifecycleComponent {
      * Opens this node at the requested location.
      *
      * <p>The OPEN runtime state is applied immediately at the node's registration
-     * admission boundary. The corresponding NODE_OPEN history record is submitted
+     * admission boundary. The corresponding NODE_OPEN TimingData record is submitted
      * to the LogBook without waiting for persistence.</p>
      *
      * @throws OperationException when the node is not available for opening
@@ -201,7 +201,7 @@ public final class TimingNode extends LifecycleComponent {
      *
      * <p>The CLOSED runtime state immediately stops admission of new registrations.
      * Antenna inventory may stop asynchronously afterwards. The corresponding
-     * NODE_CLOSE history record is submitted without waiting for persistence.</p>
+     * NODE_CLOSE TimingData record is submitted without waiting for persistence.</p>
      */
     public CloseResult close() {
 
@@ -326,11 +326,11 @@ public final class TimingNode extends LifecycleComponent {
     }
 
     /**
-     * Publishes one successfully committed TimingData fact.
+     * Publishes one successfully committed TimingData record.
      *
-     * <p>LogBook history is not authoritative for functional OPEN/CLOSED state.
-     * {@link #open(LocationId)} and {@link #close()} change functional state
-     * directly; this event reports only the separate durable history fact.</p>
+     * <p>Committed LogBook TimingData is not authoritative for functional OPEN/CLOSED
+     * state. {@link #open(LocationId)} and {@link #close()} change functional state
+     * directly; this event only republishes the committed TimingData record.</p>
      */
     private void onTimingDataCommitted(TimingData timingData) {
 
