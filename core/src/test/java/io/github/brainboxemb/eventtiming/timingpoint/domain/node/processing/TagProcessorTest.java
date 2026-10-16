@@ -543,7 +543,7 @@ public class TagProcessorTest {
                 .subscribe(
                         registration ->
                                 node.logBook().execute(
-                                        LogBookCommands.addAutomaticRegistration(
+                                        LogBookCommands.commitAntennaRegistration(
                                                 ((io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status) node.status()).locationId(),
                                                 registration.registrationId(),
                                                 registration.observedAt())));
