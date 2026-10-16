@@ -500,10 +500,12 @@ public class TimingNodeRegistrationTest {
 
         node.activate();
         try {
-            TimingNodeTypes.Status status = node.status();
+            TimingNodeTypes.Status status = (TimingNodeTypes.Status) node.status();
             assertEquals(TimingNodeTypes.State.CLOSED, status.state());
             assertFalse(status.hasLocation());
-            assertFalse(status.timingDataTailRepaired());
+            assertFalse(
+                    node.logBook().process(LogBookQueries.recoveryStatus())
+                            .repairedIncompleteTail());
             assertEquals(2, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
 
             assertEquals(
@@ -521,7 +523,7 @@ public class TimingNodeRegistrationTest {
     }
 
     @Test
-    public void startupReportsRepairedIncompleteTailInStatus() {
+    public void startupReportsRepairedIncompleteTailInRecoveryStatus() {
         RecordingStore store = new RecordingStore();
         store.loaded.add(loadedData(1L, 11));
         store.repairedIncompleteTail = true;
@@ -529,7 +531,9 @@ public class TimingNodeRegistrationTest {
 
         node.activate();
         try {
-            assertTrue(node.status().timingDataTailRepaired());
+            assertTrue(
+                    node.logBook().process(LogBookQueries.recoveryStatus())
+                            .repairedIncompleteTail());
             assertEquals(1, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
         } finally {
             node.deactivate();
@@ -544,17 +548,13 @@ public class TimingNodeRegistrationTest {
 
         node.activate();
         try {
-            TimingNodeTypes.Status status = node.status();
-            assertEquals(TimingNodeTypes.State.ERROR, status.state());
-            assertFalse(status.hasLocation());
-            assertEquals(1, status.problems().size());
+            assertTrue(node.status() instanceof TimingNodeTypes.ErrorStatus);
+            TimingNodeTypes.ErrorStatus status =
+                    (TimingNodeTypes.ErrorStatus) node.status();
             assertEquals(
-                    TimingNodeTypes.ProblemCode.TIMING_DATA_LOAD_FAILED,
-                    status.problems().get(0).code());
-            assertEquals(
-                    TimingNodeTypes.ProblemSeverity.ERROR,
-                    status.problems().get(0).severity());
-            assertTrue(status.problems().get(0).message().contains(
+                    TimingNodeTypes.ErrorCode.TIMING_DATA_LOAD_FAILED,
+                    status.code());
+            assertTrue(status.message().contains(
                     "expected persisted-data load failure"));
 
             try {
