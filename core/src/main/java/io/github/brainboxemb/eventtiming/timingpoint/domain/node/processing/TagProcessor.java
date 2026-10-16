@@ -170,7 +170,11 @@ public final class TagProcessor {
         return passageSnapshots;
     }
 
-    /** Selected registrations published synchronously from the TagProcessor lane. */
+    /**
+     * Returns the selected-registration event.
+     *
+     * <p>Listeners run synchronously on the TagProcessor lane and must return quickly.</p>
+     */
     public EventSource<NewRegistration> newRegistrationEvent() {
         return newRegistrationEvent;
     }
