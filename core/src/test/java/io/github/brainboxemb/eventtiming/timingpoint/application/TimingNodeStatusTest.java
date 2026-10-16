@@ -15,12 +15,14 @@ public class TimingNodeStatusTest {
         TimingNodeStatus status = TimingNodeStatus.current(
                 new NodeId("A"),
                 TimingNodeTypes.FunctionalState.OPEN,
+                TimingNodeTypes.OperationalState.OK,
                 new LocationId(24));
 
         assertEquals("A", status.timingNodeId().value());
         assertEquals(
                 TimingNodeTypes.FunctionalState.OPEN,
                 status.state());
+        assertEquals(TimingNodeTypes.OperationalState.OK, status.opState());
         assertEquals(new LocationId(24), status.locationId());
     }
 
@@ -29,6 +31,7 @@ public class TimingNodeStatusTest {
         TimingNodeStatus status = TimingNodeStatus.current(
                 new NodeId("A"),
                 TimingNodeTypes.FunctionalState.CLOSED,
+                TimingNodeTypes.OperationalState.INIT,
                 null);
 
         assertFalse(status.hasLocation());
@@ -39,6 +42,7 @@ public class TimingNodeStatusTest {
         TimingNodeStatus.current(
                 null,
                 TimingNodeTypes.FunctionalState.CLOSED,
+                TimingNodeTypes.OperationalState.INIT,
                 null);
     }
 }
