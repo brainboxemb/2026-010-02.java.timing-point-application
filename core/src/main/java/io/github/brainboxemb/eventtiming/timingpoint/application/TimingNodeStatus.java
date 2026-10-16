@@ -5,8 +5,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationalState;
 
-import java.util.Objects;
-
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
 
@@ -63,25 +61,6 @@ public final class TimingNodeStatus {
         return locationId;
     }
 
-    @Override
-    public boolean equals(Object other) {
-        if (this == other) {
-            return true;
-        }
-        if (!(other instanceof TimingNodeStatus)) {
-            return false;
-        }
 
-        TimingNodeStatus status = (TimingNodeStatus) other;
-        return timingNodeId.equals(status.timingNodeId)
-                && state == status.state
-                && opState == status.opState
-                && Objects.equals(locationId, status.locationId);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(timingNodeId, state, opState, locationId);
-    }
 }
 
