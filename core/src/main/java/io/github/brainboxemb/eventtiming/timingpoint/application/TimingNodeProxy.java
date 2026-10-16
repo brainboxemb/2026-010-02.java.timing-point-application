@@ -87,11 +87,11 @@ public final class TimingNodeProxy {
     public RegistrationResult addCustomAutomaticRegistration(
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
-            TimingData.AutomaticTimeSource timeSource) {
+            TimingData.AutomaticTimeSource registrationTimeSource) {
         return timingNode.addCustomAutomaticRegistration(
                 registrationId,
                 effectiveTime,
-                timeSource);
+                registrationTimeSource);
     }
 
     /**
