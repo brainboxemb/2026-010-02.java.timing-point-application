@@ -26,19 +26,14 @@ public final class TimingNodeTypes {
         OPEN
     }
 
-    /** Status returned by TimingNode: either {@link Status} or {@link ErrorStatus}. */
-    public interface NodeStatus {
-        // Variant type only; TimingNode identity belongs to the owning component.
-    }
-
     /** Error categories reported by {@link ErrorStatus}. */
     public enum ErrorCode {
         /** Existing persisted TimingData could not be loaded or validated at startup. */
         TIMING_DATA_LOAD_FAILED
     }
 
-    /** TimingNode failure status. */
-    public static final class ErrorStatus implements NodeStatus {
+    /** TimingNode error status, independent from its OPEN/CLOSED operation status. */
+    public static final class ErrorStatus {
         private final ErrorCode code;
         private final String message;
 
@@ -149,17 +144,12 @@ public final class TimingNodeTypes {
         }
     }
 
-    /**
-     * OPEN/CLOSED status reported by TimingNode.
-     *
-     * <p>Error information is represented separately by {@link ErrorStatus};
-     * this value can therefore only represent OPEN or CLOSED node state.</p>
-     */
-    public static final class Status implements NodeStatus {
+    /** OPEN/CLOSED operation status reported by TimingNode. */
+    public static final class OperationStatus {
         private final State state;
         private final LocationId locationId;
 
-        public Status(State state, LocationId locationId) {
+        public OperationStatus(State state, LocationId locationId) {
             checkArgument(state != null, "state must not be null");
             this.state = state;
             this.locationId = locationId;
@@ -180,8 +170,8 @@ public final class TimingNodeTypes {
         @Override
         public boolean equals(Object other) {
             if (this == other) return true;
-            if (!(other instanceof Status)) return false;
-            Status that = (Status) other;
+            if (!(other instanceof OperationStatus)) return false;
+            OperationStatus that = (OperationStatus) other;
             if (state != that.state) return false;
             return locationId == null ? that.locationId == null : locationId.equals(that.locationId);
         }
