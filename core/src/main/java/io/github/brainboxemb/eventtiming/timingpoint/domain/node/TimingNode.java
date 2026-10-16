@@ -451,11 +451,17 @@ public final class TimingNode extends LifecycleComponent {
     /** Changes operational state to OK and clears any current problem detail. */
     private void setOperationalHealthy() {
 
+        boolean changed = false;
         synchronized (stateLock) {
-            operationalState = OperationalState.OK;
-            operationalProblem = null;
+            if (operationalState == OperationalState.INIT) {
+                operationalState = OperationalState.OK;
+                operationalProblem = null;
+                changed = true;
+            }
         }
-        operationalStateChangedEvent.emit(OperationalState.OK);
+        if (changed) {
+            operationalStateChangedEvent.emit(OperationalState.OK);
+        }
     }
 
     /** Changes operational state to ERROR without changing functional state. */
