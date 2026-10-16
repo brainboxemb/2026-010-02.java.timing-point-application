@@ -92,7 +92,7 @@ public class VcSt1_006Test {
         try {
             assertContains(
                     events.awaitEvent("STATUS_SNAPSHOT"),
-                    "\"state\":\"CLOSED\"");
+                    "\"functionalState\":\"CLOSED\"");
 
             Response open = http.post(
                     nodePath("/open"),
@@ -104,7 +104,7 @@ public class VcSt1_006Test {
                     1L);
             assertContains(
                     events.awaitEvent("STATUS_CHANGED"),
-                    "\"state\":\"OPEN\"");
+                    "\"functionalState\":\"OPEN\"");
 
             Response registration = http.post(
                     "/api/v1/dev/node/" + NODE_ID + "/auto-reg",
@@ -189,7 +189,7 @@ public class VcSt1_006Test {
         try {
             String snapshot =
                     events.awaitEvent("STATUS_SNAPSHOT");
-            assertContains(snapshot, "\"state\":\"CLOSED\"");
+            assertContains(snapshot, "\"functionalState\":\"CLOSED\"");
             assertContains(snapshot, "\"locationId\":null");
             events.assertNoEvent(
                     "TIMING_DATA_COMMITTED",
