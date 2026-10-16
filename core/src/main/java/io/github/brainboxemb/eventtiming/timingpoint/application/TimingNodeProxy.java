@@ -53,7 +53,7 @@ public final class TimingNodeProxy {
     TimingNodeProxy(TimingNode timingNode) {
 
         checkArgument(timingNode != null, "timingNode must not be null");
-        this.timingNodeId = timingNode.timingNodeId();
+        this.timingNodeId = timingNode.nodeId();
         this.timingNode = timingNode;
         this.logBook = timingNode.logBook();
         if (!(logBook instanceof LogBookTestControl)) {
