@@ -61,8 +61,8 @@ public class VcSt1_004Test {
             assertContains(shellStatus, "State     : ERROR");
             assertContains(
                     shellStatus,
-                    "Problem   : ERROR TIMING_DATA_RECOVERY_FAILED");
-            assertContains(shellStatus, "TimingData recovery failed for " + NODE_ID);
+                    "Problem   : ERROR TIMING_DATA_LOAD_FAILED");
+            assertContains(shellStatus, "Persisted TimingData load failed for " + NODE_ID);
             assertContains(shellStatus, "belongs to " + OTHER_NODE_ID);
 
             Response open = http.post(
@@ -73,7 +73,7 @@ public class VcSt1_004Test {
                     503,
                     open.status());
             assertContains(open.body(), "\"code\":\"OPERATION_FAILED\"");
-            assertContains(open.body(), "TimingData recovery failed for " + NODE_ID);
+            assertContains(open.body(), "Persisted TimingData load failed for " + NODE_ID);
 
             Response afterRejectedOpen = http.get("/api/v1/status");
             assertEquals(200, afterRejectedOpen.status());
@@ -89,7 +89,7 @@ public class VcSt1_004Test {
             String reconnectSnapshot = events.awaitEvent("STATUS_SNAPSHOT");
             assertErrorSnapshot(reconnectSnapshot);
 
-            assertContains(run.output(), "TimingData recovery failed for " + NODE_ID);
+            assertContains(run.output(), "Persisted TimingData load failed for " + NODE_ID);
 
             fixture.shutdown(run, ports);
             evidence.verifyRuntimeLogging(run.output());
@@ -135,10 +135,10 @@ public class VcSt1_004Test {
         assertContains(json, "\"state\":\"ERROR\"");
         assertContains(
                 json,
-                "\"code\":\"TIMING_DATA_RECOVERY_FAILED\"");
+                "\"code\":\"TIMING_DATA_LOAD_FAILED\"");
         assertContains(json, "\"severity\":\"ERROR\"");
         assertContains(json, "\"nodeId\":\"" + NODE_ID + "\"");
-        assertContains(json, "TimingData recovery failed for " + NODE_ID);
+        assertContains(json, "Persisted TimingData load failed for " + NODE_ID);
         assertContains(json, "belongs to " + OTHER_NODE_ID);
     }
 
