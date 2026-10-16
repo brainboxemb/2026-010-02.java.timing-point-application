@@ -113,6 +113,29 @@ public class TimingNodeRegistrationTest {
     }
 
     @Test
+    public void customRegistrationRejectsObservationTimeSource() {
+        RecordingStore store = new RecordingStore();
+        TimingNode node = node(store);
+
+        node.activate();
+        try {
+            node.open(new LocationId(24));
+
+            try {
+                node.addCustomAutomaticRegistration(
+                        new RegistrationId("RT-A-0003"),
+                        EFFECTIVE_TIME,
+                        TimingData.AutomaticTimeSource.OBS);
+                fail("custom registration must reject OBS time source");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage().contains("API or NODE"));
+            }
+        } finally {
+            node.deactivate();
+        }
+    }
+
+    @Test
     public void registrationAddsNormalizeEffectiveTimeToCentisecond() {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
