@@ -98,6 +98,11 @@ public final class TimingNode extends LifecycleComponent {
             NodeService nodeService,
             TagProcessor tagProcessor) {
 
+        super(
+                () -> new OperationException(
+                        OperationException.Reason.UNAVAILABLE,
+                        "TimingNode " + logBook.timingNodeId().value() + " is not active"));
+
         checkArgument(antennaId != null, "antennaId must not be null");
         checkArgument(timeSource != null, "timeSource must not be null");
         checkArgument(logBook != null, "logBook must not be null");
@@ -340,16 +345,6 @@ public final class TimingNode extends LifecycleComponent {
     private void onTimingDataCommitted(TimingData timingData) {
 
         timingDataCommittedEvent.emit(timingData);
-    }
-
-    /** Fails a functional command when this TimingNode is not active. */
-    private void failIfInactive() {
-
-        if (!isActive()) {
-            throw new OperationException(
-                    OperationException.Reason.UNAVAILABLE,
-                    "TimingNode " + timingNodeId.value() + " is not active");
-        }
     }
 
     /**
