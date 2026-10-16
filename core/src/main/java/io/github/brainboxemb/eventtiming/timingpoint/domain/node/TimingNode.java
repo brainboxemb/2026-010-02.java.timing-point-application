@@ -300,11 +300,6 @@ public final class TimingNode {
      */
     public void activate() {
 
-        synchronized (stateLock) {
-            currentStatus = new Status(State.CLOSED, null);
-            currentErrorStatus = null;
-            registrationsEnabled = false;
-        }
         lifecycle.activateAll();
     }
 
