@@ -245,7 +245,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
      *
      * <p>Concrete composition uses {@link #NEW_DATA_ENTRY} directly.</p>
      */
-    public EventSource<TimingData> newDataEntryEventEvent() {
+    public EventSource<TimingData> newDataEntryEvent() {
 
         return NEW_DATA_ENTRY;
     }
