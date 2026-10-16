@@ -43,6 +43,7 @@ public class LogBookDataLaneTest {
             } catch (OperationException expected) {
                 assertEquals(OperationException.Reason.TIMEOUT, expected.reason());
                 assertTrue(expected.getMessage().contains("25 ms"));
+                assertTrue(expected.getMessage().contains("outcome is unknown"));
             }
         } finally {
             releaseBlocker.countDown();
@@ -76,6 +77,7 @@ public class LogBookDataLaneTest {
             } catch (OperationException expected) {
                 assertEquals(OperationException.Reason.TIMEOUT, expected.reason());
                 assertTrue(expected.getMessage().contains("25 ms"));
+                assertTrue(!expected.getMessage().contains("outcome is unknown"));
             }
         } finally {
             releaseBlocker.countDown();
