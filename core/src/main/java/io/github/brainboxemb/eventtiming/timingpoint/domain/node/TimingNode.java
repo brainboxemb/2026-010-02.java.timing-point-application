@@ -222,6 +222,11 @@ public final class TimingNode {
             TimingTimestamp effectiveTime,
             TimingData.AutomaticTimeSource registrationTimeSource) {
 
+        checkArgument(
+                registrationTimeSource == TimingData.AutomaticTimeSource.API
+                        || registrationTimeSource == TimingData.AutomaticTimeSource.NODE,
+                "custom automatic registration time source must be API or NODE");
+
         synchronized (operationLock) {
             Status status = requireOperationalStatus();
             if (status.state() != State.OPEN) {
