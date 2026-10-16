@@ -37,10 +37,25 @@ public final class LogBook implements LogBookAccessor {
     private final LogBookRecoveryView recoveryView;
     private final LogBookMetrics metrics;
 
-    private final EventWithMetrics<TimingData> newDataEntryEvent;
-    private final Event<TimingData> nodeOperationStateCommittedEvent = new Event<TimingData>();
-    private final Event<TimingData> nodeOperationStateCommitPublishedEvent = new Event<TimingData>();
-    private final Event<List<TimingData>> initialDataLoadedEvent = new Event<List<TimingData>>();
+    private final EventWithMetrics<TimingData> newDataEntry;
+    private final Event<TimingData> operationStateCommitted = new Event<TimingData>();
+    private final Event<TimingData> operationStateCommitPublished = new Event<TimingData>();
+    private final Event<List<TimingData>> initialDataLoaded = new Event<List<TimingData>>();
+
+    /** Completed startup-recovery source. */
+    public final EventSource<LogBookRecoveryStatus> RECOVERY_STATUS_CHANGED;
+
+    /** Post-commit TimingData source. */
+    public final EventSource<TimingData> NEW_DATA_ENTRY;
+
+    /** Transient startup-history source for one-time derived-state reconstruction. */
+    public final EventSource<List<TimingData>> INITIAL_DATA_LOADED = initialDataLoaded;
+
+    /** NODE_OPEN/NODE_CLOSE source emitted immediately after commit. */
+    public final EventSource<TimingData> OPERATION_STATE_COMMITTED = operationStateCommitted;
+
+    /** NODE_OPEN/NODE_CLOSE source emitted after general committed-data publication. */
+    public final EventSource<TimingData> OPERATION_STATE_COMMIT_PUBLISHED = operationStateCommitPublished;
 
     /**
      * Creates one LogBook bound to the supplied Data Lane.
@@ -79,10 +94,12 @@ public final class LogBook implements LogBookAccessor {
         this.dataLane = new LogBookDataLane(serialLane, operationTimeoutMillis);
         this.recoveryView = new LogBookRecoveryView(timingNodeId, dataLane);
         this.metrics = metrics;
-        this.newDataEntryEvent =
+        this.newDataEntry =
                 new EventWithMetrics<TimingData>(
                         monotonicClock,
                         metrics.timingDataEventMetrics());
+        this.RECOVERY_STATUS_CHANGED = recoveryView.recoveryStatusChangedEvent();
+        this.NEW_DATA_ENTRY = newDataEntry;
     }
 
     /** Returns immutable node identity without entering the Data Lane. */
@@ -180,47 +197,24 @@ public final class LogBook implements LogBookAccessor {
         }
     }
 
-    /** Publishes the completed startup recovery result on the Data Lane. */
+    /**
+     * Returns the recovery event through the abstraction-compatible LogBookAccessor contract.
+     *
+     * <p>Concrete composition uses {@link #RECOVERY_STATUS_CHANGED} directly.</p>
+     */
     public EventSource<LogBookRecoveryStatus> recoveryStatusChangedEvent() {
 
-        return recoveryView.recoveryStatusChangedEvent();
+        return RECOVERY_STATUS_CHANGED;
     }
 
-    /** Publishes each newly committed TimingData record on the Data Lane. */
+    /**
+     * Returns the post-commit event through the abstraction-compatible LogBookAccessor contract.
+     *
+     * <p>Concrete composition uses {@link #NEW_DATA_ENTRY} directly.</p>
+     */
     public EventSource<TimingData> newDataEntryEvent() {
 
-        return newDataEntryEvent;
-    }
-
-    /**
-     * Publishes NODE_OPEN/NODE_CLOSE immediately after commit, before general
-     * committed-data publication, so TimingNode can update its CURRENT state.
-     */
-    public EventSource<TimingData> nodeOperationStateCommittedEvent() {
-
-        return nodeOperationStateCommittedEvent;
-    }
-
-    /**
-     * Publishes NODE_OPEN/NODE_CLOSE after the general committed-data event.
-     *
-     * <p>This source is used internally by TimingNode so externally visible
-     * committed TimingData remains ordered before the resulting node-status change.</p>
-     */
-    public EventSource<TimingData> nodeOperationStateCommitPublishedEvent() {
-
-        return nodeOperationStateCommitPublishedEvent;
-    }
-
-    /**
-     * Publishes transient immutable startup history for one-time derived-state reconstruction.
-     *
-     * <p>The list comes directly from immutable TimingDataPersistence.LoadResult data.
-     * Consumers must process and release it rather than retain a second full LogBook history.</p>
-     */
-    public EventSource<List<TimingData>> initialDataLoadedEvent() {
-
-        return initialDataLoadedEvent;
+        return NEW_DATA_ENTRY;
     }
 
     /** Returns the committed TimingData head while already inside LogBook query handling. */
@@ -253,7 +247,7 @@ public final class LogBook implements LogBookAccessor {
                         timingNodeId().value());
             }
 
-            initialDataLoadedEvent.emit(loadResult.records());
+            initialDataLoaded.emit(loadResult.records());
         } catch (TimingDataPersistence.PersistenceException | RuntimeException ex) {
 
             logBookOperations.markTimingDataLoadFailed(ex);
@@ -291,13 +285,13 @@ public final class LogBook implements LogBookAccessor {
             boolean operationStateRecord = committed instanceof TimingData.NodeOpen
                     || committed instanceof TimingData.NodeClose;
             if (operationStateRecord) {
-                nodeOperationStateCommittedEvent.emit(committed);
+                operationStateCommitted.emit(committed);
             }
 
-            newDataEntryEvent.emit(committed);
+            newDataEntry.emit(committed);
 
             if (operationStateRecord) {
-                nodeOperationStateCommitPublishedEvent.emit(committed);
+                operationStateCommitPublished.emit(committed);
             }
         }
         return result;
