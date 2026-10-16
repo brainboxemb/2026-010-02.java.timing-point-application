@@ -110,6 +110,43 @@ public class RemoteShellServerTest {
     }
 
     @Test
+    public void testWriteFailIsNodeScopedAndOneShot() throws Exception {
+        PresentationGatewayFixture fixture =
+                new PresentationGatewayFixture(identity());
+        RemoteShellServer server =
+                new RemoteShellServer(
+                        "127.0.0.1",
+                        0,
+                        fixture.handler(),
+                        () -> { });
+        server.start();
+
+        try (Socket client = connect(server.boundPort())) {
+            readUntil(client.getInputStream(), "event-timing> ");
+
+            Writer writer =
+                    new OutputStreamWriter(
+                            client.getOutputStream(),
+                            StandardCharsets.UTF_8);
+            writer.write(
+                    "test-write:A fail\n"
+                            + "open:A 24\n"
+                            + "open:A 24\n"
+                            + "quit\n");
+            writer.flush();
+
+            String response = readToEnd(client.getInputStream());
+            assertTrue(response.contains(
+                    "Next LogBook write test failure: FAIL"));
+            assertTrue(response.contains("Operation failed (FAILED):"));
+            assertTrue(response.contains("Open: OPENED"));
+        } finally {
+            server.close();
+            fixture.close();
+        }
+    }
+
+    @Test
     public void multiNodeDefaultsToStrictAddressingAndShowsSelectionInPrompt()
             throws Exception {
         PresentationGatewayFixture fixture =
