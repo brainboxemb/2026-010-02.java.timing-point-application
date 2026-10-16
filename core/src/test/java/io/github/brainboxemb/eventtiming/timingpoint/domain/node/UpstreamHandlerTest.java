@@ -29,6 +29,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
@@ -182,14 +183,16 @@ public class UpstreamHandlerTest {
         ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
                 ReadOnlyConfiguration.fixed(
                         TagProcessingPolicy.defaults());
+        TimeSource timeSource =
+                () -> Instant.parse(
+                        "2026-10-13T12:00:00Z");
         LogBook logBook =
                 new LogBook(
                         new NodeId("A"),
                         new MemoryPersistence(
                                 Collections.<TimingData>emptyList()),
                         new DefaultTimingDataFactory(),
-                        () -> Instant.parse(
-                                "2026-10-13T12:00:00Z"),
+                        timeSource,
                         SystemMonotonicClock.INSTANCE,
                         new LogBookMetrics(),
                         dataLane,
@@ -216,6 +219,7 @@ public class UpstreamHandlerTest {
         TimingNode timingNode =
                 new TimingNode(
                         new AntennaId("1"),
+                        timeSource,
                         logBook,
                         tasks,
                         tags);
