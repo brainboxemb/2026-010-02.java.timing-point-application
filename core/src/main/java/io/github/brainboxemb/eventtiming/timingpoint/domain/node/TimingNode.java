@@ -420,8 +420,13 @@ public final class TimingNode extends LifecycleComponent {
             LogBookCommand<?> historyCommand) {
 
         synchronized (stateLock) {
-            functionalState = state;
+            /*
+             * Publish location before functional state. A reader that observes
+             * the volatile functional-state write can then also observe the
+             * location belonging to that transition.
+             */
             locationId = newLocationId;
+            functionalState = state;
 
             Runnable queueHistory = () -> logBook.execute(historyCommand);
             Consumer<RejectedExecutionException> onRejected =
@@ -467,12 +472,27 @@ public final class TimingNode extends LifecycleComponent {
     /** Changes operational state to ERROR without changing functional state. */
     private void setOperationalError(OperationalProblem problem) {
 
+        OperationalProblem publishedProblem;
+        boolean stateChanged;
         synchronized (stateLock) {
+            /*
+             * Keep the first active problem as the primary diagnostic cause.
+             * Publish its detail before the volatile ERROR state.
+             */
+            if (operationalProblem == null) {
+                operationalProblem = problem;
+            }
+            publishedProblem = operationalProblem;
+            stateChanged = operationalState != OperationalState.ERROR;
             operationalState = OperationalState.ERROR;
-            operationalProblem = problem;
         }
-        operationalProblemChangedEvent.emit(problem);
-        operationalStateChangedEvent.emit(OperationalState.ERROR);
+
+        if (publishedProblem == problem) {
+            operationalProblemChangedEvent.emit(problem);
+        }
+        if (stateChanged) {
+            operationalStateChangedEvent.emit(OperationalState.ERROR);
+        }
     }
 
     /** Rejects functional commands only while the TimingNode itself is inactive. */
