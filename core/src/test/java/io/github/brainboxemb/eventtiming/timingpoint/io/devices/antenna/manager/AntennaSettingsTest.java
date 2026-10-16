@@ -1,106 +1,41 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.setting.Setting;
 
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class AntennaSettingsTest {
+
     @Test
-    public void commitsOnlyChangedState() {
+    public void declaresInventorySettingOnGenericContainer() {
         AntennaSettings settings = new AntennaSettings();
-        AtomicInteger events = new AtomicInteger();
-        settings.CHANGED.subscribe(revision -> events.incrementAndGet());
 
-        settings.update(edit -> edit.inventoryEnabled(true));
-        settings.update(edit -> edit.inventoryEnabled(true));
+        settings.update(
+                edit -> edit.set(
+                        AntennaSettings.INVENTORY_ENABLED,
+                        Boolean.TRUE));
 
-        assertTrue(settings.inventoryEnabled());
+        assertEquals(Boolean.TRUE, settings.requestedValue(AntennaSettings.INVENTORY_ENABLED));
         assertEquals(1L, settings.revision());
-        assertEquals(1, events.get());
     }
 
     @Test
-    public void exceptionRollsBack() {
+    public void managerHandleSharesRequestedAndAppliedState() {
         AntennaSettings settings = new AntennaSettings();
-        try {
-            settings.update(edit -> {
-                edit.inventoryEnabled(true);
-                throw new IllegalStateException("rollback");
-            });
-            fail("expected transaction failure");
-        } catch (IllegalStateException expected) {
-            assertFalse(settings.inventoryEnabled());
-            assertEquals(0L, settings.revision());
-        }
-    }
+        Setting<Boolean> inventory = settings.inventorySetting();
 
-    @Test
-    public void nestedTransactionCannotCommitPartialState() {
-        AntennaSettings settings = new AntennaSettings();
+        settings.update(
+                edit -> edit.set(
+                        AntennaSettings.INVENTORY_ENABLED,
+                        Boolean.TRUE));
 
-        try {
-            settings.update(edit -> {
-                edit.inventoryEnabled(true);
-                settings.update(nested -> nested.inventoryEnabled(false));
-            });
-            fail("nested update must be rejected");
-        } catch (IllegalStateException expected) {
-            assertFalse(settings.inventoryEnabled());
-            assertEquals(0L, settings.revision());
-        }
-
-        settings.update(edit -> edit.inventoryEnabled(true));
-        assertTrue(settings.inventoryEnabled());
-    }
-
-    @Test
-    public void concurrentReadersOnlySeeCommittedState() throws Exception {
-        AntennaSettings settings = new AntennaSettings();
-        CountDownLatch editStarted = new CountDownLatch(1);
-        CountDownLatch release = new CountDownLatch(1);
-
-        Thread writer = new Thread(() -> settings.update(edit -> {
-            edit.inventoryEnabled(true);
-            editStarted.countDown();
-            try {
-                release.await();
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-            }
-        }));
-
-        ExecutorService readerWorker = Executors.newSingleThreadExecutor();
-        writer.start();
-        try {
-            assertTrue(editStarted.await(1L, TimeUnit.SECONDS));
-            CountDownLatch readerStarted = new CountDownLatch(1);
-            Future<Boolean> published = readerWorker.submit(() -> {
-                readerStarted.countDown();
-                return settings.inventoryEnabled();
-            });
-            assertTrue(readerStarted.await(1L, TimeUnit.SECONDS));
-            assertFalse("read cannot complete during an uncommitted transaction",
-                    published.isDone());
-            release.countDown();
-            assertTrue(published.get(1L, TimeUnit.SECONDS));
-        } finally {
-            release.countDown();
-            writer.join(1000L);
-            readerWorker.shutdownNow();
-        }
-
-        assertFalse(writer.isAlive());
-        assertTrue(settings.inventoryEnabled());
-        assertEquals(1L, settings.revision());
+        assertTrue(inventory.changePending());
+        inventory.markApplied(Boolean.TRUE);
+        assertFalse(inventory.changePending());
+        assertEquals(Boolean.TRUE, settings.appliedValue(AntennaSettings.INVENTORY_ENABLED));
     }
 }

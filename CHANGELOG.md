@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Generalize grouped desired settings with `SettingKey<T>`, `SettingContainer` and grouped `SettingUpdate`. `Setting<T>` keeps requested/applied/pending semantics, while `AntennaSettings` is reduced to the antenna-specific inventory setting declaration and manager-owned handle.
+
 - Replace generic LogBook `history` wording with concrete `TimingData` record, registration, committed-data and persisted-data terminology.
 
 - Filter TimingSystemConductor wakeups through the existing grouped property event: EventSource supports composition-time predicates, TimingNode exposes typed immutable property keys, and unrelated property updates no longer queue reconciliation work.
