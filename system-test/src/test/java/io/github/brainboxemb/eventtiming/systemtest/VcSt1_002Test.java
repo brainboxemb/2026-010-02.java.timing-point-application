@@ -110,7 +110,7 @@ public class VcSt1_002Test {
 
             Response open = http.post(
                     nodePath("/open"),
-                    "{\"locId\":24}");
+                    "{\"locationId\":24}");
             assertEquals("Unexpected open status", 200, open.status());
             assertContains(open.body(), "\"result\":\"OPENED\"");
 
