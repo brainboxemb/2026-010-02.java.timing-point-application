@@ -18,6 +18,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.function.Consumer;
 
@@ -29,11 +30,6 @@ import java.util.function.Consumer;
  * typed TimingNode commands/queries and exposes node-scoped application events.</p>
  */
 public final class TimingNodeProxy {
-
-    /** Automatic-registration actions currently supported by this application boundary. */
-    public enum AutomaticRegistrationAction {
-        ADD
-    }
 
     /** Registration record family supplied by a higher interpreting layer. */
     public enum RegistrationRecordType {
@@ -56,9 +52,14 @@ public final class TimingNodeProxy {
         timingNode.statusChangedEvent().subscribe(this::updateStatus);
     }
 
-    /** Returns the stable identity of the proxied TimingNode. */
+    /** Returns this node's ID. */
     public NodeId timingNodeId() {
         return timingNodeId;
+    }
+
+    /** Returns the TimeSource configured for this node. This lookup does not block. */
+    public TimeSource timeSource() {
+        return timingNode.timeSource();
     }
 
     /** Returns the current authoritative node status. */
@@ -77,46 +78,20 @@ public final class TimingNodeProxy {
     }
 
     /**
-     * Applies one semantic automatic-registration action.
+     * Adds one custom automatic registration using the supplied effective time.
      *
-     * <p>The presentation caller supplies the action, registration identity and
-     * registration time. TimingNode remains responsible for active location,
-     * sequence, recordedAt, persistence and the committed TimingData record.</p>
+     * <p>This call blocks on the TimingNode/LogBook commit path. The caller also
+     * identifies whether the supplied time came from this node's TimeSource or
+     * was explicitly supplied by an API client.</p>
      */
-    public RegistrationResult applyAutomaticRegistration(
-            AutomaticRegistrationAction action,
+    public RegistrationResult addCustomAutomaticRegistration(
             RegistrationId registrationId,
-            TimingTimestamp time) {
-        if (action == null) {
-            throw new IllegalArgumentException("action must not be null");
-        }
-        switch (action) {
-            case ADD:
-                return timingNode.addAutomaticRegistration(
-                        registrationId,
-                        time);
-            default:
-                throw new IllegalArgumentException(
-                        "Unsupported automatic registration action " + action);
-        }
-    }
-
-    /** Engineering-only accepted registration with an explicit API timestamp. */
-    public RegistrationResult simulateAutomaticRegistration(
-            RegistrationId registrationId, TimingTimestamp time) {
-        return timingNode.commitAutomaticRegistration(
+            TimingTimestamp effectiveTime,
+            TimingData.AutomaticTimeSource timeSource) {
+        return timingNode.addCustomAutomaticRegistration(
                 registrationId,
-                time,
-                TimingData.TagSource.API,
-                TimingData.AutomaticTimeSource.API);
-    }
-
-    /** Engineering-only accepted registration using this node's own TimeSource. */
-    public RegistrationResult simulateAutomaticRegistrationNow(
-            RegistrationId registrationId) {
-        return timingNode.commitAutomaticRegistrationNow(
-                registrationId,
-                TimingData.TagSource.API);
+                effectiveTime,
+                timeSource);
     }
 
     /**
