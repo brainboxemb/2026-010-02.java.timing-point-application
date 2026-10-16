@@ -1,27 +1,26 @@
 package io.github.brainboxemb.eventtiming.timingpoint.infra.property;
 
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
+
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
- * Owns related current properties and notifies subscribers when a property changes.
+ * Owns related current properties and publishes changed properties through the
+ * normal local event mechanism.
  *
  * <p>An owner stages one or more values, commits them together and publishes only
- * after the complete update is current. Subscribers attach directly to this container
- * and receive the changed {@link Property}.</p>
+ * after the complete update is current. Consumers observe {@link #CHANGED}; no
+ * separate property callback mechanism is introduced.</p>
  */
 public final class PropertyContainer {
-    private static final Logger LOG = LoggerFactory.getLogger(PropertyContainer.class);
-
     private final List<Property<?>> properties = new ArrayList<Property<?>>();
-    private volatile List<Consumer<Property<?>>> subscribers =
-            Collections.<Consumer<Property<?>>>emptyList();
+    private final Event<Property<?>> changedEvent = new Event<Property<?>>();
+
+    /** Changed property source for this container. */
+    public final EventSource<Property<?>> CHANGED = changedEvent;
 
     /** Creates one property owned by this container. Property names are unique per container. */
     public synchronized <T> Property<T> property(String name, T initialValue) {
@@ -46,48 +45,17 @@ public final class PropertyContainer {
         return new Update(this);
     }
 
-    /**
-     * Subscribes to property changes from this container.
-     *
-     * <p>Subscribers run synchronously after the complete update has been committed.
-     * The same subscriber is added at most once according to equals().</p>
-     */
-    public synchronized boolean subscribe(Consumer<Property<?>> subscriber) {
-        if (subscriber == null) {
-            throw new IllegalArgumentException("subscriber must not be null");
-        }
-        if (subscribers.contains(subscriber)) {
-            return false;
-        }
-
-        List<Consumer<Property<?>>> updated =
-                new ArrayList<Consumer<Property<?>>>(subscribers);
-        updated.add(subscriber);
-        subscribers = Collections.unmodifiableList(updated);
-        return true;
-    }
-
     /** Publishes one already committed property change. */
     private void publish(Property<?> property) {
-        for (Consumer<Property<?>> subscriber : subscribers) {
-            try {
-                subscriber.accept(property);
-            } catch (RuntimeException ex) {
-                LOG.warn(
-                        "Property subscriber {} failed while handling {}",
-                        subscriber.getClass().getName(),
-                        property.name,
-                        ex);
-            }
-        }
+        changedEvent.emit(property);
     }
 
     /**
      * Stages one or more values, commits them together, then publishes changed properties.
      *
      * <p>Commit and publication are deliberately separate. A component may need to keep
-     * its own short lock after the values become current but before downstream subscribers
-     * are called. Values are not visible until {@link #commit()}.</p>
+     * its own short lock after the values become current but before downstream event
+     * listeners are called. Values are not visible until {@link #commit()}.</p>
      */
     public static final class Update {
         private final PropertyContainer owner;
@@ -119,7 +87,7 @@ public final class PropertyContainer {
             return this;
         }
 
-        /** Commits all staged values together without invoking subscribers. */
+        /** Commits all staged values together without invoking event listeners. */
         public void commit() {
             if (committed) {
                 throw new IllegalStateException("property update is already committed");
