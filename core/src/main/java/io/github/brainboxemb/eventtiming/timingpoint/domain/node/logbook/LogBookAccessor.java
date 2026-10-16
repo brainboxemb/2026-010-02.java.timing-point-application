@@ -51,7 +51,7 @@ public interface LogBookAccessor {
      * <p>ORDERED may block on the Data Lane. CURRENT reads the published snapshot directly
      * and does not wait for queued Data Lane work.</p>
      *
-     * @throws OperationException when an ORDERED query cannot return its normal result
+     * @throws OperationException when the requested query cannot return its normal result
      */
     <R> R process(LogBookQuery<R> query, ReadConsistency consistency) throws OperationException;
 
