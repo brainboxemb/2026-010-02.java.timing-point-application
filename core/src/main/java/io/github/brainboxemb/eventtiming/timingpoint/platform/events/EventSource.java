@@ -9,12 +9,12 @@ import java.util.function.Consumer;
  * when a fact is emitted. Runtime composition uses this view to connect one or
  * more listeners before application activation.</p>
  *
- * <p>Subscription is a <strong>composition-time</strong> operation. The SI-01
- * runtime graph is fixed before components are activated; runtime rewiring is
- * deliberately not part of this abstraction. EventSource therefore exposes no
- * unsubscribe operation.</p>
+ * <p>Subscription is a composition-time operation. Subscribing does not create
+ * an asynchronous boundary: when the owning Event emits a value, listeners run
+ * synchronously on the emitting thread. A listener that needs slower work must
+ * queue that work itself and return quickly.</p>
  *
- * @param <T> immutable/read-only value delivered by the event
+ * @param <T> value delivered by the event
  */
 public interface EventSource<T> {
 
@@ -22,7 +22,7 @@ public interface EventSource<T> {
      * Adds one listener during application composition.
      *
      * <p>The same listener is accepted at most once according to equals().
-     * Callers must finish wiring before application activation.</p>
+     * This method only registers the listener; it does not invoke or queue it.</p>
      *
      * @return {@code true} when the listener was newly added
      */
