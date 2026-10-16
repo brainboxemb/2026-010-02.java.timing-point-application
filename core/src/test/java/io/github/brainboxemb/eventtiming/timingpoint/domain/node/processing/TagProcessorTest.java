@@ -544,7 +544,7 @@ public class TagProcessorTest {
                         registration ->
                                 node.logBook().execute(
                                         LogBookCommands.addAutomaticRegistration(
-                                                node.status().locationId(),
+                                                ((io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status) node.status()).locationId(),
                                                 registration.registrationId(),
                                                 registration.observedAt())));
     }
