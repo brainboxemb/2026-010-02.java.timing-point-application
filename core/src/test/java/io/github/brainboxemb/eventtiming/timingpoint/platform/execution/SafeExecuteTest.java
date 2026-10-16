@@ -132,6 +132,21 @@ public class SafeExecuteTest {
         }
     }
 
+    /** Verifies that result-bearing guarded calls return their value. */
+    @Test
+    public void successfulCallOrRethrowReturnsValue() {
+        AtomicBoolean handled = new AtomicBoolean();
+
+        String result =
+                SafeExecute.callOrRethrow(
+                        () -> "ready",
+                        IllegalStateException.class,
+                        ex -> handled.set(true));
+
+        assertEquals("ready", result);
+        assertFalse(handled.get());
+    }
+
     /** Verifies that result-bearing failure handling runs before rethrow. */
     @Test
     public void callFailureHandlerRunsBeforeRethrow() {
