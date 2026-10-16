@@ -448,8 +448,9 @@ public class AntennaManagerTest {
              * implicit retry.
              */
             manager.settings().update(
-                    edit -> edit.inventoryEnabled(
-                            true));
+                    edit -> edit.set(
+                            AntennaSettings.INVENTORY_ENABLED,
+                            Boolean.TRUE));
             Thread.sleep(
                     50L);
 
