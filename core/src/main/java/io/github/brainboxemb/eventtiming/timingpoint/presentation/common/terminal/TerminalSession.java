@@ -808,24 +808,24 @@ public final class TerminalSession {
         output.println(
                 "  Id        : "
                         + status.timingNodeId().value());
-        if (status.error()) {
-            output.println("  State     : ERROR");
-            output.println(
-                    "  Error     : "
-                            + status.errorCode().name());
-            output.println(
-                    "  Detail    : "
-                            + status.errorMessage());
-            return;
-        }
-
         output.println(
-                "  State     : "
-                        + status.state().name());
+                "  Function  : "
+                        + status.functionalState().name());
+        output.println(
+                "  Operation : "
+                        + status.operationalState().name());
         output.println(
                 "  Location  : "
                         + (status.hasLocation()
                                 ? status.locationId().value()
                                 : "-"));
+        if (status.hasProblem()) {
+            output.println(
+                    "  Problem   : "
+                            + status.errorCode().name());
+            output.println(
+                    "  Detail    : "
+                            + status.errorMessage());
+        }
     }
 }
