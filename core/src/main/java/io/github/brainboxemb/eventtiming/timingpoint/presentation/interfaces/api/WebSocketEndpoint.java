@@ -6,7 +6,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 
@@ -338,25 +337,14 @@ public final class WebSocketEndpoint implements AutoCloseable {
                     connection);
             try {
                 /*
-                 * Transport activation is independent from TimingNode readiness.
-                 * A connecting client, however, receives only a complete current
-                 * snapshot. If initial node recovery is still pending, ask the
-                 * client to retry rather than inventing or omitting node state.
+                 * INIT is a valid current operational state. A connecting client
+                 * therefore receives a complete snapshot immediately and later
+                 * status changes report recovery becoming OK or ERROR.
                  */
                 refreshStatusSnapshot();
                 sendEvent(
                         connection,
                         snapshotJson());
-            } catch (OperationException ex) {
-                if (ex.reason() == OperationException.Reason.UNAVAILABLE) {
-                    LOG.debug(
-                            "IF-03 status snapshot is not ready yet");
-                    connection.close(
-                            1013,
-                            "TimingNode status not ready");
-                    return;
-                }
-                throw ex;
             } catch (RuntimeException ex) {
                 LOG.warn(
                         "Unable to create initial IF-03 status snapshot",
