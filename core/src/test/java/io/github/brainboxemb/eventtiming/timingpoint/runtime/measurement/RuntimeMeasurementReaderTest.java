@@ -102,7 +102,13 @@ public class RuntimeMeasurementReaderTest {
                         SystemMonotonicClock.INSTANCE,
                         tagMetrics,
                         tagLane);
-        TimingNode node = new TimingNode(new AntennaId("1"), logBook, nodeService, tags);
+        TimingNode node =
+                new TimingNode(
+                        new AntennaId("1"),
+                        timeSource,
+                        logBook,
+                        nodeService,
+                        tags);
 
         RuntimeMeasurementReader reader =
                 new RuntimeMeasurementReader(
@@ -120,9 +126,10 @@ public class RuntimeMeasurementReaderTest {
         try {
             node.open(new LocationId(24));
             assertTrue(
-                    node.addAutomaticRegistration(
+                    node.addCustomAutomaticRegistration(
                                     new RegistrationId("N0001"),
-                                    EVENT_TIME)
+                                    EVENT_TIME,
+                                    TimingData.AutomaticTimeSource.API)
                             .committed());
 
             /*
