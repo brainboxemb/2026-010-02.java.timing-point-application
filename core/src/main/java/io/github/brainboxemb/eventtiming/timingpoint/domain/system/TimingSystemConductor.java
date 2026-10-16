@@ -4,6 +4,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyContainer;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
@@ -22,7 +23,7 @@ import org.slf4j.LoggerFactory;
  * <p>The conductor owns its TimingNodes, their lifecycle and the status subscriptions used for system coordination. These fixed relationships are
  * established during construction, before activation starts execution.</p>
  *
- * <p>A functional-state event only wakes the control task. The subsequent run
+ * <p>A TimingNode property-change event only wakes the control task. The subsequent run
  * reads every TimingNode's current functional state and publishes the desired inventory state
  * through the shared AntennaSettings. It does not retain a second copy of
  * node state or invoke AntennaManager directly.</p>
@@ -30,8 +31,8 @@ import org.slf4j.LoggerFactory;
 public final class TimingSystemConductor extends AbstractConductor {
     private static final Logger LOG = LoggerFactory.getLogger(TimingSystemConductor.class);
 
-    private static final EventInput<TimingSystemConductor, FunctionalState>
-            FUNCTIONAL_STATE_CHANGED =
+    private static final EventInput<TimingSystemConductor, PropertyContainer.Change>
+            NODE_PROPERTIES_CHANGED =
                     EventInput.of(
                             (conductor, source) ->
                                     source.subscribe(ignored -> conductor.wakeMainTask()));
@@ -60,7 +61,7 @@ public final class TimingSystemConductor extends AbstractConductor {
             registerComponent(
                     "TimingNode " + node.timingNodeId().value(),
                     node);
-            FUNCTIONAL_STATE_CHANGED.bind(this, node.FUNCTIONAL_STATE_CHANGED);
+            NODE_PROPERTIES_CHANGED.bind(this, node.PROPERTIES_CHANGED);
         }
     }
 
