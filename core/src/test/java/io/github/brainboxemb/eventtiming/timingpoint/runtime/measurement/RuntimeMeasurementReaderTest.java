@@ -128,7 +128,7 @@ public class RuntimeMeasurementReaderTest {
         try {
             node.open(new LocationId(24));
             assertTrue(
-                    node.addCustomAutomaticRegistration(
+                    node.addTestAutomaticRegistration(
                                     new RegistrationId("N0001"),
                                     EVENT_TIME,
                                     TimingData.AutomaticTimeSource.API)
