@@ -92,7 +92,7 @@ public class VcSt1_005Test {
         try {
             assertContains(
                     events.awaitEvent("STATUS_SNAPSHOT"),
-                    "\"functionalState\":\"CLOSED\"");
+                    "\"state\":\"CLOSED\"");
 
             Response open = http.post(
                     nodePath("/open"),
@@ -106,7 +106,7 @@ public class VcSt1_005Test {
                     "OPEN");
             assertContains(
                     events.awaitEvent("STATUS_CHANGED"),
-                    "\"functionalState\":\"OPEN\"");
+                    "\"state\":\"OPEN\"");
 
             Response alreadyOpen = http.post(
                     nodePath("/open"),
@@ -147,7 +147,7 @@ public class VcSt1_005Test {
                     "CLOSE");
             assertContains(
                     events.awaitEvent("STATUS_CHANGED"),
-                    "\"functionalState\":\"CLOSED\"");
+                    "\"state\":\"CLOSED\"");
 
             Response alreadyClosed = http.post(
                     nodePath("/close"),
@@ -185,7 +185,7 @@ public class VcSt1_005Test {
         try {
             String snapshot =
                     events.awaitEvent("STATUS_SNAPSHOT");
-            assertContains(snapshot, "\"functionalState\":\"CLOSED\"");
+            assertContains(snapshot, "\"state\":\"CLOSED\"");
             assertContains(snapshot, "\"locationId\":null");
             events.assertNoEvent(
                     "TIMING_DATA_COMMITTED",
@@ -209,7 +209,7 @@ public class VcSt1_005Test {
                     "OPEN");
             String status =
                     events.awaitEvent("STATUS_CHANGED");
-            assertContains(status, "\"functionalState\":\"OPEN\"");
+            assertContains(status, "\"state\":\"OPEN\"");
             assertContains(status, "\"locationId\":25");
 
             assertLogBookCount(
