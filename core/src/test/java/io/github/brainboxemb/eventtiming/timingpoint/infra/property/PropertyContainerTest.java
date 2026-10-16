@@ -18,7 +18,7 @@ public class PropertyContainerTest {
         PropertyContainer properties = new PropertyContainer();
         Property<String> state = properties.property("state", "CLOSED");
         Property<Integer> location = properties.property("locationId", null);
-        List<Property<?>> changes = new ArrayList<Property<?>>();
+        List<List<Property<?>>> changes = new ArrayList<List<Property<?>>>();
         properties.CHANGED.subscribe(changes::add);
 
         PropertyContainer.Update update = properties.update();
@@ -36,16 +36,17 @@ public class PropertyContainerTest {
 
         update.publish();
 
-        assertEquals(2, changes.size());
-        assertSame(location, changes.get(0));
-        assertSame(state, changes.get(1));
+        assertEquals(1, changes.size());
+        assertEquals(2, changes.get(0).size());
+        assertSame(location, changes.get(0).get(0));
+        assertSame(state, changes.get(0).get(1));
     }
 
     @Test
     public void unchangedValuesPublishNothing() {
         PropertyContainer properties = new PropertyContainer();
         Property<String> state = properties.property("state", "CLOSED");
-        List<Property<?>> changes = new ArrayList<Property<?>>();
+        List<List<Property<?>>> changes = new ArrayList<List<Property<?>>();
         properties.CHANGED.subscribe(changes::add);
 
         PropertyContainer.Update update = properties.update();
