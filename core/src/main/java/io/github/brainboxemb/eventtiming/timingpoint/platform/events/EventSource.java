@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.events;
 
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * Subscription-only view of a local typed event.
@@ -28,4 +29,14 @@ public interface EventSource<T> {
      * @return {@code true} when the listener was newly added
      */
     boolean subscribe(Consumer<T> listener);
+
+    /**
+     * Adds one filtered listener during application composition.
+     *
+     * <p>The filter is evaluated synchronously before listener delivery. A value
+     * rejected by the filter is not delivered to the listener.</p>
+     *
+     * @return {@code true} when the filtered listener was newly added
+     */
+    boolean subscribe(Predicate<T> filter, Consumer<T> listener);
 }
