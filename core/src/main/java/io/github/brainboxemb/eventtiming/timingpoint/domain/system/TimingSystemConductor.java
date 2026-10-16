@@ -2,8 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
@@ -23,18 +22,19 @@ import org.slf4j.LoggerFactory;
  * <p>The conductor owns its TimingNodes, their lifecycle and the status subscriptions used for system coordination. These fixed relationships are
  * established during construction, before activation starts execution.</p>
  *
- * <p>A status event only wakes the control task. The subsequent run reads
- * every TimingNode's CURRENT status and publishes the desired inventory state
+ * <p>A functional-state event only wakes the control task. The subsequent run
+ * reads every TimingNode's current functional state and publishes the desired inventory state
  * through the shared AntennaSettings. It does not retain a second copy of
  * node state or invoke AntennaManager directly.</p>
  */
 public final class TimingSystemConductor extends AbstractConductor {
     private static final Logger LOG = LoggerFactory.getLogger(TimingSystemConductor.class);
 
-    private static final EventInput<TimingSystemConductor, Status> STATUS_CHANGED =
-            EventInput.of(
-                    (conductor, source) ->
-                            source.subscribe(ignored -> conductor.wakeMainTask()));
+    private static final EventInput<TimingSystemConductor, FunctionalState>
+            FUNCTIONAL_STATE_CHANGED =
+                    EventInput.of(
+                            (conductor, source) ->
+                                    source.subscribe(ignored -> conductor.wakeMainTask()));
 
     private final TimingNodeList nodes;
     private final AntennaSettings antennaSettings;
@@ -60,7 +60,7 @@ public final class TimingSystemConductor extends AbstractConductor {
             registerComponent(
                     "TimingNode " + node.timingNodeId().value(),
                     node);
-            STATUS_CHANGED.bind(this, node.STATUS_CHANGED);
+            FUNCTIONAL_STATE_CHANGED.bind(this, node.FUNCTIONAL_STATE_CHANGED);
         }
     }
 
@@ -103,7 +103,7 @@ public final class TimingSystemConductor extends AbstractConductor {
 
         boolean required = false;
         for (TimingNode node : nodes) {
-            if (node.status().state == State.OPEN) {
+            if (node.functionalState() == FunctionalState.OPEN) {
                 required = true;
             }
         }
