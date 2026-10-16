@@ -101,7 +101,7 @@ public interface TimingData {
     enum AutomaticTimeSource {
         OBS,  // Time carried by the antenna observation.
         API,  // Explicit timestamp supplied by a direct API caller.
-        NODE  // Captured by the TimingNode's configured TimeSource.
+        NODE  // Time read from the TimingNode's configured TimeSource.
     }
 
     /** Append-only registration action represented by a registration record. */
