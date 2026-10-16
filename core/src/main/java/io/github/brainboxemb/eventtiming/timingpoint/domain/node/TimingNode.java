@@ -54,7 +54,7 @@ public final class TimingNode {
     private final TagProcessor tagProcessor;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
     private final Event<Status> statusChangedEvent = new Event<Status>();
-    private final Object lifecycleCommandLock = new Object();
+    private final Object operationLock = new Object();
     private final Object stateLock = new Object();
 
     /** Current immutable node-state snapshot; null until LogBook recovery completes. */
@@ -153,7 +153,7 @@ public final class TimingNode {
     public OpenResult open(LocationId locationId) {
 
         checkArgument(locationId != null, "locationId must not be null");
-        synchronized (lifecycleCommandLock) {
+        synchronized (operationLock) {
             Status status = requireOperationalStatus();
             if (status.state() == State.OPEN) {
                 return OpenResult.ALREADY_OPEN;
@@ -167,7 +167,7 @@ public final class TimingNode {
     /** Closes this TimingNode while retaining the last timing location. */
     public CloseResult close() {
 
-        synchronized (lifecycleCommandLock) {
+        synchronized (operationLock) {
             Status status = requireOperationalStatus();
             if (status.state() == State.CLOSED) {
                 return CloseResult.ALREADY_CLOSED;
@@ -194,7 +194,7 @@ public final class TimingNode {
             RegistrationId registrationId,
             TimingTimestamp effectiveTime) {
 
-        synchronized (lifecycleCommandLock) {
+        synchronized (operationLock) {
             Status status = requireOperationalStatus();
             if (status.state() != State.OPEN) {
                 return RegistrationResult.nodeNotOpen();
@@ -214,7 +214,7 @@ public final class TimingNode {
             TimingData.TagSource tagSource,
             TimingData.AutomaticTimeSource timeSource) {
 
-        synchronized (lifecycleCommandLock) {
+        synchronized (operationLock) {
             Status status = requireOperationalStatus();
             if (status.state() != State.OPEN) {
                 return RegistrationResult.nodeNotOpen();
@@ -234,7 +234,7 @@ public final class TimingNode {
             RegistrationId registrationId,
             TimingData.TagSource tagSource) {
 
-        synchronized (lifecycleCommandLock) {
+        synchronized (operationLock) {
             Status status = requireOperationalStatus();
             if (status.state() != State.OPEN) {
                 return RegistrationResult.nodeNotOpen();
@@ -253,7 +253,7 @@ public final class TimingNode {
             TimingTimestamp effectiveTime,
             ManualTimeSource timeSource) {
 
-        synchronized (lifecycleCommandLock) {
+        synchronized (operationLock) {
             Status status = requireOperationalStatus();
             if (status.state() != State.OPEN) {
                 return RegistrationResult.nodeNotOpen();
