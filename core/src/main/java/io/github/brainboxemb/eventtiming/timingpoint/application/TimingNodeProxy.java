@@ -44,13 +44,6 @@ public final class TimingNodeProxy {
                             (proxy, source) ->
                                     source.subscribe(ignored -> proxy.publishStatus()));
 
-    /** Operational-state input mapped to the presentation status read model. */
-    private static final EventInput<TimingNodeProxy, OperationalState>
-            OPERATIONAL_STATE_CHANGED =
-                    EventInput.of(
-                            (proxy, source) ->
-                                    source.subscribe(ignored -> proxy.publishStatus()));
-
     /** Registration record family supplied by a higher interpreting layer. */
     public enum RegistrationRecordType {
         AUTO_REG,
@@ -63,8 +56,11 @@ public final class TimingNodeProxy {
     private final LogBookTestControl logBookTestControl;
     private final Event<TimingNodeStatus> statusChangedEvent = new Event<>();
 
-    /** Presentation-facing node-status source. */
+    /** Functional TimingNode status changes for operator-facing clients. */
     public final EventSource<TimingNodeStatus> STATUS_CHANGED = statusChangedEvent;
+
+    /** Operational INIT/OK/ERROR changes for diagnostics and system health. */
+    public final EventSource<OperationalState> OPERATIONAL_STATE_CHANGED;
 
     /** Presentation-facing post-commit TimingData source. */
     public final EventSource<TimingData> NEW_DATA_ENTRY;
@@ -81,8 +77,8 @@ public final class TimingNodeProxy {
         }
         this.logBookTestControl = (LogBookTestControl) logBook;
         this.NEW_DATA_ENTRY = timingNode.TIMING_DATA_COMMITTED;
+        this.OPERATIONAL_STATE_CHANGED = timingNode.OPERATIONAL_STATE_CHANGED;
         FUNCTIONAL_STATE_CHANGED.bind(this, timingNode.FUNCTIONAL_STATE_CHANGED);
-        OPERATIONAL_STATE_CHANGED.bind(this, timingNode.OPERATIONAL_STATE_CHANGED);
     }
 
     /** Returns this node's ID. */
@@ -95,17 +91,23 @@ public final class TimingNodeProxy {
         return timingNode.timeSource();
     }
 
-    /** Returns the current presentation state for this TimingNode. */
+    /** Returns the current OPEN/CLOSED state and location for this TimingNode. */
     public TimingNodeStatus status() {
 
-        Optional<OperationalProblem> problem = timingNode.operationalProblem();
         return TimingNodeStatus.current(
                 timingNodeId,
                 timingNode.functionalState(),
-                timingNode.operationalState(),
-                timingNode.locationId(),
-                problem.isPresent() ? problem.get().code : null,
-                problem.isPresent() ? problem.get().message : null);
+                timingNode.locationId());
+    }
+
+    /** Returns current operational INIT/OK/ERROR independently from OPEN/CLOSED. */
+    public OperationalState operationalState() {
+        return timingNode.operationalState();
+    }
+
+    /** Returns the current operational problem, if one is active. */
+    public Optional<OperationalProblem> operationalProblem() {
+        return timingNode.operationalProblem();
     }
 
     /**
@@ -260,7 +262,7 @@ public final class TimingNodeProxy {
                 LogBookQueries.visitLatestTimingData(limit, visitor));
     }
 
-    /** Publishes a new presentation snapshot from the current separate node values. */
+    /** Publishes the current functional status after an OPEN/CLOSED change. */
     private void publishStatus() {
 
         statusChangedEvent.emit(status());
