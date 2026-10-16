@@ -9,9 +9,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommand;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookRecoveryStatus;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
@@ -69,9 +67,6 @@ public final class TimingNode extends LifecycleComponent {
 
     /** Current transient node status; independent from LogBook recovery state. */
     private volatile Status currentStatus = new Status(State.CLOSED, null);
-
-    /** Latest LogBook startup-recovery result; separate from TimingNode Status. */
-    private volatile LogBookRecoveryStatus currentRecoveryStatus;
 
     /** Current error status, or null when no TimingNode error is active. */
     private volatile ErrorStatus currentErrorStatus;
@@ -190,7 +185,6 @@ public final class TimingNode extends LifecycleComponent {
 
         checkArgument(locationId != null, "locationId must not be null");
         synchronized (operationLock) {
-            requireLogBookReady();
             Status status = currentStatus;
             if (status.state == State.OPEN) {
                 return OpenResult.ALREADY_OPEN;
@@ -212,7 +206,6 @@ public final class TimingNode extends LifecycleComponent {
     public CloseResult close() throws OperationException {
 
         synchronized (operationLock) {
-            requireLogBookReady();
             Status status = currentStatus;
             if (status.state == State.CLOSED) {
                 return CloseResult.ALREADY_CLOSED;
@@ -247,7 +240,6 @@ public final class TimingNode extends LifecycleComponent {
                 "custom automatic registration time source must be API or NODE");
 
         synchronized (operationLock) {
-            requireLogBookReady();
             Status status = currentStatus;
             if (status.state != State.OPEN) {
                 return RegistrationResult.nodeNotOpen();
@@ -277,7 +269,6 @@ public final class TimingNode extends LifecycleComponent {
             throws OperationException {
 
         synchronized (operationLock) {
-            requireLogBookReady();
             Status status = currentStatus;
             if (status.state != State.OPEN) {
                 return RegistrationResult.nodeNotOpen();
@@ -321,7 +312,6 @@ public final class TimingNode extends LifecycleComponent {
         lifecycle.deactivateAll();
         synchronized (stateLock) {
             currentStatus = new Status(State.CLOSED, null);
-            currentRecoveryStatus = null;
             currentErrorStatus = null;
             registrationsEnabled = false;
         }
@@ -374,41 +364,9 @@ public final class TimingNode extends LifecycleComponent {
                         recoveryStatus.failureMessage())
                 : null;
 
-        currentRecoveryStatus = recoveryStatus;
         currentErrorStatus = error;
         if (error != null) {
             errorStatusChanged.emit(error);
-        }
-    }
-
-    /**
-     * Ensures LogBook startup recovery completed successfully before a persistence command.
-     *
-     * <p>This readiness check is independent from TimingNode OPEN/CLOSED status.</p>
-     */
-    private void requireLogBookReady() {
-
-        LogBookRecoveryStatus recoveryStatus = currentRecoveryStatus;
-        if (recoveryStatus == null) {
-            recoveryStatus =
-                    logBook.process(
-                            LogBookQueries.recoveryStatus(),
-                            ReadConsistency.ORDERED);
-            currentRecoveryStatus = recoveryStatus;
-        }
-
-        if (recoveryStatus.failed()) {
-            ErrorStatus error = currentErrorStatus;
-            if (error == null) {
-                error = new ErrorStatus(
-                        ErrorCode.TIMING_DATA_LOAD_FAILED,
-                        recoveryStatus.failureMessage());
-                currentErrorStatus = error;
-                errorStatusChanged.emit(error);
-            }
-            throw new OperationException(
-                    OperationException.Reason.FAILED,
-                    error.message);
         }
     }
 
