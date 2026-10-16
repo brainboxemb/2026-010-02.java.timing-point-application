@@ -35,7 +35,10 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
  * instead of widening the production TimingNode API.</p>
  */
 public final class TimingNodeFixture {
-    private static final long DEFAULT_OPERATION_TIMEOUT_MILLIS = 5000L;
+    private static final long DEFAULT_COMMIT_TIMEOUT_MILLIS =
+            LogBook.DEFAULT_COMMIT_TIMEOUT_MILLIS;
+    private static final long DEFAULT_ORDERED_QUERY_TIMEOUT_MILLIS =
+            LogBook.DEFAULT_ORDERED_QUERY_TIMEOUT_MILLIS;
 
     private static final ExecutorService NODE_WORKER =
             Executors.newSingleThreadExecutor(
@@ -173,7 +176,8 @@ public final class TimingNodeFixture {
                         32,
                         "test-tag-" + suffix,
                         TAG_WORKER),
-                DEFAULT_OPERATION_TIMEOUT_MILLIS)
+                DEFAULT_COMMIT_TIMEOUT_MILLIS,
+                DEFAULT_ORDERED_QUERY_TIMEOUT_MILLIS)
                 .node();
     }
 
@@ -242,17 +246,42 @@ public final class TimingNodeFixture {
                         32,
                         "test-tag-direct-" + suffix,
                         TAG_WORKER),
-                DEFAULT_OPERATION_TIMEOUT_MILLIS);
+                DEFAULT_COMMIT_TIMEOUT_MILLIS,
+                DEFAULT_ORDERED_QUERY_TIMEOUT_MILLIS);
     }
 
-    /** Creates one TimingNode using a caller-supplied Data Lane and timeout. */
+    /**
+     * Creates one TimingNode using the same short wait guard for commit and ORDERED-query tests.
+     *
+     * <p>Use the two-timeout overload when the distinction itself is under test.</p>
+     */
     public static TimingNode createWithDataLane(
             NodeId nodeId,
             TimingDataPersistence persistence,
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
             SerialLane dataLane,
-            long operationTimeoutMillis) {
+            long waitTimeoutMillis) {
+
+        return createWithDataLane(
+                nodeId,
+                persistence,
+                timingDataFactory,
+                timeSource,
+                dataLane,
+                waitTimeoutMillis,
+                waitTimeoutMillis);
+    }
+
+    /** Creates one TimingNode with explicit commit and ORDERED-query wait guards. */
+    public static TimingNode createWithDataLane(
+            NodeId nodeId,
+            TimingDataPersistence persistence,
+            TimingDataFactory timingDataFactory,
+            TimeSource timeSource,
+            SerialLane dataLane,
+            long commitTimeoutMillis,
+            long orderedQueryTimeoutMillis) {
         String suffix =
                 nodeId == null
                         ? "missing"
@@ -274,7 +303,8 @@ public final class TimingNodeFixture {
                         32,
                         "test-tag-direct-" + suffix,
                         TAG_WORKER),
-                operationTimeoutMillis)
+                commitTimeoutMillis,
+                orderedQueryTimeoutMillis)
                 .node();
     }
 
@@ -289,7 +319,8 @@ public final class TimingNodeFixture {
             SerialLane dataLane,
             SerialLane taskLane,
             ScheduledSerialLane tagLane,
-            long operationTimeoutMillis) {
+            long commitTimeoutMillis,
+            long orderedQueryTimeoutMillis) {
         ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
                 ReadOnlyConfiguration.fixed(
                         TagProcessingPolicy.defaults());
@@ -303,7 +334,8 @@ public final class TimingNodeFixture {
                         SystemMonotonicClock.INSTANCE,
                         new LogBookMetrics(),
                         dataLane,
-                        operationTimeoutMillis);
+                        commitTimeoutMillis,
+                        orderedQueryTimeoutMillis);
 
         NodeServiceState nodeServiceState = new NodeServiceState(eventData);
 
