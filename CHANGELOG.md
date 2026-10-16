@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Clarify the CLOSE antenna-ingress gate: block new antenna registrations before NODE_CLOSE admission, restore the gate only when BUSY/UNAVAILABLE prove CLOSE was not accepted, and keep ingress blocked for TIMEOUT/INTERRUPTED/FAILED because the final close outcome may be unresolved.
+
 - Separate result-bearing LogBook wait guards into a 5-second TimingData commit wait timeout and a 2-second ORDERED-query wait timeout; log caller-visible operation failures centrally with NodeId/operation/reason context and log TimingData persistence/in-memory commit failures with record context.
 
 - Make result-bearing TimingNode/TimingNodeProxy operation failures explicit with declared `OperationException` contracts; remove the redundant TimingNode LogBook-readiness preflight so commands naturally remain ordered behind startup recovery; and move CLOSE catch/rethrow mechanics into the shared `SafeExecute` guard while keeping timeout-specific ingress recovery in TimingNode.
