@@ -69,14 +69,11 @@ public class PresentationGatewayTest {
         node.activate();
         try {
             TimingNodeStatus status = awaitStatus(gateway.timingNode(new NodeId("A")));
+            assertTrue(status.error());
             assertEquals(
-                    TimingNodeTypes.State.ERROR,
-                    status.state());
-            assertEquals(1, status.problems().size());
-            assertEquals(
-                    TimingNodeTypes.ProblemCode.TIMING_DATA_LOAD_FAILED,
-                    status.problems().get(0).code());
-            assertTrue(status.problems().get(0).message().contains(
+                    TimingNodeTypes.ErrorCode.TIMING_DATA_LOAD_FAILED,
+                    status.errorCode());
+            assertTrue(status.errorMessage().contains(
                     "expected persisted-data load failure"));
         } finally {
             node.deactivate();
