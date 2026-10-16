@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Move the reusable inactive-component guard into `LifecycleComponent`; concrete components configure their caller-visible inactive failure at construction instead of reimplementing the active-state check.
+
 - Simplify TimingNode current state back to functional OPEN/CLOSED plus LocationId. Remove the premature operational-health state/problem layer and keep lifecycle-history queue failures as LogBook diagnostics instead of a second TimingNode status model.
 
 - Use strongly typed `Property<T>` values for TimingNode functional state and LocationId. `PropertyContainer.update()` emits one grouped `PropertyUpdate` containing every changed property; lifecycle teardown uses `sync()` so it does not emit a normal runtime change event.
