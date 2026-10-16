@@ -19,11 +19,6 @@ public final class AntennaSettings extends SettingContainer {
     private final Setting<Boolean> inventoryEnabledSetting =
             setting(INVENTORY_ENABLED, Boolean.FALSE);
 
-    /** Returns the last committed desired inventory state. */
-    public boolean inventoryEnabled() {
-        return requestedValue(INVENTORY_ENABLED).booleanValue();
-    }
-
     /** Device-side state tracking, not part of the settings writer interface. */
     Setting<Boolean> inventorySetting() {
         return inventoryEnabledSetting;
