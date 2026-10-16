@@ -38,8 +38,8 @@ public final class LogBook implements LogBookAccessor {
     private final LogBookMetrics metrics;
 
     private final EventWithMetrics<TimingData> newDataEntryEvent;
-    private final Event<TimingData> nodeLifecycleStateEvent = new Event<TimingData>();
-    private final Event<TimingData> nodeLifecycleCommittedEvent = new Event<TimingData>();
+    private final Event<TimingData> nodeOperationStateCommittedEvent = new Event<TimingData>();
+    private final Event<TimingData> nodeOperationStateCommitPublishedEvent = new Event<TimingData>();
     private final Event<List<TimingData>> initialDataLoadedEvent = new Event<List<TimingData>>();
 
     /**
@@ -196,9 +196,9 @@ public final class LogBook implements LogBookAccessor {
      * Publishes NODE_OPEN/NODE_CLOSE immediately after commit, before general
      * committed-data publication, so TimingNode can update its CURRENT state.
      */
-    public EventSource<TimingData> nodeLifecycleStateEvent() {
+    public EventSource<TimingData> nodeOperationStateCommittedEvent() {
 
-        return nodeLifecycleStateEvent;
+        return nodeOperationStateCommittedEvent;
     }
 
     /**
@@ -207,9 +207,9 @@ public final class LogBook implements LogBookAccessor {
      * <p>This source is used internally by TimingNode so externally visible
      * committed TimingData remains ordered before the resulting node-status change.</p>
      */
-    public EventSource<TimingData> nodeLifecycleCommittedEvent() {
+    public EventSource<TimingData> nodeOperationStateCommitPublishedEvent() {
 
-        return nodeLifecycleCommittedEvent;
+        return nodeOperationStateCommitPublishedEvent;
     }
 
     /**
@@ -288,16 +288,16 @@ public final class LogBook implements LogBookAccessor {
 
         if (logBookState.timingDataHead() > headBefore) {
             TimingData committed = logBookState.latestCommittedTimingData();
-            boolean nodeLifecycle = committed instanceof TimingData.NodeOpen
+            boolean operationStateRecord = committed instanceof TimingData.NodeOpen
                     || committed instanceof TimingData.NodeClose;
-            if (nodeLifecycle) {
-                nodeLifecycleStateEvent.emit(committed);
+            if (operationStateRecord) {
+                nodeOperationStateCommittedEvent.emit(committed);
             }
 
             newDataEntryEvent.emit(committed);
 
-            if (nodeLifecycle) {
-                nodeLifecycleCommittedEvent.emit(committed);
+            if (operationStateRecord) {
+                nodeOperationStateCommitPublishedEvent.emit(committed);
             }
         }
         return result;
