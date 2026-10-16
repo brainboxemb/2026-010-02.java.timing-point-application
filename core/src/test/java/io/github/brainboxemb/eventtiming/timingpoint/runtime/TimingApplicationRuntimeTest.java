@@ -602,7 +602,7 @@ public class TimingApplicationRuntimeTest {
                     application.presentationGateway()
                             .timingNode(new NodeId("A"));
             await(
-                    () -> proxy.operationalState() == TimingNodeTypes.OperationalState.ERROR,
+                    () -> proxy.status().opState() == TimingNodeTypes.OperationalState.ERROR,
                     1000L);
             assertTrue(proxy.operationalProblem().isPresent());
             assertEquals(
