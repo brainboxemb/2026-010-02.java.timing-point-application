@@ -31,26 +31,26 @@ final class LogBookDataLane {
 
     private final NodeId nodeId;
     private final SerialLane serialLane;
-    private final long commitTimeoutMillis;
-    private final long orderedQueryTimeoutMillis;
+    private final long commitWaitTimeoutMillis;
+    private final long orderedQueryWaitTimeoutMillis;
 
     /** Creates the LogBook Data Lane adapter around one externally composed SerialLane. */
     LogBookDataLane(
             NodeId nodeId,
             SerialLane serialLane,
-            long commitTimeoutMillis,
-            long orderedQueryTimeoutMillis) {
+            long commitWaitTimeoutMillis,
+            long orderedQueryWaitTimeoutMillis) {
 
         checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(serialLane != null, "serialLane must not be null");
-        checkArgument(commitTimeoutMillis > 0L, "commitTimeoutMillis must be positive");
+        checkArgument(commitWaitTimeoutMillis > 0L, "commitWaitTimeoutMillis must be positive");
         checkArgument(
-                orderedQueryTimeoutMillis > 0L,
-                "orderedQueryTimeoutMillis must be positive");
+                orderedQueryWaitTimeoutMillis > 0L,
+                "orderedQueryWaitTimeoutMillis must be positive");
         this.nodeId = nodeId;
         this.serialLane = serialLane;
-        this.commitTimeoutMillis = commitTimeoutMillis;
-        this.orderedQueryTimeoutMillis = orderedQueryTimeoutMillis;
+        this.commitWaitTimeoutMillis = commitWaitTimeoutMillis;
+        this.orderedQueryWaitTimeoutMillis = orderedQueryWaitTimeoutMillis;
     }
 
     /**
@@ -104,7 +104,7 @@ final class LogBookDataLane {
                 work,
                 operation,
                 "command",
-                commitTimeoutMillis);
+                commitWaitTimeoutMillis);
     }
 
     /** Submits one result-bearing ORDERED query and waits for its ordered result. */
@@ -114,7 +114,7 @@ final class LogBookDataLane {
                 work,
                 operation,
                 "query",
-                orderedQueryTimeoutMillis);
+                orderedQueryWaitTimeoutMillis);
     }
 
     /** Submits one result-bearing operation using the timeout for that operation family. */
