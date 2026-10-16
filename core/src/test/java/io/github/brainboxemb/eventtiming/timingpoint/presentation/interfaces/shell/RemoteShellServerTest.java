@@ -98,7 +98,8 @@ public class RemoteShellServerTest {
                 assertTrue(response.contains("Close: CLOSED"));
                 assertTrue(response.contains("Timing node"));
                 assertTrue(response.contains("Id        : A"));
-                assertTrue(response.contains("State     : CLOSED"));
+                assertTrue(response.contains("Function  : CLOSED"));
+                assertTrue(response.contains("Operation : OK"));
                 assertTrue(response.contains("Stopping application."));
             }
 
@@ -131,15 +132,20 @@ public class RemoteShellServerTest {
             writer.write(
                     "test:A logbook write fail\n"
                             + "open:A 24\n"
-                            + "open:A 24\n"
+                            + "status:A\n"
+                            + "close:A\n"
                             + "quit\n");
             writer.flush();
 
             String response = readToEnd(client.getInputStream());
             assertTrue(response.contains(
                     "Next LogBook write test failure: FAIL"));
-            assertTrue(response.contains("Operation failed (FAILED):"));
             assertTrue(response.contains("Open: OPENED"));
+            assertTrue(response.contains("Function  : OPEN"));
+            assertTrue(response.contains("Operation : ERROR"));
+            assertTrue(response.contains("Problem   : TIMING_DATA_COMMIT_FAILED"));
+            assertTrue(response.contains("Close: CLOSED"));
+            assertTrue(!response.contains("Operation failed (FAILED):"));
         } finally {
             server.close();
             fixture.close();
