@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Remove redundant TimingNode identity from domain status values: `NodeStatus` is only the common status variant type, `Status` carries state/location, `ErrorStatus` carries error details, and node identity stays with the owning TimingNode/TimingNodeProxy context.
+- Separate TimingNode operation and error status completely: remove the `NodeStatus` union, keep `OperationStatus` as OPEN/CLOSED + LocationId and `ErrorStatus` as independent error details, with separate getters/events; node identity remains with the owning TimingNode/TimingNodeProxy context.
 
 - Simplify TimingNode operation-state handling: OPEN/CLOSED and current LocationId remain TimingNode-owned transient runtime state, restart recovery intentionally starts CLOSED without reconstructing historical state, and one normal LogBook `NEW_DATA_ENTRY` fact enters TimingNode, which updates operation state, republishes `TIMING_DATA_COMMITTED`, then publishes `STATUS_CHANGED`; remove the two LogBook-specific before/after sequencing events.
 
