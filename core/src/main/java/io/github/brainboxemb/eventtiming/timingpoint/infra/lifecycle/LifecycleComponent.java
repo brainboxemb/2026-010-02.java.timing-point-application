@@ -1,5 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle;
 
+import java.util.function.Supplier;
+
 /**
  * Base type for internal software components with infrastructure lifecycle.
  *
@@ -9,7 +11,21 @@ package io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle;
  * methods. Concrete components implement only the protected hooks.</p>
  */
 public abstract class LifecycleComponent {
+    private final Supplier<? extends RuntimeException> inactiveFailure;
     private volatile boolean active;
+
+    /** Creates a component with the default inactive-state failure. */
+    protected LifecycleComponent() {
+        this(() -> new IllegalStateException("Component is not active"));
+    }
+
+    /** Creates a component with its caller-visible inactive-state failure. */
+    protected LifecycleComponent(Supplier<? extends RuntimeException> inactiveFailure) {
+        if (inactiveFailure == null) {
+            throw new IllegalArgumentException("inactiveFailure must not be null");
+        }
+        this.inactiveFailure = inactiveFailure;
+    }
 
     /** Drives component activation from lifecycle infrastructure. */
     final void activateLifecycle() {
@@ -28,6 +44,13 @@ public abstract class LifecycleComponent {
     /** Returns whether activation completed and deactivation has not started. */
     protected final boolean isActive() {
         return active;
+    }
+
+    /** Fails with the configured component contract while this component is inactive. */
+    protected final void failIfInactive() {
+        if (!active) {
+            throw inactiveFailure.get();
+        }
     }
 
     /** Component-specific activation hook. */
