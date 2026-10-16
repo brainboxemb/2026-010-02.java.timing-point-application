@@ -37,9 +37,16 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  */
 public final class TimingNodeProxy {
 
-    /** Functional-state input mapped to the presentation status read model. */
+    /** Functional-state input mapped to the client-visible TimingNode status. */
     private static final EventInput<TimingNodeProxy, FunctionalState>
             FUNCTIONAL_STATE_CHANGED =
+                    EventInput.of(
+                            (proxy, source) ->
+                                    source.subscribe(ignored -> proxy.publishStatus()));
+
+    /** Operational-state input mapped to the client-visible TimingNode status. */
+    private static final EventInput<TimingNodeProxy, OperationalState>
+            OPERATIONAL_STATE_CHANGED =
                     EventInput.of(
                             (proxy, source) ->
                                     source.subscribe(ignored -> proxy.publishStatus()));
@@ -56,11 +63,8 @@ public final class TimingNodeProxy {
     private final LogBookTestControl logBookTestControl;
     private final Event<TimingNodeStatus> statusChangedEvent = new Event<>();
 
-    /** Functional TimingNode status changes for operator-facing clients. */
+    /** Client-visible TimingNode status changes. */
     public final EventSource<TimingNodeStatus> STATUS_CHANGED = statusChangedEvent;
-
-    /** Operational INIT/OK/ERROR changes for diagnostics and system health. */
-    public final EventSource<OperationalState> OPERATIONAL_STATE_CHANGED;
 
     /** Presentation-facing post-commit TimingData source. */
     public final EventSource<TimingData> NEW_DATA_ENTRY;
@@ -77,8 +81,8 @@ public final class TimingNodeProxy {
         }
         this.logBookTestControl = (LogBookTestControl) logBook;
         this.NEW_DATA_ENTRY = timingNode.TIMING_DATA_COMMITTED;
-        this.OPERATIONAL_STATE_CHANGED = timingNode.OPERATIONAL_STATE_CHANGED;
         FUNCTIONAL_STATE_CHANGED.bind(this, timingNode.FUNCTIONAL_STATE_CHANGED);
+        OPERATIONAL_STATE_CHANGED.bind(this, timingNode.OPERATIONAL_STATE_CHANGED);
     }
 
     /** Returns this node's ID. */
@@ -91,18 +95,14 @@ public final class TimingNodeProxy {
         return timingNode.timeSource();
     }
 
-    /** Returns the current OPEN/CLOSED state and location for this TimingNode. */
+    /** Returns the current client-visible status for this TimingNode. */
     public TimingNodeStatus status() {
 
         return TimingNodeStatus.current(
                 timingNodeId,
                 timingNode.functionalState(),
+                timingNode.operationalState(),
                 timingNode.locationId());
-    }
-
-    /** Returns current operational INIT/OK/ERROR independently from OPEN/CLOSED. */
-    public OperationalState operationalState() {
-        return timingNode.operationalState();
     }
 
     /** Returns the current operational problem, if one is active. */
@@ -262,7 +262,7 @@ public final class TimingNodeProxy {
                 LogBookQueries.visitLatestTimingData(limit, visitor));
     }
 
-    /** Publishes the current functional status after an OPEN/CLOSED change. */
+    /** Publishes the current status after a functional or operational state change. */
     private void publishStatus() {
 
         statusChangedEvent.emit(status());
