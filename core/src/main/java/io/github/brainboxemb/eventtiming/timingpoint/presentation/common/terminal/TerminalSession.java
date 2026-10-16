@@ -194,8 +194,8 @@ public final class TerminalSession {
                 case "auto-reg":
                     automaticRegistration(arguments, nodeId, output);
                     return false;
-                case "test-write":
-                    testWrite(arguments, nodeId, output);
+                case "test":
+                    test(arguments, nodeId, output);
                     return false;
                 case "config":
                     configuration(arguments, nodeId, output);
@@ -306,17 +306,19 @@ public final class TerminalSession {
         }
     }
 
-    private void testWrite(
+    private void test(
             String[] arguments,
             NodeId nodeId,
             PrintWriter output) {
-        if (arguments.length != 2) {
-            output.println("Usage: test-write <fail|timeout>");
+        if (arguments.length != 4
+                || !"logbook".equalsIgnoreCase(arguments[1])
+                || !"write".equalsIgnoreCase(arguments[2])) {
+            output.println("Usage: test logbook write <fail|timeout>");
             return;
         }
 
         LogBookTestControl.WriteFailure failure;
-        switch (arguments[1].toLowerCase(Locale.ROOT)) {
+        switch (arguments[3].toLowerCase(Locale.ROOT)) {
             case "fail":
                 failure = LogBookTestControl.WriteFailure.FAIL;
                 break;
@@ -324,7 +326,7 @@ public final class TerminalSession {
                 failure = LogBookTestControl.WriteFailure.TIMEOUT;
                 break;
             default:
-                output.println("Usage: test-write <fail|timeout>");
+                output.println("Usage: test logbook write <fail|timeout>");
                 return;
         }
 
@@ -550,7 +552,7 @@ public final class TerminalSession {
                 || "close".equals(command)
                 || "status".equals(command)
                 || "auto-reg".equals(command)
-                || "test-write".equals(command)
+                || "test".equals(command)
                 || "config".equals(command);
     }
 
@@ -561,7 +563,7 @@ public final class TerminalSession {
                 || "close".equals(command)
                 || "status".equals(command)
                 || "auto-reg".equals(command)
-                || "test-write".equals(command)) {
+                || "test".equals(command)) {
             return true;
         }
         if (!"config".equals(command)
@@ -752,8 +754,8 @@ public final class TerminalSession {
                 "  auto-reg <id> <time>         "
                         + "Create automatic registration");
         output.println(
-                "  test-write <fail|timeout>    "
-                        + "Fail or delay the next LogBook write");
+                "  test logbook write <fail|timeout>"
+                        + "  Fail or delay next LogBook write");
         output.println(
                 "  config                       "
                         + "Show current configuration");
