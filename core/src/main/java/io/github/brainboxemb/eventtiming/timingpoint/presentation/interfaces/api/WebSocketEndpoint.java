@@ -1,11 +1,11 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationalState;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 
@@ -16,10 +16,6 @@ import java.nio.ByteBuffer;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -57,8 +53,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
     private final Clock clock;
     private final TimingDataCodec timingDataCodec;
     private final WebSocketOutboundDelivery outboundDelivery;
-    private final Map<NodeId, TimingNodeStatus> statusByNode =
-            new LinkedHashMap<NodeId, TimingNodeStatus>();
 
     private Server server;
 
@@ -165,10 +159,15 @@ public final class WebSocketEndpoint implements AutoCloseable {
             throw new IllegalArgumentException(
                     "status must not be null");
         }
-        synchronized (statusByNode) {
-            statusByNode.put(
-                    status.timingNodeId(),
-                    status);
+        broadcastStatus("STATUS_CHANGED");
+    }
+
+    /** Broadcasts the complete status after operational health changes. */
+    private void onOperationalStateChanged(
+            OperationalState state) {
+        if (state == null) {
+            throw new IllegalArgumentException(
+                    "state must not be null");
         }
         broadcastStatus("STATUS_CHANGED");
     }
@@ -221,6 +220,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
     private void bindApplicationEvents() {
         for (TimingNodeProxy timingNode : presentationGateway.timingNodes()) {
             timingNode.STATUS_CHANGED.subscribe(this::onTimingNodeStatusChanged);
+            timingNode.OPERATIONAL_STATE_CHANGED.subscribe(this::onOperationalStateChanged);
             timingNode.NEW_DATA_ENTRY.subscribe(this::onTimingDataCommitted);
         }
         presentationGateway.configuration()
@@ -232,36 +232,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
         return server;
     }
 
-    private void refreshStatusSnapshot() {
-        List<TimingNodeStatus> statuses =
-                presentationGateway.timingNodeStatuses();
-        synchronized (statusByNode) {
-            statusByNode.clear();
-            for (TimingNodeStatus status : statuses) {
-                statusByNode.put(
-                        status.timingNodeId(),
-                        status);
-            }
-        }
-    }
-
-    private List<TimingNodeStatus> currentStatuses() {
-        List<TimingNodeStatus> statuses =
-                new ArrayList<TimingNodeStatus>();
-        synchronized (statusByNode) {
-            for (TimingNodeProxy timingNode
-                    : presentationGateway.timingNodes()) {
-                TimingNodeStatus status =
-                        statusByNode.get(
-                                timingNode.timingNodeId());
-                if (status != null) {
-                    statuses.add(status);
-                }
-            }
-        }
-        return statuses;
-    }
-
     private void broadcastStatus(
             String eventType) {
         Server current = currentServer();
@@ -270,7 +240,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
                     MessageWriter.statusEvent(
                             eventType,
                             clock.instant(),
-                            currentStatuses()));
+                            presentationGateway.timingNodes()));
         }
     }
 
@@ -278,7 +248,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
         return MessageWriter.statusEvent(
                 "STATUS_SNAPSHOT",
                 clock.instant(),
-                currentStatuses());
+                presentationGateway.timingNodes());
     }
 
     @Override
@@ -341,7 +311,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
                  * therefore receives a complete snapshot immediately and later
                  * status changes report recovery becoming OK or ERROR.
                  */
-                refreshStatusSnapshot();
                 sendEvent(
                         connection,
                         snapshotJson());
