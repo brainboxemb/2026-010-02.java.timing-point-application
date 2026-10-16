@@ -4,6 +4,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.setting.SettingContainer;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
@@ -106,7 +107,7 @@ public final class TimingSystemConductor extends AbstractConductor {
         }
         if (antennaSettings != null) {
             final boolean inventoryRequired = required;
-            Consumer<AntennaSettings.Edit> settingsUpdate =
+            Consumer<SettingContainer.Edit> settingsUpdate =
                     edit -> edit.set(
                             AntennaSettings.INVENTORY_ENABLED,
                             Boolean.valueOf(inventoryRequired));
