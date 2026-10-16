@@ -476,6 +476,50 @@ public class TimingNodeTest {
     }
 
     @Test
+    public void rejectedOpenHistoryDoesNotRejectFunctionalOpen()
+            throws Exception {
+        SerialLane executor = newSerialLane(1, "timing-node-full-logbook-test");
+        TimingNode node = node(
+                new NodeId("A"),
+                executor,
+                1000L);
+        CountDownLatch blockerStarted = new CountDownLatch(1);
+        CountDownLatch releaseBlocker = new CountDownLatch(1);
+        CountDownLatch fillerCommitted = new CountDownLatch(1);
+        node.TIMING_DATA_COMMITTED.subscribe(data -> fillerCommitted.countDown());
+
+        activate(node);
+        try {
+            executor.submit(() -> {
+                blockerStarted.countDown();
+                releaseBlocker.await();
+                return null;
+            });
+            assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
+
+            node.logBook().execute(
+                    LogBookCommands.commitNodeOpen(new LocationId(99)));
+
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.open(new LocationId(24)));
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.OPEN,
+                    node.functionalState());
+            assertEquals(new LocationId(24), node.locationId());
+
+            releaseBlocker.countDown();
+            assertTrue(fillerCommitted.await(1, TimeUnit.SECONDS));
+            assertEquals(
+                    1,
+                    node.logBook().process(LogBookQueries.timingDataCount()).intValue());
+        } finally {
+            releaseBlocker.countDown();
+            deactivate(node);
+        }
+    }
+
+    @Test
     public void delayedLifecycleWriteDoesNotDelayFunctionalOpen()
             throws Exception {
         SerialLane executor = newSerialLane(4, "timing-node-test-hook");
@@ -571,7 +615,7 @@ public class TimingNodeTest {
         }
     }
 
-    /** Verifies that LogBook.queue returns after lane admission without waiting for command completion. */
+    /** Verifies that LogBook.execute returns after lane admission without waiting for command completion. */
     @Test
     public void queueReturnsAfterAdmissionWithoutWaitingForExecution()
             throws Exception {

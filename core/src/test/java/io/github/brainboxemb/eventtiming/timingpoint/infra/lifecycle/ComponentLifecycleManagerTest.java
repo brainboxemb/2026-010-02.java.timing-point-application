@@ -76,6 +76,25 @@ public class ComponentLifecycleManagerTest {
     }
 
     @Test
+    public void lifecycleComponentOwnsInactiveGuard() {
+        RuntimeException failure = new RuntimeException("inactive");
+        GuardedComponent component = new GuardedComponent(failure);
+        ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
+
+        try {
+            component.command();
+            fail("expected inactive failure");
+        } catch (RuntimeException expected) {
+            assertSame(failure, expected);
+        }
+
+        lifecycle.register(component);
+        lifecycle.activateAll();
+        component.command();
+        lifecycle.deactivateAll();
+    }
+
+    @Test
     public void activatesAgainAfterDeactivation() {
         List<String> calls = new ArrayList<String>();
         ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
@@ -129,6 +148,24 @@ public class ComponentLifecycleManagerTest {
         assertEquals(
                 3,
                 calls.size());
+    }
+
+    private static final class GuardedComponent extends LifecycleComponent {
+        private GuardedComponent(RuntimeException inactiveFailure) {
+            super(() -> inactiveFailure);
+        }
+
+        private void command() {
+            failIfInactive();
+        }
+
+        @Override
+        protected void onActivate() {
+        }
+
+        @Override
+        protected void onDeactivate() {
+        }
     }
 
     private static final class TestComponent extends LifecycleComponent {

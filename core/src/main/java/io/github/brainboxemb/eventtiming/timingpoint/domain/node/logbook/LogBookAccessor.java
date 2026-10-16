@@ -5,8 +5,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
-import java.util.concurrent.RejectedExecutionException;
-
 /**
  * Intentional access boundary for one TimingNode LogBook.
  *
@@ -27,14 +25,12 @@ public interface LogBookAccessor {
     <R> R process(LogBookCommand<R> command) throws OperationException;
 
     /**
-     * Executes one command asynchronously and returns after it is queued.
+     * Executes one command asynchronously and returns after queueing.
      *
-     * <p>Like {@code Executor.execute}, queue rejection propagates immediately
-     * as RejectedExecutionException; later command execution has no caller result.</p>
-     *
-     * @throws RejectedExecutionException when the Data Lane cannot queue the command
+     * <p>Queue rejection and later execution failure are LogBook diagnostics;
+     * this fire-and-forget path has no caller result.</p>
      */
-    void execute(LogBookCommand<?> command) throws RejectedExecutionException;
+    void execute(LogBookCommand<?> command);
 
     /**
      * Processes one ORDERED query.
