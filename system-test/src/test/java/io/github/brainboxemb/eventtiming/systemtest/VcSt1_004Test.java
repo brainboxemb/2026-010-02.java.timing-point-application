@@ -68,7 +68,7 @@ public class VcSt1_004Test {
 
             Response open = http.post(
                     "/api/v1/node/" + NODE_ID + "/open",
-                    "{\"locationId\":24}");
+                    "{\"locId\":24}");
             assertEquals(
                     "Functional OPEN must remain independent from LogBook recovery error",
                     200,
@@ -77,9 +77,9 @@ public class VcSt1_004Test {
 
             Response afterOpen = http.get("/api/v1/status");
             assertEquals(200, afterOpen.status());
-            assertContains(afterOpen.body(), "\"locationId\":24");
+            assertContains(afterOpen.body(), "\"locId\":24");
             assertContains(afterOpen.body(), "\"state\":\"OPEN\"");
-            assertContains(afterOpen.body(), "\"operationalState\":\"ERROR\"");
+            assertContains(afterOpen.body(), "\"opState\":\"ERROR\"");
             assertContains(
                     afterOpen.body(),
                     "\"code\":\"TIMING_DATA_LOAD_FAILED\"");
@@ -139,11 +139,11 @@ public class VcSt1_004Test {
             String functionalState,
             String locationJson) {
         assertContains(json, "\"id\":\"" + NODE_ID + "\"");
-        assertContains(json, "\"locationId\":" + locationJson);
+        assertContains(json, "\"locId\":" + locationJson);
         assertContains(
                 json,
                 "\"state\":\"" + functionalState + "\"");
-        assertContains(json, "\"operationalState\":\"ERROR\"");
+        assertContains(json, "\"opState\":\"ERROR\"");
         assertContains(
                 json,
                 "\"code\":\"TIMING_DATA_LOAD_FAILED\"");
