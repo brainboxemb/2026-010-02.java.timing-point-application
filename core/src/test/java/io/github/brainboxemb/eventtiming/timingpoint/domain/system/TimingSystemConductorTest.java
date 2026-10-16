@@ -7,10 +7,9 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.NodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
@@ -155,7 +154,7 @@ public class TimingSystemConductorTest {
     }
 
     @Test
-    public void statusEventWakesConductorWithoutUpdatingSettingsOnNodeThread() throws Exception {
+    public void operationStatusEventWakesConductorWithoutUpdatingSettingsOnNodeThread() throws Exception {
         TimingNode node = newTimingNode("A");
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
@@ -297,9 +296,8 @@ public class TimingSystemConductorTest {
 
     private static boolean isClosedWhenStatusAvailable(TimingNode node) {
         try {
-            NodeStatus status = node.status();
-            return status instanceof Status
-                    && ((Status) status).state() == State.CLOSED;
+            OperationStatus status = node.operationStatus();
+            return status.state() == State.CLOSED;
         } catch (OperationException ex) {
             if (ex.reason() == OperationException.Reason.UNAVAILABLE) {
                 return false;
