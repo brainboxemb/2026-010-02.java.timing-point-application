@@ -16,6 +16,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.property.Property;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyContainer;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
@@ -60,24 +62,17 @@ public final class TimingNode extends LifecycleComponent {
     private final TagProcessor tagProcessor;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
     private final Event<TimingData> timingDataCommittedEvent = new Event<TimingData>();
-    private final Event<FunctionalState> functionalStateChangedEvent =
-            new Event<FunctionalState>();
-    private final Event<OperationalState> operationalStateChangedEvent =
-            new Event<OperationalState>();
+    private final PropertyContainer properties = new PropertyContainer();
+    private final Property<FunctionalState> functionalState =
+            properties.property("functionalState", FunctionalState.CLOSED);
+    private final Property<OperationalState> operationalState =
+            properties.property("operationalState", OperationalState.INIT);
+    private final Property<LocationId> locationId =
+            properties.property("locationId", null);
+    private final Property<OperationalProblem> operationalProblem =
+            properties.property("operationalProblem", null);
     private final Object operationLock = new Object();
     private final Object stateLock = new Object();
-
-    /** Current functional state; independent from operational health. */
-    private volatile FunctionalState functionalState = FunctionalState.CLOSED;
-
-    /** Current operational health; independent from functional OPEN/CLOSED state. */
-    private volatile OperationalState operationalState = OperationalState.INIT;
-
-    /** Current location, or null when no location is assigned. */
-    private volatile LocationId locationId;
-
-    /** Current operational problem detail, or null when none is active. */
-    private volatile OperationalProblem operationalProblem;
 
     /** True while this TimingNode is active and may accept functional commands. */
     private volatile boolean active;
@@ -115,13 +110,8 @@ public final class TimingNode extends LifecycleComponent {
      */
     public final EventSource<TimingData> TIMING_DATA_COMMITTED = timingDataCommittedEvent;
 
-    /** Functional OPEN/CLOSED changes for this TimingNode. */
-    public final EventSource<FunctionalState> FUNCTIONAL_STATE_CHANGED =
-            functionalStateChangedEvent;
-
-    /** Operational INIT/OK/ERROR changes for this TimingNode. */
-    public final EventSource<OperationalState> OPERATIONAL_STATE_CHANGED =
-            operationalStateChangedEvent;
+    /** Current-property changes for this TimingNode. */
+    public final EventSource<PropertyContainer.Change> PROPERTIES_CHANGED = properties;
 
     /** Creates one TimingNode with its clock and child components. */
     public TimingNode(
@@ -182,25 +172,25 @@ public final class TimingNode extends LifecycleComponent {
     /** Returns the current functional OPEN/CLOSED state. */
     public FunctionalState functionalState() {
 
-        return functionalState;
+        return functionalState.value();
     }
 
     /** Returns the current operational INIT/OK/ERROR state. */
     public OperationalState operationalState() {
 
-        return operationalState;
+        return operationalState.value();
     }
 
     /** Returns the current location, or null when no location is assigned. */
     public LocationId locationId() {
 
-        return locationId;
+        return locationId.value();
     }
 
     /** Returns the current operational problem, if one is active. */
     public Optional<OperationalProblem> operationalProblem() {
 
-        return Optional.ofNullable(operationalProblem);
+        return Optional.ofNullable(operationalProblem.value());
     }
 
     /**
@@ -219,7 +209,7 @@ public final class TimingNode extends LifecycleComponent {
             requireActive();
 
             OpenResult result;
-            if (functionalState == FunctionalState.OPEN) {
+            if (functionalState.value() == FunctionalState.OPEN) {
                 result = OpenResult.ALREADY_OPEN;
             } else {
                 applyFunctionalState(
@@ -243,10 +233,10 @@ public final class TimingNode extends LifecycleComponent {
 
         synchronized (operationLock) {
             CloseResult result;
-            if (functionalState == FunctionalState.CLOSED) {
+            if (functionalState.value() == FunctionalState.CLOSED) {
                 result = CloseResult.ALREADY_CLOSED;
             } else {
-                LocationId currentLocation = locationId;
+                LocationId currentLocation = locationId.value();
                 applyFunctionalState(
                         FunctionalState.CLOSED,
                         currentLocation,
@@ -280,12 +270,12 @@ public final class TimingNode extends LifecycleComponent {
 
         synchronized (operationLock) {
             RegistrationResult result;
-            if (functionalState != FunctionalState.OPEN) {
+            if (functionalState.value() != FunctionalState.OPEN) {
                 result = RegistrationResult.nodeNotOpen();
             } else {
                 result = logBook.process(
                         LogBookCommands.commitAutomaticRegistration(
-                                locationId,
+                                locationId.value(),
                                 registrationId,
                                 effectiveTime,
                                 TimingData.TagSource.API,
@@ -311,12 +301,12 @@ public final class TimingNode extends LifecycleComponent {
 
         synchronized (operationLock) {
             RegistrationResult result;
-            if (functionalState != FunctionalState.OPEN) {
+            if (functionalState.value() != FunctionalState.OPEN) {
                 result = RegistrationResult.nodeNotOpen();
             } else {
                 result = logBook.process(
                         LogBookCommands.commitManualRegistration(
-                                locationId,
+                                locationId.value(),
                                 registrationId,
                                 effectiveTime,
                                 registrationTimeSource));
@@ -355,12 +345,15 @@ public final class TimingNode extends LifecycleComponent {
 
         active = false;
         lifecycle.deactivateAll();
+        PropertyContainer.Update update = properties.update();
+        update.set(functionalState, FunctionalState.CLOSED);
+        update.set(operationalState, OperationalState.INIT);
+        update.set(locationId, null);
+        update.set(operationalProblem, null);
         synchronized (stateLock) {
-            functionalState = FunctionalState.CLOSED;
-            operationalState = OperationalState.INIT;
-            locationId = null;
-            operationalProblem = null;
+            update.commit();
         }
+        update.publish();
     }
 
     /**
@@ -413,15 +406,13 @@ public final class TimingNode extends LifecycleComponent {
             LocationId newLocationId,
             LogBookCommand<?> historyCommand) {
 
+        PropertyContainer.Update update = properties.update();
+        update.set(locationId, newLocationId);
+        update.set(functionalState, state);
+
         final boolean historyQueued;
         synchronized (stateLock) {
-            /*
-             * Publish location before functional state. A reader that observes
-             * the volatile functional-state write can then also observe the
-             * location belonging to that transition.
-             */
-            locationId = newLocationId;
-            functionalState = state;
+            update.commit();
 
             Runnable queueHistory = () -> logBook.execute(historyCommand);
             historyQueued = SafeExecute.runOrHandleRejection(
@@ -431,7 +422,7 @@ public final class TimingNode extends LifecycleComponent {
                             ex));
         }
 
-        functionalStateChangedEvent.emit(state);
+        update.publish();
         if (!historyQueued) {
             setLogBookUnavailable("lifecycle history");
         }
@@ -461,38 +452,29 @@ public final class TimingNode extends LifecycleComponent {
     /** Changes operational state to OK and clears any current problem detail. */
     private void setOperationalHealthy() {
 
-        boolean changed = false;
+        PropertyContainer.Update update = properties.update();
         synchronized (stateLock) {
-            if (operationalState == OperationalState.INIT) {
-                operationalState = OperationalState.OK;
-                operationalProblem = null;
-                changed = true;
+            if (operationalState.value() == OperationalState.INIT) {
+                update.set(operationalState, OperationalState.OK);
+                update.set(operationalProblem, null);
             }
+            update.commit();
         }
-        if (changed) {
-            operationalStateChangedEvent.emit(OperationalState.OK);
-        }
+        update.publish();
     }
 
     /** Changes operational state to ERROR without changing functional state. */
     private void setOperationalError(OperationalProblem problem) {
 
-        boolean stateChanged;
+        PropertyContainer.Update update = properties.update();
         synchronized (stateLock) {
-            /*
-             * Keep the first active problem as the primary diagnostic cause.
-             * Publish its detail before the volatile ERROR state.
-             */
-            if (operationalProblem == null) {
-                operationalProblem = problem;
+            if (operationalProblem.value() == null) {
+                update.set(operationalProblem, problem);
             }
-            stateChanged = operationalState != OperationalState.ERROR;
-            operationalState = OperationalState.ERROR;
+            update.set(operationalState, OperationalState.ERROR);
+            update.commit();
         }
-
-        if (stateChanged) {
-            operationalStateChangedEvent.emit(OperationalState.ERROR);
-        }
+        update.publish();
     }
 
     /** Rejects functional commands only while the TimingNode itself is inactive. */
@@ -518,12 +500,12 @@ public final class TimingNode extends LifecycleComponent {
                         + registration.registrationId().value();
         final boolean registrationQueued;
         synchronized (stateLock) {
-            if (functionalState != FunctionalState.OPEN) {
+            if (functionalState.value() != FunctionalState.OPEN) {
                 return;
             }
 
             LogBookCommand<?> command = LogBookCommands.commitAntennaRegistration(
-                    locationId,
+                    locationId.value(),
                     registration.registrationId(),
                     registration.observedAt());
 
