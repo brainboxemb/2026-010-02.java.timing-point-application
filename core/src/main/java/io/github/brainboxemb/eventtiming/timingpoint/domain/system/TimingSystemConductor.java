@@ -42,7 +42,7 @@ public final class TimingSystemConductor extends AbstractConductor {
             AntennaSettings antennaSettings,
             TaskSerialLane coordinationLane) {
 
-        super(coordinationLane);
+        super("TimingSystemConductor", coordinationLane);
 
         if (timingNodes == null || timingNodes.isEmpty()) {
             throw new IllegalArgumentException("timingNodes must not be empty");
