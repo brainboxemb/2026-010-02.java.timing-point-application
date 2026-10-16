@@ -19,7 +19,7 @@ public class AntennaSettingsTest {
     public void commitsOnlyChangedState() {
         AntennaSettings settings = new AntennaSettings();
         AtomicInteger events = new AtomicInteger();
-        settings.changedEvent().subscribe(revision -> events.incrementAndGet());
+        settings.CHANGED.subscribe(revision -> events.incrementAndGet());
 
         settings.update(edit -> edit.inventoryEnabled(true));
         settings.update(edit -> edit.inventoryEnabled(true));

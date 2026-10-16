@@ -8,7 +8,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTim
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import java.time.ZoneId;
 import java.util.List;
@@ -62,19 +61,6 @@ public final class NodeService {
         this.state = state;
         this.stageTiming = new StageTiming(
                 state.eventData(), state.teamAssignments(), state.stageStartTimes());
-    }
-
-    /**
-     * Binds one typed event source to a supported NodeService input.
-     *
-     * <p>The caller selects the semantic input while NodeService keeps the
-     * concrete handler private.</p>
-     */
-    public <T> void bind(EventInput<NodeService, T> input, EventSource<T> source) {
-
-        checkArgument(input != null, "input must not be null");
-        checkArgument(source != null, "source must not be null");
-        input.bind(this, source);
     }
 
     /**

@@ -9,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObser
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import java.util.ArrayList;
@@ -41,8 +42,16 @@ public final class TagProcessor {
         INACTIVE
     }
 
+    /** Runtime-policy changes consumed by this processor. */
+    private static final EventInput<TagProcessor, ConfigurationChange<TagProcessingPolicy>> POLICY_CHANGED =
+            EventInput.of(
+                    (processor, source) -> source.subscribe(processor::onPolicyConfigurationChanged));
+
     private final EventData eventData;
-    private final Event<NewRegistration> newRegistrationEvent = new Event<NewRegistration>();
+    private final Event<NewRegistration> newRegistration = new Event<NewRegistration>();
+
+    /** Selected-registration source published after passage filtering. */
+    public final EventSource<NewRegistration> NEW_REGISTRATION = newRegistration;
     private final ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration;
     private final RegistrationDuplicateFilter duplicateFilter;
     private final TagProcessingMetrics metrics;
@@ -91,7 +100,7 @@ public final class TagProcessor {
         observationFilter = new TagObservationFilter(
                 policyConfiguration, monotonicClock, metrics, this::processValidObservation);
 
-        policyConfiguration.changes().subscribe(this::onPolicyConfigurationChanged);
+        POLICY_CHANGED.bind(this, policyConfiguration.changes());
     }
 
     /**
@@ -168,15 +177,6 @@ public final class TagProcessor {
      */
     public List<TagPassageSnapshot> passageSnapshots() {
         return passageSnapshots;
-    }
-
-    /**
-     * Returns the selected-registration event.
-     *
-     * <p>Listeners run synchronously on the TagProcessor lane and must return quickly.</p>
-     */
-    public EventSource<NewRegistration> newRegistrationEvent() {
-        return newRegistrationEvent;
     }
 
     /** Schedules one TagProcessor-lane drain when no drain turn is already pending. */
@@ -363,7 +363,7 @@ public final class TagProcessor {
         observationFilter.discard(registrationId);
         publishPassageSnapshots();
 
-        newRegistrationEvent.emit(new NewRegistration(registrationId, observedAt));
+        newRegistration.emit(new NewRegistration(registrationId, observedAt));
     }
 
     /** Immutable registration selected from one completed tag passage. */

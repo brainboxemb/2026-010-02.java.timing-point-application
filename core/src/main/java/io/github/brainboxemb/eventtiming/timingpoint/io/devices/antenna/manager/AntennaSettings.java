@@ -18,7 +18,10 @@ import java.util.function.Consumer;
 public final class AntennaSettings {
     private final Setting<Boolean> inventoryEnabledSetting =
             new Setting<Boolean>(Boolean.FALSE);
-    private final Event<Long> changedEvent = new Event<Long>();
+    private final Event<Long> changed = new Event<Long>();
+
+    /** Post-commit source for owner-side reconciliation. */
+    public final EventSource<Long> CHANGED = changed;
 
     private long revision;
     private boolean updating;
@@ -75,7 +78,7 @@ public final class AntennaSettings {
         }
 
         if (changedRevision != null) {
-            changedEvent.emit(changedRevision);
+            changed.emit(changedRevision);
         }
     }
 
@@ -87,11 +90,6 @@ public final class AntennaSettings {
     /** Monotonic revision of committed, effective settings changes. */
     public synchronized long revision() {
         return revision;
-    }
-
-    /** Post-commit notification for owner-side reconciliation. */
-    public EventSource<Long> changedEvent() {
-        return changedEvent;
     }
 
     /** Device-side state tracking, not part of the settings writer interface. */

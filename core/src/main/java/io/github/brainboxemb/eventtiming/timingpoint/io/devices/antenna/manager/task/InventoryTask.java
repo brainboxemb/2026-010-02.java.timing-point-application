@@ -44,7 +44,10 @@ final class InventoryTask extends AbstractTask {
     private final List<ManagedAntenna> inventoryGroup;
     private final Duration inventoryInterval;
     private final Setting<Boolean> inventoryEnabledSetting;
-    private final Event<AntennaTaskResult> completedEvent = new Event<AntennaTaskResult>();
+    private final Event<AntennaTaskResult> completed = new Event<AntennaTaskResult>();
+
+    /** Completion source consumed by AntennaManager during fixed composition. */
+    final EventSource<AntennaTaskResult> COMPLETED = completed;
 
     private volatile AntennaTaskResult lastResult;
     private long requestRevisionAtStart;
@@ -65,10 +68,6 @@ final class InventoryTask extends AbstractTask {
         this.inventoryInterval = inventoryInterval;
         this.inventoryEnabledSetting = inventoryEnabledSetting;
         resetForRun();
-    }
-
-    EventSource<AntennaTaskResult> completedEvent() {
-        return completedEvent;
     }
 
     /**
@@ -94,7 +93,7 @@ final class InventoryTask extends AbstractTask {
                 ? AntennaTaskResult.success()
                 : AntennaTaskResult.failed(taskFailure);
 
-        completedEvent.emit(lastResult);
+        completed.emit(lastResult);
     }
 
     @Override
