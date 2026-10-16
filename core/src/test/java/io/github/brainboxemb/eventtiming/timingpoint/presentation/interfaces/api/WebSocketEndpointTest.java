@@ -127,7 +127,7 @@ public class WebSocketEndpointTest {
 
             assertTrue(opened.contains("\"eventType\":\"STATUS_CHANGED\""));
             assertTrue(opened.contains("\"locationId\":24"));
-            assertTrue(opened.contains("\"functionalState\":\"OPEN\""));
+            assertTrue(opened.contains("\"state\":\"OPEN\""));
 
             fixture.handler.timingNode(new NodeId("A")).addTestAutomaticRegistration(
                     new RegistrationId("N0001"),
@@ -311,9 +311,9 @@ public class WebSocketEndpointTest {
             assertTrue(snapshot.contains(
                     "\"eventType\":\"STATUS_SNAPSHOT\""));
             assertTrue(snapshot.contains(
-                    "{\"id\":\"A\",\"locationId\":null,\"functionalState\":\"CLOSED\",\"operationalState\":\"OK\"}"));
+                    "{\"id\":\"A\",\"locationId\":null,\"state\":\"CLOSED\",\"operationalState\":\"OK\"}"));
             assertTrue(snapshot.contains(
-                    "{\"id\":\"B\",\"locationId\":24,\"functionalState\":\"OPEN\",\"operationalState\":\"OK\"}"));
+                    "{\"id\":\"B\",\"locationId\":24,\"state\":\"OPEN\",\"operationalState\":\"OK\"}"));
         } finally {
             client.closeBlocking();
             server.close();
@@ -352,7 +352,7 @@ public class WebSocketEndpointTest {
                 assertTrue(snapshot.contains("\"eventType\":\"STATUS_SNAPSHOT\""));
                 assertTrue(snapshot.contains("\"id\":\"A\""));
                 assertTrue(snapshot.contains("\"locationId\":null"));
-                assertTrue(snapshot.contains("\"functionalState\":\"CLOSED\""));
+                assertTrue(snapshot.contains("\"state\":\"CLOSED\""));
                 assertTrue(snapshot.contains("\"operationalState\":\"ERROR\""));
                 assertTrue(snapshot.contains(
                         "\"code\":\"TIMING_DATA_LOAD_FAILED\""));
@@ -381,7 +381,7 @@ public class WebSocketEndpointTest {
         long deadline =
                 System.nanoTime()
                         + TimeUnit.SECONDS.toNanos(1L);
-        while (proxy.status().operationalState()
+        while (proxy.operationalState()
                 == io.github.brainboxemb.eventtiming.timingpoint.domain.node
                         .TimingNodeTypes.OperationalState.INIT) {
             if (System.nanoTime() >= deadline) {
@@ -403,7 +403,7 @@ public class WebSocketEndpointTest {
         assertTrue(json.contains("\"id\":\"" + timingNodeId + "\""));
         assertTrue(json.contains("\"locationId\":" + locationJson));
         assertTrue(json.contains(
-                "\"functionalState\":\"" + functionalState + "\""));
+                "\"state\":\"" + functionalState + "\""));
         assertTrue(json.contains("\"operationalState\":\"OK\""));
         assertTrue(json.contains("\"problems\":[]"));
     }
