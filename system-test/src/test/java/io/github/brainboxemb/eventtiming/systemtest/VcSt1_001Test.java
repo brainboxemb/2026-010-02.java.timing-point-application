@@ -112,7 +112,7 @@ public class VcSt1_001Test {
             Response status = http.get("/api/v1/status");
             if (status.status() == 200
                     && status.body().contains(
-                            "\"operationalState\":\"OK\"")) {
+                            "\"opState\":\"OK\"")) {
                 return;
             }
             Thread.sleep(20L);
@@ -125,14 +125,14 @@ public class VcSt1_001Test {
         assertContains(json, "\"eventType\":\"STATUS_SNAPSHOT\"");
         assertContains(json, "\"nodes\":[{");
         assertContains(json, "\"id\":\"" + NODE_ID + "\"");
-        assertContains(json, "\"locationId\":null");
+        assertContains(json, "\"locId\":null");
         assertContains(json, "\"state\":\"CLOSED\"");
     }
 
     private static void assertStatusSemantics(String json) {
         assertContains(json, "\"nodes\":[{");
         assertContains(json, "\"id\":\"" + NODE_ID + "\"");
-        assertContains(json, "\"locationId\":null");
+        assertContains(json, "\"locId\":null");
         assertContains(json, "\"state\":\"CLOSED\"");
         assertContains(json, "\"problems\":[]");
     }
@@ -142,9 +142,9 @@ public class VcSt1_001Test {
             String status) {
         for (String field : new String[] {
                 "\"id\":\"" + NODE_ID + "\"",
-                "\"locationId\":null",
+                "\"locId\":null",
                 "\"state\":\"CLOSED\"",
-                "\"operationalState\":\"OK\""
+                "\"opState\":\"OK\""
         }) {
             assertContains(snapshot, field);
             assertContains(status, field);
