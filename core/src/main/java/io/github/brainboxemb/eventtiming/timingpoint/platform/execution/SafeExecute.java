@@ -69,6 +69,26 @@ public final class SafeExecute {
     }
 
     /**
+     * Runs one operation, lets the caller handle any runtime failure, then rethrows it unchanged.
+     *
+     * <p>The failure handler owns component-specific cleanup or recovery. This
+     * wrapper only keeps repeated catch-and-rethrow mechanics out of the normal
+     * component flow. If the handler does nothing, the original failure still
+     * propagates to the caller.</p>
+     */
+    public static void runOrRethrow(Runnable operation, Consumer<RuntimeException> onFailure) {
+        checkArgument(operation != null, "operation must not be null");
+        checkArgument(onFailure != null, "onFailure must not be null");
+
+        try {
+            operation.run();
+        } catch (RuntimeException ex) {
+            onFailure.accept(ex);
+            throw ex;
+        }
+    }
+
+    /**
      * Runs one operation and delegates queue rejection to the caller's policy.
      *
      * <p>Only RejectedExecutionException is handled. Other RuntimeExceptions
