@@ -300,7 +300,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
             applyCommand(command);
         } catch (Exception ex) {
 
-            LOG.warn(
+            LOG.error(
                     "Queued LogBook command {} failed during Data Lane execution",
                     command.name(),
                     ex);
