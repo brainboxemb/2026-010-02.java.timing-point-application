@@ -413,6 +413,8 @@ public final class TimingNode extends LifecycleComponent {
             LocationId newLocationId,
             LogBookCommand<?> historyCommand) {
 
+        final RejectedExecutionException[] rejection =
+                new RejectedExecutionException[1];
         synchronized (stateLock) {
             /*
              * Publish location before functional state. A reader that observes
@@ -423,12 +425,15 @@ public final class TimingNode extends LifecycleComponent {
             functionalState = state;
 
             Runnable queueHistory = () -> logBook.execute(historyCommand);
-            Consumer<RejectedExecutionException> onRejected =
-                    ex -> onLogBookQueueRejected("lifecycle history", ex);
-            SafeExecute.runOrHandleRejection(queueHistory, onRejected);
+            SafeExecute.runOrHandleRejection(
+                    queueHistory,
+                    ex -> rejection[0] = ex);
         }
 
         functionalStateChangedEvent.emit(state);
+        if (rejection[0] != null) {
+            onLogBookQueueRejected("lifecycle history", rejection[0]);
+        }
     }
 
     /** Records inability to queue required LogBook work as operational ERROR. */
@@ -502,6 +507,8 @@ public final class TimingNode extends LifecycleComponent {
      */
     private void onNewRegistration(TagProcessor.NewRegistration registration) {
 
+        final RejectedExecutionException[] rejection =
+                new RejectedExecutionException[1];
         synchronized (stateLock) {
             if (functionalState != FunctionalState.OPEN) {
                 return;
@@ -513,13 +520,16 @@ public final class TimingNode extends LifecycleComponent {
                     registration.observedAt());
 
             Runnable queueRegistration = () -> logBook.execute(command);
-            Consumer<RejectedExecutionException> onRejected =
-                    ex -> onLogBookQueueRejected(
-                            "Automatic registration "
-                                    + registration.registrationId().value(),
-                            ex);
+            SafeExecute.runOrHandleRejection(
+                    queueRegistration,
+                    ex -> rejection[0] = ex);
+        }
 
-            SafeExecute.runOrHandleRejection(queueRegistration, onRejected);
+        if (rejection[0] != null) {
+            onLogBookQueueRejected(
+                    "Automatic registration "
+                            + registration.registrationId().value(),
+                    rejection[0]);
         }
     }
 
