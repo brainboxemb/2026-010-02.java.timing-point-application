@@ -14,7 +14,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
  * startup-loading internals or engineering metrics.</p>
  */
 public interface LogBookAccessor {
-    /** Processes one command in LogBook order and returns its domain result. */
+    /**
+     * Processes one command in LogBook order.
+     *
+     * <p>This call blocks until the Data Lane returns the command result or the operation fails.</p>
+     */
     <R> R process(LogBookCommand<R> command);
 
     /**
@@ -25,15 +29,24 @@ public interface LogBookAccessor {
      */
     void execute(LogBookCommand<?> command);
 
-    /** Processes one query with ORDERED consistency and returns its result. */
+    /**
+     * Processes one ORDERED query.
+     *
+     * <p>This call blocks until earlier queued Data Lane work has completed and the query returns.</p>
+     */
     <R> R process(LogBookQuery<R> query);
 
-    /** Processes one query with the explicitly requested consistency model. */
+    /**
+     * Processes a query with the requested consistency.
+     *
+     * <p>ORDERED may block on the Data Lane. CURRENT reads the published snapshot directly
+     * and does not wait for queued Data Lane work.</p>
+     */
     <R> R process(LogBookQuery<R> query, ReadConsistency consistency);
 
-    /** Publishes the completed LogBook startup recovery result. */
+    /** Returns the recovery event; listeners are invoked synchronously on the LogBook Data Lane. */
     EventSource<LogBookRecoveryStatus> recoveryStatusChangedEvent();
 
-    /** Publishes each TimingData record after a successful durable commit. */
+    /** Returns the post-commit event; listeners are invoked synchronously on the LogBook Data Lane. */
     EventSource<TimingData> newDataEntryEvent();
 }
