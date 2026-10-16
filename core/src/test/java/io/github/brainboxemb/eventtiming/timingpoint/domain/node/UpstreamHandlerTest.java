@@ -46,6 +46,8 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.activate;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
@@ -59,7 +61,7 @@ public class UpstreamHandlerTest {
                 new InMemoryUpstreamStream();
         TimingNodeFixture.Components node =
                 node("A", stream);
-        node.node().activate();
+        activate(node.node());
         try {
             stream.receive(
                     DefaultUpstreamData.raceData(
@@ -82,7 +84,7 @@ public class UpstreamHandlerTest {
                     ack.stream());
             assertEquals(1L, ack.sequence());
         } finally {
-            node.node().deactivate();
+            deactivate(node.node());
         }
     }
 
@@ -92,7 +94,7 @@ public class UpstreamHandlerTest {
                 new InMemoryUpstreamStream();
         TimingNodeFixture.Components node =
                 node("A", stream);
-        node.node().activate();
+        activate(node.node());
         try {
             UpstreamHandler port =
                     node.upstreamHandler();
@@ -124,7 +126,7 @@ public class UpstreamHandlerTest {
             assertEquals(1L, status.missedIntervals());
             assertTrue(status.answerPending());
         } finally {
-            node.node().deactivate();
+            deactivate(node.node());
         }
     }
 
@@ -229,7 +231,7 @@ public class UpstreamHandlerTest {
         CountDownLatch releaseBlocker =
                 new CountDownLatch(1);
 
-        timingNode.activate();
+        activate(timingNode);
         try {
             // Barrier behind initial recovery before occupying the Data Lane.
             timingNode.logBook().process(LogBookQueries.recoveryStatus());
@@ -269,7 +271,7 @@ public class UpstreamHandlerTest {
                             TimeUnit.SECONDS));
         } finally {
             releaseBlocker.countDown();
-            timingNode.deactivate();
+            deactivate(timingNode);
             nodeWorker.shutdownNow();
             tagWorker.shutdownNow();
         }
@@ -281,7 +283,7 @@ public class UpstreamHandlerTest {
                 new InMemoryUpstreamStream();
         TimingNodeFixture.Components node =
                 node("A", stream);
-        node.node().activate();
+        activate(node.node());
         try {
             UpstreamHandler port =
                     node.upstreamHandler();
@@ -304,7 +306,7 @@ public class UpstreamHandlerTest {
             assertFalse(status.answerPending());
             assertEquals(0, stream.sentCount());
         } finally {
-            node.node().deactivate();
+            deactivate(node.node());
         }
     }
 
@@ -314,7 +316,7 @@ public class UpstreamHandlerTest {
                 new InMemoryUpstreamStream();
         TimingNodeFixture.Components node =
                 node("A", stream);
-        node.node().activate();
+        activate(node.node());
         try {
             stream.receive(
                     DefaultUpstreamData.ping(
@@ -334,7 +336,7 @@ public class UpstreamHandlerTest {
                     answer.operation());
             assertEquals("peer-42", answer.pingId());
         } finally {
-            node.node().deactivate();
+            deactivate(node.node());
         }
     }
 
@@ -352,14 +354,14 @@ public class UpstreamHandlerTest {
 
         TimingNodeFixture.Components node =
                 node("A", stream);
-        node.node().activate();
+        activate(node.node());
         try {
             assertFalse(
                     node.upstreamHandler()
                             .inputAvailable());
             assertEquals(0, stream.sentCount());
         } finally {
-            node.node().deactivate();
+            deactivate(node.node());
         }
     }
 
@@ -379,8 +381,8 @@ public class UpstreamHandlerTest {
                         "B",
                         populatedStream,
                         timingData("B", 3));
-        empty.node().activate();
-        populated.node().activate();
+        activate(empty.node());
+        activate(populated.node());
         try {
             empty.upstreamHandler()
                     .sendTimingDataSync();
@@ -403,8 +405,8 @@ public class UpstreamHandlerTest {
                     populatedSync.timingNodeId());
             assertEquals(3L, populatedSync.sequence());
         } finally {
-            empty.node().deactivate();
-            populated.node().deactivate();
+            deactivate(empty.node());
+            deactivate(populated.node());
         }
     }
 
@@ -419,7 +421,7 @@ public class UpstreamHandlerTest {
                         "A",
                         stream,
                         records);
-        node.node().activate();
+        activate(node.node());
         try {
             stream.receive(
                     DefaultUpstreamData.req(
@@ -445,7 +447,7 @@ public class UpstreamHandlerTest {
                     0,
                     stream.sentCount());
         } finally {
-            node.node().deactivate();
+            deactivate(node.node());
         }
     }
 
@@ -460,7 +462,7 @@ public class UpstreamHandlerTest {
                         "A",
                         stream,
                         records);
-        node.node().activate();
+        activate(node.node());
         try {
             stream.receive(
                     DefaultUpstreamData.req(
@@ -492,7 +494,7 @@ public class UpstreamHandlerTest {
                     second.records().get(0).sequenceNumber());
             assertEquals(0, stream.sentCount());
         } finally {
-            node.node().deactivate();
+            deactivate(node.node());
         }
     }
 
@@ -507,7 +509,7 @@ public class UpstreamHandlerTest {
                         "A",
                         stream,
                         records);
-        node.node().activate();
+        activate(node.node());
         try {
             stream.onNextSend(
                     () -> node.node().logBook().execute(
@@ -544,7 +546,7 @@ public class UpstreamHandlerTest {
                             .longValue());
             assertEquals(0, stream.sentCount());
         } finally {
-            node.node().deactivate();
+            deactivate(node.node());
         }
     }
 
@@ -557,7 +559,7 @@ public class UpstreamHandlerTest {
                         "A",
                         stream,
                         timingData("A", 2));
-        node.node().activate();
+        activate(node.node());
         try {
             stream.receive(
                     DefaultUpstreamData.req(
@@ -570,7 +572,7 @@ public class UpstreamHandlerTest {
                             .inputAvailable());
             assertEquals(0, stream.sentCount());
         } finally {
-            node.node().deactivate();
+            deactivate(node.node());
         }
     }
 
@@ -580,7 +582,7 @@ public class UpstreamHandlerTest {
                 new InMemoryUpstreamStream();
         TimingNodeFixture.Components node =
                 node("A", stream);
-        node.node().activate();
+        activate(node.node());
         try {
             stream.receive(
                     DefaultUpstreamData.sync(
@@ -623,7 +625,7 @@ public class UpstreamHandlerTest {
                             .inputAvailable());
             assertEquals(0, stream.sentCount());
         } finally {
-            node.node().deactivate();
+            deactivate(node.node());
         }
     }
 
@@ -641,8 +643,8 @@ public class UpstreamHandlerTest {
                 node("A", streamA, recordsA);
         TimingNodeFixture.Components nodeB =
                 node("B", streamB, recordsB);
-        nodeA.node().activate();
-        nodeB.node().activate();
+        activate(nodeA.node());
+        activate(nodeB.node());
         try {
             streamA.receive(
                     DefaultUpstreamData.req(
@@ -679,8 +681,8 @@ public class UpstreamHandlerTest {
                     new NodeId("B"),
                     transferB.timingNodeId());
         } finally {
-            nodeA.node().deactivate();
-            nodeB.node().deactivate();
+            deactivate(nodeA.node());
+            deactivate(nodeB.node());
         }
     }
 
