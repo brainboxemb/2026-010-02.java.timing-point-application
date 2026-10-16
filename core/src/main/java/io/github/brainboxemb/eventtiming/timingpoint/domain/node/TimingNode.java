@@ -110,8 +110,8 @@ public final class TimingNode extends LifecycleComponent {
      */
     public final EventSource<TimingData> TIMING_DATA_COMMITTED = timingDataCommittedEvent;
 
-    /** Current-property changes for this TimingNode. */
-    public final EventSource<PropertyContainer.Change> PROPERTIES_CHANGED = properties;
+    /** Current properties and their change subscriptions for this TimingNode. */
+    public final PropertyContainer PROPERTIES = properties;
 
     /** Creates one TimingNode with its clock and child components. */
     public TimingNode(
