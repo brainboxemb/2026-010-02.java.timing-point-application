@@ -74,7 +74,7 @@ public class PresentationGatewayTest {
             awaitErrorStatus(proxy);
             assertEquals(
                     TimingNodeTypes.OperationalState.ERROR,
-                    proxy.operationalState());
+                    proxy.status().opState());
             assertTrue(proxy.operationalProblem().isPresent());
             assertEquals(
                     TimingNodeTypes.ErrorCode.TIMING_DATA_LOAD_FAILED,
