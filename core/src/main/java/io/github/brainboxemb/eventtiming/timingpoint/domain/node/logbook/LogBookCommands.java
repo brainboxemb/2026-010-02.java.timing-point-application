@@ -13,7 +13,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Standard TimingData commit commands executed through the LogBook component.
  *
  * <p>Factory methods validate caller input and capture the values needed by the
- * immutable command. LogBook later applies that command on the Data Lane.</p>
+ * command. LogBook later applies that command on the Data Lane.</p>
  */
 public final class LogBookCommands {
     /** Prevents construction of this stateless command factory. */
@@ -59,20 +59,20 @@ public final class LogBookCommands {
                 TimingData.AutomaticTimeSource.OBS);
     }
 
-    /** Commits one automatic registration with explicit source provenance. */
+    /** Commits one automatic registration with explicit tag and time sources. */
     public static LogBookCommand<RegistrationResult>
             commitAutomaticRegistration(
                     LocationId locationId,
                     RegistrationId registrationId,
                     TimingTimestamp effectiveTime,
                     TimingData.TagSource tagSource,
-                    TimingData.AutomaticTimeSource timeSource) {
+                    TimingData.AutomaticTimeSource registrationTimeSource) {
 
         checkArgument(locationId != null, "locationId must not be null");
         checkArgument(registrationId != null, "registrationId must not be null");
         checkArgument(effectiveTime != null, "effectiveTime must not be null");
         checkArgument(tagSource != null, "tagSource must not be null");
-        checkArgument(timeSource != null, "timeSource must not be null");
+        checkArgument(registrationTimeSource != null, "registrationTimeSource must not be null");
 
         return simple(
                 "commitAutomaticRegistration",
@@ -81,7 +81,7 @@ public final class LogBookCommands {
                         registrationId,
                         effectiveTime,
                         tagSource,
-                        timeSource));
+                        registrationTimeSource));
     }
 
     /**
