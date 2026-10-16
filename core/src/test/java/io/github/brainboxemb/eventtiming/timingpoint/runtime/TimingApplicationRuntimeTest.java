@@ -171,7 +171,7 @@ public class TimingApplicationRuntimeTest {
                             new LocationId(24));
 
             assertEquals(
-                    TimingNodeTypes.State.CLOSED,
+                    TimingNodeTypes.FunctionalState.CLOSED,
                     application
                             .presentationGateway()
                             .timingNode(
@@ -179,7 +179,7 @@ public class TimingApplicationRuntimeTest {
                             .status()
                             .state());
             assertEquals(
-                    TimingNodeTypes.State.OPEN,
+                    TimingNodeTypes.FunctionalState.OPEN,
                     application
                             .presentationGateway()
                             .timingNode(
@@ -283,7 +283,7 @@ public class TimingApplicationRuntimeTest {
                             new LocationId(25));
 
             assertEquals(
-                    TimingNodeTypes.State.OPEN,
+                    TimingNodeTypes.FunctionalState.OPEN,
                     application
                             .presentationGateway()
                             .timingNode(
@@ -291,7 +291,7 @@ public class TimingApplicationRuntimeTest {
                             .status()
                             .state());
             assertEquals(
-                    TimingNodeTypes.State.OPEN,
+                    TimingNodeTypes.FunctionalState.OPEN,
                     application
                             .presentationGateway()
                             .timingNode(
@@ -602,10 +602,10 @@ public class TimingApplicationRuntimeTest {
                     application.presentationGateway()
                             .timingNode(new NodeId("A"));
             await(
-                    () -> proxy.status().error(),
+                    () -> proxy.status().operationalState() == TimingNodeTypes.OperationalState.ERROR,
                     1000L);
             TimingNodeStatus status = proxy.status();
-            assertTrue(status.error());
+            assertTrue(status.hasProblem());
             assertEquals(
                     TimingNodeTypes.ErrorCode.TIMING_DATA_LOAD_FAILED,
                     status.errorCode());
