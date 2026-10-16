@@ -395,7 +395,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void lifecycleLogBookCommandsReturnCommittedResults() {
+    public void lifecycleLogBookCommandsDoNotOwnTimingNodeStatus() {
         TimingNode node = node(new NodeId("A"));
 
         activate(node);
@@ -419,7 +419,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void timeoutDoesNotCancelAcceptedOperation() throws Exception {
+    public void lateLifecycleCommitAfterTimeoutDoesNotChangeRuntimeStatus() throws Exception {
         SerialLane executor = newSerialLane(2, "timing-node-test");
         TimingNode node = node(
                 new NodeId("A"),
@@ -629,7 +629,7 @@ public class TimingNodeTest {
         try {
             node.STATUS_CHANGED.subscribe(
                     ignored -> statusEventCurrent[0] = node.status());
-            node.logBook().newDataEntryEvent().subscribe(
+            node.TIMING_DATA_COMMITTED.subscribe(
                     ignored -> timingDataEventCurrent[0] = node.status());
 
             node.open(new LocationId(24));
