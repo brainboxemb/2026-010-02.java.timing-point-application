@@ -24,7 +24,7 @@ public final class ApplicationConductor {
     public void registerTimingSystem(TimingSystem timingSystem) {
 
         checkArgument(timingSystem != null, "timingSystem must not be null");
-        componentLifecycle.register(timingSystem, TimingSystem::activate, TimingSystem::deactivate);
+        componentLifecycle.register(timingSystem);
     }
 
     public void activate() {
