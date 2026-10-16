@@ -326,7 +326,7 @@ public final class TimingNodeFixture {
                         new TagProcessingMetrics(),
                         tagLane);
 
-        TimingNode node = new TimingNode(new AntennaId("1"), logBook, nodeService, tagProcessor);
+        TimingNode node = new TimingNode(new AntennaId("1"), timeSource, logBook, nodeService, tagProcessor);
 
         return new Components(
                 node,

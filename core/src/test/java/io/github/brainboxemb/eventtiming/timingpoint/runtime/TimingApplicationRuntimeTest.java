@@ -602,17 +602,12 @@ public class TimingApplicationRuntimeTest {
                     awaitStatus(
                             application.presentationGateway()
                                     .timingNode(new NodeId("A")));
+            assertTrue(status.error());
             assertEquals(
-                    TimingNodeTypes.State.ERROR,
-                    status.state());
-            assertEquals(
-                    1,
-                    status.problems().size());
-            assertEquals(
-                    TimingNodeTypes.ProblemCode.TIMING_DATA_LOAD_FAILED,
-                    status.problems().get(0).code());
+                    TimingNodeTypes.ErrorCode.TIMING_DATA_LOAD_FAILED,
+                    status.errorCode());
             assertTrue(
-                    status.problems().get(0).message()
+                    status.errorMessage()
                             .contains("Persisted TimingData load failed"));
         } finally {
             application.deactivate();

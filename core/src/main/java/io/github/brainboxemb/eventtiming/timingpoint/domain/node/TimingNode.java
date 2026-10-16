@@ -22,6 +22,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExec
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +33,9 @@ import java.util.function.Consumer;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ErrorCode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ErrorStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.NodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
@@ -39,26 +43,25 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 
 /**
- * Top-level owner for one logical timing node.
+ * Coordinates one timing node.
  *
- * <p>Runtime constructs the LogBook, Task and Tag children before construction.
- * TimingNode owns their lifecycle and node-internal event links. The containing
- * TimingSystem binds typed event sources to this component without exposing
- * TagProcessor or other child objects.</p>
+ * <p>It owns the node's OPEN/CLOSED state and coordinates its LogBook,
+ * NodeService and TagProcessor.</p>
  */
 public final class TimingNode {
     private static final Logger LOG = LoggerFactory.getLogger(TimingNode.class);
     private final NodeId timingNodeId;
     private final AntennaId antennaId;
+    private final TimeSource timeSource;
     private final LogBookAccessor logBook;
     private final TagProcessor tagProcessor;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
-    private final Event<Status> statusChangedEvent = new Event<Status>();
-    private final Object lifecycleCommandLock = new Object();
+    private final Event<NodeStatus> statusChangedEvent = new Event<NodeStatus>();
+    private final Object operationLock = new Object();
     private final Object stateLock = new Object();
 
-    /** Current immutable node-state snapshot; null until LogBook recovery completes. */
-    private volatile Status currentStatus;
+    /** Current node status; null until LogBook recovery completes. */
+    private volatile NodeStatus currentStatus;
     private boolean registrationsEnabled;
 
     /** Antenna observation input; internally consumed by the TagProcessor. */
@@ -66,20 +69,23 @@ public final class TimingNode {
             EventInput.of(
                     (node, source) -> source.subscribe(node.tagProcessor::onTagObserved));
 
-    /** Creates the top-level node owner around its already composed child components. */
+    /** Creates one TimingNode with its clock and child components. */
     public TimingNode(
             AntennaId antennaId,
+            TimeSource timeSource,
             LogBook logBook,
             NodeService nodeService,
             TagProcessor tagProcessor) {
 
         checkArgument(antennaId != null, "antennaId must not be null");
+        checkArgument(timeSource != null, "timeSource must not be null");
         checkArgument(logBook != null, "logBook must not be null");
         checkArgument(nodeService != null, "nodeService must not be null");
         checkArgument(tagProcessor != null, "tagProcessor must not be null");
 
         this.timingNodeId = logBook.timingNodeId();
         this.antennaId = antennaId;
+        this.timeSource = timeSource;
         this.logBook = logBook;
         this.tagProcessor = tagProcessor;
         lifecycle.register(nodeService, NodeService::activate, NodeService::deactivate);
@@ -92,20 +98,11 @@ public final class TimingNode {
         logBook.nodeLifecycleStateEvent().subscribe(this::onCommittedTimingData);
         logBook.nodeLifecycleCommittedEvent().subscribe(this::onLifecycleCommitPublished);
 
-        /*
-         * TagProcessor emits synchronously on its own lane. The named handler
-         * performs only a non-blocking handoff to the LogBook Data Lane.
-         */
+        // Listener runs synchronously on the TagProcessor lane; it must not block.
         tagProcessor.newRegistrationEvent().subscribe(this::onNewRegistration);
     }
 
-    /**
-     * Binds one typed event source to a supported TimingNode input.
-     *
-     * <p>Binding is a composition-time operation. The caller selects the semantic
-     * input and supplies the source; TimingNode owns the internal subscription and
-     * does not expose the child component that consumes the event.</p>
-     */
+    /** Binds an event source during composition. This call is direct and does not queue work. */
     public <T> void bind(EventInput<TimingNode, T> input, EventSource<T> source) {
 
         checkArgument(input != null, "input must not be null");
@@ -113,22 +110,32 @@ public final class TimingNode {
         input.bind(this, source);
     }
 
-    /** Returns the immutable identity of this logical timing node. */
+    /** Returns this node's ID. */
     public NodeId timingNodeId() {
 
         return timingNodeId;
     }
 
-    /** Returns the resolved antenna identity for this TimingNode. */
+    /** Returns the antenna assigned to this node. */
     public AntennaId antennaId() {
 
         return antennaId;
     }
 
-    /** Returns the current status determined by this TimingNode. */
-    public Status status() {
+    /** Returns the TimeSource used by this node. This lookup does not block. */
+    public TimeSource timeSource() {
 
-        Status status = currentStatus;
+        return timeSource;
+    }
+
+    /**
+     * Returns the current node status without waiting for queued Data Lane work.
+     *
+     * <p>Before startup recovery completes, this may report the status as unavailable.</p>
+     */
+    public NodeStatus status() {
+
+        NodeStatus status = currentStatus;
         if (status != null) {
             return status;
         }
@@ -143,17 +150,26 @@ public final class TimingNode {
                         ReadConsistency.CURRENT));
     }
 
-    /** Publishes TimingNode status after this component has evaluated it. */
-    public EventSource<Status> statusChangedEvent() {
+    /**
+     * Returns the node-status event.
+     *
+     * <p>Listeners are invoked synchronously on the thread that publishes the change
+     * and must return quickly.</p>
+     */
+    public EventSource<NodeStatus> statusChangedEvent() {
 
         return statusChangedEvent;
     }
 
-    /** Opens this TimingNode at the requested timing location. */
+    /**
+     * Opens this node at the requested location.
+     *
+     * <p>This call blocks until NODE_OPEN is committed to the LogBook or the operation fails.</p>
+     */
     public OpenResult open(LocationId locationId) {
 
         checkArgument(locationId != null, "locationId must not be null");
-        synchronized (lifecycleCommandLock) {
+        synchronized (operationLock) {
             Status status = requireOperationalStatus();
             if (status.state() == State.OPEN) {
                 return OpenResult.ALREADY_OPEN;
@@ -164,10 +180,14 @@ public final class TimingNode {
         }
     }
 
-    /** Closes this TimingNode while retaining the last timing location. */
+    /**
+     * Closes this node and retains its last location.
+     *
+     * <p>This call blocks until NODE_CLOSE is committed to the LogBook or the operation fails.</p>
+     */
     public CloseResult close() {
 
-        synchronized (lifecycleCommandLock) {
+        synchronized (operationLock) {
             Status status = requireOperationalStatus();
             if (status.state() == State.CLOSED) {
                 return CloseResult.ALREADY_CLOSED;
@@ -189,32 +209,25 @@ public final class TimingNode {
         }
     }
 
-    /** Commits one normal automatic registration when this TimingNode is open. */
-    public RegistrationResult addAutomaticRegistration(
-            RegistrationId registrationId,
-            TimingTimestamp effectiveTime) {
-
-        synchronized (lifecycleCommandLock) {
-            Status status = requireOperationalStatus();
-            if (status.state() != State.OPEN) {
-                return RegistrationResult.nodeNotOpen();
-            }
-            return logBook.process(
-                    LogBookCommands.addAutomaticRegistration(
-                            status.locationId(),
-                            registrationId,
-                            effectiveTime));
-        }
-    }
-
-    /** Commits one engineering automatic registration with explicit provenance. */
-    public RegistrationResult commitAutomaticRegistration(
+    /**
+     * Adds one custom automatic registration with an explicitly supplied effective time.
+     *
+     * <p>This call blocks until the LogBook Data Lane has committed the record,
+     * rejected it because the node is not OPEN, or the operation fails. Custom
+     * registrations always use {@code TagSource.API}; {@code registrationTimeSource}
+     * records whether the supplied time came from the caller or this node's TimeSource.</p>
+     */
+    public RegistrationResult addCustomAutomaticRegistration(
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
-            TimingData.TagSource tagSource,
-            TimingData.AutomaticTimeSource timeSource) {
+            TimingData.AutomaticTimeSource registrationTimeSource) {
 
-        synchronized (lifecycleCommandLock) {
+        checkArgument(
+                registrationTimeSource == TimingData.AutomaticTimeSource.API
+                        || registrationTimeSource == TimingData.AutomaticTimeSource.NODE,
+                "custom automatic registration time source must be API or NODE");
+
+        synchronized (operationLock) {
             Status status = requireOperationalStatus();
             if (status.state() != State.OPEN) {
                 return RegistrationResult.nodeNotOpen();
@@ -224,36 +237,23 @@ public final class TimingNode {
                             status.locationId(),
                             registrationId,
                             effectiveTime,
-                            tagSource,
-                            timeSource));
+                            TimingData.TagSource.API,
+                            registrationTimeSource));
         }
     }
 
-    /** Commits one engineering automatic registration using node time. */
-    public RegistrationResult commitAutomaticRegistrationNow(
-            RegistrationId registrationId,
-            TimingData.TagSource tagSource) {
-
-        synchronized (lifecycleCommandLock) {
-            Status status = requireOperationalStatus();
-            if (status.state() != State.OPEN) {
-                return RegistrationResult.nodeNotOpen();
-            }
-            return logBook.process(
-                    LogBookCommands.commitAutomaticRegistrationNow(
-                            status.locationId(),
-                            registrationId,
-                            tagSource));
-        }
-    }
-
-    /** Commits one manual registration when this TimingNode is open. */
+    /**
+     * Adds one manual registration.
+     *
+     * <p>This call blocks until the LogBook Data Lane has committed the record,
+     * rejected it because the node is not OPEN, or the operation fails.</p>
+     */
     public RegistrationResult addManualRegistration(
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
-            ManualTimeSource timeSource) {
+            ManualTimeSource registrationTimeSource) {
 
-        synchronized (lifecycleCommandLock) {
+        synchronized (operationLock) {
             Status status = requireOperationalStatus();
             if (status.state() != State.OPEN) {
                 return RegistrationResult.nodeNotOpen();
@@ -263,16 +263,15 @@ public final class TimingNode {
                             status.locationId(),
                             registrationId,
                             effectiveTime,
-                            timeSource));
+                            registrationTimeSource));
         }
     }
 
     /**
-     * Returns the node's LogBook access boundary.
+     * Returns the node's LogBook command/query boundary.
      *
-     * <p>Callers may execute or queue LogBook commands, run supported queries and
-     * subscribe to post-commit/recovery events. Child lifecycle, persisted-data
-     * startup loading, lane ownership and metrics remain internal to the node composition.</p>
+     * <p>{@code process(...)} waits for an ordered result; {@code execute(...)}
+     * queues fire-and-forget work and returns after queueing.</p>
      */
     public LogBookAccessor logBook() {
 
@@ -280,13 +279,10 @@ public final class TimingNode {
     }
 
     /**
-     * Activates the node-owned execution contexts in dependency order.
+     * Starts the node's child components.
      *
-     * <p>The Task Lane starts first because its lifecycle is independent of
-     * LogBook state and it consumes initial TimingData after that data has been
-     * loaded. LogBook then starts the Data Lane and queues the persisted
-     * TimingData load as its first ordered task. TagProcessor ingress starts last.
-     * Rollback and reverse deactivation are owned by the lifecycle manager.</p>
+     * <p>The LogBook queues persisted-data recovery during activation; this call
+     * returns without waiting for that recovery to finish.</p>
      */
     public void activate() {
 
@@ -303,35 +299,32 @@ public final class TimingNode {
         }
     }
 
-    /** Applies newly committed lifecycle records to this node's runtime state. */
+    /** Called synchronously on the LogBook Data Lane after NODE_OPEN or NODE_CLOSE commits. */
     private void onCommittedTimingData(TimingData timingData) {
 
-        Status status = currentStatus;
-        if (status == null) {
+        NodeStatus nodeStatus = currentStatus;
+        if (!(nodeStatus instanceof Status)) {
             return;
         }
+        Status status = (Status) nodeStatus;
 
         if (timingData instanceof TimingData.NodeOpen) {
             setStatus(new Status(
                     timingNodeId,
                     State.OPEN,
-                    timingData.locationId(),
-                    status.timingDataTailRepaired(),
-                    status.problems()));
+                    timingData.locationId()));
         } else if (timingData instanceof TimingData.NodeClose) {
             setStatus(new Status(
                     timingNodeId,
                     State.CLOSED,
-                    timingData.locationId(),
-                    status.timingDataTailRepaired(),
-                    status.problems()));
+                    timingData.locationId()));
         }
     }
 
-    /** Publishes the already-applied lifecycle status after committed-data delivery. */
+    /** Called synchronously on the LogBook Data Lane after committed-data publication. */
     private void onLifecycleCommitPublished(TimingData timingData) {
 
-        Status status = currentStatus;
+        NodeStatus status = currentStatus;
         if (status != null) {
             statusChangedEvent.emit(status);
         }
@@ -344,19 +337,22 @@ public final class TimingNode {
     }
 
     /** Builds initial node status from LogBook recovery without reconstructing OPEN state. */
-    private Status statusFromRecovery(LogBookRecoveryStatus recoveryStatus) {
+    private NodeStatus statusFromRecovery(LogBookRecoveryStatus recoveryStatus) {
 
-        State state = recoveryStatus.hasProblems() ? State.ERROR : State.CLOSED;
+        if (recoveryStatus.failed()) {
+            return new ErrorStatus(
+                    timingNodeId,
+                    ErrorCode.TIMING_DATA_LOAD_FAILED,
+                    recoveryStatus.failureMessage());
+        }
         return new Status(
                 timingNodeId,
-                state,
-                null,
-                recoveryStatus.timingDataTailRepaired(),
-                recoveryStatus.problems());
+                State.CLOSED,
+                null);
     }
 
     /**
-     * Returns status for a state-changing operation.
+     * Returns operational status for a state-changing operation.
      *
      * <p>When startup recovery is still queued, the first state-changing call
      * waits for that ordered LogBook recovery result. Plain {@link #status()}
@@ -364,41 +360,39 @@ public final class TimingNode {
      */
     private Status requireOperationalStatus() {
 
-        Status status = currentStatus;
-        if (status == null) {
+        NodeStatus nodeStatus = currentStatus;
+        if (nodeStatus == null) {
             LogBookRecoveryStatus recoveryStatus =
                     logBook.process(
                             LogBookQueries.recoveryStatus(),
                             ReadConsistency.ORDERED);
-            status = currentStatus;
-            if (status == null) {
-                status = statusFromRecovery(recoveryStatus);
-                publishStatus(status);
+            nodeStatus = currentStatus;
+            if (nodeStatus == null) {
+                nodeStatus = statusFromRecovery(recoveryStatus);
+                publishStatus(nodeStatus);
             }
         }
 
-        if (status.state() == State.ERROR) {
-            String detail = status.hasProblems()
-                    ? status.problems().get(0).message()
-                    : "TimingNode is in ERROR";
+        if (nodeStatus instanceof ErrorStatus) {
             throw new OperationException(
                     OperationException.Reason.FAILED,
-                    detail);
+                    ((ErrorStatus) nodeStatus).message());
         }
-        return status;
+        return (Status) nodeStatus;
     }
 
     /** Stores one new immutable node-state snapshot. */
-    private void setStatus(Status status) {
+    private void setStatus(NodeStatus status) {
 
         synchronized (stateLock) {
             currentStatus = status;
-            registrationsEnabled = status.state() == State.OPEN;
+            registrationsEnabled = status instanceof Status
+                    && ((Status) status).state() == State.OPEN;
         }
     }
 
     /** Stores and publishes one new immutable node-state snapshot. */
-    private void publishStatus(Status status) {
+    private void publishStatus(NodeStatus status) {
 
         setStatus(status);
         statusChangedEvent.emit(status);
@@ -421,18 +415,24 @@ public final class TimingNode {
     }
 
     /**
-     * Hands one TagProcessor registration fact to the LogBook without blocking
-     * the synchronous source event callback.
+     * Handles a registration event on the TagProcessor lane.
+     *
+     * <p>The LogBook command is queued fire-and-forget; this callback does not
+     * wait for persistence or commit completion.</p>
      */
     private void onNewRegistration(TagProcessor.NewRegistration registration) {
 
         synchronized (stateLock) {
-            Status status = currentStatus;
-            if (!registrationsEnabled || status == null || status.state() != State.OPEN) {
+            NodeStatus nodeStatus = currentStatus;
+            if (!registrationsEnabled || !(nodeStatus instanceof Status)) {
+                return;
+            }
+            Status status = (Status) nodeStatus;
+            if (status.state() != State.OPEN) {
                 return;
             }
 
-            LogBookCommand<?> command = LogBookCommands.addAutomaticRegistration(
+            LogBookCommand<?> command = LogBookCommands.commitAntennaRegistration(
                     status.locationId(),
                     registration.registrationId(),
                     registration.observedAt());
@@ -447,4 +447,5 @@ public final class TimingNode {
             SafeExecute.runOrHandleRejection(queueRegistration, onRejected);
         }
     }
+
 }

@@ -75,10 +75,10 @@ final class LogBookRecoveryView {
         publishedRecoveryStatus = status;
 
         LOG.info(
-                "TimingNode {} LogBook recovery completed: tailRepaired={}, problems={}",
+                "TimingNode {} LogBook recovery completed: repairedIncompleteTail={}, failed={}",
                 timingNodeId.value(),
-                status.timingDataTailRepaired(),
-                status.problems().size());
+                status.repairedIncompleteTail(),
+                status.failed());
 
         recoveryStatusChangedEvent.emit(status);
     }

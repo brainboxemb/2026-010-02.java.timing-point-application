@@ -132,7 +132,8 @@ public class TimingSystemConductorTest {
 
             persistence.releaseLoad.countDown();
             await(
-                    () -> node.status().state() == io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State.CLOSED,
+                    () -> ((io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status) node.status()).state()
+                            == io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State.CLOSED,
                     1000L);
 
             node.open(new LocationId(24));

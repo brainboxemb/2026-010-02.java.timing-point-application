@@ -143,7 +143,7 @@ public class WebSocketOutboundDeliveryTest {
             node.open(new LocationId(24));
 
             for (int index = 1; index <= 10; index++) {
-                node.addAutomaticRegistration(
+                node.addCustomAutomaticRegistration(
                         new RegistrationId(
                                 String.format(
                                         "N%04d",
@@ -151,7 +151,8 @@ public class WebSocketOutboundDeliveryTest {
                         TimingTimestamp.parse(
                                 String.format(
                                         "2026-10-07T10:00:%02dZ",
-                                        index)));
+                                        index)),
+                        TimingData.AutomaticTimeSource.API);
             }
 
             assertEquals(

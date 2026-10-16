@@ -86,6 +86,6 @@ final class TimingNodeComposer {
                         new TagProcessingMetrics(),
                         execution.tagProcessorLane());
 
-        return new TimingNode(antennaId, logBook, nodeService, tagProcessor);
+        return new TimingNode(antennaId, timeSource, logBook, nodeService, tagProcessor);
     }
 }

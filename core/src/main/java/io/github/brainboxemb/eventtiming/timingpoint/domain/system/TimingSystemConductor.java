@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.NodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
@@ -35,7 +36,7 @@ import org.slf4j.LoggerFactory;
 public final class TimingSystemConductor extends AbstractConductor {
     private static final Logger LOG = LoggerFactory.getLogger(TimingSystemConductor.class);
 
-    private static final EventInput<TimingSystemConductor, Status> NODE_STATUS_CHANGED =
+    private static final EventInput<TimingSystemConductor, NodeStatus> NODE_STATUS_CHANGED =
             EventInput.of(
                     (conductor, source) ->
                             source.subscribe(ignored -> conductor.wakeMainTask()));
@@ -112,7 +113,7 @@ public final class TimingSystemConductor extends AbstractConductor {
 
         boolean required = false;
         for (TimingNode node : nodes) {
-            Optional<Status> status = SafeExecute.callOrEmpty(
+            Optional<NodeStatus> status = SafeExecute.callOrEmpty(
                     node::status,
                     OperationException.class,
                     ex -> ex.reason() == OperationException.Reason.UNAVAILABLE);
@@ -125,7 +126,8 @@ public final class TimingSystemConductor extends AbstractConductor {
                 return TaskStep.done();
             }
 
-            if (status.get().state() == State.OPEN) {
+            if (status.get() instanceof Status
+                    && ((Status) status.get()).state() == State.OPEN) {
                 required = true;
             }
         }

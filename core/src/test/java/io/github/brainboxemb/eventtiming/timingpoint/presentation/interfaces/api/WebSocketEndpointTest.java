@@ -51,10 +51,10 @@ public class WebSocketEndpointTest {
 
         // Commit history before the WebSocket endpoint/client exists.
         fixture.handler.timingNode(new NodeId("A")).open(new LocationId(24));
-        fixture.handler.timingNode(new NodeId("A")).applyAutomaticRegistration(
-                TimingNodeProxy.AutomaticRegistrationAction.ADD,
+        fixture.handler.timingNode(new NodeId("A")).addCustomAutomaticRegistration(
                 new RegistrationId("N0000"),
-                TIME);
+                TIME,
+                TimingData.AutomaticTimeSource.API);
 
         WebSocketEndpoint server = new WebSocketEndpoint(
                 "127.0.0.1",
@@ -120,10 +120,10 @@ public class WebSocketEndpointTest {
             assertTrue(opened.contains("\"locationId\":24"));
             assertTrue(opened.contains("\"state\":\"OPEN\""));
 
-            fixture.handler.timingNode(new NodeId("A")).applyAutomaticRegistration(
-                    TimingNodeProxy.AutomaticRegistrationAction.ADD,
+            fixture.handler.timingNode(new NodeId("A")).addCustomAutomaticRegistration(
                     new RegistrationId("N0001"),
-                    TIME);
+                    TIME,
+                    TimingData.AutomaticTimeSource.API);
             String committed = client.awaitMessage();
             assertTrue(committed.contains(
                     "\"eventType\":\"TIMING_DATA_COMMITTED\""));

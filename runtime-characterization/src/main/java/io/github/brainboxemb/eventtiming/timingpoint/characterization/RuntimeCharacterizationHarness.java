@@ -189,6 +189,10 @@ final class RuntimeCharacterizationHarness
                 ReadOnlyConfiguration.fixed(
                         TagProcessingPolicy.defaults());
 
+        ClockTimeSource timeSource =
+                new ClockTimeSource(
+                        Clock.systemUTC());
+
         logBook =
                 new LogBook(
                         NODE_ID,
@@ -200,8 +204,7 @@ final class RuntimeCharacterizationHarness
                                 NODE_ID,
                                 timingDataProvider.createCodec()),
                         timingDataProvider.createFactory(),
-                        new ClockTimeSource(
-                                Clock.systemUTC()),
+                        timeSource,
                         SystemMonotonicClock.INSTANCE,
                         logBookMetrics,
                         dataLane,
@@ -226,6 +229,7 @@ final class RuntimeCharacterizationHarness
         node =
                 new TimingNode(
                         ANTENNA_ID,
+                        timeSource,
                         logBook,
                         nodeService,
                         tagProcessor);
@@ -271,7 +275,7 @@ final class RuntimeCharacterizationHarness
         node.activate();
         nodeActive = true;
         logBook.execute(
-                LogBookCommands.open(
+                LogBookCommands.commitNodeOpen(
                         LOCATION_ID));
 
         preloadHistory(
@@ -376,7 +380,8 @@ final class RuntimeCharacterizationHarness
                             INPUT_TIME_BASE.minusSeconds(
                                     count - index));
             if (!logBook.process(
-                            LogBookCommands.addAutomaticRegistration(
+                            LogBookCommands.commitAntennaRegistration(
+                                    LOCATION_ID,
                                     new RegistrationId(
                                             String.format(
                                                     "P%05d",
