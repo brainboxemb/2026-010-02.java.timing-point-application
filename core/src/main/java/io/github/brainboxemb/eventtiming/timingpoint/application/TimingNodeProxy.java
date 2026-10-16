@@ -13,11 +13,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookTestControl;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationalProblem;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationalState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyContainer;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -37,16 +36,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  */
 public final class TimingNodeProxy {
 
-    /** Functional-state input mapped to the client-visible TimingNode status. */
-    private static final EventInput<TimingNodeProxy, FunctionalState>
-            FUNCTIONAL_STATE_CHANGED =
-                    EventInput.of(
-                            (proxy, source) ->
-                                    source.subscribe(ignored -> proxy.publishStatus()));
-
-    /** Operational-state input mapped to the client-visible TimingNode status. */
-    private static final EventInput<TimingNodeProxy, OperationalState>
-            OPERATIONAL_STATE_CHANGED =
+    /** TimingNode property changes mapped to the client-visible status. */
+    private static final EventInput<TimingNodeProxy, PropertyContainer.Change>
+            PROPERTIES_CHANGED =
                     EventInput.of(
                             (proxy, source) ->
                                     source.subscribe(ignored -> proxy.publishStatus()));
@@ -81,8 +73,7 @@ public final class TimingNodeProxy {
         }
         this.logBookTestControl = (LogBookTestControl) logBook;
         this.NEW_DATA_ENTRY = timingNode.TIMING_DATA_COMMITTED;
-        FUNCTIONAL_STATE_CHANGED.bind(this, timingNode.FUNCTIONAL_STATE_CHANGED);
-        OPERATIONAL_STATE_CHANGED.bind(this, timingNode.OPERATIONAL_STATE_CHANGED);
+        PROPERTIES_CHANGED.bind(this, timingNode.PROPERTIES_CHANGED);
     }
 
     /** Returns this node's ID. */
