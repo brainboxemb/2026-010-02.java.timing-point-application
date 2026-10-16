@@ -68,7 +68,7 @@ public class PresentationGatewayTest {
 
         node.activate();
         try {
-            TimingNodeStatus status = awaitStatus(gateway.timingNode(new NodeId("A")));
+            TimingNodeStatus status = awaitErrorStatus(gateway.timingNode(new NodeId("A")));
             assertTrue(status.error());
             assertEquals(
                     TimingNodeTypes.ErrorCode.TIMING_DATA_LOAD_FAILED,
@@ -286,6 +286,24 @@ public class PresentationGatewayTest {
                 identity(),
                 nodes(node(new RecordingStore())),
                 null);
+    }
+
+    private static TimingNodeStatus awaitErrorStatus(
+            TimingNodeProxy proxy)
+            throws Exception {
+        long deadline =
+                System.nanoTime()
+                        + java.util.concurrent.TimeUnit.SECONDS.toNanos(1L);
+        while (true) {
+            TimingNodeStatus status = proxy.status();
+            if (status.error()) {
+                return status;
+            }
+            if (System.nanoTime() >= deadline) {
+                throw new AssertionError("TimingNode error status did not become available");
+            }
+            Thread.sleep(2L);
+        }
     }
 
     private static TimingNodeStatus awaitStatus(
