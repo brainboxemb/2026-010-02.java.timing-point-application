@@ -817,7 +817,7 @@ public final class TerminalSession {
                         + status.state().name());
         output.println(
                 "  Operation : "
-                        + timingNode.operationalState().name());
+                        + status.opState().name());
         output.println(
                 "  Location  : "
                         + (status.hasLocation()
