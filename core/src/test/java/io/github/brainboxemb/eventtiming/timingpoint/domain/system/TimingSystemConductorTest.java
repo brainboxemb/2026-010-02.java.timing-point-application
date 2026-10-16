@@ -17,6 +17,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnl
 import io.github.brainboxemb.eventtiming.timingpoint.infra.property.Property;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
@@ -130,7 +131,7 @@ public class TimingSystemConductorTest {
                     activationCaller.isAlive());
             assertNull(activationFailure[0]);
             assertEquals(FunctionalState.CLOSED, node.functionalState());
-            assertFalse(manager.settings().inventoryEnabled());
+            assertFalse(manager.settings().requestedValue(AntennaSettings.INVENTORY_ENABLED).booleanValue());
 
             persistence.releaseLoad.countDown();
 
@@ -138,7 +139,7 @@ public class TimingSystemConductorTest {
             await(
                     antenna::inventoryRunning,
                     1000L);
-            assertTrue(manager.settings().inventoryEnabled());
+            assertTrue(manager.settings().requestedValue(AntennaSettings.INVENTORY_ENABLED).booleanValue());
         } finally {
             persistence.releaseLoad.countDown();
             activationCaller.join(1000L);
@@ -175,7 +176,7 @@ public class TimingSystemConductorTest {
             });
             assertTrue(started.await(1L, TimeUnit.SECONDS));
             node.open(new LocationId(24));
-            assertFalse("Node event only wakes the Conductor", manager.settings().inventoryEnabled());
+            assertFalse("Node event only wakes the Conductor", manager.settings().requestedValue(AntennaSettings.INVENTORY_ENABLED).booleanValue());
             release.countDown();
             await(antenna::inventoryRunning, 1000L);
         } finally {
@@ -256,12 +257,12 @@ public class TimingSystemConductorTest {
             node.open(new LocationId(24));
             node.close();
             node.open(new LocationId(25));
-            assertFalse(manager.settings().inventoryEnabled());
+            assertFalse(manager.settings().requestedValue(AntennaSettings.INVENTORY_ENABLED).booleanValue());
             assertEquals("one coalesced pending reconciliation", 1,
                     lane.metrics().snapshot().queueDepth());
             release.countDown();
             await(antenna::inventoryRunning, 1000L);
-            assertTrue(manager.settings().inventoryEnabled());
+            assertTrue(manager.settings().requestedValue(AntennaSettings.INVENTORY_ENABLED).booleanValue());
             assertEquals("no intermediate OPEN/CLOSE publication", 1L,
                     manager.settings().revision());
         } finally {
