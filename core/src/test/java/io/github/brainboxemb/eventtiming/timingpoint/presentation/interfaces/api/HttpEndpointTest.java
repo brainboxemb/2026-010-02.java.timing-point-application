@@ -117,9 +117,9 @@ public class HttpEndpointTest {
                             null);
             assertEquals(200, status.status);
             assertTrue(status.body.contains(
-                    "{\"id\":\"A\",\"locationId\":null,\"state\":\"CLOSED\"}"));
+                    "{\"id\":\"A\",\"locationId\":null,\"functionalState\":\"CLOSED\",\"operationalState\":\"OK\"}"));
             assertTrue(status.body.contains(
-                    "{\"id\":\"B\",\"locationId\":24,\"state\":\"OPEN\"}"));
+                    "{\"id\":\"B\",\"locationId\":24,\"functionalState\":\"OPEN\",\"operationalState\":\"OK\"}"));
         } finally {
             server.close();
             LifecycleTestSupport.deactivate(second);
