@@ -104,10 +104,10 @@ final class MultiTopologyLogBookVerification {
         // including after restart; merely finding one CLOSED state is not enough.
         assertContains(
                 status.body(),
-                "\"id\":\"A\",\"locationId\":null,\"state\":\"CLOSED\"");
+                "\"id\":\"A\",\"locId\":null,\"state\":\"CLOSED\"");
         assertContains(
                 status.body(),
-                "\"id\":\"B\",\"locationId\":null,\"state\":\"CLOSED\"");
+                "\"id\":\"B\",\"locId\":null,\"state\":\"CLOSED\"");
     }
 
     /** Simulate an ADD without time; SI-01 must use the owning TimingNode clock. */
