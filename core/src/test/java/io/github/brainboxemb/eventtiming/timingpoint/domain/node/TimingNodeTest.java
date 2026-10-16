@@ -78,13 +78,13 @@ public class TimingNodeTest {
     @Test
     public void timingNodePublishesFunctionalStateAfterOpenAndClose() {
         TimingNode node = node(new NodeId("A"));
-        List<Property<?>> changes =
-                new ArrayList<Property<?>>();
+        List<List<Property<?>>> changes =
+                new ArrayList<List<Property<?>>>();
 
         node.PROPERTIES.CHANGED.subscribe(
-                property -> {
-                    if ("functionalState".equals(property.name)) {
-                        changes.add(property);
+                changed -> {
+                    if (changedProperty(changed, "functionalState")) {
+                        changes.add(changed);
                     }
                 });
         activate(node);
@@ -107,8 +107,9 @@ public class TimingNodeTest {
                     node.functionalState());
 
             assertEquals(2, changes.size());
-            assertEquals("functionalState", changes.get(0).name);
-            assertEquals("functionalState", changes.get(1).name);
+            assertTrue(changedProperty(changes.get(0), "functionalState"));
+            assertTrue(changedProperty(changes.get(0), "locationId"));
+            assertTrue(changedProperty(changes.get(1), "functionalState"));
         } finally {
             deactivate(node);
         }
@@ -202,7 +203,7 @@ public class TimingNodeTest {
         CountDownLatch operationalErrorPublished = new CountDownLatch(1);
         node.PROPERTIES.CHANGED.subscribe(
                 change -> {
-                    if ("operationalState".equals(change.name)
+                    if (changedProperty(change, "operationalState")
                             && node.operationalState() == TimingNodeTypes.OperationalState.ERROR) {
                         operationalErrorPublished.countDown();
                     }
@@ -382,7 +383,7 @@ public class TimingNodeTest {
         node.logBook().newDataEntryEvent().subscribe(committedEvents::add);
         node.PROPERTIES.CHANGED.subscribe(
                 change -> {
-                    if ("operationalState".equals(change.name)
+                    if (changedProperty(change, "operationalState")
                             && node.operationalState() == TimingNodeTypes.OperationalState.ERROR) {
                         operationalError.countDown();
                     }
@@ -718,7 +719,7 @@ public class TimingNodeTest {
 
         node.PROPERTIES.CHANGED.subscribe(
                 change -> {
-                    if ("functionalState".equals(change.name)
+                    if (changedProperty(change, "functionalState")
                             && node.functionalState() == TimingNodeTypes.FunctionalState.OPEN) {
                         functionalEvent.countDown();
                     }
@@ -1042,4 +1043,16 @@ public class TimingNodeTest {
             // TimingNodeTest exercises execution/state behaviour, not persistence.
         }
     }
+    private static boolean changedProperty(
+            List<Property<?>> properties,
+            String name) {
+
+        for (Property<?> property : properties) {
+            if (name.equals(property.name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 }
