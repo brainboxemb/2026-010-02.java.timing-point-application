@@ -482,7 +482,7 @@ public class TimingNodeTest {
 
         activate(node);
         try {
-            node.testNextLogBookWriteFailure(
+            ((LogBookTestControl) node.logBook()).armNextWriteFailure(
                     LogBookTestControl.WriteFailure.TIMEOUT);
 
             try {
