@@ -375,7 +375,7 @@ public final class TimingNode {
                     recoveryStatus.failureMessage());
         }
         return new Status(
-                        State.CLOSED,
+                State.CLOSED,
                 null);
     }
 
