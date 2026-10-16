@@ -81,7 +81,7 @@ public class TimingNodeTest {
         List<Property<?>> changes =
                 new ArrayList<Property<?>>();
 
-        node.PROPERTIES.subscribe(
+        node.PROPERTIES.CHANGED.subscribe(
                 property -> {
                     if ("functionalState".equals(property.name)) {
                         changes.add(property);
@@ -200,7 +200,7 @@ public class TimingNodeTest {
                 new DefaultTimingDataFactory(),
                 TimingNodeTest::now);
         CountDownLatch operationalErrorPublished = new CountDownLatch(1);
-        node.PROPERTIES.subscribe(
+        node.PROPERTIES.CHANGED.subscribe(
                 change -> {
                     if ("operationalState".equals(change.name)
                             && node.operationalState() == TimingNodeTypes.OperationalState.ERROR) {
@@ -380,7 +380,7 @@ public class TimingNodeTest {
         List<TimingData> committedEvents = new ArrayList<TimingData>();
         CountDownLatch operationalError = new CountDownLatch(1);
         node.logBook().newDataEntryEvent().subscribe(committedEvents::add);
-        node.PROPERTIES.subscribe(
+        node.PROPERTIES.CHANGED.subscribe(
                 change -> {
                     if ("operationalState".equals(change.name)
                             && node.operationalState() == TimingNodeTypes.OperationalState.ERROR) {
@@ -716,7 +716,7 @@ public class TimingNodeTest {
         CountDownLatch functionalEvent = new CountDownLatch(1);
         CountDownLatch historyEvent = new CountDownLatch(1);
 
-        node.PROPERTIES.subscribe(
+        node.PROPERTIES.CHANGED.subscribe(
                 change -> {
                     if ("functionalState".equals(change.name)
                             && node.functionalState() == TimingNodeTypes.FunctionalState.OPEN) {
