@@ -59,8 +59,7 @@ public final class TimingSystemConductor extends AbstractConductor {
         for (TimingNode node : timingNodes) {
             registerComponent(
                     "TimingNode " + node.timingNodeId().value(),
-                    node::activate,
-                    node::deactivate);
+                    node);
             STATUS_CHANGED.bind(this, node.STATUS_CHANGED);
         }
     }
