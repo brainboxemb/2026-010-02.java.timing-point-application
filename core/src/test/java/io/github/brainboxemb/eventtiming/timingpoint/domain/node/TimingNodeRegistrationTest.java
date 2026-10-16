@@ -578,7 +578,7 @@ public class TimingNodeRegistrationTest {
     }
 
     @Test
-    public void startupLoadFailureSetsOperationalErrorWithoutReplacingFunctionalState() {
+    public void startupLoadFailureDoesNotReplaceFunctionalState() {
         RecordingStore store = new RecordingStore();
         store.failLoad = true;
         TimingNode node = node(store);
@@ -592,17 +592,6 @@ public class TimingNodeRegistrationTest {
             assertEquals(
                     TimingNodeTypes.FunctionalState.CLOSED,
                     node.functionalState());
-            assertEquals(
-                    TimingNodeTypes.OperationalState.ERROR,
-                    node.operationalState());
-            assertTrue(node.operationalProblem().isPresent());
-            TimingNodeTypes.OperationalProblem problem =
-                    node.operationalProblem().get();
-            assertEquals(
-                    TimingNodeTypes.ErrorCode.TIMING_DATA_LOAD_FAILED,
-                    problem.code);
-            assertTrue(problem.message.contains(
-                    "expected persisted-data load failure"));
 
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
@@ -611,9 +600,6 @@ public class TimingNodeRegistrationTest {
                     TimingNodeTypes.FunctionalState.OPEN,
                     node.functionalState());
             assertEquals(new LocationId(24), node.locationId());
-            assertEquals(
-                    TimingNodeTypes.OperationalState.ERROR,
-                    node.operationalState());
 
             try {
                 node.logBook().process(LogBookQueries.timingDataCount());
