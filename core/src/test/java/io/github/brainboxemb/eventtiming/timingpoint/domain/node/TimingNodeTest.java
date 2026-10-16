@@ -483,13 +483,17 @@ public class TimingNodeTest {
                 new NodeId("A"),
                 executor,
                 1000L);
+        CountDownLatch startupCompleted = new CountDownLatch(1);
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
         CountDownLatch fillerCommitted = new CountDownLatch(1);
+        node.logBook().RECOVERY_STATUS_CHANGED.subscribe(status -> startupCompleted.countDown());
         node.TIMING_DATA_COMMITTED.subscribe(data -> fillerCommitted.countDown());
 
         activate(node);
         try {
+            assertTrue(startupCompleted.await(1, TimeUnit.SECONDS));
+
             executor.submit(() -> {
                 blockerStarted.countDown();
                 releaseBlocker.await();
