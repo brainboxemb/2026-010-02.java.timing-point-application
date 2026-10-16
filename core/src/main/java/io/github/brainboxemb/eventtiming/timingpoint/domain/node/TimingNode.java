@@ -45,7 +45,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 /**
  * Coordinates one timing node.
  *
- * <p>It owns the node's OPEN/CLOSED state and coordinates its LogBook,
+ * <p>It owns the node's OPEN/CLOSED operation state and coordinates its LogBook,
  * NodeService and TagProcessor.</p>
  */
 public final class TimingNode {
@@ -74,15 +74,15 @@ public final class TimingNode {
             EventInput.of(
                     (node, source) -> source.subscribe(node::onLogBookRecoveryCompleted));
 
-    /** Committed node-lifecycle input used to update CURRENT status before general publication. */
-    private static final EventInput<TimingNode, TimingData> NODE_LIFECYCLE_STATE =
+    /** Committed operation-state input used to update CURRENT status before general publication. */
+    private static final EventInput<TimingNode, TimingData> NODE_OPERATION_STATE_COMMITTED =
             EventInput.of(
-                    (node, source) -> source.subscribe(node::onCommittedTimingData));
+                    (node, source) -> source.subscribe(node::onOperationStateCommitted));
 
-    /** Post-publication lifecycle input used to publish the resulting node status. */
-    private static final EventInput<TimingNode, TimingData> NODE_LIFECYCLE_COMMITTED =
+    /** Post-publication operation-state input used to publish the resulting node status. */
+    private static final EventInput<TimingNode, TimingData> NODE_OPERATION_STATE_COMMIT_PUBLISHED =
             EventInput.of(
-                    (node, source) -> source.subscribe(node::onLifecycleCommitPublished));
+                    (node, source) -> source.subscribe(node::onOperationStateCommitPublished));
 
     /** Selected registration input from the TagProcessor lane. */
     private static final EventInput<TimingNode, TagProcessor.NewRegistration> NEW_REGISTRATION =
@@ -123,8 +123,8 @@ public final class TimingNode {
         NodeService.INITIAL_TIMING_DATA.bind(nodeService, logBook.initialDataLoadedEvent());
         NodeService.COMMITTED_TIMING_DATA.bind(nodeService, logBook.newDataEntryEvent());
         LOGBOOK_RECOVERY_STATUS.bind(this, logBook.recoveryStatusChangedEvent());
-        NODE_LIFECYCLE_STATE.bind(this, logBook.nodeLifecycleStateEvent());
-        NODE_LIFECYCLE_COMMITTED.bind(this, logBook.nodeLifecycleCommittedEvent());
+        NODE_OPERATION_STATE_COMMITTED.bind(this, logBook.nodeOperationStateCommittedEvent());
+        NODE_OPERATION_STATE_COMMIT_PUBLISHED.bind(this, logBook.nodeOperationStateCommitPublishedEvent());
 
         // Listener runs synchronously on the TagProcessor lane; it must not block.
         NEW_REGISTRATION.bind(this, tagProcessor.NEW_REGISTRATION);
@@ -309,7 +309,7 @@ public final class TimingNode {
     }
 
     /** Called synchronously on the LogBook Data Lane after NODE_OPEN or NODE_CLOSE commits. */
-    private void onCommittedTimingData(TimingData timingData) {
+    private void onOperationStateCommitted(TimingData timingData) {
 
         NodeStatus nodeStatus = currentStatus;
         if (!(nodeStatus instanceof Status)) {
@@ -331,7 +331,7 @@ public final class TimingNode {
     }
 
     /** Called synchronously on the LogBook Data Lane after committed-data publication. */
-    private void onLifecycleCommitPublished(TimingData timingData) {
+    private void onOperationStateCommitPublished(TimingData timingData) {
 
         NodeStatus status = currentStatus;
         if (status != null) {
