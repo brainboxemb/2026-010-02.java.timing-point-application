@@ -428,7 +428,7 @@ public class TimingNodeTest {
             TimingNodeTypes.Status status = node.status();
             assertEquals(TimingNodeTypes.State.OPEN, status.state);
             assertTrue(status.locationId != null);
-            assertEquals(new LocationId(24), status.locationId());
+            assertEquals(new LocationId(24), status.locationId);
         } finally {
             releaseBlocker.countDown();
             node.deactivate();
@@ -486,7 +486,7 @@ public class TimingNodeTest {
             assertEquals(TimingNodeTypes.CloseResult.CLOSED, closeResult[0]);
             TimingNodeTypes.Status status = node.status();
             assertEquals(TimingNodeTypes.State.CLOSED, status.state);
-            assertEquals(new LocationId(24), status.locationId());
+            assertEquals(new LocationId(24), status.locationId);
         } finally {
             releaseBlocker.countDown();
             node.deactivate();
