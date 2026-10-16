@@ -12,6 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationCo
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl.TimingNodeConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
@@ -217,6 +218,9 @@ public final class TerminalSession {
                                     + ". Type 'help' for commands.");
                     return false;
             }
+        } catch (OperationException ex) {
+            output.println("Operation failed (" + ex.reason().name() + "): " + ex.getMessage());
+            return false;
         } catch (IllegalArgumentException ex) {
             output.println("Invalid command value: " + ex.getMessage());
             return false;
