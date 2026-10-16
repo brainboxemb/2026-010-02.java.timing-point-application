@@ -171,10 +171,12 @@ public class SafeExecuteTest {
         AtomicBoolean executed = new AtomicBoolean();
         AtomicBoolean rejected = new AtomicBoolean();
 
-        SafeExecute.runOrHandleRejection(
-                () -> executed.set(true),
-                ex -> rejected.set(true));
+        boolean completed =
+                SafeExecute.runOrHandleRejection(
+                        () -> executed.set(true),
+                        ex -> rejected.set(true));
 
+        assertTrue(completed);
         assertTrue(executed.get());
         assertFalse(rejected.get());
     }
@@ -185,12 +187,14 @@ public class SafeExecuteTest {
         RejectedExecutionException rejection = new RejectedExecutionException("full");
         RejectedExecutionException[] reported = new RejectedExecutionException[1];
 
-        SafeExecute.runOrHandleRejection(
-                () -> {
-                    throw rejection;
-                },
-                ex -> reported[0] = ex);
+        boolean completed =
+                SafeExecute.runOrHandleRejection(
+                        () -> {
+                            throw rejection;
+                        },
+                        ex -> reported[0] = ex);
 
+        assertFalse(completed);
         assertSame(rejection, reported[0]);
     }
 
