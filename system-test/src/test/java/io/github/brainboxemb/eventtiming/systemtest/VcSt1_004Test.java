@@ -78,7 +78,7 @@ public class VcSt1_004Test {
             Response afterOpen = http.get("/api/v1/status");
             assertEquals(200, afterOpen.status());
             assertContains(afterOpen.body(), "\"locationId\":24");
-            assertContains(afterOpen.body(), "\"functionalState\":\"OPEN\"");
+            assertContains(afterOpen.body(), "\"state\":\"OPEN\"");
             assertContains(afterOpen.body(), "\"operationalState\":\"ERROR\"");
             assertContains(
                     afterOpen.body(),
@@ -142,7 +142,7 @@ public class VcSt1_004Test {
         assertContains(json, "\"locationId\":" + locationJson);
         assertContains(
                 json,
-                "\"functionalState\":\"" + functionalState + "\"");
+                "\"state\":\"" + functionalState + "\"");
         assertContains(json, "\"operationalState\":\"ERROR\"");
         assertContains(
                 json,
