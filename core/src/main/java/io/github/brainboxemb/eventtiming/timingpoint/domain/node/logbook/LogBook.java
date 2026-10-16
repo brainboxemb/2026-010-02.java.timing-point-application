@@ -15,6 +15,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.List;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,7 +31,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * {@link SerialLane} may share a Runtime-owned worker with other logical
  * lanes.</p>
  */
-public final class LogBook extends LifecycleComponent implements LogBookAccessor {
+public final class LogBook extends LifecycleComponent implements LogBookAccessor, LogBookTestControl {
     private static final Logger LOG = LoggerFactory.getLogger(LogBook.class);
     public static final long DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS = 5000L;
     public static final long DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS = 2000L;
@@ -40,9 +41,12 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     private final LogBookDataLane dataLane;
     private final LogBookRecoveryView recoveryView;
     private final LogBookMetrics metrics;
+    private final long commitWaitTimeoutMillis;
+    private final AtomicReference<WriteFailure> nextWriteFailure =
+            new AtomicReference<WriteFailure>();
 
-    private final EventWithMetrics<TimingData> newDataEntry;
-    private final Event<List<TimingData>> initialDataLoaded = new Event<List<TimingData>>();
+    private final EventWithMetrics<TimingData> newDataEntryEvent;
+    private final Event<List<TimingData>> initialDataLoadedEvent = new Event<List<TimingData>>();
 
     /** Completed startup-recovery source. */
     public final EventSource<LogBookRecoveryStatus> RECOVERY_STATUS_CHANGED;
@@ -51,7 +55,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     public final EventSource<TimingData> NEW_DATA_ENTRY;
 
     /** Transient startup-history source for one-time derived-state reconstruction. */
-    public final EventSource<List<TimingData>> INITIAL_DATA_LOADED = initialDataLoaded;
+    public final EventSource<List<TimingData>> INITIAL_DATA_LOADED = initialDataLoadedEvent;
 
     /**
      * Creates one LogBook bound to the supplied Data Lane.
@@ -100,12 +104,13 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                         orderedQueryWaitTimeoutMillis);
         this.recoveryView = new LogBookRecoveryView(timingNodeId, dataLane);
         this.metrics = metrics;
-        this.newDataEntry =
+        this.commitWaitTimeoutMillis = commitWaitTimeoutMillis;
+        this.newDataEntryEvent =
                 new EventWithMetrics<TimingData>(
                         monotonicClock,
                         metrics.timingDataEventMetrics());
         this.RECOVERY_STATUS_CHANGED = recoveryView.recoveryStatusChangedEvent();
-        this.NEW_DATA_ENTRY = newDataEntry;
+        this.NEW_DATA_ENTRY = newDataEntryEvent;
     }
 
     /** Returns immutable node identity without entering the Data Lane. */
@@ -118,6 +123,17 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     public LogBookMetrics metrics() {
 
         return metrics;
+    }
+
+    /** Arms one engineering/test failure for the next LogBook command write. */
+    @Override
+    public void armNextWriteFailure(WriteFailure failure) {
+
+        checkArgument(failure != null, "failure must not be null");
+        if (!nextWriteFailure.compareAndSet(null, failure)) {
+            throw new IllegalStateException(
+                    "A LogBook write test failure is already armed");
+        }
     }
 
     /**
@@ -264,7 +280,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                         timingNodeId().value());
             }
 
-            initialDataLoaded.emit(loadResult.records());
+            initialDataLoadedEvent.emit(loadResult.records());
         } catch (TimingDataPersistence.PersistenceException | RuntimeException ex) {
 
             logBookOperations.markTimingDataLoadFailed(ex);
@@ -294,13 +310,37 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     /** Applies one command and publishes newly committed TimingData. */
     private <R> R applyCommand(LogBookCommand<R> command) throws Exception {
 
+        applyNextWriteTestFailure();
+
         long headBefore = logBookState.timingDataHead();
         R result = command.apply(logBookOperations);
 
         if (logBookState.timingDataHead() > headBefore) {
-            newDataEntry.emit(logBookState.latestCommittedTimingData());
+            newDataEntryEvent.emit(logBookState.latestCommittedTimingData());
         }
         return result;
     }
+
+    /** Applies and consumes the one-shot engineering/test write failure. */
+    private void applyNextWriteTestFailure() throws Exception {
+
+        WriteFailure failure = nextWriteFailure.getAndSet(null);
+        if (failure == null) {
+            return;
+        }
+
+        switch (failure) {
+            case FAIL:
+                throw new TimingDataPersistence.PersistenceException(
+                        "Test hook forced the next LogBook write to fail");
+            case TIMEOUT:
+                Thread.sleep(commitWaitTimeoutMillis + 100L);
+                return;
+            default:
+                throw new IllegalStateException(
+                        "Unsupported LogBook write test failure " + failure);
+        }
+    }
+
 
 }

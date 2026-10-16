@@ -13,6 +13,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationCo
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookTestControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
@@ -193,6 +194,9 @@ public final class TerminalSession {
                 case "auto-reg":
                     automaticRegistration(arguments, nodeId, output);
                     return false;
+                case "test":
+                    test(arguments, nodeId, output);
+                    return false;
                 case "config":
                     configuration(arguments, nodeId, output);
                     return false;
@@ -300,6 +304,34 @@ public final class TerminalSession {
                     "Automatic registration: "
                             + result.outcome().name());
         }
+    }
+
+    private void test(
+            String[] arguments,
+            NodeId nodeId,
+            PrintWriter output) {
+        if (arguments.length != 4
+                || !"logbook".equalsIgnoreCase(arguments[1])
+                || !"write".equalsIgnoreCase(arguments[2])) {
+            output.println("Usage: test logbook write <fail|timeout>");
+            return;
+        }
+
+        LogBookTestControl.WriteFailure failure;
+        switch (arguments[3].toLowerCase(Locale.ROOT)) {
+            case "fail":
+                failure = LogBookTestControl.WriteFailure.FAIL;
+                break;
+            case "timeout":
+                failure = LogBookTestControl.WriteFailure.TIMEOUT;
+                break;
+            default:
+                output.println("Usage: test logbook write <fail|timeout>");
+                return;
+        }
+
+        timingNode(nodeId).testNextLogBookWriteFailure(failure);
+        output.println("Next LogBook write test failure: " + failure.name());
     }
 
     private void logging(
@@ -520,6 +552,7 @@ public final class TerminalSession {
                 || "close".equals(command)
                 || "status".equals(command)
                 || "auto-reg".equals(command)
+                || "test".equals(command)
                 || "config".equals(command);
     }
 
@@ -529,7 +562,8 @@ public final class TerminalSession {
         if ("open".equals(command)
                 || "close".equals(command)
                 || "status".equals(command)
-                || "auto-reg".equals(command)) {
+                || "auto-reg".equals(command)
+                || "test".equals(command)) {
             return true;
         }
         if (!"config".equals(command)
@@ -719,6 +753,12 @@ public final class TerminalSession {
         output.println(
                 "  auto-reg <id> <time>         "
                         + "Create automatic registration");
+        output.println(
+                "  test logbook write <fail|timeout>"
+                        + "  Fail or delay next LogBook write");
+        output.println(
+                "  test:A logbook write fail   "
+                        + "Example: fail next write for node A");
         output.println(
                 "  config                       "
                         + "Show current configuration");

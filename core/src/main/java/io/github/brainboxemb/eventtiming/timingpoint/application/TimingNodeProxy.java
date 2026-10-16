@@ -10,6 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookTestControl;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
@@ -54,10 +55,11 @@ public final class TimingNodeProxy {
     private final NodeId timingNodeId;
     private final TimingNode timingNode;
     private final LogBookAccessor logBook;
-    private final Event<TimingNodeStatus> statusChanged = new Event<>();
+    private final LogBookTestControl logBookTestControl;
+    private final Event<TimingNodeStatus> statusChangedEvent = new Event<>();
 
     /** Presentation-facing node-status source. */
-    public final EventSource<TimingNodeStatus> STATUS_CHANGED = statusChanged;
+    public final EventSource<TimingNodeStatus> STATUS_CHANGED = statusChangedEvent;
 
     /** Presentation-facing post-commit TimingData source. */
     public final EventSource<TimingData> NEW_DATA_ENTRY;
@@ -68,6 +70,11 @@ public final class TimingNodeProxy {
         this.timingNodeId = timingNode.timingNodeId();
         this.timingNode = timingNode;
         this.logBook = timingNode.logBook();
+        if (!(logBook instanceof LogBookTestControl)) {
+            throw new IllegalStateException(
+                    "TimingNode LogBook does not expose engineering test control");
+        }
+        this.logBookTestControl = (LogBookTestControl) logBook;
         this.NEW_DATA_ENTRY = timingNode.TIMING_DATA_COMMITTED;
         DOMAIN_STATUS_CHANGED.bind(this, timingNode.STATUS_CHANGED);
         ERROR_STATUS_CHANGED.bind(this, timingNode.ERROR_STATUS_CHANGED);
@@ -112,6 +119,13 @@ public final class TimingNodeProxy {
      */
     public CloseResult close() throws OperationException {
         return timingNode.close();
+    }
+
+    /** Arms one engineering/test failure for the next LogBook write. */
+    public void testNextLogBookWriteFailure(
+            LogBookTestControl.WriteFailure failure) {
+
+        logBookTestControl.armNextWriteFailure(failure);
     }
 
     /**
@@ -247,12 +261,12 @@ public final class TimingNodeProxy {
 
     private void updateStatus(Status status) {
 
-        statusChanged.emit(statusValue(status));
+        statusChangedEvent.emit(statusValue(status));
     }
 
     private void updateErrorStatus(ErrorStatus error) {
 
-        statusChanged.emit(errorStatus(error));
+        statusChangedEvent.emit(errorStatus(error));
     }
 
     private TimingNodeStatus statusValue(Status status) {
