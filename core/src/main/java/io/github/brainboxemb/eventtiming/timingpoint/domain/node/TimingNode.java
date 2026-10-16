@@ -8,7 +8,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommand;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
@@ -172,15 +171,26 @@ public final class TimingNode extends LifecycleComponent {
         synchronized (operationLock) {
             failIfInactive();
 
+            OpenResult result;
             if (functionalStateProp.get() == FunctionalState.OPEN) {
-                return OpenResult.ALREADY_OPEN;
+                result = OpenResult.ALREADY_OPEN;
+            } else {
+                synchronized (stateLock) {
+                    locationIdProp.set(locationId);
+                    functionalStateProp.set(FunctionalState.OPEN);
+                    try {
+                        logBook.execute(LogBookCommands.commitNodeOpen(locationId));
+                    } catch (RejectedExecutionException ex) {
+                        LOG.error(
+                                "NODE_OPEN history for node {} could not be queued on the LogBook Data Lane",
+                                timingNodeId.value(),
+                                ex);
+                    }
+                }
+                properties.update();
+                result = OpenResult.OPENED;
             }
-
-            setFunctionalState(
-                    FunctionalState.OPEN,
-                    locationId,
-                    LogBookCommands.commitNodeOpen(locationId));
-            return OpenResult.OPENED;
+            return result;
         }
     }
 
@@ -194,16 +204,26 @@ public final class TimingNode extends LifecycleComponent {
     public CloseResult close() {
 
         synchronized (operationLock) {
+            CloseResult result;
             if (functionalStateProp.get() == FunctionalState.CLOSED) {
-                return CloseResult.ALREADY_CLOSED;
+                result = CloseResult.ALREADY_CLOSED;
+            } else {
+                LocationId currentLocation = locationIdProp.get();
+                synchronized (stateLock) {
+                    functionalStateProp.set(FunctionalState.CLOSED);
+                    try {
+                        logBook.execute(LogBookCommands.commitNodeClose(currentLocation));
+                    } catch (RejectedExecutionException ex) {
+                        LOG.error(
+                                "NODE_CLOSE history for node {} could not be queued on the LogBook Data Lane",
+                                timingNodeId.value(),
+                                ex);
+                    }
+                }
+                properties.update();
+                result = CloseResult.CLOSED;
             }
-
-            LocationId currentLocation = locationIdProp.get();
-            setFunctionalState(
-                    FunctionalState.CLOSED,
-                    currentLocation,
-                    LogBookCommands.commitNodeClose(currentLocation));
-            return CloseResult.CLOSED;
+            return result;
         }
     }
 
@@ -322,41 +342,6 @@ public final class TimingNode extends LifecycleComponent {
         timingDataCommittedEvent.emit(timingData);
     }
 
-    /**
-     * Changes current functional state and queues the matching lifecycle-history record.
-     *
-     * <p>Both actions stay in the short registration-admission critical section so
-     * registrations cannot be queued ahead of the OPEN history record or after CLOSE.</p>
-     */
-    private void setFunctionalState(
-            FunctionalState state,
-            LocationId newLocationId,
-            LogBookCommand<?> historyCommand) {
-
-        synchronized (stateLock) {
-            locationIdProp.set(newLocationId);
-            functionalStateProp.set(state);
-            queueLogBook(historyCommand, "lifecycle history");
-        }
-        properties.update();
-    }
-
-    /** Queues fire-and-forget LogBook work and contains queue rejection locally. */
-    private void queueLogBook(
-            LogBookCommand<?> command,
-            String operation) {
-
-        try {
-            logBook.execute(command);
-        } catch (RejectedExecutionException ex) {
-            LOG.error(
-                    "{} for node {} could not be queued on the LogBook Data Lane",
-                    operation,
-                    timingNodeId.value(),
-                    ex);
-        }
-    }
-
     /** Fails a functional command when this TimingNode is not active. */
     private void failIfInactive() {
 
@@ -375,19 +360,24 @@ public final class TimingNode extends LifecycleComponent {
      */
     private void onNewRegistration(TagProcessor.NewRegistration registration) {
 
-        String operation =
-                "Automatic registration "
-                        + registration.registrationId().value();
         synchronized (stateLock) {
             if (functionalStateProp.get() != FunctionalState.OPEN) {
                 return;
             }
 
-            LogBookCommand<?> command = LogBookCommands.commitAntennaRegistration(
-                    locationIdProp.get(),
-                    registration.registrationId(),
-                    registration.observedAt());
-            queueLogBook(command, operation);
+            try {
+                logBook.execute(
+                        LogBookCommands.commitAntennaRegistration(
+                                locationIdProp.get(),
+                                registration.registrationId(),
+                                registration.observedAt()));
+            } catch (RejectedExecutionException ex) {
+                LOG.error(
+                        "Automatic registration {} for node {} could not be queued on the LogBook Data Lane",
+                        registration.registrationId().value(),
+                        timingNodeId.value(),
+                        ex);
+            }
         }
     }
 
