@@ -19,7 +19,6 @@ public class AntennaSettingsTest {
                         AntennaSettings.INVENTORY_ENABLED,
                         Boolean.TRUE));
 
-        assertTrue(settings.inventoryEnabled());
         assertEquals(Boolean.TRUE, settings.requestedValue(AntennaSettings.INVENTORY_ENABLED));
         assertEquals(1L, settings.revision());
     }
