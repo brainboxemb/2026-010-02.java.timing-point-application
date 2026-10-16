@@ -19,7 +19,7 @@ public class PropertyContainerTest {
         Property<String> state = properties.property("state", "CLOSED");
         Property<Integer> location = properties.property("locationId", null);
         List<Property<?>> changes = new ArrayList<Property<?>>();
-        properties.subscribe(changes::add);
+        properties.CHANGED.subscribe(changes::add);
 
         PropertyContainer.Update update = properties.update();
         update.set(location, Integer.valueOf(24));
@@ -46,7 +46,7 @@ public class PropertyContainerTest {
         PropertyContainer properties = new PropertyContainer();
         Property<String> state = properties.property("state", "CLOSED");
         List<Property<?>> changes = new ArrayList<Property<?>>();
-        properties.subscribe(changes::add);
+        properties.CHANGED.subscribe(changes::add);
 
         PropertyContainer.Update update = properties.update();
         update.set(state, "CLOSED");
