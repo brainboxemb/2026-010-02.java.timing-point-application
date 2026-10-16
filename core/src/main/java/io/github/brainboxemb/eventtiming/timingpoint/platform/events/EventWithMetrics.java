@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.platform.events;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * Typed synchronous Event that records delivery duration and listener failures.
@@ -31,6 +32,11 @@ public final class EventWithMetrics<T> implements EventSource<T> {
     @Override
     public boolean subscribe(Consumer<T> listener) {
         return event.subscribe(listener);
+    }
+
+    @Override
+    public boolean subscribe(Predicate<T> filter, Consumer<T> listener) {
+        return event.subscribe(filter, listener);
     }
 
     /** Emits one value synchronously and records its complete delivery cost. */

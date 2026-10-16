@@ -14,6 +14,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixtu
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.property.Property;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
@@ -181,6 +182,49 @@ public class TimingSystemConductorTest {
             release.countDown();
             deactivate(conductor);
             deactivate(manager);
+        }
+    }
+
+    @Test
+    public void unrelatedNodePropertyDoesNotWakeReconciliation() throws Exception {
+        TimingNode node = newTimingNode("A");
+        Property<Boolean> diagnostic =
+                node.PROPERTIES.property("diagnostic", Boolean.FALSE);
+        TaskSerialLane lane =
+                new TaskSerialLane(
+                        4,
+                        "conductor-filter-test",
+                        newScheduledWorker("conductor-filter-worker"));
+        TimingSystemConductor conductor =
+                new TimingSystemConductor(
+                        TimingNodeList.of(node),
+                        null,
+                        lane);
+        activate(conductor);
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        try {
+            await(() -> lane.metrics().snapshot().queueDepth() == 0, 1000L);
+            lane.execute(() -> {
+                started.countDown();
+                try {
+                    release.await();
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            assertTrue(started.await(1L, TimeUnit.SECONDS));
+
+            diagnostic.set(Boolean.TRUE);
+            node.PROPERTIES.update();
+
+            assertEquals(
+                    "unrelated property change must not wake conductor",
+                    0,
+                    lane.metrics().snapshot().queueDepth());
+        } finally {
+            release.countDown();
+            deactivate(conductor);
         }
     }
 

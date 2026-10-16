@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Filter TimingSystemConductor wakeups through the existing grouped property event: EventSource supports composition-time predicates, TimingNode exposes typed immutable property keys, and unrelated property updates no longer queue reconciliation work.
+
 - Move the reusable inactive-component guard into `LifecycleComponent`; concrete components configure their caller-visible inactive failure at construction instead of reimplementing the active-state check.
 
 - Keep fire-and-forget LogBook queue rejection inside the LogBook execution boundary and use `SafeExecute` there, leaving TimingNode OPEN/CLOSE and registration flow free of repeated queue-specific `try/catch` blocks.

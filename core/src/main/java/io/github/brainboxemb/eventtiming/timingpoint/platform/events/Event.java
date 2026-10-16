@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,22 +13,22 @@ import org.slf4j.LoggerFactory;
  * Small typed local event for post-fact notifications.
  *
  * <p>Event deliberately has no hidden executor, topic router or retry queue.
- * {@link #emit(Object)} invokes the current listeners synchronously, in
+ * {@link #emit(Object)} invokes matching current listeners synchronously, in
  * subscription order, on the emitting thread. A listener that needs slow I/O,
  * retry or network delivery must hand the immutable value to its own bounded
  * execution/delivery mechanism and return quickly.</p>
  *
  * <p>Listeners are wired during application composition, before components are
- * activated. Runtime rewiring is deliberately unsupported: {@link #subscribe(Consumer)}
- * is not a concurrent runtime operation. Once activation begins, the listener
+ * activated. Runtime rewiring is deliberately unsupported: subscribe is not a
+ * concurrent runtime operation. Once activation begins, the listener
  * representation is read-only and {@code emit(...)} may safely use it without
  * subscription locks.</p>
  *
  * <p>The internal registry is optimized for the common 0/1-subscriber case:
- * no container is allocated for zero listeners, one listener is stored directly,
- * and an immutable Consumer array is used only when two or more listeners are
- * present. This is an implementation detail; EventSource semantics remain 0..N
- * subscribers and callers never select a cardinality mode.</p>
+ * no container is allocated for zero subscriptions, one subscription is stored
+ * directly, and an immutable Subscription array is used only when two or more
+ * subscriptions are present. This is an implementation detail; EventSource
+ * semantics remain 0..N subscribers and callers never select a cardinality mode.</p>
  *
  * <p>Event deliberately does <strong>not</strong> serialize concurrent emits.
  * If two threads call {@code emit(...)} at the same time, the same listener may
@@ -36,11 +37,10 @@ import org.slf4j.LoggerFactory;
  * boundary. Listener implementations must therefore be thread-safe whenever
  * their owning event can be emitted concurrently.</p>
  *
- * <p>Ordinary listener {@link RuntimeException}s are isolated per listener:
- * later listeners are still invoked, infrastructure logs the failure, and the
- * failures remain available in the returned {@link DeliveryReport}. Domain
- * event producers do not need subscriber-specific failure handling. Fatal
- * {@link Error}s are not swallowed.</p>
+ * <p>Ordinary filter/listener {@link RuntimeException}s are isolated per
+ * subscription: later subscriptions are still evaluated, infrastructure logs
+ * the failure, and the failures remain available in the returned
+ * {@link DeliveryReport}. Fatal {@link Error}s are not swallowed.</p>
  *
  * @param <T> immutable/read-only value delivered to listeners
  */
@@ -48,69 +48,78 @@ public final class Event<T> implements EventSource<T> {
     private static final Logger LOG = LoggerFactory.getLogger(Event.class);
 
     /*
-     * Compact composition-built listener representation:
+     * Compact composition-built subscription representation:
      *
-     * null          -> no listeners
-     * Consumer<T>   -> exactly one listener
-     * Consumer<?>[] -> two or more listeners in subscription order
+     * null                -> no subscriptions
+     * Subscription<T>     -> exactly one subscription
+     * Subscription<?>[]   -> two or more subscriptions in order
      *
      * subscribe replaces this reference only during single-threaded composition.
      * Runtime emit reads the finished representation and never invokes user code
      * under a subscription lock.
      */
-    private Object listeners;
+    private Object subscriptions;
 
-    /**
-     * Subscribes one listener.
-     *
-     * <p>The same listener is stored at most once according to equals().
-     * Subscription belongs to composition and must finish before activation.</p>
-     *
-     * @return {@code true} when the listener was newly added
-     */
+    /** Subscribes one listener for every emitted value. */
+    @Override
+    public boolean subscribe(Consumer<T> listener) {
+        requireListener(listener);
+        return subscribeInternal(null, listener);
+    }
+
+    /** Subscribes one listener only for values accepted by the supplied filter. */
     @Override
     public boolean subscribe(
+            Predicate<T> filter,
             Consumer<T> listener) {
-        requireListener(
-                listener);
 
-        Object current =
-                listeners;
+        requireFilter(filter);
+        requireListener(listener);
+        return subscribeInternal(filter, listener);
+    }
 
+    private boolean subscribeInternal(
+            Predicate<T> filter,
+            Consumer<T> listener) {
+
+        Subscription<T> subscription =
+                new Subscription<T>(
+                        filter,
+                        listener);
+
+        Object current = subscriptions;
         if (current == null) {
-            listeners = listener;
+            subscriptions = subscription;
             return true;
         }
 
-        if (current instanceof Consumer) {
-            Consumer<T> existing =
-                    singleListener(
+        if (current instanceof Subscription) {
+            Subscription<T> existing =
+                    singleSubscription(
                             current);
-            if (existing.equals(
-                    listener)) {
+            if (existing.sameAs(subscription)) {
                 return false;
             }
 
-            listeners =
-                    new Consumer<?>[] {
+            subscriptions =
+                    new Subscription<?>[] {
                             existing,
-                            listener
+                            subscription
                     };
             return true;
         }
 
-        Consumer<?>[] existing =
-                listenerArray(
+        Subscription<?>[] existing =
+                subscriptionArray(
                         current);
-        for (Consumer<?> candidate : existing) {
-            if (candidate.equals(
-                    listener)) {
+        for (Subscription<?> candidate : existing) {
+            if (candidate.sameAs(subscription)) {
                 return false;
             }
         }
 
-        Consumer<?>[] expanded =
-                new Consumer<?>[
+        Subscription<?>[] expanded =
+                new Subscription<?>[
                         existing.length + 1];
         System.arraycopy(
                 existing,
@@ -119,123 +128,174 @@ public final class Event<T> implements EventSource<T> {
                 0,
                 existing.length);
         expanded[existing.length] =
-                listener;
-        listeners = expanded;
+                subscription;
+        subscriptions = expanded;
         return true;
     }
 
     /**
-     * Delivers one value to the listener snapshot that exists at emit start.
+     * Delivers one value to subscriptions that accept it.
      *
-     * <p>This method does not throw ordinary listener RuntimeExceptions. They are
-     * collected into the returned report so one listener cannot prevent delivery
-     * to later listeners. Fatal Errors still propagate to the owner thread.</p>
+     * <p>This method does not throw ordinary filter/listener RuntimeExceptions.
+     * They are collected into the returned report so one subscriber cannot
+     * prevent later subscribers from seeing the fact. Fatal Errors propagate.</p>
      */
-    public DeliveryReport emit(
-            T value) {
+    public DeliveryReport emit(T value) {
         if (value == null) {
             throw new IllegalArgumentException(
                     "value must not be null");
         }
 
-        Object snapshot =
-                listeners;
-
+        Object snapshot = subscriptions;
         if (snapshot == null) {
             return DeliveryReport.noListeners();
         }
 
-        if (snapshot instanceof Consumer) {
+        if (snapshot instanceof Subscription) {
             return deliverSingle(
-                    singleListener(
+                    singleSubscription(
                             snapshot),
                     value);
         }
 
         return deliverMany(
-                listenerArray(
+                subscriptionArray(
                         snapshot),
                 value);
     }
 
     private DeliveryReport deliverSingle(
-            Consumer<T> listener,
+            Subscription<T> subscription,
             T value) {
+
         try {
-            listener.accept(
-                    value);
-            return DeliveryReport.success(
-                    1);
+            if (!subscription.accepts(value)) {
+                return DeliveryReport.noListeners();
+            }
         } catch (RuntimeException ex) {
-            logListenerFailure(listener, ex);
-            return DeliveryReport.failure(
-                    1,
-                    ex);
+            logListenerFailure(subscription.listener, ex);
+            return DeliveryReport.failure(1, ex);
+        }
+
+        try {
+            subscription.listener.accept(value);
+            return DeliveryReport.success(1);
+        } catch (RuntimeException ex) {
+            logListenerFailure(subscription.listener, ex);
+            return DeliveryReport.failure(1, ex);
         }
     }
 
     private DeliveryReport deliverMany(
-            Consumer<?>[] snapshot,
+            Subscription<?>[] snapshot,
             T value) {
-        List<RuntimeException> failures = null;
 
-        for (Consumer<?> rawListener : snapshot) {
-            Consumer<T> listener =
-                    typedListener(
-                            rawListener);
+        List<RuntimeException> failures = null;
+        int attemptedListeners = 0;
+
+        for (Subscription<?> rawSubscription : snapshot) {
+            Subscription<T> subscription =
+                    typedSubscription(
+                            rawSubscription);
+
             try {
-                listener.accept(
-                        value);
+                if (!subscription.accepts(value)) {
+                    continue;
+                }
             } catch (RuntimeException ex) {
-                logListenerFailure(listener, ex);
+                attemptedListeners++;
+                logListenerFailure(subscription.listener, ex);
                 if (failures == null) {
                     failures =
                             new ArrayList<RuntimeException>();
                 }
-                failures.add(
-                        ex);
+                failures.add(ex);
+                continue;
+            }
+
+            attemptedListeners++;
+            try {
+                subscription.listener.accept(value);
+            } catch (RuntimeException ex) {
+                logListenerFailure(subscription.listener, ex);
+                if (failures == null) {
+                    failures =
+                            new ArrayList<RuntimeException>();
+                }
+                failures.add(ex);
             }
         }
 
         return failures == null
-                ? DeliveryReport.success(
-                        snapshot.length)
+                ? DeliveryReport.success(attemptedListeners)
                 : new DeliveryReport(
-                        snapshot.length,
+                        attemptedListeners,
                         failures);
     }
 
     /** Reports an unexpected subscriber failure without involving the event producer. */
-    private static void logListenerFailure(Consumer<?> listener, RuntimeException failure) {
+    private static void logListenerFailure(
+            Consumer<?> listener,
+            RuntimeException failure) {
+
         LOG.warn(
                 "Event listener {} failed during synchronous delivery",
                 listener.getClass().getName(),
                 failure);
     }
 
-    private static void requireListener(
-            Consumer<?> listener) {
+    private static void requireListener(Consumer<?> listener) {
         if (listener == null) {
             throw new IllegalArgumentException(
                     "listener must not be null");
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static <T> Consumer<T> singleListener(
-            Object value) {
-        return (Consumer<T>) value;
-    }
-
-    private static Consumer<?>[] listenerArray(
-            Object value) {
-        return (Consumer<?>[]) value;
+    private static void requireFilter(Predicate<?> filter) {
+        if (filter == null) {
+            throw new IllegalArgumentException(
+                    "filter must not be null");
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static <T> Consumer<T> typedListener(
-            Consumer<?> listener) {
-        return (Consumer<T>) listener;
+    private static <T> Subscription<T> singleSubscription(Object value) {
+        return (Subscription<T>) value;
+    }
+
+    private static Subscription<?>[] subscriptionArray(Object value) {
+        return (Subscription<?>[]) value;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Subscription<T> typedSubscription(Subscription<?> subscription) {
+        return (Subscription<T>) subscription;
+    }
+
+    private static final class Subscription<T> {
+        private final Predicate<T> filter;
+        private final Consumer<T> listener;
+
+        private Subscription(
+                Predicate<T> filter,
+                Consumer<T> listener) {
+            this.filter = filter;
+            this.listener = listener;
+        }
+
+        private boolean accepts(T value) {
+            return filter == null || filter.test(value);
+        }
+
+        private boolean sameAs(Subscription<?> other) {
+            if (!listener.equals(other.listener)) {
+                return false;
+            }
+            if (filter == null) {
+                return other.filter == null;
+            }
+            return filter.equals(other.filter);
+        }
     }
 
     /** Immutable outcome of one synchronous emission. */
@@ -265,8 +325,7 @@ public final class Event<T> implements EventSource<T> {
             return NO_LISTENERS;
         }
 
-        private static DeliveryReport success(
-                int attemptedListeners) {
+        private static DeliveryReport success(int attemptedListeners) {
             return new DeliveryReport(
                     attemptedListeners,
                     Collections.<RuntimeException>emptyList());
@@ -281,22 +340,22 @@ public final class Event<T> implements EventSource<T> {
                             failure));
         }
 
-        /** Number of listeners that were invoked for this emission. */
+        /** Number of listeners whose filter accepted the value, including filter failures. */
         public int attemptedListeners() {
             return attemptedListeners;
         }
 
-        /** Number of listeners that threw a RuntimeException. */
+        /** Number of filters/listeners that threw a RuntimeException. */
         public int failureCount() {
             return failures.size();
         }
 
-        /** Returns true when every invoked listener returned normally. */
+        /** Returns true when every evaluated/delivered subscription returned normally. */
         public boolean successful() {
             return failures.isEmpty();
         }
 
-        /** Listener failures in subscription/invocation order. */
+        /** Subscription failures in evaluation/invocation order. */
         public List<RuntimeException> failures() {
             return failures;
         }

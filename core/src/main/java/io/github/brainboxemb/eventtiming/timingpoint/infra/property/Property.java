@@ -9,6 +9,7 @@ import java.util.Objects;
  */
 public final class Property<T> {
     final PropertyContainer owner;
+    final PropertyKey<T> key;
     public final String name;
 
     private volatile T value;
@@ -16,11 +17,12 @@ public final class Property<T> {
 
     Property(
             PropertyContainer owner,
-            String name,
+            PropertyKey<T> key,
             T initialValue) {
 
         this.owner = owner;
-        this.name = name;
+        this.key = key;
+        this.name = key.name;
         this.value = initialValue;
         this.lastPublishedValue = initialValue;
     }

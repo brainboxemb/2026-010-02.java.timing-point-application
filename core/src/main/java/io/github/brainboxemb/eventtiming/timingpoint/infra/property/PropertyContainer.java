@@ -25,21 +25,28 @@ public final class PropertyContainer {
             String name,
             T initialValue) {
 
-        if (name == null || name.trim().isEmpty()) {
-            throw new IllegalArgumentException("property name must not be blank");
+        return property(PropertyKey.<T>of(name), initialValue);
+    }
+
+    /** Creates one typed property with an identity that may be shared with consumers. */
+    public synchronized <T> Property<T> property(
+            PropertyKey<T> key,
+            T initialValue) {
+
+        if (key == null) {
+            throw new IllegalArgumentException("property key must not be null");
         }
 
-        String normalized = name.trim();
         for (Property<?> property : properties) {
-            if (property.name.equals(normalized)) {
-                throw new IllegalArgumentException("duplicate property " + normalized);
+            if (property.name.equals(key.name)) {
+                throw new IllegalArgumentException("duplicate property " + key.name);
             }
         }
 
         Property<T> property =
                 new Property<T>(
                         this,
-                        normalized,
+                        key,
                         initialValue);
         properties.add(property);
         return property;

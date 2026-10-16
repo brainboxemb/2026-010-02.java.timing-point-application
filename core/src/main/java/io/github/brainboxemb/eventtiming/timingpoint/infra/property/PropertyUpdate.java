@@ -13,4 +13,18 @@ public final class PropertyUpdate {
                 Collections.unmodifiableList(
                         new ArrayList<Property<?>>(properties));
     }
+
+    /** Returns whether this update contains the property identified by the supplied key. */
+    public boolean contains(PropertyKey<?> key) {
+        if (key == null) {
+            throw new IllegalArgumentException("property key must not be null");
+        }
+
+        for (Property<?> property : properties) {
+            if (property.key == key) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
