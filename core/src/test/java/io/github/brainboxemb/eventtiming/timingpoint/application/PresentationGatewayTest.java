@@ -119,7 +119,7 @@ public class PresentationGatewayTest {
             assertTrue(committed.get(0) instanceof TimingData.NodeOpen);
 
             TimingNodeTypes.RegistrationResult registration =
-                    proxy.addCustomAutomaticRegistration(
+                    proxy.addTestAutomaticRegistration(
                             new RegistrationId("N0001"),
                             TIME,
                             TimingData.AutomaticTimeSource.API);
