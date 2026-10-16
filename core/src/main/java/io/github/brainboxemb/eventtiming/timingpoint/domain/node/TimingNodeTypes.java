@@ -202,8 +202,9 @@ public final class TimingNodeTypes {
             INTERRUPTED,
 
             /**
-             * Waiting exceeded the operation timeout; the final operation
-             * outcome may be unknown to the caller.
+             * Waiting exceeded the caller wait guard. An accepted state-changing
+             * command may still complete later, so its final outcome can be
+             * unknown; a query timeout only means no query result was obtained.
              */
             TIMEOUT
         }
