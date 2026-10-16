@@ -177,7 +177,7 @@ public class TimingApplicationRuntimeTest {
                             .timingNode(
                                     new NodeId("A"))
                             .status()
-                            .state());
+                            .functionalState());
             assertEquals(
                     TimingNodeTypes.FunctionalState.OPEN,
                     application
@@ -185,7 +185,7 @@ public class TimingApplicationRuntimeTest {
                             .timingNode(
                                     new NodeId("B"))
                             .status()
-                            .state());
+                            .functionalState());
         } finally {
             application.deactivate();
         }
@@ -289,7 +289,7 @@ public class TimingApplicationRuntimeTest {
                             .timingNode(
                                     new NodeId("A"))
                             .status()
-                            .state());
+                            .functionalState());
             assertEquals(
                     TimingNodeTypes.FunctionalState.OPEN,
                     application
@@ -297,7 +297,7 @@ public class TimingApplicationRuntimeTest {
                             .timingNode(
                                     new NodeId("B"))
                             .status()
-                            .state());
+                            .functionalState());
         } finally {
             application.deactivate();
         }
@@ -534,7 +534,7 @@ public class TimingApplicationRuntimeTest {
         try {
             assertEquals(
                     TimingApplicationRuntime.State.ACTIVE,
-                    application.state());
+                    application.functionalState());
             assertFalse(
                     "Runtime must be ACTIVE before antenna startup is ready",
                     application.antennaManager()
@@ -579,7 +579,7 @@ public class TimingApplicationRuntimeTest {
         try {
             assertEquals(
                     TimingApplicationRuntime.State.ACTIVE,
-                    application.state());
+                    application.functionalState());
         } finally {
             application.deactivate();
         }
@@ -597,7 +597,7 @@ public class TimingApplicationRuntimeTest {
 
         application.activate();
         try {
-            assertEquals(TimingApplicationRuntime.State.ACTIVE, application.state());
+            assertEquals(TimingApplicationRuntime.State.ACTIVE, application.functionalState());
             TimingNodeProxy proxy =
                     application.presentationGateway()
                             .timingNode(new NodeId("A"));
