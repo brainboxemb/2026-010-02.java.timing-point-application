@@ -55,6 +55,7 @@ public final class TimingNodeProxy {
     private final NodeId timingNodeId;
     private final TimingNode timingNode;
     private final LogBookAccessor logBook;
+    private final LogBookTestControl logBookTestControl;
     private final Event<TimingNodeStatus> statusChangedEvent = new Event<>();
 
     /** Presentation-facing node-status source. */
@@ -69,6 +70,11 @@ public final class TimingNodeProxy {
         this.timingNodeId = timingNode.timingNodeId();
         this.timingNode = timingNode;
         this.logBook = timingNode.logBook();
+        if (!(logBook instanceof LogBookTestControl)) {
+            throw new IllegalStateException(
+                    "TimingNode LogBook does not expose engineering test control");
+        }
+        this.logBookTestControl = (LogBookTestControl) logBook;
         this.NEW_DATA_ENTRY = timingNode.TIMING_DATA_COMMITTED;
         DOMAIN_STATUS_CHANGED.bind(this, timingNode.STATUS_CHANGED);
         ERROR_STATUS_CHANGED.bind(this, timingNode.ERROR_STATUS_CHANGED);
@@ -119,7 +125,7 @@ public final class TimingNodeProxy {
     public void testNextLogBookWriteFailure(
             LogBookTestControl.WriteFailure failure) {
 
-        timingNode.testNextLogBookWriteFailure(failure);
+        logBookTestControl.armNextWriteFailure(failure);
     }
 
     /**
