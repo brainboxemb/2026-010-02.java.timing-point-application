@@ -53,7 +53,7 @@ public final class TimingSystemConductor extends AbstractConductor {
             registerComponent(
                     "TimingNode " + node.timingNodeId().value(),
                     node);
-            node.PROPERTIES.subscribe(ignored -> wakeMainTask());
+            node.PROPERTIES.CHANGED.subscribe(ignored -> wakeMainTask());
         }
     }
 
