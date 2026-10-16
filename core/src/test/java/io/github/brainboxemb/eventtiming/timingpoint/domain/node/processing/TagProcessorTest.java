@@ -264,7 +264,7 @@ public class TagProcessorTest {
                 execution.lane);
         CountDownLatch registrationPublished =
                 new CountDownLatch(1);
-        processor.newRegistrationEvent()
+        processor.NEW_REGISTRATION
                 .subscribe(
                         ignored -> registrationPublished.countDown());
 
@@ -539,7 +539,7 @@ public class TagProcessorTest {
     private static void connectToNode(
             TagProcessor processor,
             TimingNode node) {
-        processor.newRegistrationEvent()
+        processor.NEW_REGISTRATION
                 .subscribe(
                         registration ->
                                 node.logBook().execute(

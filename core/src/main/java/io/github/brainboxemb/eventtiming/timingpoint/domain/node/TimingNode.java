@@ -69,6 +69,26 @@ public final class TimingNode {
             EventInput.of(
                     (node, source) -> source.subscribe(node.tagProcessor::onTagObserved));
 
+    /** LogBook startup-recovery input used to initialize the node's current status. */
+    private static final EventInput<TimingNode, LogBookRecoveryStatus> LOGBOOK_RECOVERY_STATUS =
+            EventInput.of(
+                    (node, source) -> source.subscribe(node::onLogBookRecoveryCompleted));
+
+    /** Committed node-lifecycle input used to update CURRENT status before general publication. */
+    private static final EventInput<TimingNode, TimingData> NODE_LIFECYCLE_STATE =
+            EventInput.of(
+                    (node, source) -> source.subscribe(node::onCommittedTimingData));
+
+    /** Post-publication lifecycle input used to publish the resulting node status. */
+    private static final EventInput<TimingNode, TimingData> NODE_LIFECYCLE_COMMITTED =
+            EventInput.of(
+                    (node, source) -> source.subscribe(node::onLifecycleCommitPublished));
+
+    /** Selected registration input from the TagProcessor lane. */
+    private static final EventInput<TimingNode, TagProcessor.NewRegistration> NEW_REGISTRATION =
+            EventInput.of(
+                    (node, source) -> source.subscribe(node::onNewRegistration));
+
     /**
      * Status-change source for this TimingNode.
      *
@@ -100,22 +120,14 @@ public final class TimingNode {
         lifecycle.register(logBook, LogBook::activate, LogBook::deactivate);
         lifecycle.register(tagProcessor, TagProcessor::activate, TagProcessor::deactivate);
 
-        nodeService.bind(NodeService.INITIAL_TIMING_DATA, logBook.initialDataLoadedEvent());
-        nodeService.bind(NodeService.COMMITTED_TIMING_DATA, logBook.newDataEntryEvent());
-        logBook.recoveryStatusChangedEvent().subscribe(this::onLogBookRecoveryCompleted);
-        logBook.nodeLifecycleStateEvent().subscribe(this::onCommittedTimingData);
-        logBook.nodeLifecycleCommittedEvent().subscribe(this::onLifecycleCommitPublished);
+        NodeService.INITIAL_TIMING_DATA.bind(nodeService, logBook.initialDataLoadedEvent());
+        NodeService.COMMITTED_TIMING_DATA.bind(nodeService, logBook.newDataEntryEvent());
+        LOGBOOK_RECOVERY_STATUS.bind(this, logBook.recoveryStatusChangedEvent());
+        NODE_LIFECYCLE_STATE.bind(this, logBook.nodeLifecycleStateEvent());
+        NODE_LIFECYCLE_COMMITTED.bind(this, logBook.nodeLifecycleCommittedEvent());
 
         // Listener runs synchronously on the TagProcessor lane; it must not block.
-        tagProcessor.newRegistrationEvent().subscribe(this::onNewRegistration);
-    }
-
-    /** Binds an event source during composition. This call is direct and does not queue work. */
-    public <T> void bind(EventInput<TimingNode, T> input, EventSource<T> source) {
-
-        checkArgument(input != null, "input must not be null");
-        checkArgument(source != null, "source must not be null");
-        input.bind(this, source);
+        NEW_REGISTRATION.bind(this, tagProcessor.NEW_REGISTRATION);
     }
 
     /** Returns this node's ID. */

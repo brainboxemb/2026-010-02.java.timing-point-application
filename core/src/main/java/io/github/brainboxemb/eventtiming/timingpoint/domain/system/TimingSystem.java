@@ -77,8 +77,8 @@ public final class TimingSystem {
     private void bindAntennaObservations() {
 
         for (TimingNode node : timingNodes) {
-            node.bind(
-                    TimingNode.TAG_OBSERVATIONS,
+            TimingNode.TAG_OBSERVATIONS.bind(
+                    node,
                     antennaManager.tagObservedEvent(node.antennaId()));
         }
     }

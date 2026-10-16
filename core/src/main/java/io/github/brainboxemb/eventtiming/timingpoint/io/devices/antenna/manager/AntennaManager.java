@@ -5,6 +5,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaI
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
@@ -29,6 +30,21 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  */
 public final class AntennaManager {
     private static final Logger LOG = LoggerFactory.getLogger(AntennaManager.class);
+
+    /** Self-test completion input; the payload only wakes reconciliation. */
+    private static final EventInput<AntennaManager, AntennaTaskResult> SELF_TEST_COMPLETED =
+            EventInput.of(
+                    (manager, source) -> source.subscribe(manager::onSelfTestCompleted));
+
+    /** Inventory-task completion input; the payload only wakes reconciliation. */
+    private static final EventInput<AntennaManager, AntennaTaskResult> INVENTORY_COMPLETED =
+            EventInput.of(
+                    (manager, source) -> source.subscribe(manager::onInventoryCompleted));
+
+    /** Desired-settings change input; the revision only wakes reconciliation. */
+    private static final EventInput<AntennaManager, Long> SETTINGS_CHANGED =
+            EventInput.of(
+                    (manager, source) -> source.subscribe(manager::onSettingsChanged));
 
     /**
      * Internal control phase while the public lifecycle remains ACTIVE.
@@ -93,9 +109,9 @@ public final class AntennaManager {
          * Task events are wired once during composition. The callbacks only
          * wake this manager state machine; each task keeps its own result.
          */
-        selfTestTask.completedEvent().subscribe(this::onSelfTestCompleted);
-        inventoryTask.completedEvent().subscribe(this::onInventoryCompleted);
-        settings.changedEvent().subscribe(this::onSettingsChanged);
+        SELF_TEST_COMPLETED.bind(this, selfTestTask.COMPLETED);
+        INVENTORY_COMPLETED.bind(this, inventoryTask.COMPLETED);
+        SETTINGS_CHANGED.bind(this, settings.CHANGED);
     }
 
     public synchronized void activate() {

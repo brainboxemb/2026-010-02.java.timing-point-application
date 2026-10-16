@@ -432,7 +432,7 @@ public class TimingApplicationRuntimeTest {
             CountDownLatch simulatedCommit = new CountDownLatch(1);
             application.presentationGateway()
                     .timingNode(new NodeId("A"))
-                    .newDataEntryEvent()
+                    .NEW_DATA_ENTRY
                     .subscribe(data -> {
                         if (data instanceof AutomaticRegistration
                                 && new RegistrationId("RT-A-0042")

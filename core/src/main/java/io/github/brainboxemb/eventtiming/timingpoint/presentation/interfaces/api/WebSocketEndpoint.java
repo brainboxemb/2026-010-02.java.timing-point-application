@@ -221,8 +221,8 @@ public final class WebSocketEndpoint implements AutoCloseable {
      */
     private void bindApplicationEvents() {
         for (TimingNodeProxy timingNode : presentationGateway.timingNodes()) {
-            timingNode.statusChangedEvent().subscribe(this::onTimingNodeStatusChanged);
-            timingNode.newDataEntryEvent().subscribe(this::onTimingDataCommitted);
+            timingNode.STATUS_CHANGED.subscribe(this::onTimingNodeStatusChanged);
+            timingNode.NEW_DATA_ENTRY.subscribe(this::onTimingDataCommitted);
         }
         presentationGateway.configuration()
                 .changes()

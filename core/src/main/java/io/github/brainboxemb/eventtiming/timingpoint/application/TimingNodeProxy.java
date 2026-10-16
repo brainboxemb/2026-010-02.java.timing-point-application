@@ -17,6 +17,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
@@ -31,6 +32,11 @@ import java.util.function.Consumer;
  */
 public final class TimingNodeProxy {
 
+    /** Domain node-status input mapped to presentation-facing status values. */
+    private static final EventInput<TimingNodeProxy, NodeStatus> NODE_STATUS_CHANGED =
+            EventInput.of(
+                    (proxy, source) -> source.subscribe(proxy::updateStatus));
+
     /** Registration record family supplied by a higher interpreting layer. */
     public enum RegistrationRecordType {
         AUTO_REG,
@@ -40,7 +46,13 @@ public final class TimingNodeProxy {
     private final NodeId timingNodeId;
     private final TimingNode timingNode;
     private final LogBookAccessor logBook;
-    private final Event<TimingNodeStatus> statusChangedEvent = new Event<>();
+    private final Event<TimingNodeStatus> statusChanged = new Event<>();
+
+    /** Presentation-facing node-status source. */
+    public final EventSource<TimingNodeStatus> STATUS_CHANGED = statusChanged;
+
+    /** Presentation-facing post-commit TimingData source. */
+    public final EventSource<TimingData> NEW_DATA_ENTRY;
 
     TimingNodeProxy(TimingNode timingNode) {
         if (timingNode == null) {
@@ -49,7 +61,8 @@ public final class TimingNodeProxy {
         this.timingNodeId = timingNode.timingNodeId();
         this.timingNode = timingNode;
         this.logBook = timingNode.logBook();
-        timingNode.STATUS_CHANGED.subscribe(this::updateStatus);
+        this.NEW_DATA_ENTRY = logBook.newDataEntryEvent();
+        NODE_STATUS_CHANGED.bind(this, timingNode.STATUS_CHANGED);
     }
 
     /** Returns this node's ID. */
@@ -212,25 +225,10 @@ public final class TimingNodeProxy {
                 LogBookQueries.visitLatestTimingData(limit, visitor));
     }
 
-    /**
-     * Returns node Status publications for Presentation.
-     *
-     * <p>The first event may be the TimingNode's post-recovery initial Status;
-     * later events represent effective status changes.</p>
-     */
-    public EventSource<TimingNodeStatus> statusChangedEvent() {
-        return statusChangedEvent;
-    }
-
-    /** Returns the subscription-only post-commit new-data event. */
-    public EventSource<TimingData> newDataEntryEvent() {
-        return logBook.newDataEntryEvent();
-    }
-
     private void updateStatus(NodeStatus status) {
 
         TimingNodeStatus update = timingNodeStatus(status);
-        statusChangedEvent.emit(update);
+        statusChanged.emit(update);
     }
 
     private static TimingNodeStatus timingNodeStatus(NodeStatus status) {

@@ -137,7 +137,7 @@ public class SimulationRuntimeRecoveryTest {
         AtomicInteger recoveryCommitEvents =
                 new AtomicInteger();
         recoveredNode
-                .newDataEntryEvent()
+                .NEW_DATA_ENTRY
                 .subscribe(
                         ignored ->
                                 recoveryCommitEvents.incrementAndGet());
@@ -277,7 +277,7 @@ public class SimulationRuntimeRecoveryTest {
         AtomicReference<AutomaticRegistration> registration =
                 new AtomicReference<AutomaticRegistration>();
 
-        node.newDataEntryEvent()
+        node.NEW_DATA_ENTRY
                 .subscribe(
                         data -> {
                             if (data instanceof AutomaticRegistration) {

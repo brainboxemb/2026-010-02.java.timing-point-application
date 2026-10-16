@@ -23,7 +23,10 @@ final class SelfTestTask extends AbstractTask {
     }
 
     private final List<ManagedAntenna> antennas;
-    private final Event<AntennaTaskResult> completedEvent = new Event<AntennaTaskResult>();
+    private final Event<AntennaTaskResult> completed = new Event<AntennaTaskResult>();
+
+    /** Completion source consumed by AntennaManager during fixed composition. */
+    final EventSource<AntennaTaskResult> COMPLETED = completed;
 
     private volatile AntennaTaskResult lastResult;
     private int antennaIndex;
@@ -33,10 +36,6 @@ final class SelfTestTask extends AbstractTask {
     SelfTestTask(List<ManagedAntenna> antennas) {
         this.antennas = antennas;
         resetForRun();
-    }
-
-    EventSource<AntennaTaskResult> completedEvent() {
-        return completedEvent;
     }
 
     /**
@@ -116,7 +115,7 @@ final class SelfTestTask extends AbstractTask {
                 ? AntennaTaskResult.success()
                 : AntennaTaskResult.failed(effectiveFailure);
 
-        completedEvent.emit(lastResult);
+        completed.emit(lastResult);
     }
 
     private TaskStep finish() {
