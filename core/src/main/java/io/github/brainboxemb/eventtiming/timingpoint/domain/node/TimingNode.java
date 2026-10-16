@@ -71,8 +71,8 @@ public final class TimingNode extends LifecycleComponent {
     /** Current error status, or null when no TimingNode error is active. */
     private volatile ErrorStatus currentErrorStatus;
 
-    /** Temporary ingress guard used while CLOSE outcome is unresolved. */
-    private boolean registrationGuardActive;
+    /** Blocks new antenna registrations while CLOSE outcome is unresolved. */
+    private boolean blockRegistrations;
 
     /** Antenna observation input; internally consumed by the TagProcessor. */
     public static final EventInput<TimingNode, TagObservation> TAG_OBSERVATIONS =
@@ -223,7 +223,7 @@ public final class TimingNode extends LifecycleComponent {
             if (status.state == State.CLOSED) {
                 result = CloseResult.ALREADY_CLOSED;
             } else {
-                setRegistrationGuard(true);
+                setBlockRegistrations(true);
 
                 result = SafeExecute.callOrRethrow(
                         () -> logBook.process(
@@ -234,7 +234,7 @@ public final class TimingNode extends LifecycleComponent {
                 Status closedStatus =
                         new Status(State.CLOSED, status.locationId);
                 setStatus(closedStatus);
-                setRegistrationGuard(false);
+                setBlockRegistrations(false);
                 statusChangedEvent.emit(closedStatus);
             }
             return result;
@@ -342,7 +342,7 @@ public final class TimingNode extends LifecycleComponent {
         synchronized (stateLock) {
             currentStatus = new Status(State.CLOSED, null);
             currentErrorStatus = null;
-            registrationGuardActive = false;
+            blockRegistrations = false;
         }
     }
 
@@ -386,19 +386,19 @@ public final class TimingNode extends LifecycleComponent {
         }
     }
 
-    /** Enables or clears the temporary registration ingress guard. */
-    private void setRegistrationGuard(boolean active) {
+    /** Blocks or allows new antenna registrations. */
+    private void setBlockRegistrations(boolean block) {
 
         synchronized (stateLock) {
-            registrationGuardActive = active;
+            blockRegistrations = block;
         }
     }
 
-    /** Clears the ingress guard when CLOSE was rejected before Data Lane admission. */
+    /** Allows registrations again when CLOSE was rejected before Data Lane admission. */
     private void onCloseFailure(OperationException failure) {
 
         if (closeWasNotAccepted(failure)) {
-            setRegistrationGuard(false);
+            setBlockRegistrations(false);
         }
     }
 
@@ -419,7 +419,7 @@ public final class TimingNode extends LifecycleComponent {
 
         synchronized (stateLock) {
             Status status = currentStatus;
-            if (registrationGuardActive || status.state != State.OPEN) {
+            if (blockRegistrations || status.state != State.OPEN) {
                 return;
             }
 
