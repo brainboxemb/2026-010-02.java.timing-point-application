@@ -96,8 +96,8 @@ public final class TimingNode extends LifecycleComponent {
     /**
      * Committed TimingData source at the TimingNode boundary.
      *
-     * <p>For NODE_OPEN/NODE_CLOSE the current status is already updated
-     * when this event is delivered. STATUS_CHANGED follows afterwards.</p>
+     * <p>This event reports durable LogBook facts only. Runtime OPEN/CLOSED
+     * status is owned and published separately by TimingNode open/close.</p>
      */
     public final EventSource<TimingData> TIMING_DATA_COMMITTED = timingDataCommitted;
 
@@ -131,9 +131,9 @@ public final class TimingNode extends LifecycleComponent {
         lifecycle.register(tagProcessor);
 
         /*
-         * LogBook publishes the durable commit fact once. TimingNode applies any
-         * operation-state effect and republishes the node-level committed-data fact
-         * before STATUS_CHANGED, keeping state/event ordering at the state owner.
+         * LogBook publishes durable TimingData facts once. TimingNode republishes
+         * those facts for node-level consumers; lifecycle status is changed only
+         * by successful TimingNode open/close operations.
          */
         LOGBOOK_TIMING_DATA_COMMITTED.bind(this, logBook.NEW_DATA_ENTRY);
         NodeService.INITIAL_TIMING_DATA.bind(nodeService, logBook.INITIAL_DATA_LOADED);
@@ -177,7 +177,9 @@ public final class TimingNode extends LifecycleComponent {
     /**
      * Opens this node at the requested location.
      *
-     * <p>This call blocks until NODE_OPEN is committed to the LogBook or the operation fails.</p>
+     * <p>This call blocks until NODE_OPEN is committed to the LogBook or the operation fails.
+     * After a successful commit, TimingNode applies the OPEN runtime status and publishes
+     * {@link #STATUS_CHANGED} itself.</p>
      *
      * @throws OperationException when the node operation cannot return its normal result
      */
@@ -192,6 +194,11 @@ public final class TimingNode extends LifecycleComponent {
             } else {
                 result = logBook.process(
                         LogBookCommands.commitNodeOpen(locationId));
+
+                Status openedStatus =
+                        new Status(State.OPEN, locationId);
+                setStatus(openedStatus);
+                statusChanged.emit(openedStatus);
             }
             return result;
         }
@@ -200,7 +207,9 @@ public final class TimingNode extends LifecycleComponent {
     /**
      * Closes this node and retains its last location.
      *
-     * <p>This call blocks until NODE_CLOSE is committed to the LogBook or the operation fails.</p>
+     * <p>This call blocks until NODE_CLOSE is committed to the LogBook or the operation fails.
+     * After a successful commit, TimingNode applies the CLOSED runtime status and publishes
+     * {@link #STATUS_CHANGED} itself.</p>
      *
      * @throws OperationException when the node operation cannot return its normal result;
      *         timeout means the final close outcome is unknown
@@ -223,6 +232,11 @@ public final class TimingNode extends LifecycleComponent {
                 try {
                     result = logBook.process(
                             LogBookCommands.commitNodeClose(status.locationId));
+
+                    Status closedStatus =
+                            new Status(State.CLOSED, status.locationId);
+                    setStatus(closedStatus);
+                    statusChanged.emit(closedStatus);
                 } catch (OperationException ex) {
                     if (ex.reason() == OperationException.Reason.BUSY
                             || ex.reason() == OperationException.Reason.UNAVAILABLE) {
@@ -240,16 +254,16 @@ public final class TimingNode extends LifecycleComponent {
     }
 
     /**
-     * Adds one custom automatic registration with an explicitly supplied effective time.
+     * Adds one test automatic registration with an explicitly supplied effective time.
      *
      * <p>This call blocks until the LogBook Data Lane has committed the record,
-     * rejected it because the node is not OPEN, or the operation fails. Custom
+     * rejected it because the node is not OPEN, or the operation fails. Test
      * registrations always use {@code TagSource.API}; {@code registrationTimeSource}
      * records whether the supplied time came from the caller or this node's TimeSource.</p>
      *
      * @throws OperationException when the node operation cannot return its normal result
      */
-    public RegistrationResult addCustomAutomaticRegistration(
+    public RegistrationResult addTestAutomaticRegistration(
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
             TimingData.AutomaticTimeSource registrationTimeSource)
@@ -258,7 +272,7 @@ public final class TimingNode extends LifecycleComponent {
         checkArgument(
                 registrationTimeSource == TimingData.AutomaticTimeSource.API
                         || registrationTimeSource == TimingData.AutomaticTimeSource.NODE,
-                "custom automatic registration time source must be API or NODE");
+                "test automatic registration time source must be API or NODE");
 
         synchronized (operationLock) {
             Status status = currentStatus;
@@ -345,37 +359,16 @@ public final class TimingNode extends LifecycleComponent {
     }
 
     /**
-     * Maintains transient operation state from successfully committed TimingData.
+     * Publishes one successfully committed TimingData fact.
      *
-     * <p>NEW_DATA_ENTRY is emitted only after the LogBook commit has completed.
-     * Consuming that fact also covers an accepted open/close command that commits
-     * after its waiting caller timed out. Persisted startup history is not replayed
-     * through this path, so restart does not reconstruct OPEN/CLOSED or LocationId.</p>
+     * <p>LogBook history is not authoritative for the transient TimingNode
+     * OPEN/CLOSED state. Lifecycle status changes are applied by
+     * {@link #open(LocationId)} and {@link #close()} after their commit command
+     * returns successfully.</p>
      */
     private void onTimingDataCommitted(TimingData timingData) {
 
-        Status changedStatus = null;
-        if (timingData instanceof TimingData.NodeOpen) {
-            changedStatus = new Status(
-                    State.OPEN,
-                    timingData.locationId());
-            setStatus(changedStatus);
-        } else if (timingData instanceof TimingData.NodeClose) {
-            changedStatus = new Status(
-                    State.CLOSED,
-                    timingData.locationId());
-            setStatus(changedStatus);
-        }
-
-        /*
-         * Preserve the public event order: committed TimingData is observable
-         * before the resulting operation-status change.
-         */
         timingDataCommitted.emit(timingData);
-
-        if (changedStatus != null) {
-            statusChanged.emit(changedStatus);
-        }
     }
 
     /**

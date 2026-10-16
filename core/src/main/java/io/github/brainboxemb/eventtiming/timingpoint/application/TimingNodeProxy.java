@@ -115,7 +115,7 @@ public final class TimingNodeProxy {
     }
 
     /**
-     * Adds one custom automatic registration using the supplied effective time.
+     * Adds one test automatic registration using the supplied effective time.
      *
      * <p>This call blocks until the TimingNode returns the processed operation result.
      * The caller also identifies whether the supplied time came from this node's
@@ -123,12 +123,12 @@ public final class TimingNodeProxy {
      *
      * @throws OperationException when the node operation cannot return its normal result
      */
-    public RegistrationResult addCustomAutomaticRegistration(
+    public RegistrationResult addTestAutomaticRegistration(
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
             TimingData.AutomaticTimeSource registrationTimeSource)
             throws OperationException {
-        return timingNode.addCustomAutomaticRegistration(
+        return timingNode.addTestAutomaticRegistration(
                 registrationId,
                 effectiveTime,
                 registrationTimeSource);

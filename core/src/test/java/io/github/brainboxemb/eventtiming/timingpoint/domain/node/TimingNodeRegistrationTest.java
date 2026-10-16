@@ -50,7 +50,7 @@ public class TimingNodeRegistrationTest {
 
             RegistrationId registrationId = new RegistrationId("1001");
             TimingNodeTypes.RegistrationResult result =
-                    node.addCustomAutomaticRegistration(
+                    node.addTestAutomaticRegistration(
                             registrationId,
                             EFFECTIVE_TIME,
                             TimingData.AutomaticTimeSource.API);
@@ -86,7 +86,7 @@ public class TimingNodeRegistrationTest {
             TimingTimestamp nodeTime =
                     new TimingTimestamp(node.timeSource().now());
             AutomaticRegistration fromNodeClock =
-                    (AutomaticRegistration) node.addCustomAutomaticRegistration(
+                    (AutomaticRegistration) node.addTestAutomaticRegistration(
                             new RegistrationId("RT-A-0001"),
                             nodeTime,
                             TimingData.AutomaticTimeSource.NODE)
@@ -99,7 +99,7 @@ public class TimingNodeRegistrationTest {
                     fromNodeClock.registrationTimeSource());
 
             AutomaticRegistration explicit =
-                    (AutomaticRegistration) node.addCustomAutomaticRegistration(
+                    (AutomaticRegistration) node.addTestAutomaticRegistration(
                             new RegistrationId("RT-A-0002"),
                             EFFECTIVE_TIME,
                             TimingData.AutomaticTimeSource.API)
@@ -124,7 +124,7 @@ public class TimingNodeRegistrationTest {
             node.open(new LocationId(24));
 
             try {
-                node.addCustomAutomaticRegistration(
+                node.addTestAutomaticRegistration(
                         new RegistrationId("RT-A-0003"),
                         EFFECTIVE_TIME,
                         TimingData.AutomaticTimeSource.OBS);
@@ -147,7 +147,7 @@ public class TimingNodeRegistrationTest {
             node.open(new LocationId(24));
 
             TimingNodeTypes.RegistrationResult automatic =
-                    node.addCustomAutomaticRegistration(
+                    node.addTestAutomaticRegistration(
                             new RegistrationId("1001"),
                             TimingTimestamp.parse(
                                     "2026-10-01T12:00:00.129876543Z"),
@@ -181,7 +181,7 @@ public class TimingNodeRegistrationTest {
         try {
 
             TimingNodeTypes.RegistrationResult rejected =
-                    node.addCustomAutomaticRegistration(
+                    node.addTestAutomaticRegistration(
                             new RegistrationId("1001"),
                             EFFECTIVE_TIME,
                             TimingData.AutomaticTimeSource.API);
@@ -194,7 +194,7 @@ public class TimingNodeRegistrationTest {
 
             node.open(new LocationId(24));
             TimingNodeTypes.RegistrationResult committed =
-                    node.addCustomAutomaticRegistration(
+                    node.addTestAutomaticRegistration(
                             new RegistrationId("1002"),
                             EFFECTIVE_TIME,
                             TimingData.AutomaticTimeSource.API);
@@ -259,7 +259,7 @@ public class TimingNodeRegistrationTest {
         try {
             node.open(new LocationId(24));
 
-            TimingNodeTypes.RegistrationResult first = node.addCustomAutomaticRegistration(
+            TimingNodeTypes.RegistrationResult first = node.addTestAutomaticRegistration(
                             new RegistrationId("1001"),
                             EFFECTIVE_TIME,
                             TimingData.AutomaticTimeSource.API);

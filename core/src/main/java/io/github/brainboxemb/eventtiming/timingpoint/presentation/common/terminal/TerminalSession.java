@@ -285,7 +285,7 @@ public final class TerminalSession {
 
         RegistrationResult result =
                 timingNode(nodeId)
-                        .addCustomAutomaticRegistration(
+                        .addTestAutomaticRegistration(
                                 new RegistrationId(arguments[1]),
                                 TimingTimestamp.parse(arguments[2]),
                                 AutomaticTimeSource.API);

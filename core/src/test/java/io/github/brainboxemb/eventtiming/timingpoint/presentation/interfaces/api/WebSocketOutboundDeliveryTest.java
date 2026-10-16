@@ -144,7 +144,7 @@ public class WebSocketOutboundDeliveryTest {
             node.open(new LocationId(24));
 
             for (int index = 1; index <= 10; index++) {
-                node.addCustomAutomaticRegistration(
+                node.addTestAutomaticRegistration(
                         new RegistrationId(
                                 String.format(
                                         "N%04d",

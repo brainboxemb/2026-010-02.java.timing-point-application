@@ -52,7 +52,7 @@ public class WebSocketEndpointTest {
 
         // Commit history before the WebSocket endpoint/client exists.
         fixture.handler.timingNode(new NodeId("A")).open(new LocationId(24));
-        fixture.handler.timingNode(new NodeId("A")).addCustomAutomaticRegistration(
+        fixture.handler.timingNode(new NodeId("A")).addTestAutomaticRegistration(
                 new RegistrationId("N0000"),
                 TIME,
                 TimingData.AutomaticTimeSource.API);
@@ -121,7 +121,7 @@ public class WebSocketEndpointTest {
             assertTrue(opened.contains("\"locationId\":24"));
             assertTrue(opened.contains("\"state\":\"OPEN\""));
 
-            fixture.handler.timingNode(new NodeId("A")).addCustomAutomaticRegistration(
+            fixture.handler.timingNode(new NodeId("A")).addTestAutomaticRegistration(
                     new RegistrationId("N0001"),
                     TIME,
                     TimingData.AutomaticTimeSource.API);
