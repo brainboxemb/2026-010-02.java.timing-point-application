@@ -214,13 +214,13 @@ public final class TimingNode {
      *
      * <p>This call blocks until the LogBook Data Lane has committed the record,
      * rejected it because the node is not OPEN, or the operation fails. Custom
-     * registrations always use {@code TagSource.API}; {@code timeSource} records
-     * whether the supplied time came from the caller or this node's TimeSource.</p>
+     * registrations always use {@code TagSource.API}; {@code registrationTimeSource}
+     * records whether the supplied time came from the caller or this node's TimeSource.</p>
      */
     public RegistrationResult addCustomAutomaticRegistration(
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
-            TimingData.AutomaticTimeSource timeSource) {
+            TimingData.AutomaticTimeSource registrationTimeSource) {
 
         synchronized (operationLock) {
             Status status = requireOperationalStatus();
@@ -233,7 +233,7 @@ public final class TimingNode {
                             registrationId,
                             effectiveTime,
                             TimingData.TagSource.API,
-                            timeSource));
+                            registrationTimeSource));
         }
     }
 
@@ -246,7 +246,7 @@ public final class TimingNode {
     public RegistrationResult addManualRegistration(
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
-            ManualTimeSource timeSource) {
+            ManualTimeSource registrationTimeSource) {
 
         synchronized (operationLock) {
             Status status = requireOperationalStatus();
@@ -258,7 +258,7 @@ public final class TimingNode {
                             status.locationId(),
                             registrationId,
                             effectiveTime,
-                            timeSource));
+                            registrationTimeSource));
         }
     }
 
