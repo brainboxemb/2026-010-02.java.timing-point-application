@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Rename the engineering/test automatic-registration API from `addCustomAutomaticRegistration` to `addTestAutomaticRegistration` so the method name reflects that this path injects controlled test registrations rather than a normal production registration mode.
+
 - Make TimingNode authoritative for transient OPEN/CLOSED + LocationId state: successful open/close operations now apply and publish status directly after lifecycle TimingData commit, while committed LogBook lifecycle facts (including late commits after caller timeout) no longer mutate runtime status through the generic TimingData event.
 
 - Clarify the CLOSE antenna-ingress gate and lifecycle commit results: `commitNodeOpen`/`commitNodeClose` now return `OPENED`/`CLOSED` directly to `TimingNode`; the separate close-failure restoration helper is removed; BUSY/UNAVAILABLE restore the temporary antenna ingress gate locally while ambiguous accepted failures remain fail-closed.
