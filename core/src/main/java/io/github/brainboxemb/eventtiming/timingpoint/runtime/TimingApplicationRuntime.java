@@ -137,45 +137,6 @@ public final class TimingApplicationRuntime {
     }
 
     /**
-     * Constructs the normal executable composition with process console I/O.
-     */
-    public static TimingApplicationRuntime create(
-            BuildIdentity buildIdentity,
-            Config config,
-            Reader consoleInput,
-            Writer consoleOutput) {
-        return TimingApplicationComposition.createNormal(
-                buildIdentity,
-                config,
-                PlatformEnvironment.system(),
-                Thread.currentThread()
-                        .getContextClassLoader(),
-                null,
-                null,
-                consoleInput,
-                consoleOutput);
-    }
-
-    /**
-     * Constructs the normal executable composition with process console I/O and
-     * runtime log-level control for local/remote terminal commands.
-     */
-    public static TimingApplicationRuntime create(
-            BuildIdentity buildIdentity,
-            Config config,
-            LoggingLevelControl loggingLevelControl,
-            Reader consoleInput,
-            Writer consoleOutput) {
-        return create(
-                buildIdentity,
-                config,
-                loggingLevelControl,
-                null,
-                consoleInput,
-                consoleOutput);
-    }
-
-    /**
      * Constructs the normal executable composition with explicit local-console
      * prompt coordination for asynchronous console logging.
      */
