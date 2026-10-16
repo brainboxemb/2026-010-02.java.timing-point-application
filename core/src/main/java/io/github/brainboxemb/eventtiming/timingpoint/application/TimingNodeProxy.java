@@ -106,18 +106,14 @@ public final class TimingNodeProxy {
     /**
      * Opens the node at the requested LocationId.
      *
-     * @throws OperationException when the node operation cannot return its normal result
+     * @throws OperationException when the node is not available for opening
      */
     public OpenResult open(LocationId locationId) throws OperationException {
         return timingNode.open(locationId);
     }
 
-    /**
-     * Closes the node.
-     *
-     * @throws OperationException when the node operation cannot return its normal result
-     */
-    public CloseResult close() throws OperationException {
+    /** Closes the node without waiting for lifecycle-history persistence. */
+    public CloseResult close() {
         return timingNode.close();
     }
 
