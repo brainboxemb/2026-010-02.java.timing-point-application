@@ -126,7 +126,7 @@ public class AbstractConductorTest {
                 SerialLane lane,
                 List<String> calls,
                 RuntimeException hookFailure) {
-            super(lane);
+            super("TestConductor", lane);
             this.calls = calls;
             this.hookFailure = hookFailure;
 
