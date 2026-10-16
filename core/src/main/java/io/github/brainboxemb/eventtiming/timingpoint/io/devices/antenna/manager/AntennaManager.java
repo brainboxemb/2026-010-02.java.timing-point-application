@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager
 
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.setting.Setting;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.setting.SettingUpdate;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
@@ -43,7 +44,7 @@ public final class AntennaManager extends LifecycleComponent {
                     (manager, source) -> source.subscribe(manager::onInventoryCompleted));
 
     /** Desired-settings change input; the revision only wakes reconciliation. */
-    private static final EventInput<AntennaManager, Long> SETTINGS_CHANGED =
+    private static final EventInput<AntennaManager, SettingUpdate> SETTINGS_CHANGED =
             EventInput.of(
                     (manager, source) -> source.subscribe(manager::onSettingsChanged));
 
@@ -249,8 +250,8 @@ public final class AntennaManager extends LifecycleComponent {
         return true;
     }
 
-    /** Wakes the main task after one committed desired-settings revision. */
-    private void onSettingsChanged(long ignoredRevision) {
+    /** Wakes the main task after one committed desired-settings update. */
+    private void onSettingsChanged(SettingUpdate ignoredUpdate) {
         if (state == State.ACTIVE) {
             mainTask.wake(taskLane);
         }
