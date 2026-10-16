@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.ap
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingData.AutomaticTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
@@ -404,11 +405,18 @@ public final class HttpEndpoint implements AutoCloseable {
             return;
         }
 
-        // For omitted time, capture the node's configured TimeSource on
-        // its serial command lane, not the web/HTTP executor's wall clock.
-        RegistrationResult result = time == null
-                ? timingNode.simulateAutomaticRegistrationNow(registrationId)
-                : timingNode.simulateAutomaticRegistration(registrationId, time);
+        TimingTimestamp effectiveTime = time;
+        AutomaticTimeSource timeSource = AutomaticTimeSource.API;
+        if (effectiveTime == null) {
+            effectiveTime = new TimingTimestamp(timingNode.timeSource().now());
+            timeSource = AutomaticTimeSource.NODE;
+        }
+
+        RegistrationResult result =
+                timingNode.addCustomAutomaticRegistration(
+                        registrationId,
+                        effectiveTime,
+                        timeSource);
         if (result.outcome() == RegistrationResult.Outcome.NODE_NOT_OPEN) {
             sendJson(
                     exchange,
