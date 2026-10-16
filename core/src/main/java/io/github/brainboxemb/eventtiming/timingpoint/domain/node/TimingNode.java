@@ -120,11 +120,11 @@ public final class TimingNode {
         lifecycle.register(logBook, LogBook::activate, LogBook::deactivate);
         lifecycle.register(tagProcessor, TagProcessor::activate, TagProcessor::deactivate);
 
-        NodeService.INITIAL_TIMING_DATA.bind(nodeService, logBook.initialDataLoadedEvent());
-        NodeService.COMMITTED_TIMING_DATA.bind(nodeService, logBook.newDataEntryEvent());
-        LOGBOOK_RECOVERY_STATUS.bind(this, logBook.recoveryStatusChangedEvent());
-        NODE_OPERATION_STATE_COMMITTED.bind(this, logBook.nodeOperationStateCommittedEvent());
-        NODE_OPERATION_STATE_COMMIT_PUBLISHED.bind(this, logBook.nodeOperationStateCommitPublishedEvent());
+        NodeService.INITIAL_TIMING_DATA.bind(nodeService, logBook.INITIAL_DATA_LOADED);
+        NodeService.COMMITTED_TIMING_DATA.bind(nodeService, logBook.NEW_DATA_ENTRY);
+        LOGBOOK_RECOVERY_STATUS.bind(this, logBook.RECOVERY_STATUS_CHANGED);
+        NODE_OPERATION_STATE_COMMITTED.bind(this, logBook.OPERATION_STATE_COMMITTED);
+        NODE_OPERATION_STATE_COMMIT_PUBLISHED.bind(this, logBook.OPERATION_STATE_COMMIT_PUBLISHED);
 
         // Listener runs synchronously on the TagProcessor lane; it must not block.
         NEW_REGISTRATION.bind(this, tagProcessor.NEW_REGISTRATION);
