@@ -46,6 +46,23 @@ public class PropertyContainerTest {
         assertTrue(changes.isEmpty());
     }
 
+    @Test
+    public void syncAcceptsCurrentValuesWithoutPublishing() {
+        PropertyContainer properties = new PropertyContainer();
+        Property<String> state =
+                properties.property("state", "CLOSED");
+        List<PropertyUpdate> changes =
+                new ArrayList<PropertyUpdate>();
+        properties.CHANGED.subscribe(changes::add);
+
+        state.set("OPEN");
+        properties.sync();
+        properties.update();
+
+        assertTrue(changes.isEmpty());
+        assertEquals("OPEN", state.get());
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void rejectsDuplicatePropertyName() {
         PropertyContainer properties = new PropertyContainer();

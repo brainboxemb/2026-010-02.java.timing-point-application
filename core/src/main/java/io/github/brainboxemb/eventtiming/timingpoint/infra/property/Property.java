@@ -35,6 +35,11 @@ public final class Property<T> {
         this.value = value;
     }
 
+    /** Accepts the current value as the comparison baseline without publishing a change. */
+    void sync() {
+        lastPublishedValue = value;
+    }
+
     /** Records the current value and reports whether it changed since the last update. */
     boolean update() {
         T currentValue = value;

@@ -311,8 +311,8 @@ public final class TimingNode extends LifecycleComponent {
         synchronized (stateLock) {
             functionalStateProp.set(FunctionalState.CLOSED);
             locationIdProp.set(null);
+            properties.sync();
         }
-        properties.update();
     }
 
     /**

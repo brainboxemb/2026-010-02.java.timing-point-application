@@ -45,6 +45,13 @@ public final class PropertyContainer {
         return property;
     }
 
+    /** Accepts all current property values as the comparison baseline without an event. */
+    public synchronized void sync() {
+        for (Property<?> property : properties) {
+            property.sync();
+        }
+    }
+
     /** Publishes one event when one or more owned properties changed. */
     public void update() {
 
