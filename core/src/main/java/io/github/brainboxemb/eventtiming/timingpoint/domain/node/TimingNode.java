@@ -43,12 +43,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 
 /**
- * Top-level owner for one logical timing node.
+ * Coordinates one timing node.
  *
- * <p>Runtime constructs the LogBook, Task and Tag children before construction.
- * TimingNode owns their lifecycle and node-internal event links. The containing
- * TimingSystem binds typed event sources to this component without exposing
- * TagProcessor or other child objects.</p>
+ * <p>It owns the node's OPEN/CLOSED state and coordinates its LogBook,
+ * NodeService and TagProcessor.</p>
  */
 public final class TimingNode {
     private static final Logger LOG = LoggerFactory.getLogger(TimingNode.class);
@@ -62,7 +60,7 @@ public final class TimingNode {
     private final Object operationLock = new Object();
     private final Object stateLock = new Object();
 
-    /** Current immutable node-state snapshot; null until LogBook recovery completes. */
+    /** Current node status; null until LogBook recovery completes. */
     private volatile NodeStatus currentStatus;
     private boolean registrationsEnabled;
 
@@ -71,7 +69,7 @@ public final class TimingNode {
             EventInput.of(
                     (node, source) -> source.subscribe(node.tagProcessor::onTagObserved));
 
-    /** Creates the top-level node owner around its already composed child components. */
+    /** Creates one TimingNode with its clock and child components. */
     public TimingNode(
             AntennaId antennaId,
             TimeSource timeSource,
@@ -100,20 +98,11 @@ public final class TimingNode {
         logBook.nodeLifecycleStateEvent().subscribe(this::onCommittedTimingData);
         logBook.nodeLifecycleCommittedEvent().subscribe(this::onLifecycleCommitPublished);
 
-        /*
-         * TagProcessor emits synchronously on its own lane. The named handler
-         * performs only a non-blocking handoff to the LogBook Data Lane.
-         */
+        // Listener runs synchronously on the TagProcessor lane; it must not block.
         tagProcessor.newRegistrationEvent().subscribe(this::onNewRegistration);
     }
 
-    /**
-     * Binds one typed event source to a supported TimingNode input.
-     *
-     * <p>Binding is a composition-time operation. The caller selects the semantic
-     * input and supplies the source; TimingNode owns the internal subscription and
-     * does not expose the child component that consumes the event.</p>
-     */
+    /** Binds an event source during composition. This call is direct and does not queue work. */
     public <T> void bind(EventInput<TimingNode, T> input, EventSource<T> source) {
 
         checkArgument(input != null, "input must not be null");
@@ -133,13 +122,17 @@ public final class TimingNode {
         return antennaId;
     }
 
-    /** Returns the absolute TimeSource configured for this node. This is a direct, non-blocking lookup. */
+    /** Returns the TimeSource used by this node. This lookup does not block. */
     public TimeSource timeSource() {
 
         return timeSource;
     }
 
-    /** Returns the current status determined by this TimingNode. */
+    /**
+     * Returns the current node status without waiting for queued Data Lane work.
+     *
+     * <p>Before startup recovery completes, this may report the status as unavailable.</p>
+     */
     public NodeStatus status() {
 
         NodeStatus status = currentStatus;
@@ -157,13 +150,22 @@ public final class TimingNode {
                         ReadConsistency.CURRENT));
     }
 
-    /** Publishes TimingNode status after this component has evaluated it. */
+    /**
+     * Returns the node-status event.
+     *
+     * <p>Listeners are invoked synchronously on the thread that publishes the change
+     * and must return quickly.</p>
+     */
     public EventSource<NodeStatus> statusChangedEvent() {
 
         return statusChangedEvent;
     }
 
-    /** Opens this TimingNode at the requested timing location. */
+    /**
+     * Opens this node at the requested location.
+     *
+     * <p>This call blocks until NODE_OPEN is committed to the LogBook or the operation fails.</p>
+     */
     public OpenResult open(LocationId locationId) {
 
         checkArgument(locationId != null, "locationId must not be null");
@@ -178,7 +180,11 @@ public final class TimingNode {
         }
     }
 
-    /** Closes this TimingNode while retaining the last timing location. */
+    /**
+     * Closes this node and retains its last location.
+     *
+     * <p>This call blocks until NODE_CLOSE is committed to the LogBook or the operation fails.</p>
+     */
     public CloseResult close() {
 
         synchronized (operationLock) {
@@ -257,11 +263,10 @@ public final class TimingNode {
     }
 
     /**
-     * Returns the node's LogBook access boundary.
+     * Returns the node's LogBook command/query boundary.
      *
-     * <p>Callers may execute or queue LogBook commands, run supported queries and
-     * subscribe to post-commit/recovery events. Child lifecycle, persisted-data
-     * startup loading, lane ownership and metrics remain internal to the node composition.</p>
+     * <p>{@code process(...)} waits for an ordered result; {@code execute(...)}
+     * queues fire-and-forget work and returns after queueing.</p>
      */
     public LogBookAccessor logBook() {
 
@@ -269,13 +274,10 @@ public final class TimingNode {
     }
 
     /**
-     * Activates the node-owned execution contexts in dependency order.
+     * Starts the node's child components.
      *
-     * <p>The Task Lane starts first because its lifecycle is independent of
-     * LogBook state and it consumes initial TimingData after that data has been
-     * loaded. LogBook then starts the Data Lane and queues the persisted
-     * TimingData load as its first ordered task. TagProcessor ingress starts last.
-     * Rollback and reverse deactivation are owned by the lifecycle manager.</p>
+     * <p>The LogBook queues persisted-data recovery during activation; this call
+     * returns without waiting for that recovery to finish.</p>
      */
     public void activate() {
 
@@ -292,7 +294,7 @@ public final class TimingNode {
         }
     }
 
-    /** Applies newly committed lifecycle records to this node's runtime state. */
+    /** Called synchronously on the LogBook Data Lane after NODE_OPEN or NODE_CLOSE commits. */
     private void onCommittedTimingData(TimingData timingData) {
 
         NodeStatus nodeStatus = currentStatus;
@@ -314,7 +316,7 @@ public final class TimingNode {
         }
     }
 
-    /** Publishes the already-applied lifecycle status after committed-data delivery. */
+    /** Called synchronously on the LogBook Data Lane after committed-data publication. */
     private void onLifecycleCommitPublished(TimingData timingData) {
 
         NodeStatus status = currentStatus;
@@ -408,8 +410,10 @@ public final class TimingNode {
     }
 
     /**
-     * Hands one TagProcessor registration fact to the LogBook without blocking
-     * the synchronous source event callback.
+     * Handles a registration event on the TagProcessor lane.
+     *
+     * <p>The LogBook command is queued fire-and-forget; this callback does not
+     * wait for persistence or commit completion.</p>
      */
     private void onNewRegistration(TagProcessor.NewRegistration registration) {
 
