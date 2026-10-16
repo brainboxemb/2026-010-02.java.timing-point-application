@@ -62,7 +62,7 @@ public final class TimingNodeProxy {
         return timingNode.timeSource();
     }
 
-    /** Returns the current authoritative node status. */
+    /** Returns the current status reported by TimingNode. */
     public TimingNodeStatus status() {
         return timingNodeStatus(timingNode.status());
     }
