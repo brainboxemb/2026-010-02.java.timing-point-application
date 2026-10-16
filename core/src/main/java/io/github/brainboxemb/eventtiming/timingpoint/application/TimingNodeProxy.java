@@ -45,7 +45,6 @@ public final class TimingNodeProxy {
     private final LogBookAccessor logBook;
     private final LogBookTestControl logBookTestControl;
     private final Event<TimingNodeStatus> statusChangedEvent = new Event<>();
-    private TimingNodeStatus lastPublishedStatus;
 
     /** Client-visible TimingNode status changes. */
     public final EventSource<TimingNodeStatus> STATUS_CHANGED = statusChangedEvent;
@@ -65,7 +64,6 @@ public final class TimingNodeProxy {
         }
         this.logBookTestControl = (LogBookTestControl) logBook;
         this.NEW_DATA_ENTRY = timingNode.TIMING_DATA_COMMITTED;
-        this.lastPublishedStatus = status();
         timingNode.PROPERTIES.CHANGED.subscribe(ignored -> publishStatus());
     }
 
@@ -246,16 +244,10 @@ public final class TimingNodeProxy {
                 LogBookQueries.visitLatestTimingData(limit, visitor));
     }
 
-    /** Publishes only when the four-value client status actually changed. */
-    private synchronized void publishStatus() {
+    /** Publishes one client status after one committed property-container update. */
+    private void publishStatus() {
 
-        TimingNodeStatus current = status();
-        if (current.equals(lastPublishedStatus)) {
-            return;
-        }
-
-        lastPublishedStatus = current;
-        statusChangedEvent.emit(current);
+        statusChangedEvent.emit(status());
     }
 }
 
