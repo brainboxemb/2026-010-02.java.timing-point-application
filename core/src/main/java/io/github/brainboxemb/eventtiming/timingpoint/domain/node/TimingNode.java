@@ -128,7 +128,7 @@ public final class TimingNode extends LifecycleComponent {
     }
 
     /** Returns this node's ID. */
-    public NodeId timingNodeId() {
+    public NodeId nodeId() {
 
         return timingNodeId;
     }
