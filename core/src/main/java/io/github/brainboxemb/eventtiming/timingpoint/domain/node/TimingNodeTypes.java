@@ -4,10 +4,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
 
@@ -22,92 +18,69 @@ public final class TimingNodeTypes {
     private TimingNodeTypes() {
     }
 
-    /** Logical operating state determined and published by TimingNode. */
+    /** Logical operating state of an operational TimingNode. */
     public enum State {
         /** No timing location is currently open. */
         CLOSED,
 
         /** A timing location is open for timing operations. */
-        OPEN,
-
-        /** A reported LogBook problem prevents normal state from being represented. */
-        ERROR
+        OPEN
     }
 
-    /** Severity attached to a machine-readable node problem. */
-    public enum ProblemSeverity {
-        WARNING,
-        ERROR
+    /** Common boundary for operational and failed TimingNode status. */
+    public interface NodeStatus {
+        /** Returns the node identity represented by this status. */
+        NodeId timingNodeId();
     }
 
-    /**
-     * Stable machine-readable problem categories exposed through node status.
-     */
-    public enum ProblemCode {
+    /** Stable machine-readable TimingNode error categories. */
+    public enum ErrorCode {
         /** Existing persisted TimingData could not be loaded or validated at startup. */
         TIMING_DATA_LOAD_FAILED
     }
 
-    /**
-     * Immutable problem entry included in a published node status.
-     *
-     * <p>The code is intended for programmatic handling; the message is
-     * diagnostic text for operators and logs.</p>
-     */
-    public static final class Problem {
-        private final ProblemCode code;
-        private final ProblemSeverity severity;
+    /** Immutable TimingNode failure status. */
+    public static final class ErrorStatus implements NodeStatus {
+        private final NodeId timingNodeId;
+        private final ErrorCode code;
         private final String message;
 
-        public Problem(
-                ProblemCode code,
-                ProblemSeverity severity,
-                String message) {
+        public ErrorStatus(NodeId timingNodeId, ErrorCode code, String message) {
+            checkArgument(timingNodeId != null, "timingNodeId must not be null");
             checkArgument(code != null, "code must not be null");
-            checkArgument(severity != null, "severity must not be null");
-            checkArgument(
-                    message != null && !message.trim().isEmpty(),
-                    "message must not be blank");
+            checkArgument(message != null && !message.trim().isEmpty(), "message must not be blank");
+            this.timingNodeId = timingNodeId;
             this.code = code;
-            this.severity = severity;
             this.message = message.trim();
         }
 
-        /** Returns the stable machine-readable problem category. */
-        public ProblemCode code() {
+        @Override
+        public NodeId timingNodeId() {
+            return timingNodeId;
+        }
+
+        public ErrorCode code() {
             return code;
         }
 
-        /** Returns the severity exposed to operators and presentation code. */
-        public ProblemSeverity severity() {
-            return severity;
-        }
-
-        /** Returns the human-readable diagnostic detail for this problem. */
         public String message() {
             return message;
         }
 
-        /** Compares problem values by code, severity and diagnostic message. */
         @Override
         public boolean equals(Object other) {
-            if (this == other) {
-                return true;
-            }
-            if (!(other instanceof Problem)) {
-                return false;
-            }
-            Problem that = (Problem) other;
-            return code == that.code
-                    && severity == that.severity
+            if (this == other) return true;
+            if (!(other instanceof ErrorStatus)) return false;
+            ErrorStatus that = (ErrorStatus) other;
+            return timingNodeId.equals(that.timingNodeId)
+                    && code == that.code
                     && message.equals(that.message);
         }
 
-        /** Returns a hash consistent with value equality. */
         @Override
         public int hashCode() {
-            int result = code.hashCode();
-            result = 31 * result + severity.hashCode();
+            int result = timingNodeId.hashCode();
+            result = 31 * result + code.hashCode();
             result = 31 * result + message.hashCode();
             return result;
         }
@@ -189,121 +162,55 @@ public final class TimingNodeTypes {
     }
 
     /**
-     * Immutable status snapshot determined and published by TimingNode.
+     * Immutable operational status determined and published by TimingNode.
      *
-     * <p>The snapshot combines logical OPEN/CLOSED/ERROR state, the optional
-     * active location, startup tail-repair information and immutable problem
-     * entries. LogBook-derived facts may contribute to this status, but the
-     * TimingNode boundary owns its externally meaningful state.</p>
+     * <p>Error information is represented separately by {@link ErrorStatus};
+     * this value can therefore only represent OPEN or CLOSED node state.</p>
      */
-    public static final class Status {
+    public static final class Status implements NodeStatus {
         private final NodeId timingNodeId;
         private final State state;
         private final LocationId locationId;
-        private final boolean timingDataTailRepaired;
-        private final List<Problem> problems;
 
-        public Status(
-                NodeId timingNodeId,
-                State state,
-                LocationId locationId,
-                boolean timingDataTailRepaired) {
-            this(
-                    timingNodeId,
-                    state,
-                    locationId,
-                    timingDataTailRepaired,
-                    Collections.<Problem>emptyList());
-        }
-
-        public Status(
-                NodeId timingNodeId,
-                State state,
-                LocationId locationId,
-                boolean timingDataTailRepaired,
-                List<Problem> problems) {
+        public Status(NodeId timingNodeId, State state, LocationId locationId) {
             checkArgument(timingNodeId != null, "timingNodeId must not be null");
             checkArgument(state != null, "state must not be null");
-            checkArgument(problems != null, "problems must not be null");
-            for (Problem problem : problems) {
-                checkArgument(problem != null, "problem must not be null");
-            }
             this.timingNodeId = timingNodeId;
             this.state = state;
             this.locationId = locationId;
-            this.timingDataTailRepaired = timingDataTailRepaired;
-            this.problems = problems.isEmpty()
-                    ? Collections.<Problem>emptyList()
-                    : Collections.unmodifiableList(new ArrayList<Problem>(problems));
         }
 
-        /** Returns the node identity represented by this status snapshot. */
+        @Override
         public NodeId timingNodeId() {
             return timingNodeId;
         }
 
-        /** Returns the logical node state represented by this snapshot. */
         public State state() {
             return state;
         }
 
-        /** Reports whether this status contains a location value. */
         public boolean hasLocation() {
             return locationId != null;
         }
 
-        /**
-         * Returns the active location, or {@code null} when no location is
-         * present. Callers may use {@link #hasLocation()} before reading it.
-         */
         public LocationId locationId() {
             return locationId;
         }
 
-        /** Reports whether startup repaired an incomplete persisted-data tail. */
-        public boolean timingDataTailRepaired() {
-            return timingDataTailRepaired;
-        }
-
-        /** Returns the immutable problem entries attached to this status. */
-        public List<Problem> problems() {
-            return problems;
-        }
-
-        /** Reports whether this status exposes one or more problems. */
-        public boolean hasProblems() {
-            return !problems.isEmpty();
-        }
-
-        /** Compares immutable status snapshots by their published values. */
         @Override
         public boolean equals(Object other) {
-            if (this == other) {
-                return true;
-            }
-            if (!(other instanceof Status)) {
-                return false;
-            }
+            if (this == other) return true;
+            if (!(other instanceof Status)) return false;
             Status that = (Status) other;
-            if (!timingNodeId.equals(that.timingNodeId)
-                    || state != that.state
-                    || timingDataTailRepaired != that.timingDataTailRepaired
-                    || !problems.equals(that.problems)) {
-                return false;
-            }
-            return locationId == null
-                    ? that.locationId == null
-                    : locationId.equals(that.locationId);
+            if (!timingNodeId.equals(that.timingNodeId) || state != that.state) return false;
+            return locationId == null ? that.locationId == null : locationId.equals(that.locationId);
         }
 
-        /** Returns a hash consistent with Status value equality. */
         @Override
         public int hashCode() {
             int result = timingNodeId.hashCode();
             result = 31 * result + state.hashCode();
             result = 31 * result + (locationId == null ? 0 : locationId.hashCode());
-            result = 31 * result + (timingDataTailRepaired ? 1 : 0);
-            result = 31 * result + problems.hashCode();
             return result;
         }
     }
