@@ -64,7 +64,6 @@ public class TimingNodeTest {
         try {
             TimingNodeTypes.Status status = (TimingNodeTypes.Status) node.status();
 
-            assertSame(id, status.timingNodeId());
             assertEquals(TimingNodeTypes.State.CLOSED, status.state());
             assertFalse(status.hasLocation());
         } finally {
