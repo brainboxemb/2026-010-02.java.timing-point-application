@@ -91,18 +91,23 @@ public final class SafeExecute {
     /**
      * Runs one operation and delegates queue rejection to the caller's policy.
      *
-     * <p>Only RejectedExecutionException is handled. Other RuntimeExceptions
+     * <p>Returns true when the operation completed without queue rejection and
+     * false when RejectedExecutionException was handled. Other RuntimeExceptions
      * propagate unchanged. The caller owns any warning, metric or recovery
      * decision; the execution guard owns no component-specific policy.</p>
      */
-    public static void runOrHandleRejection(Runnable operation, Consumer<RejectedExecutionException> onRejection) {
+    public static boolean runOrHandleRejection(
+            Runnable operation,
+            Consumer<RejectedExecutionException> onRejection) {
         checkArgument(operation != null, "operation must not be null");
         checkArgument(onRejection != null, "onRejection must not be null");
 
         try {
             operation.run();
+            return true;
         } catch (RejectedExecutionException ex) {
             onRejection.accept(ex);
+            return false;
         }
     }
 }
