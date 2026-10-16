@@ -23,6 +23,8 @@ import java.util.List;
 
 import org.junit.Test;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.activate;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
 import static org.junit.Assert.assertEquals;
 
 public class UniqueTeamRegistrationsIntegrationTest {
@@ -45,7 +47,7 @@ public class UniqueTeamRegistrationsIntegrationTest {
         TimingNode node =
                 components.node();
 
-        node.activate();
+        activate(node);
         try {
             UpstreamHandler port =
                     components.upstreamHandler();
@@ -78,7 +80,7 @@ public class UniqueTeamRegistrationsIntegrationTest {
                     node.logBook().process(
                             LogBookQueries.timingDataCount()));
         } finally {
-            node.deactivate();
+            deactivate(node);
         }
     }
 
