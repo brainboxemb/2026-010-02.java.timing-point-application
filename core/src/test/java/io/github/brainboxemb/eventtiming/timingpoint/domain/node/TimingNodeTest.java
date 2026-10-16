@@ -463,7 +463,8 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void lateLifecycleCommitAfterTimeoutDoesNotChangeRuntimeStatus() throws Exception {
+    public void openDoesNotWaitBehindBlockedLogBookAndHistoryCommitsLater()
+            throws Exception {
         SerialLane executor = newSerialLane(2, "timing-node-test");
         TimingNode node = node(
                 new NodeId("A"),
@@ -481,29 +482,24 @@ public class TimingNodeTest {
             });
             assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
-            try {
-                node.open(new LocationId(24));
-                fail("expected timeout");
-            } catch (TimingNodeTypes.OperationException expected) {
-                assertEquals(
-                        TimingNodeTypes.OperationException.Reason.TIMEOUT,
-                        expected.reason());
-            }
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.open(new LocationId(24)));
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.OPEN,
+                    node.functionalState());
+            assertEquals(new LocationId(24), node.locationId());
 
-            CountDownLatch afterTimedOutOperation = new CountDownLatch(1);
-            executor.execute(afterTimedOutOperation::countDown);
             releaseBlocker.countDown();
 
-            assertTrue(afterTimedOutOperation.await(1, TimeUnit.SECONDS));
             List<TimingData> committed =
                     node.logBook().process(
                             LogBookQueries.timingDataRange(1L, 1));
             assertEquals(1, committed.size());
             assertTrue(committed.get(0) instanceof TimingData.NodeOpen);
-
-            TimingNodeTypes.Status status = node.status();
-            assertEquals(TimingNodeTypes.FunctionalState.CLOSED, status.state);
-            assertNull(status.locationId);
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.OPEN,
+                    node.functionalState());
         } finally {
             releaseBlocker.countDown();
             deactivate(node);
@@ -511,7 +507,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void testWriteTimeoutUsesNormalCommitTimeoutAndStillCommitsLater()
+    public void delayedLifecycleWriteDoesNotDelayFunctionalOpen()
             throws Exception {
         SerialLane executor = newSerialLane(4, "timing-node-test-hook");
         TimingNode node = TimingNodeFixture.createWithDataLane(
@@ -528,29 +524,30 @@ public class TimingNodeTest {
             ((LogBookTestControl) node.logBook()).armNextWriteFailure(
                     LogBookTestControl.WriteFailure.TIMEOUT);
 
-            try {
-                node.open(new LocationId(24));
-                fail("expected timeout");
-            } catch (TimingNodeTypes.OperationException expected) {
-                assertEquals(
-                        TimingNodeTypes.OperationException.Reason.TIMEOUT,
-                        expected.reason());
-            }
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.open(new LocationId(24)));
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.OPEN,
+                    node.functionalState());
+            assertEquals(new LocationId(24), node.locationId());
 
             List<TimingData> committed =
                     node.logBook().process(
                             LogBookQueries.timingDataRange(1L, 1));
             assertEquals(1, committed.size());
             assertTrue(committed.get(0) instanceof TimingData.NodeOpen);
-            assertEquals(TimingNodeTypes.FunctionalState.CLOSED, node.functionalState());
-            assertNull(node.locationId());
+            assertEquals(
+                    TimingNodeTypes.OperationalState.OK,
+                    node.operationalState());
         } finally {
             deactivate(node);
         }
     }
 
     @Test
-    public void concurrentOperationStateChangesRemainOrderedByTimingNode() throws Exception {
+    public void concurrentOpenAndCloseQueueHistoryInFunctionalOrder()
+            throws Exception {
         SerialLane executor = newSerialLane(4, "timing-node-test");
         TimingNode node = node(
                 new NodeId("A"),
@@ -568,8 +565,10 @@ public class TimingNodeTest {
             });
             assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
-            final TimingNodeTypes.OpenResult[] openResult = new TimingNodeTypes.OpenResult[1];
-            final TimingNodeTypes.CloseResult[] closeResult = new TimingNodeTypes.CloseResult[1];
+            final TimingNodeTypes.OpenResult[] openResult =
+                    new TimingNodeTypes.OpenResult[1];
+            final TimingNodeTypes.CloseResult[] closeResult =
+                    new TimingNodeTypes.CloseResult[1];
 
             Thread openCaller = new Thread(
                     () -> openResult[0] = node.open(new LocationId(24)));
@@ -577,30 +576,29 @@ public class TimingNodeTest {
                     () -> closeResult[0] = node.close());
 
             openCaller.start();
-            long queueDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
-            while (executor.metrics().snapshot().queueDepth() < 1 && System.nanoTime() < queueDeadline) {
-                Thread.yield();
-            }
-            assertEquals(1, executor.metrics().snapshot().queueDepth());
+            openCaller.join(1000L);
+            assertFalse(openCaller.isAlive());
 
             closeCaller.start();
-            assertEquals(
-                    "close waits behind the in-flight node operation-state change",
-                    1,
-                    executor.metrics().snapshot().queueDepth());
-
-            releaseBlocker.countDown();
-
-            openCaller.join(1000);
-            closeCaller.join(1000);
-            assertFalse(openCaller.isAlive());
+            closeCaller.join(1000L);
             assertFalse(closeCaller.isAlive());
 
             assertEquals(TimingNodeTypes.OpenResult.OPENED, openResult[0]);
             assertEquals(TimingNodeTypes.CloseResult.CLOSED, closeResult[0]);
-            TimingNodeTypes.Status status = node.status();
-            assertEquals(TimingNodeTypes.FunctionalState.CLOSED, status.state);
-            assertEquals(new LocationId(24), status.locationId);
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.CLOSED,
+                    node.functionalState());
+            assertEquals(new LocationId(24), node.locationId());
+            assertEquals(2, executor.metrics().snapshot().queueDepth());
+
+            releaseBlocker.countDown();
+
+            List<TimingData> committed =
+                    node.logBook().process(
+                            LogBookQueries.timingDataRange(1L, 2));
+            assertEquals(2, committed.size());
+            assertTrue(committed.get(0) instanceof TimingData.NodeOpen);
+            assertTrue(committed.get(1) instanceof TimingData.NodeClose);
         } finally {
             releaseBlocker.countDown();
             deactivate(node);
