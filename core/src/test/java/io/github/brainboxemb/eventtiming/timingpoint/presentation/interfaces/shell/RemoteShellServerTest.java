@@ -164,7 +164,7 @@ public class RemoteShellServerTest {
             writer.flush();
             response += readToEnd(client.getInputStream());
 
-            assertTrue(response.contains("Function  : OPEN"));
+            assertTrue(response.contains("State     : OPEN"));
             assertTrue(response.contains("Operation : ERROR"));
             assertTrue(response.contains("Problem   : TIMING_DATA_COMMIT_FAILED"));
             assertTrue(response.contains("Close: CLOSED"));
