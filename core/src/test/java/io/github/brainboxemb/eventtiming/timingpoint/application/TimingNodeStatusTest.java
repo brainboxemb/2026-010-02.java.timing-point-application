@@ -11,25 +11,42 @@ import static org.junit.Assert.assertTrue;
 
 public class TimingNodeStatusTest {
     @Test
-    public void exposesOperationalTimingNodeStatus() {
-        TimingNodeStatus status = TimingNodeStatus.operational(
+    public void exposesSeparateFunctionalAndOperationalState() {
+        TimingNodeStatus status = TimingNodeStatus.current(
                 new NodeId("A"),
-                TimingNodeTypes.State.CLOSED,
+                TimingNodeTypes.FunctionalState.CLOSED,
+                TimingNodeTypes.OperationalState.OK,
+                null,
+                null,
                 null);
 
         assertEquals("A", status.timingNodeId().value());
-        assertFalse(status.error());
-        assertEquals(TimingNodeTypes.State.CLOSED, status.state());
+        assertEquals(
+                TimingNodeTypes.FunctionalState.CLOSED,
+                status.functionalState());
+        assertEquals(
+                TimingNodeTypes.OperationalState.OK,
+                status.operationalState());
+        assertFalse(status.hasProblem());
     }
 
     @Test
-    public void exposesErrorTimingNodeStatus() {
-        TimingNodeStatus status = TimingNodeStatus.error(
+    public void operationalErrorRetainsFunctionalState() {
+        TimingNodeStatus status = TimingNodeStatus.current(
                 new NodeId("A"),
+                TimingNodeTypes.FunctionalState.OPEN,
+                TimingNodeTypes.OperationalState.ERROR,
+                null,
                 TimingNodeTypes.ErrorCode.TIMING_DATA_LOAD_FAILED,
                 "load failed");
 
-        assertTrue(status.error());
+        assertEquals(
+                TimingNodeTypes.FunctionalState.OPEN,
+                status.functionalState());
+        assertEquals(
+                TimingNodeTypes.OperationalState.ERROR,
+                status.operationalState());
+        assertTrue(status.hasProblem());
         assertEquals(
                 TimingNodeTypes.ErrorCode.TIMING_DATA_LOAD_FAILED,
                 status.errorCode());
@@ -38,9 +55,12 @@ public class TimingNodeStatusTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsMissingNodeId() {
-        TimingNodeStatus.operational(
+        TimingNodeStatus.current(
                 null,
-                TimingNodeTypes.State.CLOSED,
+                TimingNodeTypes.FunctionalState.CLOSED,
+                TimingNodeTypes.OperationalState.OK,
+                null,
+                null,
                 null);
     }
 }
