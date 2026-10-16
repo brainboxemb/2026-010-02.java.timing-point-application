@@ -46,7 +46,7 @@ public class PropertyContainerTest {
     public void unchangedValuesPublishNothing() {
         PropertyContainer properties = new PropertyContainer();
         Property<String> state = properties.property("state", "CLOSED");
-        List<List<Property<?>>> changes = new ArrayList<List<Property<?>>();
+        List<List<Property<?>>> changes = new ArrayList<List<Property<?>>>();
         properties.CHANGED.subscribe(changes::add);
 
         PropertyContainer.Update update = properties.update();
