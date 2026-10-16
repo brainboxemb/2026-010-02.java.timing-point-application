@@ -56,7 +56,7 @@ public final class TimingNode {
     private final LogBookAccessor logBook;
     private final TagProcessor tagProcessor;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
-    private final Event<NodeStatus> statusChangedEvent = new Event<NodeStatus>();
+    private final Event<NodeStatus> statusChanged = new Event<NodeStatus>();
     private final Object operationLock = new Object();
     private final Object stateLock = new Object();
 
@@ -68,6 +68,14 @@ public final class TimingNode {
     public static final EventInput<TimingNode, TagObservation> TAG_OBSERVATIONS =
             EventInput.of(
                     (node, source) -> source.subscribe(node.tagProcessor::onTagObserved));
+
+    /**
+     * Status-change source for this TimingNode.
+     *
+     * <p>Listeners are invoked synchronously on the thread that publishes the change
+     * and must return quickly.</p>
+     */
+    public final EventSource<NodeStatus> STATUS_CHANGED = statusChanged;
 
     /** Creates one TimingNode with its clock and child components. */
     public TimingNode(
@@ -148,17 +156,6 @@ public final class TimingNode {
                 logBook.process(
                         LogBookQueries.recoveryStatus(),
                         ReadConsistency.CURRENT));
-    }
-
-    /**
-     * Returns the node-status event.
-     *
-     * <p>Listeners are invoked synchronously on the thread that publishes the change
-     * and must return quickly.</p>
-     */
-    public EventSource<NodeStatus> statusChangedEvent() {
-
-        return statusChangedEvent;
     }
 
     /**
@@ -326,7 +323,7 @@ public final class TimingNode {
 
         NodeStatus status = currentStatus;
         if (status != null) {
-            statusChangedEvent.emit(status);
+            statusChanged.emit(status);
         }
     }
 
@@ -395,7 +392,7 @@ public final class TimingNode {
     private void publishStatus(NodeStatus status) {
 
         setStatus(status);
-        statusChangedEvent.emit(status);
+        statusChanged.emit(status);
     }
 
     /** Stops new antenna registrations before a close record is committed. */
