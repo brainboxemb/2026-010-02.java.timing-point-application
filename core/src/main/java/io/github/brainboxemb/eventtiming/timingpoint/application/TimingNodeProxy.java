@@ -13,10 +13,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookTestControl;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ErrorStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationalProblem;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationalState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -36,15 +37,26 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  */
 public final class TimingNodeProxy {
 
-    /** Domain operation-status input mapped to presentation-facing status values. */
-    private static final EventInput<TimingNodeProxy, Status> DOMAIN_STATUS_CHANGED =
-            EventInput.of(
-                    (proxy, source) -> source.subscribe(proxy::updateStatus));
+    /** Functional-state input mapped to the presentation status read model. */
+    private static final EventInput<TimingNodeProxy, FunctionalState>
+            FUNCTIONAL_STATE_CHANGED =
+                    EventInput.of(
+                            (proxy, source) ->
+                                    source.subscribe(ignored -> proxy.publishStatus()));
 
-    /** Domain error-status input mapped to presentation-facing status values. */
-    private static final EventInput<TimingNodeProxy, ErrorStatus> ERROR_STATUS_CHANGED =
-            EventInput.of(
-                    (proxy, source) -> source.subscribe(proxy::updateErrorStatus));
+    /** Operational-state input mapped to the presentation status read model. */
+    private static final EventInput<TimingNodeProxy, OperationalState>
+            OPERATIONAL_STATE_CHANGED =
+                    EventInput.of(
+                            (proxy, source) ->
+                                    source.subscribe(ignored -> proxy.publishStatus()));
+
+    /** Operational-problem input mapped to the presentation status read model. */
+    private static final EventInput<TimingNodeProxy, OperationalProblem>
+            OPERATIONAL_PROBLEM_CHANGED =
+                    EventInput.of(
+                            (proxy, source) ->
+                                    source.subscribe(ignored -> proxy.publishStatus()));
 
     /** Registration record family supplied by a higher interpreting layer. */
     public enum RegistrationRecordType {
@@ -76,8 +88,9 @@ public final class TimingNodeProxy {
         }
         this.logBookTestControl = (LogBookTestControl) logBook;
         this.NEW_DATA_ENTRY = timingNode.TIMING_DATA_COMMITTED;
-        DOMAIN_STATUS_CHANGED.bind(this, timingNode.STATUS_CHANGED);
-        ERROR_STATUS_CHANGED.bind(this, timingNode.ERROR_STATUS_CHANGED);
+        FUNCTIONAL_STATE_CHANGED.bind(this, timingNode.FUNCTIONAL_STATE_CHANGED);
+        OPERATIONAL_STATE_CHANGED.bind(this, timingNode.OPERATIONAL_STATE_CHANGED);
+        OPERATIONAL_PROBLEM_CHANGED.bind(this, timingNode.OPERATIONAL_PROBLEM_CHANGED);
     }
 
     /** Returns this node's ID. */
@@ -90,17 +103,17 @@ public final class TimingNodeProxy {
         return timingNode.timeSource();
     }
 
-    /** Returns the current presentation status for this TimingNode. */
+    /** Returns the current presentation read model for this TimingNode. */
     public TimingNodeStatus status() {
 
-        Optional<ErrorStatus> error = timingNode.errorStatus();
-        TimingNodeStatus status;
-        if (error.isPresent()) {
-            status = errorStatus(error.get());
-        } else {
-            status = statusValue(timingNode.status());
-        }
-        return status;
+        Optional<OperationalProblem> problem = timingNode.operationalProblem();
+        return TimingNodeStatus.current(
+                timingNodeId,
+                timingNode.functionalState(),
+                timingNode.operationalState(),
+                timingNode.locationId(),
+                problem.isPresent() ? problem.get().code : null,
+                problem.isPresent() ? problem.get().message : null);
     }
 
     /**
@@ -255,29 +268,9 @@ public final class TimingNodeProxy {
                 LogBookQueries.visitLatestTimingData(limit, visitor));
     }
 
-    private void updateStatus(Status status) {
+    /** Publishes a new presentation snapshot from the current separate node values. */
+    private void publishStatus() {
 
-        statusChangedEvent.emit(statusValue(status));
-    }
-
-    private void updateErrorStatus(ErrorStatus error) {
-
-        statusChangedEvent.emit(errorStatus(error));
-    }
-
-    private TimingNodeStatus statusValue(Status status) {
-
-        return TimingNodeStatus.operational(
-                timingNodeId,
-                status.state,
-                status.locationId);
-    }
-
-    private TimingNodeStatus errorStatus(ErrorStatus error) {
-
-        return TimingNodeStatus.error(
-                timingNodeId,
-                error.code,
-                error.message);
+        statusChangedEvent.emit(status());
     }
 }
