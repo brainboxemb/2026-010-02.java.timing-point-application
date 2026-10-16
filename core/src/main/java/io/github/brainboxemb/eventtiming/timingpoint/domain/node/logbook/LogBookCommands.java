@@ -5,6 +5,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
@@ -21,27 +23,21 @@ public final class LogBookCommands {
     }
 
     /** Commits one NODE_OPEN record selected by the owning TimingNode. */
-    public static LogBookCommand<Void> commitNodeOpen(LocationId locationId) {
+    public static LogBookCommand<OpenResult> commitNodeOpen(LocationId locationId) {
 
         checkArgument(locationId != null, "locationId must not be null");
         return simple(
                 "commitNodeOpen",
-                operations -> {
-                    operations.commitNodeOpen(locationId);
-                    return null;
-                });
+                operations -> operations.commitNodeOpen(locationId));
     }
 
     /** Commits one NODE_CLOSE record selected by the owning TimingNode. */
-    public static LogBookCommand<Void> commitNodeClose(LocationId locationId) {
+    public static LogBookCommand<CloseResult> commitNodeClose(LocationId locationId) {
 
         checkArgument(locationId != null, "locationId must not be null");
         return simple(
                 "commitNodeClose",
-                operations -> {
-                    operations.commitNodeClose(locationId);
-                    return null;
-                });
+                operations -> operations.commitNodeClose(locationId));
     }
 
     /** Commits one automatic registration selected from an antenna observation. */

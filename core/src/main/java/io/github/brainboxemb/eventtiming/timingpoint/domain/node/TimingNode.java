@@ -190,8 +190,8 @@ public final class TimingNode extends LifecycleComponent {
             if (status.state == State.OPEN) {
                 result = OpenResult.ALREADY_OPEN;
             } else {
-                logBook.process(LogBookCommands.commitNodeOpen(locationId));
-                result = OpenResult.OPENED;
+                result = logBook.process(
+                        LogBookCommands.commitNodeOpen(locationId));
             }
             return result;
         }
@@ -213,10 +213,27 @@ public final class TimingNode extends LifecycleComponent {
             if (status.state == State.CLOSED) {
                 result = CloseResult.ALREADY_CLOSED;
             } else {
-                disableRegistrations();
-                Runnable commitClose = () -> logBook.process(LogBookCommands.commitNodeClose(status.locationId));
-                SafeExecute.runOrRethrow(commitClose, this::restoreRegistrationsAfterDefiniteCloseFailure);
-                result = CloseResult.CLOSED;
+                /*
+                 * Stop antenna ingress before submitting NODE_CLOSE. Without this
+                 * gate, a TagProcessor callback could queue another registration
+                 * behind the close command while the close caller is still waiting.
+                 */
+                blockAntennaRegistrationIngressForClose();
+
+                try {
+                    result = logBook.process(
+                            LogBookCommands.commitNodeClose(status.locationId));
+                } catch (OperationException ex) {
+                    if (ex.reason() == OperationException.Reason.BUSY
+                            || ex.reason() == OperationException.Reason.UNAVAILABLE) {
+                        synchronized (stateLock) {
+                            if (currentStatus.state == State.OPEN) {
+                                registrationsEnabled = true;
+                            }
+                        }
+                    }
+                    throw ex;
+                }
             }
             return result;
         }
@@ -389,28 +406,16 @@ public final class TimingNode extends LifecycleComponent {
         }
     }
 
-    /** Stops new antenna registrations before a close record is committed. */
-    private void disableRegistrations() {
+    /**
+     * Stops new antenna registrations while a CLOSE command is being admitted/committed.
+     *
+     * <p>This is an ingress gate, not a third TimingNode lifecycle state. The
+     * authoritative node state remains OPEN until NODE_CLOSE is committed.</p>
+     */
+    private void blockAntennaRegistrationIngressForClose() {
 
         synchronized (stateLock) {
             registrationsEnabled = false;
-        }
-    }
-
-    /**
-     * Restores registration ingress after a close failure with a definite non-commit outcome.
-     *
-     * <p>TIMEOUT is excluded because the accepted close may still commit later.</p>
-     */
-    private void restoreRegistrationsAfterDefiniteCloseFailure(RuntimeException failure) {
-
-        if (failure instanceof OperationException
-                && ((OperationException) failure).reason() == OperationException.Reason.TIMEOUT) {
-            return;
-        }
-
-        synchronized (stateLock) {
-            registrationsEnabled = true;
         }
     }
 

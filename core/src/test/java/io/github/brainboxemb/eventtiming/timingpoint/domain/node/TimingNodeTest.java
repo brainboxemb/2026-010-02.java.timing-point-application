@@ -395,6 +395,25 @@ public class TimingNodeTest {
     }
 
     @Test
+    public void lifecycleLogBookCommandsReturnCommittedResults() {
+        TimingNode node = node(new NodeId("A"));
+
+        activate(node);
+        try {
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.logBook().process(
+                            LogBookCommands.commitNodeOpen(new LocationId(24))));
+            assertEquals(
+                    TimingNodeTypes.CloseResult.CLOSED,
+                    node.logBook().process(
+                            LogBookCommands.commitNodeClose(new LocationId(24))));
+        } finally {
+            deactivate(node);
+        }
+    }
+
+    @Test
     public void timeoutDoesNotCancelAcceptedOperation() throws Exception {
         SerialLane executor = newSerialLane(2, "timing-node-test");
         TimingNode node = node(

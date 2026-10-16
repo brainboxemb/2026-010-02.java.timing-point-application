@@ -7,6 +7,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory.Context;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
@@ -68,7 +70,8 @@ final class LogBookOperations {
     }
 
     /** Commits one NODE_OPEN record for the node-selected location. */
-    void commitNodeOpen(LocationId locationId) throws TimingDataPersistence.PersistenceException {
+    OpenResult commitNodeOpen(LocationId locationId)
+            throws TimingDataPersistence.PersistenceException {
 
         checkArgument(locationId != null, "locationId must not be null");
         state.ensureOperational();
@@ -77,10 +80,12 @@ final class LogBookOperations {
         TimingData data = timingDataFactory.createNodeOpen(
                 nextContext(locationId, currentLifecycleTime()));
         commitTimingData(data);
+        return OpenResult.OPENED;
     }
 
     /** Commits one NODE_CLOSE record for the node-selected location. */
-    void commitNodeClose(LocationId locationId) throws TimingDataPersistence.PersistenceException {
+    CloseResult commitNodeClose(LocationId locationId)
+            throws TimingDataPersistence.PersistenceException {
 
         checkArgument(locationId != null, "locationId must not be null");
         state.ensureOperational();
@@ -89,6 +94,7 @@ final class LogBookOperations {
         TimingData data = timingDataFactory.createNodeClose(
                 nextContext(locationId, currentLifecycleTime()));
         commitTimingData(data);
+        return CloseResult.CLOSED;
     }
 
     /**
