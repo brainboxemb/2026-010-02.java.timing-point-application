@@ -95,15 +95,38 @@ public final class TimingNodeProxy {
         return timingNode.timeSource();
     }
 
-    /** Returns the current presentation read model for this TimingNode. */
+    /** Returns current functional OPEN/CLOSED independently from operational health. */
+    public FunctionalState functionalState() {
+        return timingNode.functionalState();
+    }
+
+    /** Returns current operational INIT/OK/ERROR independently from OPEN/CLOSED. */
+    public OperationalState operationalState() {
+        return timingNode.operationalState();
+    }
+
+    /** Returns the current location, or null when none is assigned. */
+    public LocationId locationId() {
+        return timingNode.locationId();
+    }
+
+    /** Returns the current operational problem independently from functional state. */
+    public Optional<OperationalProblem> operationalProblem() {
+        return timingNode.operationalProblem();
+    }
+
+    /**
+     * Returns an immutable read-only snapshot for presentation transports.
+     * This is not a mutable domain status object or a second state owner.
+     */
     public TimingNodeStatus status() {
 
-        Optional<OperationalProblem> problem = timingNode.operationalProblem();
+        Optional<OperationalProblem> problem = operationalProblem();
         return TimingNodeStatus.current(
                 timingNodeId,
-                timingNode.functionalState(),
-                timingNode.operationalState(),
-                timingNode.locationId(),
+                functionalState(),
+                operationalState(),
+                locationId(),
                 problem.isPresent() ? problem.get().code : null,
                 problem.isPresent() ? problem.get().message : null);
     }
