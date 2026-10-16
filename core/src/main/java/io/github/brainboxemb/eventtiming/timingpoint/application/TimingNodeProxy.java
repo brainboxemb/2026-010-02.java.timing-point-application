@@ -85,11 +85,15 @@ public final class TimingNodeProxy {
 
     /** Returns the current presentation status for this TimingNode. */
     public TimingNodeStatus status() {
+
         Optional<ErrorStatus> error = timingNode.errorStatus();
+        TimingNodeStatus status;
         if (error.isPresent()) {
-            return errorStatus(error.get());
+            status = errorStatus(error.get());
+        } else {
+            status = statusValue(timingNode.status());
         }
-        return statusValue(timingNode.status());
+        return status;
     }
 
     /**
@@ -174,26 +178,30 @@ public final class TimingNodeProxy {
         checkArgument(registrationId != null, "registrationId must not be null");
         checkArgument(originalTime != null, "originalTime must not be null");
 
+        RegistrationResult result;
         switch (recordType) {
             case AUTO_REG:
                 checkArgument(originalTimeSource == null, "AUTO_REG revoke must not carry originalTimeSource");
-                return logBook.process(
+                result = logBook.process(
                         LogBookCommands.revokeAutomaticRegistration(
                                 originalLocationId,
                                 registrationId,
                                 originalTime));
+                break;
             case MAN_REG:
                 checkArgument(originalTimeSource != null, "MAN_REG revoke requires originalTimeSource");
-                return logBook.process(
+                result = logBook.process(
                         LogBookCommands.revokeManualRegistration(
                                 originalLocationId,
                                 registrationId,
                                 originalTime,
                                 originalTimeSource));
+                break;
             default:
                 throw new IllegalArgumentException(
                         "Unsupported registration record type " + recordType);
         }
+        return result;
     }
 
     /**
