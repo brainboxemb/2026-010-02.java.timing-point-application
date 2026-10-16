@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api;
 
+import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -130,7 +131,7 @@ public class WebSocketOutboundDeliveryTest {
                         () -> TimingTimestamp
                                 .parse("2026-10-07T10:00:00Z")
                                 .instant());
-        node.activate();
+        LifecycleTestSupport.activate(node);
         try {
             node.logBook().newDataEntryEvent()
                     .subscribe(
@@ -173,7 +174,7 @@ public class WebSocketOutboundDeliveryTest {
                     WebSocketOutboundDelivery.TRY_AGAIN_LATER_CLOSE_CODE,
                     testConnection.closeCode);
         } finally {
-            node.deactivate();
+            LifecycleTestSupport.deactivate(node);
         }
     }
 
