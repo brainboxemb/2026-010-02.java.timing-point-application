@@ -12,6 +12,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ErrorStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.NodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
@@ -250,17 +252,25 @@ public final class TimingNodeProxy {
         return logBook.newDataEntryEvent();
     }
 
-    private void updateStatus(Status status) {
+    private void updateStatus(NodeStatus status) {
 
         TimingNodeStatus update = timingNodeStatus(status);
         statusChangedEvent.emit(update);
     }
 
-    private static TimingNodeStatus timingNodeStatus(Status status) {
-        return new TimingNodeStatus(
-                status.timingNodeId(),
-                status.state(),
-                status.locationId(),
-                status.problems());
+    private static TimingNodeStatus timingNodeStatus(NodeStatus status) {
+        if (status instanceof ErrorStatus) {
+            ErrorStatus error = (ErrorStatus) status;
+            return TimingNodeStatus.error(
+                    error.timingNodeId(),
+                    error.code(),
+                    error.message());
+        }
+
+        Status operational = (Status) status;
+        return TimingNodeStatus.operational(
+                operational.timingNodeId(),
+                operational.state(),
+                operational.locationId());
     }
 }
