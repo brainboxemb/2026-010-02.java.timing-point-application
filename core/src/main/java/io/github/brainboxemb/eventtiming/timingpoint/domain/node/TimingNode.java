@@ -422,8 +422,8 @@ public final class TimingNode extends LifecycleComponent {
      *
      * <p>TIMEOUT and INTERRUPTED can occur after admission, and FAILED can occur
      * after execution has started or even after durable persistence. Their final
-     * close outcome is therefore not safe to infer here; ingress stays disabled
-     * until an authoritative committed/status fact resolves the situation.</p>
+     * close outcome is therefore not safe to infer here. Ingress stays disabled
+     * rather than accepting new antenna registrations in an uncertain/degraded state.</p>
      */
     private void restoreRegistrationIngressIfCloseWasNotAccepted(RuntimeException failure) {
 
