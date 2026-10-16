@@ -68,13 +68,13 @@ public final class MessageWriter {
                     .append("\"id\":")
                     .append(quote(status.timingNodeId().value()))
                     .append(',')
-                    .append("\"locationId\":")
+                    .append("\"locId\":")
                     .append(location)
                     .append(',')
                     .append("\"state\":")
                     .append(quote(status.state().name()))
                     .append(',')
-                    .append("\"operationalState\":")
+                    .append("\"opState\":")
                     .append(quote(timingNode.operationalState().name()))
                     .append('}');
 
