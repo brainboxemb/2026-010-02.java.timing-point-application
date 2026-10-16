@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Expose concrete LogBook events as named `EventSource` ports so fixed composition wiring uses the same `INPUT.bind(component, SOURCE)` form as TagProcessor and other components; keep getter methods only where `LogBookAccessor` requires method dispatch.
+
 - Correct TimingNode OPEN/CLOSED terminology: operation-state events and handlers no longer use `lifecycle`; lifecycle remains reserved for component activate/deactivate behavior.
 
 - Apply the typed local-event port pattern consistently across SI-01 components: receivers declare `EventInput<C,T>` ports, concrete producers expose `EventSource<T>` ports, and component-specific bind/accessor wrappers are removed where no interface contract requires them.
