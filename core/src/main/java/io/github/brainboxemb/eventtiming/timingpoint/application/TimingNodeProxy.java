@@ -14,7 +14,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ErrorStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -33,9 +33,9 @@ import java.util.function.Consumer;
 public final class TimingNodeProxy {
 
     /** Domain operation-status input mapped to presentation-facing status values. */
-    private static final EventInput<TimingNodeProxy, OperationStatus> OPERATION_STATUS_CHANGED =
+    private static final EventInput<TimingNodeProxy, Status> STATUS_CHANGED =
             EventInput.of(
-                    (proxy, source) -> source.subscribe(proxy::updateOperationStatus));
+                    (proxy, source) -> source.subscribe(proxy::updateStatus));
 
     /** Domain error-status input mapped to presentation-facing status values. */
     private static final EventInput<TimingNodeProxy, ErrorStatus> ERROR_STATUS_CHANGED =
@@ -67,7 +67,7 @@ public final class TimingNodeProxy {
         this.timingNode = timingNode;
         this.logBook = timingNode.logBook();
         this.NEW_DATA_ENTRY = timingNode.TIMING_DATA_COMMITTED;
-        OPERATION_STATUS_CHANGED.bind(this, timingNode.OPERATION_STATUS_CHANGED);
+        STATUS_CHANGED.bind(this, timingNode.STATUS_CHANGED);
         ERROR_STATUS_CHANGED.bind(this, timingNode.ERROR_STATUS_CHANGED);
     }
 
@@ -87,7 +87,7 @@ public final class TimingNodeProxy {
         if (error.isPresent()) {
             return errorStatus(error.get());
         }
-        return operationStatus(timingNode.operationStatus());
+        return statusValue(timingNode.statusValue());
     }
 
     /** Opens the node at the requested LocationId. */
@@ -235,9 +235,9 @@ public final class TimingNodeProxy {
                 LogBookQueries.visitLatestTimingData(limit, visitor));
     }
 
-    private void updateOperationStatus(OperationStatus status) {
+    private void updateStatus(Status status) {
 
-        statusChanged.emit(operationStatus(status));
+        statusChanged.emit(statusValue(status));
     }
 
     private void updateErrorStatus(ErrorStatus error) {
@@ -245,19 +245,19 @@ public final class TimingNodeProxy {
         statusChanged.emit(errorStatus(error));
     }
 
-    private TimingNodeStatus operationStatus(OperationStatus status) {
+    private TimingNodeStatus statusValue(Status status) {
 
         return TimingNodeStatus.operational(
                 timingNodeId,
-                status.state(),
-                status.locationId());
+                status.state,
+                status.locationId);
     }
 
     private TimingNodeStatus errorStatus(ErrorStatus error) {
 
         return TimingNodeStatus.error(
                 timingNodeId,
-                error.code(),
-                error.message());
+                error.code,
+                error.message);
     }
 }
