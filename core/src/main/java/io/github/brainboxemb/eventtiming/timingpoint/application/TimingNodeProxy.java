@@ -64,7 +64,7 @@ public final class TimingNodeProxy {
         }
         this.logBookTestControl = (LogBookTestControl) logBook;
         this.NEW_DATA_ENTRY = timingNode.TIMING_DATA_COMMITTED;
-        timingNode.PROPERTIES.subscribe(ignored -> publishStatus());
+        timingNode.PROPERTIES.CHANGED.subscribe(ignored -> publishStatus());
     }
 
     /** Returns this node's ID. */
