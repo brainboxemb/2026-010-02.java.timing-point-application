@@ -64,8 +64,6 @@ public final class TimingNode extends LifecycleComponent {
             new Event<FunctionalState>();
     private final Event<OperationalState> operationalStateChangedEvent =
             new Event<OperationalState>();
-    private final Event<OperationalProblem> operationalProblemChangedEvent =
-            new Event<OperationalProblem>();
     private final Object operationLock = new Object();
     private final Object stateLock = new Object();
 
@@ -124,10 +122,6 @@ public final class TimingNode extends LifecycleComponent {
     /** Operational INIT/OK/ERROR changes for this TimingNode. */
     public final EventSource<OperationalState> OPERATIONAL_STATE_CHANGED =
             operationalStateChangedEvent;
-
-    /** Operational problem-detail changes for this TimingNode. */
-    public final EventSource<OperationalProblem> OPERATIONAL_PROBLEM_CHANGED =
-            operationalProblemChangedEvent;
 
     /** Creates one TimingNode with its clock and child components. */
     public TimingNode(
@@ -472,7 +466,6 @@ public final class TimingNode extends LifecycleComponent {
     /** Changes operational state to ERROR without changing functional state. */
     private void setOperationalError(OperationalProblem problem) {
 
-        OperationalProblem publishedProblem;
         boolean stateChanged;
         synchronized (stateLock) {
             /*
@@ -482,14 +475,10 @@ public final class TimingNode extends LifecycleComponent {
             if (operationalProblem == null) {
                 operationalProblem = problem;
             }
-            publishedProblem = operationalProblem;
             stateChanged = operationalState != OperationalState.ERROR;
             operationalState = OperationalState.ERROR;
         }
 
-        if (publishedProblem == problem) {
-            operationalProblemChangedEvent.emit(problem);
-        }
         if (stateChanged) {
             operationalStateChangedEvent.emit(OperationalState.ERROR);
         }
