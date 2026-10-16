@@ -7,6 +7,10 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.NodeStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
@@ -132,8 +136,7 @@ public class TimingSystemConductorTest {
 
             persistence.releaseLoad.countDown();
             await(
-                    () -> ((io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status) node.status()).state()
-                            == io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State.CLOSED,
+                    () -> isClosedWhenStatusAvailable(node),
                     1000L);
 
             node.open(new LocationId(24));
@@ -290,6 +293,19 @@ public class TimingSystemConductorTest {
                 Executors.newSingleThreadScheduledExecutor(runnable -> new Thread(runnable, name));
         workers.add(worker);
         return worker;
+    }
+
+    private static boolean isClosedWhenStatusAvailable(TimingNode node) {
+        try {
+            NodeStatus status = node.status();
+            return status instanceof Status
+                    && ((Status) status).state() == State.CLOSED;
+        } catch (OperationException ex) {
+            if (ex.reason() == OperationException.Reason.UNAVAILABLE) {
+                return false;
+            }
+            throw ex;
+        }
     }
 
     private static void await(java.util.function.BooleanSupplier condition, long timeoutMillis) throws Exception {
