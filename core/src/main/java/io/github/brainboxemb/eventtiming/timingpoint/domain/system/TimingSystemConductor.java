@@ -4,13 +4,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
-import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyContainer;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 
 import java.util.function.Consumer;
 
@@ -30,12 +28,6 @@ import org.slf4j.LoggerFactory;
  */
 public final class TimingSystemConductor extends AbstractConductor {
     private static final Logger LOG = LoggerFactory.getLogger(TimingSystemConductor.class);
-
-    private static final EventInput<TimingSystemConductor, PropertyContainer.Change>
-            NODE_PROPERTIES_CHANGED =
-                    EventInput.of(
-                            (conductor, source) ->
-                                    source.subscribe(ignored -> conductor.wakeMainTask()));
 
     private final TimingNodeList nodes;
     private final AntennaSettings antennaSettings;
@@ -61,7 +53,7 @@ public final class TimingSystemConductor extends AbstractConductor {
             registerComponent(
                     "TimingNode " + node.timingNodeId().value(),
                     node);
-            NODE_PROPERTIES_CHANGED.bind(this, node.PROPERTIES_CHANGED);
+            node.PROPERTIES.subscribe(ignored -> wakeMainTask());
         }
     }
 
