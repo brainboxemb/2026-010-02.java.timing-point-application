@@ -56,9 +56,9 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     /**
      * Creates one LogBook bound to the supplied Data Lane.
      *
-     * <p>The commit timeout applies to result-bearing TimingData commands. The
-     * ordered-query timeout applies only to ORDERED reads. CURRENT reads do not
-     * wait on the Data Lane. Fire-and-forget queueing uses the standard
+     * <p>The commit wait timeout applies to result-bearing TimingData commands.
+     * The ordered-query wait timeout applies only to ORDERED reads. CURRENT reads
+     * do not wait on the Data Lane. Fire-and-forget queueing uses the standard
      * {@link SerialLane#execute(Runnable)} rejection contract.</p>
      */
     public LogBook(
