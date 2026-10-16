@@ -84,6 +84,18 @@ public class EventTest {
     }
 
     @Test
+    public void filteredSubscriptionOnlyDeliversAcceptedValues() {
+        Event<Integer> event = new Event<Integer>();
+        List<Integer> delivered = new ArrayList<Integer>();
+
+        event.subscribe(value -> value.intValue() % 2 == 0, delivered::add);
+
+        assertEquals(0, event.emit(Integer.valueOf(1)).attemptedListeners());
+        assertEquals(1, event.emit(Integer.valueOf(2)).attemptedListeners());
+        assertEquals(Arrays.asList(Integer.valueOf(2)), delivered);
+    }
+
+    @Test
     public void runtimeFailureIsReportedAndDoesNotBlockLaterListener() {
         Event<String> event = new Event<>();
         List<String> delivered = new ArrayList<>();
