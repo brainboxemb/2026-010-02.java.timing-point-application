@@ -149,7 +149,7 @@ public class RemoteShellServerTest {
             while (fixture.handler()
                     .timingNode(new NodeId("A"))
                     .status()
-                    .operationalState() != OperationalState.ERROR) {
+                    .opState() != OperationalState.ERROR) {
                 if (System.nanoTime() >= deadline) {
                     throw new AssertionError(
                             "TimingNode operational ERROR was not observed");
