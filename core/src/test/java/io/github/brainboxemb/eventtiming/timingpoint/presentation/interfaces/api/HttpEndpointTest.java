@@ -57,7 +57,7 @@ public class HttpEndpointTest {
             assertTrue(status.body.contains("\"nodes\":[{"));
             assertTrue(status.body.contains("\"id\":\"A\""));
             assertTrue(status.body.contains("\"locationId\":null"));
-            assertTrue(status.body.contains("\"functionalState\":\"CLOSED\""));
+            assertTrue(status.body.contains("\"state\":\"CLOSED\""));
             assertTrue(status.body.contains("\"problems\":[]"));
             assertTrue(!status.body.contains("\"build\":"));
             assertTrue(!status.body.contains("\"apiVersion\":"));
@@ -117,9 +117,9 @@ public class HttpEndpointTest {
                             null);
             assertEquals(200, status.status);
             assertTrue(status.body.contains(
-                    "{\"id\":\"A\",\"locationId\":null,\"functionalState\":\"CLOSED\",\"operationalState\":\"OK\"}"));
+                    "{\"id\":\"A\",\"locationId\":null,\"state\":\"CLOSED\",\"operationalState\":\"OK\"}"));
             assertTrue(status.body.contains(
-                    "{\"id\":\"B\",\"locationId\":24,\"functionalState\":\"OPEN\",\"operationalState\":\"OK\"}"));
+                    "{\"id\":\"B\",\"locationId\":24,\"state\":\"OPEN\",\"operationalState\":\"OK\"}"));
         } finally {
             server.close();
             LifecycleTestSupport.deactivate(second);
@@ -171,7 +171,7 @@ public class HttpEndpointTest {
             Response openedStatus =
                     request(server.boundPort(), "GET", "/api/v1/status", null);
             assertTrue(openedStatus.body.contains("\"locationId\":24"));
-            assertTrue(openedStatus.body.contains("\"functionalState\":\"OPEN\""));
+            assertTrue(openedStatus.body.contains("\"state\":\"OPEN\""));
 
             Response repeatedOpen =
                     request(
@@ -608,7 +608,7 @@ public class HttpEndpointTest {
             assertEquals(200, status.status);
             assertTrue(status.body.contains("\"id\":\"A\""));
             assertTrue(status.body.contains("\"locationId\":null"));
-            assertTrue(status.body.contains("\"functionalState\":\"CLOSED\""));
+            assertTrue(status.body.contains("\"state\":\"CLOSED\""));
             assertTrue(status.body.contains("\"operationalState\":\"ERROR\""));
             assertTrue(status.body.contains(
                     "\"code\":\"TIMING_DATA_LOAD_FAILED\""));
@@ -627,7 +627,7 @@ public class HttpEndpointTest {
             Response afterOpen =
                     request(server.boundPort(), "GET", "/api/v1/status", null);
             assertTrue(afterOpen.body.contains("\"locationId\":24"));
-            assertTrue(afterOpen.body.contains("\"functionalState\":\"OPEN\""));
+            assertTrue(afterOpen.body.contains("\"state\":\"OPEN\""));
             assertTrue(afterOpen.body.contains("\"operationalState\":\"ERROR\""));
             assertTrue(afterOpen.body.contains(
                     "\"code\":\"TIMING_DATA_LOAD_FAILED\""));
