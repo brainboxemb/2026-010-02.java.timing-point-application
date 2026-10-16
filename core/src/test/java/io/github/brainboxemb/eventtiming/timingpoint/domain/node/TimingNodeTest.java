@@ -88,7 +88,7 @@ public class TimingNodeTest {
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
                     node.open(new LocationId(24)));
-            assertEquals(TimingNodeTypes.State.CLOSED, (node.status()).state);
+            assertEquals(TimingNodeTypes.State.OPEN, (node.status()).state);
             assertEquals(new LocationId(24), (node.status()).locationId);
 
             assertEquals(TimingNodeTypes.CloseResult.CLOSED, node.close());
@@ -404,10 +404,15 @@ public class TimingNodeTest {
                     TimingNodeTypes.OpenResult.OPENED,
                     node.logBook().process(
                             LogBookCommands.commitNodeOpen(new LocationId(24))));
+            assertEquals(TimingNodeTypes.State.CLOSED, node.status().state);
+            assertNull(node.status().locationId);
+
             assertEquals(
                     TimingNodeTypes.CloseResult.CLOSED,
                     node.logBook().process(
                             LogBookCommands.commitNodeClose(new LocationId(24))));
+            assertEquals(TimingNodeTypes.State.CLOSED, node.status().state);
+            assertNull(node.status().locationId);
         } finally {
             deactivate(node);
         }
@@ -446,10 +451,15 @@ public class TimingNodeTest {
             releaseBlocker.countDown();
 
             assertTrue(afterTimedOutOperation.await(1, TimeUnit.SECONDS));
+            List<TimingData> committed =
+                    node.logBook().process(
+                            LogBookQueries.timingDataRange(1L, 1));
+            assertEquals(1, committed.size());
+            assertTrue(committed.get(0) instanceof TimingData.NodeOpen);
+
             TimingNodeTypes.Status status = node.status();
-            assertEquals(TimingNodeTypes.State.OPEN, status.state);
-            assertTrue(status.locationId != null);
-            assertEquals(new LocationId(24), status.locationId);
+            assertEquals(TimingNodeTypes.State.CLOSED, status.state);
+            assertNull(status.locationId);
         } finally {
             releaseBlocker.countDown();
             deactivate(node);
@@ -600,7 +610,7 @@ public class TimingNodeTest {
             executor.execute(drained::countDown);
             assertTrue(drained.await(1, TimeUnit.SECONDS));
 
-            assertEquals(TimingNodeTypes.State.OPEN, (node.status()).state);
+            assertEquals(TimingNodeTypes.State.CLOSED, (node.status()).state);
         } finally {
             releaseBlocker.countDown();
             deactivate(node);
