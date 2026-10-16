@@ -132,6 +132,46 @@ public class SafeExecuteTest {
         }
     }
 
+    /** Verifies that result-bearing failure handling runs before rethrow. */
+    @Test
+    public void callFailureHandlerRunsBeforeRethrow() {
+        IllegalStateException failure = new IllegalStateException("expected");
+        RuntimeException[] handled = new RuntimeException[1];
+
+        try {
+            SafeExecute.callOrRethrow(
+                    () -> {
+                        throw failure;
+                    },
+                    IllegalStateException.class,
+                    ex -> handled[0] = ex);
+            fail("expected IllegalStateException");
+        } catch (IllegalStateException expected) {
+            assertSame(failure, expected);
+            assertSame(failure, handled[0]);
+        }
+    }
+
+    /** Verifies that unrelated result-bearing failures bypass the selected handler. */
+    @Test
+    public void unrelatedCallFailureBypassesRethrowHandler() {
+        IllegalArgumentException failure = new IllegalArgumentException("invalid");
+        AtomicBoolean handled = new AtomicBoolean();
+
+        try {
+            SafeExecute.callOrRethrow(
+                    () -> {
+                        throw failure;
+                    },
+                    IllegalStateException.class,
+                    ex -> handled.set(true));
+            fail("expected IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            assertSame(failure, expected);
+            assertFalse(handled.get());
+        }
+    }
+
     /** Verifies that runtime failure handling runs before the same failure is rethrown. */
     @Test
     public void runtimeFailureHandlerRunsBeforeRethrow() {
