@@ -35,10 +35,10 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
  * instead of widening the production TimingNode API.</p>
  */
 public final class TimingNodeFixture {
-    private static final long DEFAULT_COMMIT_TIMEOUT_MILLIS =
-            LogBook.DEFAULT_COMMIT_TIMEOUT_MILLIS;
-    private static final long DEFAULT_ORDERED_QUERY_TIMEOUT_MILLIS =
-            LogBook.DEFAULT_ORDERED_QUERY_TIMEOUT_MILLIS;
+    private static final long DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS =
+            LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS;
+    private static final long DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS =
+            LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS;
 
     private static final ExecutorService NODE_WORKER =
             Executors.newSingleThreadExecutor(
@@ -176,8 +176,8 @@ public final class TimingNodeFixture {
                         32,
                         "test-tag-" + suffix,
                         TAG_WORKER),
-                DEFAULT_COMMIT_TIMEOUT_MILLIS,
-                DEFAULT_ORDERED_QUERY_TIMEOUT_MILLIS)
+                DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
+                DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS)
                 .node();
     }
 
@@ -246,8 +246,8 @@ public final class TimingNodeFixture {
                         32,
                         "test-tag-direct-" + suffix,
                         TAG_WORKER),
-                DEFAULT_COMMIT_TIMEOUT_MILLIS,
-                DEFAULT_ORDERED_QUERY_TIMEOUT_MILLIS);
+                DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
+                DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
     }
 
     /**
@@ -280,8 +280,8 @@ public final class TimingNodeFixture {
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
             SerialLane dataLane,
-            long commitTimeoutMillis,
-            long orderedQueryTimeoutMillis) {
+            long commitWaitTimeoutMillis,
+            long orderedQueryWaitTimeoutMillis) {
         String suffix =
                 nodeId == null
                         ? "missing"
@@ -303,8 +303,8 @@ public final class TimingNodeFixture {
                         32,
                         "test-tag-direct-" + suffix,
                         TAG_WORKER),
-                commitTimeoutMillis,
-                orderedQueryTimeoutMillis)
+                commitWaitTimeoutMillis,
+                orderedQueryWaitTimeoutMillis)
                 .node();
     }
 
@@ -319,8 +319,8 @@ public final class TimingNodeFixture {
             SerialLane dataLane,
             SerialLane taskLane,
             ScheduledSerialLane tagLane,
-            long commitTimeoutMillis,
-            long orderedQueryTimeoutMillis) {
+            long commitWaitTimeoutMillis,
+            long orderedQueryWaitTimeoutMillis) {
         ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
                 ReadOnlyConfiguration.fixed(
                         TagProcessingPolicy.defaults());
@@ -334,8 +334,8 @@ public final class TimingNodeFixture {
                         SystemMonotonicClock.INSTANCE,
                         new LogBookMetrics(),
                         dataLane,
-                        commitTimeoutMillis,
-                        orderedQueryTimeoutMillis);
+                        commitWaitTimeoutMillis,
+                        orderedQueryWaitTimeoutMillis);
 
         NodeServiceState nodeServiceState = new NodeServiceState(eventData);
 
