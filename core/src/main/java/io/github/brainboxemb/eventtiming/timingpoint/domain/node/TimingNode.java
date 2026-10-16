@@ -60,6 +60,7 @@ public final class TimingNode {
     private final LogBookAccessor logBook;
     private final TagProcessor tagProcessor;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
+    private final Event<TimingData> timingDataCommitted = new Event<TimingData>();
     private final Event<NodeStatus> statusChanged = new Event<NodeStatus>();
     private final Object operationLock = new Object();
     private final Object stateLock = new Object();
@@ -87,6 +88,14 @@ public final class TimingNode {
     private static final EventInput<TimingNode, TagProcessor.NewRegistration> NEW_REGISTRATION =
             EventInput.of(
                     (node, source) -> source.subscribe(node::onNewRegistration));
+
+    /**
+     * Committed TimingData source at the TimingNode boundary.
+     *
+     * <p>For NODE_OPEN/NODE_CLOSE the current operation state is already updated
+     * when this event is delivered. STATUS_CHANGED follows afterwards.</p>
+     */
+    public final EventSource<TimingData> TIMING_DATA_COMMITTED = timingDataCommitted;
 
     /**
      * Status-change source for this TimingNode.
@@ -120,12 +129,13 @@ public final class TimingNode {
         lifecycle.register(tagProcessor, TagProcessor::activate, TagProcessor::deactivate);
 
         /*
-         * Consume committed TimingData first so NODE_OPEN/NODE_CLOSE updates the
-         * TimingNode-owned current state before later NEW_DATA_ENTRY consumers run.
+         * LogBook publishes the durable commit fact once. TimingNode applies any
+         * operation-state effect and republishes the node-level committed-data fact
+         * before STATUS_CHANGED, keeping state/event ordering at the state owner.
          */
         LOGBOOK_TIMING_DATA_COMMITTED.bind(this, logBook.NEW_DATA_ENTRY);
         NodeService.INITIAL_TIMING_DATA.bind(nodeService, logBook.INITIAL_DATA_LOADED);
-        NodeService.COMMITTED_TIMING_DATA.bind(nodeService, logBook.NEW_DATA_ENTRY);
+        NodeService.COMMITTED_TIMING_DATA.bind(nodeService, TIMING_DATA_COMMITTED);
         LOGBOOK_RECOVERY_STATUS.bind(this, logBook.RECOVERY_STATUS_CHANGED);
 
         // Listener runs synchronously on the TagProcessor lane; it must not block.
@@ -320,20 +330,31 @@ public final class TimingNode {
      */
     private void onTimingDataCommitted(TimingData timingData) {
 
-        if (!(currentStatus instanceof Status)) {
-            return;
+        boolean operationStateChanged = false;
+        if (currentStatus instanceof Status) {
+            if (timingData instanceof TimingData.NodeOpen) {
+                setStatus(new Status(
+                        timingNodeId,
+                        State.OPEN,
+                        timingData.locationId()));
+                operationStateChanged = true;
+            } else if (timingData instanceof TimingData.NodeClose) {
+                setStatus(new Status(
+                        timingNodeId,
+                        State.CLOSED,
+                        timingData.locationId()));
+                operationStateChanged = true;
+            }
         }
 
-        if (timingData instanceof TimingData.NodeOpen) {
-            publishStatus(new Status(
-                    timingNodeId,
-                    State.OPEN,
-                    timingData.locationId()));
-        } else if (timingData instanceof TimingData.NodeClose) {
-            publishStatus(new Status(
-                    timingNodeId,
-                    State.CLOSED,
-                    timingData.locationId()));
+        /*
+         * Preserve the public event order: committed TimingData is observable
+         * before the resulting operation-status change.
+         */
+        timingDataCommitted.emit(timingData);
+
+        if (operationStateChanged) {
+            statusChanged.emit(currentStatus);
         }
     }
 
