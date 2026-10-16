@@ -47,12 +47,16 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
 
     private final EventWithMetrics<TimingData> newDataEntryEvent;
     private final Event<List<TimingData>> initialDataLoadedEvent = new Event<List<TimingData>>();
+    private final Event<LogBookFailure> commandFailedEvent = new Event<LogBookFailure>();
 
     /** Completed startup-recovery source. */
     public final EventSource<LogBookRecoveryStatus> RECOVERY_STATUS_CHANGED;
 
     /** Post-commit TimingData source. */
     public final EventSource<TimingData> NEW_DATA_ENTRY;
+
+    /** Failed LogBook command source. */
+    public final EventSource<LogBookFailure> COMMAND_FAILED = commandFailedEvent;
 
     /** Transient startup-history source for one-time derived-state reconstruction. */
     public final EventSource<List<TimingData>> INITIAL_DATA_LOADED = initialDataLoadedEvent;
@@ -300,25 +304,30 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
             applyCommand(command);
         } catch (Exception ex) {
 
-            LOG.warn(
+            LOG.error(
                     "Queued LogBook command {} failed during Data Lane execution",
                     command.name(),
                     ex);
         }
     }
 
-    /** Applies one command and publishes newly committed TimingData. */
+    /** Applies one command and publishes either its commit fact or failure fact. */
     private <R> R applyCommand(LogBookCommand<R> command) throws Exception {
 
-        applyNextWriteTestFailure();
+        try {
+            applyNextWriteTestFailure();
 
-        long headBefore = logBookState.timingDataHead();
-        R result = command.apply(logBookOperations);
+            long headBefore = logBookState.timingDataHead();
+            R result = command.apply(logBookOperations);
 
-        if (logBookState.timingDataHead() > headBefore) {
-            newDataEntryEvent.emit(logBookState.latestCommittedTimingData());
+            if (logBookState.timingDataHead() > headBefore) {
+                newDataEntryEvent.emit(logBookState.latestCommittedTimingData());
+            }
+            return result;
+        } catch (Exception ex) {
+            commandFailedEvent.emit(new LogBookFailure(command.name(), ex));
+            throw ex;
         }
-        return result;
     }
 
     /** Applies and consumes the one-shot engineering/test write failure. */

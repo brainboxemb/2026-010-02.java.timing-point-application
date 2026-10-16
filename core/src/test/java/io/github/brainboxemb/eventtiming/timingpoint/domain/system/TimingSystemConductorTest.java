@@ -7,8 +7,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
@@ -129,7 +128,7 @@ public class TimingSystemConductorTest {
                     "TimingSystemConductor activation waited for TimingNode recovery",
                     activationCaller.isAlive());
             assertNull(activationFailure[0]);
-            assertEquals(State.CLOSED, node.status().state);
+            assertEquals(FunctionalState.CLOSED, node.functionalState());
             assertFalse(manager.settings().inventoryEnabled());
 
             persistence.releaseLoad.countDown();

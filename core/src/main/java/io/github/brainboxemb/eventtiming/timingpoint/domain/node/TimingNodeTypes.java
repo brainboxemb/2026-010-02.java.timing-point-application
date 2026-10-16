@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
@@ -17,27 +16,45 @@ public final class TimingNodeTypes {
     private TimingNodeTypes() {
     }
 
-    /** OPEN/CLOSED state of a TimingNode. */
-    public enum State {
-        /** No timing location is currently open. */
+    /** Functional OPEN/CLOSED state of a TimingNode. */
+    public enum FunctionalState {
+        /** No timing location is currently open for participant registration. */
         CLOSED,
 
-        /** A timing location is open for timing operations. */
+        /** A timing location is open for participant registration. */
         OPEN
     }
 
-    /** Error categories reported by {@link ErrorStatus}. */
-    public enum ErrorCode {
-        /** Existing persisted TimingData could not be loaded or validated at startup. */
-        TIMING_DATA_LOAD_FAILED
+    /** Operational health of a TimingNode, independent from functional state. */
+    public enum OperationalState {
+        /** Startup/recovery readiness is still being established. */
+        INIT,
+
+        /** Required TimingNode capabilities are operating normally. */
+        OK,
+
+        /** One or more required TimingNode capabilities have failed. */
+        ERROR
     }
 
-    /** Immutable TimingNode error data. */
-    public static final class ErrorStatus {
+    /** Error categories reported by {@link OperationalProblem}. */
+    public enum ErrorCode {
+        /** Existing persisted TimingData could not be loaded or validated at startup. */
+        TIMING_DATA_LOAD_FAILED,
+
+        /** A TimingData command failed while being committed to the LogBook. */
+        TIMING_DATA_COMMIT_FAILED,
+
+        /** LogBook work could not be queued for execution. */
+        LOGBOOK_UNAVAILABLE
+    }
+
+    /** Immutable detail for the current TimingNode operational problem. */
+    public static final class OperationalProblem {
         public final ErrorCode code;
         public final String message;
 
-        public ErrorStatus(ErrorCode code, String message) {
+        public OperationalProblem(ErrorCode code, String message) {
             checkArgument(code != null, "code must not be null");
             checkArgument(message != null && !message.trim().isEmpty(), "message must not be blank");
             this.code = code;
@@ -47,8 +64,8 @@ public final class TimingNodeTypes {
         @Override
         public boolean equals(Object other) {
             if (this == other) return true;
-            if (!(other instanceof ErrorStatus)) return false;
-            ErrorStatus that = (ErrorStatus) other;
+            if (!(other instanceof OperationalProblem)) return false;
+            OperationalProblem that = (OperationalProblem) other;
             return code == that.code
                     && message.equals(that.message);
         }
@@ -133,39 +150,6 @@ public final class TimingNodeTypes {
         public TimingData timingData() {
             checkState(timingData != null, "registration did not commit TimingData");
             return timingData;
-        }
-    }
-
-    /**
-     * Immutable TimingNode status data.
-     *
-     * <p>Java 8 has no record/struct type; this final class deliberately exposes
-     * its immutable fields directly because it is only a small data carrier.</p>
-     */
-    public static final class Status {
-        public final State state;
-        public final LocationId locationId;
-
-        public Status(State state, LocationId locationId) {
-            checkArgument(state != null, "state must not be null");
-            this.state = state;
-            this.locationId = locationId;
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (this == other) return true;
-            if (!(other instanceof Status)) return false;
-            Status that = (Status) other;
-            if (state != that.state) return false;
-            return locationId == null ? that.locationId == null : locationId.equals(that.locationId);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = state.hashCode();
-            result = 31 * result + (locationId == null ? 0 : locationId.hashCode());
-            return result;
         }
     }
 

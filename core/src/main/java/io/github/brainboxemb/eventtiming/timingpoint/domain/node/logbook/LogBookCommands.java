@@ -5,8 +5,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
@@ -22,22 +20,28 @@ public final class LogBookCommands {
     private LogBookCommands() {
     }
 
-    /** Commits one NODE_OPEN record selected by the owning TimingNode. */
-    public static LogBookCommand<OpenResult> commitNodeOpen(LocationId locationId) {
+    /** Commits one NODE_OPEN history record selected by the owning TimingNode. */
+    public static LogBookCommand<Void> commitNodeOpen(LocationId locationId) {
 
         checkArgument(locationId != null, "locationId must not be null");
         return simple(
                 "commitNodeOpen",
-                operations -> operations.commitNodeOpen(locationId));
+                operations -> {
+                    operations.commitNodeOpen(locationId);
+                    return null;
+                });
     }
 
-    /** Commits one NODE_CLOSE record selected by the owning TimingNode. */
-    public static LogBookCommand<CloseResult> commitNodeClose(LocationId locationId) {
+    /** Commits one NODE_CLOSE history record selected by the owning TimingNode. */
+    public static LogBookCommand<Void> commitNodeClose(LocationId locationId) {
 
         checkArgument(locationId != null, "locationId must not be null");
         return simple(
                 "commitNodeClose",
-                operations -> operations.commitNodeClose(locationId));
+                operations -> {
+                    operations.commitNodeClose(locationId);
+                    return null;
+                });
     }
 
     /** Commits one automatic registration selected from an antenna observation. */

@@ -186,7 +186,7 @@ public class VcSt1_005Test {
             String snapshot =
                     events.awaitEvent("STATUS_SNAPSHOT");
             assertContains(snapshot, "\"state\":\"CLOSED\"");
-            assertContains(snapshot, "\"locationId\":null");
+            assertContains(snapshot, "\"locId\":null");
             events.assertNoEvent(
                     "TIMING_DATA_COMMITTED",
                     500L);
@@ -210,7 +210,7 @@ public class VcSt1_005Test {
             String status =
                     events.awaitEvent("STATUS_CHANGED");
             assertContains(status, "\"state\":\"OPEN\"");
-            assertContains(status, "\"locationId\":25");
+            assertContains(status, "\"locId\":25");
 
             assertLogBookCount(
                     http,

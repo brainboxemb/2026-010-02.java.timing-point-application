@@ -132,7 +132,7 @@ public final class HttpEndpoint implements AutoCloseable {
                     200,
                     MessageWriter.status(
                             presentationGateway
-                                    .timingNodeStatuses()));
+                                    .timingNodes()));
             return;
         }
         if ("/api/v1/configuration".equals(path)) {

@@ -7,6 +7,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationCo
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl.TagProcessingValue;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl.TimingNodeConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationalProblem;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 
@@ -14,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /** Explicit JSON mapping for the IF-03 v1 contract. */
 public final class MessageWriter {
@@ -33,10 +36,9 @@ public final class MessageWriter {
     }
 
     public static String status(
-            Iterable<TimingNodeStatus> statuses) {
-        if (statuses == null) {
-            throw new IllegalArgumentException(
-                    "statuses must not be null");
+            Iterable<TimingNodeProxy> timingNodes) {
+        if (timingNodes == null) {
+            throw new IllegalArgumentException("timingNodes must not be null");
         }
 
         StringBuilder nodes = new StringBuilder();
@@ -46,19 +48,19 @@ public final class MessageWriter {
 
         boolean firstNode = true;
         boolean firstProblem = true;
-        for (TimingNodeStatus status : statuses) {
-            if (status == null) {
-                throw new IllegalArgumentException(
-                        "statuses must not contain null");
+        for (TimingNodeProxy timingNode : timingNodes) {
+            if (timingNode == null) {
+                throw new IllegalArgumentException("timingNodes must not contain null");
             }
+
+            TimingNodeStatus status = timingNode.status();
+            Optional<OperationalProblem> problem = timingNode.operationalProblem();
+
             if (!firstNode) {
                 nodes.append(',');
             }
             firstNode = false;
 
-            String state = status.error()
-                    ? "ERROR"
-                    : status.state().name();
             String location = status.hasLocation()
                     ? Integer.toString(status.locationId().value())
                     : "null";
@@ -66,28 +68,32 @@ public final class MessageWriter {
                     .append("\"id\":")
                     .append(quote(status.timingNodeId().value()))
                     .append(',')
-                    .append("\"locationId\":")
+                    .append("\"locId\":")
                     .append(location)
                     .append(',')
                     .append("\"state\":")
-                    .append(quote(state))
+                    .append(quote(status.state().name()))
+                    .append(',')
+                    .append("\"opState\":")
+                    .append(quote(status.opState().name()))
                     .append('}');
 
-            if (status.error()) {
+            if (problem.isPresent()) {
                 if (!firstProblem) {
                     problems.append(',');
                 }
                 firstProblem = false;
+                OperationalProblem currentProblem = problem.get();
                 problems.append('{')
                         .append("\"code\":")
-                        .append(quote(status.errorCode().name()))
+                        .append(quote(currentProblem.code.name()))
                         .append(',')
                         .append("\"severity\":\"ERROR\",")
                         .append("\"nodeId\":")
                         .append(quote(status.timingNodeId().value()))
                         .append(',')
                         .append("\"message\":")
-                        .append(quote(status.errorMessage()))
+                        .append(quote(currentProblem.message))
                         .append('}');
             }
         }
@@ -101,11 +107,10 @@ public final class MessageWriter {
     }
 
     public static String status(
-            TimingNodeStatus status) {
-        List<TimingNodeStatus> statuses =
-                new ArrayList<TimingNodeStatus>();
-        statuses.add(status);
-        return status(statuses);
+            TimingNodeProxy timingNode) {
+        List<TimingNodeProxy> timingNodes = new ArrayList<TimingNodeProxy>();
+        timingNodes.add(timingNode);
+        return status(timingNodes);
     }
 
     public static String capabilities(PresentationGateway.Capabilities capabilities) {
@@ -176,7 +181,7 @@ public final class MessageWriter {
     public static String statusEvent(
             String eventType,
             Instant occurredAt,
-            Iterable<TimingNodeStatus> statuses) {
+            Iterable<TimingNodeProxy> timingNodes) {
         if (eventType == null || eventType.trim().isEmpty()) {
             throw new IllegalArgumentException(
                     "eventType must not be blank");
@@ -185,28 +190,28 @@ public final class MessageWriter {
             throw new IllegalArgumentException(
                     "occurredAt must not be null");
         }
-        if (statuses == null) {
+        if (timingNodes == null) {
             throw new IllegalArgumentException(
-                    "statuses must not be null");
+                    "timingNodes must not be null");
         }
         return "{"
                 + "\"eventType\":" + quote(eventType) + ","
                 + "\"occurredAt\":" + quote(occurredAt.toString()) + ","
-                + "\"payload\":" + status(statuses)
+                + "\"payload\":" + status(timingNodes)
                 + "}";
     }
 
     public static String statusEvent(
             String eventType,
             Instant occurredAt,
-            TimingNodeStatus status) {
-        List<TimingNodeStatus> statuses =
-                new ArrayList<TimingNodeStatus>();
-        statuses.add(status);
+            TimingNodeProxy timingNode) {
+        List<TimingNodeProxy> timingNodes =
+                new ArrayList<TimingNodeProxy>();
+        timingNodes.add(timingNode);
         return statusEvent(
                 eventType,
                 occurredAt,
-                statuses);
+                timingNodes);
     }
 
     public static String timingDataEvent(

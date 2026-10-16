@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Store TimingNode functional state, operational state, LocationId and operational problem as separate generic `Property<T>` values in one `PropertyContainer`; subscribers receive one container change describing the properties changed by a committed update.
+
+- Define `TimingNodeStatus` as the four-value client status: node id, current location, OPEN/CLOSED state and INIT/OK/ERROR operational state. IF-03 maps these directly to compact `id`, `locId`, `state` and `opState` fields; problem details remain separate.
+
+- Decouple TimingNode OPEN/CLOSED runtime state from lifecycle LogBook persistence. OPEN/CLOSE now apply state at the registration-admission boundary, submit lifecycle history asynchronously, and no longer use a CLOSE-only registration-block flag or SafeExecute catch/rethrow path.
+
 - Simplify `TimingNode.close()` failure handling: use the shared result-bearing `SafeExecute.callOrRethrow(...)` guard and model the temporary CLOSE ingress block as the simple `blockRegistrations` flag instead of manually repairing a derived `registrationsAllowed` flag.
 
 - Add the node-scoped engineering terminal command `test:<NodeId> logbook write <fail|timeout>` to arm a one-shot failure for the next LogBook write. `fail` returns the normal FAILED operation path; `timeout` delays the real Data Lane write beyond the commit wait guard so the existing TIMEOUT/outcome-unknown behavior is exercised while the accepted write may still commit later.

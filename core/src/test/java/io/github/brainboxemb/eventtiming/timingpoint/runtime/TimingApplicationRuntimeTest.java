@@ -171,7 +171,7 @@ public class TimingApplicationRuntimeTest {
                             new LocationId(24));
 
             assertEquals(
-                    TimingNodeTypes.State.CLOSED,
+                    TimingNodeTypes.FunctionalState.CLOSED,
                     application
                             .presentationGateway()
                             .timingNode(
@@ -179,7 +179,7 @@ public class TimingApplicationRuntimeTest {
                             .status()
                             .state());
             assertEquals(
-                    TimingNodeTypes.State.OPEN,
+                    TimingNodeTypes.FunctionalState.OPEN,
                     application
                             .presentationGateway()
                             .timingNode(
@@ -283,7 +283,7 @@ public class TimingApplicationRuntimeTest {
                             new LocationId(25));
 
             assertEquals(
-                    TimingNodeTypes.State.OPEN,
+                    TimingNodeTypes.FunctionalState.OPEN,
                     application
                             .presentationGateway()
                             .timingNode(
@@ -291,7 +291,7 @@ public class TimingApplicationRuntimeTest {
                             .status()
                             .state());
             assertEquals(
-                    TimingNodeTypes.State.OPEN,
+                    TimingNodeTypes.FunctionalState.OPEN,
                     application
                             .presentationGateway()
                             .timingNode(
@@ -602,15 +602,14 @@ public class TimingApplicationRuntimeTest {
                     application.presentationGateway()
                             .timingNode(new NodeId("A"));
             await(
-                    () -> proxy.status().error(),
+                    () -> proxy.status().opState() == TimingNodeTypes.OperationalState.ERROR,
                     1000L);
-            TimingNodeStatus status = proxy.status();
-            assertTrue(status.error());
+            assertTrue(proxy.operationalProblem().isPresent());
             assertEquals(
                     TimingNodeTypes.ErrorCode.TIMING_DATA_LOAD_FAILED,
-                    status.errorCode());
+                    proxy.operationalProblem().get().code);
             assertTrue(
-                    status.errorMessage()
+                    proxy.operationalProblem().get().message
                             .contains("Persisted TimingData load failed"));
         } finally {
             application.deactivate();

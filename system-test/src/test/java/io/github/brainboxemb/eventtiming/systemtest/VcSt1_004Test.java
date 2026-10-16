@@ -53,15 +53,16 @@ public class VcSt1_004Test {
 
             Response status = http.get("/api/v1/status");
             assertEquals("Unexpected degraded /status HTTP status", 200, status.status());
-            assertErrorStatus(status.body());
+            assertErrorStatus(status.body(), "CLOSED", "null");
 
             String shellStatus =
                     RemoteShellClient.requestStatus(ports.shellPort());
             assertContains(shellStatus, "Id        : " + NODE_ID);
-            assertContains(shellStatus, "State     : ERROR");
+            assertContains(shellStatus, "State     : CLOSED");
+            assertContains(shellStatus, "Operation : ERROR");
             assertContains(
                     shellStatus,
-                    "Error     : TIMING_DATA_LOAD_FAILED");
+                    "Problem   : TIMING_DATA_LOAD_FAILED");
             assertContains(shellStatus, "Persisted TimingData load failed for " + NODE_ID);
             assertContains(shellStatus, "belongs to " + OTHER_NODE_ID);
 
@@ -69,25 +70,29 @@ public class VcSt1_004Test {
                     "/api/v1/node/" + NODE_ID + "/open",
                     "{\"locationId\":24}");
             assertEquals(
-                    "ERROR TimingNode must reject OPEN explicitly",
-                    503,
+                    "Functional OPEN must remain independent from LogBook recovery error",
+                    200,
                     open.status());
-            assertContains(open.body(), "\"code\":\"OPERATION_FAILED\"");
-            assertContains(open.body(), "Persisted TimingData load failed for " + NODE_ID);
+            assertContains(open.body(), "\"result\":\"OPENED\"");
 
-            Response afterRejectedOpen = http.get("/api/v1/status");
-            assertEquals(200, afterRejectedOpen.status());
-            assertErrorStatus(afterRejectedOpen.body());
+            Response afterOpen = http.get("/api/v1/status");
+            assertEquals(200, afterOpen.status());
+            assertContains(afterOpen.body(), "\"locId\":24");
+            assertContains(afterOpen.body(), "\"state\":\"OPEN\"");
+            assertContains(afterOpen.body(), "\"opState\":\"ERROR\"");
+            assertContains(
+                    afterOpen.body(),
+                    "\"code\":\"TIMING_DATA_LOAD_FAILED\"");
 
             events = fixture.connectEvents(ports);
             String firstSnapshot = events.awaitEvent("STATUS_SNAPSHOT");
-            assertErrorSnapshot(firstSnapshot);
+            assertErrorSnapshot(firstSnapshot, "OPEN", "24");
             events.closeQuietly();
             events = null;
 
             events = fixture.connectEvents(ports);
             String reconnectSnapshot = events.awaitEvent("STATUS_SNAPSHOT");
-            assertErrorSnapshot(reconnectSnapshot);
+            assertErrorSnapshot(reconnectSnapshot, "OPEN", "24");
 
             assertContains(run.output(), "Persisted TimingData load failed for " + NODE_ID);
 
@@ -129,10 +134,16 @@ public class VcSt1_004Test {
                 record.getBytes(StandardCharsets.UTF_8));
     }
 
-    private static void assertErrorStatus(String json) {
+    private static void assertErrorStatus(
+            String json,
+            String functionalState,
+            String locationJson) {
         assertContains(json, "\"id\":\"" + NODE_ID + "\"");
-        assertContains(json, "\"locationId\":null");
-        assertContains(json, "\"state\":\"ERROR\"");
+        assertContains(json, "\"locId\":" + locationJson);
+        assertContains(
+                json,
+                "\"state\":\"" + functionalState + "\"");
+        assertContains(json, "\"opState\":\"ERROR\"");
         assertContains(
                 json,
                 "\"code\":\"TIMING_DATA_LOAD_FAILED\"");
@@ -142,9 +153,12 @@ public class VcSt1_004Test {
         assertContains(json, "belongs to " + OTHER_NODE_ID);
     }
 
-    private static void assertErrorSnapshot(String json) {
+    private static void assertErrorSnapshot(
+            String json,
+            String functionalState,
+            String locationJson) {
         assertContains(json, "\"eventType\":\"STATUS_SNAPSHOT\"");
-        assertErrorStatus(json);
+        assertErrorStatus(json, functionalState, locationJson);
     }
 
     private static void assertContains(String actual, String expected) {

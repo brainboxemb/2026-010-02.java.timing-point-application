@@ -66,6 +66,7 @@ public class LocalConsoleTest {
         assertTrue(text.contains("Timing node"));
         assertTrue(text.contains("Id        : A"));
         assertTrue(text.contains("State     : CLOSED"));
+        assertTrue(text.contains("Operation : OK"));
         assertTrue(text.contains("TimingNode: A"));
         assertTrue(text.contains("Available: A"));
         assertTrue(text.contains("Open: OPENED"));

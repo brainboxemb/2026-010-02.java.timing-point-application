@@ -11,7 +11,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.DynamicConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationalState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 
@@ -77,25 +77,19 @@ public final class PresentationGatewayFixture implements AutoCloseable {
         long deadline =
                 System.nanoTime()
                         + java.util.concurrent.TimeUnit.SECONDS.toNanos(1L);
-        while (true) {
+        while (handler.timingNode(nodeId).status().opState()
+                == OperationalState.INIT) {
+            if (System.nanoTime() >= deadline) {
+                throw new IllegalStateException(
+                        "TimingNode remained in operational INIT");
+            }
             try {
-                handler.timingNode(nodeId).status();
-                return;
-            } catch (OperationException ex) {
-                if (ex.reason() != OperationException.Reason.UNAVAILABLE) {
-                    throw ex;
-                }
-                if (System.nanoTime() >= deadline) {
-                    throw ex;
-                }
-                try {
-                    Thread.sleep(2L);
-                } catch (InterruptedException interrupted) {
-                    Thread.currentThread().interrupt();
-                    throw new IllegalStateException(
-                            "Interrupted waiting for test TimingNode readiness",
-                            interrupted);
-                }
+                Thread.sleep(2L);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(
+                        "Interrupted waiting for test TimingNode readiness",
+                        interrupted);
             }
         }
     }

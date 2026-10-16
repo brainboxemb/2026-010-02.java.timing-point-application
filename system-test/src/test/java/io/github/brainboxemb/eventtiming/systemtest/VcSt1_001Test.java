@@ -39,6 +39,7 @@ public class VcSt1_001Test {
                     "vc-st1-001-process-output");
             fixture.awaitReady(run, ports);
             HttpTestClient http = fixture.http(ports);
+            awaitOperationalOk(http);
 
             // 3. Query build/version identity.
             Response version = http.get("/api/v1/version");
@@ -104,18 +105,34 @@ public class VcSt1_001Test {
         }
     }
 
+    private static void awaitOperationalOk(HttpTestClient http)
+            throws Exception {
+        long deadline = System.currentTimeMillis() + 5000L;
+        while (System.currentTimeMillis() < deadline) {
+            Response status = http.get("/api/v1/status");
+            if (status.status() == 200
+                    && status.body().contains(
+                            "\"opState\":\"OK\"")) {
+                return;
+            }
+            Thread.sleep(20L);
+        }
+        throw new AssertionError(
+                "TimingNode did not reach operational OK");
+    }
+
     private static void assertSnapshot(String json) {
         assertContains(json, "\"eventType\":\"STATUS_SNAPSHOT\"");
         assertContains(json, "\"nodes\":[{");
         assertContains(json, "\"id\":\"" + NODE_ID + "\"");
-        assertContains(json, "\"locationId\":null");
+        assertContains(json, "\"locId\":null");
         assertContains(json, "\"state\":\"CLOSED\"");
     }
 
     private static void assertStatusSemantics(String json) {
         assertContains(json, "\"nodes\":[{");
         assertContains(json, "\"id\":\"" + NODE_ID + "\"");
-        assertContains(json, "\"locationId\":null");
+        assertContains(json, "\"locId\":null");
         assertContains(json, "\"state\":\"CLOSED\"");
         assertContains(json, "\"problems\":[]");
     }
@@ -125,8 +142,9 @@ public class VcSt1_001Test {
             String status) {
         for (String field : new String[] {
                 "\"id\":\"" + NODE_ID + "\"",
-                "\"locationId\":null",
-                "\"state\":\"CLOSED\""
+                "\"locId\":null",
+                "\"state\":\"CLOSED\"",
+                "\"opState\":\"OK\""
         }) {
             assertContains(snapshot, field);
             assertContains(status, field);

@@ -1,7 +1,9 @@
 package io.github.brainboxemb.eventtiming.systemtest.framework;
 
 import java.net.URI;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -12,8 +14,8 @@ import org.java_websocket.handshake.ServerHandshake;
 public final class EventStream extends WebSocketClient {
     private static final String LOOPBACK = "127.0.0.1";
 
-    private final LinkedBlockingQueue<String> messages =
-            new LinkedBlockingQueue<String>();
+    private final LinkedBlockingDeque<String> messages =
+            new LinkedBlockingDeque<String>();
     private final AtomicReference<Exception> failure =
             new AtomicReference<Exception>();
 
@@ -70,42 +72,61 @@ public final class EventStream extends WebSocketClient {
 
     public String awaitEvent(String eventType) throws Exception {
         long deadline = System.currentTimeMillis() + 5000L;
-        while (System.currentTimeMillis() < deadline) {
-            throwFailure();
-            long remaining = deadline - System.currentTimeMillis();
-            String message = messages.poll(
-                    Math.max(1L, remaining),
-                    TimeUnit.MILLISECONDS);
-            if (message == null) {
-                break;
+        List<String> skipped = new ArrayList<String>();
+        try {
+            while (System.currentTimeMillis() < deadline) {
+                throwFailure();
+                long remaining = deadline - System.currentTimeMillis();
+                String message = messages.pollFirst(
+                        Math.max(1L, remaining),
+                        TimeUnit.MILLISECONDS);
+                if (message == null) {
+                    break;
+                }
+                if (message.contains("\"eventType\":\"" + eventType + "\"")) {
+                    return message;
+                }
+                skipped.add(message);
             }
-            if (message.contains("\"eventType\":\"" + eventType + "\"")) {
-                return message;
-            }
+            throw new AssertionError(
+                    "Timed out waiting for IF-03 event " + eventType);
+        } finally {
+            restoreSkipped(skipped);
         }
-        throw new AssertionError(
-                "Timed out waiting for IF-03 event " + eventType);
     }
 
     public void assertNoEvent(String eventType, long timeoutMillis)
             throws Exception {
         long deadline = System.currentTimeMillis() + timeoutMillis;
-        while (System.currentTimeMillis() < deadline) {
-            throwFailure();
-            long remaining = deadline - System.currentTimeMillis();
-            String message = messages.poll(
-                    Math.max(1L, remaining),
-                    TimeUnit.MILLISECONDS);
-            if (message == null) {
-                return;
+        List<String> skipped = new ArrayList<String>();
+        try {
+            while (System.currentTimeMillis() < deadline) {
+                throwFailure();
+                long remaining = deadline - System.currentTimeMillis();
+                String message = messages.pollFirst(
+                        Math.max(1L, remaining),
+                        TimeUnit.MILLISECONDS);
+                if (message == null) {
+                    return;
+                }
+                if (message.contains("\"eventType\":\"" + eventType + "\"")) {
+                    throw new AssertionError(
+                            "Unexpected IF-03 event "
+                                    + eventType
+                                    + ": "
+                                    + message);
+                }
+                skipped.add(message);
             }
-            if (message.contains("\"eventType\":\"" + eventType + "\"")) {
-                throw new AssertionError(
-                        "Unexpected IF-03 event "
-                                + eventType
-                                + ": "
-                                + message);
-            }
+        } finally {
+            restoreSkipped(skipped);
+        }
+    }
+
+    /** Restores unmatched events at the front without changing their order. */
+    private void restoreSkipped(List<String> skipped) {
+        for (int index = skipped.size() - 1; index >= 0; index--) {
+            messages.offerFirst(skipped.get(index));
         }
     }
 

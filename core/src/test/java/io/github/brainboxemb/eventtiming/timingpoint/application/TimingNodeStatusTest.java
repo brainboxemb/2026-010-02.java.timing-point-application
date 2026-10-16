@@ -1,46 +1,48 @@
 package io.github.brainboxemb.eventtiming.timingpoint.application;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
 
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 public class TimingNodeStatusTest {
     @Test
-    public void exposesOperationalTimingNodeStatus() {
-        TimingNodeStatus status = TimingNodeStatus.operational(
+    public void exposesStateAndLocation() {
+        TimingNodeStatus status = TimingNodeStatus.current(
                 new NodeId("A"),
-                TimingNodeTypes.State.CLOSED,
-                null);
+                TimingNodeTypes.FunctionalState.OPEN,
+                TimingNodeTypes.OperationalState.OK,
+                new LocationId(24));
 
         assertEquals("A", status.timingNodeId().value());
-        assertFalse(status.error());
-        assertEquals(TimingNodeTypes.State.CLOSED, status.state());
+        assertEquals(
+                TimingNodeTypes.FunctionalState.OPEN,
+                status.state());
+        assertEquals(TimingNodeTypes.OperationalState.OK, status.opState());
+        assertEquals(new LocationId(24), status.locationId());
     }
 
     @Test
-    public void exposesErrorTimingNodeStatus() {
-        TimingNodeStatus status = TimingNodeStatus.error(
+    public void closedStatusMayHaveNoLocation() {
+        TimingNodeStatus status = TimingNodeStatus.current(
                 new NodeId("A"),
-                TimingNodeTypes.ErrorCode.TIMING_DATA_LOAD_FAILED,
-                "load failed");
+                TimingNodeTypes.FunctionalState.CLOSED,
+                TimingNodeTypes.OperationalState.INIT,
+                null);
 
-        assertTrue(status.error());
-        assertEquals(
-                TimingNodeTypes.ErrorCode.TIMING_DATA_LOAD_FAILED,
-                status.errorCode());
-        assertEquals("load failed", status.errorMessage());
+        assertFalse(status.hasLocation());
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void rejectsMissingNodeId() {
-        TimingNodeStatus.operational(
+        TimingNodeStatus.current(
                 null,
-                TimingNodeTypes.State.CLOSED,
+                TimingNodeTypes.FunctionalState.CLOSED,
+                TimingNodeTypes.OperationalState.INIT,
                 null);
     }
 }

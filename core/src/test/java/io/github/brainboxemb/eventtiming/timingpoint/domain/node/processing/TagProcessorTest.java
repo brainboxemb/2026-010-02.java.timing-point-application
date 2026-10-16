@@ -547,7 +547,7 @@ public class TagProcessorTest {
                         registration ->
                                 node.logBook().execute(
                                         LogBookCommands.commitAntennaRegistration(
-                                                node.status().locationId,
+                                                node.locationId(),
                                                 registration.registrationId(),
                                                 registration.observedAt())));
     }

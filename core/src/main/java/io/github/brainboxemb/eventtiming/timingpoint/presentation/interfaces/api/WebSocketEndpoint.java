@@ -1,12 +1,10 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 
@@ -17,10 +15,6 @@ import java.nio.ByteBuffer;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -58,8 +52,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
     private final Clock clock;
     private final TimingDataCodec timingDataCodec;
     private final WebSocketOutboundDelivery outboundDelivery;
-    private final Map<NodeId, TimingNodeStatus> statusByNode =
-            new LinkedHashMap<NodeId, TimingNodeStatus>();
 
     private Server server;
 
@@ -166,11 +158,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
             throw new IllegalArgumentException(
                     "status must not be null");
         }
-        synchronized (statusByNode) {
-            statusByNode.put(
-                    status.timingNodeId(),
-                    status);
-        }
         broadcastStatus("STATUS_CHANGED");
     }
 
@@ -233,36 +220,6 @@ public final class WebSocketEndpoint implements AutoCloseable {
         return server;
     }
 
-    private void refreshStatusSnapshot() {
-        List<TimingNodeStatus> statuses =
-                presentationGateway.timingNodeStatuses();
-        synchronized (statusByNode) {
-            statusByNode.clear();
-            for (TimingNodeStatus status : statuses) {
-                statusByNode.put(
-                        status.timingNodeId(),
-                        status);
-            }
-        }
-    }
-
-    private List<TimingNodeStatus> currentStatuses() {
-        List<TimingNodeStatus> statuses =
-                new ArrayList<TimingNodeStatus>();
-        synchronized (statusByNode) {
-            for (TimingNodeProxy timingNode
-                    : presentationGateway.timingNodes()) {
-                TimingNodeStatus status =
-                        statusByNode.get(
-                                timingNode.timingNodeId());
-                if (status != null) {
-                    statuses.add(status);
-                }
-            }
-        }
-        return statuses;
-    }
-
     private void broadcastStatus(
             String eventType) {
         Server current = currentServer();
@@ -271,7 +228,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
                     MessageWriter.statusEvent(
                             eventType,
                             clock.instant(),
-                            currentStatuses()));
+                            presentationGateway.timingNodes()));
         }
     }
 
@@ -279,7 +236,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
         return MessageWriter.statusEvent(
                 "STATUS_SNAPSHOT",
                 clock.instant(),
-                currentStatuses());
+                presentationGateway.timingNodes());
     }
 
     @Override
@@ -338,25 +295,13 @@ public final class WebSocketEndpoint implements AutoCloseable {
                     connection);
             try {
                 /*
-                 * Transport activation is independent from TimingNode readiness.
-                 * A connecting client, however, receives only a complete current
-                 * snapshot. If initial node recovery is still pending, ask the
-                 * client to retry rather than inventing or omitting node state.
+                 * INIT is a valid current operational state. A connecting client
+                 * therefore receives a complete snapshot immediately and later
+                 * status changes report recovery becoming OK or ERROR.
                  */
-                refreshStatusSnapshot();
                 sendEvent(
                         connection,
                         snapshotJson());
-            } catch (OperationException ex) {
-                if (ex.reason() == OperationException.Reason.UNAVAILABLE) {
-                    LOG.debug(
-                            "IF-03 status snapshot is not ready yet");
-                    connection.close(
-                            1013,
-                            "TimingNode status not ready");
-                    return;
-                }
-                throw ex;
             } catch (RuntimeException ex) {
                 LOG.warn(
                         "Unable to create initial IF-03 status snapshot",

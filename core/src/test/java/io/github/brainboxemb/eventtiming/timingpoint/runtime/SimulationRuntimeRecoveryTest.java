@@ -152,7 +152,7 @@ public class SimulationRuntimeRecoveryTest {
             TimingNodeStatus recoveredStatus =
                     awaitStatus(recoveredNode);
             assertEquals(
-                    TimingNodeTypes.State.CLOSED,
+                    TimingNodeTypes.FunctionalState.CLOSED,
                     recoveredStatus.state());
             assertFalse(
                     "historical OPEN must not restore operational location",
