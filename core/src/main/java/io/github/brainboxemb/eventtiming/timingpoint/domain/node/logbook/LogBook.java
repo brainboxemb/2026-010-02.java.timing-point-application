@@ -32,8 +32,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  */
 public final class LogBook extends LifecycleComponent implements LogBookAccessor {
     private static final Logger LOG = LoggerFactory.getLogger(LogBook.class);
-    public static final long DEFAULT_COMMIT_TIMEOUT_MILLIS = 5000L;
-    public static final long DEFAULT_ORDERED_QUERY_TIMEOUT_MILLIS = 2000L;
+    public static final long DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS = 5000L;
+    public static final long DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS = 2000L;
 
     private final LogBookState logBookState;
     private final LogBookOperations logBookOperations;
@@ -69,8 +69,8 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
             MonotonicClock monotonicClock,
             LogBookMetrics metrics,
             SerialLane serialLane,
-            long commitTimeoutMillis,
-            long orderedQueryTimeoutMillis) {
+            long commitWaitTimeoutMillis,
+            long orderedQueryWaitTimeoutMillis) {
 
         checkArgument(timingNodeId != null, "timingNodeId must not be null");
         checkArgument(timingDataPersistence != null, "timingDataPersistence must not be null");
@@ -79,10 +79,10 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         checkArgument(monotonicClock != null, "monotonicClock must not be null");
         checkArgument(metrics != null, "metrics must not be null");
         checkArgument(serialLane != null, "serialLane must not be null");
-        checkArgument(commitTimeoutMillis > 0L, "commitTimeoutMillis must be positive");
+        checkArgument(commitWaitTimeoutMillis > 0L, "commitWaitTimeoutMillis must be positive");
         checkArgument(
-                orderedQueryTimeoutMillis > 0L,
-                "orderedQueryTimeoutMillis must be positive");
+                orderedQueryWaitTimeoutMillis > 0L,
+                "orderedQueryWaitTimeoutMillis must be positive");
 
         this.logBookState = new LogBookState(timingNodeId);
         this.logBookOperations = new LogBookOperations(
@@ -96,8 +96,8 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                 new LogBookDataLane(
                         timingNodeId,
                         serialLane,
-                        commitTimeoutMillis,
-                        orderedQueryTimeoutMillis);
+                        commitWaitTimeoutMillis,
+                        orderedQueryWaitTimeoutMillis);
         this.recoveryView = new LogBookRecoveryView(timingNodeId, dataLane);
         this.metrics = metrics;
         this.newDataEntry =
