@@ -18,10 +18,12 @@ import org.slf4j.LoggerFactory;
 /**
  * Coordinates one TimingSystem.
  *
- * <p>The conductor owns its TimingNodes, their lifecycle and the status subscriptions used for system coordination. These fixed relationships are
- * established during construction, before activation starts execution.</p>
+ * <p>The conductor owns its TimingNodes, their lifecycle and the functional-state
+ * subscriptions used for system coordination. These fixed relationships are established
+ * during construction, before activation starts execution.</p>
  *
- * <p>A TimingNode property-change event only wakes the control task. The subsequent run
+ * <p>Only a TimingNode property update containing the functional-state property wakes the
+ * control task. The subsequent run
  * reads every TimingNode's current functional state and publishes the desired inventory state
  * through the shared AntennaSettings. It does not retain a second copy of
  * node state or invoke AntennaManager directly.</p>
@@ -59,7 +61,7 @@ public final class TimingSystemConductor extends AbstractConductor {
         }
     }
 
-    /** Wakes the main task after one TimingNode status change. */
+    /** Wakes the main task after one TimingNode functional-state change. */
     private void wakeMainTask() {
 
         // onActivated() requests the initial run; later status changes wake reconciliation.
