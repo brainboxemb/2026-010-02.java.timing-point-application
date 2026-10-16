@@ -88,7 +88,7 @@ public class TimingNodeTest {
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
                     node.open(new LocationId(24)));
-            assertEquals(TimingNodeTypes.State.OPEN, (node.status()).state);
+            assertEquals(TimingNodeTypes.State.CLOSED, (node.status()).state);
             assertEquals(new LocationId(24), (node.status()).locationId);
 
             assertEquals(TimingNodeTypes.CloseResult.CLOSED, node.close());
@@ -554,9 +554,8 @@ public class TimingNodeTest {
             executor.execute(afterOfferedCommand::countDown);
             assertTrue(afterOfferedCommand.await(1, TimeUnit.SECONDS));
 
-            assertEquals(
-                    new LocationId(24),
-                    (node.status()).locationId);
+            assertEquals(TimingNodeTypes.State.CLOSED, node.status().state);
+            assertNull(node.status().locationId);
         } finally {
             releaseBlocker.countDown();
             deactivate(node);
@@ -609,7 +608,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void currentStatusIsPublishedBeforePostCommandEvents() {
+    public void lifecycleStatusIsPublishedByTimingNodeAfterCommitEvent() {
         TimingNode node = node(new NodeId("A"));
         final TimingNodeTypes.Status[] statusEventCurrent =
                 new TimingNodeTypes.Status[1];
@@ -626,11 +625,9 @@ public class TimingNodeTest {
             node.open(new LocationId(24));
 
             assertEquals(
-                    TimingNodeTypes.State.OPEN,
+                    TimingNodeTypes.State.CLOSED,
                     timingDataEventCurrent[0].state);
-            assertEquals(
-                    new LocationId(24),
-                    timingDataEventCurrent[0].locationId);
+            assertNull(timingDataEventCurrent[0].locationId);
             assertEquals(
                     TimingNodeTypes.State.OPEN,
                     statusEventCurrent[0].state);
