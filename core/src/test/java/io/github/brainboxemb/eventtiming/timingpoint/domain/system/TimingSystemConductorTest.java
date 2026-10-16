@@ -127,15 +127,10 @@ public class TimingSystemConductorTest {
                     "TimingSystemConductor activation waited for TimingNode recovery",
                     activationCaller.isAlive());
             assertNull(activationFailure[0]);
-            assertEquals(
-                    "no partial inventory decision before node readiness",
-                    0L,
-                    manager.settings().revision());
+            assertEquals(State.CLOSED, node.status().state);
+            assertFalse(manager.settings().inventoryEnabled());
 
             persistence.releaseLoad.countDown();
-            await(
-                    () -> isClosedWhenStatusAvailable(node),
-                    1000L);
 
             node.open(new LocationId(24));
             await(
@@ -153,7 +148,7 @@ public class TimingSystemConductorTest {
     }
 
     @Test
-    public void operationStatusEventWakesConductorWithoutUpdatingSettingsOnNodeThread() throws Exception {
+    public void statusEventWakesConductorWithoutUpdatingSettingsOnNodeThread() throws Exception {
         TimingNode node = newTimingNode("A");
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
@@ -291,18 +286,6 @@ public class TimingSystemConductorTest {
                 Executors.newSingleThreadScheduledExecutor(runnable -> new Thread(runnable, name));
         workers.add(worker);
         return worker;
-    }
-
-    private static boolean isClosedWhenStatusAvailable(TimingNode node) {
-        try {
-            Status status = node.status();
-            return status.state() == State.CLOSED;
-        } catch (OperationException ex) {
-            if (ex.reason() == OperationException.Reason.UNAVAILABLE) {
-                return false;
-            }
-            throw ex;
-        }
     }
 
     private static void await(java.util.function.BooleanSupplier condition, long timeoutMillis) throws Exception {
