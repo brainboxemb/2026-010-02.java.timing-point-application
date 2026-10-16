@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make result-bearing TimingNode/TimingNodeProxy operation failures explicit with declared `OperationException` contracts; remove the redundant TimingNode LogBook-readiness preflight so commands naturally remain ordered behind startup recovery; and move CLOSE catch/rethrow mechanics into the shared `SafeExecute` guard while keeping timeout-specific ingress recovery in TimingNode.
+
 - Hide internal software-component lifecycle behind a shared `LifecycleComponent` base: composition registers components directly with `ComponentLifecycleManager`, while component-specific activation/deactivation hooks are protected instead of public functional API.
 
 - Simplify TimingNode status to a Java-8 immutable data carrier: `Status` is always present and contains only public final `state` and `locationId`; LogBook recovery is separate readiness/error information and never defines OPEN/CLOSED. `ErrorStatus` is independent error data.
