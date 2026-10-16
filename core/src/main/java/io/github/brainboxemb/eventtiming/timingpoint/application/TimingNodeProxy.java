@@ -113,9 +113,9 @@ public final class TimingNodeProxy {
     /**
      * Adds one custom automatic registration using the supplied effective time.
      *
-     * <p>This call blocks on the TimingNode/LogBook commit path. The caller also
-     * identifies whether the supplied time came from this node's TimeSource or
-     * was explicitly supplied by an API client.</p>
+     * <p>This call blocks until the TimingNode returns the processed operation result.
+     * The caller also identifies whether the supplied time came from this node's
+     * TimeSource or was explicitly supplied by an API client.</p>
      *
      * @throws OperationException when the node operation cannot return its normal result
      */
