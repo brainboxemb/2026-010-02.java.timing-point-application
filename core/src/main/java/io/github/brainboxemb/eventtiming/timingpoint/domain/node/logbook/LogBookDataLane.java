@@ -104,7 +104,8 @@ final class LogBookDataLane {
                 work,
                 operation,
                 "command",
-                commitWaitTimeoutMillis);
+                commitWaitTimeoutMillis,
+                true);
     }
 
     /** Submits one result-bearing ORDERED query and waits for its ordered result. */
@@ -114,7 +115,8 @@ final class LogBookDataLane {
                 work,
                 operation,
                 "query",
-                orderedQueryWaitTimeoutMillis);
+                orderedQueryWaitTimeoutMillis,
+                false);
     }
 
     /** Submits one result-bearing operation using the timeout for that operation family. */
@@ -122,7 +124,8 @@ final class LogBookDataLane {
             Callable<R> work,
             String operation,
             String operationType,
-            long timeoutMillis) {
+            long timeoutMillis,
+            boolean outcomeUnknownOnTimeout) {
 
         checkArgument(work != null, "work must not be null");
         checkArgument(operation != null && !operation.trim().isEmpty(), "operation must not be blank");
@@ -140,7 +143,12 @@ final class LogBookDataLane {
         } catch (RejectedExecutionException ex) {
             throw rejectedOperation(operation, operationType, ex);
         }
-        return await(future, operation, operationType, timeoutMillis);
+        return await(
+                future,
+                operation,
+                operationType,
+                timeoutMillis,
+                outcomeUnknownOnTimeout);
     }
 
     /** Converts Future completion into the stable LogBook operation exception contract. */
@@ -148,13 +156,30 @@ final class LogBookDataLane {
             Future<R> future,
             String operation,
             String operationType,
-            long timeoutMillis) {
+            long timeoutMillis,
+            boolean outcomeUnknownOnTimeout) {
 
         try {
             return future.get(timeoutMillis, TimeUnit.MILLISECONDS);
         } catch (TimeoutException ex) {
+            if (outcomeUnknownOnTimeout) {
+                LOG.error(
+                        "TimingNode {} LogBook {} {} failed: "
+                                + "reason=TIMEOUT, timeoutMillis={}, outcome=UNKNOWN",
+                        nodeId.value(),
+                        operationType,
+                        operation,
+                        timeoutMillis,
+                        ex);
+                throw new OperationException(
+                        OperationException.Reason.TIMEOUT,
+                        operation + " timed out after " + timeoutMillis
+                                + " ms; final TimingNode outcome is unknown",
+                        ex);
+            }
+
             LOG.error(
-                    "TimingNode {} LogBook {} {} failed: reason=TIMEOUT, timeoutMillis={}, outcome=UNKNOWN",
+                    "TimingNode {} LogBook {} {} failed: reason=TIMEOUT, timeoutMillis={}",
                     nodeId.value(),
                     operationType,
                     operation,
@@ -162,8 +187,7 @@ final class LogBookDataLane {
                     ex);
             throw new OperationException(
                     OperationException.Reason.TIMEOUT,
-                    operation + " timed out after " + timeoutMillis
-                            + " ms; final TimingNode outcome is unknown",
+                    operation + " timed out after " + timeoutMillis + " ms",
                     ex);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
