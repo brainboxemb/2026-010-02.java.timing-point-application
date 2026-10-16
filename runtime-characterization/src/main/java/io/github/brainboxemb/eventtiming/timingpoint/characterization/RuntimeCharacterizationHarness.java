@@ -21,6 +21,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServic
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServiceState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.DefaultTimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
@@ -102,6 +103,10 @@ final class RuntimeCharacterizationHarness
     private TagProcessor tagProcessor;
     private TimingNode node;
     private RuntimeMeasurementReader measurements;
+    private final ComponentLifecycleManager nodeLifecycle =
+            new ComponentLifecycleManager();
+    private final ComponentLifecycleManager antennaLifecycle =
+            new ComponentLifecycleManager();
 
     private boolean composed;
     private boolean nodeActive;
@@ -250,6 +255,8 @@ final class RuntimeCharacterizationHarness
                 node,
                 antennaManager.tagObservedEvent(
                         ANTENNA_ID));
+        nodeLifecycle.register(node);
+        antennaLifecycle.register(antennaManager);
         logBook.newDataEntryEvent()
                 .subscribe(
                         ignored ->
@@ -272,7 +279,7 @@ final class RuntimeCharacterizationHarness
         Instant startedAt =
                 Instant.now();
 
-        node.activate();
+        nodeLifecycle.activateAll();
         nodeActive = true;
         logBook.execute(
                 LogBookCommands.commitNodeOpen(
@@ -281,7 +288,7 @@ final class RuntimeCharacterizationHarness
         preloadHistory(
                 config.preloadCount());
 
-        antennaManager.activate();
+        antennaLifecycle.activateAll();
         antennaManagerActive = true;
         await(
                 antennaManager::isReady,
@@ -667,7 +674,7 @@ final class RuntimeCharacterizationHarness
 
         if (antennaManagerActive) {
             try {
-                antennaManager.deactivate();
+                antennaLifecycle.deactivateAll();
             } catch (RuntimeException | Error failure) {
                 firstFailure = failure;
             } finally {
@@ -677,7 +684,7 @@ final class RuntimeCharacterizationHarness
 
         if (nodeActive) {
             try {
-                node.deactivate();
+                nodeLifecycle.deactivateAll();
             } catch (RuntimeException | Error failure) {
                 if (firstFailure == null) {
                     firstFailure = failure;
