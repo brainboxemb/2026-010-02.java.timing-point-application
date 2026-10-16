@@ -131,9 +131,9 @@ public final class TimingNode extends LifecycleComponent {
         lifecycle.register(tagProcessor);
 
         /*
-         * LogBook publishes the durable commit fact once. TimingNode applies any
-         * operation-state effect and republishes the node-level committed-data fact
-         * before STATUS_CHANGED, keeping state/event ordering at the state owner.
+         * LogBook publishes durable TimingData facts once. TimingNode republishes
+         * those facts for node-level consumers; lifecycle status is changed only
+         * by successful TimingNode open/close operations.
          */
         LOGBOOK_TIMING_DATA_COMMITTED.bind(this, logBook.NEW_DATA_ENTRY);
         NodeService.INITIAL_TIMING_DATA.bind(nodeService, logBook.INITIAL_DATA_LOADED);
