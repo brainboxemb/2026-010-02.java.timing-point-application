@@ -32,7 +32,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  */
 public final class LogBook extends LifecycleComponent implements LogBookAccessor {
     private static final Logger LOG = LoggerFactory.getLogger(LogBook.class);
-    public static final long DEFAULT_OPERATION_TIMEOUT_MILLIS = 2000L;
+    public static final long DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS = 5000L;
+    public static final long DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS = 2000L;
 
     private final LogBookState logBookState;
     private final LogBookOperations logBookOperations;
@@ -55,9 +56,10 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     /**
      * Creates one LogBook bound to the supplied Data Lane.
      *
-     * <p>The timeout applies only when a caller explicitly waits for a
-     * result-bearing Data Lane operation. Fire-and-forget queueing uses the
-     * standard {@link SerialLane#execute(Runnable)} rejection contract.</p>
+     * <p>The commit wait timeout applies to result-bearing TimingData commands.
+     * The ordered-query wait timeout applies only to ORDERED reads. CURRENT reads
+     * do not wait on the Data Lane. Fire-and-forget queueing uses the standard
+     * {@link SerialLane#execute(Runnable)} rejection contract.</p>
      */
     public LogBook(
             NodeId timingNodeId,
@@ -67,7 +69,8 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
             MonotonicClock monotonicClock,
             LogBookMetrics metrics,
             SerialLane serialLane,
-            long operationTimeoutMillis) {
+            long commitWaitTimeoutMillis,
+            long orderedQueryWaitTimeoutMillis) {
 
         checkArgument(timingNodeId != null, "timingNodeId must not be null");
         checkArgument(timingDataPersistence != null, "timingDataPersistence must not be null");
@@ -76,7 +79,10 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         checkArgument(monotonicClock != null, "monotonicClock must not be null");
         checkArgument(metrics != null, "metrics must not be null");
         checkArgument(serialLane != null, "serialLane must not be null");
-        checkArgument(operationTimeoutMillis > 0L, "operationTimeoutMillis must be positive");
+        checkArgument(commitWaitTimeoutMillis > 0L, "commitWaitTimeoutMillis must be positive");
+        checkArgument(
+                orderedQueryWaitTimeoutMillis > 0L,
+                "orderedQueryWaitTimeoutMillis must be positive");
 
         this.logBookState = new LogBookState(timingNodeId);
         this.logBookOperations = new LogBookOperations(
@@ -86,7 +92,12 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                 timeSource,
                 monotonicClock,
                 metrics);
-        this.dataLane = new LogBookDataLane(serialLane, operationTimeoutMillis);
+        this.dataLane =
+                new LogBookDataLane(
+                        timingNodeId,
+                        serialLane,
+                        commitWaitTimeoutMillis,
+                        orderedQueryWaitTimeoutMillis);
         this.recoveryView = new LogBookRecoveryView(timingNodeId, dataLane);
         this.metrics = metrics;
         this.newDataEntry =
@@ -142,7 +153,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     public <R> R process(LogBookCommand<R> command) throws OperationException {
 
         checkArgument(command != null, "command must not be null");
-        return dataLane.submitAndWait(() -> applyCommand(command), command.name());
+        return dataLane.submitCommandAndWait(() -> applyCommand(command), command.name());
     }
 
     /**
@@ -197,7 +208,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                 if (dataLane.isExecutingOnCurrentThread()) {
                     return query.readOrdered(logBookState);
                 }
-                return dataLane.submitAndWait(() -> query.readOrdered(logBookState), query.name());
+                return dataLane.submitQueryAndWait(() -> query.readOrdered(logBookState), query.name());
             default:
                 throw new IllegalStateException("Unsupported read consistency " + consistency);
         }

@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
@@ -12,6 +13,9 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 
 /**
@@ -23,15 +27,30 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * OperationException mapping used by result-bearing Data Lane operations.</p>
  */
 final class LogBookDataLane {
+    private static final Logger LOG = LoggerFactory.getLogger(LogBookDataLane.class);
+
+    private final NodeId nodeId;
     private final SerialLane serialLane;
-    private final long operationTimeoutMillis;
+    private final long commitWaitTimeoutMillis;
+    private final long orderedQueryWaitTimeoutMillis;
 
     /** Creates the LogBook Data Lane adapter around one externally composed SerialLane. */
-    LogBookDataLane(SerialLane serialLane, long operationTimeoutMillis) {
+    LogBookDataLane(
+            NodeId nodeId,
+            SerialLane serialLane,
+            long commitWaitTimeoutMillis,
+            long orderedQueryWaitTimeoutMillis) {
+
+        checkArgument(nodeId != null, "nodeId must not be null");
         checkArgument(serialLane != null, "serialLane must not be null");
-        checkArgument(operationTimeoutMillis > 0L, "operationTimeoutMillis must be positive");
+        checkArgument(commitWaitTimeoutMillis > 0L, "commitWaitTimeoutMillis must be positive");
+        checkArgument(
+                orderedQueryWaitTimeoutMillis > 0L,
+                "orderedQueryWaitTimeoutMillis must be positive");
+        this.nodeId = nodeId;
         this.serialLane = serialLane;
-        this.operationTimeoutMillis = operationTimeoutMillis;
+        this.commitWaitTimeoutMillis = commitWaitTimeoutMillis;
+        this.orderedQueryWaitTimeoutMillis = orderedQueryWaitTimeoutMillis;
     }
 
     /**
@@ -78,8 +97,36 @@ final class LogBookDataLane {
         return serialLane.failure();
     }
 
-    /** Submits one result-bearing operation and waits for its ordered result. */
-    <R> R submitAndWait(Callable<R> work, String operation) {
+    /** Submits one result-bearing commit command and waits for its ordered result. */
+    <R> R submitCommandAndWait(Callable<R> work, String operation) {
+
+        return submitAndWait(
+                work,
+                operation,
+                "command",
+                commitWaitTimeoutMillis,
+                true);
+    }
+
+    /** Submits one result-bearing ORDERED query and waits for its ordered result. */
+    <R> R submitQueryAndWait(Callable<R> work, String operation) {
+
+        return submitAndWait(
+                work,
+                operation,
+                "query",
+                orderedQueryWaitTimeoutMillis,
+                false);
+    }
+
+    /** Submits one result-bearing operation using the timeout for that operation family. */
+    private <R> R submitAndWait(
+            Callable<R> work,
+            String operation,
+            String operationType,
+            long timeoutMillis,
+            boolean outcomeUnknownOnTimeout) {
+
         checkArgument(work != null, "work must not be null");
         checkArgument(operation != null && !operation.trim().isEmpty(), "operation must not be blank");
 
@@ -94,27 +141,73 @@ final class LogBookDataLane {
         try {
             future = serialLane.submit(work);
         } catch (RejectedExecutionException ex) {
-            throw rejectedOperation(operation, ex);
+            throw rejectedOperation(operation, operationType, ex);
         }
-        return await(future, operation);
+        return await(
+                future,
+                operation,
+                operationType,
+                timeoutMillis,
+                outcomeUnknownOnTimeout);
     }
 
     /** Converts Future completion into the stable LogBook operation exception contract. */
-    private <R> R await(Future<R> future, String operation) {
+    private <R> R await(
+            Future<R> future,
+            String operation,
+            String operationType,
+            long timeoutMillis,
+            boolean outcomeUnknownOnTimeout) {
+
         try {
-            return future.get(operationTimeoutMillis, TimeUnit.MILLISECONDS);
+            return future.get(timeoutMillis, TimeUnit.MILLISECONDS);
         } catch (TimeoutException ex) {
+            if (outcomeUnknownOnTimeout) {
+                LOG.error(
+                        "TimingNode {} LogBook {} {} failed: "
+                                + "reason=TIMEOUT, timeoutMillis={}, outcome=UNKNOWN",
+                        nodeId.value(),
+                        operationType,
+                        operation,
+                        timeoutMillis,
+                        ex);
+                throw new OperationException(
+                        OperationException.Reason.TIMEOUT,
+                        operation + " timed out after " + timeoutMillis
+                                + " ms; final TimingNode outcome is unknown",
+                        ex);
+            }
+
+            LOG.error(
+                    "TimingNode {} LogBook {} {} failed: reason=TIMEOUT, timeoutMillis={}",
+                    nodeId.value(),
+                    operationType,
+                    operation,
+                    timeoutMillis,
+                    ex);
             throw new OperationException(
                     OperationException.Reason.TIMEOUT,
-                    operation + " timed out; final TimingNode outcome is unknown",
+                    operation + " timed out after " + timeoutMillis + " ms",
                     ex);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
+            LOG.warn(
+                    "TimingNode {} LogBook {} {} failed: reason=INTERRUPTED",
+                    nodeId.value(),
+                    operationType,
+                    operation,
+                    ex);
             throw new OperationException(
                     OperationException.Reason.INTERRUPTED,
                     operation + " was interrupted while waiting for the TimingNode result",
                     ex);
         } catch (CancellationException ex) {
+            LOG.error(
+                    "TimingNode {} LogBook {} {} failed: reason=FAILED, cause=Data Lane cancellation",
+                    nodeId.value(),
+                    operationType,
+                    operation,
+                    ex);
             throw new OperationException(
                     OperationException.Reason.FAILED,
                     operation + " was cancelled because the TimingNode Data Lane failed",
@@ -122,6 +215,12 @@ final class LogBookDataLane {
         } catch (ExecutionException ex) {
             Throwable cause = ex.getCause();
             String detail = cause == null ? null : cause.getMessage();
+            LOG.error(
+                    "TimingNode {} LogBook {} {} failed: reason=FAILED, cause=Data Lane execution",
+                    nodeId.value(),
+                    operationType,
+                    operation,
+                    cause == null ? ex : cause);
             throw new OperationException(
                     OperationException.Reason.FAILED,
                     operation
@@ -133,19 +232,42 @@ final class LogBookDataLane {
 
     /** Maps lane rejection to the result-bearing LogBook operation categories. */
     private OperationException rejectedOperation(
-            String operation, RejectedExecutionException rejection) {
+            String operation,
+            String operationType,
+            RejectedExecutionException rejection) {
+
         if (serialLane.state() == SerialLane.State.FAILED) {
+            Throwable cause = serialLane.failure() == null ? rejection : serialLane.failure();
+            LOG.error(
+                    "TimingNode {} LogBook {} {} failed: reason=FAILED, cause=Data Lane failure",
+                    nodeId.value(),
+                    operationType,
+                    operation,
+                    cause);
             return new OperationException(
                     OperationException.Reason.FAILED,
                     operation + " could not run because the TimingNode Data Lane failed",
-                    serialLane.failure() == null ? rejection : serialLane.failure());
+                    cause);
         }
         if (serialLane.state() != SerialLane.State.RUNNING) {
+            LOG.warn(
+                    "TimingNode {} LogBook {} {} failed: reason=UNAVAILABLE",
+                    nodeId.value(),
+                    operationType,
+                    operation,
+                    rejection);
             return new OperationException(
                     OperationException.Reason.UNAVAILABLE,
                     operation + " could not be queued because the TimingNode Data Lane is not running",
                     rejection);
         }
+
+        LOG.warn(
+                "TimingNode {} LogBook {} {} failed: reason=BUSY",
+                nodeId.value(),
+                operationType,
+                operation,
+                rejection);
         return new OperationException(
                 OperationException.Reason.BUSY,
                 operation + " could not be queued because the TimingNode Data Lane is full",

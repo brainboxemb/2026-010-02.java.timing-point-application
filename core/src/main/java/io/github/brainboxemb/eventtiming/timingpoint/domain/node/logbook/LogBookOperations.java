@@ -286,6 +286,13 @@ final class LogBookOperations {
             metrics.recordAppendDuration(monotonicClock.nowNanos() - appendStartedNanos);
             metrics.recordAppendFailure();
             timingDataCommitFailure = ex;
+            LOG.error(
+                    "TimingData persistence failed: node={}, sequence={}, type={}, location={}",
+                    state.timingNodeId().value(),
+                    data.sequenceNumber(),
+                    timingDataType(data),
+                    data.locationId() == null ? "-" : data.locationId().value(),
+                    ex);
             throw ex;
         }
         metrics.recordAppendDuration(monotonicClock.nowNanos() - appendStartedNanos);
@@ -295,6 +302,14 @@ final class LogBookOperations {
         } catch (RuntimeException ex) {
 
             timingDataCommitFailure = ex;
+            LOG.error(
+                    "TimingData in-memory commit failed after persistence: "
+                            + "node={}, sequence={}, type={}, location={}",
+                    state.timingNodeId().value(),
+                    data.sequenceNumber(),
+                    timingDataType(data),
+                    data.locationId() == null ? "-" : data.locationId().value(),
+                    ex);
             throw ex;
         }
 
