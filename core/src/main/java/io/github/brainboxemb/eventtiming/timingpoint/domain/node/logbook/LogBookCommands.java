@@ -20,7 +20,7 @@ public final class LogBookCommands {
     private LogBookCommands() {
     }
 
-    /** Commits one NODE_OPEN history record selected by the owning TimingNode. */
+    /** Commits one NODE_OPEN TimingData record selected by the owning TimingNode. */
     public static LogBookCommand<Void> commitNodeOpen(LocationId locationId) {
 
         checkArgument(locationId != null, "locationId must not be null");
@@ -32,7 +32,7 @@ public final class LogBookCommands {
                 });
     }
 
-    /** Commits one NODE_CLOSE history record selected by the owning TimingNode. */
+    /** Commits one NODE_CLOSE TimingData record selected by the owning TimingNode. */
     public static LogBookCommand<Void> commitNodeClose(LocationId locationId) {
 
         checkArgument(locationId != null, "locationId must not be null");
