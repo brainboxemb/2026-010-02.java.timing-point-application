@@ -24,6 +24,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import java.util.Optional;
 import java.util.function.Consumer;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+
 /**
  * Presentation-facing application proxy for one TimingNode.
  *
@@ -61,9 +63,8 @@ public final class TimingNodeProxy {
     public final EventSource<TimingData> NEW_DATA_ENTRY;
 
     TimingNodeProxy(TimingNode timingNode) {
-        if (timingNode == null) {
-            throw new IllegalArgumentException("timingNode must not be null");
-        }
+
+        checkArgument(timingNode != null, "timingNode must not be null");
         this.timingNodeId = timingNode.timingNodeId();
         this.timingNode = timingNode;
         this.logBook = timingNode.logBook();
@@ -140,18 +141,10 @@ public final class TimingNodeProxy {
             TimingTimestamp effectiveTime,
             ManualTimeSource timeSource)
             throws OperationException {
-        if (registrationId == null) {
-            throw new IllegalArgumentException(
-                    "registrationId must not be null");
-        }
-        if (effectiveTime == null) {
-            throw new IllegalArgumentException(
-                    "effectiveTime must not be null");
-        }
-        if (timeSource == null) {
-            throw new IllegalArgumentException(
-                    "timeSource must not be null");
-        }
+
+        checkArgument(registrationId != null, "registrationId must not be null");
+        checkArgument(effectiveTime != null, "effectiveTime must not be null");
+        checkArgument(timeSource != null, "timeSource must not be null");
         return timingNode.addManualRegistration(
                 registrationId,
                 effectiveTime,
@@ -175,39 +168,22 @@ public final class TimingNodeProxy {
             TimingTimestamp originalTime,
             ManualTimeSource originalTimeSource)
             throws OperationException {
-        if (recordType == null) {
-            throw new IllegalArgumentException(
-                    "recordType must not be null");
-        }
-        if (originalLocationId == null) {
-            throw new IllegalArgumentException(
-                    "originalLocationId must not be null");
-        }
-        if (registrationId == null) {
-            throw new IllegalArgumentException(
-                    "registrationId must not be null");
-        }
-        if (originalTime == null) {
-            throw new IllegalArgumentException(
-                    "originalTime must not be null");
-        }
+
+        checkArgument(recordType != null, "recordType must not be null");
+        checkArgument(originalLocationId != null, "originalLocationId must not be null");
+        checkArgument(registrationId != null, "registrationId must not be null");
+        checkArgument(originalTime != null, "originalTime must not be null");
 
         switch (recordType) {
             case AUTO_REG:
-                if (originalTimeSource != null) {
-                    throw new IllegalArgumentException(
-                            "AUTO_REG revoke must not carry originalTimeSource");
-                }
+                checkArgument(originalTimeSource == null, "AUTO_REG revoke must not carry originalTimeSource");
                 return logBook.process(
                         LogBookCommands.revokeAutomaticRegistration(
                                 originalLocationId,
                                 registrationId,
                                 originalTime));
             case MAN_REG:
-                if (originalTimeSource == null) {
-                    throw new IllegalArgumentException(
-                            "MAN_REG revoke requires originalTimeSource");
-                }
+                checkArgument(originalTimeSource != null, "MAN_REG revoke requires originalTimeSource");
                 return logBook.process(
                         LogBookCommands.revokeManualRegistration(
                                 originalLocationId,
