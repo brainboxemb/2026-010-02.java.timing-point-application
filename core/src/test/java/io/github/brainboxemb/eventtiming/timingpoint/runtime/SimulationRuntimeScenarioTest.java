@@ -80,7 +80,7 @@ public class SimulationRuntimeScenarioTest {
         application
                 .presentationGateway()
                 .timingNode(new NodeId("A"))
-                .newDataEntryEvent()
+                .NEW_DATA_ENTRY
                 .subscribe(
                         data -> {
                             if (data instanceof AutomaticRegistration) {
@@ -213,7 +213,7 @@ public class SimulationRuntimeScenarioTest {
         application
                 .presentationGateway()
                 .timingNode(new NodeId("A"))
-                .newDataEntryEvent()
+                .NEW_DATA_ENTRY
                 .subscribe(
                         data -> {
                             if (data instanceof AutomaticRegistration) {
