@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Separate TimingNode operation and error status completely: remove the `NodeStatus` union, keep `OperationStatus` as OPEN/CLOSED + LocationId and `ErrorStatus` as independent error details, with separate getters/events; node identity remains with the owning TimingNode/TimingNodeProxy context.
+- Simplify TimingNode status to a Java-8 immutable data carrier: `Status` is always present and contains only public final `state` and `locationId`; LogBook recovery is separate readiness/error information and never defines OPEN/CLOSED. `ErrorStatus` is independent error data.
 
 - Simplify TimingNode operation-state handling: OPEN/CLOSED and current LocationId remain TimingNode-owned transient runtime state, restart recovery intentionally starts CLOSED without reconstructing historical state, and one normal LogBook `NEW_DATA_ENTRY` fact enters TimingNode, which updates operation state, republishes `TIMING_DATA_COMMITTED`, then publishes `STATUS_CHANGED`; remove the two LogBook-specific before/after sequencing events.
 
