@@ -4,6 +4,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -11,16 +12,17 @@ import java.util.Objects;
  * Owns related current properties and publishes changed properties through the
  * normal local event mechanism.
  *
- * <p>An owner stages one or more values, commits them together and publishes only
- * after the complete update is current. Consumers observe {@link #CHANGED}; no
- * separate property callback mechanism is introduced.</p>
+ * <p>An owner stages one or more values, commits them together and publishes one
+ * event only after the complete update is current. The event carries the list of
+ * properties that changed. Consumers observe {@link #CHANGED}; no separate property
+ * callback mechanism is introduced.</p>
  */
 public final class PropertyContainer {
     private final List<Property<?>> properties = new ArrayList<Property<?>>();
-    private final Event<Property<?>> changedEvent = new Event<Property<?>>();
+    private final Event<List<Property<?>>> changedEvent = new Event<List<Property<?>>>();
 
-    /** Changed property source for this container. */
-    public final EventSource<Property<?>> CHANGED = changedEvent;
+    /** One post-commit change source containing all properties changed by that update. */
+    public final EventSource<List<Property<?>>> CHANGED = changedEvent;
 
     /** Creates one property owned by this container. Property names are unique per container. */
     public synchronized <T> Property<T> property(String name, T initialValue) {
@@ -45,9 +47,14 @@ public final class PropertyContainer {
         return new Update(this);
     }
 
-    /** Publishes one already committed property change. */
-    private void publish(Property<?> property) {
-        changedEvent.emit(property);
+    /** Publishes one immutable list for the complete committed update. */
+    private void publish(List<Property<?>> changed) {
+        if (changed.isEmpty()) {
+            return;
+        }
+        changedEvent.emit(
+                Collections.unmodifiableList(
+                        new ArrayList<Property<?>>(changed)));
     }
 
     /**
@@ -106,7 +113,7 @@ public final class PropertyContainer {
             committed = true;
         }
 
-        /** Publishes each changed property after the complete update has been committed. */
+        /** Publishes one event containing all changed properties after the complete commit. */
         public void publish() {
             if (!committed) {
                 throw new IllegalStateException("property update must be committed before publish");
@@ -116,9 +123,7 @@ public final class PropertyContainer {
             }
 
             published = true;
-            for (Property<?> property : changed) {
-                owner.publish(property);
-            }
+            owner.publish(changed);
         }
     }
 
