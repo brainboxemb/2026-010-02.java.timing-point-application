@@ -49,7 +49,10 @@ public class AntennaManagerTest {
                 Duration.ofSeconds(1));
 
         try {
-            manager.settings().update(edit -> edit.inventoryEnabled(true));
+            manager.settings().update(
+                    edit -> edit.set(
+                            AntennaSettings.INVENTORY_ENABLED,
+                            Boolean.TRUE));
             assertFalse(antenna.inventoryRunning());
 
             activate(manager);
@@ -424,8 +427,9 @@ public class AntennaManagerTest {
             antenna.setFailurePoint(
                     SimulatedAntenna.FailurePoint.START_INVENTORY);
             manager.settings().update(
-                    edit -> edit.inventoryEnabled(
-                            true));
+                    edit -> edit.set(
+                            AntennaSettings.INVENTORY_ENABLED,
+                            Boolean.TRUE));
 
             awaitCondition(
                     () -> manager.status(new AntennaId("1")).failure() != null,
