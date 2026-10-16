@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Simplify TimingNode operation-state handling: OPEN/CLOSED and current LocationId remain TimingNode-owned transient runtime state, restart recovery intentionally starts CLOSED without reconstructing historical state, and the normal LogBook `NEW_DATA_ENTRY` fact now updates that state; remove the two LogBook-specific before/after operation-state sequencing events.
+- Simplify TimingNode operation-state handling: OPEN/CLOSED and current LocationId remain TimingNode-owned transient runtime state, restart recovery intentionally starts CLOSED without reconstructing historical state, and one normal LogBook `NEW_DATA_ENTRY` fact enters TimingNode, which updates operation state, republishes `TIMING_DATA_COMMITTED`, then publishes `STATUS_CHANGED`; remove the two LogBook-specific before/after sequencing events.
 
 - Expose concrete LogBook events as named `EventSource` ports so fixed composition wiring uses the same `INPUT.bind(component, SOURCE)` form as TagProcessor and other components; keep getter methods only where `LogBookAccessor` requires method dispatch.
 
