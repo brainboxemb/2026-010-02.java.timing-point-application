@@ -93,7 +93,8 @@ public class RuntimeMeasurementReaderTest {
                         SystemMonotonicClock.INSTANCE,
                         logBookMetrics,
                         dataLane,
-                        LogBook.DEFAULT_OPERATION_TIMEOUT_MILLIS);
+                        LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
+                        LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
         NodeService nodeService =
                 new NodeService(new NodeId("A"), taskLane, new NodeServiceState(eventData));
         TagProcessor tags =
