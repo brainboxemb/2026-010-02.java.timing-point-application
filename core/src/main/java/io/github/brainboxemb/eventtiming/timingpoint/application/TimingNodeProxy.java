@@ -51,13 +51,6 @@ public final class TimingNodeProxy {
                             (proxy, source) ->
                                     source.subscribe(ignored -> proxy.publishStatus()));
 
-    /** Operational-problem input mapped to the presentation status read model. */
-    private static final EventInput<TimingNodeProxy, OperationalProblem>
-            OPERATIONAL_PROBLEM_CHANGED =
-                    EventInput.of(
-                            (proxy, source) ->
-                                    source.subscribe(ignored -> proxy.publishStatus()));
-
     /** Registration record family supplied by a higher interpreting layer. */
     public enum RegistrationRecordType {
         AUTO_REG,
@@ -90,7 +83,6 @@ public final class TimingNodeProxy {
         this.NEW_DATA_ENTRY = timingNode.TIMING_DATA_COMMITTED;
         FUNCTIONAL_STATE_CHANGED.bind(this, timingNode.FUNCTIONAL_STATE_CHANGED);
         OPERATIONAL_STATE_CHANGED.bind(this, timingNode.OPERATIONAL_STATE_CHANGED);
-        OPERATIONAL_PROBLEM_CHANGED.bind(this, timingNode.OPERATIONAL_PROBLEM_CHANGED);
     }
 
     /** Returns this node's ID. */
