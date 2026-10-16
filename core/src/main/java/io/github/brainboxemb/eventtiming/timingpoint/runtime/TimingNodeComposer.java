@@ -71,8 +71,8 @@ final class TimingNodeComposer {
                         monotonicClock,
                         new LogBookMetrics(),
                         execution.dataLane(),
-                        LogBook.DEFAULT_COMMIT_TIMEOUT_MILLIS,
-                        LogBook.DEFAULT_ORDERED_QUERY_TIMEOUT_MILLIS);
+                        LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
+                        LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
 
         NodeServiceState nodeServiceState = new NodeServiceState(system.eventData());
 
