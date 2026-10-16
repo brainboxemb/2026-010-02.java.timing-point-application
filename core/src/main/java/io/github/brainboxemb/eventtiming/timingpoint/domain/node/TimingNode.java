@@ -413,8 +413,7 @@ public final class TimingNode extends LifecycleComponent {
             LocationId newLocationId,
             LogBookCommand<?> historyCommand) {
 
-        final RejectedExecutionException[] rejection =
-                new RejectedExecutionException[1];
+        final boolean historyQueued;
         synchronized (stateLock) {
             /*
              * Publish location before functional state. A reader that observes
@@ -425,19 +424,21 @@ public final class TimingNode extends LifecycleComponent {
             functionalState = state;
 
             Runnable queueHistory = () -> logBook.execute(historyCommand);
-            SafeExecute.runOrHandleRejection(
+            historyQueued = SafeExecute.runOrHandleRejection(
                     queueHistory,
-                    ex -> rejection[0] = ex);
+                    ex -> logLogBookQueueRejection(
+                            "lifecycle history",
+                            ex));
         }
 
         functionalStateChangedEvent.emit(state);
-        if (rejection[0] != null) {
-            onLogBookQueueRejected("lifecycle history", rejection[0]);
+        if (!historyQueued) {
+            setLogBookUnavailable("lifecycle history");
         }
     }
 
-    /** Records inability to queue required LogBook work as operational ERROR. */
-    private void onLogBookQueueRejected(
+    /** Logs one rejected LogBook queue operation. */
+    private void logLogBookQueueRejection(
             String operation,
             RejectedExecutionException failure) {
 
@@ -446,6 +447,11 @@ public final class TimingNode extends LifecycleComponent {
                 operation,
                 timingNodeId.value(),
                 failure);
+    }
+
+    /** Records unavailable required LogBook work as operational ERROR. */
+    private void setLogBookUnavailable(String operation) {
+
         setOperationalError(
                 new OperationalProblem(
                         ErrorCode.LOGBOOK_UNAVAILABLE,
@@ -507,8 +513,10 @@ public final class TimingNode extends LifecycleComponent {
      */
     private void onNewRegistration(TagProcessor.NewRegistration registration) {
 
-        final RejectedExecutionException[] rejection =
-                new RejectedExecutionException[1];
+        String operation =
+                "Automatic registration "
+                        + registration.registrationId().value();
+        final boolean registrationQueued;
         synchronized (stateLock) {
             if (functionalState != FunctionalState.OPEN) {
                 return;
@@ -520,16 +528,13 @@ public final class TimingNode extends LifecycleComponent {
                     registration.observedAt());
 
             Runnable queueRegistration = () -> logBook.execute(command);
-            SafeExecute.runOrHandleRejection(
+            registrationQueued = SafeExecute.runOrHandleRejection(
                     queueRegistration,
-                    ex -> rejection[0] = ex);
+                    ex -> logLogBookQueueRejection(operation, ex));
         }
 
-        if (rejection[0] != null) {
-            onLogBookQueueRejected(
-                    "Automatic registration "
-                            + registration.registrationId().value(),
-                    rejection[0]);
+        if (!registrationQueued) {
+            setLogBookUnavailable(operation);
         }
     }
 
