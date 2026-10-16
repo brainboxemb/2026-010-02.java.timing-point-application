@@ -56,9 +56,6 @@ public final class MessageWriter {
             }
             firstNode = false;
 
-            String state = status.error()
-                    ? "ERROR"
-                    : status.state().name();
             String location = status.hasLocation()
                     ? Integer.toString(status.locationId().value())
                     : "null";
@@ -69,11 +66,14 @@ public final class MessageWriter {
                     .append("\"locationId\":")
                     .append(location)
                     .append(',')
-                    .append("\"state\":")
-                    .append(quote(state))
+                    .append("\"functionalState\":")
+                    .append(quote(status.functionalState().name()))
+                    .append(',')
+                    .append("\"operationalState\":")
+                    .append(quote(status.operationalState().name()))
                     .append('}');
 
-            if (status.error()) {
+            if (status.hasProblem()) {
                 if (!firstProblem) {
                     problems.append(',');
                 }
