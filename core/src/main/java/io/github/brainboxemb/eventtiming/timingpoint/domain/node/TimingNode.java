@@ -218,7 +218,7 @@ public final class TimingNode extends LifecycleComponent {
                  * gate, a TagProcessor callback could queue another registration
                  * behind the close command while the close caller is still waiting.
                  */
-                disableRegistrations();
+                blockAntennaRegistrationIngressForClose();
 
                 Runnable commitClose =
                         () -> logBook.process(
@@ -405,7 +405,7 @@ public final class TimingNode extends LifecycleComponent {
      * <p>This is an ingress gate, not a third TimingNode lifecycle state. The
      * authoritative node state remains OPEN until NODE_CLOSE is committed.</p>
      */
-    private void disableRegistrations() {
+    private void blockAntennaRegistrationIngressForClose() {
 
         synchronized (stateLock) {
             registrationsEnabled = false;
