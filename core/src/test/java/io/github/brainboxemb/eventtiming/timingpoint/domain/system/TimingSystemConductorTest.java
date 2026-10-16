@@ -7,8 +7,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.NodeStatus;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
@@ -129,15 +127,10 @@ public class TimingSystemConductorTest {
                     "TimingSystemConductor activation waited for TimingNode recovery",
                     activationCaller.isAlive());
             assertNull(activationFailure[0]);
-            assertEquals(
-                    "no partial inventory decision before node readiness",
-                    0L,
-                    manager.settings().revision());
+            assertEquals(State.CLOSED, node.status().state);
+            assertFalse(manager.settings().inventoryEnabled());
 
             persistence.releaseLoad.countDown();
-            await(
-                    () -> isClosedWhenStatusAvailable(node),
-                    1000L);
 
             node.open(new LocationId(24));
             await(
@@ -293,19 +286,6 @@ public class TimingSystemConductorTest {
                 Executors.newSingleThreadScheduledExecutor(runnable -> new Thread(runnable, name));
         workers.add(worker);
         return worker;
-    }
-
-    private static boolean isClosedWhenStatusAvailable(TimingNode node) {
-        try {
-            NodeStatus status = node.status();
-            return status instanceof Status
-                    && ((Status) status).state() == State.CLOSED;
-        } catch (OperationException ex) {
-            if (ex.reason() == OperationException.Reason.UNAVAILABLE) {
-                return false;
-            }
-            throw ex;
-        }
     }
 
     private static void await(java.util.function.BooleanSupplier condition, long timeoutMillis) throws Exception {

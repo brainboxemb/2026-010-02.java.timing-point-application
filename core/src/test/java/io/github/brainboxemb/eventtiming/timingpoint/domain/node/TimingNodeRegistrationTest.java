@@ -533,9 +533,9 @@ public class TimingNodeRegistrationTest {
 
         node.activate();
         try {
-            TimingNodeTypes.Status status = (TimingNodeTypes.Status) node.status();
-            assertEquals(TimingNodeTypes.State.CLOSED, status.state());
-            assertFalse(status.hasLocation());
+            TimingNodeTypes.Status status = node.status();
+            assertEquals(TimingNodeTypes.State.CLOSED, status.state);
+            assertFalse(status.locationId != null);
             assertFalse(
                     node.logBook().process(LogBookQueries.recoveryStatus())
                             .repairedIncompleteTail());
@@ -581,13 +581,15 @@ public class TimingNodeRegistrationTest {
 
         node.activate();
         try {
-            assertTrue(node.status() instanceof TimingNodeTypes.ErrorStatus);
-            TimingNodeTypes.ErrorStatus status =
-                    (TimingNodeTypes.ErrorStatus) node.status();
+            assertEquals(
+                    TimingNodeTypes.State.CLOSED,
+                    node.status().state);
+            assertTrue(node.errorStatus().isPresent());
+            TimingNodeTypes.ErrorStatus status = node.errorStatus().get();
             assertEquals(
                     TimingNodeTypes.ErrorCode.TIMING_DATA_LOAD_FAILED,
-                    status.code());
-            assertTrue(status.message().contains(
+                    status.code);
+            assertTrue(status.message.contains(
                     "expected persisted-data load failure"));
 
             try {

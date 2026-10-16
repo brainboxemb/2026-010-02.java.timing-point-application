@@ -27,6 +27,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Optional;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Consumer;
 
@@ -35,7 +36,6 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ErrorCode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ErrorStatus;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.NodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
@@ -47,10 +47,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
  *
  * <p>It owns the node's OPEN/CLOSED operation state and current LocationId and
  * coordinates its LogBook, NodeService and TagProcessor. That operation state is
- * transient runtime state: after a process restart, successful LogBook recovery
- * starts the node CLOSED without a LocationId. Persisted NODE_OPEN/NODE_CLOSE
- * history is deliberately not replayed here to reconstruct operation state; a
- * future persistent/reconstructed state model is a separate architecture choice.</p>
+ * transient runtime state: a new/restarted node starts CLOSED without a LocationId.
+ * LogBook recovery is independent and persisted NODE_OPEN/NODE_CLOSE history is
+ * deliberately not replayed to reconstruct this status. A future persistent or
+ * reconstructed status model is a separate architecture choice.</p>
  */
 public final class TimingNode {
     private static final Logger LOG = LoggerFactory.getLogger(TimingNode.class);
@@ -61,12 +61,20 @@ public final class TimingNode {
     private final TagProcessor tagProcessor;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
     private final Event<TimingData> timingDataCommitted = new Event<TimingData>();
-    private final Event<NodeStatus> statusChanged = new Event<NodeStatus>();
+    private final Event<Status> statusChanged = new Event<Status>();
+    private final Event<ErrorStatus> errorStatusChanged = new Event<ErrorStatus>();
     private final Object operationLock = new Object();
     private final Object stateLock = new Object();
 
-    /** Current node status; null until LogBook recovery completes. */
-    private volatile NodeStatus currentStatus;
+    /** Current transient node status; independent from LogBook recovery state. */
+    private volatile Status currentStatus = new Status(State.CLOSED, null);
+
+    /** Latest LogBook startup-recovery result; separate from TimingNode Status. */
+    private volatile LogBookRecoveryStatus currentRecoveryStatus;
+
+    /** Current error status, or null when no TimingNode error is active. */
+    private volatile ErrorStatus currentErrorStatus;
+
     private boolean registrationsEnabled;
 
     /** Antenna observation input; internally consumed by the TagProcessor. */
@@ -74,7 +82,7 @@ public final class TimingNode {
             EventInput.of(
                     (node, source) -> source.subscribe(node.tagProcessor::onTagObserved));
 
-    /** LogBook startup-recovery input used to initialize the node's current status. */
+    /** LogBook startup-recovery input used only to track readiness/failure. */
     private static final EventInput<TimingNode, LogBookRecoveryStatus> LOGBOOK_RECOVERY_STATUS =
             EventInput.of(
                     (node, source) -> source.subscribe(node::onLogBookRecoveryCompleted));
@@ -92,18 +100,16 @@ public final class TimingNode {
     /**
      * Committed TimingData source at the TimingNode boundary.
      *
-     * <p>For NODE_OPEN/NODE_CLOSE the current operation state is already updated
+     * <p>For NODE_OPEN/NODE_CLOSE the current status is already updated
      * when this event is delivered. STATUS_CHANGED follows afterwards.</p>
      */
     public final EventSource<TimingData> TIMING_DATA_COMMITTED = timingDataCommitted;
 
-    /**
-     * Status-change source for this TimingNode.
-     *
-     * <p>Listeners are invoked synchronously on the thread that publishes the change
-     * and must return quickly.</p>
-     */
-    public final EventSource<NodeStatus> STATUS_CHANGED = statusChanged;
+    /** OPEN/CLOSED operation-status changes for this TimingNode. */
+    public final EventSource<Status> STATUS_CHANGED = statusChanged;
+
+    /** TimingNode error-status changes. */
+    public final EventSource<ErrorStatus> ERROR_STATUS_CHANGED = errorStatusChanged;
 
     /** Creates one TimingNode with its clock and child components. */
     public TimingNode(
@@ -160,26 +166,16 @@ public final class TimingNode {
         return timeSource;
     }
 
-    /**
-     * Returns the current node status without waiting for queued Data Lane work.
-     *
-     * <p>Before startup recovery completes, this may report the status as unavailable.</p>
-     */
-    public NodeStatus status() {
+    /** Returns the current transient OPEN/CLOSED status. */
+    public Status status() {
 
-        NodeStatus status = currentStatus;
-        if (status != null) {
-            return status;
-        }
+        return currentStatus;
+    }
 
-        /*
-         * Before the recovery event reaches this component, preserve the
-         * LogBook availability/failure semantics for a direct status query.
-         */
-        return statusFromRecovery(
-                logBook.process(
-                        LogBookQueries.recoveryStatus(),
-                        ReadConsistency.CURRENT));
+    /** Returns the current TimingNode error, if one is active. */
+    public Optional<ErrorStatus> errorStatus() {
+
+        return Optional.ofNullable(currentErrorStatus);
     }
 
     /**
@@ -191,8 +187,9 @@ public final class TimingNode {
 
         checkArgument(locationId != null, "locationId must not be null");
         synchronized (operationLock) {
-            Status status = requireOperationalStatus();
-            if (status.state() == State.OPEN) {
+            requireLogBookReady();
+            Status status = currentStatus;
+            if (status.state == State.OPEN) {
                 return OpenResult.ALREADY_OPEN;
             }
 
@@ -209,14 +206,15 @@ public final class TimingNode {
     public CloseResult close() {
 
         synchronized (operationLock) {
-            Status status = requireOperationalStatus();
-            if (status.state() == State.CLOSED) {
+            requireLogBookReady();
+            Status status = currentStatus;
+            if (status.state == State.CLOSED) {
                 return CloseResult.ALREADY_CLOSED;
             }
 
             disableRegistrations();
             try {
-                logBook.process(LogBookCommands.commitNodeClose(status.locationId()));
+                logBook.process(LogBookCommands.commitNodeClose(status.locationId));
             } catch (OperationException ex) {
                 if (ex.reason() != OperationException.Reason.TIMEOUT) {
                     enableRegistrationsFor(status);
@@ -249,13 +247,14 @@ public final class TimingNode {
                 "custom automatic registration time source must be API or NODE");
 
         synchronized (operationLock) {
-            Status status = requireOperationalStatus();
-            if (status.state() != State.OPEN) {
+            requireLogBookReady();
+            Status status = currentStatus;
+            if (status.state != State.OPEN) {
                 return RegistrationResult.nodeNotOpen();
             }
             return logBook.process(
                     LogBookCommands.commitAutomaticRegistration(
-                            status.locationId(),
+                            status.locationId,
                             registrationId,
                             effectiveTime,
                             TimingData.TagSource.API,
@@ -275,13 +274,14 @@ public final class TimingNode {
             ManualTimeSource registrationTimeSource) {
 
         synchronized (operationLock) {
-            Status status = requireOperationalStatus();
-            if (status.state() != State.OPEN) {
+            requireLogBookReady();
+            Status status = currentStatus;
+            if (status.state != State.OPEN) {
                 return RegistrationResult.nodeNotOpen();
             }
             return logBook.process(
                     LogBookCommands.commitManualRegistration(
-                            status.locationId(),
+                            status.locationId,
                             registrationId,
                             effectiveTime,
                             registrationTimeSource));
@@ -315,7 +315,9 @@ public final class TimingNode {
 
         lifecycle.deactivateAll();
         synchronized (stateLock) {
-            currentStatus = null;
+            currentStatus = new Status(State.CLOSED, null);
+            currentRecoveryStatus = null;
+            currentErrorStatus = null;
             registrationsEnabled = false;
         }
     }
@@ -330,21 +332,17 @@ public final class TimingNode {
      */
     private void onTimingDataCommitted(TimingData timingData) {
 
-        boolean operationStateChanged = false;
-        if (currentStatus instanceof Status) {
-            if (timingData instanceof TimingData.NodeOpen) {
-                setStatus(new Status(
-                        timingNodeId,
-                        State.OPEN,
-                        timingData.locationId()));
-                operationStateChanged = true;
-            } else if (timingData instanceof TimingData.NodeClose) {
-                setStatus(new Status(
-                        timingNodeId,
-                        State.CLOSED,
-                        timingData.locationId()));
-                operationStateChanged = true;
-            }
+        Status changedStatus = null;
+        if (timingData instanceof TimingData.NodeOpen) {
+            changedStatus = new Status(
+                    State.OPEN,
+                    timingData.locationId());
+            setStatus(changedStatus);
+        } else if (timingData instanceof TimingData.NodeClose) {
+            changedStatus = new Status(
+                    State.CLOSED,
+                    timingData.locationId());
+            setStatus(changedStatus);
         }
 
         /*
@@ -353,81 +351,71 @@ public final class TimingNode {
          */
         timingDataCommitted.emit(timingData);
 
-        if (operationStateChanged) {
-            statusChanged.emit(currentStatus);
+        if (changedStatus != null) {
+            statusChanged.emit(changedStatus);
         }
     }
 
     /**
-     * Applies LogBook readiness/failure to the initial runtime status.
+     * Records LogBook recovery failure separately from TimingNode status.
      *
-     * <p>Successful recovery does not reconstruct operation state from history.</p>
+     * <p>Recovery never changes OPEN/CLOSED or LocationId.</p>
      */
     private void onLogBookRecoveryCompleted(LogBookRecoveryStatus recoveryStatus) {
 
-        publishStatus(statusFromRecovery(recoveryStatus));
-    }
+        ErrorStatus error = recoveryStatus.failed()
+                ? new ErrorStatus(
+                        ErrorCode.TIMING_DATA_LOAD_FAILED,
+                        recoveryStatus.failureMessage())
+                : null;
 
-    /** Builds the transient post-restart status: CLOSED/no location after successful recovery. */
-    private NodeStatus statusFromRecovery(LogBookRecoveryStatus recoveryStatus) {
-
-        if (recoveryStatus.failed()) {
-            return new ErrorStatus(
-                    timingNodeId,
-                    ErrorCode.TIMING_DATA_LOAD_FAILED,
-                    recoveryStatus.failureMessage());
+        currentRecoveryStatus = recoveryStatus;
+        currentErrorStatus = error;
+        if (error != null) {
+            errorStatusChanged.emit(error);
         }
-        return new Status(
-                timingNodeId,
-                State.CLOSED,
-                null);
     }
 
     /**
-     * Returns operational status for a state-changing operation.
+     * Ensures LogBook startup recovery completed successfully before a persistence command.
      *
-     * <p>When startup recovery is still queued, the first state-changing call
-     * waits for that ordered LogBook recovery result. Plain {@link #status()}
-     * remains a non-waiting CURRENT read.</p>
+     * <p>This readiness check is independent from TimingNode OPEN/CLOSED status.</p>
      */
-    private Status requireOperationalStatus() {
+    private void requireLogBookReady() {
 
-        NodeStatus nodeStatus = currentStatus;
-        if (nodeStatus == null) {
-            LogBookRecoveryStatus recoveryStatus =
+        LogBookRecoveryStatus recoveryStatus = currentRecoveryStatus;
+        if (recoveryStatus == null) {
+            recoveryStatus =
                     logBook.process(
                             LogBookQueries.recoveryStatus(),
                             ReadConsistency.ORDERED);
-            nodeStatus = currentStatus;
-            if (nodeStatus == null) {
-                nodeStatus = statusFromRecovery(recoveryStatus);
-                publishStatus(nodeStatus);
-            }
+            currentRecoveryStatus = recoveryStatus;
         }
 
-        if (nodeStatus instanceof ErrorStatus) {
-            throw new OperationException(
-                    OperationException.Reason.FAILED,
-                    ((ErrorStatus) nodeStatus).message());
+        if (!recoveryStatus.failed()) {
+            return;
         }
-        return (Status) nodeStatus;
+
+        ErrorStatus error = currentErrorStatus;
+        if (error == null) {
+            error = new ErrorStatus(
+                    ErrorCode.TIMING_DATA_LOAD_FAILED,
+                    recoveryStatus.failureMessage());
+            currentErrorStatus = error;
+            errorStatusChanged.emit(error);
+        }
+        throw new OperationException(
+                OperationException.Reason.FAILED,
+                error.message);
     }
 
-    /** Stores one new immutable node-state snapshot. */
-    private void setStatus(NodeStatus status) {
+    /** Stores one new immutable status snapshot. */
+    private void setStatus(Status status) {
 
         synchronized (stateLock) {
             currentStatus = status;
-            registrationsEnabled = status instanceof Status
-                    && ((Status) status).state() == State.OPEN;
+            registrationsEnabled = status.state == State.OPEN;
         }
-    }
-
-    /** Stores and publishes one new immutable node-state snapshot. */
-    private void publishStatus(NodeStatus status) {
-
-        setStatus(status);
-        statusChanged.emit(status);
     }
 
     /** Stops new antenna registrations before a close record is committed. */
@@ -442,7 +430,7 @@ public final class TimingNode {
     private void enableRegistrationsFor(Status status) {
 
         synchronized (stateLock) {
-            registrationsEnabled = status.state() == State.OPEN;
+            registrationsEnabled = status.state == State.OPEN;
         }
     }
 
@@ -455,17 +443,13 @@ public final class TimingNode {
     private void onNewRegistration(TagProcessor.NewRegistration registration) {
 
         synchronized (stateLock) {
-            NodeStatus nodeStatus = currentStatus;
-            if (!registrationsEnabled || !(nodeStatus instanceof Status)) {
-                return;
-            }
-            Status status = (Status) nodeStatus;
-            if (status.state() != State.OPEN) {
+            Status status = currentStatus;
+            if (!registrationsEnabled || status.state != State.OPEN) {
                 return;
             }
 
             LogBookCommand<?> command = LogBookCommands.commitAntennaRegistration(
-                    status.locationId(),
+                    status.locationId,
                     registration.registrationId(),
                     registration.observedAt());
 

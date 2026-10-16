@@ -2,7 +2,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
@@ -27,44 +26,22 @@ public final class TimingNodeTypes {
         OPEN
     }
 
-    /** Status returned by TimingNode: either {@link Status} or {@link ErrorStatus}. */
-    public interface NodeStatus {
-        /** Returns the node ID. */
-        NodeId timingNodeId();
-    }
-
     /** Error categories reported by {@link ErrorStatus}. */
     public enum ErrorCode {
         /** Existing persisted TimingData could not be loaded or validated at startup. */
         TIMING_DATA_LOAD_FAILED
     }
 
-    /** TimingNode failure status. */
-    public static final class ErrorStatus implements NodeStatus {
-        private final NodeId timingNodeId;
-        private final ErrorCode code;
-        private final String message;
+    /** Immutable TimingNode error data. */
+    public static final class ErrorStatus {
+        public final ErrorCode code;
+        public final String message;
 
-        public ErrorStatus(NodeId timingNodeId, ErrorCode code, String message) {
-            checkArgument(timingNodeId != null, "timingNodeId must not be null");
+        public ErrorStatus(ErrorCode code, String message) {
             checkArgument(code != null, "code must not be null");
             checkArgument(message != null && !message.trim().isEmpty(), "message must not be blank");
-            this.timingNodeId = timingNodeId;
             this.code = code;
             this.message = message.trim();
-        }
-
-        @Override
-        public NodeId timingNodeId() {
-            return timingNodeId;
-        }
-
-        public ErrorCode code() {
-            return code;
-        }
-
-        public String message() {
-            return message;
         }
 
         @Override
@@ -72,15 +49,13 @@ public final class TimingNodeTypes {
             if (this == other) return true;
             if (!(other instanceof ErrorStatus)) return false;
             ErrorStatus that = (ErrorStatus) other;
-            return timingNodeId.equals(that.timingNodeId)
-                    && code == that.code
+            return code == that.code
                     && message.equals(that.message);
         }
 
         @Override
         public int hashCode() {
-            int result = timingNodeId.hashCode();
-            result = 31 * result + code.hashCode();
+            int result = code.hashCode();
             result = 31 * result + message.hashCode();
             return result;
         }
@@ -162,39 +137,19 @@ public final class TimingNodeTypes {
     }
 
     /**
-     * OPEN/CLOSED status reported by TimingNode.
+     * Immutable TimingNode status data.
      *
-     * <p>Error information is represented separately by {@link ErrorStatus};
-     * this value can therefore only represent OPEN or CLOSED node state.</p>
+     * <p>Java 8 has no record/struct type; this final class deliberately exposes
+     * its immutable fields directly because it is only a small data carrier.</p>
      */
-    public static final class Status implements NodeStatus {
-        private final NodeId timingNodeId;
-        private final State state;
-        private final LocationId locationId;
+    public static final class Status {
+        public final State state;
+        public final LocationId locationId;
 
-        public Status(NodeId timingNodeId, State state, LocationId locationId) {
-            checkArgument(timingNodeId != null, "timingNodeId must not be null");
+        public Status(State state, LocationId locationId) {
             checkArgument(state != null, "state must not be null");
-            this.timingNodeId = timingNodeId;
             this.state = state;
             this.locationId = locationId;
-        }
-
-        @Override
-        public NodeId timingNodeId() {
-            return timingNodeId;
-        }
-
-        public State state() {
-            return state;
-        }
-
-        public boolean hasLocation() {
-            return locationId != null;
-        }
-
-        public LocationId locationId() {
-            return locationId;
         }
 
         @Override
@@ -202,14 +157,13 @@ public final class TimingNodeTypes {
             if (this == other) return true;
             if (!(other instanceof Status)) return false;
             Status that = (Status) other;
-            if (!timingNodeId.equals(that.timingNodeId) || state != that.state) return false;
+            if (state != that.state) return false;
             return locationId == null ? that.locationId == null : locationId.equals(that.locationId);
         }
 
         @Override
         public int hashCode() {
-            int result = timingNodeId.hashCode();
-            result = 31 * result + state.hashCode();
+            int result = state.hashCode();
             result = 31 * result + (locationId == null ? 0 : locationId.hashCode());
             return result;
         }
