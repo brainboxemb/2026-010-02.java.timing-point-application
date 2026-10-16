@@ -18,7 +18,7 @@ public final class TimingNodeTypes {
     private TimingNodeTypes() {
     }
 
-    /** Logical operating state of an operational TimingNode. */
+    /** OPEN/CLOSED state of a TimingNode. */
     public enum State {
         /** No timing location is currently open. */
         CLOSED,
@@ -27,19 +27,19 @@ public final class TimingNodeTypes {
         OPEN
     }
 
-    /** Common boundary for operational and failed TimingNode status. */
+    /** Status returned by TimingNode: either {@link Status} or {@link ErrorStatus}. */
     public interface NodeStatus {
-        /** Returns the node identity represented by this status. */
+        /** Returns the node ID. */
         NodeId timingNodeId();
     }
 
-    /** Stable machine-readable TimingNode error categories. */
+    /** Error categories reported by {@link ErrorStatus}. */
     public enum ErrorCode {
         /** Existing persisted TimingData could not be loaded or validated at startup. */
         TIMING_DATA_LOAD_FAILED
     }
 
-    /** Immutable TimingNode failure status. */
+    /** TimingNode failure status. */
     public static final class ErrorStatus implements NodeStatus {
         private final NodeId timingNodeId;
         private final ErrorCode code;
@@ -107,7 +107,7 @@ public final class TimingNodeTypes {
     /**
      * Domain result of an automatic or manual registration command.
      *
-     * <p>A committed result contains the immutable TimingData record that was
+     * <p>A committed result contains the TimingData record that was
      * durably committed. A rejected result contains no TimingData.</p>
      */
     public static final class RegistrationResult {
@@ -123,7 +123,7 @@ public final class TimingNodeTypes {
         private final Outcome outcome;
         private final TimingData timingData;
 
-        /** Creates one immutable registration command result. */
+        /** Creates one registration result. */
         private RegistrationResult(Outcome outcome, TimingData timingData) {
             this.outcome = outcome;
             this.timingData = timingData;
@@ -139,7 +139,7 @@ public final class TimingNodeTypes {
             return new RegistrationResult(Outcome.NODE_NOT_OPEN, null);
         }
 
-        /** Returns the stable registration outcome category. */
+        /** Returns the registration outcome. */
         public Outcome outcome() {
             return outcome;
         }
@@ -162,7 +162,7 @@ public final class TimingNodeTypes {
     }
 
     /**
-     * Immutable operational status determined and published by TimingNode.
+     * OPEN/CLOSED status reported by TimingNode.
      *
      * <p>Error information is represented separately by {@link ErrorStatus};
      * this value can therefore only represent OPEN or CLOSED node state.</p>
