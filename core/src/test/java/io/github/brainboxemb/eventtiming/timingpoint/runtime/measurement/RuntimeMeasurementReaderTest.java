@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement;
 
+import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
@@ -122,7 +123,7 @@ public class RuntimeMeasurementReaderTest {
                             // Keep one ordinary listener in the measured path.
                         });
 
-        node.activate();
+        LifecycleTestSupport.activate(node);
         try {
             node.open(new LocationId(24));
             assertTrue(
@@ -177,7 +178,7 @@ public class RuntimeMeasurementReaderTest {
             assertTrue(
                     jvm.roleWorkerCpuTimeNanos() >= -1L);
         } finally {
-            node.deactivate();
+            LifecycleTestSupport.deactivate(node);
             tagWorker.shutdownNow();
             nodeWorker.shutdownNow();
         }
