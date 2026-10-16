@@ -76,7 +76,7 @@ public class TimingSystemConductorTest {
 
             second.open(new LocationId(25));
             first.close();
-            await(() -> manager.settings().inventoryEnabled(), 1000L);
+            await(() -> manager.settings().requestedValue(AntennaSettings.INVENTORY_ENABLED).booleanValue(), 1000L);
             assertTrue(antenna.inventoryRunning());
 
             second.close();
