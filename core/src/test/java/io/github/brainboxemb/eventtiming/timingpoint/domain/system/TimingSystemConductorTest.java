@@ -77,7 +77,11 @@ public class TimingSystemConductorTest {
 
             second.open(new LocationId(25));
             first.close();
-            await(() -> manager.settings().requestedValue(AntennaSettings.INVENTORY_ENABLED).booleanValue(), 1000L);
+            await(
+                    () -> manager.settings()
+                            .requestedValue(AntennaSettings.INVENTORY_ENABLED)
+                            .booleanValue(),
+                    1000L);
             assertTrue(antenna.inventoryRunning());
 
             second.close();
@@ -131,7 +135,10 @@ public class TimingSystemConductorTest {
                     activationCaller.isAlive());
             assertNull(activationFailure[0]);
             assertEquals(FunctionalState.CLOSED, node.functionalState());
-            assertFalse(manager.settings().requestedValue(AntennaSettings.INVENTORY_ENABLED).booleanValue());
+            assertFalse(
+                    manager.settings()
+                            .requestedValue(AntennaSettings.INVENTORY_ENABLED)
+                            .booleanValue());
 
             persistence.releaseLoad.countDown();
 
@@ -139,7 +146,10 @@ public class TimingSystemConductorTest {
             await(
                     antenna::inventoryRunning,
                     1000L);
-            assertTrue(manager.settings().requestedValue(AntennaSettings.INVENTORY_ENABLED).booleanValue());
+            assertTrue(
+                    manager.settings()
+                            .requestedValue(AntennaSettings.INVENTORY_ENABLED)
+                            .booleanValue());
         } finally {
             persistence.releaseLoad.countDown();
             activationCaller.join(1000L);
@@ -176,7 +186,11 @@ public class TimingSystemConductorTest {
             });
             assertTrue(started.await(1L, TimeUnit.SECONDS));
             node.open(new LocationId(24));
-            assertFalse("Node event only wakes the Conductor", manager.settings().requestedValue(AntennaSettings.INVENTORY_ENABLED).booleanValue());
+            assertFalse(
+                    "Node event only wakes the Conductor",
+                    manager.settings()
+                            .requestedValue(AntennaSettings.INVENTORY_ENABLED)
+                            .booleanValue());
             release.countDown();
             await(antenna::inventoryRunning, 1000L);
         } finally {
