@@ -535,9 +535,10 @@ public class TimingNodeRegistrationTest {
 
         activate(node);
         try {
-            TimingNodeTypes.Status status = node.status();
-            assertEquals(TimingNodeTypes.State.CLOSED, status.state);
-            assertFalse(status.locationId != null);
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.CLOSED,
+                    node.functionalState());
+            assertFalse(node.locationId() != null);
             assertFalse(
                     node.logBook().process(LogBookQueries.recoveryStatus())
                             .repairedIncompleteTail());
@@ -576,38 +577,46 @@ public class TimingNodeRegistrationTest {
     }
 
     @Test
-    public void startupLoadFailureLeavesWorkerQueryableInErrorAndRejectsNormalOperations() {
+    public void startupLoadFailureSetsOperationalErrorWithoutReplacingFunctionalState() {
         RecordingStore store = new RecordingStore();
         store.failLoad = true;
         TimingNode node = node(store);
 
         activate(node);
         try {
+            LogBookRecoveryStatus recovery =
+                    node.logBook().process(LogBookQueries.recoveryStatus());
+            assertTrue(recovery.failed());
+
             assertEquals(
-                    TimingNodeTypes.State.CLOSED,
-                    node.status().state);
-            assertTrue(node.errorStatus().isPresent());
-            TimingNodeTypes.ErrorStatus status = node.errorStatus().get();
+                    TimingNodeTypes.FunctionalState.CLOSED,
+                    node.functionalState());
+            assertEquals(
+                    TimingNodeTypes.OperationalState.ERROR,
+                    node.operationalState());
+            assertTrue(node.operationalProblem().isPresent());
+            TimingNodeTypes.OperationalProblem problem =
+                    node.operationalProblem().get();
             assertEquals(
                     TimingNodeTypes.ErrorCode.TIMING_DATA_LOAD_FAILED,
-                    status.code);
-            assertTrue(status.message.contains(
+                    problem.code);
+            assertTrue(problem.message.contains(
                     "expected persisted-data load failure"));
 
-            try {
-                node.open(new LocationId(24));
-                fail("expected ERROR node to reject OPEN");
-            } catch (TimingNodeTypes.OperationException expected) {
-                assertEquals(
-                        TimingNodeTypes.OperationException.Reason.FAILED,
-                        expected.reason());
-                assertTrue(expected.getMessage().contains(
-                        "expected persisted-data load failure"));
-            }
+            assertEquals(
+                    TimingNodeTypes.OpenResult.OPENED,
+                    node.open(new LocationId(24)));
+            assertEquals(
+                    TimingNodeTypes.FunctionalState.OPEN,
+                    node.functionalState());
+            assertEquals(new LocationId(24), node.locationId());
+            assertEquals(
+                    TimingNodeTypes.OperationalState.ERROR,
+                    node.operationalState());
 
             try {
                 node.logBook().process(LogBookQueries.timingDataCount());
-                fail("expected ERROR node to reject LogBook query");
+                fail("expected failed LogBook to reject ordered query");
             } catch (TimingNodeTypes.OperationException expected) {
                 assertEquals(
                         TimingNodeTypes.OperationException.Reason.FAILED,
