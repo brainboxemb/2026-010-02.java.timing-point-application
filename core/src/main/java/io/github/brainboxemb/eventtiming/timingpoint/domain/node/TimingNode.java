@@ -15,6 +15,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLi
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.property.Property;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyContainer;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyKey;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
@@ -41,6 +42,14 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
  * transition but does not reconstruct current state.</p>
  */
 public final class TimingNode extends LifecycleComponent {
+    /** Typed identity of the functional OPEN/CLOSED property. */
+    public static final PropertyKey<FunctionalState> FUNCTIONAL_STATE =
+            PropertyKey.of("functionalState");
+
+    /** Typed identity of the current location property. */
+    public static final PropertyKey<LocationId> LOCATION_ID =
+            PropertyKey.of("locationId");
+
     private final NodeId timingNodeId;
     private final AntennaId antennaId;
     private final TimeSource timeSource;
@@ -52,9 +61,9 @@ public final class TimingNode extends LifecycleComponent {
     // Current TimingNode state.
     private final PropertyContainer properties = new PropertyContainer();
     private final Property<FunctionalState> functionalStateProp =
-            properties.property("functionalState", FunctionalState.CLOSED);
+            properties.property(FUNCTIONAL_STATE, FunctionalState.CLOSED);
     private final Property<LocationId> locationIdProp =
-            properties.property("locationId", null);
+            properties.property(LOCATION_ID, null);
 
     private final Object operationLock = new Object();
     private final Object stateLock = new Object();
