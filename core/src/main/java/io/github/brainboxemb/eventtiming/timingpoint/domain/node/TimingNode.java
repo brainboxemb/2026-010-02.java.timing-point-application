@@ -179,7 +179,7 @@ public final class TimingNode extends LifecycleComponent {
      *
      * <p>This call blocks until NODE_OPEN is committed to the LogBook or the operation fails.</p>
      *
-     * @throws OperationException when the LogBook is unavailable, busy, failed, interrupted or times out
+     * @throws OperationException when the node operation cannot return its normal result
      */
     public OpenResult open(LocationId locationId) throws OperationException {
 
@@ -200,7 +200,7 @@ public final class TimingNode extends LifecycleComponent {
      *
      * <p>This call blocks until NODE_CLOSE is committed to the LogBook or the operation fails.</p>
      *
-     * @throws OperationException when the LogBook is unavailable, busy, failed, interrupted or times out;
+     * @throws OperationException when the node operation cannot return its normal result;
      *         timeout means the final close outcome is unknown
      */
     public CloseResult close() throws OperationException {
@@ -226,7 +226,7 @@ public final class TimingNode extends LifecycleComponent {
      * registrations always use {@code TagSource.API}; {@code registrationTimeSource}
      * records whether the supplied time came from the caller or this node's TimeSource.</p>
      *
-     * @throws OperationException when the LogBook is unavailable, busy, failed, interrupted or times out
+     * @throws OperationException when the node operation cannot return its normal result
      */
     public RegistrationResult addCustomAutomaticRegistration(
             RegistrationId registrationId,
@@ -260,7 +260,7 @@ public final class TimingNode extends LifecycleComponent {
      * <p>This call blocks until the LogBook Data Lane has committed the record,
      * rejected it because the node is not OPEN, or the operation fails.</p>
      *
-     * @throws OperationException when the LogBook is unavailable, busy, failed, interrupted or times out
+     * @throws OperationException when the node operation cannot return its normal result
      */
     public RegistrationResult addManualRegistration(
             RegistrationId registrationId,
