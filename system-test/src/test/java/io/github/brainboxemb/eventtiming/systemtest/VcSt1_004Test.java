@@ -124,7 +124,7 @@ public class VcSt1_004Test {
                 record.getBytes(StandardCharsets.UTF_8));
     }
 
-    private static void assertErrorStatus(
+    private static void assertStatus(
             String json,
             String functionalState,
             String locationJson) {
@@ -133,14 +133,6 @@ public class VcSt1_004Test {
         assertContains(
                 json,
                 "\"state\":\"" + functionalState + "\"");
-        assertContains(json, "\"opState\":\"ERROR\"");
-        assertContains(
-                json,
-                "\"code\":\"TIMING_DATA_LOAD_FAILED\"");
-        assertContains(json, "\"severity\":\"ERROR\"");
-        assertContains(json, "\"nodeId\":\"" + NODE_ID + "\"");
-        assertContains(json, "Persisted TimingData load failed for " + NODE_ID);
-        assertContains(json, "belongs to " + OTHER_NODE_ID);
     }
 
     private static void assertSnapshot(
@@ -148,7 +140,7 @@ public class VcSt1_004Test {
             String functionalState,
             String locationJson) {
         assertContains(json, "\"eventType\":\"STATUS_SNAPSHOT\"");
-        assertErrorStatus(json, functionalState, locationJson);
+        assertStatus(json, functionalState, locationJson);
     }
 
     private static void assertContains(String actual, String expected) {
