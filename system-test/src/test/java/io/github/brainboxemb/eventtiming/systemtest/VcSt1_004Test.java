@@ -68,7 +68,7 @@ public class VcSt1_004Test {
 
             Response open = http.post(
                     "/api/v1/node/" + NODE_ID + "/open",
-                    "{\"locId\":24}");
+                    "{\"locationId\":24}");
             assertEquals(
                     "Functional OPEN must remain independent from LogBook recovery error",
                     200,
