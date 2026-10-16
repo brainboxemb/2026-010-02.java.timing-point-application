@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Correct TimingNode OPEN/CLOSED terminology: operation-state events and handlers no longer use `lifecycle`; lifecycle remains reserved for component activate/deactivate behavior.
+
 - Apply the typed local-event port pattern consistently across SI-01 components: receivers declare `EventInput<C,T>` ports, concrete producers expose `EventSource<T>` ports, and component-specific bind/accessor wrappers are removed where no interface contract requires them.
 
 - Keep LogBook as the sole full TimingData history owner: startup history is handed to NodeService without extra list copies, NodeServiceState stores only compact active-registration/unique-team derived state, and StageTiming no longer refolds or retains full committed history.
