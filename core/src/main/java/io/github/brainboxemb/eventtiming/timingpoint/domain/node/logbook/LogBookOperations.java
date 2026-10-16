@@ -70,7 +70,8 @@ final class LogBookOperations {
     }
 
     /** Commits one NODE_OPEN record for the node-selected location. */
-    OpenResult commitNodeOpen(LocationId locationId) throws TimingDataPersistence.PersistenceException {
+    OpenResult commitNodeOpen(LocationId locationId)
+            throws TimingDataPersistence.PersistenceException {
 
         checkArgument(locationId != null, "locationId must not be null");
         state.ensureOperational();
@@ -79,10 +80,12 @@ final class LogBookOperations {
         TimingData data = timingDataFactory.createNodeOpen(
                 nextContext(locationId, currentLifecycleTime()));
         commitTimingData(data);
+        return OpenResult.OPENED;
     }
 
     /** Commits one NODE_CLOSE record for the node-selected location. */
-    void commitNodeClose(LocationId locationId) throws TimingDataPersistence.PersistenceException {
+    CloseResult commitNodeClose(LocationId locationId)
+            throws TimingDataPersistence.PersistenceException {
 
         checkArgument(locationId != null, "locationId must not be null");
         state.ensureOperational();
