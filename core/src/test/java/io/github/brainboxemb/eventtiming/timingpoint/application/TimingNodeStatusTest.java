@@ -1,56 +1,37 @@
 package io.github.brainboxemb.eventtiming.timingpoint.application;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
 
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 public class TimingNodeStatusTest {
     @Test
-    public void exposesSeparateFunctionalAndOperationalState() {
+    public void exposesStateAndLocation() {
         TimingNodeStatus status = TimingNodeStatus.current(
                 new NodeId("A"),
-                TimingNodeTypes.FunctionalState.CLOSED,
-                TimingNodeTypes.OperationalState.OK,
-                null,
-                null,
-                null);
+                TimingNodeTypes.FunctionalState.OPEN,
+                new LocationId(24));
 
         assertEquals("A", status.timingNodeId().value());
         assertEquals(
-                TimingNodeTypes.FunctionalState.CLOSED,
-                status.functionalState());
-        assertEquals(
-                TimingNodeTypes.OperationalState.OK,
-                status.operationalState());
-        assertFalse(status.hasProblem());
+                TimingNodeTypes.FunctionalState.OPEN,
+                status.state());
+        assertEquals(new LocationId(24), status.locationId());
     }
 
     @Test
-    public void operationalErrorRetainsFunctionalState() {
+    public void closedStatusMayHaveNoLocation() {
         TimingNodeStatus status = TimingNodeStatus.current(
                 new NodeId("A"),
-                TimingNodeTypes.FunctionalState.OPEN,
-                TimingNodeTypes.OperationalState.ERROR,
-                null,
-                TimingNodeTypes.ErrorCode.TIMING_DATA_LOAD_FAILED,
-                "load failed");
+                TimingNodeTypes.FunctionalState.CLOSED,
+                null);
 
-        assertEquals(
-                TimingNodeTypes.FunctionalState.OPEN,
-                status.functionalState());
-        assertEquals(
-                TimingNodeTypes.OperationalState.ERROR,
-                status.operationalState());
-        assertTrue(status.hasProblem());
-        assertEquals(
-                TimingNodeTypes.ErrorCode.TIMING_DATA_LOAD_FAILED,
-                status.errorCode());
-        assertEquals("load failed", status.errorMessage());
+        assertFalse(status.hasLocation());
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -58,9 +39,6 @@ public class TimingNodeStatusTest {
         TimingNodeStatus.current(
                 null,
                 TimingNodeTypes.FunctionalState.CLOSED,
-                TimingNodeTypes.OperationalState.OK,
-                null,
-                null,
                 null);
     }
 }
