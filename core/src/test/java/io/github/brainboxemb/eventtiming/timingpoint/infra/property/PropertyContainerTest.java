@@ -34,6 +34,24 @@ public class PropertyContainerTest {
     }
 
     @Test
+    public void propertyUpdateContainsTypedChangedKey() {
+        PropertyContainer properties = new PropertyContainer();
+        PropertyKey<String> stateKey = PropertyKey.of("state");
+        PropertyKey<Integer> locationKey = PropertyKey.of("locationId");
+        Property<String> state = properties.property(stateKey, "CLOSED");
+        properties.property(locationKey, null);
+        List<PropertyUpdate> changes = new ArrayList<PropertyUpdate>();
+        properties.CHANGED.subscribe(changes::add);
+
+        state.set("OPEN");
+        properties.update();
+
+        assertEquals(1, changes.size());
+        assertTrue(changes.get(0).contains(stateKey));
+        assertTrue(!changes.get(0).contains(locationKey));
+    }
+
+    @Test
     public void unchangedPropertiesPublishNothing() {
         PropertyContainer properties = new PropertyContainer();
         properties.property("state", "CLOSED");
