@@ -45,8 +45,8 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     private final AtomicReference<WriteFailure> nextWriteFailure =
             new AtomicReference<WriteFailure>();
 
-    private final EventWithMetrics<TimingData> newDataEntry;
-    private final Event<List<TimingData>> initialDataLoaded = new Event<List<TimingData>>();
+    private final EventWithMetrics<TimingData> newDataEntryEvent;
+    private final Event<List<TimingData>> initialDataLoadedEvent = new Event<List<TimingData>>();
 
     /** Completed startup-recovery source. */
     public final EventSource<LogBookRecoveryStatus> RECOVERY_STATUS_CHANGED;
@@ -55,7 +55,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     public final EventSource<TimingData> NEW_DATA_ENTRY;
 
     /** Transient startup-history source for one-time derived-state reconstruction. */
-    public final EventSource<List<TimingData>> INITIAL_DATA_LOADED = initialDataLoaded;
+    public final EventSource<List<TimingData>> INITIAL_DATA_LOADED = initialDataLoadedEvent;
 
     /**
      * Creates one LogBook bound to the supplied Data Lane.
@@ -105,12 +105,12 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         this.recoveryView = new LogBookRecoveryView(timingNodeId, dataLane);
         this.metrics = metrics;
         this.commitWaitTimeoutMillis = commitWaitTimeoutMillis;
-        this.newDataEntry =
+        this.newDataEntryEvent =
                 new EventWithMetrics<TimingData>(
                         monotonicClock,
                         metrics.timingDataEventMetrics());
         this.RECOVERY_STATUS_CHANGED = recoveryView.recoveryStatusChangedEvent();
-        this.NEW_DATA_ENTRY = newDataEntry;
+        this.NEW_DATA_ENTRY = newDataEntryEvent;
     }
 
     /** Returns immutable node identity without entering the Data Lane. */
@@ -245,7 +245,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
      *
      * <p>Concrete composition uses {@link #NEW_DATA_ENTRY} directly.</p>
      */
-    public EventSource<TimingData> newDataEntryEvent() {
+    public EventSource<TimingData> newDataEntryEventEvent() {
 
         return NEW_DATA_ENTRY;
     }
@@ -280,7 +280,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                         timingNodeId().value());
             }
 
-            initialDataLoaded.emit(loadResult.records());
+            initialDataLoadedEvent.emit(loadResult.records());
         } catch (TimingDataPersistence.PersistenceException | RuntimeException ex) {
 
             logBookOperations.markTimingDataLoadFailed(ex);
@@ -316,7 +316,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         R result = command.apply(logBookOperations);
 
         if (logBookState.timingDataHead() > headBefore) {
-            newDataEntry.emit(logBookState.latestCommittedTimingData());
+            newDataEntryEvent.emit(logBookState.latestCommittedTimingData());
         }
         return result;
     }
