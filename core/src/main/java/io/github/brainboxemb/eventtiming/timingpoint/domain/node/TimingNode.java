@@ -427,7 +427,7 @@ public final class TimingNode {
                 return;
             }
 
-            LogBookCommand<?> command = LogBookCommands.addAutomaticRegistration(
+            LogBookCommand<?> command = LogBookCommands.commitAntennaRegistration(
                     status.locationId(),
                     registration.registrationId(),
                     registration.observedAt());
