@@ -26,16 +26,23 @@ public abstract class AbstractConductor extends LifecycleComponent {
     private static final Logger LOG =
             LoggerFactory.getLogger(AbstractConductor.class);
 
+    private final String diagnosticName;
     private final SerialLane coordinationLane;
     private final ComponentLifecycleManager componentLifecycle =
             new ComponentLifecycleManager();
 
     protected AbstractConductor(
+            String diagnosticName,
             SerialLane coordinationLane) {
+        if (diagnosticName == null || diagnosticName.trim().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "diagnosticName must not be blank");
+        }
         if (coordinationLane == null) {
             throw new IllegalArgumentException(
                     "coordinationLane must not be null");
         }
+        this.diagnosticName = diagnosticName.trim();
         this.coordinationLane = coordinationLane;
     }
 
@@ -74,7 +81,8 @@ public abstract class AbstractConductor extends LifecycleComponent {
     @Override
     protected final void onActivate() {
         LOG.info(
-                "Starting coordinator");
+                "Starting {}",
+                diagnosticName);
 
         try {
             componentLifecycle.activateAll();
@@ -82,7 +90,8 @@ public abstract class AbstractConductor extends LifecycleComponent {
             onActivated();
 
             LOG.info(
-                    "Coordinator started");
+                    "{} started",
+                    diagnosticName);
         } catch (RuntimeException ex) {
             cleanupAfterActivationFailure(ex);
             throw ex;
@@ -102,7 +111,8 @@ public abstract class AbstractConductor extends LifecycleComponent {
     @Override
     protected final void onDeactivate() {
         LOG.info(
-                "Stopping coordinator");
+                "Stopping {}",
+                diagnosticName);
 
         Throwable firstFailure = null;
 
@@ -131,7 +141,8 @@ public abstract class AbstractConductor extends LifecycleComponent {
         rethrow(firstFailure);
 
         LOG.info(
-                "Coordinator stopped");
+                "{} stopped",
+                diagnosticName);
     }
 
     /**
@@ -150,7 +161,7 @@ public abstract class AbstractConductor extends LifecycleComponent {
             Throwable originalFailure) {
         LOG.warn(
                 "{} activation failed; cleaning up",
-                getClass().getSimpleName(),
+                diagnosticName,
                 originalFailure);
 
         try {
