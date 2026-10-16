@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Separate result-bearing LogBook wait guards into a 5-second TimingData commit timeout and a 2-second ORDERED-query timeout; log caller-visible operation failures centrally with NodeId/operation/reason context and log TimingData persistence/in-memory commit failures with record context.
+- Separate result-bearing LogBook wait guards into a 5-second TimingData commit wait timeout and a 2-second ORDERED-query wait timeout; log caller-visible operation failures centrally with NodeId/operation/reason context and log TimingData persistence/in-memory commit failures with record context.
 
 - Make result-bearing TimingNode/TimingNodeProxy operation failures explicit with declared `OperationException` contracts; remove the redundant TimingNode LogBook-readiness preflight so commands naturally remain ordered behind startup recovery; and move CLOSE catch/rethrow mechanics into the shared `SafeExecute` guard while keeping timeout-specific ingress recovery in TimingNode.
 
