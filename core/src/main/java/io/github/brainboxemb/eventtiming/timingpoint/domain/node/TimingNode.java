@@ -71,7 +71,7 @@ public final class TimingNode extends LifecycleComponent {
     /** Current error status, or null when no TimingNode error is active. */
     private volatile ErrorStatus currentErrorStatus;
 
-    private boolean registrationsEnabled;
+    private boolean registrationsAllowed;
 
     /** Antenna observation input; internally consumed by the TagProcessor. */
     public static final EventInput<TimingNode, TagObservation> TAG_OBSERVATIONS =
@@ -222,32 +222,23 @@ public final class TimingNode extends LifecycleComponent {
             if (status.state == State.CLOSED) {
                 result = CloseResult.ALREADY_CLOSED;
             } else {
-                /*
-                 * Stop antenna ingress before submitting NODE_CLOSE. Without this
-                 * gate, a TagProcessor callback could queue another registration
-                 * behind the close command while the close caller is still waiting.
-                 */
-                blockAntennaRegistrationIngressForClose();
+                setRegistrationsAllowed(false);
 
                 try {
                     result = logBook.process(
                             LogBookCommands.commitNodeClose(status.locationId));
-
-                    Status closedStatus =
-                            new Status(State.CLOSED, status.locationId);
-                    setStatus(closedStatus);
-                    statusChanged.emit(closedStatus);
                 } catch (OperationException ex) {
                     if (ex.reason() == OperationException.Reason.BUSY
                             || ex.reason() == OperationException.Reason.UNAVAILABLE) {
-                        synchronized (stateLock) {
-                            if (currentStatus.state == State.OPEN) {
-                                registrationsEnabled = true;
-                            }
-                        }
+                        setRegistrationsAllowed(true);
                     }
                     throw ex;
                 }
+
+                Status closedStatus =
+                        new Status(State.CLOSED, status.locationId);
+                setStatus(closedStatus);
+                statusChanged.emit(closedStatus);
             }
             return result;
         }
@@ -354,7 +345,7 @@ public final class TimingNode extends LifecycleComponent {
         synchronized (stateLock) {
             currentStatus = new Status(State.CLOSED, null);
             currentErrorStatus = null;
-            registrationsEnabled = false;
+            registrationsAllowed = false;
         }
     }
 
@@ -395,20 +386,15 @@ public final class TimingNode extends LifecycleComponent {
 
         synchronized (stateLock) {
             currentStatus = status;
-            registrationsEnabled = status.state == State.OPEN;
+            registrationsAllowed = status.state == State.OPEN;
         }
     }
 
-    /**
-     * Stops new antenna registrations while a CLOSE command is being admitted/committed.
-     *
-     * <p>This is an ingress gate, not a third TimingNode lifecycle state. The
-     * authoritative node state remains OPEN until NODE_CLOSE is committed.</p>
-     */
-    private void blockAntennaRegistrationIngressForClose() {
+    /** Enables or disables acceptance of new antenna registrations. */
+    private void setRegistrationsAllowed(boolean allowed) {
 
         synchronized (stateLock) {
-            registrationsEnabled = false;
+            registrationsAllowed = allowed;
         }
     }
 
@@ -422,7 +408,7 @@ public final class TimingNode extends LifecycleComponent {
 
         synchronized (stateLock) {
             Status status = currentStatus;
-            if (!registrationsEnabled || status.state != State.OPEN) {
+            if (!registrationsAllowed || status.state != State.OPEN) {
                 return;
             }
 
