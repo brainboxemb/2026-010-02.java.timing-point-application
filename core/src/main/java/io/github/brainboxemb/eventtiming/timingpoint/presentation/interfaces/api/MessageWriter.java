@@ -75,7 +75,7 @@ public final class MessageWriter {
                     .append(quote(status.state().name()))
                     .append(',')
                     .append("\"opState\":")
-                    .append(quote(timingNode.operationalState().name()))
+                    .append(quote(status.opState().name()))
                     .append('}');
 
             if (problem.isPresent()) {
