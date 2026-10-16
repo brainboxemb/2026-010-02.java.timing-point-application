@@ -78,7 +78,7 @@ public class TimingNodeTest {
         List<TimingNodeTypes.Status> changes =
                 new ArrayList<TimingNodeTypes.Status>();
 
-        node.statusChangedEvent().subscribe(
+        node.STATUS_CHANGED.subscribe(
                 status -> changes.add((TimingNodeTypes.Status) status));
         node.activate();
         try {
@@ -118,7 +118,7 @@ public class TimingNodeTest {
                         executor,
                         1000L);
         CountDownLatch firstStatusPublished = new CountDownLatch(1);
-        node.statusChangedEvent().subscribe(
+        node.STATUS_CHANGED.subscribe(
                 status -> firstStatusPublished.countDown());
 
         final Throwable[] activationFailure = new Throwable[1];
@@ -194,7 +194,7 @@ public class TimingNodeTest {
                 new DefaultTimingDataFactory(),
                 TimingNodeTest::now);
         CountDownLatch initialStatusPublished = new CountDownLatch(1);
-        node.statusChangedEvent().subscribe(
+        node.STATUS_CHANGED.subscribe(
                 status -> initialStatusPublished.countDown());
 
         node.activate();
@@ -612,7 +612,7 @@ public class TimingNodeTest {
 
         node.activate();
         try {
-            node.statusChangedEvent().subscribe(
+            node.STATUS_CHANGED.subscribe(
                     ignored -> statusEventCurrent[0] = (TimingNodeTypes.Status) node.status());
             node.logBook().newDataEntryEvent().subscribe(
                     ignored -> timingDataEventCurrent[0] = (TimingNodeTypes.Status) node.status());

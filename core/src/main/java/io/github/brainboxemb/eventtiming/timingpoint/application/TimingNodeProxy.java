@@ -49,7 +49,7 @@ public final class TimingNodeProxy {
         this.timingNodeId = timingNode.timingNodeId();
         this.timingNode = timingNode;
         this.logBook = timingNode.logBook();
-        timingNode.statusChangedEvent().subscribe(this::updateStatus);
+        timingNode.STATUS_CHANGED.subscribe(this::updateStatus);
     }
 
     /** Returns this node's ID. */
