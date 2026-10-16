@@ -485,6 +485,8 @@ public class TimingNodeTest {
                 1000L);
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
+        CountDownLatch fillerCommitted = new CountDownLatch(1);
+        node.TIMING_DATA_COMMITTED.subscribe(data -> fillerCommitted.countDown());
 
         activate(node);
         try {
@@ -507,6 +509,7 @@ public class TimingNodeTest {
             assertEquals(new LocationId(24), node.locationId());
 
             releaseBlocker.countDown();
+            assertTrue(fillerCommitted.await(1, TimeUnit.SECONDS));
             assertEquals(
                     1,
                     node.logBook().process(LogBookQueries.timingDataCount()).intValue());
