@@ -14,7 +14,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
-import io.github.brainboxemb.eventtiming.timingpoint.infra.property.Property;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyContainer;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
@@ -56,11 +55,12 @@ public final class TimingNode extends LifecycleComponent {
     private final Event<TimingData> timingDataCommittedEvent = new Event<TimingData>();
 
     // Current TimingNode state.
-    private final PropertyContainer properties = new PropertyContainer();
-    private final Property<FunctionalState> functionalState =
-            properties.property("functionalState", FunctionalState.CLOSED);
-    private final Property<LocationId> locationId =
-            properties.property("locationId", null);
+    private volatile FunctionalState functionalState = FunctionalState.CLOSED;
+    private volatile LocationId locationId;
+    private final PropertyContainer properties =
+            new PropertyContainer()
+                    .track("functionalState", () -> functionalState)
+                    .track("locationId", () -> locationId);
 
     private final Object operationLock = new Object();
     private final Object stateLock = new Object();
@@ -151,13 +151,13 @@ public final class TimingNode extends LifecycleComponent {
     /** Returns the current functional OPEN/CLOSED state. */
     public FunctionalState functionalState() {
 
-        return functionalState.value();
+        return functionalState;
     }
 
     /** Returns the current location, or null when no location is assigned. */
     public LocationId locationId() {
 
-        return locationId.value();
+        return locationId;
     }
 
     /**
@@ -175,7 +175,7 @@ public final class TimingNode extends LifecycleComponent {
         synchronized (operationLock) {
             requireActive();
 
-            if (functionalState.value() == FunctionalState.OPEN) {
+            if (functionalState == FunctionalState.OPEN) {
                 return OpenResult.ALREADY_OPEN;
             }
 
@@ -197,11 +197,11 @@ public final class TimingNode extends LifecycleComponent {
     public CloseResult close() {
 
         synchronized (operationLock) {
-            if (functionalState.value() == FunctionalState.CLOSED) {
+            if (functionalState == FunctionalState.CLOSED) {
                 return CloseResult.ALREADY_CLOSED;
             }
 
-            LocationId currentLocation = locationId.value();
+            LocationId currentLocation = locationId;
             setFunctionalState(
                     FunctionalState.CLOSED,
                     currentLocation,
@@ -233,12 +233,12 @@ public final class TimingNode extends LifecycleComponent {
 
         synchronized (operationLock) {
             RegistrationResult result;
-            if (functionalState.value() != FunctionalState.OPEN) {
+            if (functionalState != FunctionalState.OPEN) {
                 result = RegistrationResult.nodeNotOpen();
             } else {
                 result = logBook.process(
                         LogBookCommands.commitAutomaticRegistration(
-                                locationId.value(),
+                                locationId,
                                 registrationId,
                                 effectiveTime,
                                 TimingData.TagSource.API,
@@ -264,12 +264,12 @@ public final class TimingNode extends LifecycleComponent {
 
         synchronized (operationLock) {
             RegistrationResult result;
-            if (functionalState.value() != FunctionalState.OPEN) {
+            if (functionalState != FunctionalState.OPEN) {
                 result = RegistrationResult.nodeNotOpen();
             } else {
                 result = logBook.process(
                         LogBookCommands.commitManualRegistration(
-                                locationId.value(),
+                                locationId,
                                 registrationId,
                                 effectiveTime,
                                 registrationTimeSource));
@@ -308,13 +308,11 @@ public final class TimingNode extends LifecycleComponent {
 
         active = false;
         lifecycle.deactivateAll();
-        PropertyContainer.Update update = properties.update()
-                .set(functionalState, FunctionalState.CLOSED)
-                .set(locationId, null);
         synchronized (stateLock) {
-            update.commit();
+            functionalState = FunctionalState.CLOSED;
+            locationId = null;
         }
-        update.publish();
+        properties.update();
     }
 
     /**
@@ -340,15 +338,12 @@ public final class TimingNode extends LifecycleComponent {
             LocationId newLocationId,
             LogBookCommand<?> historyCommand) {
 
-        PropertyContainer.Update update = properties.update()
-                .set(locationId, newLocationId)
-                .set(functionalState, state);
-
         synchronized (stateLock) {
-            update.commit();
+            locationId = newLocationId;
+            functionalState = state;
             queueLogBook(historyCommand, "lifecycle history");
         }
-        update.publish();
+        properties.update();
     }
 
     /** Queues fire-and-forget LogBook work and contains queue rejection locally. */
@@ -389,12 +384,12 @@ public final class TimingNode extends LifecycleComponent {
                 "Automatic registration "
                         + registration.registrationId().value();
         synchronized (stateLock) {
-            if (functionalState.value() != FunctionalState.OPEN) {
+            if (functionalState != FunctionalState.OPEN) {
                 return;
             }
 
             LogBookCommand<?> command = LogBookCommands.commitAntennaRegistration(
-                    locationId.value(),
+                    locationId,
                     registration.registrationId(),
                     registration.observedAt());
             queueLogBook(command, operation);
