@@ -107,7 +107,9 @@ public final class TimingSystemConductor extends AbstractConductor {
         if (antennaSettings != null) {
             final boolean inventoryRequired = required;
             Consumer<AntennaSettings.Edit> settingsUpdate =
-                    edit -> edit.inventoryEnabled(inventoryRequired);
+                    edit -> edit.set(
+                            AntennaSettings.INVENTORY_ENABLED,
+                            Boolean.valueOf(inventoryRequired));
 
             antennaSettings.update(settingsUpdate);
         }
