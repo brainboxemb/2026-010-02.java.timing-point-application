@@ -2,20 +2,16 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.ErrorStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.State;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.Status;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 
-import java.util.Optional;
 import java.util.function.Consumer;
 
 import org.slf4j.Logger;
@@ -24,8 +20,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Coordinates one TimingSystem.
  *
- * <p>The conductor owns its TimingNodes, their lifecycle and the operation/error status
- * subscriptions used for system coordination. These fixed relationships are
+ * <p>The conductor owns its TimingNodes, their lifecycle and the status subscriptions used for system coordination. These fixed relationships are
  * established during construction, before activation starts execution.</p>
  *
  * <p>A status event only wakes the control task. The subsequent run reads
@@ -36,12 +31,7 @@ import org.slf4j.LoggerFactory;
 public final class TimingSystemConductor extends AbstractConductor {
     private static final Logger LOG = LoggerFactory.getLogger(TimingSystemConductor.class);
 
-    private static final EventInput<TimingSystemConductor, OperationStatus> OPERATION_STATUS_CHANGED =
-            EventInput.of(
-                    (conductor, source) ->
-                            source.subscribe(ignored -> conductor.wakeMainTask()));
-
-    private static final EventInput<TimingSystemConductor, ErrorStatus> ERROR_STATUS_CHANGED =
+    private static final EventInput<TimingSystemConductor, Status> STATUS_CHANGED =
             EventInput.of(
                     (conductor, source) ->
                             source.subscribe(ignored -> conductor.wakeMainTask()));
@@ -71,19 +61,14 @@ public final class TimingSystemConductor extends AbstractConductor {
                     "TimingNode " + node.timingNodeId().value(),
                     node::activate,
                     node::deactivate);
-            OPERATION_STATUS_CHANGED.bind(this, node.OPERATION_STATUS_CHANGED);
-            ERROR_STATUS_CHANGED.bind(this, node.ERROR_STATUS_CHANGED);
+            STATUS_CHANGED.bind(this, node.STATUS_CHANGED);
         }
     }
 
     /** Wakes the main task after one TimingNode status change. */
     private void wakeMainTask() {
 
-        /*
-         * A TimingNode may finish its first recovery while this Conductor is
-         * still activating its children. onActivated() always requests the first
-         * main-task run, so an earlier event does not need to be retained.
-         */
+        // onActivated() requests the initial run; later status changes wake reconciliation.
         if (coordinationLane().state() == SerialLane.State.RUNNING) {
             mainTask.wake(taskLane);
         }
@@ -119,20 +104,7 @@ public final class TimingSystemConductor extends AbstractConductor {
 
         boolean required = false;
         for (TimingNode node : nodes) {
-            Optional<OperationStatus> status = SafeExecute.callOrEmpty(
-                    node::operationStatus,
-                    OperationException.class,
-                    ex -> ex.reason() == OperationException.Reason.UNAVAILABLE);
-
-            /*
-             * Recovery is asynchronous. Until the node is available, publish no
-             * partial system decision; its first Status event wakes MainTask again.
-             */
-            if (!status.isPresent()) {
-                return TaskStep.done();
-            }
-
-            if (status.get().state() == State.OPEN) {
+            if (node.status().state == State.OPEN) {
                 required = true;
             }
         }
@@ -145,5 +117,4 @@ public final class TimingSystemConductor extends AbstractConductor {
         }
         return TaskStep.done();
     }
-
 }
