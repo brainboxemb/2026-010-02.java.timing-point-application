@@ -109,14 +109,14 @@ public class VcSt1_001Test {
         assertContains(json, "\"nodes\":[{");
         assertContains(json, "\"id\":\"" + NODE_ID + "\"");
         assertContains(json, "\"locationId\":null");
-        assertContains(json, "\"state\":\"CLOSED\"");
+        assertContains(json, "\"functionalState\":\"CLOSED\"");
     }
 
     private static void assertStatusSemantics(String json) {
         assertContains(json, "\"nodes\":[{");
         assertContains(json, "\"id\":\"" + NODE_ID + "\"");
         assertContains(json, "\"locationId\":null");
-        assertContains(json, "\"state\":\"CLOSED\"");
+        assertContains(json, "\"functionalState\":\"CLOSED\"");
         assertContains(json, "\"problems\":[]");
     }
 
@@ -126,7 +126,8 @@ public class VcSt1_001Test {
         for (String field : new String[] {
                 "\"id\":\"" + NODE_ID + "\"",
                 "\"locationId\":null",
-                "\"state\":\"CLOSED\""
+                "\"functionalState\":\"CLOSED\"",
+                "\"operationalState\":\"OK\""
         }) {
             assertContains(snapshot, field);
             assertContains(status, field);
