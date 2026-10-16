@@ -186,12 +186,14 @@ public final class TimingNode extends LifecycleComponent {
         checkArgument(locationId != null, "locationId must not be null");
         synchronized (operationLock) {
             Status status = currentStatus;
+            OpenResult result;
             if (status.state == State.OPEN) {
-                return OpenResult.ALREADY_OPEN;
+                result = OpenResult.ALREADY_OPEN;
+            } else {
+                logBook.process(LogBookCommands.commitNodeOpen(locationId));
+                result = OpenResult.OPENED;
             }
-
-            logBook.process(LogBookCommands.commitNodeOpen(locationId));
-            return OpenResult.OPENED;
+            return result;
         }
     }
 
@@ -207,14 +209,16 @@ public final class TimingNode extends LifecycleComponent {
 
         synchronized (operationLock) {
             Status status = currentStatus;
+            CloseResult result;
             if (status.state == State.CLOSED) {
-                return CloseResult.ALREADY_CLOSED;
+                result = CloseResult.ALREADY_CLOSED;
+            } else {
+                disableRegistrations();
+                Runnable commitClose = () -> logBook.process(LogBookCommands.commitNodeClose(status.locationId));
+                SafeExecute.runOrRethrow(commitClose, this::restoreRegistrationsAfterDefiniteCloseFailure);
+                result = CloseResult.CLOSED;
             }
-
-            disableRegistrations();
-            Runnable commitClose = () -> logBook.process(LogBookCommands.commitNodeClose(status.locationId));
-            SafeExecute.runOrRethrow(commitClose, this::restoreRegistrationsAfterDefiniteCloseFailure);
-            return CloseResult.CLOSED;
+            return result;
         }
     }
 
@@ -241,16 +245,19 @@ public final class TimingNode extends LifecycleComponent {
 
         synchronized (operationLock) {
             Status status = currentStatus;
+            RegistrationResult result;
             if (status.state != State.OPEN) {
-                return RegistrationResult.nodeNotOpen();
+                result = RegistrationResult.nodeNotOpen();
+            } else {
+                result = logBook.process(
+                        LogBookCommands.commitAutomaticRegistration(
+                                status.locationId,
+                                registrationId,
+                                effectiveTime,
+                                TimingData.TagSource.API,
+                                registrationTimeSource));
             }
-            return logBook.process(
-                    LogBookCommands.commitAutomaticRegistration(
-                            status.locationId,
-                            registrationId,
-                            effectiveTime,
-                            TimingData.TagSource.API,
-                            registrationTimeSource));
+            return result;
         }
     }
 
@@ -270,15 +277,18 @@ public final class TimingNode extends LifecycleComponent {
 
         synchronized (operationLock) {
             Status status = currentStatus;
+            RegistrationResult result;
             if (status.state != State.OPEN) {
-                return RegistrationResult.nodeNotOpen();
+                result = RegistrationResult.nodeNotOpen();
+            } else {
+                result = logBook.process(
+                        LogBookCommands.commitManualRegistration(
+                                status.locationId,
+                                registrationId,
+                                effectiveTime,
+                                registrationTimeSource));
             }
-            return logBook.process(
-                    LogBookCommands.commitManualRegistration(
-                            status.locationId,
-                            registrationId,
-                            effectiveTime,
-                            registrationTimeSource));
+            return result;
         }
     }
 
