@@ -56,7 +56,7 @@ public class HttpEndpointTest {
             assertEquals(200, status.status);
             assertTrue(status.body.contains("\"nodes\":[{"));
             assertTrue(status.body.contains("\"id\":\"A\""));
-            assertTrue(status.body.contains("\"locationId\":null"));
+            assertTrue(status.body.contains("\"locId\":null"));
             assertTrue(status.body.contains("\"state\":\"CLOSED\""));
             assertTrue(status.body.contains("\"problems\":[]"));
             assertTrue(!status.body.contains("\"build\":"));
@@ -103,7 +103,7 @@ public class HttpEndpointTest {
                             server.boundPort(),
                             "POST",
                             "/api/v1/node/B/open",
-                            "{\"locationId\":24}");
+                            "{\"locId\":24}");
             assertEquals(200, opened.status);
             assertTrue(
                     opened.body.contains(
@@ -117,9 +117,9 @@ public class HttpEndpointTest {
                             null);
             assertEquals(200, status.status);
             assertTrue(status.body.contains(
-                    "{\"id\":\"A\",\"locationId\":null,\"state\":\"CLOSED\",\"operationalState\":\"OK\"}"));
+                    "{\"id\":\"A\",\"locId\":null,\"state\":\"CLOSED\",\"opState\":\"OK\"}"));
             assertTrue(status.body.contains(
-                    "{\"id\":\"B\",\"locationId\":24,\"state\":\"OPEN\",\"operationalState\":\"OK\"}"));
+                    "{\"id\":\"B\",\"locId\":24,\"state\":\"OPEN\",\"opState\":\"OK\"}"));
         } finally {
             server.close();
             LifecycleTestSupport.deactivate(second);
@@ -164,13 +164,13 @@ public class HttpEndpointTest {
                             server.boundPort(),
                             "POST",
                             "/api/v1/node/A/open",
-                            "{\"locationId\":24}");
+                            "{\"locId\":24}");
             assertEquals(200, opened.status);
             assertTrue(opened.body.contains("\"result\":\"OPENED\""));
 
             Response openedStatus =
                     request(server.boundPort(), "GET", "/api/v1/status", null);
-            assertTrue(openedStatus.body.contains("\"locationId\":24"));
+            assertTrue(openedStatus.body.contains("\"locId\":24"));
             assertTrue(openedStatus.body.contains("\"state\":\"OPEN\""));
 
             Response repeatedOpen =
@@ -178,13 +178,13 @@ public class HttpEndpointTest {
                             server.boundPort(),
                             "POST",
                             "/api/v1/node/A/open",
-                            "{\"locationId\":25}");
+                            "{\"locId\":25}");
             assertEquals(200, repeatedOpen.status);
             assertTrue(repeatedOpen.body.contains("\"result\":\"ALREADY_OPEN\""));
 
             Response stillOpenStatus =
                     request(server.boundPort(), "GET", "/api/v1/status", null);
-            assertTrue(stillOpenStatus.body.contains("\"locationId\":24"));
+            assertTrue(stillOpenStatus.body.contains("\"locId\":24"));
 
             Response registration = request(
                     server.boundPort(),
@@ -239,7 +239,7 @@ public class HttpEndpointTest {
                     "/api/v1/node/A/registration/revoke",
                     "{"
                             + "\"recordType\":\"AUTO_REG\","
-                            + "\"locationId\":24,"
+                            + "\"locId\":24,"
                             + "\"regId\":\"N0001\","
                             + "\"time\":\"2026-10-01T12:00:00.000000000Z\""
                             + "}");
@@ -285,7 +285,7 @@ public class HttpEndpointTest {
         try {
             assertEquals(200, request(
                     server.boundPort(), "POST", "/api/v1/node/A/open",
-                    "{\"locationId\":24}").status);
+                    "{\"locId\":24}").status);
 
             Response generated = request(server.boundPort(), "POST",
                     "/api/v1/dev/node/A/auto-reg",
@@ -399,7 +399,7 @@ public class HttpEndpointTest {
                     server.boundPort(),
                     "POST",
                     "/api/v1/node/A/open",
-                    "{\"locationId\":24}");
+                    "{\"locId\":24}");
             assertEquals(200, open.status);
 
             Response automaticTime = request(
@@ -607,9 +607,9 @@ public class HttpEndpointTest {
                     request(server.boundPort(), "GET", "/api/v1/status", null);
             assertEquals(200, status.status);
             assertTrue(status.body.contains("\"id\":\"A\""));
-            assertTrue(status.body.contains("\"locationId\":null"));
+            assertTrue(status.body.contains("\"locId\":null"));
             assertTrue(status.body.contains("\"state\":\"CLOSED\""));
-            assertTrue(status.body.contains("\"operationalState\":\"ERROR\""));
+            assertTrue(status.body.contains("\"opState\":\"ERROR\""));
             assertTrue(status.body.contains(
                     "\"code\":\"TIMING_DATA_LOAD_FAILED\""));
             assertTrue(status.body.contains("\"severity\":\"ERROR\""));
@@ -620,15 +620,15 @@ public class HttpEndpointTest {
                     server.boundPort(),
                     "POST",
                     "/api/v1/node/A/open",
-                    "{\"locationId\":24}");
+                    "{\"locId\":24}");
             assertEquals(200, open.status);
             assertTrue(open.body.contains("\"result\":\"OPENED\""));
 
             Response afterOpen =
                     request(server.boundPort(), "GET", "/api/v1/status", null);
-            assertTrue(afterOpen.body.contains("\"locationId\":24"));
+            assertTrue(afterOpen.body.contains("\"locId\":24"));
             assertTrue(afterOpen.body.contains("\"state\":\"OPEN\""));
-            assertTrue(afterOpen.body.contains("\"operationalState\":\"ERROR\""));
+            assertTrue(afterOpen.body.contains("\"opState\":\"ERROR\""));
             assertTrue(afterOpen.body.contains(
                     "\"code\":\"TIMING_DATA_LOAD_FAILED\""));
         } finally {
