@@ -61,7 +61,7 @@ public class VcSt1_004Test {
             assertContains(shellStatus, "State     : ERROR");
             assertContains(
                     shellStatus,
-                    "Problem   : ERROR TIMING_DATA_LOAD_FAILED");
+                    "Error     : TIMING_DATA_LOAD_FAILED");
             assertContains(shellStatus, "Persisted TimingData load failed for " + NODE_ID);
             assertContains(shellStatus, "belongs to " + OTHER_NODE_ID);
 
