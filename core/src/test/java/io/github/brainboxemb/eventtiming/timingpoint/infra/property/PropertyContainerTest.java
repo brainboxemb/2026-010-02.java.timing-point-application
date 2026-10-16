@@ -17,8 +17,8 @@ public class PropertyContainerTest {
                 properties.property("state", "CLOSED");
         Property<Integer> location =
                 properties.property("locationId", null);
-        List<List<Property<?>>> changes =
-                new ArrayList<List<Property<?>>>();
+        List<PropertyUpdate> changes =
+                new ArrayList<PropertyUpdate>();
         properties.CHANGED.subscribe(changes::add);
 
         location.set(Integer.valueOf(24));
@@ -28,17 +28,17 @@ public class PropertyContainerTest {
         assertEquals("OPEN", state.get());
         assertEquals(Integer.valueOf(24), location.get());
         assertEquals(1, changes.size());
-        assertEquals(2, changes.get(0).size());
-        assertEquals("state", changes.get(0).get(0).name);
-        assertEquals("locationId", changes.get(0).get(1).name);
+        assertEquals(2, changes.get(0).properties.size());
+        assertEquals("state", changes.get(0).properties.get(0).name);
+        assertEquals("locationId", changes.get(0).properties.get(1).name);
     }
 
     @Test
     public void unchangedPropertiesPublishNothing() {
         PropertyContainer properties = new PropertyContainer();
         properties.property("state", "CLOSED");
-        List<List<Property<?>>> changes =
-                new ArrayList<List<Property<?>>>();
+        List<PropertyUpdate> changes =
+                new ArrayList<PropertyUpdate>();
         properties.CHANGED.subscribe(changes::add);
 
         properties.update();

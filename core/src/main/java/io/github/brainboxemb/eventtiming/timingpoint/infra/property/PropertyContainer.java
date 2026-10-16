@@ -4,7 +4,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -16,10 +15,10 @@ import java.util.List;
  */
 public final class PropertyContainer {
     private final List<Property<?>> properties = new ArrayList<Property<?>>();
-    private final Event<List<Property<?>>> changedEvent = new Event<List<Property<?>>>();
+    private final Event<PropertyUpdate> changedEvent = new Event<PropertyUpdate>();
 
     /** One change source containing all properties changed by the last update. */
-    public final EventSource<List<Property<?>>> CHANGED = changedEvent;
+    public final EventSource<PropertyUpdate> CHANGED = changedEvent;
 
     /** Creates one typed property owned by this container. */
     public synchronized <T> Property<T> property(
@@ -62,8 +61,6 @@ public final class PropertyContainer {
             return;
         }
 
-        changedEvent.emit(
-                Collections.unmodifiableList(
-                        new ArrayList<Property<?>>(changed)));
+        changedEvent.emit(new PropertyUpdate(changed));
     }
 }
