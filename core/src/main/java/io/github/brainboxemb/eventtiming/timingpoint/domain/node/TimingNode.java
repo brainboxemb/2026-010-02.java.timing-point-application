@@ -10,7 +10,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommand;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookRecoveryStatus;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookTestControl;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
@@ -58,7 +57,6 @@ public final class TimingNode extends LifecycleComponent {
     private final AntennaId antennaId;
     private final TimeSource timeSource;
     private final LogBookAccessor logBook;
-    private final LogBookTestControl logBookTestControl;
     private final TagProcessor tagProcessor;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
     private final Event<TimingData> timingDataCommittedEvent = new Event<TimingData>();
@@ -127,7 +125,6 @@ public final class TimingNode extends LifecycleComponent {
         this.antennaId = antennaId;
         this.timeSource = timeSource;
         this.logBook = logBook;
-        this.logBookTestControl = logBook;
         this.tagProcessor = tagProcessor;
         lifecycle.register(nodeService);
         lifecycle.register(logBook);
@@ -325,17 +322,6 @@ public final class TimingNode extends LifecycleComponent {
     public LogBookAccessor logBook() {
 
         return logBook;
-    }
-
-    /**
-     * Arms one engineering/test failure for the next LogBook write.
-     *
-     * <p>This is an explicit test hook and is not part of normal timing operation.</p>
-     */
-    public void testNextLogBookWriteFailure(
-            LogBookTestControl.WriteFailure failure) {
-
-        logBookTestControl.armNextWriteFailure(failure);
     }
 
     /**
