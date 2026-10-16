@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep operator-facing `TimingNodeStatus` small: NodeId, OPEN/CLOSED state and LocationId. Expose operational INIT/OK/ERROR and problem details separately; IF-03 combines them only when producing diagnostic status JSON, where the functional field is simply `state`.
+
 - Decouple TimingNode OPEN/CLOSED runtime state from lifecycle LogBook persistence. OPEN/CLOSE now apply state at the registration-admission boundary, submit lifecycle history asynchronously, and no longer use a CLOSE-only registration-block flag or SafeExecute catch/rethrow path.
 
 - Simplify `TimingNode.close()` failure handling: use the shared result-bearing `SafeExecute.callOrRethrow(...)` guard and model the temporary CLOSE ingress block as the simple `blockRegistrations` flag instead of manually repairing a derived `registrationsAllowed` flag.
