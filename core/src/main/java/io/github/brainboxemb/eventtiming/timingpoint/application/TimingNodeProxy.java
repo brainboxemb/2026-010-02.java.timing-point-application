@@ -33,7 +33,7 @@ import java.util.function.Consumer;
 public final class TimingNodeProxy {
 
     /** Domain operation-status input mapped to presentation-facing status values. */
-    private static final EventInput<TimingNodeProxy, Status> STATUS_CHANGED =
+    private static final EventInput<TimingNodeProxy, Status> DOMAIN_STATUS_CHANGED =
             EventInput.of(
                     (proxy, source) -> source.subscribe(proxy::updateStatus));
 
@@ -67,7 +67,7 @@ public final class TimingNodeProxy {
         this.timingNode = timingNode;
         this.logBook = timingNode.logBook();
         this.NEW_DATA_ENTRY = timingNode.TIMING_DATA_COMMITTED;
-        STATUS_CHANGED.bind(this, timingNode.STATUS_CHANGED);
+        DOMAIN_STATUS_CHANGED.bind(this, timingNode.STATUS_CHANGED);
         ERROR_STATUS_CHANGED.bind(this, timingNode.ERROR_STATUS_CHANGED);
     }
 
@@ -87,7 +87,7 @@ public final class TimingNodeProxy {
         if (error.isPresent()) {
             return errorStatus(error.get());
         }
-        return statusValue(timingNode.statusValue());
+        return statusValue(timingNode.status());
     }
 
     /** Opens the node at the requested LocationId. */
