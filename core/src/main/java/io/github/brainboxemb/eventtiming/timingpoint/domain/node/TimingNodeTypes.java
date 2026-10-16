@@ -189,13 +189,13 @@ public final class TimingNodeTypes {
     public static class OperationException extends RuntimeException {
         /** Stable reason why an operation could not return its normal result. */
         public enum Reason {
-            /** The bounded owner-lane queue could not accept more work. */
+            /** The operation cannot currently be accepted because execution capacity is busy. */
             BUSY,
 
-            /** The required component/state is not currently available. */
+            /** The node operation is not currently available. */
             UNAVAILABLE,
 
-            /** Execution or its owner lane failed. */
+            /** The node operation failed during execution. */
             FAILED,
 
             /** The caller thread was interrupted while waiting for a result. */
@@ -212,14 +212,22 @@ public final class TimingNodeTypes {
 
         /** Creates an operation failure without a lower-level cause. */
         public OperationException(Reason reason, String message) {
-            super(message);
+            super(operationMessage(message));
+            checkArgument(reason != null, "reason must not be null");
             this.reason = reason;
         }
 
         /** Creates an operation failure with the underlying execution cause. */
         public OperationException(Reason reason, String message, Throwable cause) {
-            super(message, cause);
+            super(operationMessage(message), cause);
+            checkArgument(reason != null, "reason must not be null");
             this.reason = reason;
+        }
+
+        /** Validates and normalizes the caller-visible operation message. */
+        private static String operationMessage(String message) {
+            checkArgument(message != null && !message.trim().isEmpty(), "message must not be blank");
+            return message.trim();
         }
 
         /** Returns the stable caller-visible failure category. */
