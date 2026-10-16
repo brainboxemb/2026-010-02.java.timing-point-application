@@ -19,7 +19,7 @@ import static org.junit.Assert.fail;
 public class LogBookDataLaneTest {
 
     @Test
-    public void commandUsesCommitTimeout() throws Exception {
+    public void commandUsesCommitWaitTimeout() throws Exception {
         ExecutorService worker = Executors.newSingleThreadExecutor();
         SerialLane lane = new SerialLane(4, "logbook-command-timeout-test", worker);
         LogBookDataLane dataLane =
@@ -52,7 +52,7 @@ public class LogBookDataLaneTest {
     }
 
     @Test
-    public void orderedQueryUsesQueryTimeout() throws Exception {
+    public void orderedQueryUsesQueryWaitTimeout() throws Exception {
         ExecutorService worker = Executors.newSingleThreadExecutor();
         SerialLane lane = new SerialLane(4, "logbook-query-timeout-test", worker);
         LogBookDataLane dataLane =
