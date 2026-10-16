@@ -100,7 +100,7 @@ public class RemoteShellServerTest {
                 assertTrue(response.contains("Close: CLOSED"));
                 assertTrue(response.contains("Timing node"));
                 assertTrue(response.contains("Id        : A"));
-                assertTrue(response.contains("Function  : CLOSED"));
+                assertTrue(response.contains("State     : CLOSED"));
                 assertTrue(response.contains("Operation : OK"));
                 assertTrue(response.contains("Stopping application."));
             }
