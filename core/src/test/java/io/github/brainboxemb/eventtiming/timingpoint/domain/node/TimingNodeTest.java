@@ -13,6 +13,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookTestControl;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookRecoveryStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyContainer;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -77,10 +78,15 @@ public class TimingNodeTest {
     @Test
     public void timingNodePublishesFunctionalStateAfterOpenAndClose() {
         TimingNode node = node(new NodeId("A"));
-        List<TimingNodeTypes.FunctionalState> changes =
-                new ArrayList<TimingNodeTypes.FunctionalState>();
+        List<PropertyContainer.Change> changes =
+                new ArrayList<PropertyContainer.Change>();
 
-        node.FUNCTIONAL_STATE_CHANGED.subscribe(changes::add);
+        node.PROPERTIES_CHANGED.subscribe(
+                change -> {
+                    if (change.contains("functionalState")) {
+                        changes.add(change);
+                    }
+                });
         activate(node);
         try {
             assertEquals(
@@ -101,8 +107,9 @@ public class TimingNodeTest {
                     node.functionalState());
 
             assertEquals(2, changes.size());
-            assertEquals(TimingNodeTypes.FunctionalState.OPEN, changes.get(0));
-            assertEquals(TimingNodeTypes.FunctionalState.CLOSED, changes.get(1));
+            assertTrue(changes.get(0).contains("functionalState"));
+            assertTrue(changes.get(0).contains("locationId"));
+            assertTrue(changes.get(1).contains("functionalState"));
         } finally {
             deactivate(node);
         }
@@ -194,9 +201,10 @@ public class TimingNodeTest {
                 new DefaultTimingDataFactory(),
                 TimingNodeTest::now);
         CountDownLatch operationalErrorPublished = new CountDownLatch(1);
-        node.OPERATIONAL_STATE_CHANGED.subscribe(
-                state -> {
-                    if (state == TimingNodeTypes.OperationalState.ERROR) {
+        node.PROPERTIES_CHANGED.subscribe(
+                change -> {
+                    if (change.contains("operationalState")
+                            && node.operationalState() == TimingNodeTypes.OperationalState.ERROR) {
                         operationalErrorPublished.countDown();
                     }
                 });
@@ -373,9 +381,10 @@ public class TimingNodeTest {
         List<TimingData> committedEvents = new ArrayList<TimingData>();
         CountDownLatch operationalError = new CountDownLatch(1);
         node.logBook().newDataEntryEvent().subscribe(committedEvents::add);
-        node.OPERATIONAL_STATE_CHANGED.subscribe(
-                state -> {
-                    if (state == TimingNodeTypes.OperationalState.ERROR) {
+        node.PROPERTIES_CHANGED.subscribe(
+                change -> {
+                    if (change.contains("operationalState")
+                            && node.operationalState() == TimingNodeTypes.OperationalState.ERROR) {
                         operationalError.countDown();
                     }
                 });
@@ -708,9 +717,10 @@ public class TimingNodeTest {
         CountDownLatch functionalEvent = new CountDownLatch(1);
         CountDownLatch historyEvent = new CountDownLatch(1);
 
-        node.FUNCTIONAL_STATE_CHANGED.subscribe(
-                state -> {
-                    if (state == TimingNodeTypes.FunctionalState.OPEN) {
+        node.PROPERTIES_CHANGED.subscribe(
+                change -> {
+                    if (change.contains("functionalState")
+                            && node.functionalState() == TimingNodeTypes.FunctionalState.OPEN) {
                         functionalEvent.countDown();
                     }
                 });
