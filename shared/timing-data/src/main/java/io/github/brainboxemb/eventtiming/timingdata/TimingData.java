@@ -48,7 +48,7 @@ public interface TimingData {
 
         /** How the registration entered the automatic path (not a TagId). */
         default TagSource tagSource() {
-            return null; // Earlier IF-05 records have no audit provenance.
+            return null; // Earlier IF-05 records do not contain source metadata.
         }
 
         /** Where the effective registration timestamp originated. */
@@ -97,7 +97,7 @@ public interface TimingData {
         API
     }
 
-    /** Provenance of an automatic registration's effective timestamp. */
+    /** Source of an automatic registration's effective timestamp. */
     enum AutomaticTimeSource {
         OBS,  // Time carried by the antenna observation.
         API,  // Explicit timestamp supplied by a direct API caller.
