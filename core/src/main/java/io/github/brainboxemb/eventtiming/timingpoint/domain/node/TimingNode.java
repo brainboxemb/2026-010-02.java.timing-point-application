@@ -334,13 +334,11 @@ public final class TimingNode {
         if (currentStatus instanceof Status) {
             if (timingData instanceof TimingData.NodeOpen) {
                 setStatus(new Status(
-                        timingNodeId,
                         State.OPEN,
                         timingData.locationId()));
                 operationStateChanged = true;
             } else if (timingData instanceof TimingData.NodeClose) {
                 setStatus(new Status(
-                        timingNodeId,
                         State.CLOSED,
                         timingData.locationId()));
                 operationStateChanged = true;
@@ -373,13 +371,11 @@ public final class TimingNode {
 
         if (recoveryStatus.failed()) {
             return new ErrorStatus(
-                    timingNodeId,
                     ErrorCode.TIMING_DATA_LOAD_FAILED,
                     recoveryStatus.failureMessage());
         }
         return new Status(
-                timingNodeId,
-                State.CLOSED,
+                        State.CLOSED,
                 null);
     }
 
