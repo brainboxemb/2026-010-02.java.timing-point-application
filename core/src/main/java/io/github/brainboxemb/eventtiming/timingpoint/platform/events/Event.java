@@ -113,7 +113,7 @@ public final class Event<T> implements EventSource<T> {
                 subscriptionArray(
                         current);
         for (Subscription<?> candidate : existing) {
-            if (typedSubscription(candidate).sameAs(subscription)) {
+            if (candidate.sameAs(subscription)) {
                 return false;
             }
         }
@@ -287,7 +287,7 @@ public final class Event<T> implements EventSource<T> {
             return filter == null || filter.test(value);
         }
 
-        private boolean sameAs(Subscription<T> other) {
+        private boolean sameAs(Subscription<?> other) {
             if (!listener.equals(other.listener)) {
                 return false;
             }
