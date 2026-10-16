@@ -66,8 +66,8 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
      *
      * <p>The commit wait timeout applies to result-bearing TimingData commands.
      * The ordered-query wait timeout applies only to ORDERED reads. CURRENT reads
-     * do not wait on the Data Lane. Fire-and-forget queueing uses the standard
-     * {@link SerialLane#execute(Runnable)} rejection contract.</p>
+     * do not wait on the Data Lane. Fire-and-forget queue rejection is contained
+     * and reported by LogBook because there is no caller result.</p>
      */
     public LogBook(
             NodeId timingNodeId,
@@ -179,17 +179,22 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     /**
      * Executes one fire-and-forget command asynchronously.
      *
-     * <p>The method follows Executor-style semantics: it returns after the
-     * command is queued and propagates RejectedExecutionException immediately
-     * when the bounded SerialLane cannot queue it.</p>
-     *
-     * @throws RejectedExecutionException when the Data Lane cannot queue the command
+     * <p>The method returns after queueing. Queue rejection is a LogBook
+     * diagnostic because this fire-and-forget operation has no caller result.</p>
      */
-    public void execute(LogBookCommand<?> command) throws RejectedExecutionException {
+    public void execute(LogBookCommand<?> command) {
 
         checkArgument(command != null, "command must not be null");
         Runnable queuedCommand = () -> executeQueuedCommand(command);
-        dataLane.execute(queuedCommand);
+        try {
+            dataLane.execute(queuedCommand);
+        } catch (RejectedExecutionException ex) {
+            LOG.error(
+                    "LogBook command {} for node {} could not be queued on the Data Lane",
+                    command.name(),
+                    timingNodeId().value(),
+                    ex);
+        }
     }
 
     /**
