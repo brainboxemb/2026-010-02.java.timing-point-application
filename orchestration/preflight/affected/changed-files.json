@@ -1,0 +1,19 @@
+{
+  "files": [
+    "core/src/main/java/io/github/brainboxemb/eventtiming/timingpoint/platform/execution/lanes/SerialQueue.java",
+    "core/src/test/java/io/github/brainboxemb/eventtiming/timingpoint/platform/execution/lanes/SerialQueueTest.java",
+    "CHANGELOG.md",
+    "core/src/main/java/io/github/brainboxemb/eventtiming/timingpoint/runtime/TimingNodeComposer.java",
+    "core/src/main/java/io/github/brainboxemb/eventtiming/timingpoint/domain/node/processing/TagProcessor.java",
+    "core/src/main/java/io/github/brainboxemb/eventtiming/timingpoint/runtime/RuntimeExecutors.java"
+  ],
+  "options": {
+    "base": "58ae43f0b62d09cba5b02fe508514b459826c54b",
+    "defaultBranch": true,
+    "head": "a79ce4fa4cc2809cee3cf13fd0db40d801893b2d",
+    "local": false,
+    "status": [],
+    "stdin": false
+  },
+  "shallow": false
+}

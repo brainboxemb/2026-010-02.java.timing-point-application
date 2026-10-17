@@ -1,0 +1,10 @@
+java-preflight
+base=58ae43f0b62d09cba5b02fe508514b459826c54b
+head=a79ce4fa4cc2809cee3cf13fd0db40d801893b2d
+java_task=core:java.canonical
+windows_full_task=core:java.windows-full
+requested_windows_mode=none
+java_affected=true
+windows_full_affected=false
+windows_mode=none
+duration_seconds=4
