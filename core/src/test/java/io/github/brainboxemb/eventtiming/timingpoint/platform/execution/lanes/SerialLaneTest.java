@@ -8,6 +8,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -19,6 +20,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class SerialLaneTest {
     private final List<ExecutorService> ownedWorkers =
@@ -62,7 +64,6 @@ public class SerialLaneTest {
         lane.close();
 
         assertFalse(lane.isRunning());
-        assertEquals(SerialLane.State.STOPPED, lane.state());
         assertEquals(SerialLane.OfferResult.NOT_RUNNING, lane.offer(2));
     }
 
@@ -93,7 +94,7 @@ public class SerialLaneTest {
         assertTrue(second.await(1L, TimeUnit.SECONDS));
         lane.close();
 
-        assertEquals(SerialLane.State.STOPPED, lane.state());
+        assertFalse(lane.isRunning());
     }
 
     @Test
@@ -196,7 +197,7 @@ public class SerialLaneTest {
         closer.join(1000L);
         assertFalse(closer.isAlive());
         assertTrue(secondDone.await(1L, TimeUnit.SECONDS));
-        assertEquals(SerialLane.State.STOPPED, lane.state());
+        assertFalse(lane.isRunning());
     }
 
     @Test
@@ -219,7 +220,7 @@ public class SerialLaneTest {
             assertEquals(SerialLane.OfferResult.ACCEPTED, lane.offer(1));
             assertEquals(SerialLane.OfferResult.ACCEPTED, lane.offer(2));
             assertTrue(secondDone.await(1L, TimeUnit.SECONDS));
-            assertEquals(SerialLane.State.RUNNING, lane.state());
+            assertTrue(lane.isRunning());
         } finally {
             lane.close();
         }
@@ -417,54 +418,30 @@ public class SerialLaneTest {
     }
 
     @Test
-    public void fatalErrorFailsOnlyThatLane() throws Exception {
-        ThreadPoolExecutor shared =
-                new ThreadPoolExecutor(
-                        1,
-                        1,
-                        0L,
-                        TimeUnit.MILLISECONDS,
-                        new LinkedBlockingQueue<Runnable>());
-
-        CountDownLatch healthyDone = new CountDownLatch(1);
-        SerialLane<Integer> failing =
+    public void rejectedWorkerScheduleStopsAdmissionAndClearsQueue() {
+        SerialLane<Integer> lane =
                 new SerialLane<Integer>(
                         2,
                         2,
-                        "failing",
-                        shared,
+                        "rejected-worker",
                         ignored -> {
-                            throw new AssertionError("fatal");
-                        });
-        SerialLane<Integer> healthy =
-                new SerialLane<Integer>(
-                        2,
-                        2,
-                        "healthy",
-                        shared,
-                        ignored -> healthyDone.countDown());
+                            throw new RejectedExecutionException(
+                                    "expected worker rejection");
+                        },
+                        ignored -> { });
 
-        failing.start();
-        healthy.start();
+        lane.start();
         try {
-            failing.offer(1);
-            healthy.offer(1);
-            assertTrue(healthyDone.await(1L, TimeUnit.SECONDS));
-
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1L);
-            while (failing.state() != SerialLane.State.FAILED
-                    && System.nanoTime() < deadline) {
-                Thread.yield();
-            }
-
-            assertEquals(SerialLane.State.FAILED, failing.state());
-            assertTrue(failing.failure() instanceof AssertionError);
-            assertEquals(SerialLane.State.RUNNING, healthy.state());
-            assertFalse(shared.isShutdown());
+            lane.offer(1);
+            fail("expected worker rejection");
+        } catch (RejectedExecutionException expected) {
+            assertFalse(lane.isRunning());
+            assertEquals(
+                    SerialLane.OfferResult.NOT_RUNNING,
+                    lane.offer(2));
+            assertEquals(0, lane.metrics().snapshot().queueDepth());
         } finally {
-            failing.close();
-            healthy.close();
-            shared.shutdownNow();
+            lane.close();
         }
     }
 
