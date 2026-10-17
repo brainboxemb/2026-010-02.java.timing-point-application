@@ -56,11 +56,15 @@ public class SerialLaneTest {
     public void rejectsWorkBeforeStartAndAfterStop() {
         SerialLane executor = newLane(1, "serial-executor-test");
 
+        assertFalse(executor.isRunning());
         expectRejected(() -> executor.execute(() -> { }));
 
         executor.start();
+        assertTrue(executor.isRunning());
+
         executor.close();
 
+        assertFalse(executor.isRunning());
         assertEquals(SerialLane.State.STOPPED, executor.state());
         expectRejected(() -> executor.execute(() -> { }));
     }

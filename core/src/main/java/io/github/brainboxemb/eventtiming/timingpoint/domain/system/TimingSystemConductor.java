@@ -5,7 +5,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
@@ -63,7 +62,7 @@ public final class TimingSystemConductor extends AbstractConductor {
     private void wakeMainTask() {
 
         // onActivated() requests the initial run; later status changes wake reconciliation.
-        if (coordinationLane().state() == SerialLane.State.RUNNING) {
+        if (coordinationLane().isRunning()) {
             mainTask.wake(taskLane);
         }
     }

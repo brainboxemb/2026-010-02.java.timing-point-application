@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `SerialLane.isRunning()` as the semantic production query for RUNNING lifecycle state and use it from `TimingSystemConductor` instead of interpreting the lane's state enum in caller control flow.
+
 - Replace `checkArgument(...)` / `checkState(...)` with explicit always-enabled failure guards `failIfInvalidArgument(...)` / `failIfIllegalState(...)`. Callers keep positive assertion conditions: true means the contract holds and false throws.
 
 - Stabilize asynchronous AntennaManager and TimingNode tests by waiting for semantic readiness/startup completion before asserting or constructing full-queue scenarios.
