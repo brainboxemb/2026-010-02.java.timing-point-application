@@ -116,14 +116,6 @@ final class LogBookDataLane {
         return dataLane.isExecutingOnCurrentThread();
     }
 
-    SerialLane.State state() {
-        return dataLane.state();
-    }
-
-    Throwable failure() {
-        return dataLane.failure();
-    }
-
     /** Queues one result-bearing command operation and waits for its ordered result. */
     <R> R submitCommandAndWait(LogBookCommand<R> command) {
         failIfInvalidArgument(command != null, "command must not be null");
@@ -276,22 +268,6 @@ final class LogBookDataLane {
             String operationType,
             RejectedExecutionException rejection) {
 
-        if (dataLane.state() == SerialLane.State.FAILED) {
-            Throwable cause =
-                    dataLane.failure() == null
-                            ? rejection
-                            : dataLane.failure();
-            LOG.error(
-                    "TimingNode {} LogBook {} {} failed: reason=FAILED, cause=Data Lane failure",
-                    nodeId.value(),
-                    operationType,
-                    operation,
-                    cause);
-            return new IllegalStateException(
-                    operation + " could not run because the TimingNode Data Lane failed",
-                    cause);
-        }
-
         if (!dataLane.isRunning()) {
             LOG.warn(
                     "TimingNode {} LogBook {} {} failed: reason=UNAVAILABLE",
@@ -313,5 +289,4 @@ final class LogBookDataLane {
         return new IllegalStateException(
                 operation + " could not be queued because the TimingNode Data Lane is full",
                 rejection);
-    }
-}
+    }}
