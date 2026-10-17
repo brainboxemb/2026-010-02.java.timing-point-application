@@ -10,6 +10,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
@@ -28,7 +29,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.ClockTimeSource;
@@ -90,8 +91,8 @@ final class RuntimeCharacterizationHarness
     private ExecutorService nodeWorker;
     private ScheduledThreadPoolExecutor tagWorker;
     private ScheduledThreadPoolExecutor ioWorker;
-    private SerialLane dataLane;
-    private SerialLane taskLane;
+    private TimingNodeDataLane dataLane;
+    private RunnableSerialLane taskLane;
     private ScheduledSerialLane tagLane;
     private TaskSerialLane antennaLane;
     private SimulatedAntenna antenna;
@@ -155,13 +156,13 @@ final class RuntimeCharacterizationHarness
                 true);
 
         dataLane =
-                new SerialLane(
+                new TimingNodeDataLane(
                         TIMING_NODE_QUEUE_CAPACITY,
                         TIMING_NODE_QUEUE_CAPACITY,
                         "TimingNodeData",
                         nodeWorker);
         taskLane =
-                new SerialLane(
+                new RunnableSerialLane(
                         TIMING_NODE_QUEUE_CAPACITY,
                         TIMING_NODE_QUEUE_CAPACITY,
                         "TimingNodeTask",
@@ -515,12 +516,9 @@ final class RuntimeCharacterizationHarness
                 "TagProcessor");
     }
 
-    /** Waits until all Data Lane work queued before this barrier has completed. */
-    private void awaitDataLaneBarrier()
-            throws InterruptedException {
-        awaitLaneBarrier(
-                dataLane,
-                "TimingNode Data Lane");
+    /** Waits until all earlier LogBook Data Lane items have completed. */
+    private void awaitDataLaneBarrier() {
+        logBook.process(LogBookQueries.timingDataCount());
     }
 
     /**
@@ -528,7 +526,7 @@ final class RuntimeCharacterizationHarness
      * until that barrier reaches the front of the supplied serial lane.
      */
     private void awaitLaneBarrier(
-            SerialLane lane,
+            RunnableSerialLane lane,
             String laneName)
             throws InterruptedException {
         CountDownLatch barrier = new CountDownLatch(1);
