@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 
 import java.time.ZoneId;
@@ -109,7 +109,7 @@ public final class NodeService extends LifecycleComponent {
     private final StageTiming stageTiming;
 
     /** Creates the Task Lane service around explicitly composed passive state. */
-    public NodeService(NodeId nodeId, SerialLane serialLane, NodeServiceState state) {
+    public NodeService(NodeId nodeId, RunnableSerialLane serialLane, NodeServiceState state) {
 
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(serialLane != null, "serialLane must not be null");
@@ -238,14 +238,14 @@ public final class NodeService extends LifecycleComponent {
         }
     }
 
-    /** Rebuilds derived timing while this service owns the SerialLane turn. */
+    /** Rebuilds derived timing while this service owns the RunnableSerialLane turn. */
     private void rebuildDerivedTiming(Iterable<TimingData> loadedData) {
 
         taskLane.requireCurrentThread("rebuildDerivedTiming");
         state.rebuildDerivedTiming(loadedData);
     }
 
-    /** Applies one newly committed TimingData fact during the owned SerialLane turn. */
+    /** Applies one newly committed TimingData fact during the owned RunnableSerialLane turn. */
     private void applyCommittedTimingData(TimingData data) {
 
         taskLane.requireCurrentThread("applyCommittedTimingData");
