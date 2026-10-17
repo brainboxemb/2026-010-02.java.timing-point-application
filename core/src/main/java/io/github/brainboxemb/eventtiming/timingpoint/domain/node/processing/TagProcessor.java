@@ -55,6 +55,7 @@ public final class TagProcessor extends LifecycleComponent {
 
     private boolean observationProcessingScheduled;
 
+    private volatile ScheduledSerialLane.ScheduledRegistration observationFilterTask;
     private volatile ScheduledSerialLane.ScheduledRegistration housekeepingTask;
     private volatile List<TagPassageSnapshot> passageSnapshots = Collections.emptyList();
 
@@ -111,6 +112,7 @@ public final class TagProcessor extends LifecycleComponent {
     @Override
     protected void onDeactivate() {
         synchronized (lifecycleLock) {
+            cancelObservationFilterLocked();
             cancelHousekeepingLocked();
             if (!inputQueue.isEmpty()) {
                 try {
@@ -232,14 +234,31 @@ public final class TagProcessor extends LifecycleComponent {
             } else {
                 observationFilter.add(registrationId, observation);
                 publishPassageSnapshots();
+                ensureObservationFilter();
                 ensureHousekeeping();
             }
         }
     }
 
-    /** Ensures one periodic housekeeping registration exists while timed filter state is active. */
+    /** Ensures periodic passage-filter evaluation while open passage state exists. */
+    private void ensureObservationFilter() {
+        if (!observationFilter.hasPendingState()) {
+            return;
+        }
+
+        synchronized (lifecycleLock) {
+            if (!isActive() || observationFilterTask != null) {
+                return;
+            }
+            observationFilterTask = lane.scheduleWithFixedDelay(
+                    this::processObservationFilter,
+                    policyConfiguration.currentValue().sweepCadenceNanos());
+        }
+    }
+
+    /** Ensures periodic duplicate-state housekeeping while remembered registrations exist. */
     private void ensureHousekeeping() {
-        if (!hasTimedState()) {
+        if (!duplicateFilter.hasPendingState()) {
             return;
         }
 
@@ -275,30 +294,48 @@ public final class TagProcessor extends LifecycleComponent {
         if (change.previousValue().sweepCadenceNanos()
                 != change.currentValue().sweepCadenceNanos()) {
             synchronized (lifecycleLock) {
+                cancelObservationFilterLocked();
                 cancelHousekeepingLocked();
             }
         }
 
         /*
-         * Evaluate existing timed state immediately against the new policy.
-         * This makes shorter quiet/max/duplicate windows effective without
-         * waiting for the next old housekeeping interval.
+         * Apply the new time windows immediately rather than waiting for the
+         * next scheduled filter/housekeeping run.
          */
+        processObservationFilter();
         processHousekeeping();
+        ensureObservationFilter();
         ensureHousekeeping();
     }
 
-    /** Processes one scheduled timeout/duplicate housekeeping run. */
-    private void processHousekeeping() {
+    /** Processes one scheduled passage-filter evaluation run. */
+    private void processObservationFilter() {
         try {
             observationFilter.periodic();
-            duplicateFilter.periodic();
             publishPassageSnapshots();
+        } catch (RuntimeException ex) {
+            LOG.warn("Tag observation filter processing failed", ex);
+        } finally {
+            synchronized (lifecycleLock) {
+                if (observationFilterTask != null
+                        && (!isActive() || !observationFilter.hasPendingState())) {
+                    cancelObservationFilterLocked();
+                }
+            }
+        }
+    }
+
+    /** Processes one scheduled duplicate-state housekeeping run. */
+    private void processHousekeeping() {
+        try {
+            duplicateFilter.periodic();
         } catch (RuntimeException ex) {
             LOG.warn("Tag-processing housekeeping failed", ex);
         } finally {
             synchronized (lifecycleLock) {
-                if (housekeepingTask != null && (!isActive() || !hasTimedState())) {
+                if (housekeepingTask != null
+                        && (!isActive() || !duplicateFilter.hasPendingState())) {
                     cancelHousekeepingLocked();
                 }
             }
@@ -316,9 +353,13 @@ public final class TagProcessor extends LifecycleComponent {
                                         current));
     }
 
-    /** Returns whether filter state still needs periodic timeout housekeeping. */
-    private boolean hasTimedState() {
-        return observationFilter.hasPendingState() || duplicateFilter.hasPendingState();
+    /** Cancels the current fixed-delay passage-filter registration while holding the lifecycle lock. */
+    private void cancelObservationFilterLocked() {
+        ScheduledSerialLane.ScheduledRegistration task = observationFilterTask;
+        observationFilterTask = null;
+        if (task != null) {
+            task.close();
+        }
     }
 
     /** Cancels the current fixed-delay housekeeping registration while holding the lifecycle lock. */
@@ -333,6 +374,7 @@ public final class TagProcessor extends LifecycleComponent {
     /** Converts one filter-approved observation into a registration event. */
     private void processValidObservation(RegistrationId registrationId, TimingTimestamp observedAt) {
         duplicateFilter.recordRegistration(registrationId);
+        ensureHousekeeping();
 
         /*
          * The observation that closed the previous passage may already have
