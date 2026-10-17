@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,8 +22,8 @@ public class AbstractConductorTest {
     public void activatesComponentsStartsLaneThenRunsConcreteHook() {
         ExecutorService worker =
                 Executors.newSingleThreadExecutor();
-        SerialLane lane =
-                new SerialLane(
+        RunnableSerialLane lane =
+                new RunnableSerialLane(
                         4,
                         4,
                         "abstract-conductor-test",
@@ -48,7 +48,7 @@ public class AbstractConductorTest {
                             "component.deactivate"),
                     calls);
             assertEquals(
-                    SerialLane.State.STOPPED,
+                    RunnableSerialLane.State.STOPPED,
                     lane.state());
         } finally {
             worker.shutdownNow();
@@ -59,8 +59,8 @@ public class AbstractConductorTest {
     public void hookFailureClosesLaneAndRollsBackComponents() {
         ExecutorService worker =
                 Executors.newSingleThreadExecutor();
-        SerialLane lane =
-                new SerialLane(
+        RunnableSerialLane lane =
+                new RunnableSerialLane(
                         4,
                         4,
                         "abstract-conductor-test",
@@ -94,7 +94,7 @@ public class AbstractConductorTest {
                             "component.deactivate"),
                     calls);
             assertEquals(
-                    SerialLane.State.STOPPED,
+                    RunnableSerialLane.State.STOPPED,
                     lane.state());
         } finally {
             worker.shutdownNow();
@@ -125,7 +125,7 @@ public class AbstractConductorTest {
         private final RuntimeException hookFailure;
 
         private TestConductor(
-                SerialLane lane,
+                RunnableSerialLane lane,
                 List<String> calls,
                 RuntimeException hookFailure) {
             super("TestConductor", lane);
@@ -140,7 +140,7 @@ public class AbstractConductorTest {
         @Override
         protected void onActivated() {
             assertEquals(
-                    SerialLane.State.RUNNING,
+                    RunnableSerialLane.State.RUNNING,
                     coordinationLane().state());
 
             calls.add(
