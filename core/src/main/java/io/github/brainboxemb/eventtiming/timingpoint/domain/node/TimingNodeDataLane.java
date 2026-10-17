@@ -93,14 +93,6 @@ public final class TimingNodeDataLane implements AutoCloseable {
         return lane.isRunning();
     }
 
-    public SerialLane.State state() {
-        return lane.state();
-    }
-
-    public Throwable failure() {
-        return lane.failure();
-    }
-
     public SerialLaneMetrics metrics() {
         return lane.metrics();
     }
