@@ -115,12 +115,12 @@ final class NodeTaskLane {
             String operation,
             RejectedExecutionException rejection) {
 
-        if (serialLane.state() == SerialLane.State.FAILED) {
+        if (serialLane.isFailed()) {
             return new IllegalStateException(
                     operation + " could not run because the TimingNode Task Lane failed",
                     serialLane.failure() == null ? rejection : serialLane.failure());
         }
-        if (serialLane.state() != SerialLane.State.RUNNING) {
+        if (!serialLane.isRunning()) {
             return new IllegalStateException(
                     operation + " could not be queued because the TimingNode Task Lane is not running",
                     rejection);
