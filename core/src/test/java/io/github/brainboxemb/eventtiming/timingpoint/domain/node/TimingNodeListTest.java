@@ -7,7 +7,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persist
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import org.junit.Test;
 
@@ -17,24 +20,25 @@ import static org.junit.Assert.assertSame;
 public class TimingNodeListTest {
 
     @Test
-    public void builtListIsIndependentFromBuilder() {
+    public void constructorCopiesSourceList() {
 
         TimingNode first = node("A");
         TimingNode second = node("B");
-        TimingNodeList.Builder builder = TimingNodeList.builder().add(first);
+        List<TimingNode> source = new ArrayList<TimingNode>();
+        source.add(first);
 
-        TimingNodeList nodes = builder.build();
-        builder.add(second);
+        TimingNodeList nodes = new TimingNodeList(source);
+        source.add(second);
 
         assertEquals(1, nodes.size());
         assertSame(first, nodes.get(0));
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void builderRejectsSameNodeInstanceTwice() {
+    public void constructorRejectsSameNodeInstanceTwice() {
 
         TimingNode node = node("A");
-        TimingNodeList.builder().add(node).add(node);
+        new TimingNodeList(Arrays.asList(node, node));
     }
 
     /** Creates one direct TimingNode without starting component lifecycle. */

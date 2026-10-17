@@ -25,6 +25,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.Ta
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -67,7 +68,9 @@ public class TimingSystemConductorTest {
                         "system-conductor-test",
                         newScheduledWorker("worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
-                TimingNodeList.builder().add(first).add(second).build(), manager, lane);
+                new TimingNodeList(Arrays.asList(first, second)),
+                manager,
+                lane);
         activate(manager);
         activate(conductor);
         try {
@@ -101,7 +104,7 @@ public class TimingSystemConductorTest {
                         newScheduledWorker("conductor-startup-worker"));
         TimingSystemConductor conductor =
                 new TimingSystemConductor(
-                        TimingNodeList.of(node),
+                        new TimingNodeList(Collections.singletonList(node)),
                         manager,
                         lane);
         activate(manager);
@@ -160,7 +163,7 @@ public class TimingSystemConductorTest {
                         "conductor-event-test",
                         newScheduledWorker("conductor-event-worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
-                TimingNodeList.of(node), manager, lane);
+                new TimingNodeList(Collections.singletonList(node)), manager, lane);
         activate(manager);
         activate(conductor);
         CountDownLatch started = new CountDownLatch(1);
@@ -203,7 +206,7 @@ public class TimingSystemConductorTest {
                         newScheduledWorker("conductor-filter-worker"));
         TimingSystemConductor conductor =
                 new TimingSystemConductor(
-                        TimingNodeList.of(node),
+                        new TimingNodeList(Collections.singletonList(node)),
                         null,
                         lane);
         activate(conductor);
@@ -245,7 +248,7 @@ public class TimingSystemConductorTest {
                         "conductor-coalesce-test",
                         newScheduledWorker("coalesce-worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
-                TimingNodeList.of(node), manager, lane);
+                new TimingNodeList(Collections.singletonList(node)), manager, lane);
         activate(manager);
         activate(conductor);
         CountDownLatch started = new CountDownLatch(1);
@@ -283,7 +286,7 @@ public class TimingSystemConductorTest {
         TimingNode first = newTimingNode("A");
         TimingNode second = newTimingNode("B");
 
-        TimingNodeList nodes = TimingNodeList.builder().add(first).add(second).build();
+        TimingNodeList nodes = new TimingNodeList(Arrays.asList(first, second));
 
         assertEquals(2, nodes.size());
         assertSame(first, nodes.get(0));
@@ -293,13 +296,11 @@ public class TimingSystemConductorTest {
     @Test
     public void timingNodeListRejectsDuplicateInstance() {
         TimingNode node = newTimingNode("A");
-        TimingNodeList.Builder nodes = TimingNodeList.builder().add(node);
-
         try {
-            nodes.add(node);
+            new TimingNodeList(Arrays.asList(node, node));
             fail("Duplicate TimingNode accepted");
         } catch (IllegalArgumentException expected) {
-            assertEquals(1, nodes.build().size());
+            assertTrue(expected.getMessage().contains("already present"));
         }
     }
 

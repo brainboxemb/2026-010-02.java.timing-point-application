@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Remove the unchanged committed-TimingData relay from TimingNode: NodeService now consumes the LogBook commit event directly and TimingNodeProxy exposes the same LogBook event through LogBookAccessor, keeping TimingNode focused on node state and coordination.
+
+- Keep TimingNodeList as a plain immutable Domain collection: remove its composition-only nested Builder and unused `of(...)` factory, let Runtime assemble nodes with ordinary Java collections, and construct the immutable list once at the Domain boundary.
+
 - Simplify caller-visible command/error handling: move presentation TimingData outcomes to Application `CommandResult`, let LogBook registration commands return committed `TimingData` directly, keep `TimingNodeTypes` to real node values/results, and remove the public `OperationException.Reason` state model while retaining detailed Data Lane failure logging.
 
 - Add one documented `TimingNode.processLocked(Supplier<R>)` scope for presentation-triggered LogBook writes, keeping state-sensitive registration admission consistent with OPEN/CLOSE without adding one TimingNode method per TimingData action.

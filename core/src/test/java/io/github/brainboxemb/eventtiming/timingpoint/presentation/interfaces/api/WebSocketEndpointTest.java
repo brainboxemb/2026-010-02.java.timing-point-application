@@ -22,6 +22,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -394,11 +395,7 @@ public class WebSocketEndpointTest {
     private static TimingNodeList nodes(
             TimingNode... timingNodes) {
 
-        TimingNodeList.Builder result = TimingNodeList.builder();
-        for (TimingNode timingNode : timingNodes) {
-            result.add(timingNode);
-        }
-        return result.build();
+        return new TimingNodeList(Arrays.asList(timingNodes));
     }
 
     private static final class Fixture implements AutoCloseable {

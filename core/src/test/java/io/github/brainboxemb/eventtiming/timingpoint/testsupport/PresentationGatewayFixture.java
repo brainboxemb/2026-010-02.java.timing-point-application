@@ -47,7 +47,6 @@ public final class PresentationGatewayFixture implements AutoCloseable {
 
         nodes = new ArrayList<TimingNode>();
         NodeId[] ids = new NodeId[nodeIds.length];
-        TimingNodeList.Builder timingNodes = TimingNodeList.builder();
         for (int index = 0; index < nodeIds.length; index++) {
             NodeId nodeId = new NodeId(nodeIds[index]);
             ids[index] = nodeId;
@@ -56,13 +55,12 @@ public final class PresentationGatewayFixture implements AutoCloseable {
                     new MemoryPersistence(),
                     () -> RECORDED_AT.instant());
             nodes.add(node);
-            timingNodes.add(node);
         }
 
         configuration = configurationControl(ids);
         handler = new PresentationGateway(
                 identity,
-                timingNodes.build(),
+                new TimingNodeList(nodes),
                 configuration);
         for (TimingNode node : nodes) {
             LifecycleTestSupport.activate(node);

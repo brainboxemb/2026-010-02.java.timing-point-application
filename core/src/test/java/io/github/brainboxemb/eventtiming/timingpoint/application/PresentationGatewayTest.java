@@ -15,6 +15,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGat
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -271,11 +272,7 @@ public class PresentationGatewayTest {
     private static TimingNodeList nodes(
             TimingNode... timingNodes) {
 
-        TimingNodeList.Builder result = TimingNodeList.builder();
-        for (TimingNode timingNode : timingNodes) {
-            result.add(timingNode);
-        }
-        return result.build();
+        return new TimingNodeList(Arrays.asList(timingNodes));
     }
 
     private static ConfigurationControl configuration() {
