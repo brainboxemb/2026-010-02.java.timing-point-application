@@ -11,6 +11,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTaskLane;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
@@ -29,7 +30,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.ClockTimeSource;
@@ -92,7 +92,7 @@ final class RuntimeCharacterizationHarness
     private ScheduledThreadPoolExecutor tagWorker;
     private ScheduledThreadPoolExecutor ioWorker;
     private TimingNodeDataLane dataLane;
-    private RunnableSerialLane taskLane;
+    private TimingNodeTaskLane taskLane;
     private ScheduledSerialLane tagLane;
     private TaskSerialLane antennaLane;
     private SimulatedAntenna antenna;
@@ -162,7 +162,7 @@ final class RuntimeCharacterizationHarness
                         "TimingNodeData",
                         nodeWorker);
         taskLane =
-                new RunnableSerialLane(
+                new TimingNodeTaskLane(
                         TIMING_NODE_QUEUE_CAPACITY,
                         TIMING_NODE_QUEUE_CAPACITY,
                         "TimingNodeTask",
