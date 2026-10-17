@@ -37,7 +37,7 @@ final class NodeTaskLane {
     NodeTaskLane(
             TimingNodeTaskLane taskLane,
             long operationTimeoutMillis,
-            java.util.function.Consumer<NodeServiceTaskItem> itemProcessor) {
+            java.util.function.Consumer<Item> itemProcessor) {
 
         failIfInvalidArgument(taskLane != null, "taskLane must not be null");
         failIfInvalidArgument(operationTimeoutMillis > 0L, "operationTimeoutMillis must be positive");
@@ -45,7 +45,7 @@ final class NodeTaskLane {
 
         this.taskLane = taskLane;
         this.operationTimeoutMillis = operationTimeoutMillis;
-        taskLane.bindNodeService(itemProcessor);
+        taskLane.bindNodeService(item -> itemProcessor.accept((Item) item));
     }
 
     /** Starts the logical Task Lane and opens item admission. */
