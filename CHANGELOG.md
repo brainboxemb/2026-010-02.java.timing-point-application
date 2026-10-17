@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add one documented `TimingNode.processLocked(Supplier<R>)` scope for presentation-triggered LogBook writes, keeping state-sensitive registration admission consistent with OPEN/CLOSE without adding one TimingNode method per TimingData action.
+
 - Finish the production readability audit by removing the last reviewed normal-flow returns in logging command routing, property publication and runtime deactivation; true guards and explicit multi-state decisions remain unchanged.
 
 - Continue the production readability audit by keeping normal equivalent paths linear in lifecycle, logging, lane cleanup, tag ingress, test-hook dispatch and upstream payload dispatch while retaining true guard/failure-path early returns.

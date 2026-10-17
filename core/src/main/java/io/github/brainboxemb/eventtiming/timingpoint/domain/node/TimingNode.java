@@ -1,11 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
@@ -24,6 +21,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
@@ -31,7 +29,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 
 /**
  * Coordinates one timing node.
@@ -223,70 +220,25 @@ public final class TimingNode extends LifecycleComponent {
     }
 
     /**
-     * Adds one test automatic registration with an explicitly supplied effective time.
+     * Runs one synchronous result-bearing operation while the node operation lock is held.
      *
-     * <p>This call blocks until the LogBook Data Lane has committed the record,
-     * rejected it because the node is not OPEN, or the operation fails. Test
-     * registrations always use {@code TagSource.API}; {@code registrationTimeSource}
-     * records whether the supplied time came from the caller or this node's TimeSource.</p>
+     * <p>The supplied operation runs immediately on the caller thread. This method does not
+     * queue work and is not a commit/rollback transaction. Application code uses this scope
+     * when it must read the current functional state or LocationId and process related
+     * LogBook work without {@link #open(LocationId)} or {@link #close()} changing that node
+     * state between those steps.</p>
      *
-     * @throws OperationException when the node operation cannot return its normal result
+     * <p>The operation lock remains held until the Supplier returns, so supplied work should
+     * stay bounded and should represent one node-scoped operation.</p>
+     *
+     * @param operation synchronous work to execute while the node operation lock is held
+     * @return the Supplier result
      */
-    public RegistrationResult addTestAutomaticRegistration(
-            RegistrationId registrationId,
-            TimingTimestamp effectiveTime,
-            TimingData.AutomaticTimeSource registrationTimeSource)
-            throws OperationException {
+    public <R> R processLocked(Supplier<R> operation) {
 
-        failIfInvalidArgument(
-                registrationTimeSource == TimingData.AutomaticTimeSource.API
-                        || registrationTimeSource == TimingData.AutomaticTimeSource.NODE,
-                "test automatic registration time source must be API or NODE");
-
+        failIfInvalidArgument(operation != null, "operation must not be null");
         synchronized (operationLock) {
-            RegistrationResult result;
-            if (functionalStateProp.get() != FunctionalState.OPEN) {
-                result = RegistrationResult.nodeNotOpen();
-            } else {
-                result = logBook.process(
-                        LogBookCommands.commitAutomaticRegistration(
-                                locationIdProp.get(),
-                                registrationId,
-                                effectiveTime,
-                                TimingData.TagSource.API,
-                                registrationTimeSource));
-            }
-            return result;
-        }
-    }
-
-    /**
-     * Adds one manual registration.
-     *
-     * <p>This call blocks until the LogBook Data Lane has committed the record,
-     * rejected it because the node is not OPEN, or the operation fails.</p>
-     *
-     * @throws OperationException when the node operation cannot return its normal result
-     */
-    public RegistrationResult addManualRegistration(
-            RegistrationId registrationId,
-            TimingTimestamp effectiveTime,
-            ManualTimeSource registrationTimeSource)
-            throws OperationException {
-
-        synchronized (operationLock) {
-            RegistrationResult result;
-            if (functionalStateProp.get() != FunctionalState.OPEN) {
-                result = RegistrationResult.nodeNotOpen();
-            } else {
-                result = logBook.process(
-                        LogBookCommands.commitManualRegistration(
-                                locationIdProp.get(),
-                                registrationId,
-                                effectiveTime,
-                                registrationTimeSource));
-            }
-            return result;
+            return operation.get();
         }
     }
 
