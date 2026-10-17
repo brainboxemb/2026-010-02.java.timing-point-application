@@ -603,7 +603,12 @@ public class TimingNodeTest {
                     TimingNodeTypes.FunctionalState.CLOSED,
                     node.functionalState());
             assertEquals(new LocationId(24), node.locationId());
-            assertEquals(2, executor.metrics().snapshot().queueDepth());
+            /*
+             * OPEN and CLOSE are two LogBook items behind one fixed Data Lane
+             * queue worker. The underlying SerialLane therefore contains one
+             * worker entry, not one executable entry per LogBook item.
+             */
+            assertEquals(1, executor.metrics().snapshot().queueDepth());
 
             releaseBlocker.countDown();
 
