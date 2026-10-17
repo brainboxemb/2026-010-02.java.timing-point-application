@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Keep TimingNode operational health separate from LogBook health: a failed persisted-data recovery remains a LogBook recovery problem while the TimingNode MainTask completes to `OK`; `TimingNode.ERROR` is reserved for failure of the node's own startup/execution path. Functional `OPEN/CLOSED` remains independent from both.
+
+
 - Simplify execution around Java primitives: `SerialLane<T>` owns bounded typed queues, `SerialTaskRunner` runs cooperative yielded tasks on one `SerialLane<TaskRun>`, and `TagProcessor` uses a `SerialLane<TagObservation>` plus direct single-thread `ScheduledExecutorService` filter/housekeeping tasks. Remove the duplicate `NodeTaskLane`, `SerialQueue`, `TaskSerialLane`, and `ScheduledSerialLane` layers.
 
 - Start TimingNode asynchronously through its cooperative MainTask: lifecycle activation starts the shared task runner, activates child admission and queues the MainTask without waiting for recovery. The MainTask reconstructs persisted LogBook data on the shared node worker; Data Lane work may be admitted during startup and executes after that startup step releases the worker. Recovery is not a queued `LogBookOperationItem`, and operational `INIT/OK/ERROR` remains separate from functional `OPEN/CLOSED`.
@@ -405,7 +408,7 @@
 - Promote **Device Log** and **Client Log** to independent top-level Development Client tabs, removing the nested Logs/source-tab structure while preserving separate runtime log-level controls.
 - Correct the Development Client Logs tab: show Device Log first and Client Log last, and give both sources independent current/set-level controls while keeping the local client log usable when SI-01 is offline.
 - Rename the standalone JavaFX tool to **Development Client** and align the API-first workbench: remove the prominent Set Location button, split TimingData Type/Code columns, retain node-scoped IF-03 problems, and give client log lines real source context while keeping Client and SI-01/Device logs separate.
-- Contain TimingData startup-recovery failures to the affected TimingNode: keep SI-01 and diagnostic interfaces running, expose node state `ERROR` with `TIMING_DATA_RECOVERY_FAILED`, reject normal operations on the errored node, and add black-box `VC-ST1-004` for a persisted NodeId mismatch.
+- Contain TimingData startup-recovery failures to the LogBook: keep the TimingNode and diagnostic interfaces running, expose the LogBook recovery problem separately, allow functional OPEN/CLOSED to continue, and add black-box `VC-ST1-004` for a persisted NodeId mismatch.
 - Make IF-03 OPEN carry the requested LocationId as one ordered TimingNode operation; the HTTP `/open` request now requires `locationId`, while the separate closed-state Set Location operation remains available for engineering/configuration work. Update the Engineering Client and VC-ST1-002 to use the combined OPEN operation.
 - Implement the reviewed API-first Engineering Client workbench: one client configuration file for target/per-boundary ports and presentation defaults, API as the primary Status/Timing surface, top-level Events/Terminal/Device-log connection controls, separate Client versus SI-01 log sources, low local domain intelligence, split registration prefix/number plus readable date/time entry, and retained raw API results/errors/TimingData records for engineering inspection. Keep this change separate from the still-open Step-4 VC-ST1-003 evidence.
 
