@@ -38,7 +38,7 @@ import static org.junit.Assert.fail;
 public class AntennaManagerTest {
 
     @Test
-    public void desiredSettingsPublishedBeforeActivationAreAppliedAfterSelfTest()
+    public void desiredInventorySetBeforeActivationIsAppliedAfterSelfTest()
             throws Exception {
         ScheduledExecutorService shared = sharedExecutor();
         SimulatedAntenna antenna = new SimulatedAntenna();
@@ -49,10 +49,7 @@ public class AntennaManagerTest {
                 Duration.ofSeconds(1));
 
         try {
-            manager.settings().update(
-                    edit -> edit.set(
-                            AntennaSettings.INVENTORY_ENABLED,
-                            Boolean.TRUE));
+            manager.setInventoryRequired(true);
             assertFalse(antenna.inventoryRunning());
 
             activate(manager);
@@ -426,10 +423,7 @@ public class AntennaManagerTest {
 
             antenna.setFailurePoint(
                     SimulatedAntenna.FailurePoint.START_INVENTORY);
-            manager.settings().update(
-                    edit -> edit.set(
-                            AntennaSettings.INVENTORY_ENABLED,
-                            Boolean.TRUE));
+            manager.setInventoryRequired(true);
 
             awaitCondition(
                     () -> manager.status(new AntennaId("1")).failure() != null,
@@ -447,10 +441,7 @@ public class AntennaManagerTest {
              * coalescing. Repeating the same desired TRUE must not become an
              * implicit retry.
              */
-            manager.settings().update(
-                    edit -> edit.set(
-                            AntennaSettings.INVENTORY_ENABLED,
-                            Boolean.TRUE));
+            manager.setInventoryRequired(true);
             Thread.sleep(
                     50L);
 

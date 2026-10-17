@@ -17,7 +17,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnl
 import io.github.brainboxemb.eventtiming.timingpoint.infra.property.Property;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
@@ -68,7 +67,7 @@ public class TimingSystemConductorTest {
                         "system-conductor-test",
                         newScheduledWorker("worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
-                TimingNodeList.builder().add(first).add(second).build(), manager.settings(), lane);
+                TimingNodeList.builder().add(first).add(second).build(), manager, lane);
         activate(manager);
         activate(conductor);
         try {
@@ -77,11 +76,7 @@ public class TimingSystemConductorTest {
 
             second.open(new LocationId(25));
             first.close();
-            await(
-                    () -> manager.settings()
-                            .requestedValue(AntennaSettings.INVENTORY_ENABLED)
-                            .booleanValue(),
-                    1000L);
+            awaitLane(lane);
             assertTrue(antenna.inventoryRunning());
 
             second.close();
@@ -107,7 +102,7 @@ public class TimingSystemConductorTest {
         TimingSystemConductor conductor =
                 new TimingSystemConductor(
                         TimingNodeList.of(node),
-                        manager.settings(),
+                        manager,
                         lane);
         activate(manager);
         final Throwable[] activationFailure = new Throwable[1];
@@ -135,10 +130,7 @@ public class TimingSystemConductorTest {
                     activationCaller.isAlive());
             assertNull(activationFailure[0]);
             assertEquals(FunctionalState.CLOSED, node.functionalState());
-            assertFalse(
-                    manager.settings()
-                            .requestedValue(AntennaSettings.INVENTORY_ENABLED)
-                            .booleanValue());
+            assertFalse(antenna.inventoryRunning());
 
             persistence.releaseLoad.countDown();
 
@@ -146,10 +138,7 @@ public class TimingSystemConductorTest {
             await(
                     antenna::inventoryRunning,
                     1000L);
-            assertTrue(
-                    manager.settings()
-                            .requestedValue(AntennaSettings.INVENTORY_ENABLED)
-                            .booleanValue());
+            assertTrue(antenna.inventoryRunning());
         } finally {
             persistence.releaseLoad.countDown();
             activationCaller.join(1000L);
@@ -171,7 +160,7 @@ public class TimingSystemConductorTest {
                         "conductor-event-test",
                         newScheduledWorker("conductor-event-worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
-                TimingNodeList.of(node), manager.settings(), lane);
+                TimingNodeList.of(node), manager, lane);
         activate(manager);
         activate(conductor);
         CountDownLatch started = new CountDownLatch(1);
@@ -188,9 +177,11 @@ public class TimingSystemConductorTest {
             node.open(new LocationId(24));
             assertFalse(
                     "Node event only wakes the Conductor",
-                    manager.settings()
-                            .requestedValue(AntennaSettings.INVENTORY_ENABLED)
-                            .booleanValue());
+                    antenna.inventoryRunning());
+            assertEquals(
+                    "Node event queues one Conductor reconciliation",
+                    1,
+                    lane.metrics().snapshot().queueDepth());
             release.countDown();
             await(antenna::inventoryRunning, 1000L);
         } finally {
@@ -254,7 +245,7 @@ public class TimingSystemConductorTest {
                         "conductor-coalesce-test",
                         newScheduledWorker("coalesce-worker"));
         TimingSystemConductor conductor = new TimingSystemConductor(
-                TimingNodeList.of(node), manager.settings(), lane);
+                TimingNodeList.of(node), manager, lane);
         activate(manager);
         activate(conductor);
         CountDownLatch started = new CountDownLatch(1);
@@ -271,14 +262,15 @@ public class TimingSystemConductorTest {
             node.open(new LocationId(24));
             node.close();
             node.open(new LocationId(25));
-            assertFalse(manager.settings().requestedValue(AntennaSettings.INVENTORY_ENABLED).booleanValue());
+            assertFalse(antenna.inventoryRunning());
             assertEquals("one coalesced pending reconciliation", 1,
                     lane.metrics().snapshot().queueDepth());
             release.countDown();
             await(antenna::inventoryRunning, 1000L);
-            assertTrue(manager.settings().requestedValue(AntennaSettings.INVENTORY_ENABLED).booleanValue());
-            assertEquals("no intermediate OPEN/CLOSE publication", 1L,
-                    manager.settings().revision());
+            assertEquals(
+                    "coalesced reconciliation starts inventory once",
+                    1,
+                    antenna.inventoryStartCount());
         } finally {
             release.countDown();
             deactivate(conductor);
@@ -346,6 +338,12 @@ public class TimingSystemConductorTest {
                 Executors.newSingleThreadScheduledExecutor(runnable -> new Thread(runnable, name));
         workers.add(worker);
         return worker;
+    }
+
+    private static void awaitLane(TaskSerialLane lane) throws Exception {
+        CountDownLatch completed = new CountDownLatch(1);
+        lane.execute(completed::countDown);
+        assertTrue("Conductor lane did not drain", completed.await(1L, TimeUnit.SECONDS));
     }
 
     private static void await(java.util.function.BooleanSupplier condition, long timeoutMillis) throws Exception {

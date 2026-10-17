@@ -2,7 +2,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager
 
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.setting.Setting;
-import io.github.brainboxemb.eventtiming.timingpoint.infra.setting.SettingUpdate;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.AntennaStatus;
@@ -43,11 +42,6 @@ public final class AntennaManager extends LifecycleComponent {
             EventInput.of(
                     (manager, source) -> source.subscribe(manager::onInventoryCompleted));
 
-    /** Desired-settings change input; the revision only wakes reconciliation. */
-    private static final EventInput<AntennaManager, SettingUpdate> SETTINGS_CHANGED =
-            EventInput.of(
-                    (manager, source) -> source.subscribe(manager::onSettingsChanged));
-
     /**
      * Internal control phase while the public lifecycle remains ACTIVE.
      *
@@ -67,8 +61,8 @@ public final class AntennaManager extends LifecycleComponent {
 
     private final TaskSerialLane taskLane;
     private final AntennaSet antennaSet;
-    private final Setting<Boolean> inventoryEnabledSetting;
-    private final AntennaSettings settings;
+    private final Setting<Boolean> inventoryEnabledSetting =
+            new Setting<Boolean>(Boolean.FALSE);
     private final SelfTestTask selfTestTask;
     private final InventoryTask inventoryTask;
     private final AntennaShutdownTask shutdownTask;
@@ -83,16 +77,6 @@ public final class AntennaManager extends LifecycleComponent {
     public AntennaManager(
             AntennaSet antennaSet,
             TaskSerialLane taskLane) {
-        this(antennaSet, taskLane, new AntennaSettings());
-    }
-
-    public AntennaManager(
-            AntennaSet antennaSet,
-            TaskSerialLane taskLane,
-            AntennaSettings settings) {
-        failIfInvalidArgument(settings != null, "settings must not be null");
-        this.settings = settings;
-        inventoryEnabledSetting = settings.inventorySetting();
         failIfInvalidArgument(antennaSet != null, "antennaSet must not be null");
         failIfInvalidArgument(taskLane != null, "taskLane must not be null");
 
@@ -113,7 +97,6 @@ public final class AntennaManager extends LifecycleComponent {
          */
         SELF_TEST_COMPLETED.bind(this, selfTestTask.COMPLETED);
         INVENTORY_COMPLETED.bind(this, inventoryTask.COMPLETED);
-        SETTINGS_CHANGED.bind(this, settings.CHANGED);
     }
 
     @Override
@@ -143,8 +126,21 @@ public final class AntennaManager extends LifecycleComponent {
                 && current != Phase.WAIT_SELF_TEST;
     }
 
-    public AntennaSettings settings() {
-        return settings;
+    /**
+     * Sets the desired system inventory state without turning repeated state into a retry.
+     *
+     * <p>The call is non-blocking. It records the desired value immediately and only wakes
+     * AntennaManager's own task when reconciliation is needed. Desired state may be set
+     * before activation; activation will reconcile it after startup self-test.</p>
+     */
+    public synchronized void setInventoryRequired(boolean required) {
+        if (!inventoryEnabledSetting.requestIfChanged(Boolean.valueOf(required))) {
+            return;
+        }
+
+        if (state == State.ACTIVE) {
+            mainTask.wake(taskLane);
+        }
     }
 
     /**
@@ -248,13 +244,6 @@ public final class AntennaManager extends LifecycleComponent {
         inventoryEnabledSetting.request(Boolean.valueOf(enabled));
         mainTask.wake(taskLane);
         return true;
-    }
-
-    /** Wakes the main task after one committed desired-settings update. */
-    private void onSettingsChanged(SettingUpdate ignoredUpdate) {
-        if (state == State.ACTIVE) {
-            mainTask.wake(taskLane);
-        }
     }
 
     /**

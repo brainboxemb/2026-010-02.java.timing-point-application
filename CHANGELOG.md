@@ -8,7 +8,7 @@
 
 - Give `AbstractConductor` an explicit construction-time diagnostic name so generic start/stop lifecycle logs identify the concrete conductor.
 
-- Generalize grouped desired settings with `SettingKey<T>`, `SettingContainer` and grouped `SettingUpdate`. `Setting<T>` keeps requested/applied/pending semantics, while `AntennaSettings` is reduced to the antenna-specific inventory setting declaration and manager-owned handle.
+- Simplify TimingSystem antenna control: TimingSystemConductor calls `AntennaManager.setInventoryRequired(...)` directly. AntennaManager privately keeps `Setting<Boolean>` requested/applied/retry state; remove the shared `AntennaSettings` / grouped-settings transport while preserving explicit retry requests.
 
 - Replace generic LogBook `history` wording with concrete `TimingData` record, registration, committed-data and persisted-data terminology.
 

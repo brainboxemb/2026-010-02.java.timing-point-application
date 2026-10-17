@@ -4,14 +4,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
-import io.github.brainboxemb.eventtiming.timingpoint.infra.setting.SettingContainer;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
+import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
-
-import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,21 +22,21 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Only a TimingNode property update containing the functional-state property wakes the
  * control task. The subsequent run
- * reads every TimingNode's current functional state and publishes the desired inventory state
- * through the shared AntennaSettings. It does not retain a second copy of
- * node state or invoke AntennaManager directly.</p>
+ * reads every TimingNode's current functional state and asks AntennaManager to adopt the
+ * desired inventory state. It does not retain a second copy of node state or perform
+ * device operations directly.</p>
  */
 public final class TimingSystemConductor extends AbstractConductor {
     private static final Logger LOG = LoggerFactory.getLogger(TimingSystemConductor.class);
 
     private final TimingNodeList nodes;
-    private final AntennaSettings antennaSettings;
+    private final AntennaManager antennaManager;
     private final TaskSerialLane taskLane;
     private final MainTask mainTask = new MainTask();
 
     public TimingSystemConductor(
             TimingNodeList timingNodes,
-            AntennaSettings antennaSettings,
+            AntennaManager antennaManager,
             TaskSerialLane coordinationLane) {
 
         super("TimingSystemConductor", coordinationLane);
@@ -49,7 +46,7 @@ public final class TimingSystemConductor extends AbstractConductor {
         }
 
         this.nodes = timingNodes;
-        this.antennaSettings = antennaSettings;
+        this.antennaManager = antennaManager;
         this.taskLane = coordinationLane;
 
         for (TimingNode node : timingNodes) {
@@ -105,14 +102,8 @@ public final class TimingSystemConductor extends AbstractConductor {
                 required = true;
             }
         }
-        if (antennaSettings != null) {
-            final boolean inventoryRequired = required;
-            Consumer<SettingContainer.Edit> settingsUpdate =
-                    edit -> edit.set(
-                            AntennaSettings.INVENTORY_ENABLED,
-                            Boolean.valueOf(inventoryRequired));
-
-            antennaSettings.update(settingsUpdate);
+        if (antennaManager != null) {
+            antennaManager.setInventoryRequired(required);
         }
         return TaskStep.done();
     }
