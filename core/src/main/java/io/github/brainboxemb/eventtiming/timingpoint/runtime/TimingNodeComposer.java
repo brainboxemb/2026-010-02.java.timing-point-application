@@ -86,7 +86,7 @@ final class TimingNodeComposer {
                         monotonicClock,
                         new TagProcessingMetrics(),
                         execution.tagProcessorLane(),
-                        RuntimeExecutors.TAG_PROCESSOR_LANE_MAX_ITEMS_PER_RUN);
+                        RuntimeExecutors.TAG_PROCESSOR_OBSERVATION_MAX_ITEMS_PER_RUN);
 
         return new TimingNode(antennaId, timeSource, logBook, nodeService, tagProcessor);
     }
