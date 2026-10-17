@@ -11,6 +11,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 
 import java.time.ZoneId;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,32 +35,61 @@ public final class NodeService extends LifecycleComponent {
     private static final long TASK_QUERY_TIMEOUT_MILLIS = 2000L;
 
     /** One immutable startup-history fact queued onto the Task Lane. */
-    private static final class InitialTimingDataItem extends NodeTaskLane.Item<Void> {
+    private static final class InitialTimingDataItem implements NodeTaskLane.Item {
         private final List<TimingData> timingData;
 
         private InitialTimingDataItem(List<TimingData> timingData) {
-            super("initial TimingData");
             this.timingData = timingData;
+        }
+
+        @Override
+        public String name() {
+            return "initial TimingData";
         }
     }
 
     /** One newly committed TimingData fact queued onto the Task Lane. */
-    private static final class CommittedTimingDataItem extends NodeTaskLane.Item<Void> {
+    private static final class CommittedTimingDataItem implements NodeTaskLane.Item {
         private final TimingData timingData;
 
         private CommittedTimingDataItem(TimingData timingData) {
-            super("committed TimingData");
             this.timingData = timingData;
+        }
+
+        @Override
+        public String name() {
+            return "committed TimingData";
         }
     }
 
     /** One ordered stage-timing query queued onto the Task Lane. */
-    private static final class StageTimingQueryItem extends NodeTaskLane.Item<List<StageTime>> {
+    private static final class StageTimingQueryItem
+            implements NodeTaskLane.ResultItem<List<StageTime>> {
+
         private final ZoneId raceTimeZone;
+        private final CompletableFuture<List<StageTime>> result =
+                new CompletableFuture<List<StageTime>>();
 
         private StageTimingQueryItem(ZoneId raceTimeZone) {
-            super("stageTiming", true);
             this.raceTimeZone = raceTimeZone;
+        }
+
+        @Override
+        public String name() {
+            return "stageTiming";
+        }
+
+        @Override
+        public Future<List<StageTime>> result() {
+            return result;
+        }
+
+        private void complete(List<StageTime> stageTimes) {
+            result.complete(stageTimes);
+        }
+
+        private void fail(Throwable failure) {
+            result.completeExceptionally(failure);
         }
     }
 
@@ -167,7 +198,7 @@ public final class NodeService extends LifecycleComponent {
      * physical worker. Failure to queue the fact makes derived timing state
      * explicitly stale rather than silently losing synchronization.</p>
      */
-    private void handoffTimingFact(NodeTaskLane.Item<?> item) {
+    private void handoffTimingFact(NodeTaskLane.Item item) {
         try {
             taskLane.execute(item);
         } catch (RuntimeException ex) {
@@ -181,7 +212,7 @@ public final class NodeService extends LifecycleComponent {
     }
 
     /** Processes one typed NodeService item on the Task Lane worker. */
-    private void processTaskLaneItem(NodeTaskLane.Item<?> item) {
+    private void processTaskLaneItem(NodeTaskLane.Item item) {
         try {
             if (item instanceof InitialTimingDataItem) {
                 rebuildDerivedTiming(((InitialTimingDataItem) item).timingData);
@@ -195,10 +226,14 @@ public final class NodeService extends LifecycleComponent {
                         "Unsupported NodeService Task Lane item " + item.getClass().getName());
             }
         } catch (RuntimeException ex) {
-            item.fail(ex);
+            if (item instanceof StageTimingQueryItem) {
+                ((StageTimingQueryItem) item).fail(ex);
+            }
             throw ex;
         } catch (Error error) {
-            item.fail(error);
+            if (item instanceof StageTimingQueryItem) {
+                ((StageTimingQueryItem) item).fail(error);
+            }
             throw error;
         }
     }
