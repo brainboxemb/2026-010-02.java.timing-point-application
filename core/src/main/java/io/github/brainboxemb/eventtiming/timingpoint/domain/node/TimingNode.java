@@ -5,7 +5,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookRecoveryStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
@@ -152,7 +151,12 @@ public final class TimingNode extends LifecycleComponent {
         return functionalStateProp.get();
     }
 
-    /** Returns whether startup completed and normal node operations are available. */
+    /**
+     * Returns this TimingNode's own runtime readiness.
+     *
+     * <p>Child-component health is independent. For example, a failed LogBook
+     * recovery does not put the TimingNode itself in ERROR.</p>
+     */
     public OperationalState operationalState() {
 
         return operationalStateProp.get();
@@ -316,19 +320,15 @@ public final class TimingNode extends LifecycleComponent {
         @Override
         public TaskStep runStep() {
             if (!recoveryLoaded) {
-                LogBookRecoveryStatus status =
-                        logBook.loadPersistedData();
+                logBook.loadPersistedData();
                 recoveryLoaded = true;
 
-                if (status.failed()) {
-                    setOperationalState(OperationalState.ERROR);
-                    return TaskStep.done();
-                }
-
                 /*
-                 * loadPersistedData publishes INITIAL_DATA_LOADED. NodeService
-                 * queues its rebuild on this same Task Lane, so yield once and
-                 * let that earlier work run before publishing OK.
+                 * LogBook owns its own recovery result. A recovery failure is a
+                 * degraded child-component condition, not a TimingNode failure.
+                 * On successful recovery, INITIAL_DATA_LOADED may have queued
+                 * NodeService rebuild work on this same Task Lane, so yield once
+                 * before publishing node readiness.
                  */
                 return TaskStep.again();
             }
