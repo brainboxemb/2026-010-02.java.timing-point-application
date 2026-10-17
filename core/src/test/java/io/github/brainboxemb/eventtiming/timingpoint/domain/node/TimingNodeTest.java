@@ -191,6 +191,46 @@ public class TimingNodeTest {
     }
 
     @Test
+    public void deactivationDoesNotWaitForRunningMainTask()
+            throws Exception {
+        TimingNodeDataLane dataLane =
+                newDataLane(
+                        4,
+                        "timing-node-stop-worker");
+        UninterruptibleLoadPersistence persistence =
+                new UninterruptibleLoadPersistence();
+        TimingNode node =
+                node(
+                        new NodeId("A"),
+                        persistence,
+                        dataLane,
+                        1000L);
+
+        activate(node);
+        assertTrue(
+                "persisted-data load did not start",
+                persistence.loadStarted.await(
+                        1L,
+                        TimeUnit.SECONDS));
+
+        Thread deactivationCaller =
+                new Thread(
+                        () -> deactivate(node),
+                        "timing-node-deactivation-caller");
+        deactivationCaller.start();
+        deactivationCaller.join(250L);
+
+        assertFalse(
+                "deactivate() must not wait for the running MainTask",
+                deactivationCaller.isAlive());
+        assertEquals(
+                TimingNodeTypes.OperationalState.INIT,
+                node.operationalState());
+
+        persistence.releaseLoad.countDown();
+        deactivationCaller.join(1000L);
+    }
+    @Test
     public void failedPersistedDataLoadDoesNotReplaceFunctionalState() throws Exception {
         TimingNode node = TimingNodeFixture.createDirect(
                 new NodeId("A"),
@@ -950,6 +990,37 @@ public class TimingNodeTest {
         return Instant.parse("2026-10-02T08:00:00Z");
     }
 
+    private static final class UninterruptibleLoadPersistence
+            implements TimingDataPersistence {
+        private final CountDownLatch loadStarted =
+                new CountDownLatch(1);
+        private final CountDownLatch releaseLoad =
+                new CountDownLatch(1);
+
+        @Override
+        public LoadResult load() {
+            loadStarted.countDown();
+            boolean interrupted = false;
+            while (releaseLoad.getCount() != 0L) {
+                try {
+                    releaseLoad.await();
+                } catch (InterruptedException ex) {
+                    interrupted = true;
+                }
+            }
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+            }
+            return new LoadResult(
+                    Collections.<TimingData>emptyList(),
+                    false);
+        }
+
+        @Override
+        public void append(TimingData data) {
+            // MainTask deactivation test only.
+        }
+    }
     private static final class BlockingPersistence implements TimingDataPersistence {
         private final TimingNodeDataLane expectedLane;
         private final CountDownLatch loadStarted =
