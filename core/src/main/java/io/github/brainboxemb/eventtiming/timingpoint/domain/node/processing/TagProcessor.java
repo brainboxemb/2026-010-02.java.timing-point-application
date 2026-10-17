@@ -18,7 +18,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,8 +58,9 @@ public final class TagProcessor extends LifecycleComponent {
     private final TagObservationFilter observationFilter;
     private final ScheduledSerialLane lane;
     private final ArrayBlockingQueue<TagObservation> inputQueue;
-    private final AtomicBoolean drainScheduled = new AtomicBoolean();
     private final Object lifecycleLock = new Object();
+
+    private boolean observationProcessingScheduled;
 
     private volatile State state = State.NEW;
     private volatile ScheduledSerialLane.ScheduledRegistration housekeepingTask;
@@ -131,10 +131,10 @@ public final class TagProcessor extends LifecycleComponent {
                 state = State.INACTIVE;
             } else {
                 state = State.INACTIVE;
-                closeHousekeepingLocked();
+                cancelHousekeepingLocked();
                 if (!inputQueue.isEmpty()) {
                     try {
-                        lane.execute(this::drainAll);
+                        lane.execute(this::processQueuedObservations);
                     } catch (RejectedExecutionException ex) {
                         inputQueue.clear();
                     }
@@ -164,7 +164,7 @@ public final class TagProcessor extends LifecycleComponent {
             } else if (!inputQueue.offer(observation)) {
                 metrics.recordObservationQueueFull();
             } else {
-                scheduleDrainLocked();
+                scheduleObservationProcessingLocked();
             }
         }
     }
@@ -180,45 +180,42 @@ public final class TagProcessor extends LifecycleComponent {
         return passageSnapshots;
     }
 
-    /** Schedules one TagProcessor-lane drain when no drain turn is already pending. */
-    private void scheduleDrainLocked() {
-        if (!drainScheduled.compareAndSet(false, true)) {
+    /** Schedules queued-observation processing when no run is already pending. */
+    private void scheduleObservationProcessingLocked() {
+        if (observationProcessingScheduled) {
             return;
         }
+
+        observationProcessingScheduled = true;
         try {
-            lane.execute(this::drainBatch);
+            lane.execute(this::processQueuedObservations);
         } catch (RejectedExecutionException ex) {
-            drainScheduled.set(false);
+            observationProcessingScheduled = false;
             metrics.recordProcessorNotRunning();
         }
     }
 
-    /** Processes the observations that were queued when this lane turn started. */
-    private void drainBatch() {
-        try {
-            int count = inputQueue.size();
-            for (int index = 0; index < count; index++) {
-                TagObservation observation = inputQueue.poll();
-                if (observation == null) {
-                    break;
-                }
-                processObservationSafely(observation);
+    /**
+     * Processes the observations that were queued when this processing run started.
+     *
+     * <p>Observations arriving during the run remain in the bounded ingress queue
+     * and cause one follow-up run.</p>
+     */
+    private void processQueuedObservations() {
+        int count = inputQueue.size();
+        for (int index = 0; index < count; index++) {
+            TagObservation observation = inputQueue.poll();
+            if (observation == null) {
+                break;
             }
-        } finally {
-            drainScheduled.set(false);
-            synchronized (lifecycleLock) {
-                if (state == State.ACTIVE && !inputQueue.isEmpty()) {
-                    scheduleDrainLocked();
-                }
-            }
-        }
-    }
-
-    /** Processes all remaining observations during orderly deactivation. */
-    private void drainAll() {
-        TagObservation observation;
-        while ((observation = inputQueue.poll()) != null) {
             processObservationSafely(observation);
+        }
+
+        synchronized (lifecycleLock) {
+            observationProcessingScheduled = false;
+            if (state == State.ACTIVE && !inputQueue.isEmpty()) {
+                scheduleObservationProcessingLocked();
+            }
         }
     }
 
@@ -270,7 +267,7 @@ public final class TagProcessor extends LifecycleComponent {
                 return;
             }
             housekeepingTask = lane.scheduleWithFixedDelay(
-                    this::housekeeping,
+                    this::processHousekeeping,
                     policyConfiguration.currentValue().sweepCadenceNanos());
         }
     }
@@ -297,7 +294,7 @@ public final class TagProcessor extends LifecycleComponent {
         if (change.previousValue().sweepCadenceNanos()
                 != change.currentValue().sweepCadenceNanos()) {
             synchronized (lifecycleLock) {
-                closeHousekeepingLocked();
+                cancelHousekeepingLocked();
             }
         }
 
@@ -306,12 +303,12 @@ public final class TagProcessor extends LifecycleComponent {
          * This makes shorter quiet/max/duplicate windows effective without
          * waiting for the next old housekeeping interval.
          */
-        housekeeping();
+        processHousekeeping();
         ensureHousekeeping();
     }
 
-    /** Advances timeout-based tag filtering and republishes the engineering snapshot. */
-    private void housekeeping() {
+    /** Processes one scheduled timeout/duplicate housekeeping run. */
+    private void processHousekeeping() {
         try {
             observationFilter.periodic();
             duplicateFilter.periodic();
@@ -321,7 +318,7 @@ public final class TagProcessor extends LifecycleComponent {
         } finally {
             synchronized (lifecycleLock) {
                 if (housekeepingTask != null && (state != State.ACTIVE || !hasTimedState())) {
-                    closeHousekeepingLocked();
+                    cancelHousekeepingLocked();
                 }
             }
         }
@@ -343,8 +340,8 @@ public final class TagProcessor extends LifecycleComponent {
         return observationFilter.hasPendingState() || duplicateFilter.hasPendingState();
     }
 
-    /** Cancels the current housekeeping registration while holding the lifecycle lock. */
-    private void closeHousekeepingLocked() {
+    /** Cancels the current fixed-delay housekeeping registration while holding the lifecycle lock. */
+    private void cancelHousekeepingLocked() {
         ScheduledSerialLane.ScheduledRegistration task = housekeepingTask;
         housekeepingTask = null;
         if (task != null) {
