@@ -455,15 +455,13 @@ public class TimingNodeRegistrationTest {
 
         activate(node);
         try {
-            CommandResult result =
-                    node.logBook().process(
-                            LogBookCommands.revokeAutomaticRegistration(
-                                    new LocationId(24),
-                                    new RegistrationId("1001"),
-                                    EFFECTIVE_TIME));
-
             AutomaticRegistration data =
-                    (AutomaticRegistration) result.timingData();
+                    (AutomaticRegistration)
+                            node.logBook().process(
+                                    LogBookCommands.revokeAutomaticRegistration(
+                                            new LocationId(24),
+                                            new RegistrationId("1001"),
+                                            EFFECTIVE_TIME));
             assertEquals(1L, data.sequenceNumber());
             assertEquals(new LocationId(24), data.locationId());
             assertEquals(EFFECTIVE_TIME, data.effectiveTime());
@@ -484,16 +482,14 @@ public class TimingNodeRegistrationTest {
 
         activate(node);
         try {
-            CommandResult result =
-                    node.logBook().process(
-                            LogBookCommands.revokeManualRegistration(
-                                    new LocationId(24),
-                                    new RegistrationId("1001"),
-                                    EFFECTIVE_TIME,
-                                    ManualTimeSource.OPERATOR_ENTERED));
-
             ManualRegistration data =
-                    (ManualRegistration) result.timingData();
+                    (ManualRegistration)
+                            node.logBook().process(
+                                    LogBookCommands.revokeManualRegistration(
+                                            new LocationId(24),
+                                            new RegistrationId("1001"),
+                                            EFFECTIVE_TIME,
+                                            ManualTimeSource.OPERATOR_ENTERED));
             assertEquals(
                     TimingData.RegistrationAction.REV,
                     data.action());

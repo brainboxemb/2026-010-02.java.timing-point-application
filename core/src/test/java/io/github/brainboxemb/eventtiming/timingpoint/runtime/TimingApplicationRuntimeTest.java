@@ -12,7 +12,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.SimulationContr
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
@@ -691,24 +690,9 @@ public class TimingApplicationRuntimeTest {
     }
 
     private static TimingNodeStatus awaitStatus(
-            TimingNodeProxy node)
-            throws Exception {
-        long deadline =
-                System.nanoTime()
-                        + TimeUnit.SECONDS.toNanos(1L);
-        while (true) {
-            try {
-                return node.status();
-            } catch (OperationException ex) {
-                if (ex.reason() != OperationException.Reason.UNAVAILABLE) {
-                    throw ex;
-                }
-                if (System.nanoTime() >= deadline) {
-                    throw ex;
-                }
-                Thread.sleep(5L);
-            }
-        }
+            TimingNodeProxy node) {
+
+        return node.status();
     }
 
     private static void await(
