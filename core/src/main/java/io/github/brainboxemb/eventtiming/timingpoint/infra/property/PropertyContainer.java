@@ -71,10 +71,8 @@ public final class PropertyContainer {
             }
         }
 
-        if (changed.isEmpty()) {
-            return;
+        if (!changed.isEmpty()) {
+            changedEvent.emit(new PropertyUpdate(changed));
         }
-
-        changedEvent.emit(new PropertyUpdate(changed));
     }
 }

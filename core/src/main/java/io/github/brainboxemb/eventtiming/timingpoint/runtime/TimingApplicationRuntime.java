@@ -336,57 +336,51 @@ public final class TimingApplicationRuntime {
     public synchronized void deactivate() {
         shutdownSignal.request();
 
-        if (state == State.INACTIVE) {
-            return;
-        }
+        if (state != State.INACTIVE) {
+            Throwable firstFailure = null;
 
-        Throwable firstFailure = null;
-
-        try {
-            presentationRuntime.deactivate();
-        } catch (RuntimeException | Error failure) {
-            firstFailure = failure;
-        }
-
-        if (simulationRunner != null) {
             try {
-                simulationRunner.deactivate();
+                presentationRuntime.deactivate();
+            } catch (RuntimeException | Error failure) {
+                firstFailure = failure;
+            }
+
+            if (simulationRunner != null) {
+                try {
+                    simulationRunner.deactivate();
+                } catch (RuntimeException | Error failure) {
+                    if (firstFailure == null) {
+                        firstFailure = failure;
+                    } else {
+                        firstFailure.addSuppressed(failure);
+                    }
+                }
+            }
+
+            try {
+                applicationConductor.deactivate();
             } catch (RuntimeException | Error failure) {
                 if (firstFailure == null) {
                     firstFailure = failure;
                 } else {
-                    firstFailure.addSuppressed(
-                            failure);
+                    firstFailure.addSuppressed(failure);
                 }
             }
-        }
 
-        try {
-            applicationConductor.deactivate();
-        } catch (RuntimeException | Error failure) {
-            if (firstFailure == null) {
-                firstFailure = failure;
-            } else {
-                firstFailure.addSuppressed(
-                        failure);
+            try {
+                runtimeExecutors.close();
+            } catch (RuntimeException | Error failure) {
+                if (firstFailure == null) {
+                    firstFailure = failure;
+                } else {
+                    firstFailure.addSuppressed(failure);
+                }
             }
+
+            state = State.INACTIVE;
+            notifyAll();
+            rethrow(firstFailure);
         }
-
-        try {
-            runtimeExecutors.close();
-        } catch (RuntimeException | Error failure) {
-            if (firstFailure == null) {
-                firstFailure = failure;
-            } else {
-                firstFailure.addSuppressed(
-                        failure);
-            }
-        }
-
-        state = State.INACTIVE;
-        notifyAll();
-
-        rethrow(firstFailure);
     }
 
     private static void rethrow(

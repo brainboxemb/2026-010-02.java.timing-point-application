@@ -150,9 +150,7 @@ public final class LoggingServer implements AutoCloseable {
         String value = command == null ? "" : command.trim();
         if ("GET_LEVEL".equalsIgnoreCase(value)) {
             offer(levelLine(logging.level()));
-            return;
-        }
-        if (value.regionMatches(true, 0, "SET_LEVEL ", 0, 10)) {
+        } else if (value.regionMatches(true, 0, "SET_LEVEL ", 0, 10)) {
             String requested = value.substring(10).trim().toUpperCase();
             try {
                 LoggingLevel level = LoggingLevel.valueOf(requested);
@@ -161,9 +159,9 @@ public final class LoggingServer implements AutoCloseable {
             } catch (IllegalArgumentException ex) {
                 offer(errorLine("Unsupported level: " + requested));
             }
-            return;
+        } else {
+            offer(errorLine("Unsupported command"));
         }
-        offer(errorLine("Unsupported command"));
     }
 
     private void writeLoop(Socket client, BufferedWriter writer) {
