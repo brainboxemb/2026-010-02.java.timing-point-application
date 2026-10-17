@@ -6,7 +6,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingpoint.application.SimulationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -39,12 +38,6 @@ public class SimulatedTagScenarioRunnerTest {
         ScheduledThreadPoolExecutor worker =
                 new ScheduledThreadPoolExecutor(1);
         worker.setRemoveOnCancelPolicy(true);
-        RunnableSerialLane lane =
-                new RunnableSerialLane(
-                        32,
-                        32,
-                        "simulation-test",
-                        worker);
         SimulatedAntenna antenna =
                 runningAntenna();
         SimulatedTagScenarioRunner runner =
@@ -52,7 +45,6 @@ public class SimulatedTagScenarioRunnerTest {
                         antenna,
                         eventData(),
                         () -> BASE_TIME,
-                        lane,
                         worker);
 
         List<TagObservation> observations =
@@ -122,12 +114,6 @@ public class SimulatedTagScenarioRunnerTest {
         ScheduledThreadPoolExecutor worker =
                 new ScheduledThreadPoolExecutor(1);
         worker.setRemoveOnCancelPolicy(true);
-        RunnableSerialLane lane =
-                new RunnableSerialLane(
-                        32,
-                        32,
-                        "simulation-test",
-                        worker);
         SimulatedAntenna antenna =
                 runningAntenna();
         SimulatedTagScenarioRunner runner =
@@ -135,7 +121,6 @@ public class SimulatedTagScenarioRunnerTest {
                         antenna,
                         eventData(),
                         () -> BASE_TIME,
-                        lane,
                         worker);
 
         AtomicObservation single =
@@ -201,12 +186,6 @@ public class SimulatedTagScenarioRunnerTest {
         ScheduledThreadPoolExecutor worker =
                 new ScheduledThreadPoolExecutor(1);
         worker.setRemoveOnCancelPolicy(true);
-        RunnableSerialLane lane =
-                new RunnableSerialLane(
-                        32,
-                        32,
-                        "simulation-test",
-                        worker);
         SimulatedAntenna antenna =
                 runningAntenna();
         SimulatedTagScenarioRunner runner =
@@ -214,7 +193,6 @@ public class SimulatedTagScenarioRunnerTest {
                         antenna,
                         new EventData(mapping),
                         () -> BASE_TIME,
-                        lane,
                         worker);
 
         List<TagObservation> longObservations =
@@ -307,16 +285,78 @@ public class SimulatedTagScenarioRunnerTest {
     }
 
     @Test
+    public void staleDelayedStepsDoNotRunAfterReactivation()
+            throws Exception {
+        ScheduledThreadPoolExecutor worker =
+                new ScheduledThreadPoolExecutor(1);
+        worker.setRemoveOnCancelPolicy(true);
+        SimulatedAntenna antenna =
+                runningAntenna();
+        SimulatedTagScenarioRunner runner =
+                new SimulatedTagScenarioRunner(
+                        antenna,
+                        eventData(),
+                        () -> BASE_TIME,
+                        worker);
+
+        List<TagObservation> observations =
+                Collections.synchronizedList(
+                        new ArrayList<TagObservation>());
+        CountDownLatch firstEmitted =
+                new CountDownLatch(1);
+        antenna.tagObservedEvent()
+                .subscribe(
+                        observation -> {
+                            observations.add(
+                                    observation);
+                            firstEmitted.countDown();
+                        });
+
+        runner.activate();
+        try {
+            assertEquals(
+                    SimulationControl.StartResult.ACCEPTED,
+                    runner.startRegistration(
+                            REGISTRATION,
+                            "normal"));
+            assertTrue(
+                    firstEmitted.await(
+                            1L,
+                            TimeUnit.SECONDS));
+
+            runner.deactivate();
+            runner.activate();
+
+            CountDownLatch afterOldDelay =
+                    new CountDownLatch(1);
+            worker.schedule(
+                    afterOldDelay::countDown,
+                    250L,
+                    TimeUnit.MILLISECONDS);
+            assertTrue(
+                    afterOldDelay.await(
+                            1L,
+                            TimeUnit.SECONDS));
+
+            assertEquals(
+                    "delayed work from the previous activation must not emit",
+                    1,
+                    observations.size());
+            assertEquals(
+                    0,
+                    runner.activeScenarioCount());
+        } finally {
+            runner.deactivate();
+            antenna.shutdown();
+            worker.shutdownNow();
+        }
+    }
+
+    @Test
     public void rejectsUnknownRegistrationProfileAndInactiveInventory() {
         ScheduledThreadPoolExecutor worker =
                 new ScheduledThreadPoolExecutor(1);
         worker.setRemoveOnCancelPolicy(true);
-        RunnableSerialLane lane =
-                new RunnableSerialLane(
-                        32,
-                        32,
-                        "simulation-test",
-                        worker);
         SimulatedAntenna antenna =
                 new SimulatedAntenna();
         SimulatedTagScenarioRunner runner =
@@ -324,7 +364,6 @@ public class SimulatedTagScenarioRunnerTest {
                         antenna,
                         eventData(),
                         () -> BASE_TIME,
-                        lane,
                         worker);
 
         runner.activate();
