@@ -83,7 +83,7 @@ public final class DefaultUpstreamDataCodec
                                 data,
                                 UpstreamData.TimingDataTransfer.class,
                                 "TIMING_DATA"));
-                return;
+                break;
             case RACE_DATA:
                 writeRaceData(
                         generator,
@@ -91,27 +91,27 @@ public final class DefaultUpstreamDataCodec
                                 data,
                                 UpstreamData.RaceData.class,
                                 "RACE_DATA"));
-                return;
+                break;
             case SYNC:
                 writeSync(
                         generator,
                         requireType(data, UpstreamData.Sync.class, "SYNC"));
-                return;
+                break;
             case ACK:
                 writeAck(
                         generator,
                         requireType(data, UpstreamData.Ack.class, "ACK"));
-                return;
+                break;
             case REQ:
                 writeReq(
                         generator,
                         requireType(data, UpstreamData.Req.class, "REQ"));
-                return;
+                break;
             case PING:
                 writePing(
                         generator,
                         requireType(data, UpstreamData.Ping.class, "PING"));
-                return;
+                break;
             case STATUS:
             default:
                 throw encodeFailure(
