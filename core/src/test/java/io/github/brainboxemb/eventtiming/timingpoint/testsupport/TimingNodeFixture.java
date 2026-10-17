@@ -286,7 +286,7 @@ public final class TimingNodeFixture {
             TimingDataPersistence persistence,
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
-            SerialLane dataLane,
+            TimingNodeDataLane dataLane,
             long commitWaitTimeoutMillis,
             long orderedQueryWaitTimeoutMillis) {
         String suffix =
