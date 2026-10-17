@@ -4,15 +4,12 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTaskLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,9 +30,57 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 public final class UpstreamHandler {
     private static final Logger LOG = LoggerFactory.getLogger(UpstreamHandler.class);
 
+    private static final class RaceDataItem implements UpstreamTaskItem {
+        private final UpstreamData.RaceData data;
+
+        private RaceDataItem(UpstreamData.RaceData data) {
+            this.data = data;
+        }
+
+        @Override
+        public String name() {
+            return "RACE_DATA";
+        }
+    }
+
+    private static final class RaceDataSyncItem implements UpstreamTaskItem {
+        private final UpstreamData.Sync data;
+
+        private RaceDataSyncItem(UpstreamData.Sync data) {
+            this.data = data;
+        }
+
+        @Override
+        public String name() {
+            return "RACE_DATA SYNC";
+        }
+    }
+
+    private static final class PingItem implements UpstreamTaskItem {
+        private final UpstreamData.Ping data;
+
+        private PingItem(UpstreamData.Ping data) {
+            this.data = data;
+        }
+
+        @Override
+        public String name() {
+            return "PING";
+        }
+    }
+
+    private enum HeartbeatTickItem implements UpstreamTaskItem {
+        INSTANCE;
+
+        @Override
+        public String name() {
+            return "heartbeat tick";
+        }
+    }
+
     private final NodeId nodeId;
     private final TimingNodeDataLane dataLane;
-    private final RunnableSerialLane taskSerialLane;
+    private final TimingNodeTaskLane taskLane;
     private final UpstreamStream stream;
     private final UpstreamHeartbeat heartbeat;
     private final UpstreamDataSync upstreamDataSync;
@@ -52,25 +97,26 @@ public final class UpstreamHandler {
     public UpstreamHandler(
             NodeId nodeId,
             TimingNodeDataLane dataLane,
-            RunnableSerialLane taskSerialLane,
+            TimingNodeTaskLane taskLane,
             UpstreamStream stream,
             LogBookAccessor logBook,
             UpstreamTaskState taskState) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(dataLane != null, "dataLane must not be null");
-        failIfInvalidArgument(taskSerialLane != null, "taskSerialLane must not be null");
+        failIfInvalidArgument(taskLane != null, "taskLane must not be null");
         failIfInvalidArgument(stream != null, "stream must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
         failIfInvalidArgument(taskState != null, "taskState must not be null");
 
         this.nodeId = nodeId;
         this.dataLane = dataLane;
-        this.taskSerialLane = taskSerialLane;
+        this.taskLane = taskLane;
         this.stream = stream;
         this.heartbeat = new UpstreamHeartbeat(nodeId, stream);
         this.upstreamDataSync = new UpstreamDataSync(nodeId, stream, taskState);
         this.logBookSync = new LogBookSync(nodeId, stream, logBook);
         dataLane.bindUpstream(this::handleNextTurn);
+        taskLane.bindUpstream(this::processTaskItem);
     }
 
     /**
@@ -134,9 +180,8 @@ public final class UpstreamHandler {
             case RACE_DATA:
                 failIfInvalidArgument(data instanceof UpstreamData.RaceData,
                         "RACE_DATA has incompatible semantic type");
-                UpstreamData.RaceData raceData = (UpstreamData.RaceData) data;
-                Runnable applyRaceData = () -> upstreamDataSync.handleRaceData(raceData);
-                executeTaskOrWarn(applyRaceData, "RACE_DATA");
+                executeTaskOrWarn(
+                        new RaceDataItem((UpstreamData.RaceData) data));
                 break;
 
             case SYNC:
@@ -144,8 +189,7 @@ public final class UpstreamHandler {
                         "SYNC has incompatible semantic type");
                 UpstreamData.Sync sync = (UpstreamData.Sync) data;
                 if (sync.stream() == UpstreamData.Stream.RACE_DATA) {
-                    Runnable applyRaceDataSync = () -> upstreamDataSync.handleSync(sync);
-                    executeTaskOrWarn(applyRaceDataSync, "RACE_DATA SYNC");
+                    executeTaskOrWarn(new RaceDataSyncItem(sync));
                 } else {
                     throw new UnsupportedOperationException(
                             "Inbound SYNC supports RACE_DATA only");
@@ -161,9 +205,8 @@ public final class UpstreamHandler {
             case PING:
                 failIfInvalidArgument(data instanceof UpstreamData.Ping,
                         "PING has incompatible semantic type");
-                UpstreamData.Ping ping = (UpstreamData.Ping) data;
-                Runnable handlePing = () -> heartbeat.handle(ping);
-                executeTaskOrWarn(handlePing, "PING");
+                executeTaskOrWarn(
+                        new PingItem((UpstreamData.Ping) data));
                 break;
 
             default:
@@ -191,7 +234,7 @@ public final class UpstreamHandler {
      * heartbeat tick has executed.</p>
      */
     public void heartbeatTick() {
-        executeTaskOrWarn(heartbeat::tick, "heartbeat tick");
+        executeTaskOrWarn(HeartbeatTickItem.INSTANCE);
     }
 
     /** Returns the latest immutable heartbeat snapshot without a lane hop. */
@@ -199,16 +242,44 @@ public final class UpstreamHandler {
         return heartbeat.status();
     }
 
-    /** Executes one Task Lane operation and contains rejection at the upstream callback boundary. */
-    private void executeTaskOrWarn(Runnable task, String operation) {
-        Runnable queueTask = () -> taskSerialLane.execute(task);
-        Consumer<RejectedExecutionException> onRejected = ex -> LOG.warn(
-                "Dropped upstream {} for node {} because the Task Lane rejected execution",
-                operation,
-                nodeId.value(),
-                ex);
+    /** Queues one upstream-owned Task Lane item and contains rejection locally. */
+    private void executeTaskOrWarn(UpstreamTaskItem item) {
+        final SerialLane.OfferResult result;
+        try {
+            result = taskLane.offer(item);
+        } catch (RuntimeException ex) {
+            LOG.warn(
+                    "Dropped upstream {} for node {} because the Task Lane rejected scheduling",
+                    item.name(),
+                    nodeId.value(),
+                    ex);
+            return;
+        }
 
-        SafeExecute.runOrHandleRejection(queueTask, onRejected);
+        if (result != SerialLane.OfferResult.ACCEPTED) {
+            LOG.warn(
+                    "Dropped upstream {} for node {} because the Task Lane returned {}",
+                    item.name(),
+                    nodeId.value(),
+                    result);
+        }
+    }
+
+    /** Processes one typed upstream item while the shared Task Lane is current. */
+    private void processTaskItem(UpstreamTaskItem item) {
+        if (item instanceof RaceDataItem) {
+            upstreamDataSync.handleRaceData(((RaceDataItem) item).data);
+        } else if (item instanceof RaceDataSyncItem) {
+            upstreamDataSync.handleSync(((RaceDataSyncItem) item).data);
+        } else if (item instanceof PingItem) {
+            heartbeat.handle(((PingItem) item).data);
+        } else if (item == HeartbeatTickItem.INSTANCE) {
+            heartbeat.tick();
+        } else {
+            throw new IllegalStateException(
+                    "Unsupported upstream Task Lane item "
+                            + item.getClass().getName());
+        }
     }
 
     /**
