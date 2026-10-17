@@ -120,7 +120,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void activationWaitsForRecoveryOutsideDataLane()
+    public void activationReturnsWhileMainTaskLoadsPersistedData()
             throws Exception {
         TimingNodeDataLane dataLane =
                 newDataLane(
@@ -152,22 +152,37 @@ public class TimingNodeTest {
                     persistence.loadStarted.await(
                             1L,
                             TimeUnit.SECONDS));
+
             activationCaller.join(250L);
-            assertTrue(
-                    "activate() must wait for lifecycle recovery",
+            assertFalse(
+                    "activate() must return while MainTask recovery is running",
                     activationCaller.isAlive());
+            assertNull(activationFailure[0]);
+            assertEquals(
+                    TimingNodeTypes.OperationalState.INIT,
+                    node.operationalState());
             assertFalse(
                     "persisted-data recovery must not run on the Data Lane",
                     persistence.executedOnNodeLane);
 
             persistence.releaseLoad.countDown();
-            activationCaller.join(1000L);
 
-            assertFalse(activationCaller.isAlive());
-            assertNull(activationFailure[0]);
+            long deadline =
+                    System.nanoTime()
+                            + TimeUnit.SECONDS.toNanos(1L);
+            while (node.operationalState()
+                            == TimingNodeTypes.OperationalState.INIT
+                    && System.nanoTime() < deadline) {
+                Thread.sleep(1L);
+            }
+
+            assertEquals(
+                    TimingNodeTypes.OperationalState.OK,
+                    node.operationalState());
             assertEquals(
                     0,
-                    node.logBook().process(LogBookQueries.timingDataCount()).intValue());
+                    node.logBook().process(
+                            LogBookQueries.timingDataCount()).intValue());
         } finally {
             persistence.releaseLoad.countDown();
             activationCaller.join(1000L);
