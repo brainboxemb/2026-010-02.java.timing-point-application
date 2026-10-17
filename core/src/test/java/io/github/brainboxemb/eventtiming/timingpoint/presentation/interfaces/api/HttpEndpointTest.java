@@ -23,6 +23,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -727,11 +728,7 @@ public class HttpEndpointTest {
     private static TimingNodeList nodes(
             TimingNode... timingNodes) {
 
-        TimingNodeList.Builder result = TimingNodeList.builder();
-        for (TimingNode timingNode : timingNodes) {
-            result.add(timingNode);
-        }
-        return result.build();
+        return new TimingNodeList(Arrays.asList(timingNodes));
     }
 
     private static final class Fixture implements AutoCloseable {
