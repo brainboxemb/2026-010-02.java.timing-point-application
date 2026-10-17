@@ -90,9 +90,10 @@ public final class SerialQueue<T> implements AutoCloseable {
                 lane.execute(worker);
             } catch (RejectedExecutionException ex) {
                 workerScheduled = false;
-                queue.poll();
+                accepting = false;
+                queue.clear();
                 notifyAll();
-                return OfferResult.NOT_RUNNING;
+                throw ex;
             }
         }
 
@@ -167,7 +168,10 @@ public final class SerialQueue<T> implements AutoCloseable {
                         lane.execute(worker);
                     } catch (RejectedExecutionException ex) {
                         workerScheduled = false;
+                        accepting = false;
+                        queue.clear();
                         notifyAll();
+                        throw ex;
                     }
                 } else {
                     workerScheduled = false;
