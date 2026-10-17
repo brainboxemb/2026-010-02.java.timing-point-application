@@ -24,9 +24,10 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * TimingData persistence/state operations owned by LogBook.
  *
  * <p>Normal commits execute on the LogBook Data Lane. Persisted-data recovery
- * executes during LogBook lifecycle activation before that lane starts. This
- * class owns TimingData creation, time capture, durable append/commit and
- * startup reconstruction; queueing/waiting remains in {@link LogBookDataLane}.</p>
+ * is invoked by TimingNode.MainTask on the shared node worker and is not a Data
+ * Lane operation. This class owns TimingData creation, time capture, durable
+ * append/commit and startup reconstruction; command/query queueing and waiting
+ * remain in {@link LogBookDataLane}.</p>
  */
 final class LogBookOperations {
     private static final Logger LOG = LoggerFactory.getLogger(LogBookOperations.class);
