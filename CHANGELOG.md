@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Keep persisted-data recovery out of the Data Lane: LogBook loads/reconstructs persisted state during lifecycle activation, then starts normal command/query admission; recovery is no longer modeled as a queued `LogBookOperationItem`.
+- Start TimingNode asynchronously through its cooperative MainTask: persisted LogBook data is read on the shared I/O executor, the MainTask yields with `TaskStep.await(...)`, then reconstructs/publishes recovery state and starts normal Data Lane command/query admission before the node changes from `INIT` to `OK` or `ERROR`; recovery is not a queued `LogBookOperationItem`.
 
 - Simplify typed `SerialLane<T>` to its queue/worker responsibility: remove the global current-lane stack, five-state/FAILED lifecycle, lane-local application failure policy and redundant exception handling; keep bounded FIFO, batch fairness, one-worker scheduling, drain-on-close and item metrics.
 
