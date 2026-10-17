@@ -105,8 +105,8 @@ public final class TimingNode extends LifecycleComponent {
         this.timeSource = timeSource;
         this.logBook = logBook;
         this.tagProcessor = tagProcessor;
-        lifecycle.register(nodeService);
         lifecycle.register(logBook);
+        lifecycle.register(nodeService);
         lifecycle.register(tagProcessor);
 
         /*
