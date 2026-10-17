@@ -148,9 +148,9 @@ final class LogBookDataLane {
     }
 
     /** Queues one fire-and-forget LogBook command item. */
-    void execute(LogBookCommand<?> command) {
+    <R> void execute(LogBookCommand<R> command) {
         failIfInvalidArgument(command != null, "command must not be null");
-        offerOrReject(new CommandItem<Object>(castCommand(command), false));
+        offerOrReject(new CommandItem<R>(command, false));
     }
 
     /** Returns true only while the current Java thread executes this Data Lane. */
@@ -218,12 +218,7 @@ final class LogBookDataLane {
 
     /** Converts SerialQueue admission outcomes to the existing Data Lane rejection boundary. */
     private void offerOrReject(Item<?> item) {
-        final SerialQueue.OfferResult result;
-        try {
-            result = items.offer(item);
-        } catch (RejectedExecutionException ex) {
-            throw ex;
-        }
+        SerialQueue.OfferResult result = items.offer(item);
 
         switch (result) {
             case ACCEPTED:
@@ -346,9 +341,4 @@ final class LogBookDataLane {
                 rejection);
     }
 
-    /** Captures the command wildcard for one fire-and-forget queue item. */
-    @SuppressWarnings("unchecked")
-    private static <R> LogBookCommand<R> castCommand(LogBookCommand<?> command) {
-        return (LogBookCommand<R>) command;
-    }
 }
