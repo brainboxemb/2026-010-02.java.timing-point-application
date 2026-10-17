@@ -1,5 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataItem;
+
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 
@@ -11,7 +13,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * <p>The item carries operation data and, where needed, its result holder. It is
  * deliberately not executable work.</p>
  */
-public abstract class LogBookOperationItem<R> {
+public abstract class LogBookOperationItem<R> implements TimingNodeDataItem {
     private final String name;
     private final CompletableFuture<R> result;
     private final boolean callerWaits;
