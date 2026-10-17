@@ -64,7 +64,6 @@ public class LogBookSyncTest {
                         8,
                         "test-logbook-sync-data",
                         Runnable::run),
-                Runnable::run,
                 LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
                 LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
     }
