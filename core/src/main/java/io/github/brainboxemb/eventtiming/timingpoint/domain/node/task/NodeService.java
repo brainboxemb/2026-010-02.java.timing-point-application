@@ -3,10 +3,10 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.task;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTaskLane;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 
 import java.time.ZoneId;
@@ -109,14 +109,14 @@ public final class NodeService extends LifecycleComponent {
     private final StageTiming stageTiming;
 
     /** Creates the Task Lane service around explicitly composed passive state. */
-    public NodeService(NodeId nodeId, RunnableSerialLane serialLane, NodeServiceState state) {
+    public NodeService(NodeId nodeId, TimingNodeTaskLane taskLane, NodeServiceState state) {
 
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
-        failIfInvalidArgument(serialLane != null, "serialLane must not be null");
+        failIfInvalidArgument(taskLane != null, "taskLane must not be null");
         failIfInvalidArgument(state != null, "state must not be null");
 
         this.nodeId = nodeId;
-        this.taskLane = new NodeTaskLane(serialLane, TASK_QUERY_TIMEOUT_MILLIS, this::processTaskLaneItem);
+        this.taskLane = new NodeTaskLane(taskLane, TASK_QUERY_TIMEOUT_MILLIS, this::processTaskLaneItem);
         this.state = state;
         this.stageTiming = new StageTiming(
                 state.eventData(), state.teamAssignments(), state.stageStartTimes());
@@ -238,7 +238,7 @@ public final class NodeService extends LifecycleComponent {
         }
     }
 
-    /** Rebuilds derived timing while this service owns the RunnableSerialLane turn. */
+    /** Rebuilds derived timing while this service owns the Task Lane turn. */
     private void rebuildDerivedTiming(Iterable<TimingData> loadedData) {
 
         taskLane.requireCurrentThread("rebuildDerivedTiming");
