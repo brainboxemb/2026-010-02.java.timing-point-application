@@ -3,7 +3,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataItem;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Future;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
@@ -33,7 +32,7 @@ public abstract class LogBookOperationItem<R> implements TimingNodeDataItem {
         return name;
     }
 
-    final Future<R> result() {
+    final CompletableFuture<R> result() {
         if (result == null) {
             throw new IllegalStateException("LogBook operation " + name + " has no result");
         }
