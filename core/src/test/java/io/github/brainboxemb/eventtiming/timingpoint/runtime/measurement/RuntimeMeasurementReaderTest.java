@@ -98,7 +98,6 @@ public class RuntimeMeasurementReaderTest {
                         SystemMonotonicClock.INSTANCE,
                         logBookMetrics,
                         dataLane,
-                        nodeWorker,
                         LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
                         LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
         NodeService nodeService =
