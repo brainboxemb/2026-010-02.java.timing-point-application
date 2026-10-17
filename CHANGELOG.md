@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make the TimingNode Task Lane a typed shared item lane: NodeService facts/queries and upstream heartbeat/RACE_DATA work now share one `SerialLane<TimingNodeTaskItem>` FIFO instead of queueing Runnable work through a second wrapper.
+
 - Make `SerialLane<T>` the typed item queue/worker boundary: queue items are caller-owned values, the backing executor sees only one fixed worker, LogBook uses `LogBookOperationItem` variants on one typed TimingNode Data Lane, and upstream turns share that FIFO as typed Data Lane items. The previous executor-shaped implementation is temporarily named `RunnableSerialLane` for remaining cooperative-task paths.
 
 - Queue NodeService Task Lane facts and stage-timing queries as typed items through `SerialQueue`, removing per-fact Runnable and per-query Callable wrappers while keeping one bounded FIFO and one fixed worker.
