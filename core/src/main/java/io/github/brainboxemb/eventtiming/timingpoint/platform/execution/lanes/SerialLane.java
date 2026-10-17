@@ -305,7 +305,12 @@ public class SerialLane implements Executor, AutoCloseable {
         return queue.poll();
     }
 
-    /** Returns the current logical lane lifecycle state. */
+    /** Returns whether this lane is currently accepting normal work. */
+    public synchronized boolean isRunning() {
+        return state == State.RUNNING;
+    }
+
+    /** Returns the current logical lane lifecycle state for diagnostics and detailed inspection. */
     public synchronized State state() {
         return state;
     }
