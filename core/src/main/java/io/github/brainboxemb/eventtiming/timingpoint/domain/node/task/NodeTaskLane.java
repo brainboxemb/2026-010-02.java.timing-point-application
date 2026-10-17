@@ -4,7 +4,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.Se
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialQueue;
 
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
@@ -13,7 +12,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
  * NodeService Task Lane item queue on one shared {@link SerialLane}.
@@ -25,61 +23,32 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  */
 final class NodeTaskLane {
 
-    /** Base data carried by one queued NodeService Task Lane item. */
-    abstract static class Item<R> {
-        private final String name;
-        private final CompletableFuture<R> result;
+    /** One caller-owned value that can be queued on the NodeService Task Lane. */
+    interface Item {
+        String name();
+    }
 
-        /** Creates one fire-and-forget item. */
-        Item(String name) {
-            this(name, false);
-        }
-
-        /** Creates one item and optionally gives it a caller-visible result. */
-        Item(String name, boolean resultBearing) {
-            failIfInvalidArgument(name != null && !name.trim().isEmpty(), "name must not be blank");
-            this.name = name;
-            this.result = resultBearing ? new CompletableFuture<R>() : null;
-        }
-
-        String name() {
-            return name;
-        }
-
-        Future<R> result() {
-            failIfIllegalState(result != null, "Task Lane item %s has no result", name);
-            return result;
-        }
-
-        void complete(R value) {
-            if (result != null) {
-                result.complete(value);
-            }
-        }
-
-        void fail(Throwable failure) {
-            if (result != null) {
-                result.completeExceptionally(failure);
-            }
-        }
+    /** Task Lane item whose caller waits for a later result. */
+    interface ResultItem<R> extends Item {
+        Future<R> result();
     }
 
     private final SerialLane serialLane;
-    private final SerialQueue<Item<?>> items;
+    private final SerialQueue<Item> items;
     private final long operationTimeoutMillis;
 
     /** Creates the Task Lane item queue around one externally composed SerialLane. */
     NodeTaskLane(
             SerialLane serialLane,
             long operationTimeoutMillis,
-            Consumer<Item<?>> itemProcessor) {
+            Consumer<Item> itemProcessor) {
 
         failIfInvalidArgument(serialLane != null, "serialLane must not be null");
         failIfInvalidArgument(operationTimeoutMillis > 0L, "operationTimeoutMillis must be positive");
         failIfInvalidArgument(itemProcessor != null, "itemProcessor must not be null");
 
         this.serialLane = serialLane;
-        this.items = new SerialQueue<Item<?>>(serialLane, itemProcessor);
+        this.items = new SerialQueue<Item>(serialLane, itemProcessor);
         this.operationTimeoutMillis = operationTimeoutMillis;
     }
 
@@ -96,7 +65,7 @@ final class NodeTaskLane {
     }
 
     /** Queues one fire-and-forget Task Lane item. */
-    void execute(Item<?> item) {
+    void execute(Item item) {
         failIfInvalidArgument(item != null, "item must not be null");
         offerOrReject(item);
     }
@@ -115,7 +84,7 @@ final class NodeTaskLane {
     }
 
     /** Queues one result-bearing Task Lane item and waits for its ordered result. */
-    <R> R submitAndWait(Item<R> item) {
+    <R> R submitAndWait(ResultItem<R> item) {
         failIfInvalidArgument(item != null, "item must not be null");
 
         if (serialLane.isExecutingOnCurrentThread()) {
@@ -134,7 +103,7 @@ final class NodeTaskLane {
     }
 
     /** Converts SerialQueue admission outcomes to the existing Task Lane rejection boundary. */
-    private void offerOrReject(Item<?> item) {
+    private void offerOrReject(Item item) {
         SerialQueue.OfferResult result = items.offer(item);
 
         switch (result) {
