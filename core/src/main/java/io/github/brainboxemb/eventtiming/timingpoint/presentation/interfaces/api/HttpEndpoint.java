@@ -19,8 +19,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy.RegistrationRecordType;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
+import io.github.brainboxemb.eventtiming.timingpoint.application.CommandResult;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -104,8 +103,6 @@ public final class HttpEndpoint implements AutoCloseable {
             // Method validation already wrote and closed the HTTP response.
         } catch (HttpRequestReader.RequestException ex) {
             sendJson(exchange, 400, MessageWriter.error(ex.code(), ex.getMessage()));
-        } catch (OperationException ex) {
-            sendOperationFailure(exchange, ex);
         } catch (RuntimeException ex) {
             LOG.warn("IF-03 request failed", ex);
             sendJson(
@@ -412,12 +409,12 @@ public final class HttpEndpoint implements AutoCloseable {
             timeSource = AutomaticTimeSource.NODE;
         }
 
-        RegistrationResult result =
+        CommandResult result =
                 timingNode.addTestAutomaticRegistration(
                         registrationId,
                         effectiveTime,
                         timeSource);
-        if (result.outcome() == RegistrationResult.Outcome.NODE_NOT_OPEN) {
+        if (result.outcome() == CommandResult.Outcome.NODE_NOT_OPEN) {
             sendJson(
                     exchange,
                     409,
@@ -460,13 +457,13 @@ public final class HttpEndpoint implements AutoCloseable {
                     ex.getMessage());
         }
 
-        RegistrationResult result =
+        CommandResult result =
                 timingNode.addManualRegistration(
                         registrationId,
                         time,
                         timeSource);
         if (result.outcome()
-                == RegistrationResult.Outcome.NODE_NOT_OPEN) {
+                == CommandResult.Outcome.NODE_NOT_OPEN) {
             sendJson(
                     exchange,
                     409,
@@ -525,7 +522,7 @@ public final class HttpEndpoint implements AutoCloseable {
                     ex.getMessage());
         }
 
-        RegistrationResult result =
+        CommandResult result =
                 timingNode.revokeRegistration(
                         recordType,
                         locationId,
@@ -648,35 +645,6 @@ public final class HttpEndpoint implements AutoCloseable {
                         count,
                         next,
                         records));
-    }
-
-    private void sendOperationFailure(
-            HttpExchange exchange,
-            OperationException failure)
-            throws IOException {
-        switch (failure.reason()) {
-            case BUSY:
-                sendJson(exchange, 503, MessageWriter.error("BUSY", failure.getMessage()));
-                return;
-            case UNAVAILABLE:
-                sendJson(exchange, 503, MessageWriter.error("UNAVAILABLE", failure.getMessage()));
-                return;
-            case TIMEOUT:
-                sendJson(
-                        exchange,
-                        504,
-                        MessageWriter.error("OUTCOME_UNKNOWN", failure.getMessage()));
-                return;
-            case INTERRUPTED:
-                sendJson(exchange, 503, MessageWriter.error("INTERRUPTED", failure.getMessage()));
-                return;
-            case FAILED:
-            default:
-                sendJson(
-                        exchange,
-                        503,
-                        MessageWriter.error("OPERATION_FAILED", failure.getMessage()));
-        }
     }
 
     private static void requireMethod(HttpExchange exchange, String required)
