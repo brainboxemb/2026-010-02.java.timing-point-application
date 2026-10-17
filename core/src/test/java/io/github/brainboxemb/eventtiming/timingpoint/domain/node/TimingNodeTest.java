@@ -202,7 +202,7 @@ public class TimingNodeTest {
         try {
             awaitOperationalState(
                     node,
-                    TimingNodeTypes.OperationalState.ERROR);
+                    TimingNodeTypes.OperationalState.OK);
             LogBookRecoveryStatus recovery =
                     node.logBook().process(LogBookQueries.recoveryStatus());
             assertTrue(recovery.failed());
@@ -853,7 +853,7 @@ public class TimingNodeTest {
         try {
             awaitOperationalState(
                     node,
-                    TimingNodeTypes.OperationalState.ERROR);
+                    TimingNodeTypes.OperationalState.OK);
             LogBookRecoveryStatus recovery =
                     node.logBook().process(LogBookQueries.recoveryStatus());
             assertTrue(recovery.failed());
