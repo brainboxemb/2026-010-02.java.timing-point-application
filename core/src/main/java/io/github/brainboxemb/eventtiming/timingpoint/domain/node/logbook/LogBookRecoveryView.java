@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
@@ -49,21 +48,18 @@ final class LogBookRecoveryView {
     LogBookRecoveryStatus current() {
         SerialLane.State state = dataLane.state();
         if (state == SerialLane.State.FAILED) {
-            throw new OperationException(
-                    OperationException.Reason.FAILED,
+            throw new IllegalStateException(
                     "recovery status CURRENT result is unavailable because the Data Lane failed",
                     dataLane.failure());
         }
         if (state != SerialLane.State.RUNNING) {
-            throw new OperationException(
-                    OperationException.Reason.UNAVAILABLE,
+            throw new IllegalStateException(
                     "recovery status CURRENT result is unavailable because the LogBook is not active");
         }
 
         LogBookRecoveryStatus status = publishedRecoveryStatus;
         if (status == null) {
-            throw new OperationException(
-                    OperationException.Reason.UNAVAILABLE,
+            throw new IllegalStateException(
                     "recovery status CURRENT result is unavailable because persisted TimingData is not loaded yet");
         }
         return status;
