@@ -10,7 +10,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventWithMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.List;
@@ -27,7 +27,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * <p>LogBook is the single execution boundary for ordered commands,
  * ORDERED queries, persisted-data startup loading, durable TimingData commit and publication of immutable
  * recovery/read views. It owns no physical thread: the supplied
- * {@link SerialLane} may share a Runtime-owned worker with other logical
+ * {@link RunnableSerialLane} may share a Runtime-owned worker with other logical
  * lanes.</p>
  */
 public final class LogBook extends LifecycleComponent implements LogBookAccessor, LogBookTestControl {
@@ -75,7 +75,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
             TimeSource timeSource,
             MonotonicClock monotonicClock,
             LogBookMetrics metrics,
-            SerialLane serialLane,
+            RunnableSerialLane serialLane,
             long commitWaitTimeoutMillis,
             long orderedQueryWaitTimeoutMillis) {
 
@@ -155,7 +155,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     /**
      * Stops new Data Lane work and makes the CURRENT recovery result unavailable.
      *
-     * <p>Lane shutdown/drain semantics are owned by {@link SerialLane}; LogBook
+     * <p>Lane shutdown/drain semantics are owned by {@link RunnableSerialLane}; LogBook
      * does not implement a second shutdown queue.</p>
      */
     @Override
