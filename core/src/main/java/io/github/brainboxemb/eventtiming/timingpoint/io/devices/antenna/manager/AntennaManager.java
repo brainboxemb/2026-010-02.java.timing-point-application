@@ -8,7 +8,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
@@ -185,12 +184,14 @@ public final class AntennaManager extends LifecycleComponent {
 
     @Override
     protected void onDeactivate() {
+        final boolean startTaskLaneForShutdown;
         synchronized (this) {
             if (state == State.INACTIVE) {
                 return;
             }
 
             failIfIllegalState(state != State.DEACTIVATING, "AntennaManager is already deactivating");
+            startTaskLaneForShutdown = state == State.NEW;
             state = State.DEACTIVATING;
         }
 
@@ -201,7 +202,7 @@ public final class AntennaManager extends LifecycleComponent {
 
         RuntimeException shutdownFailure = null;
         try {
-            if (taskLane.state() == SerialLane.State.NEW) {
+            if (startTaskLaneForShutdown) {
                 taskLane.start();
             }
             shutdownTask.runAndWait(taskLane);
