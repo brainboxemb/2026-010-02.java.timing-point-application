@@ -2,9 +2,11 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.task;
 
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -20,12 +22,29 @@ import static org.junit.Assert.fail;
 public class NodeTaskLaneTest {
     private ExecutorService worker;
 
-    private static final class TestItem extends NodeTaskLane.Item<Integer> {
+    private static final class TestItem implements NodeTaskLane.ResultItem<Integer> {
+        private final String name;
         private final int value;
+        private final CompletableFuture<Integer> result =
+                new CompletableFuture<Integer>();
 
-        private TestItem(String name, boolean resultBearing, int value) {
-            super(name, resultBearing);
+        private TestItem(String name, int value) {
+            this.name = name;
             this.value = value;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public Future<Integer> result() {
+            return result;
+        }
+
+        private void complete(int value) {
+            result.complete(Integer.valueOf(value));
         }
     }
 
@@ -48,17 +67,17 @@ public class NodeTaskLaneTest {
                             if ("set".equals(testItem.name())) {
                                 state.set(testItem.value);
                             } else if ("read".equals(testItem.name())) {
-                                testItem.complete(Integer.valueOf(state.get()));
+                                testItem.complete(state.get());
                             }
                         });
 
         taskLane.activate();
         try {
-            taskLane.execute(new TestItem("set", false, 7));
+            taskLane.execute(new TestItem("set", 7));
 
             int result =
                     taskLane.submitAndWait(
-                            new TestItem("read", true, 0));
+                            new TestItem("read", 0));
 
             assertEquals(7, result);
         } finally {
@@ -82,7 +101,6 @@ public class NodeTaskLaneTest {
                                         .submitAndWait(
                                                 new TestItem(
                                                         "reentrant-read",
-                                                        true,
                                                         0));
                                 failure.set(
                                         new AssertionError(
@@ -97,7 +115,7 @@ public class NodeTaskLaneTest {
 
         taskLane.activate();
         try {
-            taskLane.execute(new TestItem("trigger", false, 0));
+            taskLane.execute(new TestItem("trigger", 0));
 
             assertTrue(completed.await(1, TimeUnit.SECONDS));
             assertTrue(failure.get() instanceof IllegalStateException);
@@ -112,7 +130,7 @@ public class NodeTaskLaneTest {
 
         try {
             taskLane.submitAndWait(
-                    new TestItem("inactive-read", true, 0));
+                    new TestItem("inactive-read", 0));
             fail("inactive Task Lane accepted item");
         } catch (IllegalStateException expected) {
             assertTrue(expected.getMessage().contains("not running"));
@@ -122,7 +140,7 @@ public class NodeTaskLaneTest {
     /** Creates one NodeTaskLane on a dedicated physical test worker. */
     private NodeTaskLane newTaskLane(
             int capacity,
-            Consumer<NodeTaskLane.Item<?>> itemProcessor) {
+            Consumer<NodeTaskLane.Item> itemProcessor) {
 
         worker = Executors.newSingleThreadExecutor(
                 runnable -> new Thread(runnable, "node-task-lane-test"));
