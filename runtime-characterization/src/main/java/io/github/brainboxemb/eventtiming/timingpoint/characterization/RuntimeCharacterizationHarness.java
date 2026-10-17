@@ -217,7 +217,6 @@ final class RuntimeCharacterizationHarness
                         SystemMonotonicClock.INSTANCE,
                         logBookMetrics,
                         dataLane,
-                        ioWorker,
                         LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
                         LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
 
