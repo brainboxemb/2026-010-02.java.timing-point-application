@@ -243,7 +243,7 @@ public final class TimingNodeFixture {
                         32,
                         32,
                         "test-node-data-direct-" + suffix,
-                        Runnable::run),
+                        NODE_WORKER),
                 new TaskSerialLane(
                         32,
                         32,
