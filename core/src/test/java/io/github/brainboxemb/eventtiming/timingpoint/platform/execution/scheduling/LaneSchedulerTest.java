@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.schedul
 
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -84,7 +85,7 @@ public class LaneSchedulerTest {
                 new CountDownLatch(1);
 
         lane.start();
-        LaneScheduler.ScheduledRegistration registration =
+        Runnable cancel =
                 scheduler.scheduleWithFixedDelay(
                         () -> {
                             if (calls.incrementAndGet()
@@ -104,7 +105,7 @@ public class LaneSchedulerTest {
             assertTrue(
                     calls.get() >= 2);
         } finally {
-            registration.close();
+            cancel.run();
             lane.close();
             worker.shutdownNow();
         }
@@ -132,7 +133,7 @@ public class LaneSchedulerTest {
                 new CountDownLatch(1);
 
         lane.start();
-        LaneScheduler.ScheduledRegistration registration =
+        Runnable cancel =
                 scheduler.scheduleWithFixedDelay(
                         () -> {
                             calls.incrementAndGet();
@@ -145,7 +146,7 @@ public class LaneSchedulerTest {
                     firstCall.await(
                             1L,
                             TimeUnit.SECONDS));
-            registration.close();
+            cancel.run();
 
             int afterClose =
                     calls.get();
@@ -155,7 +156,7 @@ public class LaneSchedulerTest {
                     afterClose,
                     calls.get());
         } finally {
-            registration.close();
+            cancel.run();
             lane.close();
             worker.shutdownNow();
         }
@@ -182,7 +183,7 @@ public class LaneSchedulerTest {
 
         lane.start();
         try {
-            LaneScheduler.ScheduledOperation<Void> operation =
+            CompletableFuture<Void> operation =
                     scheduler.submitAfter(
                             () -> {
                                 calls.incrementAndGet();
@@ -190,7 +191,7 @@ public class LaneSchedulerTest {
                             },
                             TimeUnit.MILLISECONDS.toNanos(
                                     50L));
-            operation.close();
+            operation.cancel(true);
 
             Thread.sleep(
                     120L);
