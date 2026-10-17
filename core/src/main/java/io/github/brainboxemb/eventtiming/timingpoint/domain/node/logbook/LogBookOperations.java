@@ -174,15 +174,22 @@ final class LogBookOperations {
         return commitRegistration(data);
     }
 
-    /** Rebuilds committed in-memory history from durable TimingData during activation. */
+    /** Reads and validates persisted TimingData without mutating LogBook state. */
     TimingDataPersistence.LoadResult loadPersistedTimingData()
             throws TimingDataPersistence.PersistenceException {
-        TimingDataPersistence.LoadResult loadResult = timingDataPersistence.load();
+
+        return timingDataPersistence.load();
+    }
+
+    /** Rebuilds in-memory LogBook state from one completed persistence load. */
+    void restorePersistedTimingData(
+            TimingDataPersistence.LoadResult loadResult) {
+
+        failIfInvalidArgument(loadResult != null, "loadResult must not be null");
         for (TimingData data : loadResult.records()) {
             state.addCommittedTimingData(data);
         }
         state.repairedIncompleteTail(loadResult.repairedIncompleteTail());
-        return loadResult;
     }
 
     /** Records a LogBook recovery problem after startup loading fails. */
