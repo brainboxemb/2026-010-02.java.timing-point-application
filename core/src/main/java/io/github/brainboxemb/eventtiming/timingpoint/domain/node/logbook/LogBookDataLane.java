@@ -27,13 +27,6 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 final class LogBookDataLane {
     private static final Logger LOG = LoggerFactory.getLogger(LogBookDataLane.class);
 
-    /** First LogBook operation admitted when the Data Lane starts. */
-    static final class StartupOperationItem extends LogBookOperationItem<Void> {
-        private StartupOperationItem() {
-            super("loadPersistedData", false, false);
-        }
-    }
-
     /** One queued state-changing LogBook command. */
     static final class CommandOperationItem<R> extends LogBookOperationItem<R> {
         private final LogBookCommand<R> command;
@@ -89,15 +82,9 @@ final class LogBookDataLane {
         this.orderedQueryWaitTimeoutMillis = orderedQueryWaitTimeoutMillis;
     }
 
-    /** Starts the Data Lane with persisted-data recovery as its first typed item. */
+    /** Starts normal LogBook command/query admission after recovery is complete. */
     void activate() {
-        SerialLane.OfferResult result =
-                dataLane.start(new StartupOperationItem());
-        if (result != SerialLane.OfferResult.ACCEPTED) {
-            dataLane.close();
-            throw new IllegalStateException(
-                    "Persisted TimingData load could not be queued: " + result);
-        }
+        dataLane.start();
     }
 
     /** Stops new Data Lane work and drains already accepted items. */
