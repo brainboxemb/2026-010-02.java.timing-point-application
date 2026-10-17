@@ -150,7 +150,13 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
      */
     @Override
     protected void onActivate() {
-        // TimingNode.MainTask performs startup loading after child activation.
+
+        /*
+         * Normal operations may already queue while TimingNode.MainTask loads
+         * persisted state. Data Lane and Task Lane share the same node worker,
+         * so those operations cannot execute until the startup task yields.
+         */
+        dataLane.activate();
     }
 
     /**
@@ -297,8 +303,9 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
      * Loads persisted TimingData as the TimingNode MainTask startup step.
      *
      * <p>The call is intentionally synchronous. TimingNode invokes it from its
-     * asynchronous Task Lane MainTask, so lifecycle activation does not wait,
-     * while LogBook remains free of executor infrastructure.</p>
+     * asynchronous MainTask on the shared node worker. Data Lane operations may
+     * queue meanwhile, but cannot execute on that same worker until this startup
+     * step returns.</p>
      */
     public LogBookRecoveryStatus loadPersistedData() {
         failIfInactive();
@@ -331,7 +338,6 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                     ex);
         }
 
-        dataLane.activate();
         LogBookRecoveryStatus status = logBookState.recoveryStatus();
         recoveryView.publishInitial(status);
         return status;
