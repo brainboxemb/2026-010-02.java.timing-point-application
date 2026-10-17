@@ -116,6 +116,11 @@ final class LogBookDataLane {
         return dataLane.isExecutingOnCurrentThread();
     }
 
+    /** Returns whether the underlying Data Lane currently accepts operations. */
+    boolean isRunning() {
+        return dataLane.isRunning();
+    }
+
     /** Queues one result-bearing command operation and waits for its ordered result. */
     <R> R submitCommandAndWait(LogBookCommand<R> command) {
         failIfInvalidArgument(command != null, "command must not be null");
