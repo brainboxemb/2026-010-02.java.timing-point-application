@@ -23,8 +23,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  *
  * <p>Each task step is one queued lane item. AGAIN re-admits the next step at
  * the back of the queue; because the worker batch was fixed before that step ran,
- * the re-admitted step executes in a later worker run. AFTER uses this lane's
- * scheduling capability and also returns to the same serial lane.</p>
+ * the re-admitted step executes in a later worker run. AFTER waits for a timer.
+ * AWAIT waits for an asynchronous dependency. Both release the physical worker
+ * and later re-admit the task to this same serial lane.</p>
  */
 public final class TaskSerialLane extends ScheduledSerialLane {
 
@@ -165,12 +166,29 @@ public final class TaskSerialLane extends ScheduledSerialLane {
                     case AFTER:
                         scheduleAfter(step.delay());
                         break;
+                    case AWAIT:
+                        awaitCompletion(step.completion());
+                        break;
                     default:
                         result.completeExceptionally(
                                 new IllegalStateException(
                                         "Unsupported yielding task step " + step.type()));
                 }
             }
+        }
+
+        private void awaitCompletion(
+                java.util.concurrent.CompletionStage<?> completion) {
+            if (completion == null) {
+                result.completeExceptionally(
+                        new IllegalStateException(
+                                "AWAIT task step requires a completion"));
+                return;
+            }
+
+            active.set(null);
+            completion.whenComplete(
+                    (ignoredResult, ignoredFailure) -> scheduleStep(0L));
         }
 
         private void scheduleAfter(Duration delay) {
