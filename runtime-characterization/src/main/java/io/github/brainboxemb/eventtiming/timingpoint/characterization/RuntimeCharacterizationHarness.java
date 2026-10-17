@@ -29,7 +29,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.ClockTimeSource;
@@ -49,7 +48,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
@@ -88,11 +86,11 @@ final class RuntimeCharacterizationHarness
     private final CharacterizationConfig config;
     private final AtomicLong committedCount = new AtomicLong();
 
-    private ExecutorService nodeWorker;
+    private ScheduledThreadPoolExecutor nodeWorker;
     private ScheduledThreadPoolExecutor tagWorker;
     private ScheduledThreadPoolExecutor ioWorker;
     private TimingNodeDataLane dataLane;
-    private RunnableSerialLane taskLane;
+    private TaskSerialLane taskLane;
     private ScheduledSerialLane tagLane;
     private TaskSerialLane antennaLane;
     private SimulatedAntenna antenna;
@@ -137,9 +135,12 @@ final class RuntimeCharacterizationHarness
                 config.workDirectory());
 
         nodeWorker =
-                Executors.newSingleThreadExecutor(
+                new ScheduledThreadPoolExecutor(
+                        1,
                         threadFactory(
                                 "tp-dml-node-worker"));
+        nodeWorker.setRemoveOnCancelPolicy(
+                true);
         tagWorker =
                 new ScheduledThreadPoolExecutor(
                         1,
@@ -162,7 +163,7 @@ final class RuntimeCharacterizationHarness
                         "TimingNodeData",
                         nodeWorker);
         taskLane =
-                new RunnableSerialLane(
+                new TaskSerialLane(
                         TIMING_NODE_QUEUE_CAPACITY,
                         TIMING_NODE_QUEUE_CAPACITY,
                         "TimingNodeTask",
@@ -216,6 +217,7 @@ final class RuntimeCharacterizationHarness
                         SystemMonotonicClock.INSTANCE,
                         logBookMetrics,
                         dataLane,
+                        ioWorker,
                         LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
                         LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
 
@@ -241,7 +243,8 @@ final class RuntimeCharacterizationHarness
                         timeSource,
                         logBook,
                         nodeService,
-                        tagProcessor);
+                        tagProcessor,
+                        taskLane);
 
         antenna =
                 new SimulatedAntenna();
@@ -285,6 +288,10 @@ final class RuntimeCharacterizationHarness
 
         nodeLifecycle.activateAll();
         nodeActive = true;
+        await(
+                () -> node.operationalState()
+                        == io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationalState.OK,
+                "TimingNode operational");
         node.open(LOCATION_ID);
 
         preloadHistory(
