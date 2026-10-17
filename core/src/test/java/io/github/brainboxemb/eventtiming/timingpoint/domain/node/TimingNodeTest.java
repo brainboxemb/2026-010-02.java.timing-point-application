@@ -488,6 +488,9 @@ public class TimingNodeTest {
                         persistence,
                         dataLane,
                         1000L);
+        CountDownLatch committed = new CountDownLatch(2);
+        node.logBook().newDataEntryEvent().subscribe(
+                ignored -> committed.countDown());
 
         activate(node);
         try {
@@ -512,6 +515,9 @@ public class TimingNodeTest {
             assertEquals(new LocationId(24), node.locationId());
 
             persistence.releaseAppend.countDown();
+            assertTrue(
+                    "accepted LogBook commands did not drain",
+                    committed.await(1L, TimeUnit.SECONDS));
             assertEquals(
                     2,
                     node.logBook().process(LogBookQueries.timingDataCount()).intValue());
