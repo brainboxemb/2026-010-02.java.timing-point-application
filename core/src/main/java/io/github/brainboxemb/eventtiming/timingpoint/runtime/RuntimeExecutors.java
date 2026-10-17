@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTaskLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
@@ -61,12 +62,12 @@ final class RuntimeExecutors implements AutoCloseable {
     /** Node-local logical lanes resolved for one TimingNode. */
     static final class TimingNodeExecutionResources {
         private final TimingNodeDataLane dataLane;
-        private final RunnableSerialLane taskLane;
+        private final TimingNodeTaskLane taskLane;
         private final ScheduledSerialLane tagProcessorLane;
 
         private TimingNodeExecutionResources(
                 TimingNodeDataLane dataLane,
-                RunnableSerialLane taskLane,
+                TimingNodeTaskLane taskLane,
                 ScheduledSerialLane tagProcessorLane) {
 
             this.dataLane = dataLane;
@@ -79,7 +80,7 @@ final class RuntimeExecutors implements AutoCloseable {
             return dataLane;
         }
 
-        RunnableSerialLane taskLane() {
+        TimingNodeTaskLane taskLane() {
 
             return taskLane;
         }
@@ -169,7 +170,7 @@ final class RuntimeExecutors implements AutoCloseable {
     /**
      * Creates one node-local execution-resource set on shared Runtime executors.
      *
-     * <p>The typed Data Lane and legacy Task Lane keep independent bounded queues and FIFO
+     * <p>The typed Data Lane and typed Task Lane keep independent bounded queues and FIFO
      * ordering, but they deliberately share
      * the same TimingNode executor. TagProcessor keeps its separate scheduled
      * executor. Logical responsibility therefore does not imply another
@@ -182,8 +183,8 @@ final class RuntimeExecutors implements AutoCloseable {
                         TIMING_NODE_DATA_LANE_MAX_ITEMS_PER_RUN,
                         "TimingNodeData",
                         timingNodeExecutor);
-        RunnableSerialLane taskLane =
-                new RunnableSerialLane(
+        TimingNodeTaskLane taskLane =
+                new TimingNodeTaskLane(
                         TIMING_NODE_TASK_LANE_QUEUE_CAPACITY,
                         TIMING_NODE_TASK_LANE_MAX_ITEMS_PER_RUN,
                         "TimingNodeTask",
