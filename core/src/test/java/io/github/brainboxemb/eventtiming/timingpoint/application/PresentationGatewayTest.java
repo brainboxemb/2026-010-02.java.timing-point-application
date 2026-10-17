@@ -9,7 +9,6 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGatewayFixture;
@@ -99,7 +98,7 @@ public class PresentationGatewayTest {
             assertEquals(1, committed.size());
             assertTrue(committed.get(0) instanceof TimingData.NodeOpen);
 
-            TimingNodeTypes.RegistrationResult registration =
+            CommandResult registration =
                     proxy.addTestAutomaticRegistration(
                             new RegistrationId("N0001"),
                             TIME,

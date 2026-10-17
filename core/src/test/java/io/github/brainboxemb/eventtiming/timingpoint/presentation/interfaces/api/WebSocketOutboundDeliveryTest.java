@@ -157,7 +157,7 @@ public class WebSocketOutboundDeliveryTest {
                                         "2026-10-07T10:00:%02dZ",
                                         index));
 
-                Supplier<TimingNodeTypes.RegistrationResult> addRegistration = () -> {
+                Supplier<TimingData> addRegistration = () -> {
                     return node.logBook().process(
                             LogBookCommands.commitAutomaticRegistration(
                                     node.locationId(),

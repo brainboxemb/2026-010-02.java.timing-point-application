@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
 import java.util.concurrent.CountDownLatch;
@@ -41,8 +40,7 @@ public class LogBookDataLaneTest {
             try {
                 dataLane.submitCommandAndWait(() -> "done", "commitTest");
                 fail("expected command timeout");
-            } catch (OperationException expected) {
-                assertEquals(OperationException.Reason.TIMEOUT, expected.reason());
+            } catch (IllegalStateException expected) {
                 assertTrue(expected.getMessage().contains("25 ms"));
                 assertTrue(expected.getMessage().contains("outcome is unknown"));
             }
@@ -75,8 +73,7 @@ public class LogBookDataLaneTest {
             try {
                 dataLane.submitQueryAndWait(() -> "done", "queryTest");
                 fail("expected query timeout");
-            } catch (OperationException expected) {
-                assertEquals(OperationException.Reason.TIMEOUT, expected.reason());
+            } catch (IllegalStateException expected) {
                 assertTrue(expected.getMessage().contains("25 ms"));
                 assertFalse(expected.getMessage().contains("outcome is unknown"));
             }

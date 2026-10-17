@@ -694,10 +694,8 @@ public class TimingNodeTest {
                         LogBookQueries.recoveryStatus(),
                         ReadConsistency.ORDERED);
                 fail("expected ordered recovery query timeout behind blocked lane");
-            } catch (TimingNodeTypes.OperationException expected) {
-                assertEquals(
-                        TimingNodeTypes.OperationException.Reason.TIMEOUT,
-                        expected.reason());
+            } catch (IllegalStateException expected) {
+                assertTrue(expected.getMessage().contains("timed out"));
             }
 
             releaseBlocker.countDown();
@@ -890,10 +888,8 @@ public class TimingNodeTest {
         try {
             node.open(new LocationId(24));
             fail("expected operation failure");
-        } catch (TimingNodeTypes.OperationException expected) {
-            assertEquals(
-                    TimingNodeTypes.OperationException.Reason.UNAVAILABLE,
-                    expected.reason());
+        } catch (IllegalStateException expected) {
+            assertTrue(expected.getMessage().contains("not active"));
         }
     }
 
