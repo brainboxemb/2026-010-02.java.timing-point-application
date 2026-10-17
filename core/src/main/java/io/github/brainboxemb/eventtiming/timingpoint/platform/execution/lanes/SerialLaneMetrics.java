@@ -33,23 +33,23 @@ public final class SerialLaneMetrics {
         this.queueDepthSupplier = queueDepthSupplier;
     }
 
-    /** Records one task that was successfully queued and updates the queue high-water mark. */
+    /** Records one item that was successfully queued and updates the queue high-water mark. */
     void recordQueued(int queueDepth) {
         queuedCount.incrementAndGet();
         updateMaximum(highWaterMark, queueDepth);
     }
 
-    /** Records one task rejected because the bounded lane queue was full. */
+    /** Records one item rejected because the bounded lane queue was full. */
     void recordFull() {
         fullCount.incrementAndGet();
     }
 
-    /** Records one task rejected because the lane was not accepting work. */
+    /** Records one item rejected because the lane was not accepting work. */
     void recordNotRunning() {
         notRunningCount.incrementAndGet();
     }
 
-    /** Records queue-wait and execution durations for one completed task. */
+    /** Records queue-wait and execution durations for one completed item. */
     void recordCompleted(
             long queueWaitNanos,
             long executionNanos) {
@@ -74,8 +74,7 @@ public final class SerialLaneMetrics {
                 totalQueueWaitNanos.get(),
                 maxQueueWaitNanos.get(),
                 totalExecutionNanos.get(),
-                maxExecutionNanos.get(),
-                -1L);
+                maxExecutionNanos.get());
     }
 
     /** Atomically raises an integer maximum when the candidate is larger. */
@@ -112,7 +111,6 @@ public final class SerialLaneMetrics {
         private final long maxQueueWaitNanos;
         private final long totalExecutionNanos;
         private final long maxExecutionNanos;
-        private final long workerThreadCpuTimeNanos;
 
         /** Creates one immutable copy of all current SerialLane metric values. */
         private Snapshot(
@@ -125,8 +123,7 @@ public final class SerialLaneMetrics {
                 long totalQueueWaitNanos,
                 long maxQueueWaitNanos,
                 long totalExecutionNanos,
-                long maxExecutionNanos,
-                long workerThreadCpuTimeNanos) {
+                long maxExecutionNanos) {
             this.queueDepth = queueDepth;
             this.queueHighWaterMark = queueHighWaterMark;
             this.queuedCount = queuedCount;
@@ -137,11 +134,9 @@ public final class SerialLaneMetrics {
             this.maxQueueWaitNanos = maxQueueWaitNanos;
             this.totalExecutionNanos = totalExecutionNanos;
             this.maxExecutionNanos = maxExecutionNanos;
-            this.workerThreadCpuTimeNanos =
-                    workerThreadCpuTimeNanos;
         }
 
-        /** Returns the current number of tasks waiting in the lane queue. */
+        /** Returns the current number of items waiting in the lane queue. */
         public int queueDepth() {
             return queueDepth;
         }
@@ -151,7 +146,7 @@ public final class SerialLaneMetrics {
             return queueHighWaterMark;
         }
 
-        /** Returns how many tasks were successfully queued. */
+        /** Returns how many items were successfully queued. */
         public long queuedCount() {
             return queuedCount;
         }
@@ -166,7 +161,7 @@ public final class SerialLaneMetrics {
             return notRunningCount;
         }
 
-        /** Returns how many queued tasks completed execution. */
+        /** Returns how many queued items completed execution. */
         public long completedCount() {
             return completedCount;
         }
@@ -181,22 +176,15 @@ public final class SerialLaneMetrics {
             return maxQueueWaitNanos;
         }
 
-        /** Returns cumulative task execution time. */
+        /** Returns cumulative item execution time. */
         public long totalExecutionNanos() {
             return totalExecutionNanos;
         }
 
-        /** Returns the longest observed task execution duration. */
+        /** Returns the longest observed item execution duration. */
         public long maxExecutionNanos() {
             return maxExecutionNanos;
         }
 
-        /**
-         * Returns {@code -1}: physical worker CPU time belongs to the externally
-         * owned worker and is not attributable to one logical lane.
-         */
-        public long workerThreadCpuTimeNanos() {
-            return workerThreadCpuTimeNanos;
-        }
     }
 }
