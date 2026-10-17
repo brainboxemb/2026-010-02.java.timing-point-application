@@ -9,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
@@ -30,6 +31,7 @@ import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.function.Supplier;
 
 import org.junit.Test;
 
@@ -127,11 +129,17 @@ public class RuntimeMeasurementReaderTest {
         LifecycleTestSupport.activate(node);
         try {
             node.open(new LocationId(24));
+            Supplier<TimingNodeTypes.RegistrationResult> addRegistration = () -> {
+                return node.logBook().process(
+                        LogBookCommands.commitAutomaticRegistration(
+                                node.locationId(),
+                                new RegistrationId("N0001"),
+                                EVENT_TIME,
+                                TimingData.TagSource.API,
+                                TimingData.AutomaticTimeSource.API));
+            };
             assertTrue(
-                    node.addTestAutomaticRegistration(
-                                    new RegistrationId("N0001"),
-                                    EVENT_TIME,
-                                    TimingData.AutomaticTimeSource.API)
+                    node.processLocked(addRegistration)
                             .committed());
 
             /*
