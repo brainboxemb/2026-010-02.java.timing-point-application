@@ -7,6 +7,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
@@ -16,6 +17,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.Collections;
+import java.util.function.Supplier;
 
 import org.java_websocket.WebSocket;
 import org.junit.Test;
@@ -144,16 +146,27 @@ public class WebSocketOutboundDeliveryTest {
             node.open(new LocationId(24));
 
             for (int index = 1; index <= 10; index++) {
-                node.addTestAutomaticRegistration(
+                RegistrationId registrationId =
                         new RegistrationId(
                                 String.format(
                                         "N%04d",
-                                        index)),
+                                        index));
+                TimingTimestamp effectiveTime =
                         TimingTimestamp.parse(
                                 String.format(
                                         "2026-10-07T10:00:%02dZ",
-                                        index)),
-                        TimingData.AutomaticTimeSource.API);
+                                        index));
+
+                Supplier<TimingNodeTypes.RegistrationResult> addRegistration = () -> {
+                    return node.logBook().process(
+                            LogBookCommands.commitAutomaticRegistration(
+                                    node.locationId(),
+                                    registrationId,
+                                    effectiveTime,
+                                    TimingData.TagSource.API,
+                                    TimingData.AutomaticTimeSource.API));
+                };
+                node.processLocked(addRegistration);
             }
 
             assertEquals(
