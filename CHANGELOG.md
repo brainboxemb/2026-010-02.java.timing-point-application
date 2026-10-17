@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep domain/application processing terminology out of `SerialLane`: its fixed worker uses execution-oriented `runQueueWorker()` / `runQueuedWork(...)` names while caller-owned `process...` methods remain at LogBook/TagProcessor boundaries.
+
 - Simplify delayed serial scheduling: `submitAfter(...)` now returns one standard `CompletableFuture` for result/completion/cancellation, removing duplicate scheduled-operation wrapper APIs while recurring scheduling keeps one narrow caller-facing registration handle.
 
 - Finish the TagProcessor scheduled-work split: duplicate housekeeping now starts only when duplicate-window state is created, and scheduled-registration handles rely on the existing lifecycle lock instead of redundant volatile state.
