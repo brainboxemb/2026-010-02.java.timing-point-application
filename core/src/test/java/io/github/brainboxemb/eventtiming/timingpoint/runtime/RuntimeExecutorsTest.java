@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookOperationItem;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServiceTaskItem;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 
 import java.time.Duration;
@@ -19,6 +20,19 @@ public class RuntimeExecutorsTest {
             extends LogBookOperationItem<Void> {
         private TestDataOperation(String name) {
             super(name, false, false);
+        }
+    }
+
+    private static final class TestTaskItem implements NodeServiceTaskItem {
+        private final String name;
+
+        private TestTaskItem(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String name() {
+            return name;
         }
     }
 
@@ -76,14 +90,15 @@ public class RuntimeExecutorsTest {
                     dataThread.set(Thread.currentThread().getName());
                     done.countDown();
                 });
+        execution.taskLane().bindNodeService(
+                ignored -> {
+                    taskThread.set(Thread.currentThread().getName());
+                    done.countDown();
+                });
         execution.taskLane().start();
         try {
             execution.dataLane().start(new TestDataOperation("data"));
-            execution.taskLane().execute(
-                    () -> {
-                        taskThread.set(Thread.currentThread().getName());
-                        done.countDown();
-                    });
+            execution.taskLane().offer(new TestTaskItem("task"));
 
             assertTrue(done.await(1L, TimeUnit.SECONDS));
             assertEquals("tp-dl-node", dataThread.get());
