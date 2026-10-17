@@ -106,7 +106,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                         dataLane,
                         commitWaitTimeoutMillis,
                         orderedQueryWaitTimeoutMillis);
-        this.recoveryView = new LogBookRecoveryView(timingNodeId, dataLane);
+        this.recoveryView = new LogBookRecoveryView(timingNodeId, this.dataLane);
         this.metrics = metrics;
         this.commitWaitTimeoutMillis = commitWaitTimeoutMillis;
         this.newDataEntryEvent =
