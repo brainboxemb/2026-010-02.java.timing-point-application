@@ -25,8 +25,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Data Lane component for one TimingNode's committed TimingData.
  *
- * <p>LogBook is the single execution boundary for ordered commands,
- * ORDERED queries, persisted-data startup loading, durable TimingData commit and publication of immutable
+ * <p>LogBook owns lifecycle recovery plus the Data Lane boundary for ordered
+ * commands, ORDERED queries, durable TimingData commit and publication of immutable
  * recovery/read views. It owns no physical thread: the supplied
  * {@link TimingNodeDataLane} may share a Runtime-owned worker with other logical
  * lanes.</p>
@@ -142,14 +142,16 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     }
 
     /**
-     * Starts the Data Lane and queues persisted TimingData loading as its first task.
+     * Loads persisted TimingData during lifecycle activation, then starts normal
+     * Data Lane command/query admission.
      *
-     * <p>The call does not wait for file I/O. CURRENT recovery status remains
-     * unavailable until that first ordered task has completed startup recovery.</p>
+     * <p>Recovery is lifecycle work, not a queued LogBook operation. No normal
+     * Data Lane item can overtake or sit behind startup recovery.</p>
      */
     @Override
     protected void onActivate() {
 
+        loadPersistedData();
         dataLane.activate();
     }
 
@@ -327,9 +329,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     /** Processes one typed LogBook operation on the shared Data Lane worker. */
     private void processDataLaneItem(LogBookOperationItem<?> item) {
 
-        if (item instanceof LogBookDataLane.StartupOperationItem) {
-            loadPersistedData();
-        } else if (item instanceof LogBookDataLane.CommandOperationItem<?>) {
+        if (item instanceof LogBookDataLane.CommandOperationItem<?>) {
             processCommandItem((LogBookDataLane.CommandOperationItem<?>) item);
         } else if (item instanceof LogBookDataLane.QueryOperationItem<?>) {
             processQueryItem((LogBookDataLane.QueryOperationItem<?>) item);
