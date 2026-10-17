@@ -1,7 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookOperationItem;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
@@ -78,21 +79,22 @@ public class RuntimeExecutorsTest {
                     dataThread.set(Thread.currentThread().getName());
                     done.countDown();
                 });
-        execution.taskLane().start();
+        execution.taskRunner().start();
         try {
             execution.dataLane().start();
             execution.dataLane().offer(new TestDataOperation("data"));
-            execution.taskLane().execute(
+            execution.taskRunner().runTask(
                     () -> {
                         taskThread.set(Thread.currentThread().getName());
                         done.countDown();
+                        return TaskStep.done();
                     });
 
             assertTrue(done.await(1L, TimeUnit.SECONDS));
             assertEquals("tp-dl-node", dataThread.get());
             assertEquals(dataThread.get(), taskThread.get());
         } finally {
-            execution.taskLane().close();
+            execution.taskRunner().close();
             execution.dataLane().close();
             runtime.close();
         }
@@ -101,7 +103,7 @@ public class RuntimeExecutorsTest {
     @Test
     public void timingSystemConductorUsesCoordinationExecutorThread() throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
-        TaskSerialLane conductor = runtime.createTimingSystemConductorLane();
+        SerialTaskRunner conductor = runtime.createTimingSystemConductorLane();
         runtime.start();
 
         AtomicReference<String> threadName = new AtomicReference<String>();
@@ -109,10 +111,11 @@ public class RuntimeExecutorsTest {
 
         conductor.start();
         try {
-            conductor.execute(
+            conductor.runTask(
                     () -> {
                         threadName.set(Thread.currentThread().getName());
                         done.countDown();
+                        return TaskStep.done();
                     });
 
             assertTrue(done.await(1L, TimeUnit.SECONDS));
@@ -126,9 +129,9 @@ public class RuntimeExecutorsTest {
     @Test
     public void antennaControlLanesUseSharedIoExecutorThread() throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
-        TaskSerialLane first =
+        SerialTaskRunner first =
                 runtime.createAntennaControlLane(Duration.ofSeconds(1));
-        TaskSerialLane second =
+        SerialTaskRunner second =
                 runtime.createAntennaControlLane(Duration.ofSeconds(1));
         runtime.start();
 
@@ -140,20 +143,22 @@ public class RuntimeExecutorsTest {
         first.start();
         second.start();
         try {
-            first.execute(
+            first.runTask(
                     () -> {
                         firstThread.set(Thread.currentThread().getName());
                         firstDone.countDown();
+                        return TaskStep.done();
                     });
             assertTrue(firstDone.await(1L, TimeUnit.SECONDS));
             assertEquals("tp-io-shared", firstThread.get());
 
             first.close();
 
-            second.execute(
+            second.runTask(
                     () -> {
                         secondThread.set(Thread.currentThread().getName());
                         secondDone.countDown();
+                        return TaskStep.done();
                     });
             assertTrue(secondDone.await(1L, TimeUnit.SECONDS));
             assertEquals("tp-io-shared", secondThread.get());
@@ -177,15 +182,13 @@ public class RuntimeExecutorsTest {
         AtomicReference<String> secondThread = new AtomicReference<String>();
         CountDownLatch done = new CountDownLatch(2);
 
-        first.tagProcessorLane().start();
-        second.tagProcessorLane().start();
         try {
-            first.tagProcessorLane().execute(
+            first.tagProcessorScheduler().execute(
                     () -> {
                         firstThread.set(Thread.currentThread().getName());
                         done.countDown();
                     });
-            second.tagProcessorLane().execute(
+            second.tagProcessorScheduler().execute(
                     () -> {
                         secondThread.set(Thread.currentThread().getName());
                         done.countDown();
@@ -195,8 +198,6 @@ public class RuntimeExecutorsTest {
             assertEquals("tp-dl-tagproc", firstThread.get());
             assertEquals(firstThread.get(), secondThread.get());
         } finally {
-            first.tagProcessorLane().close();
-            second.tagProcessorLane().close();
             runtime.close();
         }
     }

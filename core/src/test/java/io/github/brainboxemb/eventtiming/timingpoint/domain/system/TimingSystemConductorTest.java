@@ -20,7 +20,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -62,8 +63,8 @@ public class TimingSystemConductorTest {
         TimingNode second = newTimingNode("B");
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
-        TaskSerialLane lane =
-                new TaskSerialLane(
+        SerialTaskRunner lane =
+                new SerialTaskRunner(
                         8,
                         8,
                         "system-conductor-test",
@@ -92,14 +93,14 @@ public class TimingSystemConductorTest {
     }
 
     @Test
-    public void activationWaitsForNodeRecoveryBeforeReconciliation()
+    public void activationDoesNotWaitForNodeRecoveryAndLaterStatusWakesReconciliation()
             throws Exception {
         BlockingPersistence persistence = new BlockingPersistence();
         TimingNode node = newTimingNode("A", persistence);
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
-        TaskSerialLane lane =
-                new TaskSerialLane(
+        SerialTaskRunner lane =
+                new SerialTaskRunner(
                         4,
                         4,
                         "conductor-startup-test",
@@ -130,19 +131,14 @@ public class TimingSystemConductorTest {
                             1L,
                             TimeUnit.SECONDS));
             activationCaller.join(250L);
-            assertTrue(
-                    "TimingSystemConductor activation must wait for TimingNode recovery",
+            assertFalse(
+                    "TimingSystemConductor activation waited for TimingNode recovery",
                     activationCaller.isAlive());
+            assertNull(activationFailure[0]);
             assertEquals(FunctionalState.CLOSED, node.functionalState());
             assertFalse(antenna.inventoryRunning());
 
             persistence.releaseLoad.countDown();
-            activationCaller.join(1000L);
-
-            assertFalse(
-                    "TimingSystemConductor activation did not complete after node recovery",
-                    activationCaller.isAlive());
-            assertNull(activationFailure[0]);
 
             node.open(new LocationId(24));
             await(
@@ -164,8 +160,8 @@ public class TimingSystemConductorTest {
         TimingNode node = newTimingNode("A");
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
-        TaskSerialLane lane =
-                new TaskSerialLane(
+        SerialTaskRunner lane =
+                new SerialTaskRunner(
                         4,
                         4,
                         "conductor-event-test",
@@ -178,7 +174,7 @@ public class TimingSystemConductorTest {
         CountDownLatch release = new CountDownLatch(1);
         try {
             await(() -> lane.metrics().snapshot().queueDepth() == 0, 1000L);
-            lane.execute(() -> {
+            runOneStep(lane, () -> {
                 started.countDown();
                 try { release.await(); } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
@@ -207,8 +203,8 @@ public class TimingSystemConductorTest {
         TimingNode node = newTimingNode("A");
         Property<Boolean> diagnostic =
                 node.PROPERTIES.property("diagnostic", Boolean.FALSE);
-        TaskSerialLane lane =
-                new TaskSerialLane(
+        SerialTaskRunner lane =
+                new SerialTaskRunner(
                         4,
                         4,
                         "conductor-filter-test",
@@ -223,7 +219,7 @@ public class TimingSystemConductorTest {
         CountDownLatch release = new CountDownLatch(1);
         try {
             await(() -> lane.metrics().snapshot().queueDepth() == 0, 1000L);
-            lane.execute(() -> {
+            runOneStep(lane, () -> {
                 started.countDown();
                 try {
                     release.await();
@@ -251,8 +247,8 @@ public class TimingSystemConductorTest {
         TimingNode node = newTimingNode("A");
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
-        TaskSerialLane lane =
-                new TaskSerialLane(
+        SerialTaskRunner lane =
+                new SerialTaskRunner(
                         4,
                         4,
                         "conductor-coalesce-test",
@@ -265,7 +261,7 @@ public class TimingSystemConductorTest {
         CountDownLatch release = new CountDownLatch(1);
         try {
             await(() -> lane.metrics().snapshot().queueDepth() == 0, 1000L);
-            lane.execute(() -> {
+            runOneStep(lane, () -> {
                 started.countDown();
                 try { release.await(); } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
@@ -337,7 +333,7 @@ public class TimingSystemConductorTest {
                 newScheduledWorker("conductor-antenna-test");
         return new AntennaManager(
                 new AntennaSet().add(new AntennaId("1"), antenna),
-                new TaskSerialLane(
+                new SerialTaskRunner(
                         8,
                         8,
                         "conductor-antenna-test",
@@ -352,9 +348,16 @@ public class TimingSystemConductorTest {
         return worker;
     }
 
-    private static void awaitLane(TaskSerialLane lane) throws Exception {
+    private static void runOneStep(SerialTaskRunner lane, Runnable action) {
+        lane.runTask(() -> {
+            action.run();
+            return TaskStep.done();
+        });
+    }
+
+    private static void awaitLane(SerialTaskRunner lane) throws Exception {
         CountDownLatch completed = new CountDownLatch(1);
-        lane.execute(completed::countDown);
+        runOneStep(lane, completed::countDown);
         assertTrue("Conductor lane did not drain", completed.await(1L, TimeUnit.SECONDS));
     }
 

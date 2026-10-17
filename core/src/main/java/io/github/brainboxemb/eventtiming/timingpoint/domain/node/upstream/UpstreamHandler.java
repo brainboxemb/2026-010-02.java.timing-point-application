@@ -6,7 +6,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
@@ -35,7 +36,7 @@ public final class UpstreamHandler {
 
     private final NodeId nodeId;
     private final TimingNodeDataLane dataLane;
-    private final RunnableSerialLane taskSerialLane;
+    private final SerialTaskRunner taskRunner;
     private final UpstreamStream stream;
     private final UpstreamHeartbeat heartbeat;
     private final UpstreamDataSync upstreamDataSync;
@@ -52,20 +53,20 @@ public final class UpstreamHandler {
     public UpstreamHandler(
             NodeId nodeId,
             TimingNodeDataLane dataLane,
-            RunnableSerialLane taskSerialLane,
+            SerialTaskRunner taskRunner,
             UpstreamStream stream,
             LogBookAccessor logBook,
             UpstreamTaskState taskState) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(dataLane != null, "dataLane must not be null");
-        failIfInvalidArgument(taskSerialLane != null, "taskSerialLane must not be null");
+        failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
         failIfInvalidArgument(stream != null, "stream must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
         failIfInvalidArgument(taskState != null, "taskState must not be null");
 
         this.nodeId = nodeId;
         this.dataLane = dataLane;
-        this.taskSerialLane = taskSerialLane;
+        this.taskRunner = taskRunner;
         this.stream = stream;
         this.heartbeat = new UpstreamHeartbeat(nodeId, stream);
         this.upstreamDataSync = new UpstreamDataSync(nodeId, stream, taskState);
@@ -201,7 +202,13 @@ public final class UpstreamHandler {
 
     /** Executes one Task Lane operation and contains rejection at the upstream callback boundary. */
     private void executeTaskOrWarn(Runnable task, String operation) {
-        Runnable queueTask = () -> taskSerialLane.execute(task);
+        Runnable queueTask =
+                () ->
+                        taskRunner.runTask(
+                                () -> {
+                                    task.run();
+                                    return TaskStep.done();
+                                });
         Consumer<RejectedExecutionException> onRejected = ex -> LOG.warn(
                 "Dropped upstream {} for node {} because the Task Lane rejected execution",
                 operation,

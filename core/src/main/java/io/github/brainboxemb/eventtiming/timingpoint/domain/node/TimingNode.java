@@ -4,10 +4,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookRecoveryStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
@@ -18,8 +15,12 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyKey;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
@@ -55,6 +56,7 @@ public final class TimingNode extends LifecycleComponent {
     private final TimeSource timeSource;
     private final LogBook logBook;
     private final TagProcessor tagProcessor;
+    private final SerialTaskRunner taskRunner;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
 
     // Current TimingNode state.
@@ -68,6 +70,8 @@ public final class TimingNode extends LifecycleComponent {
 
     private final Object operationLock = new Object();
     private final Object stateLock = new Object();
+
+    private CompletableFuture<Void> mainTaskRun;
 
     /** Antenna observation input; internally consumed by the TagProcessor. */
     public static final EventInput<TimingNode, TagObservation> TAG_OBSERVATIONS =
@@ -88,7 +92,8 @@ public final class TimingNode extends LifecycleComponent {
             TimeSource timeSource,
             LogBook logBook,
             NodeService nodeService,
-            TagProcessor tagProcessor) {
+            TagProcessor tagProcessor,
+            SerialTaskRunner taskRunner) {
 
         super(
                 () -> new IllegalStateException(
@@ -99,14 +104,16 @@ public final class TimingNode extends LifecycleComponent {
         failIfInvalidArgument(logBook != null, "logBook must not be null");
         failIfInvalidArgument(nodeService != null, "nodeService must not be null");
         failIfInvalidArgument(tagProcessor != null, "tagProcessor must not be null");
+        failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
 
         this.timingNodeId = logBook.timingNodeId();
         this.antennaId = antennaId;
         this.timeSource = timeSource;
         this.logBook = logBook;
         this.tagProcessor = tagProcessor;
-        lifecycle.register(logBook);
+        this.taskRunner = taskRunner;
         lifecycle.register(nodeService);
+        lifecycle.register(logBook);
         lifecycle.register(tagProcessor);
 
         /*
@@ -144,7 +151,12 @@ public final class TimingNode extends LifecycleComponent {
         return functionalStateProp.get();
     }
 
-    /** Returns whether startup completed and normal node operations are available. */
+    /**
+     * Returns this TimingNode's own runtime readiness.
+     *
+     * <p>Child-component health is independent. For example, a failed LogBook
+     * recovery does not put the TimingNode itself in ERROR.</p>
+     */
     public OperationalState operationalState() {
 
         return operationalStateProp.get();
@@ -250,42 +262,83 @@ public final class TimingNode extends LifecycleComponent {
     }
 
     /**
-     * Activates child components synchronously.
+     * Activates child components and starts the asynchronous node MainTask.
      *
-     * <p>LogBook activation performs persisted-data recovery before its Data
-     * Lane starts accepting normal work. When child activation returns, the
-     * completed recovery status determines this node's operational state.</p>
+     * <p>Activation returns after the MainTask is admitted. The node remains
+     * {@link OperationalState#INIT} while that task loads and reconstructs the
+     * LogBook on the node executor.</p>
      */
     @Override
     protected void onActivate() {
 
         setOperationalState(OperationalState.INIT);
-        lifecycle.activateAll();
+        taskRunner.start();
+        try {
+            lifecycle.activateAll();
+        } catch (RuntimeException | Error failure) {
+            taskRunner.close();
+            throw failure;
+        }
 
-        LogBookRecoveryStatus recovery =
-                logBook.process(
-                        LogBookQueries.recoveryStatus(),
-                        ReadConsistency.CURRENT);
-        setOperationalState(
-                recovery.failed()
-                        ? OperationalState.ERROR
-                        : OperationalState.OK);
+        CompletableFuture<Void> run = taskRunner.runTask(new MainTask());
+        mainTaskRun = run;
+        run.whenComplete(
+                (ignored, failure) -> {
+                    if (failure != null && !run.isCancelled()) {
+                        setOperationalState(OperationalState.ERROR);
+                    }
+                });
     }
 
     /** Deactivates all owned child components in reverse lifecycle order. */
     @Override
     protected void onDeactivate() {
 
-        lifecycle.deactivateAll();
-        synchronized (stateLock) {
-            operationalStateProp.set(OperationalState.INIT);
-            functionalStateProp.set(FunctionalState.CLOSED);
-            locationIdProp.set(null);
-            properties.sync();
+        CompletableFuture<Void> run = mainTaskRun;
+        mainTaskRun = null;
+        if (run != null && !run.isDone()) {
+            run.cancel(true);
+        }
+
+        try {
+            lifecycle.deactivateAll();
+        } finally {
+            taskRunner.close();
+            synchronized (stateLock) {
+                operationalStateProp.set(OperationalState.INIT);
+                functionalStateProp.set(FunctionalState.CLOSED);
+                locationIdProp.set(null);
+                properties.sync();
+            }
         }
     }
 
-    /** Changes operational state without changing OPEN/CLOSED functional state. */
+    /** Startup flow executed asynchronously on this node's Task Lane. */
+    private final class MainTask implements YieldingTask {
+        private boolean recoveryLoaded;
+
+        @Override
+        public TaskStep runStep() {
+            if (!recoveryLoaded) {
+                logBook.loadPersistedData();
+                recoveryLoaded = true;
+
+                /*
+                 * LogBook owns its own recovery result. A recovery failure is a
+                 * degraded child-component condition, not a TimingNode failure.
+                 * On successful recovery, INITIAL_DATA_LOADED may have queued
+                 * NodeService rebuild work on this same Task Lane, so yield once
+                 * before publishing node readiness.
+                 */
+                return TaskStep.again();
+            }
+
+            setOperationalState(OperationalState.OK);
+            return TaskStep.done();
+        }
+    }
+
+    /** Changes runtime readiness without changing OPEN/CLOSED functional state. */
     private void setOperationalState(OperationalState state) {
         synchronized (stateLock) {
             operationalStateProp.set(state);

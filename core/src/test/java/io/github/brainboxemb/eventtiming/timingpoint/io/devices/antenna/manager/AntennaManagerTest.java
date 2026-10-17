@@ -13,7 +13,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -78,7 +78,7 @@ public class AntennaManagerTest {
                                 antenna,
                                 power,
                                 Duration.ofMillis(200)),
-                        new TaskSerialLane(
+                        new SerialTaskRunner(
                                 8,
                                 8,
                                 "antenna-manager-test",
@@ -164,7 +164,7 @@ public class AntennaManagerTest {
                                 antenna,
                                 power,
                                 Duration.ofMillis(200)),
-                        new TaskSerialLane(
+                        new SerialTaskRunner(
                                 8,
                                 8,
                                 "antenna-manager-test",
@@ -216,7 +216,7 @@ public class AntennaManagerTest {
                                 antenna,
                                 power,
                                 stabilization),
-                        new TaskSerialLane(
+                        new SerialTaskRunner(
                                 8,
                                 8,
                                 "antenna-manager-test",
@@ -591,7 +591,7 @@ public class AntennaManagerTest {
 
         return new AntennaManager(
                 antennaSet,
-                new TaskSerialLane(
+                new SerialTaskRunner(
                         capacity,
                         capacity,
                         "antenna-manager-test",

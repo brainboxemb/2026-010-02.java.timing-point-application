@@ -26,8 +26,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persist
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
@@ -143,18 +142,12 @@ public class UpstreamHandlerTest {
                         4,
                         "heartbeat-data-test",
                         nodeWorker);
-        TaskSerialLane taskLane =
-                new TaskSerialLane(
+        SerialTaskRunner taskLane =
+                new SerialTaskRunner(
                         4,
                         4,
                         "heartbeat-task-test",
                         nodeWorker);
-        ScheduledSerialLane tagLane =
-                new ScheduledSerialLane(
-                        4,
-                        4,
-                        "heartbeat-tag-test",
-                        tagWorker);
 
         CountDownLatch heartbeatSent =
                 new CountDownLatch(1);
@@ -221,14 +214,15 @@ public class UpstreamHandlerTest {
                         tagConfiguration,
                         SystemMonotonicClock.INSTANCE,
                         new TagProcessingMetrics(),
-                        tagLane);
+                        tagWorker);
         TimingNode timingNode =
                 new TimingNode(
                         new AntennaId("1"),
                         timeSource,
                         logBook,
                         tasks,
-                        tags);
+                        tags,
+                        taskLane);
 
         activate(timingNode);
         try {

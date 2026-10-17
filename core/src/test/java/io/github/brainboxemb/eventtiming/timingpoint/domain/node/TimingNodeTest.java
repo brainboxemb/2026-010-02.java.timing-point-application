@@ -120,7 +120,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void activationWaitsForPersistedDataRecovery()
+    public void activationReturnsWhileMainTaskLoadsPersistedData()
             throws Exception {
         TimingNodeDataLane dataLane =
                 newDataLane(
@@ -154,23 +154,28 @@ public class TimingNodeTest {
                             TimeUnit.SECONDS));
 
             activationCaller.join(250L);
-            assertTrue(
-                    "activate() must wait for persisted-data recovery",
+            assertFalse(
+                    "activate() must return while MainTask recovery is running",
                     activationCaller.isAlive());
+            assertNull(activationFailure[0]);
             assertEquals(
                     TimingNodeTypes.OperationalState.INIT,
                     node.operationalState());
             assertFalse(
-                    "persisted-data recovery must not run as a Data Lane item",
+                    "persisted-data recovery must not run on the Data Lane",
                     persistence.executedOnNodeLane);
 
             persistence.releaseLoad.countDown();
-            activationCaller.join(1000L);
 
-            assertFalse(
-                    "activate() did not complete after persisted-data recovery",
-                    activationCaller.isAlive());
-            assertNull(activationFailure[0]);
+            long deadline =
+                    System.nanoTime()
+                            + TimeUnit.SECONDS.toNanos(1L);
+            while (node.operationalState()
+                            == TimingNodeTypes.OperationalState.INIT
+                    && System.nanoTime() < deadline) {
+                Thread.sleep(1L);
+            }
+
             assertEquals(
                     TimingNodeTypes.OperationalState.OK,
                     node.operationalState());
@@ -186,7 +191,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void failedPersistedDataLoadDoesNotReplaceFunctionalState() {
+    public void failedPersistedDataLoadDoesNotReplaceFunctionalState() throws Exception {
         TimingNode node = TimingNodeFixture.createDirect(
                 new NodeId("A"),
                 new FailingLoadPersistence(),
@@ -195,6 +200,9 @@ public class TimingNodeTest {
 
         activate(node);
         try {
+            awaitOperationalState(
+                    node,
+                    TimingNodeTypes.OperationalState.OK);
             LogBookRecoveryStatus recovery =
                     node.logBook().process(LogBookQueries.recoveryStatus());
             assertTrue(recovery.failed());
@@ -834,7 +842,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void recoveryFailureStillAllowsDataLaneActivation() {
+    public void recoveryFailureStillAllowsDataLaneActivation() throws Exception {
         TimingNode node = TimingNodeFixture.createDirect(
                 new NodeId("A"),
                 new FailingLoadPersistence(),
@@ -843,6 +851,9 @@ public class TimingNodeTest {
 
         activate(node);
         try {
+            awaitOperationalState(
+                    node,
+                    TimingNodeTypes.OperationalState.OK);
             LogBookRecoveryStatus recovery =
                     node.logBook().process(LogBookQueries.recoveryStatus());
             assertTrue(recovery.failed());
@@ -874,6 +885,26 @@ public class TimingNodeTest {
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),
                 TimingNodeTest::now);
+    }
+
+    private static void awaitOperationalState(
+            TimingNode node,
+            TimingNodeTypes.OperationalState expected)
+            throws Exception {
+
+        long deadline =
+                System.nanoTime()
+                        + TimeUnit.SECONDS.toNanos(1L);
+        while (node.operationalState() != expected) {
+            if (System.nanoTime() >= deadline) {
+                fail(
+                        "TimingNode did not reach operational state "
+                                + expected
+                                + "; current="
+                                + node.operationalState());
+            }
+            Thread.sleep(1L);
+        }
     }
 
     private static TimingNode node(NodeId id) {

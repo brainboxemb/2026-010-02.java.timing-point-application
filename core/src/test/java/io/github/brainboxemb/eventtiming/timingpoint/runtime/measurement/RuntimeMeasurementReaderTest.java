@@ -24,8 +24,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaI
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.ArrayList;
@@ -64,18 +63,12 @@ public class RuntimeMeasurementReaderTest {
                         8,
                         "measurement-node-data",
                         nodeWorker);
-        TaskSerialLane taskLane =
-                new TaskSerialLane(
+        SerialTaskRunner taskLane =
+                new SerialTaskRunner(
                         8,
                         8,
                         "measurement-node-task",
                         nodeWorker);
-        ScheduledSerialLane tagLane =
-                new ScheduledSerialLane(
-                        8,
-                        8,
-                        "measurement-tag",
-                        tagWorker);
         LogBookMetrics logBookMetrics =
                 new LogBookMetrics();
         TagProcessingMetrics tagMetrics =
@@ -108,14 +101,15 @@ public class RuntimeMeasurementReaderTest {
                         tagConfiguration,
                         SystemMonotonicClock.INSTANCE,
                         tagMetrics,
-                        tagLane);
+                        tagWorker);
         TimingNode node =
                 new TimingNode(
                         new AntennaId("1"),
                         timeSource,
                         logBook,
                         nodeService,
-                        tags);
+                        tags,
+                        taskLane);
 
         RuntimeMeasurementReader reader =
                 new RuntimeMeasurementReader(

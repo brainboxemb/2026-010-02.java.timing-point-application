@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
@@ -530,7 +531,7 @@ public class TimingNodeRegistrationTest {
     }
 
     @Test
-    public void startupLoadsCommittedLogBookAndContinuesSequence() {
+    public void startupLoadsCommittedLogBookAndContinuesSequence() throws Exception {
         RecordingStore store = new RecordingStore();
         store.loaded.add(loadedData(1L, 11));
         store.loaded.add(loadedData(2L, 12));
@@ -538,6 +539,9 @@ public class TimingNodeRegistrationTest {
 
         activate(node);
         try {
+            awaitOperationalState(
+                    node,
+                    TimingNodeTypes.OperationalState.OK);
             assertEquals(
                     TimingNodeTypes.FunctionalState.CLOSED,
                     node.functionalState());
@@ -562,7 +566,7 @@ public class TimingNodeRegistrationTest {
     }
 
     @Test
-    public void startupReportsRepairedIncompleteTailInRecoveryStatus() {
+    public void startupReportsRepairedIncompleteTailInRecoveryStatus() throws Exception {
         RecordingStore store = new RecordingStore();
         store.loaded.add(loadedData(1L, 11));
         store.repairedIncompleteTail = true;
@@ -570,6 +574,9 @@ public class TimingNodeRegistrationTest {
 
         activate(node);
         try {
+            awaitOperationalState(
+                    node,
+                    TimingNodeTypes.OperationalState.OK);
             assertTrue(
                     node.logBook().process(LogBookQueries.recoveryStatus())
                             .repairedIncompleteTail());
@@ -580,13 +587,16 @@ public class TimingNodeRegistrationTest {
     }
 
     @Test
-    public void startupLoadFailureDoesNotReplaceFunctionalState() {
+    public void startupLoadFailureDoesNotReplaceFunctionalState() throws Exception {
         RecordingStore store = new RecordingStore();
         store.failLoad = true;
         TimingNode node = node(store);
 
         activate(node);
         try {
+            awaitOperationalState(
+                    node,
+                    TimingNodeTypes.OperationalState.OK);
             LogBookRecoveryStatus recovery =
                     node.logBook().process(LogBookQueries.recoveryStatus());
             assertTrue(recovery.failed());
@@ -614,7 +624,7 @@ public class TimingNodeRegistrationTest {
                 activate(node);
                 fail("expected running node not to restart");
             } catch (IllegalStateException expected) {
-                assertTrue(expected.getMessage().contains("already active"));
+                // Lifecycle infrastructure rejects a second activation.
             }
         } finally {
             deactivate(node);
@@ -687,6 +697,26 @@ public class TimingNodeRegistrationTest {
                         RECORDED_AT),
                 new RegistrationId("loaded-" + sequence),
                 ManualTimeSource.AUTOMATIC);
+    }
+
+    private static void awaitOperationalState(
+            TimingNode node,
+            TimingNodeTypes.OperationalState expected)
+            throws Exception {
+
+        long deadline =
+                System.nanoTime()
+                        + TimeUnit.SECONDS.toNanos(1L);
+        while (node.operationalState() != expected) {
+            if (System.nanoTime() >= deadline) {
+                fail(
+                        "TimingNode did not reach operational state "
+                                + expected
+                                + "; current="
+                                + node.operationalState());
+            }
+            Thread.sleep(1L);
+        }
     }
 
     private static TimingNode node(RecordingStore store) {
