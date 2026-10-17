@@ -6,6 +6,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTaskLane;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
@@ -20,7 +21,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnl
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
@@ -170,7 +170,7 @@ public final class TimingNodeFixture {
                         32,
                         "test-node-data-" + suffix,
                         NODE_WORKER),
-                new RunnableSerialLane(
+                new TimingNodeTaskLane(
                         32,
                         32,
                         "test-node-task-" + suffix,
@@ -243,7 +243,7 @@ public final class TimingNodeFixture {
                         32,
                         "test-node-data-direct-" + suffix,
                         Runnable::run),
-                new RunnableSerialLane(
+                new TimingNodeTaskLane(
                         32,
                         32,
                         "test-node-task-direct-" + suffix,
@@ -302,7 +302,7 @@ public final class TimingNodeFixture {
                 EventData.empty(),
                 UpstreamStream.unavailable(),
                 dataLane,
-                new RunnableSerialLane(
+                new TimingNodeTaskLane(
                         32,
                         32,
                         "test-node-task-direct-" + suffix,
@@ -326,7 +326,7 @@ public final class TimingNodeFixture {
             EventData eventData,
             UpstreamStream upstreamStream,
             TimingNodeDataLane dataLane,
-            RunnableSerialLane taskLane,
+            TimingNodeTaskLane taskLane,
             ScheduledSerialLane tagLane,
             long commitWaitTimeoutMillis,
             long orderedQueryWaitTimeoutMillis) {
