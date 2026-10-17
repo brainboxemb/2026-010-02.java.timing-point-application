@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -14,6 +15,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class SerialQueueTest {
 
@@ -82,6 +84,58 @@ public class SerialQueueTest {
                     lane.executeCalls.get());
         } finally {
             releaseFirst.countDown();
+            queue.close();
+            lane.close();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    public void rejectedWorkerScheduleDoesNotLeaveStrandedItems()
+            throws Exception {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        SerialLane lane =
+                new SerialLane(
+                        1,
+                        1,
+                        "serial-item-queue-rejection",
+                        executor);
+        SerialQueue<Integer> queue =
+                new SerialQueue<Integer>(
+                        4,
+                        2,
+                        lane,
+                        ignored -> { });
+
+        CountDownLatch blockerStarted = new CountDownLatch(1);
+        CountDownLatch releaseBlocker = new CountDownLatch(1);
+
+        lane.start();
+        queue.start();
+        try {
+            lane.execute(
+                    () -> {
+                        blockerStarted.countDown();
+                        await(releaseBlocker);
+                    });
+            assertTrue(blockerStarted.await(1L, TimeUnit.SECONDS));
+
+            // Occupy the one waiting slot in SerialLane itself.
+            lane.execute(() -> { });
+
+            try {
+                queue.offer(Integer.valueOf(1));
+                fail("expected queue-worker scheduling rejection");
+            } catch (RejectedExecutionException expected) {
+                // The item must not remain accepted without a scheduled worker.
+            }
+
+            assertEquals(0, queue.size());
+            assertEquals(
+                    SerialQueue.OfferResult.NOT_RUNNING,
+                    queue.offer(Integer.valueOf(2)));
+        } finally {
+            releaseBlocker.countDown();
             queue.close();
             lane.close();
             executor.shutdownNow();
