@@ -5,7 +5,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
@@ -45,7 +44,7 @@ public final class LogBookCommands {
     }
 
     /** Commits one automatic registration selected from an antenna observation. */
-    public static LogBookCommand<RegistrationResult>
+    public static LogBookCommand<TimingData>
             commitAntennaRegistration(
                     LocationId locationId,
                     RegistrationId registrationId,
@@ -60,7 +59,7 @@ public final class LogBookCommands {
     }
 
     /** Commits one automatic registration with explicit tag and time sources. */
-    public static LogBookCommand<RegistrationResult>
+    public static LogBookCommand<TimingData>
             commitAutomaticRegistration(
                     LocationId locationId,
                     RegistrationId registrationId,
@@ -87,7 +86,7 @@ public final class LogBookCommands {
     /**
      * Commits one operator/manual registration with its explicit time source.
      */
-    public static LogBookCommand<RegistrationResult>
+    public static LogBookCommand<TimingData>
             commitManualRegistration(
                     LocationId locationId,
                     RegistrationId registrationId,
@@ -113,7 +112,7 @@ public final class LogBookCommands {
     /**
      * Appends a REV for the identified previously committed automatic registration.
      */
-    public static LogBookCommand<RegistrationResult>
+    public static LogBookCommand<TimingData>
             revokeAutomaticRegistration(
                     LocationId originalLocationId,
                     RegistrationId registrationId,
@@ -134,7 +133,7 @@ public final class LogBookCommands {
     /**
      * Appends a REV for the identified previously committed manual registration.
      */
-    public static LogBookCommand<RegistrationResult>
+    public static LogBookCommand<TimingData>
             revokeManualRegistration(
                     LocationId originalLocationId,
                     RegistrationId registrationId,

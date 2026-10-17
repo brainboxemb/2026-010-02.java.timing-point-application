@@ -7,7 +7,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory.Context;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
@@ -99,7 +98,7 @@ final class LogBookOperations {
      * <p>The caller determines where the registration and effective time came from;
      * LogBook stores those source values with the TimingData record.</p>
      */
-    RegistrationResult commitAutomaticRegistration(
+    TimingData commitAutomaticRegistration(
             LocationId locationId,
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
@@ -121,7 +120,7 @@ final class LogBookOperations {
     }
 
     /** Commits one manually entered registration using the supplied effective-time source. */
-    RegistrationResult commitManualRegistration(
+    TimingData commitManualRegistration(
             LocationId locationId,
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
@@ -139,7 +138,7 @@ final class LogBookOperations {
     }
 
     /** Commits a revocation record for one earlier automatic registration. */
-    RegistrationResult revokeAutomaticRegistration(
+    TimingData revokeAutomaticRegistration(
             LocationId originalLocationId,
             RegistrationId registrationId,
             TimingTimestamp originalTime)
@@ -159,7 +158,7 @@ final class LogBookOperations {
     }
 
     /** Commits a revocation record for one earlier manual registration. */
-    RegistrationResult revokeManualRegistration(
+    TimingData revokeManualRegistration(
             LocationId originalLocationId,
             RegistrationId registrationId,
             TimingTimestamp originalTime,
@@ -267,11 +266,11 @@ final class LogBookOperations {
         }
     }
 
-    /** Commits one registration record and wraps the committed value in its domain result. */
-    private RegistrationResult commitRegistration(TimingData data)
+    /** Commits one registration record and returns the committed TimingData value. */
+    private TimingData commitRegistration(TimingData data)
             throws TimingDataPersistence.PersistenceException {
         commitTimingData(data);
-        return RegistrationResult.committed(data);
+        return data;
     }
 
     /** Persists one TimingData record before exposing it as committed in memory. */

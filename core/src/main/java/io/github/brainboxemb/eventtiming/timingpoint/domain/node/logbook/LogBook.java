@@ -3,7 +3,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
@@ -168,9 +167,9 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     /**
      * Processes one command in LogBook order and returns its domain result.
      *
-     * @throws OperationException when the ordered operation cannot return its normal result
+     * @throws IllegalStateException when ordered execution cannot return a result
      */
-    public <R> R process(LogBookCommand<R> command) throws OperationException {
+    public <R> R process(LogBookCommand<R> command) {
 
         failIfInvalidArgument(command != null, "command must not be null");
         return dataLane.submitCommandAndWait(() -> applyCommand(command), command.name());
@@ -199,9 +198,9 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
      * Processes an ORDERED query and waits until earlier queued Data Lane work
      * has been processed.
      *
-     * @throws OperationException when the ordered query cannot return its normal result
+     * @throws IllegalStateException when ordered execution cannot return a result
      */
-    public <R> R process(LogBookQuery<R> query) throws OperationException {
+    public <R> R process(LogBookQuery<R> query) {
 
         return process(query, LogBookQuery.ReadConsistency.ORDERED);
     }
@@ -210,10 +209,9 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
      * Processes either the directly published CURRENT view or an ORDERED Data
      * Lane view, according to the requested consistency.
      *
-     * @throws OperationException when the requested query cannot return its normal result
+     * @throws IllegalStateException when ordered execution cannot return a result
      */
-    public <R> R process(LogBookQuery<R> query, LogBookQuery.ReadConsistency consistency)
-            throws OperationException {
+    public <R> R process(LogBookQuery<R> query, LogBookQuery.ReadConsistency consistency) {
 
         failIfInvalidArgument(query != null, "query must not be null");
         failIfInvalidArgument(consistency != null, "consistency must not be null");
