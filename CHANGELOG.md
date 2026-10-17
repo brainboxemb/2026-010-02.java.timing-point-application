@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep domain/application processing terminology out of `SerialLane`: its fixed worker now uses execution-oriented `runQueueWorker()` / `runQueuedWork(...)` names while caller-owned `process...` methods remain at LogBook/TagProcessor boundaries.
+
 - Finish the TagProcessor scheduled-work split: duplicate housekeeping now starts only when duplicate-window state is created, and scheduled-registration handles rely on the existing lifecycle lock instead of redundant volatile state.
 
 - Make TagProcessor execution intent explicit: queued antenna observations use `processQueuedObservations()`, passage expiry uses its own scheduled `processObservationFilter()`, duplicate-state cleanup uses a separate scheduled `processHousekeeping()`, and duplicate local lifecycle/atomic scheduling state is removed in favor of `LifecycleComponent` plus one lock-guarded observation-processing flag.
