@@ -42,26 +42,31 @@ public final class TimingNodeDataLane implements AutoCloseable {
                 this::processItem);
     }
 
-    /** Binds the LogBook-owned operation processor during composition. */
+    /** Binds the LogBook processor during composition, before the lane starts. */
     public synchronized void bindLogBook(
             Consumer<LogBookOperationItem<?>> processor) {
 
         failIfInvalidArgument(processor != null, "processor must not be null");
+        failIfIllegalState(!lane.isRunning(), "LogBook processor must be bound before Data Lane start");
         failIfIllegalState(logBookProcessor == null, "LogBook Data Lane processor is already bound");
         logBookProcessor = processor;
     }
 
-    /** Binds the node-scoped upstream-turn processor during composition. */
+    /** Binds the upstream-turn processor during composition, before the lane starts. */
     public synchronized void bindUpstream(Runnable processor) {
 
         failIfInvalidArgument(processor != null, "processor must not be null");
+        failIfIllegalState(!lane.isRunning(), "Upstream processor must be bound before Data Lane start");
         failIfIllegalState(upstreamTurnProcessor == null, "Upstream Data Lane processor is already bound");
         upstreamTurnProcessor = processor;
     }
 
     /**
-     * Starts this logical Data Lane with the supplied LogBook startup operation
-     * as its first admitted item.
+     * Starts the lane and admits recovery as its first item.
+     *
+     * <p>This method and both offer methods share the same short lock so no
+     * producer can insert an item between {@code lane.start()} and recovery
+     * admission.</p>
      */
     public synchronized SerialLane.OfferResult start(
             LogBookOperationItem<?> startupOperation) {
@@ -104,22 +109,14 @@ public final class TimingNodeDataLane implements AutoCloseable {
 
     private void processItem(TimingNodeDataItem item) {
         if (item instanceof LogBookOperationItem<?>) {
-            Consumer<LogBookOperationItem<?>> processor;
-            synchronized (this) {
-                processor = logBookProcessor;
-            }
-            failIfIllegalState(processor != null, "LogBook Data Lane processor is not bound");
-            processor.accept((LogBookOperationItem<?>) item);
+            failIfIllegalState(logBookProcessor != null, "LogBook Data Lane processor is not bound");
+            logBookProcessor.accept((LogBookOperationItem<?>) item);
             return;
         }
 
         if (item == UpstreamTurn.INSTANCE) {
-            Runnable processor;
-            synchronized (this) {
-                processor = upstreamTurnProcessor;
-            }
-            failIfIllegalState(processor != null, "Upstream Data Lane processor is not bound");
-            processor.run();
+            failIfIllegalState(upstreamTurnProcessor != null, "Upstream Data Lane processor is not bound");
+            upstreamTurnProcessor.run();
             return;
         }
 
