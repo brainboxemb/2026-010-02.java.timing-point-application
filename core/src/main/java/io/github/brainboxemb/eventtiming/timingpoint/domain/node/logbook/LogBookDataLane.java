@@ -289,4 +289,5 @@ final class LogBookDataLane {
         return new IllegalStateException(
                 operation + " could not be queued because the TimingNode Data Lane is full",
                 rejection);
-    }}
+     }
+}
