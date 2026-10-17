@@ -21,13 +21,12 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
- * TimingData commit operations executed on the LogBook Data Lane.
+ * TimingData persistence/state operations owned by LogBook.
  *
- * <p>This class owns TimingData creation, time capture, durable append/commit
- * and startup reconstruction. TimingNode runtime-state decisions stay outside
- * this component.
- * Mutable facts and committed in-memory history remain in {@link LogBookState};
- * queueing/waiting remains in {@link LogBookDataLane}.</p>
+ * <p>Normal commits execute on the LogBook Data Lane. Persisted-data recovery
+ * executes during LogBook lifecycle activation before that lane starts. This
+ * class owns TimingData creation, time capture, durable append/commit and
+ * startup reconstruction; queueing/waiting remains in {@link LogBookDataLane}.</p>
  */
 final class LogBookOperations {
     private static final Logger LOG = LoggerFactory.getLogger(LogBookOperations.class);
