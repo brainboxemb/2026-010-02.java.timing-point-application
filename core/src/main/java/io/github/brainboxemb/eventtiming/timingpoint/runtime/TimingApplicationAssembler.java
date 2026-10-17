@@ -61,7 +61,7 @@ final class TimingApplicationAssembler {
             RuntimeTimeSources runtimeTimeSources =
                     new RuntimeTimeSources(
                             platform);
-            TimingNodeList.Builder timingNodes = TimingNodeList.builder();
+            List<TimingNode> timingNodes = new ArrayList<TimingNode>();
             List<TimingSystem> systems = new ArrayList<TimingSystem>();
             ApplicationConductor applicationConductor =
                     new ApplicationConductor();
@@ -111,7 +111,7 @@ final class TimingApplicationAssembler {
                 }
             }
 
-            TimingNodeList allTimingNodes = timingNodes.build();
+            TimingNodeList allTimingNodes = new TimingNodeList(timingNodes);
             ConfigurationControl configurationControl =
                     createConfigurationControl(
                             applicationConfiguration);
