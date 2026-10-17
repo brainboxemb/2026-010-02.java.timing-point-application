@@ -111,17 +111,22 @@ final class NodeTaskLane {
     }
 
     /** Converts Task Lane rejection to ordinary failed execution. */
-    private IllegalStateException rejectedOperation(String operation, RejectedExecutionException rejection) {
+    private IllegalStateException rejectedOperation(
+            String operation,
+            RejectedExecutionException rejection) {
 
         if (serialLane.state() == SerialLane.State.FAILED) {
-            return new IllegalStateException(operation + " could not run because the TimingNode Task Lane failed",
+            return new IllegalStateException(
+                    operation + " could not run because the TimingNode Task Lane failed",
                     serialLane.failure() == null ? rejection : serialLane.failure());
         }
         if (serialLane.state() != SerialLane.State.RUNNING) {
-            return new IllegalStateException(operation + " could not be queued because the TimingNode Task Lane is not running",
+            return new IllegalStateException(
+                    operation + " could not be queued because the TimingNode Task Lane is not running",
                     rejection);
         }
-        return new IllegalStateException(operation + " could not be queued because the TimingNode Task Lane is full",
+        return new IllegalStateException(
+                operation + " could not be queued because the TimingNode Task Lane is full",
                 rejection);
     }
 }

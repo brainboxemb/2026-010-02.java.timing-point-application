@@ -22,8 +22,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  *
  * <p>This class does not implement another queue or thread model. The supplied
  * SerialLane remains the owner of FIFO ordering, bounded admission and lane
- * lifecycle. LogBookDataLane owns only the LogBook-specific wait/reentrancy and
- * wait and rejection handling used by result-bearing Data Lane operations.</p>
+ * lifecycle. LogBookDataLane owns only the LogBook-specific result wait,
+ * reentrancy and rejection handling.</p>
  */
 final class LogBookDataLane {
     private static final Logger LOG = LoggerFactory.getLogger(LogBookDataLane.class);
@@ -243,7 +243,8 @@ final class LogBookDataLane {
                     operationType,
                     operation,
                     rejection);
-            return new IllegalStateException(operation + " could not be queued because the TimingNode Data Lane is not running",
+            return new IllegalStateException(
+                    operation + " could not be queued because the TimingNode Data Lane is not running",
                     rejection);
         }
 
@@ -253,7 +254,8 @@ final class LogBookDataLane {
                 operationType,
                 operation,
                 rejection);
-        return new IllegalStateException(operation + " could not be queued because the TimingNode Data Lane is full",
+        return new IllegalStateException(
+                operation + " could not be queued because the TimingNode Data Lane is full",
                 rejection);
     }
 }

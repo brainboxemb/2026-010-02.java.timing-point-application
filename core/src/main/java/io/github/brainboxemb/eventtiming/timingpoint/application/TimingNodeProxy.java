@@ -87,7 +87,6 @@ public final class TimingNodeProxy {
 
     /**
      * Opens the node at the requested LocationId.
-     *
      */
     public OpenResult open(LocationId locationId) {
         return timingNode.open(locationId);
@@ -112,7 +111,6 @@ public final class TimingNodeProxy {
      * stay unchanged while the result-bearing LogBook command is processed. The caller
      * also identifies whether the supplied time came from this node's TimeSource or was
      * explicitly supplied by an API client.</p>
-     *
      */
     public CommandResult addTestAutomaticRegistration(
             RegistrationId registrationId,
@@ -151,7 +149,6 @@ public final class TimingNodeProxy {
      *
      * <p>The TimingNode operation lock keeps the OPEN check and current LocationId
      * together with the ordered LogBook commit.</p>
-     *
      */
     public CommandResult addManualRegistration(
             RegistrationId registrationId,
@@ -189,7 +186,6 @@ public final class TimingNodeProxy {
      * Higher application/business logic selects the record family and original
      * values. The LogBook command is processed inside the TimingNode operation lock
      * so presentation-triggered writes use one consistent node-scoped mutation scope.</p>
-     *
      */
     public CommandResult revokeRegistration(
             RegistrationRecordType recordType,
@@ -236,7 +232,6 @@ public final class TimingNodeProxy {
 
     /**
      * Returns the number of committed records in this node LogBook.
-     *
      */
     public int logBookCount() {
         return logBook.process(LogBookQueries.timingDataCount());
