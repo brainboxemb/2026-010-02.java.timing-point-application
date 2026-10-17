@@ -35,6 +35,18 @@ public final class SerialQueue<T> implements AutoCloseable {
     private boolean accepting;
     private boolean workerScheduled;
 
+    /** Creates an item queue using the supplied lane's configured capacity and batch size. */
+    public SerialQueue(
+            SerialLane lane,
+            Consumer<T> itemProcessor) {
+
+        this(
+                lane == null ? 1 : lane.capacity(),
+                lane == null ? 1 : lane.maxItemsPerRun(),
+                lane,
+                itemProcessor);
+    }
+
     /**
      * Creates one bounded item queue serviced by the supplied serial lane.
      *
