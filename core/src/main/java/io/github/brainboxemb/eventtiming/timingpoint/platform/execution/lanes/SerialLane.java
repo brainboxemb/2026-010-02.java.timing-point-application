@@ -214,6 +214,18 @@ public final class SerialLane<T> implements AutoCloseable {
     }
 
     /**
+     * Stops admission immediately and discards queued items without waiting for
+     * the currently executing item.
+     *
+     * <p>This is intended for cancellation-oriented users such as cooperative
+     * task runners. Data lanes should normally use {@link #close()} so already
+     * accepted data is drained.</p>
+     */
+    public synchronized void stop() {
+        accepting = false;
+        queue.clear();
+    }
+    /**
      * Stops admission and waits until all already accepted items are processed.
      */
     @Override
