@@ -47,8 +47,10 @@ public class RuntimeExecutorsTest {
                 });
 
         try {
-            first.dataLane().start(new TestDataOperation("first"));
-            second.dataLane().start(new TestDataOperation("second"));
+            first.dataLane().start();
+            second.dataLane().start();
+            first.dataLane().offer(new TestDataOperation("first"));
+            second.dataLane().offer(new TestDataOperation("second"));
 
             assertTrue(done.await(1L, TimeUnit.SECONDS));
             assertEquals("tp-dl-node", firstThread.get());
@@ -78,7 +80,8 @@ public class RuntimeExecutorsTest {
                 });
         execution.taskLane().start();
         try {
-            execution.dataLane().start(new TestDataOperation("data"));
+            execution.dataLane().start();
+            execution.dataLane().offer(new TestDataOperation("data"));
             execution.taskLane().execute(
                     () -> {
                         taskThread.set(Thread.currentThread().getName());
