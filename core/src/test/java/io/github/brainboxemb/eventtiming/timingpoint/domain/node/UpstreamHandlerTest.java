@@ -200,7 +200,6 @@ public class UpstreamHandlerTest {
                         SystemMonotonicClock.INSTANCE,
                         new LogBookMetrics(),
                         dataLane,
-                        nodeWorker,
                         LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
                         LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
         NodeServiceState taskState =
