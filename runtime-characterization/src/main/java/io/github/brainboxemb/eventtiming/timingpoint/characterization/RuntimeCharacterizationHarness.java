@@ -24,7 +24,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnl
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
@@ -281,9 +280,7 @@ final class RuntimeCharacterizationHarness
 
         nodeLifecycle.activateAll();
         nodeActive = true;
-        logBook.execute(
-                LogBookCommands.commitNodeOpen(
-                        LOCATION_ID));
+        node.open(LOCATION_ID);
 
         preloadHistory(
                 config.preloadCount());
@@ -293,10 +290,10 @@ final class RuntimeCharacterizationHarness
         await(
                 antennaManager::isReady,
                 "AntennaManager ready");
-        antennaManager.settings().update(
-                edit -> edit.set(
-                        AntennaSettings.INVENTORY_ENABLED,
-                        Boolean.TRUE));
+        if (!antennaManager.requestEnableInventory()) {
+            throw new IllegalStateException(
+                    "AntennaManager rejected characterization inventory enable");
+        }
         await(
                 antenna::inventoryRunning,
                 "simulated antenna inventory");
