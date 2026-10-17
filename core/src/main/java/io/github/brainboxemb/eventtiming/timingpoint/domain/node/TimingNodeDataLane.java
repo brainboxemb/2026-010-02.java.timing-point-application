@@ -18,25 +18,12 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  */
 public final class TimingNodeDataLane implements AutoCloseable {
 
-    /** Marker type for values admitted to this node's Data Lane. */
-    public interface Item {
-    }
-
     /** One upstream protocol/replay turn in the shared Data Lane. */
-    private enum UpstreamTurn implements Item {
+    private enum UpstreamTurn implements TimingNodeDataItem {
         INSTANCE
     }
 
-    /** LogBook operation wrapper used only to join the shared node Data Lane item type. */
-    private static final class LogBookItem implements Item {
-        private final LogBookOperationItem<?> operation;
-
-        private LogBookItem(LogBookOperationItem<?> operation) {
-            this.operation = operation;
-        }
-    }
-
-    private final SerialLane<Item> lane;
+    private final SerialLane<TimingNodeDataItem> lane;
 
     private Consumer<LogBookOperationItem<?>> logBookProcessor;
     private Runnable upstreamTurnProcessor;
@@ -47,7 +34,7 @@ public final class TimingNodeDataLane implements AutoCloseable {
             String laneName,
             Executor executor) {
 
-        lane = new SerialLane<Item>(
+        lane = new SerialLane<TimingNodeDataItem>(
                 capacity,
                 maxItemsPerRun,
                 laneName,
@@ -81,7 +68,7 @@ public final class TimingNodeDataLane implements AutoCloseable {
 
         failIfInvalidArgument(startupOperation != null, "startupOperation must not be null");
         lane.start();
-        return lane.offer(new LogBookItem(startupOperation));
+        return lane.offer(startupOperation);
     }
 
     /** Queues one LogBook operation item. */
@@ -89,7 +76,7 @@ public final class TimingNodeDataLane implements AutoCloseable {
             LogBookOperationItem<?> operation) {
 
         failIfInvalidArgument(operation != null, "operation must not be null");
-        return lane.offer(new LogBookItem(operation));
+        return lane.offer(operation);
     }
 
     /** Queues one upstream turn in the same Data Lane FIFO. */
@@ -123,14 +110,14 @@ public final class TimingNodeDataLane implements AutoCloseable {
         lane.close();
     }
 
-    private void processItem(Item item) {
-        if (item instanceof LogBookItem) {
+    private void processItem(TimingNodeDataItem item) {
+        if (item instanceof LogBookOperationItem<?>) {
             Consumer<LogBookOperationItem<?>> processor;
             synchronized (this) {
                 processor = logBookProcessor;
             }
             failIfIllegalState(processor != null, "LogBook Data Lane processor is not bound");
-            processor.accept(((LogBookItem) item).operation);
+            processor.accept((LogBookOperationItem<?>) item);
             return;
         }
 
