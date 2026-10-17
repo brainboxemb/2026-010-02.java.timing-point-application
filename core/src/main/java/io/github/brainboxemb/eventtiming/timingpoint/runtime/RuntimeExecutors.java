@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 
@@ -59,13 +59,13 @@ final class RuntimeExecutors implements AutoCloseable {
 
     /** Node-local logical lanes resolved for one TimingNode. */
     static final class TimingNodeExecutionResources {
-        private final SerialLane dataLane;
-        private final SerialLane taskLane;
+        private final RunnableSerialLane dataLane;
+        private final RunnableSerialLane taskLane;
         private final ScheduledSerialLane tagProcessorLane;
 
         private TimingNodeExecutionResources(
-                SerialLane dataLane,
-                SerialLane taskLane,
+                RunnableSerialLane dataLane,
+                RunnableSerialLane taskLane,
                 ScheduledSerialLane tagProcessorLane) {
 
             this.dataLane = dataLane;
@@ -73,12 +73,12 @@ final class RuntimeExecutors implements AutoCloseable {
             this.tagProcessorLane = tagProcessorLane;
         }
 
-        SerialLane dataLane() {
+        RunnableSerialLane dataLane() {
 
             return dataLane;
         }
 
-        SerialLane taskLane() {
+        RunnableSerialLane taskLane() {
 
             return taskLane;
         }
@@ -168,21 +168,21 @@ final class RuntimeExecutors implements AutoCloseable {
     /**
      * Creates one node-local execution-resource set on shared Runtime executors.
      *
-     * <p>The Data Lane and Task Lane are distinct SerialLane instances with
+     * <p>The Data Lane and Task Lane are distinct RunnableSerialLane instances with
      * independent bounded queues and FIFO ordering, but they deliberately share
      * the same TimingNode executor. TagProcessor keeps its separate scheduled
      * executor. Logical responsibility therefore does not imply another
      * Java thread.</p>
      */
     synchronized TimingNodeExecutionResources createTimingNodeExecutionResources() {
-        SerialLane dataLane =
-                new SerialLane(
+        RunnableSerialLane dataLane =
+                new RunnableSerialLane(
                         TIMING_NODE_DATA_LANE_QUEUE_CAPACITY,
                         TIMING_NODE_DATA_LANE_MAX_ITEMS_PER_RUN,
                         "TimingNodeData",
                         timingNodeExecutor);
-        SerialLane taskLane =
-                new SerialLane(
+        RunnableSerialLane taskLane =
+                new RunnableSerialLane(
                         TIMING_NODE_TASK_LANE_QUEUE_CAPACITY,
                         TIMING_NODE_TASK_LANE_MAX_ITEMS_PER_RUN,
                         "TimingNodeTask",
@@ -241,8 +241,8 @@ final class RuntimeExecutors implements AutoCloseable {
      * executor. Scenario delays therefore release its thread while still
      * keeping a bounded logical execution lane.
      */
-    synchronized SerialLane createSimulationLane() {
-        SerialLane simulationLane = new SerialLane(
+    synchronized RunnableSerialLane createSimulationLane() {
+        RunnableSerialLane simulationLane = new RunnableSerialLane(
                 SIMULATION_LANE_QUEUE_CAPACITY,
                 SIMULATION_LANE_MAX_ITEMS_PER_RUN,
                 "SimulatedTagScenario",
