@@ -108,7 +108,7 @@ public final class TaskSerialLane extends ScheduledSerialLane {
         }
 
         private void scheduleDelayedStep(long delayNanos) {
-            final ScheduledOperation<TaskStep> scheduled;
+            final CompletableFuture<TaskStep> scheduled;
             try {
                 scheduled = TaskSerialLane.this.submitAfter(task::runStep, delayNanos);
             } catch (RuntimeException ex) {
@@ -116,12 +116,12 @@ public final class TaskSerialLane extends ScheduledSerialLane {
                 return;
             }
 
-            active.set(scheduled.futureResult());
+            active.set(scheduled);
             if (result.isCancelled()) {
-                scheduled.close();
+                scheduled.cancel(true);
                 return;
             }
-            scheduled.completion().whenComplete(this::stepCompleted);
+            scheduled.whenComplete(this::stepCompleted);
         }
 
         private TaskStep executeStep(

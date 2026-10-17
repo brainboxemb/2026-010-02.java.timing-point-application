@@ -3,8 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.scheduling.LaneScheduler;
 
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletionStage;
-import java.util.concurrent.Future;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
@@ -18,17 +17,10 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  */
 public class ScheduledSerialLane extends SerialLane {
 
-    /** Handle for one recurring or delayed scheduling registration. */
+    /** Handle for one recurring scheduling registration. */
     public interface ScheduledRegistration extends AutoCloseable {
         @Override
         void close();
-    }
-
-    /** Result handle for one delayed result-bearing lane operation. */
-    public interface ScheduledOperation<R> extends ScheduledRegistration {
-        Future<R> futureResult();
-
-        CompletionStage<R> completion();
     }
 
     private final LaneScheduler scheduler;
@@ -46,29 +38,11 @@ public class ScheduledSerialLane extends SerialLane {
     }
 
     /** Schedules one operation for later admission to this serial lane. */
-    public <R> ScheduledOperation<R> submitAfter(
+    public <R> CompletableFuture<R> submitAfter(
             Callable<R> operation,
             long delayNanos) {
 
-        final LaneScheduler.ScheduledOperation<R> scheduled =
-                scheduler.submitAfter(operation, delayNanos);
-
-        return new ScheduledOperation<R>() {
-            @Override
-            public Future<R> futureResult() {
-                return scheduled.futureResult();
-            }
-
-            @Override
-            public CompletionStage<R> completion() {
-                return scheduled.completion();
-            }
-
-            @Override
-            public void close() {
-                scheduled.close();
-            }
-        };
+        return scheduler.submitAfter(operation, delayNanos);
     }
 
     /** Schedules recurring work with delay measured after each completed queued operation. */
@@ -76,8 +50,8 @@ public class ScheduledSerialLane extends SerialLane {
             Runnable operation,
             long delayNanos) {
 
-        final LaneScheduler.ScheduledRegistration scheduled =
+        Runnable cancel =
                 scheduler.scheduleWithFixedDelay(operation, delayNanos);
-        return scheduled::close;
+        return cancel::run;
     }
 }
