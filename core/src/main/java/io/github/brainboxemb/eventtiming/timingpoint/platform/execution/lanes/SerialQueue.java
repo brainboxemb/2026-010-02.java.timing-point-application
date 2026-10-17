@@ -41,8 +41,8 @@ public final class SerialQueue<T> implements AutoCloseable {
             Consumer<T> itemProcessor) {
 
         this(
-                lane == null ? 1 : lane.capacity(),
-                lane == null ? 1 : lane.maxItemsPerRun(),
+                capacity(lane),
+                maxItemsPerRun(lane),
                 lane,
                 itemProcessor);
     }
@@ -147,6 +147,18 @@ public final class SerialQueue<T> implements AutoCloseable {
         if (interrupted) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    /** Reads queue capacity only after validating the supplied lane. */
+    private static int capacity(SerialLane lane) {
+        failIfInvalidArgument(lane != null, "lane must not be null");
+        return lane.capacity();
+    }
+
+    /** Reads worker batch size only after validating the supplied lane. */
+    private static int maxItemsPerRun(SerialLane lane) {
+        failIfInvalidArgument(lane != null, "lane must not be null");
+        return lane.maxItemsPerRun();
     }
 
     /** Returns the current number of caller-owned items waiting in this queue. */
