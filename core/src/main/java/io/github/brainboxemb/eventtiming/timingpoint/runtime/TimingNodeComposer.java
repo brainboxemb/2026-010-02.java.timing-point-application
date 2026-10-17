@@ -93,7 +93,6 @@ final class TimingNodeComposer {
                 timeSource,
                 logBook,
                 nodeService,
-                tagProcessor,
-                execution.taskLane());
+                tagProcessor);
     }
 }
