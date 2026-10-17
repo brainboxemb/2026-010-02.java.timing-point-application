@@ -15,6 +15,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
@@ -25,7 +27,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Data Lane component for one TimingNode's committed TimingData.
  *
- * <p>LogBook owns lifecycle recovery plus the Data Lane boundary for ordered
+ * <p>LogBook owns persisted-data recovery plus the Data Lane boundary for ordered
  * commands, ORDERED queries, durable TimingData commit and publication of immutable
  * recovery/read views. It owns no physical thread: the supplied
  * {@link TimingNodeDataLane} may share a Runtime-owned worker with other logical
@@ -41,9 +43,12 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     private final LogBookDataLane dataLane;
     private final LogBookRecoveryView recoveryView;
     private final LogBookMetrics metrics;
+    private final Executor recoveryExecutor;
     private final long commitWaitTimeoutMillis;
     private final AtomicReference<WriteFailure> nextWriteFailure =
             new AtomicReference<WriteFailure>();
+
+    private CompletableFuture<TimingDataPersistence.LoadResult> recoveryLoad;
 
     private final EventWithMetrics<TimingData> newDataEntryEvent;
     private final Event<List<TimingData>> initialDataLoadedEvent = new Event<List<TimingData>>();
@@ -77,6 +82,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
             MonotonicClock monotonicClock,
             LogBookMetrics metrics,
             TimingNodeDataLane dataLane,
+            Executor recoveryExecutor,
             long commitWaitTimeoutMillis,
             long orderedQueryWaitTimeoutMillis) {
 
@@ -87,6 +93,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         failIfInvalidArgument(monotonicClock != null, "monotonicClock must not be null");
         failIfInvalidArgument(metrics != null, "metrics must not be null");
         failIfInvalidArgument(dataLane != null, "dataLane must not be null");
+        failIfInvalidArgument(recoveryExecutor != null, "recoveryExecutor must not be null");
         failIfInvalidArgument(commitWaitTimeoutMillis > 0L, "commitWaitTimeoutMillis must be positive");
         failIfInvalidArgument(
                 orderedQueryWaitTimeoutMillis > 0L,
@@ -109,6 +116,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                         orderedQueryWaitTimeoutMillis);
         this.recoveryView = new LogBookRecoveryView(timingNodeId, this.dataLane);
         this.metrics = metrics;
+        this.recoveryExecutor = recoveryExecutor;
         this.commitWaitTimeoutMillis = commitWaitTimeoutMillis;
         this.newDataEntryEvent =
                 new EventWithMetrics<TimingData>(
@@ -142,17 +150,15 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     }
 
     /**
-     * Loads persisted TimingData during lifecycle activation, then starts normal
-     * Data Lane command/query admission.
+     * Marks the LogBook lifecycle-active.
      *
-     * <p>Recovery is lifecycle work, not a queued LogBook operation. No normal
-     * Data Lane item can overtake or sit behind startup recovery.</p>
+     * <p>TimingNode.MainTask starts recovery after child activation. The Data
+     * Lane remains stopped until that task completes recovery.</p>
      */
     @Override
     protected void onActivate() {
 
-        loadPersistedData();
-        dataLane.activate();
+        recoveryLoad = null;
     }
 
     /**
@@ -164,8 +170,13 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     @Override
     protected void onDeactivate() {
 
+        CompletableFuture<TimingDataPersistence.LoadResult> load = recoveryLoad;
+        if (load != null && !load.isDone()) {
+            load.cancel(true);
+        }
         dataLane.deactivate();
         recoveryView.clear();
+        recoveryLoad = null;
     }
 
     /**
@@ -295,13 +306,49 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         return recoveryView.current();
     }
 
-    /** Loads persisted TimingData, then publishes the recovery result on either outcome. */
-    private void loadPersistedData() {
+    /**
+     * Starts the blocking persistence read on the configured I/O executor.
+     *
+     * <p>This method does not mutate LogBook state and does not start the Data
+     * Lane. TimingNode.MainTask awaits the returned completion.</p>
+     */
+    public synchronized CompletableFuture<?> beginRecovery() {
+        failIfInactive();
+        if (recoveryLoad != null) {
+            throw new IllegalStateException("LogBook recovery is already started");
+        }
 
         LOG.info("TimingNode {} persisted TimingData load started", timingNodeId().value());
+        recoveryLoad =
+                CompletableFuture.supplyAsync(
+                        () -> {
+                            try {
+                                return logBookOperations.loadPersistedTimingData();
+                            } catch (TimingDataPersistence.PersistenceException ex) {
+                                throw new CompletionException(ex);
+                            }
+                        },
+                        recoveryExecutor);
+        return recoveryLoad;
+    }
+
+    /**
+     * Applies the completed persistence load and starts normal Data Lane access.
+     *
+     * <p>This method is called by TimingNode.MainTask after the recovery future
+     * completed, so state reconstruction and startup publication happen on the
+     * node Task Lane rather than on the blocking I/O worker.</p>
+     */
+    public synchronized LogBookRecoveryStatus completeRecovery() {
+        failIfInactive();
+        if (recoveryLoad == null || !recoveryLoad.isDone()) {
+            throw new IllegalStateException("LogBook recovery is not complete");
+        }
 
         try {
-            TimingDataPersistence.LoadResult loadResult = logBookOperations.loadPersistedTimingData();
+            TimingDataPersistence.LoadResult loadResult = recoveryLoad.join();
+            logBookOperations.restorePersistedTimingData(loadResult);
+
             LOG.info(
                     "TimingNode {} persisted TimingData load completed: records={}, tailRepaired={}",
                     timingNodeId().value(),
@@ -314,16 +361,22 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
             }
 
             initialDataLoadedEvent.emit(loadResult.records());
-        } catch (TimingDataPersistence.PersistenceException | RuntimeException ex) {
-
-            logBookOperations.markTimingDataLoadFailed(ex);
+        } catch (RuntimeException ex) {
+            Throwable failure =
+                    ex instanceof CompletionException && ex.getCause() != null
+                            ? ex.getCause()
+                            : ex;
+            logBookOperations.markTimingDataLoadFailed(failure);
             LOG.error(
                     "Persisted TimingData load failed for {}",
                     timingNodeId().value(),
-                    ex);
+                    failure);
         }
 
-        recoveryView.publishInitial(logBookState.recoveryStatus());
+        dataLane.activate();
+        LogBookRecoveryStatus status = logBookState.recoveryStatus();
+        recoveryView.publishInitial(status);
+        return status;
     }
 
     /** Processes one typed LogBook operation on the shared Data Lane worker. */
