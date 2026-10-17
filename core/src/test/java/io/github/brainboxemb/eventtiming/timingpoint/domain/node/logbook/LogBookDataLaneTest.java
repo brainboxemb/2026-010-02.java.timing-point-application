@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -10,7 +10,6 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -21,26 +20,31 @@ public class LogBookDataLaneTest {
     @Test
     public void commandUsesCommitWaitTimeout() throws Exception {
         ExecutorService worker = Executors.newSingleThreadExecutor();
-        SerialLane lane = new SerialLane(4, 4, "logbook-command-timeout-test", worker);
+        CountDownLatch blockerStarted = new CountDownLatch(1);
+        CountDownLatch releaseBlocker = new CountDownLatch(1);
+
+        TimingNodeDataLane lane =
+                new TimingNodeDataLane(
+                        4,
+                        4,
+                        "logbook-command-timeout-test",
+                        worker);
+        lane.bindLogBook(
+                ignored -> {
+                    blockerStarted.countDown();
+                    await(releaseBlocker);
+                });
+
         LogBookDataLane dataLane =
                 new LogBookDataLane(
                         new NodeId("A"),
                         lane,
                         25L,
-                        250L,
-                        ignored -> { });
-        CountDownLatch blockerStarted = new CountDownLatch(1);
-        CountDownLatch releaseBlocker = new CountDownLatch(1);
+                        250L);
 
-        dataLane.activate(() -> { });
+        dataLane.activate();
         try {
-            lane.submit(
-                    () -> {
-                        blockerStarted.countDown();
-                        releaseBlocker.await();
-                        return null;
-                    });
-            assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
+            assertTrue(blockerStarted.await(1L, TimeUnit.SECONDS));
 
             try {
                 dataLane.submitCommandAndWait(
@@ -62,26 +66,31 @@ public class LogBookDataLaneTest {
     @Test
     public void orderedQueryUsesQueryWaitTimeout() throws Exception {
         ExecutorService worker = Executors.newSingleThreadExecutor();
-        SerialLane lane = new SerialLane(4, 4, "logbook-query-timeout-test", worker);
+        CountDownLatch blockerStarted = new CountDownLatch(1);
+        CountDownLatch releaseBlocker = new CountDownLatch(1);
+
+        TimingNodeDataLane lane =
+                new TimingNodeDataLane(
+                        4,
+                        4,
+                        "logbook-query-timeout-test",
+                        worker);
+        lane.bindLogBook(
+                ignored -> {
+                    blockerStarted.countDown();
+                    await(releaseBlocker);
+                });
+
         LogBookDataLane dataLane =
                 new LogBookDataLane(
                         new NodeId("A"),
                         lane,
                         250L,
-                        25L,
-                        ignored -> { });
-        CountDownLatch blockerStarted = new CountDownLatch(1);
-        CountDownLatch releaseBlocker = new CountDownLatch(1);
+                        25L);
 
-        dataLane.activate(() -> { });
+        dataLane.activate();
         try {
-            lane.submit(
-                    () -> {
-                        blockerStarted.countDown();
-                        releaseBlocker.await();
-                        return null;
-                    });
-            assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
+            assertTrue(blockerStarted.await(1L, TimeUnit.SECONDS));
 
             try {
                 dataLane.submitQueryAndWait(
@@ -97,6 +106,15 @@ public class LogBookDataLaneTest {
             releaseBlocker.countDown();
             dataLane.deactivate();
             worker.shutdownNow();
+        }
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            latch.await();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("interrupted while awaiting test", ex);
         }
     }
 }
