@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.scheduling;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Adds delayed admission to an existing {@link SerialLane}.
+ * Adds delayed admission to an existing {@link RunnableSerialLane}.
  *
  * <p>This is a timing helper, not another lane. The lane remains the sole owner
  * of FIFO ordering and serial execution; the JDK scheduled executor only decides when an
@@ -22,11 +22,11 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  */
 public final class LaneScheduler {
 
-    private final SerialLane lane;
+    private final RunnableSerialLane lane;
     private final ScheduledExecutorService scheduledExecutor;
 
-    /** Creates delayed admission support for one existing SerialLane. */
-    public LaneScheduler(SerialLane lane, ScheduledExecutorService scheduledExecutor) {
+    /** Creates delayed admission support for one existing RunnableSerialLane. */
+    public LaneScheduler(RunnableSerialLane lane, ScheduledExecutorService scheduledExecutor) {
         failIfInvalidArgument(lane != null, "lane must not be null");
         failIfInvalidArgument(scheduledExecutor != null, "scheduledExecutor must not be null");
         this.lane = lane;
