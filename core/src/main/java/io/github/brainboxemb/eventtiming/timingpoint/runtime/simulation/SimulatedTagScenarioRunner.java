@@ -6,14 +6,11 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.application.SimulationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.scheduling.LaneScheduler;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -43,18 +40,17 @@ public final class SimulatedTagScenarioRunner
     private final SimulatedAntenna antenna;
     private final EventData eventData;
     private final TimeSource timeSource;
-    private final RunnableSerialLane lane;
-    private final LaneScheduler scheduler;
+    private final ScheduledExecutorService scheduledExecutor;
 
     private boolean active;
     private int activeScenarios;
+    private long activationGeneration;
 
-    /** Creates the deterministic simulation runner over the supplied antenna and execution lane. */
+    /** Creates the deterministic simulation runner on the supplied JDK scheduler. */
     public SimulatedTagScenarioRunner(
             SimulatedAntenna antenna,
             EventData eventData,
             TimeSource timeSource,
-            RunnableSerialLane lane,
             ScheduledExecutorService scheduledExecutor) {
         if (antenna == null) {
             throw new IllegalArgumentException(
@@ -68,10 +64,6 @@ public final class SimulatedTagScenarioRunner
             throw new IllegalArgumentException(
                     "timeSource must not be null");
         }
-        if (lane == null) {
-            throw new IllegalArgumentException(
-                    "lane must not be null");
-        }
         if (scheduledExecutor == null) {
             throw new IllegalArgumentException(
                     "scheduledExecutor must not be null");
@@ -79,11 +71,7 @@ public final class SimulatedTagScenarioRunner
         this.antenna = antenna;
         this.eventData = eventData;
         this.timeSource = timeSource;
-        this.lane = lane;
-        this.scheduler =
-                new LaneScheduler(
-                        lane,
-                        scheduledExecutor);
+        this.scheduledExecutor = scheduledExecutor;
     }
 
     /** Enables acceptance and scheduling of new deterministic simulation scenarios. */
@@ -92,7 +80,7 @@ public final class SimulatedTagScenarioRunner
             throw new IllegalStateException(
                     "SimulatedTagScenarioRunner is already active");
         }
-        lane.start();
+        activationGeneration++;
         active = true;
     }
 
@@ -103,7 +91,7 @@ public final class SimulatedTagScenarioRunner
         }
         active = false;
         activeScenarios = 0;
-        lane.close();
+        activationGeneration++;
     }
 
     /** Starts one named simulated registration scenario when runtime simulation is active. */
@@ -137,6 +125,7 @@ public final class SimulatedTagScenarioRunner
             return StartResult.UNKNOWN_PROFILE;
         }
 
+        final long generation;
         synchronized (this) {
             if (!active
                     || !antenna.inventoryRunning()) {
@@ -147,6 +136,7 @@ public final class SimulatedTagScenarioRunner
                 return StartResult.BUSY;
             }
             activeScenarios++;
+            generation = activationGeneration;
         }
 
         Instant baseTime =
@@ -155,8 +145,9 @@ public final class SimulatedTagScenarioRunner
                 scenario,
                 0,
                 baseTime,
-                0L)) {
-            finishScenario();
+                0L,
+                generation)) {
+            finishScenario(generation);
             return StartResult.BUSY;
         }
 
@@ -173,7 +164,8 @@ public final class SimulatedTagScenarioRunner
             Scenario scenario,
             int index,
             Instant baseTime,
-            long previousOffsetNanos) {
+            long previousOffsetNanos,
+            long generation) {
         ObservationStep step =
                 scenario.steps.get(
                         index);
@@ -185,23 +177,20 @@ public final class SimulatedTagScenarioRunner
                 () -> runStep(
                         scenario,
                         index,
-                        baseTime);
+                        baseTime,
+                        generation);
 
         try {
             if (delayNanos == 0L) {
-                lane.execute(work);
+                scheduledExecutor.execute(work);
             } else {
-                Callable<Void> delayedWork =
-                        () -> {
-                            work.run();
-                            return null;
-                        };
-                scheduler.submitAfter(
-                        delayedWork,
-                        delayNanos);
+                scheduledExecutor.schedule(
+                        work,
+                        delayNanos,
+                        TimeUnit.NANOSECONDS);
             }
             return true;
-        } catch (RejectedExecutionException | IllegalStateException ex) {
+        } catch (RejectedExecutionException ex) {
             return false;
         }
     }
@@ -210,9 +199,9 @@ public final class SimulatedTagScenarioRunner
     private void runStep(
             Scenario scenario,
             int index,
-            Instant baseTime) {
-        if (!isActive()) {
-            finishScenario();
+            Instant baseTime,
+            long generation) {
+        if (!isActive(generation)) {
             return;
         }
 
@@ -231,7 +220,7 @@ public final class SimulatedTagScenarioRunner
                     "Simulated tag scenario stopped while emitting {}",
                     step.tagId,
                     ex);
-            finishScenario();
+            finishScenario(generation);
             return;
         }
 
@@ -239,24 +228,27 @@ public final class SimulatedTagScenarioRunner
                 index + 1;
         if (nextIndex
                 >= scenario.steps.size()) {
-            finishScenario();
+            finishScenario(generation);
         } else if (!scheduleStep(
                 scenario,
                 nextIndex,
                 baseTime,
-                step.offsetNanos)) {
-            finishScenario();
+                step.offsetNanos,
+                generation)) {
+            finishScenario(generation);
         }
     }
 
-    /** Returns whether simulation work may still emit observations. */
-    private synchronized boolean isActive() {
-        return active;
+    /** Returns whether work still belongs to the current active simulation generation. */
+    private synchronized boolean isActive(long generation) {
+        return active
+                && activationGeneration == generation;
     }
 
-    /** Decrements the active-scenario count after its final step or early stop. */
-    private synchronized void finishScenario() {
-        if (activeScenarios > 0) {
+    /** Decrements the count only for a scenario from the current activation generation. */
+    private synchronized void finishScenario(long generation) {
+        if (activationGeneration == generation
+                && activeScenarios > 0) {
             activeScenarios--;
         }
     }
