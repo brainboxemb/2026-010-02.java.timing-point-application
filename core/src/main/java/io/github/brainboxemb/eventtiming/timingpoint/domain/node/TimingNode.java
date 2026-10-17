@@ -232,10 +232,10 @@ public final class TimingNode extends LifecycleComponent {
     }
 
     /**
-     * Starts the node's child components.
+     * Starts the node's child components in lifecycle order.
      *
-     * <p>The LogBook queues persisted-data recovery during activation; this call
-     * returns without waiting for that recovery to finish.</p>
+     * <p>LogBook recovery completes during LogBook activation before its Data
+     * Lane starts accepting normal commands and queries.</p>
      */
     @Override
     protected void onActivate() {
