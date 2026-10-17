@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystem;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystemConductor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
@@ -14,6 +15,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -82,12 +84,12 @@ final class TimingSystemComposer {
             AntennaSet antennas,
             TimeSource timeSource) {
 
-        TimingNodeList.Builder nodes = TimingNodeList.builder();
+        List<TimingNode> nodes = new ArrayList<TimingNode>();
         for (Config.TimingNodeConfig nodeConfig : system.configuration().timingNodes()) {
             AntennaId antennaId = resolveAntennaId(nodeConfig, antennas);
             nodes.add(nodeComposer.compose(nodeConfig, antennaId, system, timeSource));
         }
-        return nodes.build();
+        return new TimingNodeList(nodes);
     }
 
     /** Resolves an optional node antenna id against the antennas available to this system. */
