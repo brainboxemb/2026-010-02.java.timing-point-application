@@ -181,7 +181,15 @@ public final class TagProcessor extends LifecycleComponent {
             return;
         }
 
-        SerialQueue.OfferResult result = observations.offer(observation);
+        final SerialQueue.OfferResult result;
+        try {
+            result = observations.offer(observation);
+        } catch (RejectedExecutionException ex) {
+            metrics.recordProcessorNotRunning();
+            LOG.warn("Could not schedule TagProcessor observation worker", ex);
+            return;
+        }
+
         switch (result) {
             case ACCEPTED:
                 break;
