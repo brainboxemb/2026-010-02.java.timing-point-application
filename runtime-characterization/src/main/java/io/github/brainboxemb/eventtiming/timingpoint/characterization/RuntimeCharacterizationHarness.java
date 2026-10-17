@@ -524,9 +524,44 @@ final class RuntimeCharacterizationHarness
                 "TagProcessor");
     }
 
-    /** Waits until all earlier LogBook Data Lane items have completed. */
-    private void awaitDataLaneBarrier() {
-        logBook.process(LogBookQueries.timingDataCount());
+    /**
+     * Waits until one ordered LogBook query can enter the Data Lane and complete.
+     *
+     * <p>A burst may temporarily fill the bounded item queue. FULL therefore
+     * means the barrier itself must retry later; other rejection/failure
+     * reasons remain real characterization failures.</p>
+     */
+    private void awaitDataLaneBarrier()
+            throws InterruptedException {
+
+        long deadline =
+                System.nanoTime()
+                        + TimeUnit.MILLISECONDS.toNanos(
+                                COMPLETION_TIMEOUT_MILLIS);
+
+        while (true) {
+            try {
+                logBook.process(
+                        LogBookQueries.timingDataCount());
+                return;
+            } catch (IllegalStateException ex) {
+                boolean full =
+                        ex.getCause()
+                                        instanceof RejectedExecutionException
+                                && ex.getMessage() != null
+                                && ex.getMessage().contains(
+                                        "Data Lane is full");
+                if (!full) {
+                    throw ex;
+                }
+            }
+
+            if (System.nanoTime() >= deadline) {
+                throw new IllegalStateException(
+                        "Timed out waiting for TimingNode Data Lane barrier admission");
+            }
+            Thread.sleep(5L);
+        }
     }
 
     /**
