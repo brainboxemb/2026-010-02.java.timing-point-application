@@ -107,7 +107,7 @@ public class RunnableSerialLane implements Executor, AutoCloseable {
     /** One fixed worker scheduled whenever queued work needs a lane turn. */
     private final Runnable queueWorker = this::processQueuedItems;
 
-    private final RunnableSerialLaneMetrics metrics;
+    private final SerialLaneMetrics metrics;
 
     private State state = State.NEW;
     private Throwable failure;
@@ -130,7 +130,7 @@ public class RunnableSerialLane implements Executor, AutoCloseable {
         this.capacity = capacity;
         this.queue = new ArrayBlockingQueue<QueuedWork>(capacity);
         this.maxItemsPerRun = maxItemsPerRun;
-        this.metrics = new RunnableSerialLaneMetrics(queue::size);
+        this.metrics = new SerialLaneMetrics(queue::size);
     }
 
     /** Starts or restarts this logical lane. */
@@ -303,12 +303,12 @@ public class RunnableSerialLane implements Executor, AutoCloseable {
         }
     }
 
-    /** Configured queue capacity used by typed item queues on this lane. */
+    /** Configured queue capacity of this legacy runnable lane. */
     int capacity() {
         return capacity;
     }
 
-    /** Configured worker batch size used by typed item queues on this lane. */
+    /** Configured worker batch size of this legacy runnable lane. */
     int maxItemsPerRun() {
         return maxItemsPerRun;
     }
@@ -334,7 +334,7 @@ public class RunnableSerialLane implements Executor, AutoCloseable {
     }
 
     /** Returns the separate pull-based metrics owner for this lane. */
-    public RunnableSerialLaneMetrics metrics() {
+    public SerialLaneMetrics metrics() {
         return metrics;
     }
 
