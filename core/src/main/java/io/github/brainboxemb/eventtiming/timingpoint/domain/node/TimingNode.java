@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
@@ -15,9 +14,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyCont
 import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyKey;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.function.Supplier;
@@ -51,7 +48,6 @@ public final class TimingNode extends LifecycleComponent {
     private final LogBookAccessor logBook;
     private final TagProcessor tagProcessor;
     private final ComponentLifecycleManager lifecycle = new ComponentLifecycleManager();
-    private final Event<TimingData> timingDataCommittedEvent = new Event<TimingData>();
 
     // Current TimingNode state.
     private final PropertyContainer properties = new PropertyContainer();
@@ -68,23 +64,10 @@ public final class TimingNode extends LifecycleComponent {
             EventInput.of(
                     (node, source) -> source.subscribe(node.tagProcessor::onTagObserved));
 
-    /** Committed LogBook data input; this never drives functional state. */
-    private static final EventInput<TimingNode, TimingData> LOGBOOK_TIMING_DATA_COMMITTED =
-            EventInput.of(
-                    (node, source) -> source.subscribe(node::onTimingDataCommitted));
-
     /** Selected registration input from the TagProcessor lane. */
     private static final EventInput<TimingNode, TagProcessor.NewRegistration> NEW_REGISTRATION =
             EventInput.of(
                     (node, source) -> source.subscribe(node::onNewRegistration));
-
-    /**
-     * Committed TimingData source at the TimingNode boundary.
-     *
-     * <p>This event reports committed LogBook TimingData only. Runtime OPEN/CLOSED
-     * status is owned and published separately by TimingNode open/close.</p>
-     */
-    public final EventSource<TimingData> TIMING_DATA_COMMITTED = timingDataCommittedEvent;
 
     /** Current properties and their change subscriptions for this TimingNode. */
     public final PropertyContainer PROPERTIES = properties;
@@ -117,13 +100,11 @@ public final class TimingNode extends LifecycleComponent {
         lifecycle.register(tagProcessor);
 
         /*
-         * LogBook publishes committed TimingData once. TimingNode republishes
-         * those records for node-level consumers; lifecycle status is owned by
-         * TimingNode open/close and does not depend on TimingData persistence.
+         * LogBook owns persisted TimingData facts. NodeService consumes those
+         * facts directly; TimingNode state remains independent from LogBook history.
          */
-        LOGBOOK_TIMING_DATA_COMMITTED.bind(this, logBook.NEW_DATA_ENTRY);
         NodeService.INITIAL_TIMING_DATA.bind(nodeService, logBook.INITIAL_DATA_LOADED);
-        NodeService.COMMITTED_TIMING_DATA.bind(nodeService, TIMING_DATA_COMMITTED);
+        NodeService.COMMITTED_TIMING_DATA.bind(nodeService, logBook.NEW_DATA_ENTRY);
 
         // Listener runs synchronously on the TagProcessor lane; it must not block.
         NEW_REGISTRATION.bind(this, tagProcessor.NEW_REGISTRATION);
@@ -272,18 +253,6 @@ public final class TimingNode extends LifecycleComponent {
             locationIdProp.set(null);
             properties.sync();
         }
-    }
-
-    /**
-     * Publishes one successfully committed TimingData record.
-     *
-     * <p>Committed LogBook TimingData is not authoritative for functional OPEN/CLOSED
-     * state. {@link #open(LocationId)} and {@link #close()} change functional state
-     * directly; this event only republishes the committed TimingData record.</p>
-     */
-    private void onTimingDataCommitted(TimingData timingData) {
-
-        timingDataCommittedEvent.emit(timingData);
     }
 
     /**
