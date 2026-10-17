@@ -23,7 +23,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
  * Active tag-processing boundary between antenna observations and registrations.
@@ -35,12 +34,6 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  */
 public final class TagProcessor extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(TagProcessor.class);
-
-    private enum State {
-        NEW,
-        ACTIVE,
-        INACTIVE
-    }
 
     /** Runtime-policy changes consumed by this processor. */
     private static final EventInput<TagProcessor, ConfigurationChange<TagProcessingPolicy>> POLICY_CHANGED =
@@ -62,7 +55,6 @@ public final class TagProcessor extends LifecycleComponent {
 
     private boolean observationProcessingScheduled;
 
-    private volatile State state = State.NEW;
     private volatile ScheduledSerialLane.ScheduledRegistration housekeepingTask;
     private volatile List<TagPassageSnapshot> passageSnapshots = Collections.emptyList();
 
@@ -109,11 +101,7 @@ public final class TagProcessor extends LifecycleComponent {
      */
     @Override
     protected void onActivate() {
-        synchronized (lifecycleLock) {
-            failIfIllegalState(state != State.ACTIVE, "TagProcessor is already active");
-            lane.start();
-            state = State.ACTIVE;
-        }
+        lane.start();
     }
 
     /**
@@ -123,21 +111,12 @@ public final class TagProcessor extends LifecycleComponent {
     @Override
     protected void onDeactivate() {
         synchronized (lifecycleLock) {
-            if (state == State.INACTIVE) {
-                return;
-            }
-
-            if (state == State.NEW) {
-                state = State.INACTIVE;
-            } else {
-                state = State.INACTIVE;
-                cancelHousekeepingLocked();
-                if (!inputQueue.isEmpty()) {
-                    try {
-                        lane.execute(this::processQueuedObservations);
-                    } catch (RejectedExecutionException ex) {
-                        inputQueue.clear();
-                    }
+            cancelHousekeepingLocked();
+            if (!inputQueue.isEmpty()) {
+                try {
+                    lane.execute(this::processQueuedObservations);
+                } catch (RejectedExecutionException ex) {
+                    inputQueue.clear();
                 }
             }
         }
@@ -159,7 +138,7 @@ public final class TagProcessor extends LifecycleComponent {
         metrics.recordObservation();
 
         synchronized (lifecycleLock) {
-            if (state != State.ACTIVE) {
+            if (!isActive()) {
                 metrics.recordProcessorNotRunning();
             } else if (!inputQueue.offer(observation)) {
                 metrics.recordObservationQueueFull();
@@ -202,19 +181,21 @@ public final class TagProcessor extends LifecycleComponent {
      * and cause one follow-up run.</p>
      */
     private void processQueuedObservations() {
-        int count = inputQueue.size();
-        for (int index = 0; index < count; index++) {
-            TagObservation observation = inputQueue.poll();
-            if (observation == null) {
-                break;
+        try {
+            int count = inputQueue.size();
+            for (int index = 0; index < count; index++) {
+                TagObservation observation = inputQueue.poll();
+                if (observation == null) {
+                    break;
+                }
+                processObservationSafely(observation);
             }
-            processObservationSafely(observation);
-        }
-
-        synchronized (lifecycleLock) {
-            observationProcessingScheduled = false;
-            if (state == State.ACTIVE && !inputQueue.isEmpty()) {
-                scheduleObservationProcessingLocked();
+        } finally {
+            synchronized (lifecycleLock) {
+                observationProcessingScheduled = false;
+                if (isActive() && !inputQueue.isEmpty()) {
+                    scheduleObservationProcessingLocked();
+                }
             }
         }
     }
@@ -263,7 +244,7 @@ public final class TagProcessor extends LifecycleComponent {
         }
 
         synchronized (lifecycleLock) {
-            if (state != State.ACTIVE || housekeepingTask != null) {
+            if (!isActive() || housekeepingTask != null) {
                 return;
             }
             housekeepingTask = lane.scheduleWithFixedDelay(
@@ -275,7 +256,7 @@ public final class TagProcessor extends LifecycleComponent {
     /** Queues one policy change from the processor-owned configuration binding. */
     private void onPolicyConfigurationChanged(ConfigurationChange<TagProcessingPolicy> change) {
         synchronized (lifecycleLock) {
-            if (state != State.ACTIVE) {
+            if (!isActive()) {
                 return;
             }
             Runnable policyChange = () -> applyPolicyChange(change);
@@ -317,7 +298,7 @@ public final class TagProcessor extends LifecycleComponent {
             LOG.warn("Tag-processing housekeeping failed", ex);
         } finally {
             synchronized (lifecycleLock) {
-                if (housekeepingTask != null && (state != State.ACTIVE || !hasTimedState())) {
+                if (housekeepingTask != null && (!isActive() || !hasTimedState())) {
                     cancelHousekeepingLocked();
                 }
             }
