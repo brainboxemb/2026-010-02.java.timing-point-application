@@ -303,21 +303,46 @@ public final class TimingNode extends LifecycleComponent {
 
     /** Startup flow executed cooperatively on this node's Task Lane. */
     private final class MainTask implements YieldingTask {
+        private enum Phase {
+            START_RECOVERY,
+            APPLY_RECOVERY,
+            READY
+        }
+
+        private Phase phase = Phase.START_RECOVERY;
         private CompletableFuture<?> recovery;
 
         @Override
         public TaskStep runStep() {
-            if (recovery == null) {
-                recovery = logBook.beginRecovery();
-                return TaskStep.await(recovery);
-            }
+            switch (phase) {
+                case START_RECOVERY:
+                    recovery = logBook.beginRecovery();
+                    phase = Phase.APPLY_RECOVERY;
+                    return TaskStep.await(recovery);
 
-            LogBookRecoveryStatus status = logBook.completeRecovery();
-            setOperationalState(
-                    status.failed()
-                            ? OperationalState.ERROR
-                            : OperationalState.OK);
-            return TaskStep.done();
+                case APPLY_RECOVERY:
+                    LogBookRecoveryStatus status = logBook.completeRecovery();
+                    if (status.failed()) {
+                        setOperationalState(OperationalState.ERROR);
+                        return TaskStep.done();
+                    }
+
+                    /*
+                     * completeRecovery publishes INITIAL_DATA_LOADED. NodeService
+                     * queues its rebuild on this same Task Lane. Re-admit this
+                     * MainTask once so that earlier rebuild runs before READY.
+                     */
+                    phase = Phase.READY;
+                    return TaskStep.again();
+
+                case READY:
+                    setOperationalState(OperationalState.OK);
+                    return TaskStep.done();
+
+                default:
+                    throw new IllegalStateException(
+                            "Unsupported TimingNode startup phase " + phase);
+            }
         }
     }
 
