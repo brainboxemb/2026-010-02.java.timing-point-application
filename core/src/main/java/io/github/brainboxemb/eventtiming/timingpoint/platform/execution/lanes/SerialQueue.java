@@ -114,6 +114,8 @@ public final class SerialQueue<T> implements AutoCloseable {
                 lane.execute(worker);
             } catch (RejectedExecutionException ex) {
                 workerScheduled = false;
+                queue.clear();
+                notifyAll();
             }
         }
 
