@@ -14,7 +14,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.UniqueTe
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamTaskState;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Passive Task Lane-owned state behind {@link NodeService}.
@@ -45,7 +45,7 @@ public final class NodeServiceState implements UpstreamTaskState {
 
     /** Creates the passive Task Lane state from immutable EventData reference data. */
     public NodeServiceState(EventData eventData) {
-        checkArgument(eventData != null, "eventData must not be null");
+        failIfInvalidArgument(eventData != null, "eventData must not be null");
         this.eventData = eventData;
         this.raceData = new RaceDataState(eventData);
     }
@@ -81,7 +81,7 @@ public final class NodeServiceState implements UpstreamTaskState {
 
     /** Rebuilds compact derived registration state from transient startup history. */
     void rebuildDerivedTiming(Iterable<TimingData> loadedData) {
-        checkArgument(loadedData != null, "loadedData must not be null");
+        failIfInvalidArgument(loadedData != null, "loadedData must not be null");
 
         activeRegistrations.reset();
         uniqueTeamRegistrations.reset();
@@ -97,7 +97,7 @@ public final class NodeServiceState implements UpstreamTaskState {
 
     /** Applies one newly committed TimingData record to derived registration state. */
     void applyCommittedTimingData(TimingData data) {
-        checkArgument(data != null, "data must not be null");
+        failIfInvalidArgument(data != null, "data must not be null");
         if (!derivedTimingReady) {
             derivedTimingStale = true;
         } else {

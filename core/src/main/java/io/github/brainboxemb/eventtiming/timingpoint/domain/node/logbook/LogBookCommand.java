@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Typed state-changing operation for the node LogBook component.
@@ -26,10 +26,10 @@ public final class LogBookCommand<R> {
             String name,
             Action<R> action) {
 
-        checkArgument(
+        failIfInvalidArgument(
                 name != null && !name.trim().isEmpty(),
                 "name must not be blank");
-        checkArgument(action != null, "action must not be null");
+        failIfInvalidArgument(action != null, "action must not be null");
         this.name = name;
         this.action = action;
     }

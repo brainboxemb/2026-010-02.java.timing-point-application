@@ -8,7 +8,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Compact derived view of currently active registration ADD records.
@@ -27,7 +27,7 @@ public final class ActiveRegistrations {
 
     /** Applies one committed TimingData fact to the compact active-registration view. */
     public void apply(TimingData data) {
-        checkArgument(data != null, "data must not be null");
+        failIfInvalidArgument(data != null, "data must not be null");
 
         TimingData.RegistrationAction action = registrationAction(data);
         if (action == TimingData.RegistrationAction.ADD) {

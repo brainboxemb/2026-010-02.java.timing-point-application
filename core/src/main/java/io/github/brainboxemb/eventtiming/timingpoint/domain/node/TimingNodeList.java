@@ -7,7 +7,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Immutable ordered collection of distinct TimingNode instances belonging to a system.
@@ -80,8 +80,8 @@ public final class TimingNodeList implements Iterable<TimingNode> {
         /** Adds one distinct TimingNode instance in composition order. */
         public Builder add(TimingNode node) {
 
-            checkArgument(node != null, "TimingNode must not be null");
-            checkArgument(!members.containsKey(node), "TimingNode instance is already present");
+            failIfInvalidArgument(node != null, "TimingNode must not be null");
+            failIfInvalidArgument(!members.containsKey(node), "TimingNode instance is already present");
             nodes.add(node);
             members.put(node, Boolean.TRUE);
             return this;

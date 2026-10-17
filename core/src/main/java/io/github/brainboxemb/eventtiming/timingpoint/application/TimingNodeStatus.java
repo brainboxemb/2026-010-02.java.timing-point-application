@@ -4,8 +4,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /** Current client-visible status of one TimingNode. */
 public final class TimingNodeStatus {
@@ -19,8 +19,8 @@ public final class TimingNodeStatus {
             FunctionalState state,
             LocationId locationId) {
 
-        checkArgument(timingNodeId != null, "timingNodeId must not be null");
-        checkArgument(state != null, "state must not be null");
+        failIfInvalidArgument(timingNodeId != null, "timingNodeId must not be null");
+        failIfInvalidArgument(state != null, "state must not be null");
         return new TimingNodeStatus(timingNodeId, state, locationId);
     }
 
@@ -47,7 +47,7 @@ public final class TimingNodeStatus {
     }
 
     public LocationId locationId() {
-        checkState(locationId != null, "TimingNode has no current location");
+        failIfIllegalState(locationId != null, "TimingNode has no current location");
         return locationId;
     }
 

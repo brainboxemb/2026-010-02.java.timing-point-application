@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Rename programming-contract helpers to `failIfIllegalState(...)` and `failIfInvalidArgument(...)` while retaining assert-style positive conditions (`true` continues, `false` throws); migrate all Java callers without compatibility aliases.
+
 - Stabilize asynchronous AntennaManager and TimingNode tests by waiting for semantic readiness/startup completion before asserting or constructing full-queue scenarios.
 
 - Give `AbstractConductor` an explicit construction-time diagnostic name so generic start/stop lifecycle logs identify the concrete conductor.

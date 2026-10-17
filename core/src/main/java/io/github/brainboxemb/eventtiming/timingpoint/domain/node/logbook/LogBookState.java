@@ -7,7 +7,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Passive mutable state behind one LogBook component.
@@ -27,7 +27,7 @@ final class LogBookState {
     /** Creates empty passive LogBook state for one TimingNode. */
     LogBookState(NodeId timingNodeId) {
 
-        checkArgument(timingNodeId != null, "timingNodeId must not be null");
+        failIfInvalidArgument(timingNodeId != null, "timingNodeId must not be null");
         this.timingNodeId = timingNodeId;
         this.logBookData = new LogBookData(timingNodeId);
     }
@@ -53,7 +53,7 @@ final class LogBookState {
     /** Records failure of persisted TimingData recovery. */
     void markTimingDataLoadFailed(String message) {
 
-        checkArgument(message != null && !message.trim().isEmpty(), "message must not be blank");
+        failIfInvalidArgument(message != null && !message.trim().isEmpty(), "message must not be blank");
         repairedIncompleteTail = false;
         recoveryFailureMessage = message.trim();
     }

@@ -7,8 +7,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
  * Passive committed TimingData history owned by one TimingNode Data Lane.
@@ -30,7 +30,7 @@ public final class LogBookData {
 
     /** Creates empty committed history for one TimingNode identity. */
     public LogBookData(NodeId timingNodeId) {
-        checkArgument(timingNodeId != null, "timingNodeId must not be null");
+        failIfInvalidArgument(timingNodeId != null, "timingNodeId must not be null");
         this.timingNodeId = timingNodeId;
     }
 
@@ -52,7 +52,7 @@ public final class LogBookData {
         if (head == 0L) {
             return 1L;
         }
-        checkState(head < TimingData.MAX_SEQUENCE_NUMBER, "TimingData sequence space is exhausted");
+        failIfIllegalState(head < TimingData.MAX_SEQUENCE_NUMBER, "TimingData sequence space is exhausted");
         return head + 1L;
     }
 
@@ -60,14 +60,14 @@ public final class LogBookData {
      * Adds one already committed TimingData value.
      */
     public void add(TimingData data) {
-        checkArgument(data != null, "data must not be null");
-        checkArgument(
+        failIfInvalidArgument(data != null, "data must not be null");
+        failIfInvalidArgument(
                 timingNodeId.equals(data.timingNodeId()),
                 "TimingData belongs to a different TimingNode: %s",
                 data.timingNodeId());
 
         long expectedSequence = nextSequence();
-        checkArgument(
+        failIfInvalidArgument(
                 data.sequenceNumber() == expectedSequence,
                 "TimingData sequence must be %s but was %s",
                 expectedSequence,
@@ -85,7 +85,7 @@ public final class LogBookData {
 
     /** Returns the newest committed TimingData record. */
     public TimingData latest() {
-        checkState(!records.isEmpty(), "no committed TimingData is available");
+        failIfIllegalState(!records.isEmpty(), "no committed TimingData is available");
         return records.get(records.size() - 1);
     }
 
@@ -97,9 +97,9 @@ public final class LogBookData {
      * invoked synchronously and must remain short/non-blocking.</p>
      */
     public void visitRange(long fromSequence, int limit, Consumer<TimingData> visitor) {
-        checkArgument(fromSequence >= 1L, "fromSequence must be >= 1");
-        checkArgument(limit >= 1, "limit must be >= 1");
-        checkArgument(visitor != null, "visitor must not be null");
+        failIfInvalidArgument(fromSequence >= 1L, "fromSequence must be >= 1");
+        failIfInvalidArgument(limit >= 1, "limit must be >= 1");
+        failIfInvalidArgument(visitor != null, "visitor must not be null");
 
         long startLong = fromSequence - 1L;
         if (startLong >= records.size()) {
@@ -117,8 +117,8 @@ public final class LogBookData {
      * Visits at most {@code limit} newest committed records in source order.
      */
     public void visitLatest(int limit, Consumer<TimingData> visitor) {
-        checkArgument(limit >= 1, "limit must be >= 1");
-        checkArgument(visitor != null, "visitor must not be null");
+        failIfInvalidArgument(limit >= 1, "limit must be >= 1");
+        failIfInvalidArgument(visitor != null, "visitor must not be null");
 
         int start = Math.max(0, records.size() - limit);
         for (int index = start; index < records.size(); index++) {

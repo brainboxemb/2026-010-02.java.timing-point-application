@@ -12,8 +12,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
  * The antennas owned by one {@link AntennaManager}.
@@ -44,7 +44,7 @@ public final class AntennaSet {
             Antenna antenna,
             PowerDevice powerDevice,
             Duration stabilization) {
-        checkArgument(powerDevice != null, "powerDevice must not be null");
+        failIfInvalidArgument(powerDevice != null, "powerDevice must not be null");
         return add(antennaId, antenna, powerDevice, stabilization);
     }
 
@@ -56,15 +56,15 @@ public final class AntennaSet {
      */
     public AntennaSet inventoryGroup(Duration interval, AntennaId... members) {
         checkMutable();
-        checkArgument(interval != null && !interval.isZero() && !interval.isNegative(),
+        failIfInvalidArgument(interval != null && !interval.isZero() && !interval.isNegative(),
                 "inventory interval must be positive");
-        checkArgument(members != null && members.length >= 2,
+        failIfInvalidArgument(members != null && members.length >= 2,
                 "inventory group requires at least two antennas");
 
         inventoryGroup.clear();
         for (AntennaId member : members) {
             ManagedAntenna antenna = find(member);
-            checkArgument(!inventoryGroup.contains(antenna), "duplicate inventory-group member %s", member);
+            failIfInvalidArgument(!inventoryGroup.contains(antenna), "duplicate inventory-group member %s", member);
             inventoryGroup.add(antenna);
         }
 
@@ -94,7 +94,7 @@ public final class AntennaSet {
     }
 
     Duration inventoryInterval() {
-        checkState(inventoryInterval != null, "no inventory group is configured");
+        failIfIllegalState(inventoryInterval != null, "no inventory group is configured");
         return inventoryInterval;
     }
 
@@ -128,7 +128,7 @@ public final class AntennaSet {
     }
 
     void seal() {
-        checkArgument(!antennas.isEmpty(), "antenna set must contain at least one antenna");
+        failIfInvalidArgument(!antennas.isEmpty(), "antenna set must contain at least one antenna");
         sealed = true;
     }
 
@@ -138,20 +138,20 @@ public final class AntennaSet {
             PowerDevice powerDevice,
             Duration stabilization) {
         checkMutable();
-        checkArgument(antennaId != null, "antennaId must not be null");
-        checkArgument(antenna != null, "antenna must not be null");
-        checkArgument(stabilization != null && !stabilization.isNegative(),
+        failIfInvalidArgument(antennaId != null, "antennaId must not be null");
+        failIfInvalidArgument(antenna != null, "antenna must not be null");
+        failIfInvalidArgument(stabilization != null && !stabilization.isNegative(),
                 "power stabilization must not be negative");
-        checkArgument(powerDevice != null || stabilization.isZero(),
+        failIfInvalidArgument(powerDevice != null || stabilization.isZero(),
                 "power stabilization requires a power device");
-        checkArgument(findOrNull(antennaId) == null, "duplicate AntennaId %s", antennaId);
+        failIfInvalidArgument(findOrNull(antennaId) == null, "duplicate AntennaId %s", antennaId);
 
         antennas.add(new ManagedAntenna(antennaId, antenna, powerDevice, stabilization));
         return this;
     }
 
     private ManagedAntenna find(AntennaId antennaId) {
-        checkArgument(antennaId != null, "antennaId must not be null");
+        failIfInvalidArgument(antennaId != null, "antennaId must not be null");
 
         ManagedAntenna antenna = findOrNull(antennaId);
         if (antenna == null) {
@@ -170,6 +170,6 @@ public final class AntennaSet {
     }
 
     private void checkMutable() {
-        checkState(!sealed, "AntennaSet is already owned by AntennaManager");
+        failIfIllegalState(!sealed, "AntennaSet is already owned by AntennaManager");
     }
 }
