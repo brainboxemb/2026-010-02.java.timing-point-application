@@ -2,7 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialQueue;
 
 import java.util.concurrent.CancellationException;
@@ -20,7 +20,7 @@ import org.slf4j.LoggerFactory;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * LogBook-specific ordered item queue on one shared {@link SerialLane}.
+ * LogBook-specific ordered item queue on one shared {@link RunnableSerialLane}.
  *
  * <p>The queue contains LogBook command/query items, not Runnable or Callable
  * wrappers. {@link SerialQueue} owns bounded FIFO admission and the one-worker
@@ -91,15 +91,15 @@ final class LogBookDataLane {
     }
 
     private final NodeId nodeId;
-    private final SerialLane serialLane;
+    private final RunnableSerialLane serialLane;
     private final SerialQueue<Item<?>> items;
     private final long commitWaitTimeoutMillis;
     private final long orderedQueryWaitTimeoutMillis;
 
-    /** Creates the Data Lane item queue around one externally composed SerialLane. */
+    /** Creates the Data Lane item queue around one externally composed RunnableSerialLane. */
     LogBookDataLane(
             NodeId nodeId,
-            SerialLane serialLane,
+            RunnableSerialLane serialLane,
             long commitWaitTimeoutMillis,
             long orderedQueryWaitTimeoutMillis,
             Consumer<Item<?>> itemProcessor) {
@@ -159,7 +159,7 @@ final class LogBookDataLane {
     }
 
     /** Returns the underlying logical lane state for LogBook availability decisions. */
-    SerialLane.State state() {
+    RunnableSerialLane.State state() {
         return serialLane.state();
     }
 
@@ -307,7 +307,7 @@ final class LogBookDataLane {
             String operationType,
             RejectedExecutionException rejection) {
 
-        if (serialLane.state() == SerialLane.State.FAILED) {
+        if (serialLane.state() == RunnableSerialLane.State.FAILED) {
             Throwable cause = serialLane.failure() == null ? rejection : serialLane.failure();
             LOG.error(
                     "TimingNode {} LogBook {} {} failed: reason=FAILED, cause=Data Lane failure",
@@ -318,7 +318,7 @@ final class LogBookDataLane {
             return new IllegalStateException(operation + " could not run because the TimingNode Data Lane failed",
                     cause);
         }
-        if (serialLane.state() != SerialLane.State.RUNNING) {
+        if (serialLane.state() != RunnableSerialLane.State.RUNNING) {
             LOG.warn(
                     "TimingNode {} LogBook {} {} failed: reason=UNAVAILABLE",
                     nodeId.value(),
