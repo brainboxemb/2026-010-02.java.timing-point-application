@@ -71,7 +71,6 @@ final class TimingNodeComposer {
                         monotonicClock,
                         new LogBookMetrics(),
                         execution.dataLane(),
-                        executors.sharedIoScheduledExecutor(),
                         LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
                         LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
 
