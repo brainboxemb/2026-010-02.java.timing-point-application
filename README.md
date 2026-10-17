@@ -30,6 +30,7 @@ These files answer Java-specific build and test questions; they are richer domai
 
 - `evidence/toolchain-build-provenance.txt` — configured/runtime Java, Maven, Maven Wrapper and owner-tool provenance.
 - [Readable Surefire summary](evidence/tests/README.md) — aggregate test result with retained raw Surefire reports below `evidence/tests/`.
+- [Separate-process system verification](evidence/tests/system-test/README.md) — VC-ST1 black-box results, runtime output and persisted LogBook evidence.
 
 ## Orchestration evidence
 
