@@ -23,7 +23,12 @@ public class LogBookDataLaneTest {
         ExecutorService worker = Executors.newSingleThreadExecutor();
         SerialLane lane = new SerialLane(4, 4, "logbook-command-timeout-test", worker);
         LogBookDataLane dataLane =
-                new LogBookDataLane(new NodeId("A"), lane, 25L, 250L);
+                new LogBookDataLane(
+                        new NodeId("A"),
+                        lane,
+                        25L,
+                        250L,
+                        ignored -> { });
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
@@ -38,7 +43,10 @@ public class LogBookDataLaneTest {
             assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
             try {
-                dataLane.submitCommandAndWait(() -> "done", "commitTest");
+                dataLane.submitCommandAndWait(
+                        new LogBookCommand<String>(
+                                "commitTest",
+                                ignored -> "done"));
                 fail("expected command timeout");
             } catch (IllegalStateException expected) {
                 assertTrue(expected.getMessage().contains("25 ms"));
@@ -56,7 +64,12 @@ public class LogBookDataLaneTest {
         ExecutorService worker = Executors.newSingleThreadExecutor();
         SerialLane lane = new SerialLane(4, 4, "logbook-query-timeout-test", worker);
         LogBookDataLane dataLane =
-                new LogBookDataLane(new NodeId("A"), lane, 250L, 25L);
+                new LogBookDataLane(
+                        new NodeId("A"),
+                        lane,
+                        250L,
+                        25L,
+                        ignored -> { });
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
@@ -71,7 +84,10 @@ public class LogBookDataLaneTest {
             assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
             try {
-                dataLane.submitQueryAndWait(() -> "done", "queryTest");
+                dataLane.submitQueryAndWait(
+                        new LogBookQuery<String>(
+                                "queryTest",
+                                ignored -> "done"));
                 fail("expected query timeout");
             } catch (IllegalStateException expected) {
                 assertTrue(expected.getMessage().contains("25 ms"));
