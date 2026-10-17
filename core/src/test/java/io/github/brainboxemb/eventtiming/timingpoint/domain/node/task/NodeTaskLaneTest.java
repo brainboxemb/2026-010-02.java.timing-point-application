@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.task;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTaskLane;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -145,7 +145,11 @@ public class NodeTaskLaneTest {
         worker = Executors.newSingleThreadExecutor(
                 runnable -> new Thread(runnable, "node-task-lane-test"));
         return new NodeTaskLane(
-                new RunnableSerialLane(capacity, capacity, "node-task-lane-test", worker),
+                new TimingNodeTaskLane(
+                        capacity,
+                        capacity,
+                        "node-task-lane-test",
+                        worker),
                 1000L,
                 itemProcessor);
     }
