@@ -307,7 +307,7 @@ public final class TimingNodeFixture {
                         32,
                         32,
                         "test-node-task-direct-" + suffix,
-                        Runnable::run),
+                        NODE_WORKER),
                 new ScheduledSerialLane(
                         32,
                         32,
