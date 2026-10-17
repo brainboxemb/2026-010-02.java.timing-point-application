@@ -158,6 +158,79 @@ public class TaskSerialLaneTest {
     }
 
     @Test
+    public void awaitReleasesPhysicalWorkerAndResumesAfterCompletion()
+            throws Exception {
+        ScheduledExecutorService worker =
+                Executors.newScheduledThreadPool(1);
+        TaskSerialLane taskLane =
+                new TaskSerialLane(
+                        8,
+                        8,
+                        "yielding-await",
+                        worker,
+                        Duration.ofSeconds(1));
+        RunnableSerialLane siblingLane =
+                new RunnableSerialLane(
+                        8,
+                        8,
+                        "yielding-await-sibling",
+                        worker);
+        taskLane.start();
+        siblingLane.start();
+
+        CompletableFuture<String> dependency =
+                new CompletableFuture<String>();
+        AtomicInteger step =
+                new AtomicInteger();
+        CountDownLatch waiting =
+                new CountDownLatch(1);
+
+        try {
+            CompletableFuture<Void> task =
+                    taskLane.runTask(
+                            () -> {
+                                if (step.getAndIncrement() == 0) {
+                                    waiting.countDown();
+                                    return TaskStep.await(dependency);
+                                }
+
+                                assertEquals(
+                                        "ready",
+                                        dependency.join());
+                                return TaskStep.done();
+                            });
+
+            assertTrue(
+                    waiting.await(
+                            500,
+                            TimeUnit.MILLISECONDS));
+
+            CountDownLatch siblingRan =
+                    new CountDownLatch(1);
+            siblingLane.execute(siblingRan::countDown);
+            assertTrue(
+                    "awaiting task must release the shared worker",
+                    siblingRan.await(
+                            75,
+                            TimeUnit.MILLISECONDS));
+
+            assertEquals(
+                    "task must not run another step before dependency completion",
+                    1,
+                    step.get());
+
+            dependency.complete("ready");
+            taskLane.await(task);
+
+            assertEquals(2, step.get());
+        } finally {
+            taskLane.close();
+            siblingLane.close();
+            worker.shutdownNow();
+        }
+    }
+
+    @Test
     public void timeoutInterruptsRunningTask()
             throws Exception {
         ScheduledExecutorService worker =
