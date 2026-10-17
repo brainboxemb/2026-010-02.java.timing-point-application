@@ -150,7 +150,7 @@ public class TimingSystemConductorTest {
     }
 
     @Test
-    public void statusEventWakesConductorWithoutUpdatingSettingsOnNodeThread() throws Exception {
+    public void statusEventOnlyWakesConductorOnNodeThread() throws Exception {
         TimingNode node = newTimingNode("A");
         SimulatedAntenna antenna = new SimulatedAntenna();
         AntennaManager manager = newAntennaManager(antenna);
