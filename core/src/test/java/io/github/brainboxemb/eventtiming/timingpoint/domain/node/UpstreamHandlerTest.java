@@ -34,6 +34,7 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -291,6 +292,15 @@ public class UpstreamHandlerTest {
                             request.pingId()));
             assertTrue(port.inputAvailable());
 
+            /*
+             * inputAvailable admits a Data Lane turn, which then admits the
+             * heartbeat handling task. Cross both ordered boundaries before
+             * inspecting the published heartbeat snapshot.
+             */
+            node.node().logBook().process(
+                    LogBookQueries.timingDataCount());
+            node.nodeService().stageTiming(ZoneOffset.UTC);
+
             UpstreamHandlerTypes.HeartbeatStatus status =
                     port.heartbeatStatus();
             assertEquals(1L, status.answersReceived());
@@ -376,6 +386,16 @@ public class UpstreamHandlerTest {
         activate(empty.node());
         activate(populated.node());
         try {
+            // Ordered reads are the startup barrier for the published LogBook heads.
+            assertEquals(
+                    0,
+                    empty.node().logBook().process(
+                            LogBookQueries.timingDataCount()).intValue());
+            assertEquals(
+                    3,
+                    populated.node().logBook().process(
+                            LogBookQueries.timingDataCount()).intValue());
+
             empty.upstreamHandler()
                     .sendTimingDataSync();
             populated.upstreamHandler()
