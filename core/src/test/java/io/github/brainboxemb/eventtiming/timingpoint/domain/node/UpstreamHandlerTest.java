@@ -26,7 +26,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persist
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
@@ -38,8 +38,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -133,8 +131,9 @@ public class UpstreamHandlerTest {
     @Test
     public void heartbeatIsQueuedToTaskLaneWhileDataLaneIsBusy()
             throws Exception {
-        ExecutorService nodeWorker =
-                Executors.newSingleThreadExecutor();
+        ScheduledThreadPoolExecutor nodeWorker =
+                new ScheduledThreadPoolExecutor(1);
+        nodeWorker.setRemoveOnCancelPolicy(true);
         ScheduledThreadPoolExecutor tagWorker =
                 new ScheduledThreadPoolExecutor(1);
         TimingNodeDataLane dataLane =
@@ -143,8 +142,8 @@ public class UpstreamHandlerTest {
                         4,
                         "heartbeat-data-test",
                         nodeWorker);
-        RunnableSerialLane taskLane =
-                new RunnableSerialLane(
+        TaskSerialLane taskLane =
+                new TaskSerialLane(
                         4,
                         4,
                         "heartbeat-task-test",
@@ -201,6 +200,7 @@ public class UpstreamHandlerTest {
                         SystemMonotonicClock.INSTANCE,
                         new LogBookMetrics(),
                         dataLane,
+                        nodeWorker,
                         LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
                         LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
         NodeServiceState taskState =
@@ -228,10 +228,12 @@ public class UpstreamHandlerTest {
                         timeSource,
                         logBook,
                         tasks,
-                        tags);
+                        tags,
+                        taskLane);
 
         activate(timingNode);
         try {
+            awaitOperational(timingNode);
             // The real NODE_OPEN LogBook operation owns the Data Lane while append blocks.
             timingNode.open(new LocationId(24));
             assertTrue(
@@ -675,6 +677,21 @@ public class UpstreamHandlerTest {
             deactivate(nodeA.node());
             deactivate(nodeB.node());
         }
+    }
+
+    private static void awaitOperational(TimingNode node)
+            throws InterruptedException {
+        long deadline =
+                System.nanoTime()
+                        + TimeUnit.SECONDS.toNanos(1L);
+        while (node.operationalState()
+                        != TimingNodeTypes.OperationalState.OK
+                && System.nanoTime() < deadline) {
+            Thread.sleep(1L);
+        }
+        assertEquals(
+                TimingNodeTypes.OperationalState.OK,
+                node.operationalState());
     }
 
     private static TimingNodeFixture.Components node(
