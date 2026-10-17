@@ -304,6 +304,11 @@ public class SerialLane implements Executor, AutoCloseable {
         return state == State.RUNNING;
     }
 
+    /** Returns whether this lane has terminally failed. */
+    public synchronized boolean isFailed() {
+        return state == State.FAILED;
+    }
+
     /** Returns the current logical lane lifecycle state for diagnostics and detailed inspection. */
     public synchronized State state() {
         return state;
