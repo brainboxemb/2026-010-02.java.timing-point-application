@@ -61,15 +61,18 @@ public class RuntimeMeasurementReaderTest {
         SerialLane dataLane =
                 new SerialLane(
                         8,
+                        8,
                         "measurement-node-data",
                         nodeWorker);
         SerialLane taskLane =
                 new SerialLane(
                         8,
+                        8,
                         "measurement-node-task",
                         nodeWorker);
         ScheduledSerialLane tagLane =
                 new ScheduledSerialLane(
+                        8,
                         8,
                         "measurement-tag",
                         tagWorker);

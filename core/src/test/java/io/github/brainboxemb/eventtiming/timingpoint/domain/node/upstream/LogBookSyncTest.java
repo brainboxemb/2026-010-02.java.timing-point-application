@@ -61,6 +61,7 @@ public class LogBookSyncTest {
                 new LogBookMetrics(),
                 new SerialLane(
                         8,
+                        8,
                         "test-logbook-sync-data",
                         Runnable::run),
                 LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,

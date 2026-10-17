@@ -47,6 +47,7 @@ public class SerialLaneTest {
         ownedWorkers.add(worker);
         return new SerialLane(
                 capacity,
+                capacity,
                 threadName,
                 worker);
     }
@@ -253,6 +254,33 @@ public class SerialLaneTest {
     }
 
 
+    /** Verifies that one worker run processes no more than the configured batch size. */
+    @Test
+    public void limitsItemsProcessedPerWorkerRun() {
+        List<Runnable> scheduled = new ArrayList<Runnable>();
+        List<Integer> processed = new ArrayList<Integer>();
+        SerialLane lane = new SerialLane(4, 2, "batch-test", scheduled::add);
+
+        lane.start();
+        try {
+            lane.execute(() -> processed.add(1));
+            lane.execute(() -> processed.add(2));
+            lane.execute(() -> processed.add(3));
+
+            assertEquals(1, scheduled.size());
+
+            scheduled.remove(0).run();
+            assertEquals(Arrays.asList(1, 2), processed);
+            assertEquals(1, scheduled.size());
+
+            scheduled.remove(0).run();
+            assertEquals(Arrays.asList(1, 2, 3), processed);
+            assertTrue(scheduled.isEmpty());
+        } finally {
+            lane.close();
+        }
+    }
+
     /** Verifies lane-local FIFO ordering and fair turns on one shared physical worker. */
     @Test
     public void sharedLanesKeepIndependentFifoQueuesAndShareOneWorker()
@@ -270,10 +298,12 @@ public class SerialLaneTest {
         SerialLane first =
                 new SerialLane(
                         4,
+                        4,
                         "node-A",
                         shared);
         SerialLane second =
                 new SerialLane(
+                        4,
                         4,
                         "node-B",
                         shared);
@@ -309,9 +339,10 @@ public class SerialLaneTest {
                             TimeUnit.SECONDS));
 
             /*
-             * A2 stays in lane A's private queue. B1 schedules its own drain
-             * token directly on the shared role executor. When A1 completes,
-             * A's next drain token is appended behind B's already waiting token.
+             * A2 arrives after lane A's current worker batch has started. B1
+             * schedules its own queue worker run directly on the shared executor.
+             * When A1 completes, A's next worker run is appended behind B's
+             * already waiting run.
              */
             first.execute(() -> {
                 workerNames.add(
@@ -362,10 +393,12 @@ public class SerialLaneTest {
         SerialLane first =
                 new SerialLane(
                         2,
+                        2,
                         "node-A",
                         shared);
         SerialLane second =
                 new SerialLane(
+                        2,
                         2,
                         "node-B",
                         shared);
@@ -409,10 +442,12 @@ public class SerialLaneTest {
         SerialLane failing =
                 new SerialLane(
                         2,
+                        2,
                         "node-A",
                         shared);
         SerialLane healthy =
                 new SerialLane(
+                        2,
                         2,
                         "node-B",
                         shared);

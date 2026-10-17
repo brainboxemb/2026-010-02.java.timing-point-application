@@ -24,6 +24,7 @@ public class LaneSchedulerTest {
         SerialLane lane =
                 new SerialLane(
                         8,
+                        8,
                         "delay",
                         worker);
         LaneScheduler scheduler =
@@ -69,6 +70,7 @@ public class LaneSchedulerTest {
                         "lane-scheduler-periodic");
         SerialLane lane =
                 new SerialLane(
+                        8,
                         8,
                         "periodic",
                         worker);
@@ -116,6 +118,7 @@ public class LaneSchedulerTest {
                         "lane-scheduler-cancel");
         SerialLane lane =
                 new SerialLane(
+                        8,
                         8,
                         "cancel",
                         worker);
@@ -166,6 +169,7 @@ public class LaneSchedulerTest {
                         "lane-scheduler-one-shot-cancel");
         SerialLane lane =
                 new SerialLane(
+                        8,
                         8,
                         "one-shot-cancel",
                         worker);

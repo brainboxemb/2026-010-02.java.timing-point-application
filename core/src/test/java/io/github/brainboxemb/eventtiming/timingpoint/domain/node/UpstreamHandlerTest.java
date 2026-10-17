@@ -141,15 +141,18 @@ public class UpstreamHandlerTest {
         SerialLane dataLane =
                 new SerialLane(
                         4,
+                        4,
                         "heartbeat-data-test",
                         nodeWorker);
         SerialLane taskLane =
                 new SerialLane(
                         4,
+                        4,
                         "heartbeat-task-test",
                         nodeWorker);
         ScheduledSerialLane tagLane =
                 new ScheduledSerialLane(
+                        4,
                         4,
                         "heartbeat-tag-test",
                         tagWorker);

@@ -57,7 +57,7 @@ public class TimingNodeTest {
                 Executors.newSingleThreadExecutor(
                         runnable -> new Thread(runnable, threadName));
         ownedWorkers.add(worker);
-        return new SerialLane(capacity, threadName, worker);
+        return new SerialLane(capacity, capacity, threadName, worker);
     }
 
     @Test
@@ -857,6 +857,7 @@ public class TimingNodeTest {
     public void activationFailsWhenPersistedDataLoadCannotBeQueued() {
         SerialLane executor =
                 new SerialLane(
+                        2,
                         2,
                         "timing-node-failed-current-test",
                         runnable -> {

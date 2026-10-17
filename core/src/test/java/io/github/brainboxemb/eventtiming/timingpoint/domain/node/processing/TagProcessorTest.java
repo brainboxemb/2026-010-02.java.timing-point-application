@@ -61,7 +61,7 @@ public class TagProcessorTest {
                 Executors.newSingleThreadExecutor(
                         runnable -> new Thread(runnable, threadName));
         ownedWorkers.add(worker);
-        return new SerialLane(capacity, threadName, worker);
+        return new SerialLane(capacity, capacity, threadName, worker);
     }
 
     private TagExecution newTagExecution(
@@ -74,6 +74,7 @@ public class TagProcessorTest {
         ownedWorkers.add(worker);
         return new TagExecution(
                 new ScheduledSerialLane(
+                        32,
                         32,
                         threadName,
                         worker));

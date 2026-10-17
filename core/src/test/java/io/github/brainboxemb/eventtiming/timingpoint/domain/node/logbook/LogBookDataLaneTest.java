@@ -21,7 +21,7 @@ public class LogBookDataLaneTest {
     @Test
     public void commandUsesCommitWaitTimeout() throws Exception {
         ExecutorService worker = Executors.newSingleThreadExecutor();
-        SerialLane lane = new SerialLane(4, "logbook-command-timeout-test", worker);
+        SerialLane lane = new SerialLane(4, 4, "logbook-command-timeout-test", worker);
         LogBookDataLane dataLane =
                 new LogBookDataLane(new NodeId("A"), lane, 25L, 250L);
         CountDownLatch blockerStarted = new CountDownLatch(1);
@@ -54,7 +54,7 @@ public class LogBookDataLaneTest {
     @Test
     public void orderedQueryUsesQueryWaitTimeout() throws Exception {
         ExecutorService worker = Executors.newSingleThreadExecutor();
-        SerialLane lane = new SerialLane(4, "logbook-query-timeout-test", worker);
+        SerialLane lane = new SerialLane(4, 4, "logbook-query-timeout-test", worker);
         LogBookDataLane dataLane =
                 new LogBookDataLane(new NodeId("A"), lane, 250L, 25L);
         CountDownLatch blockerStarted = new CountDownLatch(1);
