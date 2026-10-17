@@ -115,8 +115,7 @@ public class RuntimeMeasurementReaderTest {
                         timeSource,
                         logBook,
                         nodeService,
-                        tags,
-                        taskLane);
+                        tags);
 
         RuntimeMeasurementReader reader =
                 new RuntimeMeasurementReader(
