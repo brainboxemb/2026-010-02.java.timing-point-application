@@ -56,7 +56,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 /**
  * Direct engineering composition for repeatable runtime characterization.
@@ -213,7 +212,8 @@ final class RuntimeCharacterizationHarness
                         SystemMonotonicClock.INSTANCE,
                         logBookMetrics,
                         dataLane,
-                        LogBook.DEFAULT_OPERATION_TIMEOUT_MILLIS);
+                        LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
+                        LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
 
         NodeServiceState nodeServiceState =
                 new NodeServiceState(
@@ -293,10 +293,10 @@ final class RuntimeCharacterizationHarness
         await(
                 antennaManager::isReady,
                 "AntennaManager ready");
-        Consumer<AntennaSettings.Edit> enableInventory =
-                edit -> edit.inventoryEnabled(true);
         antennaManager.settings().update(
-                enableInventory);
+                edit -> edit.set(
+                        AntennaSettings.INVENTORY_ENABLED,
+                        Boolean.TRUE));
         await(
                 antenna::inventoryRunning,
                 "simulated antenna inventory");
