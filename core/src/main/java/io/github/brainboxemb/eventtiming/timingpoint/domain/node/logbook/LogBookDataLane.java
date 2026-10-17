@@ -86,9 +86,14 @@ final class LogBookDataLane {
         return serialLane.isExecutingOnCurrentThread();
     }
 
-    /** Returns the underlying logical lane state for LogBook availability decisions. */
-    SerialLane.State state() {
-        return serialLane.state();
+    /** Returns whether the Data Lane is accepting normal work. */
+    boolean isRunning() {
+        return serialLane.isRunning();
+    }
+
+    /** Returns whether the Data Lane has terminally failed. */
+    boolean isFailed() {
+        return serialLane.isFailed();
     }
 
     /** Returns the terminal logical lane failure, if any. */
@@ -225,7 +230,7 @@ final class LogBookDataLane {
             String operationType,
             RejectedExecutionException rejection) {
 
-        if (serialLane.state() == SerialLane.State.FAILED) {
+        if (serialLane.isFailed()) {
             Throwable cause = serialLane.failure() == null ? rejection : serialLane.failure();
             LOG.error(
                     "TimingNode {} LogBook {} {} failed: reason=FAILED, cause=Data Lane failure",
@@ -236,7 +241,7 @@ final class LogBookDataLane {
             return new IllegalStateException(operation + " could not run because the TimingNode Data Lane failed",
                     cause);
         }
-        if (serialLane.state() != SerialLane.State.RUNNING) {
+        if (!serialLane.isRunning()) {
             LOG.warn(
                     "TimingNode {} LogBook {} {} failed: reason=UNAVAILABLE",
                     nodeId.value(),
