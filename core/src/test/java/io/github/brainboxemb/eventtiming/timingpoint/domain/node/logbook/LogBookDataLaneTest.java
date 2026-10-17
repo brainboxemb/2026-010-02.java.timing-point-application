@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -113,8 +114,9 @@ public class LogBookDataLaneTest {
 
             releaseBlocker.countDown();
 
-            assertTrue(result.isDone()
-                    || "done".equals(result.get(1L, TimeUnit.SECONDS)));
+            assertEquals(
+                    "done",
+                    result.get(1L, TimeUnit.SECONDS));
             assertTrue(result.isDone());
         } finally {
             releaseBlocker.countDown();
