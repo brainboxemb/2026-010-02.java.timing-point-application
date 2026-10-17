@@ -12,10 +12,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationCo
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl.TimingNodeConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookTestControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeStatus;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
+import io.github.brainboxemb.eventtiming.timingpoint.application.CommandResult;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.ConsolePromptControl;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevel;
@@ -222,9 +221,6 @@ public final class TerminalSession {
                                     + ". Type 'help' for commands.");
                     return false;
             }
-        } catch (OperationException ex) {
-            output.println("Operation failed (" + ex.reason().name() + "): " + ex.getMessage());
-            return false;
         } catch (IllegalArgumentException ex) {
             output.println("Invalid command value: " + ex.getMessage());
             return false;
@@ -287,7 +283,7 @@ public final class TerminalSession {
             return;
         }
 
-        RegistrationResult result =
+        CommandResult result =
                 timingNode(nodeId)
                         .addTestAutomaticRegistration(
                                 new RegistrationId(arguments[1]),

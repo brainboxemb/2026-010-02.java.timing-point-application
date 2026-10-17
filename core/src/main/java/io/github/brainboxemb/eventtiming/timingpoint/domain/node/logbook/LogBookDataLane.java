@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
@@ -23,8 +22,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  *
  * <p>This class does not implement another queue or thread model. The supplied
  * SerialLane remains the owner of FIFO ordering, bounded admission and lane
- * lifecycle. LogBookDataLane owns only the LogBook-specific wait/reentrancy and
- * OperationException mapping used by result-bearing Data Lane operations.</p>
+ * lifecycle. LogBookDataLane owns only the LogBook-specific result wait,
+ * reentrancy and rejection handling.</p>
  */
 final class LogBookDataLane {
     private static final Logger LOG = LoggerFactory.getLogger(LogBookDataLane.class);
@@ -151,7 +150,7 @@ final class LogBookDataLane {
                 outcomeUnknownOnTimeout);
     }
 
-    /** Converts Future completion into the stable LogBook operation exception contract. */
+    /** Waits for Future completion and reports failures at the owning Data Lane boundary. */
     private <R> R await(
             Future<R> future,
             String operation,
@@ -171,9 +170,7 @@ final class LogBookDataLane {
                         operation,
                         timeoutMillis,
                         ex);
-                throw new OperationException(
-                        OperationException.Reason.TIMEOUT,
-                        operation + " timed out after " + timeoutMillis
+                throw new IllegalStateException(operation + " timed out after " + timeoutMillis
                                 + " ms; final TimingNode outcome is unknown",
                         ex);
             }
@@ -185,9 +182,7 @@ final class LogBookDataLane {
                     operation,
                     timeoutMillis,
                     ex);
-            throw new OperationException(
-                    OperationException.Reason.TIMEOUT,
-                    operation + " timed out after " + timeoutMillis + " ms",
+            throw new IllegalStateException(operation + " timed out after " + timeoutMillis + " ms",
                     ex);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
@@ -197,9 +192,7 @@ final class LogBookDataLane {
                     operationType,
                     operation,
                     ex);
-            throw new OperationException(
-                    OperationException.Reason.INTERRUPTED,
-                    operation + " was interrupted while waiting for the TimingNode result",
+            throw new IllegalStateException(operation + " was interrupted while waiting for the TimingNode result",
                     ex);
         } catch (CancellationException ex) {
             LOG.error(
@@ -208,9 +201,7 @@ final class LogBookDataLane {
                     operationType,
                     operation,
                     ex);
-            throw new OperationException(
-                    OperationException.Reason.FAILED,
-                    operation + " was cancelled because the TimingNode Data Lane failed",
+            throw new IllegalStateException(operation + " was cancelled because the TimingNode Data Lane failed",
                     ex);
         } catch (ExecutionException ex) {
             Throwable cause = ex.getCause();
@@ -221,17 +212,15 @@ final class LogBookDataLane {
                     operationType,
                     operation,
                     cause == null ? ex : cause);
-            throw new OperationException(
-                    OperationException.Reason.FAILED,
-                    operation
+            throw new IllegalStateException(operation
                             + " failed while executing on the TimingNode Data Lane"
                             + (detail == null || detail.trim().isEmpty() ? "" : ": " + detail.trim()),
                     cause);
         }
     }
 
-    /** Maps lane rejection to the result-bearing LogBook operation categories. */
-    private OperationException rejectedOperation(
+    /** Reports lane rejection and converts it to ordinary failed execution. */
+    private IllegalStateException rejectedOperation(
             String operation,
             String operationType,
             RejectedExecutionException rejection) {
@@ -244,9 +233,7 @@ final class LogBookDataLane {
                     operationType,
                     operation,
                     cause);
-            return new OperationException(
-                    OperationException.Reason.FAILED,
-                    operation + " could not run because the TimingNode Data Lane failed",
+            return new IllegalStateException(operation + " could not run because the TimingNode Data Lane failed",
                     cause);
         }
         if (serialLane.state() != SerialLane.State.RUNNING) {
@@ -256,8 +243,7 @@ final class LogBookDataLane {
                     operationType,
                     operation,
                     rejection);
-            return new OperationException(
-                    OperationException.Reason.UNAVAILABLE,
+            return new IllegalStateException(
                     operation + " could not be queued because the TimingNode Data Lane is not running",
                     rejection);
         }
@@ -268,8 +254,7 @@ final class LogBookDataLane {
                 operationType,
                 operation,
                 rejection);
-        return new OperationException(
-                OperationException.Reason.BUSY,
+        return new IllegalStateException(
                 operation + " could not be queued because the TimingNode Data Lane is full",
                 rejection);
     }

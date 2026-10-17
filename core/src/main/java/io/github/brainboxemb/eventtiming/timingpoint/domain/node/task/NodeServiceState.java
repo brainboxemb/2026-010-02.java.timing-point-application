@@ -5,7 +5,6 @@ import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.StageStartTimes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.TeamAssignments;
@@ -115,8 +114,7 @@ public final class NodeServiceState implements UpstreamTaskState {
     /** Fails when derived timing has not been initialized or became stale. */
     void ensureDerivedTimingAvailable() {
         if (!derivedTimingReady || derivedTimingStale) {
-            throw new OperationException(
-                    OperationException.Reason.UNAVAILABLE, "Task Lane derived timing state is not available");
+            throw new IllegalStateException("Task Lane derived timing state is not available");
         }
     }
 

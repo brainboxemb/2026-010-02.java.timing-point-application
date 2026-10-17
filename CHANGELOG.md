@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Simplify caller-visible command/error handling: move presentation TimingData outcomes to Application `CommandResult`, let LogBook registration commands return committed `TimingData` directly, keep `TimingNodeTypes` to real node values/results, and remove the public `OperationException.Reason` state model while retaining detailed Data Lane failure logging.
+
 - Add one documented `TimingNode.processLocked(Supplier<R>)` scope for presentation-triggered LogBook writes, keeping state-sensitive registration admission consistent with OPEN/CLOSE without adding one TimingNode method per TimingData action.
 
 - Finish the production readability audit by removing the last reviewed normal-flow returns in logging command routing, property publication and runtime deactivation; true guards and explicit multi-state decisions remain unchanged.

@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.task;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
 import java.util.concurrent.Callable;
@@ -18,7 +17,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  *
  * <p>The underlying SerialLane still owns FIFO ordering, bounded admission and
  * queue execution. NodeTaskLane owns only the node-task-specific lifecycle,
- * current-thread invariant and result-bearing wait/error mapping used by
+ * current-thread invariant and result-bearing wait handling used by
  * NodeService.</p>
  */
 final class NodeTaskLane {
@@ -90,52 +89,43 @@ final class NodeTaskLane {
         return await(future, operation);
     }
 
-    /** Converts Future completion into the stable Task Lane operation exception contract. */
+    /** Waits for Future completion and aborts when Task Lane execution cannot return a result. */
     private <R> R await(Future<R> future, String operation) {
 
         try {
             return future.get(operationTimeoutMillis, TimeUnit.MILLISECONDS);
         } catch (TimeoutException ex) {
-            throw new OperationException(
-                    OperationException.Reason.TIMEOUT,
-                    operation + " timed out on the TimingNode Task Lane",
+            throw new IllegalStateException(operation + " timed out on the TimingNode Task Lane",
                     ex);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            throw new OperationException(
-                    OperationException.Reason.INTERRUPTED,
-                    operation + " was interrupted on the TimingNode Task Lane",
+            throw new IllegalStateException(operation + " was interrupted on the TimingNode Task Lane",
                     ex);
         } catch (CancellationException ex) {
-            throw new OperationException(
-                    OperationException.Reason.FAILED,
-                    operation + " was cancelled on the TimingNode Task Lane",
+            throw new IllegalStateException(operation + " was cancelled on the TimingNode Task Lane",
                     ex);
         } catch (ExecutionException ex) {
-            throw new OperationException(
-                    OperationException.Reason.FAILED,
-                    operation + " failed on the TimingNode Task Lane",
+            throw new IllegalStateException(operation + " failed on the TimingNode Task Lane",
                     ex.getCause());
         }
     }
 
-    /** Maps Task Lane rejection to the stable result-bearing operation categories. */
-    private OperationException rejectedOperation(String operation, RejectedExecutionException rejection) {
+    /** Converts Task Lane rejection to ordinary failed execution. */
+    private IllegalStateException rejectedOperation(
+            String operation,
+            RejectedExecutionException rejection) {
 
         if (serialLane.state() == SerialLane.State.FAILED) {
-            return new OperationException(
-                    OperationException.Reason.FAILED,
+            return new IllegalStateException(
                     operation + " could not run because the TimingNode Task Lane failed",
                     serialLane.failure() == null ? rejection : serialLane.failure());
         }
         if (serialLane.state() != SerialLane.State.RUNNING) {
-            return new OperationException(
-                    OperationException.Reason.UNAVAILABLE,
+            return new IllegalStateException(
                     operation + " could not be queued because the TimingNode Task Lane is not running",
                     rejection);
         }
-        return new OperationException(
-                OperationException.Reason.BUSY,
+        return new IllegalStateException(
                 operation + " could not be queued because the TimingNode Task Lane is full",
                 rejection);
     }

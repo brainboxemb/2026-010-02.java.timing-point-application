@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 
+import io.github.brainboxemb.eventtiming.timingpoint.application.CommandResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookRecoveryStatus;
@@ -52,7 +53,7 @@ public class TimingNodeRegistrationTest {
             node.open(new LocationId(24));
 
             RegistrationId registrationId = new RegistrationId("1001");
-            TimingNodeTypes.RegistrationResult result =
+            CommandResult result =
                     addTestAutomaticRegistration(node,
                             registrationId,
                             EFFECTIVE_TIME,
@@ -149,13 +150,13 @@ public class TimingNodeRegistrationTest {
         try {
             node.open(new LocationId(24));
 
-            TimingNodeTypes.RegistrationResult automatic =
+            CommandResult automatic =
                     addTestAutomaticRegistration(node,
                             new RegistrationId("1001"),
                             TimingTimestamp.parse(
                                     "2026-10-01T12:00:00.129876543Z"),
                             TimingData.AutomaticTimeSource.API);
-            TimingNodeTypes.RegistrationResult manual =
+            CommandResult manual =
                     addManualRegistration(node,
                             new RegistrationId("1002"),
                             TimingTimestamp.parse(
@@ -183,20 +184,20 @@ public class TimingNodeRegistrationTest {
         activate(node);
         try {
 
-            TimingNodeTypes.RegistrationResult rejected =
+            CommandResult rejected =
                     addTestAutomaticRegistration(node,
                             new RegistrationId("1001"),
                             EFFECTIVE_TIME,
                             TimingData.AutomaticTimeSource.API);
 
             assertEquals(
-                    TimingNodeTypes.RegistrationResult.Outcome.NODE_NOT_OPEN,
+                    CommandResult.Outcome.NODE_NOT_OPEN,
                     rejected.outcome());
             assertEquals(0, store.attempts);
             assertEquals(0, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
 
             node.open(new LocationId(24));
-            TimingNodeTypes.RegistrationResult committed =
+            CommandResult committed =
                     addTestAutomaticRegistration(node,
                             new RegistrationId("1002"),
                             EFFECTIVE_TIME,
@@ -216,14 +217,14 @@ public class TimingNodeRegistrationTest {
         try {
             assertEquals(TimingNodeTypes.OpenResult.OPENED, node.open(new LocationId(24)));
 
-            TimingNodeTypes.RegistrationResult result = addManualRegistration(node,
+            CommandResult result = addManualRegistration(node,
                     new RegistrationId("1001"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.OPERATOR_ENTERED);
 
             assertTrue(result.committed());
             assertEquals(
-                    TimingNodeTypes.RegistrationResult.Outcome.COMMITTED,
+                    CommandResult.Outcome.COMMITTED,
                     result.outcome());
             assertEquals(2, store.appended.size());
             assertSame(result.timingData(), store.appended.get(1));
@@ -262,11 +263,11 @@ public class TimingNodeRegistrationTest {
         try {
             node.open(new LocationId(24));
 
-            TimingNodeTypes.RegistrationResult first = addTestAutomaticRegistration(node,
+            CommandResult first = addTestAutomaticRegistration(node,
                             new RegistrationId("1001"),
                             EFFECTIVE_TIME,
                             TimingData.AutomaticTimeSource.API);
-            TimingNodeTypes.RegistrationResult second = addManualRegistration(node,
+            CommandResult second = addManualRegistration(node,
                     new RegistrationId("1002"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.AUTOMATIC);
@@ -287,19 +288,19 @@ public class TimingNodeRegistrationTest {
         activate(node);
         try {
 
-            TimingNodeTypes.RegistrationResult rejected = addManualRegistration(node,
+            CommandResult rejected = addManualRegistration(node,
                     new RegistrationId("1001"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.OPERATOR_ENTERED);
 
             assertEquals(
-                    TimingNodeTypes.RegistrationResult.Outcome.NODE_NOT_OPEN,
+                    CommandResult.Outcome.NODE_NOT_OPEN,
                     rejected.outcome());
             assertEquals(0, store.appended.size());
             assertEquals(0, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
 
             node.open(new LocationId(24));
-            TimingNodeTypes.RegistrationResult committed = addManualRegistration(node,
+            CommandResult committed = addManualRegistration(node,
                     new RegistrationId("1002"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.OPERATOR_ENTERED);
@@ -325,10 +326,8 @@ public class TimingNodeRegistrationTest {
                         EFFECTIVE_TIME,
                         ManualTimeSource.OPERATOR_ENTERED);
                 fail("expected persistence failure");
-            } catch (TimingNodeTypes.OperationException expected) {
-                assertEquals(
-                        TimingNodeTypes.OperationException.Reason.FAILED,
-                        expected.reason());
+            } catch (IllegalStateException expected) {
+                assertTrue(expected.getMessage().contains("failed"));
             }
 
             assertEquals(1, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
@@ -340,10 +339,8 @@ public class TimingNodeRegistrationTest {
                         EFFECTIVE_TIME,
                         ManualTimeSource.OPERATOR_ENTERED);
                 fail("expected blocked commit");
-            } catch (TimingNodeTypes.OperationException expected) {
-                assertEquals(
-                        TimingNodeTypes.OperationException.Reason.FAILED,
-                        expected.reason());
+            } catch (IllegalStateException expected) {
+                assertTrue(expected.getMessage().contains("failed"));
             }
 
             assertEquals(2, store.attempts);
@@ -365,17 +362,17 @@ public class TimingNodeRegistrationTest {
         activate(node);
         try {
 
-            TimingNodeTypes.RegistrationResult rejected = addManualRegistration(node,
+            CommandResult rejected = addManualRegistration(node,
                     new RegistrationId("1001"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.OPERATOR_ENTERED);
             assertEquals(
-                    TimingNodeTypes.RegistrationResult.Outcome.NODE_NOT_OPEN,
+                    CommandResult.Outcome.NODE_NOT_OPEN,
                     rejected.outcome());
             assertTrue(delivered.isEmpty());
 
             node.open(new LocationId(24));
-            TimingNodeTypes.RegistrationResult committed = addManualRegistration(node,
+            CommandResult committed = addManualRegistration(node,
                     new RegistrationId("1002"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.OPERATOR_ENTERED);
@@ -409,10 +406,8 @@ public class TimingNodeRegistrationTest {
                         EFFECTIVE_TIME,
                         ManualTimeSource.OPERATOR_ENTERED);
                 fail("expected persistence failure");
-            } catch (TimingNodeTypes.OperationException expected) {
-                assertEquals(
-                        TimingNodeTypes.OperationException.Reason.FAILED,
-                        expected.reason());
+            } catch (IllegalStateException expected) {
+                assertTrue(expected.getMessage().contains("failed"));
             }
 
             assertTrue(delivered.isEmpty());
@@ -438,7 +433,7 @@ public class TimingNodeRegistrationTest {
             node.open(new LocationId(24));
             delivered.clear();
 
-            TimingNodeTypes.RegistrationResult committed = addManualRegistration(node,
+            CommandResult committed = addManualRegistration(node,
                     new RegistrationId("1001"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.AUTOMATIC);
@@ -460,15 +455,13 @@ public class TimingNodeRegistrationTest {
 
         activate(node);
         try {
-            TimingNodeTypes.RegistrationResult result =
-                    node.logBook().process(
-                            LogBookCommands.revokeAutomaticRegistration(
-                                    new LocationId(24),
-                                    new RegistrationId("1001"),
-                                    EFFECTIVE_TIME));
-
             AutomaticRegistration data =
-                    (AutomaticRegistration) result.timingData();
+                    (AutomaticRegistration)
+                            node.logBook().process(
+                                    LogBookCommands.revokeAutomaticRegistration(
+                                            new LocationId(24),
+                                            new RegistrationId("1001"),
+                                            EFFECTIVE_TIME));
             assertEquals(1L, data.sequenceNumber());
             assertEquals(new LocationId(24), data.locationId());
             assertEquals(EFFECTIVE_TIME, data.effectiveTime());
@@ -489,16 +482,14 @@ public class TimingNodeRegistrationTest {
 
         activate(node);
         try {
-            TimingNodeTypes.RegistrationResult result =
-                    node.logBook().process(
-                            LogBookCommands.revokeManualRegistration(
-                                    new LocationId(24),
-                                    new RegistrationId("1001"),
-                                    EFFECTIVE_TIME,
-                                    ManualTimeSource.OPERATOR_ENTERED));
-
             ManualRegistration data =
-                    (ManualRegistration) result.timingData();
+                    (ManualRegistration)
+                            node.logBook().process(
+                                    LogBookCommands.revokeManualRegistration(
+                                            new LocationId(24),
+                                            new RegistrationId("1001"),
+                                            EFFECTIVE_TIME,
+                                            ManualTimeSource.OPERATOR_ENTERED));
             assertEquals(
                     TimingData.RegistrationAction.REV,
                     data.action());
@@ -550,7 +541,7 @@ public class TimingNodeRegistrationTest {
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
                     node.open(new LocationId(24)));
-            TimingNodeTypes.RegistrationResult committed = addManualRegistration(node,
+            CommandResult committed = addManualRegistration(node,
                     new RegistrationId("1003"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.AUTOMATIC);
@@ -606,10 +597,8 @@ public class TimingNodeRegistrationTest {
             try {
                 node.logBook().process(LogBookQueries.timingDataCount());
                 fail("expected failed LogBook to reject ordered query");
-            } catch (TimingNodeTypes.OperationException expected) {
-                assertEquals(
-                        TimingNodeTypes.OperationException.Reason.FAILED,
-                        expected.reason());
+            } catch (IllegalStateException expected) {
+                assertTrue(expected.getMessage().contains("failed"));
             }
 
             try {
@@ -623,7 +612,7 @@ public class TimingNodeRegistrationTest {
         }
     }
 
-    private static TimingNodeTypes.RegistrationResult addTestAutomaticRegistration(
+    private static CommandResult addTestAutomaticRegistration(
             TimingNode node,
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
@@ -634,41 +623,45 @@ public class TimingNodeRegistrationTest {
                         || registrationTimeSource == TimingData.AutomaticTimeSource.NODE,
                 "test automatic registration time source must be API or NODE");
 
-        Supplier<TimingNodeTypes.RegistrationResult> addRegistration = () -> {
-            TimingNodeTypes.RegistrationResult result;
+        Supplier<CommandResult> addRegistration = () -> {
+            CommandResult result;
             if (node.functionalState() != TimingNodeTypes.FunctionalState.OPEN) {
-                result = TimingNodeTypes.RegistrationResult.nodeNotOpen();
+                result = CommandResult.nodeNotOpen();
             } else {
-                result = node.logBook().process(
-                        LogBookCommands.commitAutomaticRegistration(
-                                node.locationId(),
-                                registrationId,
-                                effectiveTime,
-                                TimingData.TagSource.API,
-                                registrationTimeSource));
+                TimingData timingData =
+                        node.logBook().process(
+                                LogBookCommands.commitAutomaticRegistration(
+                                        node.locationId(),
+                                        registrationId,
+                                        effectiveTime,
+                                        TimingData.TagSource.API,
+                                        registrationTimeSource));
+                result = CommandResult.committed(timingData);
             }
             return result;
         };
         return node.processLocked(addRegistration);
     }
 
-    private static TimingNodeTypes.RegistrationResult addManualRegistration(
+    private static CommandResult addManualRegistration(
             TimingNode node,
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
             ManualTimeSource registrationTimeSource) {
 
-        Supplier<TimingNodeTypes.RegistrationResult> addRegistration = () -> {
-            TimingNodeTypes.RegistrationResult result;
+        Supplier<CommandResult> addRegistration = () -> {
+            CommandResult result;
             if (node.functionalState() != TimingNodeTypes.FunctionalState.OPEN) {
-                result = TimingNodeTypes.RegistrationResult.nodeNotOpen();
+                result = CommandResult.nodeNotOpen();
             } else {
-                result = node.logBook().process(
-                        LogBookCommands.commitManualRegistration(
-                                node.locationId(),
-                                registrationId,
-                                effectiveTime,
-                                registrationTimeSource));
+                TimingData timingData =
+                        node.logBook().process(
+                                LogBookCommands.commitManualRegistration(
+                                        node.locationId(),
+                                        registrationId,
+                                        effectiveTime,
+                                        registrationTimeSource));
+                result = CommandResult.committed(timingData);
             }
             return result;
         };

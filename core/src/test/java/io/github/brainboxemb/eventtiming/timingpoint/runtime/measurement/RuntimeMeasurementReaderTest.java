@@ -129,7 +129,7 @@ public class RuntimeMeasurementReaderTest {
         LifecycleTestSupport.activate(node);
         try {
             node.open(new LocationId(24));
-            Supplier<TimingNodeTypes.RegistrationResult> addRegistration = () -> {
+            Supplier<TimingData> addRegistration = () -> {
                 return node.logBook().process(
                         LogBookCommands.commitAutomaticRegistration(
                                 node.locationId(),
@@ -138,9 +138,10 @@ public class RuntimeMeasurementReaderTest {
                                 TimingData.TagSource.API,
                                 TimingData.AutomaticTimeSource.API));
             };
-            assertTrue(
+            assertEquals(
+                    2L,
                     node.processLocked(addRegistration)
-                            .committed());
+                            .sequenceNumber());
 
             /*
              * Ordered query is a barrier for the lane completion counter before

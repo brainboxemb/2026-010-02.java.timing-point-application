@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.task;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
 import java.util.concurrent.CountDownLatch;
@@ -82,8 +81,8 @@ public class NodeTaskLaneTest {
         try {
             taskLane.submitAndWait(() -> Integer.valueOf(1), "inactive-read");
             fail("inactive Task Lane accepted work");
-        } catch (OperationException expected) {
-            assertEquals(OperationException.Reason.UNAVAILABLE, expected.reason());
+        } catch (IllegalStateException expected) {
+            assertTrue(expected.getMessage().contains("not running"));
         }
     }
 

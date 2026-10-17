@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
@@ -20,9 +19,8 @@ public interface LogBookAccessor {
      *
      * <p>This call blocks until the Data Lane returns the command result or the operation fails.</p>
      *
-     * @throws OperationException when the ordered operation cannot return its normal result
      */
-    <R> R process(LogBookCommand<R> command) throws OperationException;
+    <R> R process(LogBookCommand<R> command);
 
     /**
      * Executes one command asynchronously and returns after queueing.
@@ -37,9 +35,8 @@ public interface LogBookAccessor {
      *
      * <p>This call blocks until earlier queued Data Lane work has completed and the query returns.</p>
      *
-     * @throws OperationException when the ordered query cannot return its normal result
      */
-    <R> R process(LogBookQuery<R> query) throws OperationException;
+    <R> R process(LogBookQuery<R> query);
 
     /**
      * Processes a query with the requested consistency.
@@ -47,9 +44,8 @@ public interface LogBookAccessor {
      * <p>ORDERED may block on the Data Lane. CURRENT reads the published snapshot directly
      * and does not wait for queued Data Lane work.</p>
      *
-     * @throws OperationException when the requested query cannot return its normal result
      */
-    <R> R process(LogBookQuery<R> query, ReadConsistency consistency) throws OperationException;
+    <R> R process(LogBookQuery<R> query, ReadConsistency consistency);
 
     /** Returns the recovery event; listeners are invoked synchronously on the LogBook Data Lane. */
     EventSource<LogBookRecoveryStatus> recoveryStatusChangedEvent();

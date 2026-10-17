@@ -27,7 +27,6 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
 
 /**
  * Coordinates one timing node.
@@ -99,8 +98,7 @@ public final class TimingNode extends LifecycleComponent {
             TagProcessor tagProcessor) {
 
         super(
-                () -> new OperationException(
-                        OperationException.Reason.UNAVAILABLE,
+                () -> new IllegalStateException(
                         "TimingNode " + logBook.timingNodeId().value() + " is not active"));
 
         failIfInvalidArgument(antennaId != null, "antennaId must not be null");
@@ -168,9 +166,9 @@ public final class TimingNode extends LifecycleComponent {
      * admission boundary. The corresponding NODE_OPEN TimingData record is submitted
      * to the LogBook without waiting for persistence.</p>
      *
-     * @throws OperationException when the node is not available for opening
+     * @throws IllegalStateException when the node is not active
      */
-    public OpenResult open(LocationId locationId) throws OperationException {
+    public OpenResult open(LocationId locationId) {
 
         failIfInvalidArgument(locationId != null, "locationId must not be null");
         synchronized (operationLock) {

@@ -15,8 +15,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationException;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
@@ -89,10 +87,8 @@ public final class TimingNodeProxy {
 
     /**
      * Opens the node at the requested LocationId.
-     *
-     * @throws OperationException when the node is not available for opening
      */
-    public OpenResult open(LocationId locationId) throws OperationException {
+    public OpenResult open(LocationId locationId) {
         return timingNode.open(locationId);
     }
 
@@ -115,33 +111,31 @@ public final class TimingNodeProxy {
      * stay unchanged while the result-bearing LogBook command is processed. The caller
      * also identifies whether the supplied time came from this node's TimeSource or was
      * explicitly supplied by an API client.</p>
-     *
-     * @throws OperationException when the node operation cannot return its normal result
      */
-    public RegistrationResult addTestAutomaticRegistration(
+    public CommandResult addTestAutomaticRegistration(
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
-            TimingData.AutomaticTimeSource registrationTimeSource)
-            throws OperationException {
+            TimingData.AutomaticTimeSource registrationTimeSource) {
 
         failIfInvalidArgument(
                 registrationTimeSource == TimingData.AutomaticTimeSource.API
                         || registrationTimeSource == TimingData.AutomaticTimeSource.NODE,
                 "test automatic registration time source must be API or NODE");
 
-        Supplier<RegistrationResult> addRegistration = () -> {
-            RegistrationResult result;
+        Supplier<CommandResult> addRegistration = () -> {
+            CommandResult result;
             if (timingNode.functionalState() != FunctionalState.OPEN) {
-                result = RegistrationResult.nodeNotOpen();
+                result = CommandResult.nodeNotOpen();
             } else {
-                LogBookCommand<RegistrationResult> command =
+                LogBookCommand<TimingData> command =
                         LogBookCommands.commitAutomaticRegistration(
                                 timingNode.locationId(),
                                 registrationId,
                                 effectiveTime,
                                 TimingData.TagSource.API,
                                 registrationTimeSource);
-                result = logBook.process(command);
+                TimingData timingData = logBook.process(command);
+                result = CommandResult.committed(timingData);
             }
             return result;
         };
@@ -155,30 +149,28 @@ public final class TimingNodeProxy {
      *
      * <p>The TimingNode operation lock keeps the OPEN check and current LocationId
      * together with the ordered LogBook commit.</p>
-     *
-     * @throws OperationException when the node operation cannot return its normal result
      */
-    public RegistrationResult addManualRegistration(
+    public CommandResult addManualRegistration(
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
-            ManualTimeSource timeSource)
-            throws OperationException {
+            ManualTimeSource timeSource) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         failIfInvalidArgument(effectiveTime != null, "effectiveTime must not be null");
         failIfInvalidArgument(timeSource != null, "timeSource must not be null");
-        Supplier<RegistrationResult> addRegistration = () -> {
-            RegistrationResult result;
+        Supplier<CommandResult> addRegistration = () -> {
+            CommandResult result;
             if (timingNode.functionalState() != FunctionalState.OPEN) {
-                result = RegistrationResult.nodeNotOpen();
+                result = CommandResult.nodeNotOpen();
             } else {
-                LogBookCommand<RegistrationResult> command =
+                LogBookCommand<TimingData> command =
                         LogBookCommands.commitManualRegistration(
                                 timingNode.locationId(),
                                 registrationId,
                                 effectiveTime,
                                 timeSource);
-                result = logBook.process(command);
+                TimingData timingData = logBook.process(command);
+                result = CommandResult.committed(timingData);
             }
             return result;
         };
@@ -194,23 +186,20 @@ public final class TimingNodeProxy {
      * Higher application/business logic selects the record family and original
      * values. The LogBook command is processed inside the TimingNode operation lock
      * so presentation-triggered writes use one consistent node-scoped mutation scope.</p>
-     *
-     * @throws OperationException when the ordered LogBook operation cannot return its normal result
      */
-    public RegistrationResult revokeRegistration(
+    public CommandResult revokeRegistration(
             RegistrationRecordType recordType,
             LocationId originalLocationId,
             RegistrationId registrationId,
             TimingTimestamp originalTime,
-            ManualTimeSource originalTimeSource)
-            throws OperationException {
+            ManualTimeSource originalTimeSource) {
 
         failIfInvalidArgument(recordType != null, "recordType must not be null");
         failIfInvalidArgument(originalLocationId != null, "originalLocationId must not be null");
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         failIfInvalidArgument(originalTime != null, "originalTime must not be null");
 
-        LogBookCommand<RegistrationResult> command;
+        LogBookCommand<TimingData> command;
         switch (recordType) {
             case AUTO_REG:
                 failIfInvalidArgument(
@@ -236,16 +225,15 @@ public final class TimingNodeProxy {
                         "Unsupported registration record type " + recordType);
         }
 
-        Supplier<RegistrationResult> processRevocation = () -> logBook.process(command);
+        Supplier<CommandResult> processRevocation =
+                () -> CommandResult.committed(logBook.process(command));
         return timingNode.processLocked(processRevocation);
     }
 
     /**
      * Returns the number of committed records in this node LogBook.
-     *
-     * @throws OperationException when the ordered LogBook read cannot return its result
      */
-    public int logBookCount() throws OperationException {
+    public int logBookCount() {
         return logBook.process(LogBookQueries.timingDataCount());
     }
 
@@ -253,13 +241,11 @@ public final class TimingNodeProxy {
      * Visits a bounded committed LogBook range in source order.
      *
      * @return total committed LogBook count from the same ordered read
-     * @throws OperationException when the ordered LogBook read cannot return its result
      */
     public int visitLogBookFrom(
             long fromSequence,
             int limit,
-            Consumer<TimingData> visitor)
-            throws OperationException {
+            Consumer<TimingData> visitor) {
         return logBook.process(
                 LogBookQueries.visitTimingDataRange(
                         fromSequence,
@@ -271,12 +257,10 @@ public final class TimingNodeProxy {
      * Visits a bounded newest LogBook range in source order.
      *
      * @return total committed LogBook count from the same ordered read
-     * @throws OperationException when the ordered LogBook read cannot return its result
      */
     public int visitLatestLogBook(
             int limit,
-            Consumer<TimingData> visitor)
-            throws OperationException {
+            Consumer<TimingData> visitor) {
         return logBook.process(
                 LogBookQueries.visitLatestTimingData(limit, visitor));
     }
