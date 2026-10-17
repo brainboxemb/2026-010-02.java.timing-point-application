@@ -20,15 +20,18 @@ public final class TimingNodeTypes {
         OPEN
     }
 
-    /** Runtime readiness of a TimingNode independent from OPEN/CLOSED. */
+    /**
+     * Runtime readiness of the TimingNode itself, independent from OPEN/CLOSED
+     * and from child-component health such as LogBook recovery state.
+     */
     public enum OperationalState {
         /** Startup/recovery is still in progress. */
         INIT,
 
-        /** Normal TimingNode operations are available. */
+        /** The TimingNode's own startup/execution path is operational. */
         OK,
 
-        /** Startup completed with a problem that prevents normal operation. */
+        /** The TimingNode's own startup/execution path failed. */
         ERROR
     }
 
