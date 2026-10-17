@@ -6,14 +6,13 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 
 import java.time.ZoneId;
 import java.util.List;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.function.Consumer;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +33,65 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 public final class NodeService extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(NodeService.class);
     private static final long TASK_QUERY_TIMEOUT_MILLIS = 2000L;
+
+    /** One immutable startup-history fact queued onto the Task Lane. */
+    private static final class InitialTimingDataItem implements NodeTaskLane.Item {
+        private final List<TimingData> timingData;
+
+        private InitialTimingDataItem(List<TimingData> timingData) {
+            this.timingData = timingData;
+        }
+
+        @Override
+        public String name() {
+            return "initial TimingData";
+        }
+    }
+
+    /** One newly committed TimingData fact queued onto the Task Lane. */
+    private static final class CommittedTimingDataItem implements NodeTaskLane.Item {
+        private final TimingData timingData;
+
+        private CommittedTimingDataItem(TimingData timingData) {
+            this.timingData = timingData;
+        }
+
+        @Override
+        public String name() {
+            return "committed TimingData";
+        }
+    }
+
+    /** One ordered stage-timing query queued onto the Task Lane. */
+    private static final class StageTimingQueryItem
+            implements NodeTaskLane.ResultItem<List<StageTime>> {
+
+        private final ZoneId raceTimeZone;
+        private final CompletableFuture<List<StageTime>> result =
+                new CompletableFuture<List<StageTime>>();
+
+        private StageTimingQueryItem(ZoneId raceTimeZone) {
+            this.raceTimeZone = raceTimeZone;
+        }
+
+        @Override
+        public String name() {
+            return "stageTiming";
+        }
+
+        @Override
+        public Future<List<StageTime>> result() {
+            return result;
+        }
+
+        private void complete(List<StageTime> stageTimes) {
+            result.complete(stageTimes);
+        }
+
+        private void fail(Throwable failure) {
+            result.completeExceptionally(failure);
+        }
+    }
 
     /** Initial LogBook history input used to rebuild derived timing state. */
     public static final EventInput<NodeService, List<TimingData>> INITIAL_TIMING_DATA =
@@ -58,7 +116,7 @@ public final class NodeService extends LifecycleComponent {
         failIfInvalidArgument(state != null, "state must not be null");
 
         this.nodeId = nodeId;
-        this.taskLane = new NodeTaskLane(serialLane, TASK_QUERY_TIMEOUT_MILLIS);
+        this.taskLane = new NodeTaskLane(serialLane, TASK_QUERY_TIMEOUT_MILLIS, this::processTaskLaneItem);
         this.state = state;
         this.stageTiming = new StageTiming(
                 state.eventData(), state.teamAssignments(), state.stageStartTimes());
@@ -103,7 +161,7 @@ public final class NodeService extends LifecycleComponent {
         if (taskLane.isExecutingOnCurrentThread()) {
             return buildStageTiming(raceTimeZone);
         }
-        return taskLane.submitAndWait(() -> buildStageTiming(raceTimeZone), "stageTiming");
+        return taskLane.submitAndWait(new StageTimingQueryItem(raceTimeZone));
     }
 
     /** Builds the derived stage ranking while the Task Lane owns mutable derived state. */
@@ -120,10 +178,7 @@ public final class NodeService extends LifecycleComponent {
      * handler only queues the history fold onto the Task Lane and returns.</p>
      */
     private void onInitialTimingDataLoaded(List<TimingData> loadedData) {
-
-        // Runnable defers the one-time history fold until the Task Lane owns derived state.
-        Runnable rebuildInitialState = () -> rebuildDerivedTiming(loadedData);
-        handoffTimingFact(rebuildInitialState, "initial TimingData");
+        handoffTimingFact(new InitialTimingDataItem(loadedData));
     }
 
     /**
@@ -133,10 +188,7 @@ public final class NodeService extends LifecycleComponent {
      * handler only queues the derived-state update onto the Task Lane and returns.</p>
      */
     private void onTimingDataCommitted(TimingData data) {
-
-        // Runnable defers the compact derived-state update to preserve Task Lane order.
-        Runnable applyCommittedData = () -> applyCommittedTimingData(data);
-        handoffTimingFact(applyCommittedData, "committed TimingData");
+        handoffTimingFact(new CommittedTimingDataItem(data));
     }
 
     /**
@@ -146,19 +198,44 @@ public final class NodeService extends LifecycleComponent {
      * physical worker. Failure to queue the fact makes derived timing state
      * explicitly stale rather than silently losing synchronization.</p>
      */
-    private void handoffTimingFact(Runnable operation, String fact) {
-
-        Runnable queueTimingFact = () -> taskLane.execute(operation);
-        Consumer<RejectedExecutionException> onRejected = ex -> {
+    private void handoffTimingFact(NodeTaskLane.Item item) {
+        try {
+            taskLane.execute(item);
+        } catch (RuntimeException ex) {
             state.markDerivedTimingStale();
             LOG.error(
                     "Task Lane rejected {} for node {}; derived timing state is stale",
-                    fact,
+                    item.name(),
                     nodeId.value(),
                     ex);
-        };
+        }
+    }
 
-        SafeExecute.runOrHandleRejection(queueTimingFact, onRejected);
+    /** Processes one typed NodeService item on the Task Lane worker. */
+    private void processTaskLaneItem(NodeTaskLane.Item item) {
+        try {
+            if (item instanceof InitialTimingDataItem) {
+                rebuildDerivedTiming(((InitialTimingDataItem) item).timingData);
+            } else if (item instanceof CommittedTimingDataItem) {
+                applyCommittedTimingData(((CommittedTimingDataItem) item).timingData);
+            } else if (item instanceof StageTimingQueryItem) {
+                StageTimingQueryItem query = (StageTimingQueryItem) item;
+                query.complete(buildStageTiming(query.raceTimeZone));
+            } else {
+                throw new IllegalStateException(
+                        "Unsupported NodeService Task Lane item " + item.getClass().getName());
+            }
+        } catch (RuntimeException ex) {
+            if (item instanceof StageTimingQueryItem) {
+                ((StageTimingQueryItem) item).fail(ex);
+            }
+            throw ex;
+        } catch (Error error) {
+            if (item instanceof StageTimingQueryItem) {
+                ((StageTimingQueryItem) item).fail(error);
+            }
+            throw error;
+        }
     }
 
     /** Rebuilds derived timing while this service owns the SerialLane turn. */
