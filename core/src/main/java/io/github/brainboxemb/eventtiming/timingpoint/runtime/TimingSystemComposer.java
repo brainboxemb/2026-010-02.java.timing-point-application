@@ -5,7 +5,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.system.TimingSystemC
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
-import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSettings;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.PlatformEnvironment;
@@ -22,8 +21,8 @@ import java.util.List;
  *
  * <p>Only the backing executor resources and application coordination are shared.
  * Nodes, their persistence, logical lanes, antenna set and AntennaManager are
- * built independently for each system. Runtime passes the shared
- * AntennaSettings to the Domain Conductor, not AntennaManager itself.
+ * built independently for each system. Runtime passes the optional AntennaManager
+ * directly to the Domain Conductor for non-blocking desired-inventory control.
  * Runtime builds the children; the resulting {@link TimingSystem} owns
  * system-level event wiring and lifecycle.
  * Node-internal child composition belongs to {@link TimingNodeComposer}. This
@@ -60,16 +59,14 @@ final class TimingSystemComposer {
         AntennaSet antennaSet = createAntennas(managerBinding, implicitAntennas);
         TimingNodeList nodes = createNodes(system, antennaSet, timeSource);
 
-        AntennaSettings antennaSettings = antennaSet.isEmpty() ? null : new AntennaSettings();
         AntennaManager antennaManager = antennaSet.isEmpty()
                 ? null : new AntennaManager(
                         antennaSet,
-                        executors.createAntennaControlLane(ANTENNA_CONTROL_TIMEOUT),
-                        antennaSettings);
+                        executors.createAntennaControlLane(ANTENNA_CONTROL_TIMEOUT));
 
         TimingSystemConductor timingSystemConductor = new TimingSystemConductor(
                 nodes,
-                antennaSettings,
+                antennaManager,
                 executors.createTimingSystemConductorLane());
 
         return new TimingSystem(

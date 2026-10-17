@@ -133,7 +133,7 @@ public class ApplicationConductorTest {
             timingSystemConductor =
                     new TimingSystemConductor(
                             timingNodes,
-                            manager.settings(),
+                            manager,
                             new TaskSerialLane(
                                     8,
                                     "app-system-" + label,
