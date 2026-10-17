@@ -44,7 +44,7 @@ public final class LaneScheduler {
     }
 
     /**
-     * Schedules recurring fire-and-forget work with delay measured after each lane turn.
+     * Schedules recurring fire-and-forget work with delay measured after each queued operation.
      *
      * <p>The scheduled executor only wakes the operation. The callback itself always runs
      * on the owning serial lane. If that bounded lane is temporarily full, the
@@ -211,7 +211,7 @@ public final class LaneScheduler {
             }
         }
 
-        /** Runs one admitted fixed-delay turn and schedules its next trigger afterwards. */
+        /** Runs one admitted fixed-delay operation and schedules its next trigger afterwards. */
         private void runAndScheduleNext() {
             try {
                 operation.run();
