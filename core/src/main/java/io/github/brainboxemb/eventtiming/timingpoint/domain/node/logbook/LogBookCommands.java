@@ -7,7 +7,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.RegistrationResult;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Standard TimingData commit commands executed through the LogBook component.
@@ -23,7 +23,7 @@ public final class LogBookCommands {
     /** Commits one NODE_OPEN TimingData record selected by the owning TimingNode. */
     public static LogBookCommand<Void> commitNodeOpen(LocationId locationId) {
 
-        checkArgument(locationId != null, "locationId must not be null");
+        failIfInvalidArgument(locationId != null, "locationId must not be null");
         return simple(
                 "commitNodeOpen",
                 operations -> {
@@ -35,7 +35,7 @@ public final class LogBookCommands {
     /** Commits one NODE_CLOSE TimingData record selected by the owning TimingNode. */
     public static LogBookCommand<Void> commitNodeClose(LocationId locationId) {
 
-        checkArgument(locationId != null, "locationId must not be null");
+        failIfInvalidArgument(locationId != null, "locationId must not be null");
         return simple(
                 "commitNodeClose",
                 operations -> {
@@ -68,11 +68,11 @@ public final class LogBookCommands {
                     TimingData.TagSource tagSource,
                     TimingData.AutomaticTimeSource registrationTimeSource) {
 
-        checkArgument(locationId != null, "locationId must not be null");
-        checkArgument(registrationId != null, "registrationId must not be null");
-        checkArgument(effectiveTime != null, "effectiveTime must not be null");
-        checkArgument(tagSource != null, "tagSource must not be null");
-        checkArgument(registrationTimeSource != null, "registrationTimeSource must not be null");
+        failIfInvalidArgument(locationId != null, "locationId must not be null");
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+        failIfInvalidArgument(effectiveTime != null, "effectiveTime must not be null");
+        failIfInvalidArgument(tagSource != null, "tagSource must not be null");
+        failIfInvalidArgument(registrationTimeSource != null, "registrationTimeSource must not be null");
 
         return simple(
                 "commitAutomaticRegistration",
@@ -94,10 +94,10 @@ public final class LogBookCommands {
                     TimingTimestamp effectiveTime,
                     ManualTimeSource registrationTimeSource) {
 
-        checkArgument(locationId != null, "locationId must not be null");
-        checkArgument(registrationId != null, "registrationId must not be null");
-        checkArgument(effectiveTime != null, "effectiveTime must not be null");
-        checkArgument(
+        failIfInvalidArgument(locationId != null, "locationId must not be null");
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+        failIfInvalidArgument(effectiveTime != null, "effectiveTime must not be null");
+        failIfInvalidArgument(
                 registrationTimeSource != null,
                 "registrationTimeSource must not be null");
 
@@ -145,7 +145,7 @@ public final class LogBookCommands {
                 originalLocationId,
                 registrationId,
                 originalTime);
-        checkArgument(
+        failIfInvalidArgument(
                 originalTimeSource != null,
                 "originalTimeSource must not be null");
         return simple(
@@ -163,13 +163,13 @@ public final class LogBookCommands {
             RegistrationId registrationId,
             TimingTimestamp originalTime) {
 
-        checkArgument(
+        failIfInvalidArgument(
                 originalLocationId != null,
                 "originalLocationId must not be null");
-        checkArgument(
+        failIfInvalidArgument(
                 registrationId != null,
                 "registrationId must not be null");
-        checkArgument(
+        failIfInvalidArgument(
                 originalTime != null,
                 "originalTime must not be null");
     }

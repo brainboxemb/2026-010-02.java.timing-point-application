@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Active TeamId-to-stage-start data for one TimingNode.
@@ -36,26 +36,26 @@ public final class StageStartTimes {
 
     /** Returns the current stage start for the TeamId, or null when none is configured. */
     public TimingTimestamp startFor(TeamId teamId) {
-        checkArgument(teamId != null, "teamId must not be null");
+        failIfInvalidArgument(teamId != null, "teamId must not be null");
         return starts.get(teamId);
     }
 
     /** Sets the current stage start for one TeamId. */
     public void set(TeamId teamId, TimingTimestamp start) {
-        checkArgument(teamId != null, "teamId must not be null");
-        checkArgument(start != null, "start must not be null");
+        failIfInvalidArgument(teamId != null, "teamId must not be null");
+        failIfInvalidArgument(start != null, "start must not be null");
         starts.put(teamId, start);
     }
 
     /** Removes any current stage start for the TeamId. */
     public void remove(TeamId teamId) {
-        checkArgument(teamId != null, "teamId must not be null");
+        failIfInvalidArgument(teamId != null, "teamId must not be null");
         starts.remove(teamId);
     }
 
     /** Replaces live state with a transactional stage-start copy. */
     public void replaceWith(StageStartTimes updatedStartTimes) {
-        checkArgument(updatedStartTimes != null, "updatedStartTimes must not be null");
+        failIfInvalidArgument(updatedStartTimes != null, "updatedStartTimes must not be null");
         starts.clear();
         starts.putAll(updatedStartTimes.starts);
     }

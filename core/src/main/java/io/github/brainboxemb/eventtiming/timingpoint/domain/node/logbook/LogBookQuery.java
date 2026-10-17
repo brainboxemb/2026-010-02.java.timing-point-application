@@ -2,7 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import java.util.function.Function;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Typed read operation for the LogBook/Data Lane component.
@@ -42,8 +42,8 @@ public final class LogBookQuery<R> {
             String name,
             Function<LogBookState, R> orderedReader,
             Function<LogBook, R> currentReader) {
-        checkArgument(name != null && !name.trim().isEmpty(), "name must not be blank");
-        checkArgument(orderedReader != null, "orderedReader must not be null");
+        failIfInvalidArgument(name != null && !name.trim().isEmpty(), "name must not be blank");
+        failIfInvalidArgument(orderedReader != null, "orderedReader must not be null");
         this.name = name;
         this.orderedReader = orderedReader;
         this.currentReader = currentReader;
@@ -61,7 +61,7 @@ public final class LogBookQuery<R> {
 
     /** Reads the safely published CURRENT view or rejects unsupported consistency. */
     R readCurrent(LogBook logBook) {
-        checkArgument(currentReader != null, "LogBook query %s does not support CURRENT consistency", name);
+        failIfInvalidArgument(currentReader != null, "LogBook query %s does not support CURRENT consistency", name);
         return currentReader.apply(logBook);
     }
 }

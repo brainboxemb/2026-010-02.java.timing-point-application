@@ -25,7 +25,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.function.Consumer;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
@@ -107,11 +107,11 @@ public final class TimingNode extends LifecycleComponent {
                         OperationException.Reason.UNAVAILABLE,
                         "TimingNode " + logBook.timingNodeId().value() + " is not active"));
 
-        checkArgument(antennaId != null, "antennaId must not be null");
-        checkArgument(timeSource != null, "timeSource must not be null");
-        checkArgument(logBook != null, "logBook must not be null");
-        checkArgument(nodeService != null, "nodeService must not be null");
-        checkArgument(tagProcessor != null, "tagProcessor must not be null");
+        failIfInvalidArgument(antennaId != null, "antennaId must not be null");
+        failIfInvalidArgument(timeSource != null, "timeSource must not be null");
+        failIfInvalidArgument(logBook != null, "logBook must not be null");
+        failIfInvalidArgument(nodeService != null, "nodeService must not be null");
+        failIfInvalidArgument(tagProcessor != null, "tagProcessor must not be null");
 
         this.timingNodeId = logBook.timingNodeId();
         this.antennaId = antennaId;
@@ -176,7 +176,7 @@ public final class TimingNode extends LifecycleComponent {
      */
     public OpenResult open(LocationId locationId) throws OperationException {
 
-        checkArgument(locationId != null, "locationId must not be null");
+        failIfInvalidArgument(locationId != null, "locationId must not be null");
         synchronized (operationLock) {
             failIfInactive();
 
@@ -238,7 +238,7 @@ public final class TimingNode extends LifecycleComponent {
             TimingData.AutomaticTimeSource registrationTimeSource)
             throws OperationException {
 
-        checkArgument(
+        failIfInvalidArgument(
                 registrationTimeSource == TimingData.AutomaticTimeSource.API
                         || registrationTimeSource == TimingData.AutomaticTimeSource.NODE,
                 "test automatic registration time source must be API or NODE");

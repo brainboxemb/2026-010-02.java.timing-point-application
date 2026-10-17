@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replace `checkArgument(...)` / `checkState(...)` with explicit always-enabled failure guards `failIfInvalidArgument(...)` / `failIfIllegalState(...)`. Callers keep positive assertion conditions: true means the contract holds and false throws.
+
 - Stabilize asynchronous AntennaManager and TimingNode tests by waiting for semantic readiness/startup completion before asserting or constructing full-queue scenarios.
 
 - Give `AbstractConductor` an explicit construction-time diagnostic name so generic start/stop lifecycle logs identify the concrete conductor.

@@ -5,7 +5,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Owns heartbeat protocol state for one TimingNode.
@@ -36,8 +36,8 @@ final class UpstreamHeartbeat {
 
     /** Creates heartbeat protocol state for one node-scoped upstream stream. */
     UpstreamHeartbeat(NodeId nodeId, UpstreamStream stream) {
-        checkArgument(nodeId != null, "nodeId must not be null");
-        checkArgument(stream != null, "stream must not be null");
+        failIfInvalidArgument(nodeId != null, "nodeId must not be null");
+        failIfInvalidArgument(stream != null, "stream must not be null");
         this.nodeId = nodeId;
         this.stream = stream;
     }
@@ -73,7 +73,7 @@ final class UpstreamHeartbeat {
      * Handles both peer PING requests and answers to our heartbeat request.
      */
     void handle(UpstreamData.Ping ping) {
-        checkArgument(ping != null, "ping must not be null");
+        failIfInvalidArgument(ping != null, "ping must not be null");
 
         if (ping.operation() == UpstreamData.PingOperation.REQ) {
             stream.send(DefaultUpstreamData.ping(

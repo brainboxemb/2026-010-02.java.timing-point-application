@@ -8,7 +8,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.storage.AppendOnlyRecord
 import java.util.ArrayList;
 import java.util.List;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Default TimingData persistence mapping over a generic append-only record store.
@@ -27,9 +27,9 @@ public final class DefaultTimingDataPersistence implements TimingDataPersistence
             AppendOnlyRecordStore recordStore,
             NodeId timingNodeId,
             TimingDataCodec codec) {
-        checkArgument(recordStore != null, "recordStore must not be null");
-        checkArgument(timingNodeId != null, "timingNodeId must not be null");
-        checkArgument(codec != null, "codec must not be null");
+        failIfInvalidArgument(recordStore != null, "recordStore must not be null");
+        failIfInvalidArgument(timingNodeId != null, "timingNodeId must not be null");
+        failIfInvalidArgument(codec != null, "codec must not be null");
         this.recordStore = recordStore;
         this.timingNodeId = timingNodeId;
         this.codec = codec;
@@ -60,7 +60,7 @@ public final class DefaultTimingDataPersistence implements TimingDataPersistence
     /** Encodes and durably appends one TimingData record owned by this TimingNode. */
     @Override
     public void append(TimingData data) throws PersistenceException {
-        checkArgument(data != null, "data must not be null");
+        failIfInvalidArgument(data != null, "data must not be null");
         if (!timingNodeId.equals(data.timingNodeId())) {
             throw new PersistenceException(
                     "TimingData belongs to " + data.timingNodeId()

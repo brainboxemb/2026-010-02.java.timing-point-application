@@ -2,8 +2,8 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
  * Public value/result types used by the TimingNode component boundary.
@@ -95,7 +95,7 @@ public final class TimingNodeTypes {
          *         {@link Outcome#COMMITTED}
          */
         public TimingData timingData() {
-            checkState(timingData != null, "registration did not commit TimingData");
+            failIfIllegalState(timingData != null, "registration did not commit TimingData");
             return timingData;
         }
     }
@@ -145,20 +145,20 @@ public final class TimingNodeTypes {
         /** Creates an operation failure without a lower-level cause. */
         public OperationException(Reason reason, String message) {
             super(operationMessage(message));
-            checkArgument(reason != null, "reason must not be null");
+            failIfInvalidArgument(reason != null, "reason must not be null");
             this.reason = reason;
         }
 
         /** Creates an operation failure with the underlying execution cause. */
         public OperationException(Reason reason, String message, Throwable cause) {
             super(operationMessage(message), cause);
-            checkArgument(reason != null, "reason must not be null");
+            failIfInvalidArgument(reason != null, "reason must not be null");
             this.reason = reason;
         }
 
         /** Validates and normalizes the caller-visible operation message. */
         private static String operationMessage(String message) {
-            checkArgument(message != null && !message.trim().isEmpty(), "message must not be blank");
+            failIfInvalidArgument(message != null && !message.trim().isEmpty(), "message must not be blank");
             return message.trim();
         }
 

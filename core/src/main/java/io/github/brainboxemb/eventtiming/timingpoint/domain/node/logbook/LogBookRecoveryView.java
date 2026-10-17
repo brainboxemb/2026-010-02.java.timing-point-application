@@ -9,7 +9,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.Se
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Safely published CURRENT recovery view for one LogBook.
@@ -29,8 +29,8 @@ final class LogBookRecoveryView {
     private volatile LogBookRecoveryStatus publishedRecoveryStatus;
 
     LogBookRecoveryView(NodeId timingNodeId, LogBookDataLane dataLane) {
-        checkArgument(timingNodeId != null, "timingNodeId must not be null");
-        checkArgument(dataLane != null, "dataLane must not be null");
+        failIfInvalidArgument(timingNodeId != null, "timingNodeId must not be null");
+        failIfInvalidArgument(dataLane != null, "dataLane must not be null");
         this.timingNodeId = timingNodeId;
         this.dataLane = dataLane;
     }
@@ -71,7 +71,7 @@ final class LogBookRecoveryView {
 
     /** Publishes the completed startup recovery result. */
     void publishInitial(LogBookRecoveryStatus status) {
-        checkArgument(status != null, "status must not be null");
+        failIfInvalidArgument(status != null, "status must not be null");
         publishedRecoveryStatus = status;
 
         LOG.info(

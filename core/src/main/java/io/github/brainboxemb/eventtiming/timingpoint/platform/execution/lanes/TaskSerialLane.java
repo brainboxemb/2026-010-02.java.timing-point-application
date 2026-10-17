@@ -15,8 +15,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
  * Scheduled serial lane that can execute cooperative YieldingTasks.
@@ -215,14 +215,14 @@ public final class TaskSerialLane extends ScheduledSerialLane {
 
     /** Runs one cooperative task until DONE or failure. */
     public CompletableFuture<Void> runTask(YieldingTask task) {
-        checkArgument(task != null, "task must not be null");
+        failIfInvalidArgument(task != null, "task must not be null");
         return new TaskRun(task).start();
     }
 
     /** Waits for one cooperative task using this lane's configured timeout. */
     public void await(CompletableFuture<Void> future) {
-        checkState(timeoutNanos > 0L, "This TaskSerialLane has no configured wait timeout");
-        checkArgument(future != null, "future must not be null");
+        failIfIllegalState(timeoutNanos > 0L, "This TaskSerialLane has no configured wait timeout");
+        failIfInvalidArgument(future != null, "future must not be null");
 
         try {
             future.get(timeoutNanos, TimeUnit.NANOSECONDS);
@@ -257,7 +257,7 @@ public final class TaskSerialLane extends ScheduledSerialLane {
     }
 
     private static long timeoutNanos(Duration timeout) {
-        checkArgument(
+        failIfInvalidArgument(
                 timeout != null && !timeout.isZero() && !timeout.isNegative(),
                 "timeout must be positive");
         try {

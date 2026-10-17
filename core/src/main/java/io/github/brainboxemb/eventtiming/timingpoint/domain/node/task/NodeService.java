@@ -18,7 +18,7 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Node-local service for Task Lane-owned RaceData and derived timing.
@@ -53,9 +53,9 @@ public final class NodeService extends LifecycleComponent {
     /** Creates the Task Lane service around explicitly composed passive state. */
     public NodeService(NodeId nodeId, SerialLane serialLane, NodeServiceState state) {
 
-        checkArgument(nodeId != null, "nodeId must not be null");
-        checkArgument(serialLane != null, "serialLane must not be null");
-        checkArgument(state != null, "state must not be null");
+        failIfInvalidArgument(nodeId != null, "nodeId must not be null");
+        failIfInvalidArgument(serialLane != null, "serialLane must not be null");
+        failIfInvalidArgument(state != null, "state must not be null");
 
         this.nodeId = nodeId;
         this.taskLane = new NodeTaskLane(serialLane, TASK_QUERY_TIMEOUT_MILLIS);
@@ -93,7 +93,7 @@ public final class NodeService extends LifecycleComponent {
      */
     public List<StageTime> stageTiming(ZoneId raceTimeZone) {
 
-        checkArgument(raceTimeZone != null, "raceTimeZone must not be null");
+        failIfInvalidArgument(raceTimeZone != null, "raceTimeZone must not be null");
 
         /*
          * A query already running on this Task Lane has satisfied its ordering

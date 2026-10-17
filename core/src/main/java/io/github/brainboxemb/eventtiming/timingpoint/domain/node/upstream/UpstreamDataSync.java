@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Synchronizes Central-owned RACE_DATA into one TimingNode.
@@ -29,9 +29,9 @@ final class UpstreamDataSync {
 
     /** Creates RACE_DATA synchronization state over the Task Lane-owned state boundary. */
     UpstreamDataSync(NodeId nodeId, UpstreamStream stream, UpstreamTaskState taskState) {
-        checkArgument(nodeId != null, "nodeId must not be null");
-        checkArgument(stream != null, "stream must not be null");
-        checkArgument(taskState != null, "taskState must not be null");
+        failIfInvalidArgument(nodeId != null, "nodeId must not be null");
+        failIfInvalidArgument(stream != null, "stream must not be null");
+        failIfInvalidArgument(taskState != null, "taskState must not be null");
         this.nodeId = nodeId;
         this.stream = stream;
         this.taskState = taskState;
@@ -45,10 +45,10 @@ final class UpstreamDataSync {
      * the message has validated.</p>
      */
     void handleRaceData(UpstreamData.RaceData raceData) {
-        checkArgument(raceData != null, "raceData must not be null");
+        failIfInvalidArgument(raceData != null, "raceData must not be null");
 
         long receivedSequence = raceData.sequence();
-        checkArgument(receivedSequence >= 1L && receivedSequence <= TimingData.MAX_SEQUENCE_NUMBER,
+        failIfInvalidArgument(receivedSequence >= 1L && receivedSequence <= TimingData.MAX_SEQUENCE_NUMBER,
                 "RACE_DATA sequence is outside the supported range");
 
         long expectedSequence = appliedSequence + 1L;
@@ -72,13 +72,13 @@ final class UpstreamDataSync {
      * Reconciles Central's advertised RACE_DATA head with local applied state.
      */
     void handleSync(UpstreamData.Sync sync) {
-        checkArgument(sync != null, "sync must not be null");
+        failIfInvalidArgument(sync != null, "sync must not be null");
         if (sync.stream() != UpstreamData.Stream.RACE_DATA) {
             throw new UnsupportedOperationException("Inbound SYNC supports RACE_DATA only");
         }
 
         long sourceHead = sync.sequence();
-        checkArgument(sourceHead >= 0L && sourceHead <= TimingData.MAX_SEQUENCE_NUMBER,
+        failIfInvalidArgument(sourceHead >= 0L && sourceHead <= TimingData.MAX_SEQUENCE_NUMBER,
                 "SYNC sequence is outside the supported range");
 
         if (sourceHead > appliedSequence) {

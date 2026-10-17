@@ -10,8 +10,8 @@ import java.util.concurrent.RejectedExecutionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
  * One bounded FIFO execution lane that never runs two of its tasks concurrently.
@@ -135,9 +135,9 @@ public class SerialLane implements Executor, AutoCloseable {
      * lane never shuts it down.</p>
      */
     public SerialLane(int capacity, String laneName, Executor backingExecutor) {
-        checkArgument(capacity >= 1, "capacity must be positive");
-        checkArgument(laneName != null && !laneName.trim().isEmpty(), "laneName must not be blank");
-        checkArgument(backingExecutor != null, "backingExecutor must not be null");
+        failIfInvalidArgument(capacity >= 1, "capacity must be positive");
+        failIfInvalidArgument(laneName != null && !laneName.trim().isEmpty(), "laneName must not be blank");
+        failIfInvalidArgument(backingExecutor != null, "backingExecutor must not be null");
 
         this.laneName = laneName.trim();
         this.backingExecutor = backingExecutor;
@@ -147,7 +147,7 @@ public class SerialLane implements Executor, AutoCloseable {
 
     /** Starts or restarts this logical lane on the externally owned executor. */
     public synchronized void start() {
-        checkState(state == State.NEW || state == State.STOPPED, "SerialLane cannot start from %s", state);
+        failIfIllegalState(state == State.NEW || state == State.STOPPED, "SerialLane cannot start from %s", state);
         state = State.RUNNING;
     }
 
@@ -160,7 +160,7 @@ public class SerialLane implements Executor, AutoCloseable {
      */
     @Override
     public void execute(Runnable work) {
-        checkArgument(work != null, "work must not be null");
+        failIfInvalidArgument(work != null, "work must not be null");
         queueTask(new TrackedRunnable(work));
     }
 
@@ -171,7 +171,7 @@ public class SerialLane implements Executor, AutoCloseable {
      * immediately with {@link RejectedExecutionException}.</p>
      */
     public <R> Future<R> submit(Callable<R> work) {
-        checkArgument(work != null, "work must not be null");
+        failIfInvalidArgument(work != null, "work must not be null");
 
         TrackedFutureTask<R> task = new TrackedFutureTask<R>(work);
         queueTask(task);

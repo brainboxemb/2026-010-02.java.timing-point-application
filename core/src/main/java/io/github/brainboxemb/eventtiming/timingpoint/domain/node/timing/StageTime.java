@@ -5,7 +5,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 
 import java.time.Duration;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * One resolved row in the current StageTiming ranking.
@@ -22,10 +22,10 @@ public final class StageTime {
             TeamId teamId,
             RegistrationId registrationId,
             Duration elapsed) {
-        checkArgument(rank >= 0, "rank must not be negative");
-        checkArgument(teamId != null, "teamId must not be null");
-        checkArgument(registrationId != null, "registrationId must not be null");
-        checkArgument(elapsed != null, "elapsed must not be null");
+        failIfInvalidArgument(rank >= 0, "rank must not be negative");
+        failIfInvalidArgument(teamId != null, "teamId must not be null");
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+        failIfInvalidArgument(elapsed != null, "elapsed must not be null");
         this.rank = rank;
         this.teamId = teamId;
         this.registrationId = registrationId;

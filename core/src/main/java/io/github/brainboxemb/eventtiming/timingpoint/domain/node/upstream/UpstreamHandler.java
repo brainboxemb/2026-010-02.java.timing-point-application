@@ -15,7 +15,7 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * TimingNode-owned semantic boundary for node-scoped upstream communication.
@@ -54,12 +54,12 @@ public final class UpstreamHandler {
             UpstreamStream stream,
             LogBookAccessor logBook,
             UpstreamTaskState taskState) {
-        checkArgument(nodeId != null, "nodeId must not be null");
-        checkArgument(dataSerialLane != null, "dataSerialLane must not be null");
-        checkArgument(taskSerialLane != null, "taskSerialLane must not be null");
-        checkArgument(stream != null, "stream must not be null");
-        checkArgument(logBook != null, "logBook must not be null");
-        checkArgument(taskState != null, "taskState must not be null");
+        failIfInvalidArgument(nodeId != null, "nodeId must not be null");
+        failIfInvalidArgument(dataSerialLane != null, "dataSerialLane must not be null");
+        failIfInvalidArgument(taskSerialLane != null, "taskSerialLane must not be null");
+        failIfInvalidArgument(stream != null, "stream must not be null");
+        failIfInvalidArgument(logBook != null, "logBook must not be null");
+        failIfInvalidArgument(taskState != null, "taskState must not be null");
 
         this.nodeId = nodeId;
         this.dataSerialLane = dataSerialLane;
@@ -120,16 +120,16 @@ public final class UpstreamHandler {
      * owns that message family's state and rules.
      */
     private void handleMessage(UpstreamData data) {
-        checkArgument(data instanceof UpstreamData.NodeScoped,
+        failIfInvalidArgument(data instanceof UpstreamData.NodeScoped,
                 "UpstreamData is not node-scoped: %s", data.family());
 
         UpstreamData.NodeScoped nodeScoped = (UpstreamData.NodeScoped) data;
-        checkArgument(nodeId.equals(nodeScoped.timingNodeId()),
+        failIfInvalidArgument(nodeId.equals(nodeScoped.timingNodeId()),
                 "UpstreamData NodeId does not match node-scoped stream");
 
         switch (data.family()) {
             case RACE_DATA:
-                checkArgument(data instanceof UpstreamData.RaceData,
+                failIfInvalidArgument(data instanceof UpstreamData.RaceData,
                         "RACE_DATA has incompatible semantic type");
                 UpstreamData.RaceData raceData = (UpstreamData.RaceData) data;
                 Runnable applyRaceData = () -> upstreamDataSync.handleRaceData(raceData);
@@ -137,7 +137,7 @@ public final class UpstreamHandler {
                 break;
 
             case SYNC:
-                checkArgument(data instanceof UpstreamData.Sync,
+                failIfInvalidArgument(data instanceof UpstreamData.Sync,
                         "SYNC has incompatible semantic type");
                 UpstreamData.Sync sync = (UpstreamData.Sync) data;
                 if (sync.stream() == UpstreamData.Stream.RACE_DATA) {
@@ -150,13 +150,13 @@ public final class UpstreamHandler {
                 break;
 
             case REQ:
-                checkArgument(data instanceof UpstreamData.Req,
+                failIfInvalidArgument(data instanceof UpstreamData.Req,
                         "REQ has incompatible semantic type");
                 logBookSync.handleReq((UpstreamData.Req) data);
                 break;
 
             case PING:
-                checkArgument(data instanceof UpstreamData.Ping,
+                failIfInvalidArgument(data instanceof UpstreamData.Ping,
                         "PING has incompatible semantic type");
                 UpstreamData.Ping ping = (UpstreamData.Ping) data;
                 Runnable handlePing = () -> heartbeat.handle(ping);

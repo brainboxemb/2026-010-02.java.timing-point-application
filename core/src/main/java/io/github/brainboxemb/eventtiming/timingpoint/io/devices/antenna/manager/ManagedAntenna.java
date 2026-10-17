@@ -14,7 +14,7 @@ import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
  * Runtime state for one antenna owned by {@link AntennaManager}.
@@ -142,8 +142,8 @@ final class ManagedAntenna {
      * Marks the start of the prepare sequence owned by {@code InventoryTask}.
      */
     void beginInventoryPreparation() {
-        checkState(operation != AntennaOperation.INVENTORY, "Antenna %s is already inventorying", antennaId);
-        checkState(operation != AntennaOperation.PREPARING, "Antenna %s is already preparing", antennaId);
+        failIfIllegalState(operation != AntennaOperation.INVENTORY, "Antenna %s is already inventorying", antennaId);
+        failIfIllegalState(operation != AntennaOperation.PREPARING, "Antenna %s is already preparing", antennaId);
 
         /*
          * A new explicit inventory attempt replaces the failure from the
@@ -155,7 +155,7 @@ final class ManagedAntenna {
     }
 
     void initialize() {
-        checkState(operation == AntennaOperation.PREPARING,
+        failIfIllegalState(operation == AntennaOperation.PREPARING,
                 "Antenna %s cannot initialize from %s", antennaId, operation);
 
         try {
@@ -174,7 +174,7 @@ final class ManagedAntenna {
             return;
         }
 
-        checkState(
+        failIfIllegalState(
                 preparedForInventory(),
                 "Antenna %s is not prepared for inventory",
                 antennaId);

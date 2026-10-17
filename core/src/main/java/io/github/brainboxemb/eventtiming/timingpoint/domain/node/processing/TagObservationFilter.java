@@ -18,7 +18,7 @@ import java.util.function.BiConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Passive passage state owned and called only by the TagProcessor execution lane.
@@ -56,12 +56,12 @@ final class TagObservationFilter {
             TagProcessingMetrics metrics,
             BiConsumer<RegistrationId, TimingTimestamp>
                     validObservationCallback) {
-        checkArgument(
+        failIfInvalidArgument(
                 policyConfiguration != null,
                 "policyConfiguration must not be null");
-        checkArgument(monotonicClock != null, "monotonicClock must not be null");
-        checkArgument(metrics != null, "metrics must not be null");
-        checkArgument(
+        failIfInvalidArgument(monotonicClock != null, "monotonicClock must not be null");
+        failIfInvalidArgument(metrics != null, "metrics must not be null");
+        failIfInvalidArgument(
                 validObservationCallback != null,
                 "validObservationCallback must not be null");
         this.policyConfiguration = policyConfiguration;
@@ -74,8 +74,8 @@ final class TagObservationFilter {
     void add(
             RegistrationId registrationId,
             TagObservation observation) {
-        checkArgument(registrationId != null, "registrationId must not be null");
-        checkArgument(observation != null, "observation must not be null");
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+        failIfInvalidArgument(observation != null, "observation must not be null");
 
         ClosedBurst closedBurst = null;
         long now = monotonicClock.nowNanos();
@@ -132,7 +132,7 @@ final class TagObservationFilter {
      * starts, retaining that burst would be wasted work.</p>
      */
     boolean discard(RegistrationId registrationId) {
-        checkArgument(registrationId != null, "registrationId must not be null");
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         return bursts.remove(registrationId) != null;
     }
 

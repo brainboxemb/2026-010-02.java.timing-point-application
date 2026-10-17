@@ -16,7 +16,7 @@ import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * LogBook-specific execution boundary around the shared {@link SerialLane}.
@@ -41,10 +41,10 @@ final class LogBookDataLane {
             long commitWaitTimeoutMillis,
             long orderedQueryWaitTimeoutMillis) {
 
-        checkArgument(nodeId != null, "nodeId must not be null");
-        checkArgument(serialLane != null, "serialLane must not be null");
-        checkArgument(commitWaitTimeoutMillis > 0L, "commitWaitTimeoutMillis must be positive");
-        checkArgument(
+        failIfInvalidArgument(nodeId != null, "nodeId must not be null");
+        failIfInvalidArgument(serialLane != null, "serialLane must not be null");
+        failIfInvalidArgument(commitWaitTimeoutMillis > 0L, "commitWaitTimeoutMillis must be positive");
+        failIfInvalidArgument(
                 orderedQueryWaitTimeoutMillis > 0L,
                 "orderedQueryWaitTimeoutMillis must be positive");
         this.nodeId = nodeId;
@@ -60,7 +60,7 @@ final class LogBookDataLane {
      * component cannot remain half-activated.</p>
      */
     void activate(Runnable startupTask) {
-        checkArgument(startupTask != null, "startupTask must not be null");
+        failIfInvalidArgument(startupTask != null, "startupTask must not be null");
         serialLane.start();
 
         Runnable scheduleStartup = () -> serialLane.execute(startupTask);
@@ -78,7 +78,7 @@ final class LogBookDataLane {
 
     /** Queues one fire-and-forget operation using normal SerialLane rejection semantics. */
     void execute(Runnable operation) {
-        checkArgument(operation != null, "operation must not be null");
+        failIfInvalidArgument(operation != null, "operation must not be null");
         serialLane.execute(operation);
     }
 
@@ -127,8 +127,8 @@ final class LogBookDataLane {
             long timeoutMillis,
             boolean outcomeUnknownOnTimeout) {
 
-        checkArgument(work != null, "work must not be null");
-        checkArgument(operation != null && !operation.trim().isEmpty(), "operation must not be blank");
+        failIfInvalidArgument(work != null, "work must not be null");
+        failIfInvalidArgument(operation != null && !operation.trim().isEmpty(), "operation must not be blank");
 
         if (serialLane.isExecutingOnCurrentThread()) {
             throw new IllegalStateException(

@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Data Lane component for one TimingNode's committed TimingData.
@@ -80,15 +80,15 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
             long commitWaitTimeoutMillis,
             long orderedQueryWaitTimeoutMillis) {
 
-        checkArgument(timingNodeId != null, "timingNodeId must not be null");
-        checkArgument(timingDataPersistence != null, "timingDataPersistence must not be null");
-        checkArgument(timingDataFactory != null, "timingDataFactory must not be null");
-        checkArgument(timeSource != null, "timeSource must not be null");
-        checkArgument(monotonicClock != null, "monotonicClock must not be null");
-        checkArgument(metrics != null, "metrics must not be null");
-        checkArgument(serialLane != null, "serialLane must not be null");
-        checkArgument(commitWaitTimeoutMillis > 0L, "commitWaitTimeoutMillis must be positive");
-        checkArgument(
+        failIfInvalidArgument(timingNodeId != null, "timingNodeId must not be null");
+        failIfInvalidArgument(timingDataPersistence != null, "timingDataPersistence must not be null");
+        failIfInvalidArgument(timingDataFactory != null, "timingDataFactory must not be null");
+        failIfInvalidArgument(timeSource != null, "timeSource must not be null");
+        failIfInvalidArgument(monotonicClock != null, "monotonicClock must not be null");
+        failIfInvalidArgument(metrics != null, "metrics must not be null");
+        failIfInvalidArgument(serialLane != null, "serialLane must not be null");
+        failIfInvalidArgument(commitWaitTimeoutMillis > 0L, "commitWaitTimeoutMillis must be positive");
+        failIfInvalidArgument(
                 orderedQueryWaitTimeoutMillis > 0L,
                 "orderedQueryWaitTimeoutMillis must be positive");
 
@@ -133,7 +133,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     @Override
     public void armNextWriteFailure(WriteFailure failure) {
 
-        checkArgument(failure != null, "failure must not be null");
+        failIfInvalidArgument(failure != null, "failure must not be null");
         if (!nextWriteFailure.compareAndSet(null, failure)) {
             throw new IllegalStateException(
                     "A LogBook write test failure is already armed");
@@ -172,7 +172,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
      */
     public <R> R process(LogBookCommand<R> command) throws OperationException {
 
-        checkArgument(command != null, "command must not be null");
+        failIfInvalidArgument(command != null, "command must not be null");
         return dataLane.submitCommandAndWait(() -> applyCommand(command), command.name());
     }
 
@@ -184,7 +184,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
      */
     public void execute(LogBookCommand<?> command) {
 
-        checkArgument(command != null, "command must not be null");
+        failIfInvalidArgument(command != null, "command must not be null");
         Runnable queuedCommand = () -> executeQueuedCommand(command);
         SafeExecute.runOrHandleRejection(
                 () -> dataLane.execute(queuedCommand),
@@ -215,8 +215,8 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     public <R> R process(LogBookQuery<R> query, LogBookQuery.ReadConsistency consistency)
             throws OperationException {
 
-        checkArgument(query != null, "query must not be null");
-        checkArgument(consistency != null, "consistency must not be null");
+        failIfInvalidArgument(query != null, "query must not be null");
+        failIfInvalidArgument(consistency != null, "consistency must not be null");
 
         switch (consistency) {
             case CURRENT:
