@@ -5,6 +5,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataL
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
@@ -144,10 +145,9 @@ final class LogBookDataLane {
                 true);
     }
 
-    /** Queues one ORDERED query operation and waits for its ordered result. */
-    <R> R submitQueryAndWait(LogBookQuery<R> query) {
+    /** Queues one ORDERED query operation and returns its completion without waiting. */
+    <R> CompletableFuture<R> submitQuery(LogBookQuery<R> query) {
         failIfInvalidArgument(query != null, "query must not be null");
-        failIfNotReentrant(query.name());
 
         QueryOperationItem<R> item = new QueryOperationItem<R>(query);
         try {
@@ -156,8 +156,16 @@ final class LogBookDataLane {
             throw rejectedOperation(query.name(), "query", ex);
         }
 
+        return item.result();
+    }
+
+    /** Queues one ORDERED query operation and waits for its ordered result. */
+    <R> R submitQueryAndWait(LogBookQuery<R> query) {
+        failIfInvalidArgument(query != null, "query must not be null");
+        failIfNotReentrant(query.name());
+
         return await(
-                item.result(),
+                submitQuery(query),
                 query.name(),
                 "query",
                 orderedQueryWaitTimeoutMillis,
