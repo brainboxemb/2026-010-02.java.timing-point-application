@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingpoint.application.SimulationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -39,8 +39,8 @@ public class SimulatedTagScenarioRunnerTest {
         ScheduledThreadPoolExecutor worker =
                 new ScheduledThreadPoolExecutor(1);
         worker.setRemoveOnCancelPolicy(true);
-        SerialLane lane =
-                new SerialLane(
+        RunnableSerialLane lane =
+                new RunnableSerialLane(
                         32,
                         32,
                         "simulation-test",
@@ -122,8 +122,8 @@ public class SimulatedTagScenarioRunnerTest {
         ScheduledThreadPoolExecutor worker =
                 new ScheduledThreadPoolExecutor(1);
         worker.setRemoveOnCancelPolicy(true);
-        SerialLane lane =
-                new SerialLane(
+        RunnableSerialLane lane =
+                new RunnableSerialLane(
                         32,
                         32,
                         "simulation-test",
@@ -201,8 +201,8 @@ public class SimulatedTagScenarioRunnerTest {
         ScheduledThreadPoolExecutor worker =
                 new ScheduledThreadPoolExecutor(1);
         worker.setRemoveOnCancelPolicy(true);
-        SerialLane lane =
-                new SerialLane(
+        RunnableSerialLane lane =
+                new RunnableSerialLane(
                         32,
                         32,
                         "simulation-test",
@@ -311,8 +311,8 @@ public class SimulatedTagScenarioRunnerTest {
         ScheduledThreadPoolExecutor worker =
                 new ScheduledThreadPoolExecutor(1);
         worker.setRemoveOnCancelPolicy(true);
-        SerialLane lane =
-                new SerialLane(
+        RunnableSerialLane lane =
+                new RunnableSerialLane(
                         32,
                         32,
                         "simulation-test",

@@ -8,7 +8,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
- * Bounded FIFO item queue serviced by one fixed worker on a {@link SerialLane}.
+ * Bounded FIFO item queue serviced by one fixed worker on a {@link RunnableSerialLane}.
  *
  * <p>The queue contains caller-owned items, not {@link Runnable} work. Queueing
  * an item only makes the fixed worker eligible to run. This class owns the
@@ -28,7 +28,7 @@ public final class SerialQueue<T> implements AutoCloseable {
 
     private final ArrayBlockingQueue<T> queue;
     private final int maxItemsPerRun;
-    private final SerialLane lane;
+    private final RunnableSerialLane lane;
     private final Consumer<T> itemProcessor;
     private final Runnable worker = this::runWorker;
 
@@ -37,7 +37,7 @@ public final class SerialQueue<T> implements AutoCloseable {
 
     /** Creates an item queue using the supplied lane's configured capacity and batch size. */
     public SerialQueue(
-            SerialLane lane,
+            RunnableSerialLane lane,
             Consumer<T> itemProcessor) {
 
         this(
@@ -58,7 +58,7 @@ public final class SerialQueue<T> implements AutoCloseable {
     public SerialQueue(
             int capacity,
             int maxItemsPerRun,
-            SerialLane lane,
+            RunnableSerialLane lane,
             Consumer<T> itemProcessor) {
 
         failIfInvalidArgument(capacity >= 1, "capacity must be positive");
@@ -150,13 +150,13 @@ public final class SerialQueue<T> implements AutoCloseable {
     }
 
     /** Reads queue capacity only after validating the supplied lane. */
-    private static int capacity(SerialLane lane) {
+    private static int capacity(RunnableSerialLane lane) {
         failIfInvalidArgument(lane != null, "lane must not be null");
         return lane.capacity();
     }
 
     /** Reads worker batch size only after validating the supplied lane. */
-    private static int maxItemsPerRun(SerialLane lane) {
+    private static int maxItemsPerRun(RunnableSerialLane lane) {
         failIfInvalidArgument(lane != null, "lane must not be null");
         return lane.maxItemsPerRun();
     }

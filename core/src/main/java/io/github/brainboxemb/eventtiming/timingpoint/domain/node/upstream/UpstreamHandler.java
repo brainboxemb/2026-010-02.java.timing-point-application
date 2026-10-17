@@ -5,6 +5,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
@@ -32,8 +34,8 @@ public final class UpstreamHandler {
     private static final Logger LOG = LoggerFactory.getLogger(UpstreamHandler.class);
 
     private final NodeId nodeId;
-    private final SerialLane dataSerialLane;
-    private final SerialLane taskSerialLane;
+    private final TimingNodeDataLane dataLane;
+    private final RunnableSerialLane taskSerialLane;
     private final UpstreamStream stream;
     private final UpstreamHeartbeat heartbeat;
     private final UpstreamDataSync upstreamDataSync;
@@ -46,28 +48,29 @@ public final class UpstreamHandler {
      */
     private final AtomicBoolean inputOperationScheduled = new AtomicBoolean();
 
-    /** Creates the node-scoped upstream coordinator over the composed SerialLane roles. */
+    /** Creates the node-scoped upstream coordinator over the composed Data/Task Lane roles. */
     public UpstreamHandler(
             NodeId nodeId,
-            SerialLane dataSerialLane,
-            SerialLane taskSerialLane,
+            TimingNodeDataLane dataLane,
+            RunnableSerialLane taskSerialLane,
             UpstreamStream stream,
             LogBookAccessor logBook,
             UpstreamTaskState taskState) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
-        failIfInvalidArgument(dataSerialLane != null, "dataSerialLane must not be null");
+        failIfInvalidArgument(dataLane != null, "dataLane must not be null");
         failIfInvalidArgument(taskSerialLane != null, "taskSerialLane must not be null");
         failIfInvalidArgument(stream != null, "stream must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
         failIfInvalidArgument(taskState != null, "taskState must not be null");
 
         this.nodeId = nodeId;
-        this.dataSerialLane = dataSerialLane;
+        this.dataLane = dataLane;
         this.taskSerialLane = taskSerialLane;
         this.stream = stream;
         this.heartbeat = new UpstreamHeartbeat(nodeId, stream);
         this.upstreamDataSync = new UpstreamDataSync(nodeId, stream, taskState);
         this.logBookSync = new LogBookSync(nodeId, stream, logBook);
+        dataLane.bindUpstream(this::handleNextTurn);
     }
 
     /**
@@ -84,13 +87,13 @@ public final class UpstreamHandler {
             return true;
         }
 
-        try {
-            dataSerialLane.execute(this::handleNextTurn);
+        SerialLane.OfferResult result = dataLane.offerUpstreamTurn();
+        if (result == SerialLane.OfferResult.ACCEPTED) {
             return true;
-        } catch (RejectedExecutionException ex) {
-            inputOperationScheduled.set(false);
-            return false;
         }
+
+        inputOperationScheduled.set(false);
+        return false;
     }
 
     /**
@@ -216,11 +219,13 @@ public final class UpstreamHandler {
         boolean nextTurnScheduled = false;
 
         if (workRemaining) {
-            try {
-                dataSerialLane.execute(this::handleNextTurn);
-                nextTurnScheduled = true;
-            } catch (RejectedExecutionException ex) {
-                LOG.debug("Data Lane rejected another upstream turn for node {}", nodeId.value(), ex);
+            SerialLane.OfferResult result = dataLane.offerUpstreamTurn();
+            nextTurnScheduled = result == SerialLane.OfferResult.ACCEPTED;
+            if (!nextTurnScheduled) {
+                LOG.debug(
+                        "Data Lane rejected another upstream turn for node {}: {}",
+                        nodeId.value(),
+                        result);
             }
         }
 

@@ -108,8 +108,8 @@ public class TaskSerialLaneTest {
                         "yielding-delay",
                         worker,
                         Duration.ofSeconds(1));
-        SerialLane siblingLane =
-                new SerialLane(
+        RunnableSerialLane siblingLane =
+                new RunnableSerialLane(
                         8,
                         8,
                         "yielding-sibling",

@@ -5,6 +5,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
@@ -19,7 +20,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnl
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
@@ -164,12 +165,12 @@ public final class TimingNodeFixture {
                 timeSource,
                 EventData.empty(),
                 UpstreamStream.unavailable(),
-                new SerialLane(
+                new TimingNodeDataLane(
                         32,
                         32,
                         "test-node-data-" + suffix,
                         NODE_WORKER),
-                new SerialLane(
+                new RunnableSerialLane(
                         32,
                         32,
                         "test-node-task-" + suffix,
@@ -237,12 +238,12 @@ public final class TimingNodeFixture {
                 timeSource,
                 eventData,
                 upstreamStream,
-                new SerialLane(
+                new TimingNodeDataLane(
                         32,
                         32,
                         "test-node-data-direct-" + suffix,
                         Runnable::run),
-                new SerialLane(
+                new RunnableSerialLane(
                         32,
                         32,
                         "test-node-task-direct-" + suffix,
@@ -266,7 +267,7 @@ public final class TimingNodeFixture {
             TimingDataPersistence persistence,
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
-            SerialLane dataLane,
+            TimingNodeDataLane dataLane,
             long waitTimeoutMillis) {
 
         return createWithDataLane(
@@ -285,7 +286,7 @@ public final class TimingNodeFixture {
             TimingDataPersistence persistence,
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
-            SerialLane dataLane,
+            TimingNodeDataLane dataLane,
             long commitWaitTimeoutMillis,
             long orderedQueryWaitTimeoutMillis) {
         String suffix =
@@ -301,7 +302,7 @@ public final class TimingNodeFixture {
                 EventData.empty(),
                 UpstreamStream.unavailable(),
                 dataLane,
-                new SerialLane(
+                new RunnableSerialLane(
                         32,
                         32,
                         "test-node-task-direct-" + suffix,
@@ -324,8 +325,8 @@ public final class TimingNodeFixture {
             TimeSource timeSource,
             EventData eventData,
             UpstreamStream upstreamStream,
-            SerialLane dataLane,
-            SerialLane taskLane,
+            TimingNodeDataLane dataLane,
+            RunnableSerialLane taskLane,
             ScheduledSerialLane tagLane,
             long commitWaitTimeoutMillis,
             long orderedQueryWaitTimeoutMillis) {
