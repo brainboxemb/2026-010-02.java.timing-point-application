@@ -166,13 +166,16 @@ public final class TimingNodeFixture {
                 UpstreamStream.unavailable(),
                 new SerialLane(
                         32,
+                        32,
                         "test-node-data-" + suffix,
                         NODE_WORKER),
                 new SerialLane(
                         32,
+                        32,
                         "test-node-task-" + suffix,
                         NODE_WORKER),
                 new ScheduledSerialLane(
+                        32,
                         32,
                         "test-tag-" + suffix,
                         TAG_WORKER),
@@ -236,13 +239,16 @@ public final class TimingNodeFixture {
                 upstreamStream,
                 new SerialLane(
                         32,
+                        32,
                         "test-node-data-direct-" + suffix,
                         Runnable::run),
                 new SerialLane(
                         32,
+                        32,
                         "test-node-task-direct-" + suffix,
                         Runnable::run),
                 new ScheduledSerialLane(
+                        32,
                         32,
                         "test-tag-direct-" + suffix,
                         TAG_WORKER),
@@ -297,9 +303,11 @@ public final class TimingNodeFixture {
                 dataLane,
                 new SerialLane(
                         32,
+                        32,
                         "test-node-task-direct-" + suffix,
                         Runnable::run),
                 new ScheduledSerialLane(
+                        32,
                         32,
                         "test-tag-direct-" + suffix,
                         TAG_WORKER),

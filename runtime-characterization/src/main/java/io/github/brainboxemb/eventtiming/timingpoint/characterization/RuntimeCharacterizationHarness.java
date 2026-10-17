@@ -157,20 +157,24 @@ final class RuntimeCharacterizationHarness
         dataLane =
                 new SerialLane(
                         TIMING_NODE_QUEUE_CAPACITY,
+                        TIMING_NODE_QUEUE_CAPACITY,
                         "TimingNodeData",
                         nodeWorker);
         taskLane =
                 new SerialLane(
+                        TIMING_NODE_QUEUE_CAPACITY,
                         TIMING_NODE_QUEUE_CAPACITY,
                         "TimingNodeTask",
                         nodeWorker);
         tagLane =
                 new ScheduledSerialLane(
                         TAG_PROCESSOR_QUEUE_CAPACITY,
+                        TAG_PROCESSOR_QUEUE_CAPACITY,
                         "TagProcessor",
                         tagWorker);
         antennaLane =
                 new TaskSerialLane(
+                        ANTENNA_CONTROL_QUEUE_CAPACITY,
                         ANTENNA_CONTROL_QUEUE_CAPACITY,
                         "AntennaManager",
                         ioWorker,
@@ -383,19 +387,14 @@ final class RuntimeCharacterizationHarness
                     new TimingTimestamp(
                             INPUT_TIME_BASE.minusSeconds(
                                     count - index));
-            if (!logBook.process(
-                            LogBookCommands.commitAntennaRegistration(
-                                    LOCATION_ID,
-                                    new RegistrationId(
-                                            String.format(
-                                                    "P%05d",
-                                                    index + 1)),
-                                    time))
-                    .committed()) {
-                throw new IllegalStateException(
-                        "Unable to preload TimingData record "
-                                + (index + 1));
-            }
+            logBook.process(
+                    LogBookCommands.commitAntennaRegistration(
+                            LOCATION_ID,
+                            new RegistrationId(
+                                    String.format(
+                                            "P%05d",
+                                            index + 1)),
+                            time));
         }
     }
 

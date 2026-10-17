@@ -184,9 +184,9 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     public void execute(LogBookCommand<?> command) {
 
         failIfInvalidArgument(command != null, "command must not be null");
-        Runnable queuedCommand = () -> executeQueuedCommand(command);
+        Runnable processQueuedCommand = () -> processQueuedCommand(command);
         SafeExecute.runOrHandleRejection(
-                () -> dataLane.execute(queuedCommand),
+                () -> dataLane.execute(processQueuedCommand),
                 ex -> LOG.error(
                         "LogBook command {} for node {} could not be queued on the Data Lane",
                         command.name(),
@@ -298,8 +298,8 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         recoveryView.publishInitial(logBookState.recoveryStatus());
     }
 
-    /** Executes one previously queued fire-and-forget command and contains its later failure. */
-    private <R> void executeQueuedCommand(LogBookCommand<R> command) {
+    /** Processes one previously queued fire-and-forget command on the LogBook Data Lane. */
+    private <R> void processQueuedCommand(LogBookCommand<R> command) {
 
         try {
             applyCommand(command);

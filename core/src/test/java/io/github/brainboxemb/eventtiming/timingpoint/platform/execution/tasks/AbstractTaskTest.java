@@ -26,6 +26,7 @@ public class AbstractTaskTest {
         TaskSerialLane lane =
                 new TaskSerialLane(
                         8,
+                        8,
                         "task-coalesce",
                         worker);
         lane.start();
@@ -100,6 +101,7 @@ public class AbstractTaskTest {
                 Executors.newSingleThreadScheduledExecutor();
         TaskSerialLane lane =
                 new TaskSerialLane(
+                        8,
                         8,
                         "task-failure",
                         worker);

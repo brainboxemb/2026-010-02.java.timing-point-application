@@ -367,6 +367,7 @@ public class AntennaMultiplexTest {
                 antennaSet,
                 new TaskSerialLane(
                         capacity,
+                        capacity,
                         "antenna-multiplex-test",
                         shared,
                         timeout));

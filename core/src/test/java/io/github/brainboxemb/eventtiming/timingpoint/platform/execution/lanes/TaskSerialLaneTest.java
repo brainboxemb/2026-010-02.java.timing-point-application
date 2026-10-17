@@ -30,6 +30,7 @@ public class TaskSerialLaneTest {
         TaskSerialLane lane =
                 new TaskSerialLane(
                         8,
+                        8,
                         "yielding-yield",
                         worker,
                         Duration.ofSeconds(1));
@@ -103,11 +104,13 @@ public class TaskSerialLaneTest {
         TaskSerialLane taskLane =
                 new TaskSerialLane(
                         8,
+                        8,
                         "yielding-delay",
                         worker,
                         Duration.ofSeconds(1));
         SerialLane siblingLane =
                 new SerialLane(
+                        8,
                         8,
                         "yielding-sibling",
                         worker);
@@ -162,6 +165,7 @@ public class TaskSerialLaneTest {
         TaskSerialLane lane =
                 new TaskSerialLane(
                         4,
+                        4,
                         "timeout",
                         worker,
                         Duration.ofMillis(50));
@@ -215,6 +219,7 @@ public class TaskSerialLaneTest {
 
         TaskSerialLane lane =
                 new TaskSerialLane(
+                        4,
                         4,
                         "rejected",
                         worker,

@@ -25,6 +25,7 @@ public class AbstractConductorTest {
         SerialLane lane =
                 new SerialLane(
                         4,
+                        4,
                         "abstract-conductor-test",
                         worker);
         List<String> calls =
@@ -60,6 +61,7 @@ public class AbstractConductorTest {
                 Executors.newSingleThreadExecutor();
         SerialLane lane =
                 new SerialLane(
+                        4,
                         4,
                         "abstract-conductor-test",
                         worker);

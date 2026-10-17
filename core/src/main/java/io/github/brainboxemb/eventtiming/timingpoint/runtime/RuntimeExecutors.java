@@ -29,11 +29,23 @@ import java.util.concurrent.TimeUnit;
  */
 final class RuntimeExecutors implements AutoCloseable {
     static final int TIMING_NODE_DATA_LANE_QUEUE_CAPACITY = 32;
+    static final int TIMING_NODE_DATA_LANE_MAX_ITEMS_PER_RUN = 32;
     static final int TIMING_NODE_TASK_LANE_QUEUE_CAPACITY = 32;
+    static final int TIMING_NODE_TASK_LANE_MAX_ITEMS_PER_RUN = 32;
     static final int TAG_PROCESSOR_LANE_QUEUE_CAPACITY = 32;
+    static final int TAG_PROCESSOR_LANE_MAX_ITEMS_PER_RUN = 32;
     static final int ANTENNA_CONTROL_LANE_QUEUE_CAPACITY = 8;
+    static final int ANTENNA_CONTROL_LANE_MAX_ITEMS_PER_RUN = 8;
     static final int SIMULATION_LANE_QUEUE_CAPACITY = 32;
+    static final int SIMULATION_LANE_MAX_ITEMS_PER_RUN = 32;
     static final int TIMING_SYSTEM_CONDUCTOR_LANE_QUEUE_CAPACITY = 8;
+    static final int TIMING_SYSTEM_CONDUCTOR_LANE_MAX_ITEMS_PER_RUN = 8;
+
+    /*
+     * Baseline batch sizes equal their queue capacities, so one worker run may
+     * process the backlog present at its start. Keeping both values explicit
+     * allows later fairness tuning without changing queue capacity.
+     */
 
     /*
      * Step-5 baseline: one physical blocking-I/O thread.
@@ -78,10 +90,10 @@ final class RuntimeExecutors implements AutoCloseable {
     private final List<AutoCloseable> serialLanes = new ArrayList<AutoCloseable>();
 
     /*
-     * Each serial lane schedules at most one drain token at a time, so these
-     * backing queues are bounded structurally by the number of configured
-     * lanes rather than by registration volume. Registration/command overload
-     * remains bounded and visible in the lane-local queues.
+     * Each serial lane has at most one queue worker run scheduled or executing
+     * at a time, so these backing queues are bounded structurally by the number
+     * of configured lanes rather than by registration volume. Registration/command
+     * overload remains bounded and visible in the lane-local queues.
      */
     private final ThreadPoolExecutor timingNodeExecutor;
     private final ScheduledThreadPoolExecutor tagProcessorScheduledExecutor;
@@ -162,13 +174,22 @@ final class RuntimeExecutors implements AutoCloseable {
      */
     synchronized TimingNodeExecutionResources createTimingNodeExecutionResources() {
         SerialLane dataLane =
-                new SerialLane(TIMING_NODE_DATA_LANE_QUEUE_CAPACITY, "TimingNodeData", timingNodeExecutor);
+                new SerialLane(
+                        TIMING_NODE_DATA_LANE_QUEUE_CAPACITY,
+                        TIMING_NODE_DATA_LANE_MAX_ITEMS_PER_RUN,
+                        "TimingNodeData",
+                        timingNodeExecutor);
         SerialLane taskLane =
-                new SerialLane(TIMING_NODE_TASK_LANE_QUEUE_CAPACITY, "TimingNodeTask", timingNodeExecutor);
+                new SerialLane(
+                        TIMING_NODE_TASK_LANE_QUEUE_CAPACITY,
+                        TIMING_NODE_TASK_LANE_MAX_ITEMS_PER_RUN,
+                        "TimingNodeTask",
+                        timingNodeExecutor);
 
         ScheduledSerialLane tagProcessorLane =
                 new ScheduledSerialLane(
                         TAG_PROCESSOR_LANE_QUEUE_CAPACITY,
+                        TAG_PROCESSOR_LANE_MAX_ITEMS_PER_RUN,
                         "TagProcessor",
                         tagProcessorScheduledExecutor);
 
@@ -188,6 +209,7 @@ final class RuntimeExecutors implements AutoCloseable {
         TaskSerialLane conductorLane =
                 new TaskSerialLane(
                         TIMING_SYSTEM_CONDUCTOR_LANE_QUEUE_CAPACITY,
+                        TIMING_SYSTEM_CONDUCTOR_LANE_MAX_ITEMS_PER_RUN,
                         "TimingSystemConductor",
                         timingSystemConductorExecutor);
         serialLanes.add(conductorLane);
@@ -199,6 +221,7 @@ final class RuntimeExecutors implements AutoCloseable {
         TaskSerialLane antennaControlLane =
                 new TaskSerialLane(
                         ANTENNA_CONTROL_LANE_QUEUE_CAPACITY,
+                        ANTENNA_CONTROL_LANE_MAX_ITEMS_PER_RUN,
                         "AntennaManager",
                         sharedIoScheduledExecutor,
                         operationTimeout);
@@ -218,7 +241,10 @@ final class RuntimeExecutors implements AutoCloseable {
      */
     synchronized SerialLane createSimulationLane() {
         SerialLane simulationLane = new SerialLane(
-                SIMULATION_LANE_QUEUE_CAPACITY, "SimulatedTagScenario", sharedIoScheduledExecutor);
+                SIMULATION_LANE_QUEUE_CAPACITY,
+                SIMULATION_LANE_MAX_ITEMS_PER_RUN,
+                "SimulatedTagScenario",
+                sharedIoScheduledExecutor);
         serialLanes.add(simulationLane);
         return simulationLane;
     }

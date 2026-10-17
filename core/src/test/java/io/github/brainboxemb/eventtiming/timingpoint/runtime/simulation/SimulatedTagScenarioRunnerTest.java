@@ -42,6 +42,7 @@ public class SimulatedTagScenarioRunnerTest {
         SerialLane lane =
                 new SerialLane(
                         32,
+                        32,
                         "simulation-test",
                         worker);
         SimulatedAntenna antenna =
@@ -124,6 +125,7 @@ public class SimulatedTagScenarioRunnerTest {
         SerialLane lane =
                 new SerialLane(
                         32,
+                        32,
                         "simulation-test",
                         worker);
         SimulatedAntenna antenna =
@@ -201,6 +203,7 @@ public class SimulatedTagScenarioRunnerTest {
         worker.setRemoveOnCancelPolicy(true);
         SerialLane lane =
                 new SerialLane(
+                        32,
                         32,
                         "simulation-test",
                         worker);
@@ -310,6 +313,7 @@ public class SimulatedTagScenarioRunnerTest {
         worker.setRemoveOnCancelPolicy(true);
         SerialLane lane =
                 new SerialLane(
+                        32,
                         32,
                         "simulation-test",
                         worker);

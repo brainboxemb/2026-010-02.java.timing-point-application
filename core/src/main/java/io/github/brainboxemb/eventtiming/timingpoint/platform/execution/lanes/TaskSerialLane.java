@@ -21,9 +21,10 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Scheduled serial lane that can execute cooperative YieldingTasks.
  *
- * <p>Each task step runs as one ordinary lane turn. AGAIN re-admits the next
- * step so sibling lane work can run first; AFTER uses this lane's scheduling
- * capability and also returns to the same serial lane.</p>
+ * <p>Each task step is one queued lane item. AGAIN re-admits the next step at
+ * the back of the queue; because the worker batch was fixed before that step ran,
+ * the re-admitted step executes in a later worker run. AFTER uses this lane's
+ * scheduling capability and also returns to the same serial lane.</p>
  */
 public final class TaskSerialLane extends ScheduledSerialLane {
 
@@ -194,22 +195,24 @@ public final class TaskSerialLane extends ScheduledSerialLane {
 
     private final long timeoutNanos;
 
-    /** Creates a task lane without a configured blocking wait timeout. */
+    /** Creates a task lane with an explicit maximum batch size per worker run. */
     public TaskSerialLane(
             int capacity,
+            int maxItemsPerRun,
             String laneName,
             ScheduledExecutorService executor) {
-        super(capacity, laneName, executor);
+        super(capacity, maxItemsPerRun, laneName, executor);
         timeoutNanos = 0L;
     }
 
-    /** Creates a task lane with a timeout for await(). */
+    /** Creates a task lane with explicit batch size and timeout for await(). */
     public TaskSerialLane(
             int capacity,
+            int maxItemsPerRun,
             String laneName,
             ScheduledExecutorService executor,
             Duration timeout) {
-        super(capacity, laneName, executor);
+        super(capacity, maxItemsPerRun, laneName, executor);
         timeoutNanos = timeoutNanos(timeout);
     }
 

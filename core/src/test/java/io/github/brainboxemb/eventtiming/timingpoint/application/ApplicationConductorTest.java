@@ -124,6 +124,7 @@ public class ApplicationConductorTest {
                                     new SimulatedAntenna()),
                             new TaskSerialLane(
                                     8,
+                                    8,
                                     "app-antenna-" + label,
                                     ioWorker,
                                     Duration.ofSeconds(1)));
@@ -135,6 +136,7 @@ public class ApplicationConductorTest {
                             timingNodes,
                             manager,
                             new TaskSerialLane(
+                                    8,
                                     8,
                                     "app-system-" + label,
                                     systemWorker));

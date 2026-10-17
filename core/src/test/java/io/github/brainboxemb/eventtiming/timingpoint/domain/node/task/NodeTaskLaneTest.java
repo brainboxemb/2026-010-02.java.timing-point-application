@@ -92,7 +92,7 @@ public class NodeTaskLaneTest {
         worker = Executors.newSingleThreadExecutor(
                 runnable -> new Thread(runnable, "node-task-lane-test"));
         return new NodeTaskLane(
-                new SerialLane(capacity, "node-task-lane-test", worker),
+                new SerialLane(capacity, capacity, "node-task-lane-test", worker),
                 1000L);
     }
 }

@@ -80,6 +80,7 @@ public class AntennaManagerTest {
                                 Duration.ofMillis(200)),
                         new TaskSerialLane(
                                 8,
+                                8,
                                 "antenna-manager-test",
                                 shared,
                                 Duration.ofSeconds(1)));
@@ -165,6 +166,7 @@ public class AntennaManagerTest {
                                 Duration.ofMillis(200)),
                         new TaskSerialLane(
                                 8,
+                                8,
                                 "antenna-manager-test",
                                 shared,
                                 Duration.ofSeconds(1)));
@@ -216,12 +218,14 @@ public class AntennaManagerTest {
                                 stabilization),
                         new TaskSerialLane(
                                 8,
+                                8,
                                 "antenna-manager-test",
                                 shared,
                                 Duration.ofSeconds(1)));
 
         SerialLane sibling =
                 new SerialLane(
+                        4,
                         4,
                         "sibling-io-test",
                         shared);
@@ -588,6 +592,7 @@ public class AntennaManagerTest {
         return new AntennaManager(
                 antennaSet,
                 new TaskSerialLane(
+                        capacity,
                         capacity,
                         "antenna-manager-test",
                         shared,
