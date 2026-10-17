@@ -18,7 +18,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  *
  * <p>A {@code SerialLane} owns one bounded queue and one worker runnable. Queueing
  * the first item while the lane is idle schedules that worker on the externally
- * owned executor. Each worker run processes at most {@code maxItemsPerRun} items
+ * owned executor. Each worker run executes at most {@code maxItemsPerRun} items
  * that were already queued when that run started. Work arriving during that batch
  * remains queued for the next run, so a continuously producing lane cannot keep
  * the shared executor indefinitely.</p>
@@ -98,11 +98,11 @@ public class SerialLane implements Executor, AutoCloseable {
     /** Bounded FIFO work queue owned by this lane. */
     private final ArrayBlockingQueue<QueuedWork> queue;
 
-    /** Maximum number of queued items processed by one worker run. */
+    /** Maximum number of queued items executed by one worker run. */
     private final int maxItemsPerRun;
 
     /** One fixed worker scheduled whenever queued work needs a lane turn. */
-    private final Runnable queueWorker = this::processQueuedItems;
+    private final Runnable queueWorker = this::runQueueWorker;
 
     private final SerialLaneMetrics metrics;
 
@@ -114,7 +114,7 @@ public class SerialLane implements Executor, AutoCloseable {
      * Creates a bounded logical lane on an externally owned executor.
      *
      * @param capacity maximum number of items waiting in the lane queue
-     * @param maxItemsPerRun maximum number of queued items processed by one worker run
+     * @param maxItemsPerRun maximum number of queued items executed by one worker run
      */
     public SerialLane(int capacity, int maxItemsPerRun, String laneName, Executor backingExecutor) {
         failIfInvalidArgument(capacity >= 1, "capacity must be positive");
@@ -211,12 +211,12 @@ public class SerialLane implements Executor, AutoCloseable {
     }
 
     /**
-     * Processes up to maxItemsPerRun items that were queued when this worker run started.
+     * Runs up to maxItemsPerRun items that were queued when this worker run started.
      *
      * <p>New work may be queued while this batch runs. Those later items remain
      * in the queue and cause another worker run after this batch completes.</p>
      */
-    private void processQueuedItems() {
+    private void runQueueWorker() {
         final int itemCount;
 
         synchronized (this) {
@@ -240,7 +240,7 @@ public class SerialLane implements Executor, AutoCloseable {
 
                 long startedAtNanos = System.nanoTime();
                 try {
-                    processQueuedItem(work.operation);
+                    runQueuedWork(work.operation);
                 } finally {
                     long finishedAtNanos = System.nanoTime();
                     metrics.recordCompleted(
@@ -271,8 +271,8 @@ public class SerialLane implements Executor, AutoCloseable {
         }
     }
 
-    /** Processes one queue item while applying only lane-level failure handling. */
-    private void processQueuedItem(Runnable operation) {
+    /** Runs one queued operation while applying only lane-level failure handling. */
+    private void runQueuedWork(Runnable operation) {
         try {
             operation.run();
 
