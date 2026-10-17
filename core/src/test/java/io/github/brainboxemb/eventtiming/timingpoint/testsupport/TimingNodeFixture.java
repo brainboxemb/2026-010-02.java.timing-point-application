@@ -20,8 +20,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnl
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.concurrent.Executors;
@@ -171,16 +170,12 @@ public final class TimingNodeFixture {
                         32,
                         "test-node-data-" + suffix,
                         NODE_WORKER),
-                new TaskSerialLane(
+                new SerialTaskRunner(
                         32,
                         32,
                         "test-node-task-" + suffix,
                         NODE_WORKER),
-                new ScheduledSerialLane(
-                        32,
-                        32,
-                        "test-tag-" + suffix,
-                        TAG_WORKER),
+                TAG_WORKER,
                 DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
                 DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS)
                 .node();
@@ -244,16 +239,12 @@ public final class TimingNodeFixture {
                         32,
                         "test-node-data-direct-" + suffix,
                         NODE_WORKER),
-                new TaskSerialLane(
+                new SerialTaskRunner(
                         32,
                         32,
                         "test-node-task-direct-" + suffix,
                         NODE_WORKER),
-                new ScheduledSerialLane(
-                        32,
-                        32,
-                        "test-tag-direct-" + suffix,
-                        TAG_WORKER),
+                TAG_WORKER,
                 DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
                 DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
     }
@@ -303,16 +294,12 @@ public final class TimingNodeFixture {
                 EventData.empty(),
                 UpstreamStream.unavailable(),
                 dataLane,
-                new TaskSerialLane(
+                new SerialTaskRunner(
                         32,
                         32,
                         "test-node-task-direct-" + suffix,
                         NODE_WORKER),
-                new ScheduledSerialLane(
-                        32,
-                        32,
-                        "test-tag-direct-" + suffix,
-                        TAG_WORKER),
+                TAG_WORKER,
                 commitWaitTimeoutMillis,
                 orderedQueryWaitTimeoutMillis)
                 .node();
@@ -327,8 +314,8 @@ public final class TimingNodeFixture {
             EventData eventData,
             UpstreamStream upstreamStream,
             TimingNodeDataLane dataLane,
-            TaskSerialLane taskLane,
-            ScheduledSerialLane tagLane,
+            SerialTaskRunner taskLane,
+            ScheduledThreadPoolExecutor tagWorker,
             long commitWaitTimeoutMillis,
             long orderedQueryWaitTimeoutMillis) {
         ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
@@ -366,7 +353,7 @@ public final class TimingNodeFixture {
                         tagConfiguration,
                         SystemMonotonicClock.INSTANCE,
                         new TagProcessingMetrics(),
-                        tagLane);
+                        tagWorker);
 
         TimingNode node =
                 new TimingNode(
@@ -374,7 +361,8 @@ public final class TimingNodeFixture {
                         timeSource,
                         logBook,
                         nodeService,
-                        tagProcessor);
+                        tagProcessor,
+                        taskLane);
 
         return new Components(
                 node,

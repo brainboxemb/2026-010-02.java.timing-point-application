@@ -8,8 +8,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
@@ -59,7 +58,7 @@ public final class AntennaManager extends LifecycleComponent {
         INVENTORY_FAILED
     }
 
-    private final TaskSerialLane taskLane;
+    private final SerialTaskRunner taskLane;
     private final AntennaSet antennaSet;
     private final Setting<Boolean> inventoryEnabledSetting =
             new Setting<Boolean>(Boolean.FALSE);
@@ -76,7 +75,7 @@ public final class AntennaManager extends LifecycleComponent {
 
     public AntennaManager(
             AntennaSet antennaSet,
-            TaskSerialLane taskLane) {
+            SerialTaskRunner taskLane) {
         failIfInvalidArgument(antennaSet != null, "antennaSet must not be null");
         failIfInvalidArgument(taskLane != null, "taskLane must not be null");
 
@@ -201,7 +200,7 @@ public final class AntennaManager extends LifecycleComponent {
 
         RuntimeException shutdownFailure = null;
         try {
-            if (taskLane.state() == RunnableSerialLane.State.NEW) {
+            if (!taskLane.isRunning()) {
                 taskLane.start();
             }
             shutdownTask.runAndWait(taskLane);
@@ -390,8 +389,5 @@ public final class AntennaManager extends LifecycleComponent {
             failure = cause;
         }
 
-        if (taskLane.failure() != null) {
-            state = State.FAILED;
-        }
     }
 }

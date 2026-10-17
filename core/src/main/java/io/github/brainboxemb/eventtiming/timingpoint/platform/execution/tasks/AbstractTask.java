@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
+
 
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -15,7 +15,7 @@ import java.util.concurrent.CompletableFuture;
 public abstract class AbstractTask implements YieldingTask {
 
     private CompletableFuture<Void> currentRunFuture;
-    private TaskSerialLane currentLane;
+    private SerialTaskRunner currentLane;
     private boolean wakePending;
 
     /**
@@ -26,7 +26,7 @@ public abstract class AbstractTask implements YieldingTask {
      *
      * @return false when this task already has a current run
      */
-    public final synchronized boolean start(TaskSerialLane taskLane) {
+    public final synchronized boolean start(SerialTaskRunner taskLane) {
         checkLane(taskLane);
         if (isRunning()) {
             return false;
@@ -43,7 +43,7 @@ public abstract class AbstractTask implements YieldingTask {
      * <p>If a run is already active, repeated wake requests collapse into one
      * follow-up run after the current run completes successfully.</p>
      */
-    public final void wake(TaskSerialLane taskLane) {
+    public final void wake(SerialTaskRunner taskLane) {
         checkLane(taskLane);
 
         synchronized (this) {
@@ -91,7 +91,7 @@ public abstract class AbstractTask implements YieldingTask {
         // Most reusable tasks need no completion action.
     }
 
-    private void startRun(TaskSerialLane taskLane) {
+    private void startRun(SerialTaskRunner taskLane) {
         resetForRun();
         currentLane = taskLane;
         currentRunFuture = taskLane.runTask(this);
@@ -99,7 +99,7 @@ public abstract class AbstractTask implements YieldingTask {
     }
 
     private void runCompleted(Void ignored, Throwable failure) {
-        final TaskSerialLane restartLane;
+        final SerialTaskRunner restartLane;
 
         synchronized (this) {
             currentRunFuture = null;
@@ -126,7 +126,7 @@ public abstract class AbstractTask implements YieldingTask {
         onRunCompleted(failure);
     }
 
-    private static void checkLane(TaskSerialLane taskLane) {
+    private static void checkLane(SerialTaskRunner taskLane) {
         if (taskLane == null) {
             throw new IllegalArgumentException("taskLane must not be null");
         }

@@ -1,6 +1,6 @@
-package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes;
+package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -20,15 +21,15 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class TaskSerialLaneTest {
+public class SerialTaskRunnerTest {
 
     @Test
     public void againYieldsToAlreadyQueuedWork()
             throws Exception {
         ScheduledExecutorService worker =
                 Executors.newScheduledThreadPool(1);
-        TaskSerialLane lane =
-                new TaskSerialLane(
+        SerialTaskRunner lane =
+                new SerialTaskRunner(
                         8,
                         8,
                         "yielding-yield",
@@ -78,7 +79,11 @@ public class TaskSerialLaneTest {
                             500,
                             TimeUnit.MILLISECONDS));
 
-            lane.execute(() -> order.add("sibling"));
+            lane.runTask(
+                    () -> {
+                        order.add("sibling");
+                        return TaskStep.done();
+                    });
 
             allowFirstStepReturn.countDown();
             lane.await(task);
@@ -101,8 +106,8 @@ public class TaskSerialLaneTest {
             throws Exception {
         ScheduledExecutorService worker =
                 Executors.newScheduledThreadPool(1);
-        TaskSerialLane taskLane =
-                new TaskSerialLane(
+        SerialTaskRunner taskLane =
+                new SerialTaskRunner(
                         8,
                         8,
                         "yielding-delay",
@@ -162,8 +167,8 @@ public class TaskSerialLaneTest {
             throws Exception {
         ScheduledExecutorService worker =
                 Executors.newScheduledThreadPool(1);
-        TaskSerialLane taskLane =
-                new TaskSerialLane(
+        SerialTaskRunner taskLane =
+                new SerialTaskRunner(
                         8,
                         8,
                         "yielding-await",
@@ -235,8 +240,8 @@ public class TaskSerialLaneTest {
             throws Exception {
         ScheduledExecutorService worker =
                 Executors.newScheduledThreadPool(1);
-        TaskSerialLane lane =
-                new TaskSerialLane(
+        SerialTaskRunner lane =
+                new SerialTaskRunner(
                         4,
                         4,
                         "timeout",
@@ -267,9 +272,9 @@ public class TaskSerialLaneTest {
             try {
                 lane.await(task);
                 fail("expected task timeout");
-            } catch (TaskSerialLane.OperationException expected) {
+            } catch (SerialTaskRunner.OperationException expected) {
                 assertEquals(
-                        TaskSerialLane.FailureReason.TIMEOUT,
+                        SerialTaskRunner.FailureReason.TIMEOUT,
                         expected.reason());
             }
 
@@ -285,35 +290,104 @@ public class TaskSerialLaneTest {
     }
 
     @Test
-    public void rejectedBackingWorkerIsOverloaded() {
+    public void timeoutInterruptDoesNotLeakToNextTask()
+            throws Exception {
+        ScheduledExecutorService worker =
+                Executors.newScheduledThreadPool(1);
+        SerialTaskRunner lane =
+                new SerialTaskRunner(
+                        4,
+                        4,
+                        "timeout-interrupt-isolation",
+                        worker,
+                        Duration.ofMillis(50));
+        lane.start();
+
+        CountDownLatch firstStarted =
+                new CountDownLatch(1);
+        CountDownLatch secondRan =
+                new CountDownLatch(1);
+        AtomicInteger secondSawInterrupt =
+                new AtomicInteger();
+
+        try {
+            CompletableFuture<Void> first =
+                    lane.runTask(
+                            () -> {
+                                firstStarted.countDown();
+                                try {
+                                    Thread.sleep(
+                                            TimeUnit.SECONDS.toMillis(10));
+                                } catch (InterruptedException ex) {
+                                    Thread.currentThread().interrupt();
+                                    throw new IllegalStateException(
+                                            "interrupted",
+                                            ex);
+                                }
+                                return TaskStep.done();
+                            });
+
+            assertTrue(
+                    firstStarted.await(
+                            500,
+                            TimeUnit.MILLISECONDS));
+
+            lane.runTask(
+                    () -> {
+                        if (Thread.currentThread().isInterrupted()) {
+                            secondSawInterrupt.incrementAndGet();
+                        }
+                        secondRan.countDown();
+                        return TaskStep.done();
+                    });
+
+            try {
+                lane.await(first);
+                fail("expected task timeout");
+            } catch (SerialTaskRunner.OperationException expected) {
+                assertEquals(
+                        SerialTaskRunner.FailureReason.TIMEOUT,
+                        expected.reason());
+            }
+
+            assertTrue(
+                    secondRan.await(
+                            500,
+                            TimeUnit.MILLISECONDS));
+            assertEquals(
+                    "task cancellation interrupt leaked to the next queued task",
+                    0,
+                    secondSawInterrupt.get());
+        } finally {
+            lane.close();
+            worker.shutdownNow();
+        }
+    }
+
+    @Test
+    public void rejectedBackingWorkerRejectsInitialAdmission() {
         ScheduledExecutorService worker =
                 Executors.newScheduledThreadPool(1);
         worker.shutdownNow();
 
-        TaskSerialLane lane =
-                new TaskSerialLane(
+        SerialTaskRunner runner =
+                new SerialTaskRunner(
                         4,
                         4,
                         "rejected",
                         worker,
                         Duration.ofMillis(100));
 
-        lane.start();
+        runner.start();
         try {
-            CompletableFuture<Void> task =
-                    lane.runTask(
-                            () -> TaskStep.done());
-
             try {
-                lane.await(task);
+                runner.runTask(() -> TaskStep.done());
                 fail("expected rejection");
-            } catch (TaskSerialLane.OperationException expected) {
-                assertEquals(
-                        TaskSerialLane.FailureReason.OVERLOADED,
-                        expected.reason());
+            } catch (RejectedExecutionException expected) {
+                // Initial admission reports the JDK executor rejection directly.
             }
         } finally {
-            lane.close();
+            runner.close();
         }
     }
 }
