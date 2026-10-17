@@ -89,17 +89,17 @@ final class AsyncLogHandler extends Handler {
         }
 
         LogRecord snapshot = snapshot(record);
-        if (queue.offer(snapshot)) {
-            return;
+        boolean queued = queue.offer(snapshot);
+
+        if (!queued
+                && snapshot.getLevel().intValue() >= Level.WARNING.intValue()
+                && removeOneLowerSeverityRecord()) {
+            queued = queue.offer(snapshot);
         }
 
-        if (snapshot.getLevel().intValue() >= Level.WARNING.intValue()
-                && removeOneLowerSeverityRecord()
-                && queue.offer(snapshot)) {
-            return;
+        if (!queued) {
+            recordDrop();
         }
-
-        recordDrop();
     }
 
     private boolean removeOneLowerSeverityRecord() {

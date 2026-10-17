@@ -347,7 +347,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                         "Test hook forced the next LogBook write to fail");
             case TIMEOUT:
                 Thread.sleep(commitWaitTimeoutMillis + 100L);
-                return;
+                break;
             default:
                 throw new IllegalStateException(
                         "Unsupported LogBook write test failure " + failure);

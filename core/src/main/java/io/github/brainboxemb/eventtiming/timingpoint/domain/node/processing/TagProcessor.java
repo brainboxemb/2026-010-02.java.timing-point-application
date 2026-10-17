@@ -161,13 +161,11 @@ public final class TagProcessor extends LifecycleComponent {
         synchronized (lifecycleLock) {
             if (state != State.ACTIVE) {
                 metrics.recordProcessorNotRunning();
-                return;
-            }
-            if (!inputQueue.offer(observation)) {
+            } else if (!inputQueue.offer(observation)) {
                 metrics.recordObservationQueueFull();
-                return;
+            } else {
+                scheduleDrainLocked();
             }
-            scheduleDrainLocked();
         }
     }
 

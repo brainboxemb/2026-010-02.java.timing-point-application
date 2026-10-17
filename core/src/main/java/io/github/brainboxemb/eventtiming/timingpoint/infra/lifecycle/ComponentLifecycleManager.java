@@ -134,40 +134,40 @@ public final class ComponentLifecycleManager {
         if (state == State.INACTIVE) {
             return;
         }
+
         if (state == State.NEW) {
             state = State.INACTIVE;
-            return;
-        }
-
-        Throwable firstFailure = null;
-        for (int index = components.size() - 1;
-                index >= 0;
-                index--) {
-            Component component =
-                    components.get(index);
-            try {
-                LOG.info(
-                        "Deactivating {}",
-                        component.name);
-                component.lifecycleComponent.deactivateLifecycle();
-                LOG.info(
-                        "{} deactivated",
-                        component.name);
-            } catch (RuntimeException ex) {
-                firstFailure =
-                        appendFailure(
-                                firstFailure,
-                                ex);
-            } catch (Error error) {
-                firstFailure =
-                        appendFailure(
-                                firstFailure,
-                                error);
+        } else {
+            Throwable firstFailure = null;
+            for (int index = components.size() - 1;
+                    index >= 0;
+                    index--) {
+                Component component =
+                        components.get(index);
+                try {
+                    LOG.info(
+                            "Deactivating {}",
+                            component.name);
+                    component.lifecycleComponent.deactivateLifecycle();
+                    LOG.info(
+                            "{} deactivated",
+                            component.name);
+                } catch (RuntimeException ex) {
+                    firstFailure =
+                            appendFailure(
+                                    firstFailure,
+                                    ex);
+                } catch (Error error) {
+                    firstFailure =
+                            appendFailure(
+                                    firstFailure,
+                                    error);
+                }
             }
-        }
 
-        state = State.INACTIVE;
-        rethrow(firstFailure);
+            state = State.INACTIVE;
+            rethrow(firstFailure);
+        }
     }
 
     private void rollback(

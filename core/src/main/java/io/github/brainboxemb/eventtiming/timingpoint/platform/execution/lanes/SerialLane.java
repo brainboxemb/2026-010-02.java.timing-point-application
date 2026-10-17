@@ -282,16 +282,12 @@ public class SerialLane implements Executor, AutoCloseable {
                     cancelQueuedTasks();
                     executionScheduled = false;
                     notifyAll();
-                    return;
-                }
-
-                if (queue.isEmpty()) {
+                } else if (queue.isEmpty()) {
                     executionScheduled = false;
                     notifyAll();
-                    return;
+                } else {
+                    scheduleNextExecution();
                 }
-
-                scheduleNextExecution();
             }
         }
     }
