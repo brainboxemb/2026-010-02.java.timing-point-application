@@ -43,13 +43,8 @@ public final class SerialLane<T> implements AutoCloseable {
     private final Runnable queueWorker = this::runQueueWorker;
     private final SerialLaneMetrics metrics;
 
-    /*
-     * Ownership is lane-local. Different lanes may execute nested on the same
-     * Java thread (for example with a direct test executor) without needing a
-     * global "previous lane" stack.
-     */
-    private final ThreadLocal<Boolean> executing =
-            new ThreadLocal<Boolean>();
+    /** Java thread currently running this lane's worker, or null while idle. */
+    private volatile Thread executingThread;
 
     private boolean accepting;
     private boolean workerScheduled;
@@ -144,7 +139,7 @@ public final class SerialLane<T> implements AutoCloseable {
             itemCount = Math.min(queue.size(), maxItemsPerRun);
         }
 
-        executing.set(Boolean.TRUE);
+        executingThread = Thread.currentThread();
         try {
             for (int index = 0; index < itemCount; index++) {
                 QueuedItem<T> item = queue.poll();
@@ -154,7 +149,7 @@ public final class SerialLane<T> implements AutoCloseable {
                 process(item);
             }
         } finally {
-            executing.remove();
+            executingThread = null;
             finishWorkerRun();
         }
     }
@@ -210,7 +205,7 @@ public final class SerialLane<T> implements AutoCloseable {
 
     /** True only while this Java thread is processing an item for this lane. */
     public boolean isExecutingOnCurrentThread() {
-        return Boolean.TRUE.equals(executing.get());
+        return executingThread == Thread.currentThread();
     }
 
     /** Returns item-queue metrics for this lane. */
