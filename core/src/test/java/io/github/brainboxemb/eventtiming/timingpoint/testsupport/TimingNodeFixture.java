@@ -344,7 +344,6 @@ public final class TimingNodeFixture {
                         SystemMonotonicClock.INSTANCE,
                         new LogBookMetrics(),
                         dataLane,
-                        NODE_WORKER,
                         commitWaitTimeoutMillis,
                         orderedQueryWaitTimeoutMillis);
 
