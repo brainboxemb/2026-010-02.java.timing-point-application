@@ -5,7 +5,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 import java.util.concurrent.RejectedExecutionException;
@@ -32,8 +32,8 @@ public final class UpstreamHandler {
     private static final Logger LOG = LoggerFactory.getLogger(UpstreamHandler.class);
 
     private final NodeId nodeId;
-    private final SerialLane dataSerialLane;
-    private final SerialLane taskSerialLane;
+    private final RunnableSerialLane dataSerialLane;
+    private final RunnableSerialLane taskSerialLane;
     private final UpstreamStream stream;
     private final UpstreamHeartbeat heartbeat;
     private final UpstreamDataSync upstreamDataSync;
@@ -46,11 +46,11 @@ public final class UpstreamHandler {
      */
     private final AtomicBoolean inputOperationScheduled = new AtomicBoolean();
 
-    /** Creates the node-scoped upstream coordinator over the composed SerialLane roles. */
+    /** Creates the node-scoped upstream coordinator over the composed RunnableSerialLane roles. */
     public UpstreamHandler(
             NodeId nodeId,
-            SerialLane dataSerialLane,
-            SerialLane taskSerialLane,
+            RunnableSerialLane dataSerialLane,
+            RunnableSerialLane taskSerialLane,
             UpstreamStream stream,
             LogBookAccessor logBook,
             UpstreamTaskState taskState) {
