@@ -108,6 +108,8 @@ public final class NodeService extends LifecycleComponent {
     private final NodeServiceState state;
     private final StageTiming stageTiming;
 
+    private List<TimingData> startupTimingData;
+
     /** Creates the Task Lane service around explicitly composed passive state. */
     public NodeService(NodeId nodeId, RunnableSerialLane serialLane, NodeServiceState state) {
 
@@ -123,14 +125,20 @@ public final class NodeService extends LifecycleComponent {
     }
 
     /**
-     * Starts the Task Lane execution context.
+     * Builds startup-derived state and then starts normal Task Lane execution.
      *
-     * <p>Activation does not wait for LogBook data. Derived timing becomes
-     * available only after transient startup history has rebuilt compact derived state.</p>
+     * <p>TimingNode activates LogBook first. Its synchronous recovery publishes
+     * the initial TimingData while this service is still inactive, so the
+     * startup fold does not need another queued lane turn.</p>
      */
     @Override
     protected void onActivate() {
 
+        List<TimingData> loadedData = startupTimingData;
+        startupTimingData = null;
+        if (loadedData != null) {
+            state.rebuildDerivedTiming(loadedData);
+        }
         taskLane.activate();
     }
 
@@ -172,13 +180,20 @@ public final class NodeService extends LifecycleComponent {
     }
 
     /**
-     * Receives transient immutable startup history from the LogBook Data Lane.
+     * Receives transient immutable startup history from LogBook recovery.
      *
-     * <p>{@link TimingNode} installs this composition-time event link. The
-     * handler only queues the history fold onto the Task Lane and returns.</p>
+     * <p>During normal composition this arrives before NodeService activation
+     * and is consumed synchronously by {@link #onActivate()}. A later replay
+     * still falls back to the ordinary Task Lane handoff.</p>
      */
     private void onInitialTimingDataLoaded(List<TimingData> loadedData) {
-        handoffTimingFact(new InitialTimingDataItem(loadedData));
+        failIfInvalidArgument(loadedData != null, "loadedData must not be null");
+
+        if (isActive()) {
+            handoffTimingFact(new InitialTimingDataItem(loadedData));
+        } else {
+            startupTimingData = loadedData;
+        }
     }
 
     /**
