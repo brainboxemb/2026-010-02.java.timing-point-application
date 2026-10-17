@@ -1,0 +1,15 @@
+{
+  "files": [
+    "CHANGELOG.md",
+    "core/src/main/java/io/github/brainboxemb/eventtiming/timingpoint/platform/execution/lanes/SerialLane.java"
+  ],
+  "options": {
+    "base": "665c21c4b0acc389f0b2abffbc0063d5cd68385e",
+    "defaultBranch": true,
+    "head": "aff745fe4bf9ee2ce5472dae62f34f100756c101",
+    "local": false,
+    "status": [],
+    "stdin": false
+  },
+  "shallow": false
+}
