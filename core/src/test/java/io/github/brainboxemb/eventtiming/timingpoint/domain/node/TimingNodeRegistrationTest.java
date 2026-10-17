@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.activate;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
@@ -52,7 +53,7 @@ public class TimingNodeRegistrationTest {
 
             RegistrationId registrationId = new RegistrationId("1001");
             TimingNodeTypes.RegistrationResult result =
-                    addTestAutomaticRegistration(node, 
+                    addTestAutomaticRegistration(node,
                             registrationId,
                             EFFECTIVE_TIME,
                             TimingData.AutomaticTimeSource.API);
@@ -88,7 +89,7 @@ public class TimingNodeRegistrationTest {
             TimingTimestamp nodeTime =
                     new TimingTimestamp(node.timeSource().now());
             AutomaticRegistration fromNodeClock =
-                    (AutomaticRegistration) addTestAutomaticRegistration(node, 
+                    (AutomaticRegistration) addTestAutomaticRegistration(node,
                             new RegistrationId("RT-A-0001"),
                             nodeTime,
                             TimingData.AutomaticTimeSource.NODE)
@@ -101,7 +102,7 @@ public class TimingNodeRegistrationTest {
                     fromNodeClock.registrationTimeSource());
 
             AutomaticRegistration explicit =
-                    (AutomaticRegistration) addTestAutomaticRegistration(node, 
+                    (AutomaticRegistration) addTestAutomaticRegistration(node,
                             new RegistrationId("RT-A-0002"),
                             EFFECTIVE_TIME,
                             TimingData.AutomaticTimeSource.API)
@@ -126,7 +127,7 @@ public class TimingNodeRegistrationTest {
             node.open(new LocationId(24));
 
             try {
-                addTestAutomaticRegistration(node, 
+                addTestAutomaticRegistration(node,
                         new RegistrationId("RT-A-0003"),
                         EFFECTIVE_TIME,
                         TimingData.AutomaticTimeSource.OBS);
@@ -149,13 +150,13 @@ public class TimingNodeRegistrationTest {
             node.open(new LocationId(24));
 
             TimingNodeTypes.RegistrationResult automatic =
-                    addTestAutomaticRegistration(node, 
+                    addTestAutomaticRegistration(node,
                             new RegistrationId("1001"),
                             TimingTimestamp.parse(
                                     "2026-10-01T12:00:00.129876543Z"),
                             TimingData.AutomaticTimeSource.API);
             TimingNodeTypes.RegistrationResult manual =
-                    addManualRegistration(node, 
+                    addManualRegistration(node,
                             new RegistrationId("1002"),
                             TimingTimestamp.parse(
                                     "2026-10-01T12:00:01.987654321Z"),
@@ -183,7 +184,7 @@ public class TimingNodeRegistrationTest {
         try {
 
             TimingNodeTypes.RegistrationResult rejected =
-                    addTestAutomaticRegistration(node, 
+                    addTestAutomaticRegistration(node,
                             new RegistrationId("1001"),
                             EFFECTIVE_TIME,
                             TimingData.AutomaticTimeSource.API);
@@ -196,7 +197,7 @@ public class TimingNodeRegistrationTest {
 
             node.open(new LocationId(24));
             TimingNodeTypes.RegistrationResult committed =
-                    addTestAutomaticRegistration(node, 
+                    addTestAutomaticRegistration(node,
                             new RegistrationId("1002"),
                             EFFECTIVE_TIME,
                             TimingData.AutomaticTimeSource.API);
@@ -215,7 +216,7 @@ public class TimingNodeRegistrationTest {
         try {
             assertEquals(TimingNodeTypes.OpenResult.OPENED, node.open(new LocationId(24)));
 
-            TimingNodeTypes.RegistrationResult result = addManualRegistration(node, 
+            TimingNodeTypes.RegistrationResult result = addManualRegistration(node,
                     new RegistrationId("1001"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.OPERATOR_ENTERED);
@@ -261,11 +262,11 @@ public class TimingNodeRegistrationTest {
         try {
             node.open(new LocationId(24));
 
-            TimingNodeTypes.RegistrationResult first = addTestAutomaticRegistration(node, 
+            TimingNodeTypes.RegistrationResult first = addTestAutomaticRegistration(node,
                             new RegistrationId("1001"),
                             EFFECTIVE_TIME,
                             TimingData.AutomaticTimeSource.API);
-            TimingNodeTypes.RegistrationResult second = addManualRegistration(node, 
+            TimingNodeTypes.RegistrationResult second = addManualRegistration(node,
                     new RegistrationId("1002"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.AUTOMATIC);
@@ -286,7 +287,7 @@ public class TimingNodeRegistrationTest {
         activate(node);
         try {
 
-            TimingNodeTypes.RegistrationResult rejected = addManualRegistration(node, 
+            TimingNodeTypes.RegistrationResult rejected = addManualRegistration(node,
                     new RegistrationId("1001"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.OPERATOR_ENTERED);
@@ -298,7 +299,7 @@ public class TimingNodeRegistrationTest {
             assertEquals(0, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
 
             node.open(new LocationId(24));
-            TimingNodeTypes.RegistrationResult committed = addManualRegistration(node, 
+            TimingNodeTypes.RegistrationResult committed = addManualRegistration(node,
                     new RegistrationId("1002"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.OPERATOR_ENTERED);
@@ -319,7 +320,7 @@ public class TimingNodeRegistrationTest {
             store.failNext = true;
 
             try {
-                addManualRegistration(node, 
+                addManualRegistration(node,
                         new RegistrationId("1001"),
                         EFFECTIVE_TIME,
                         ManualTimeSource.OPERATOR_ENTERED);
@@ -334,7 +335,7 @@ public class TimingNodeRegistrationTest {
             assertEquals(2, store.attempts);
 
             try {
-                addManualRegistration(node, 
+                addManualRegistration(node,
                         new RegistrationId("1002"),
                         EFFECTIVE_TIME,
                         ManualTimeSource.OPERATOR_ENTERED);
@@ -364,7 +365,7 @@ public class TimingNodeRegistrationTest {
         activate(node);
         try {
 
-            TimingNodeTypes.RegistrationResult rejected = addManualRegistration(node, 
+            TimingNodeTypes.RegistrationResult rejected = addManualRegistration(node,
                     new RegistrationId("1001"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.OPERATOR_ENTERED);
@@ -374,7 +375,7 @@ public class TimingNodeRegistrationTest {
             assertTrue(delivered.isEmpty());
 
             node.open(new LocationId(24));
-            TimingNodeTypes.RegistrationResult committed = addManualRegistration(node, 
+            TimingNodeTypes.RegistrationResult committed = addManualRegistration(node,
                     new RegistrationId("1002"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.OPERATOR_ENTERED);
@@ -403,7 +404,7 @@ public class TimingNodeRegistrationTest {
             store.failNext = true;
 
             try {
-                addManualRegistration(node, 
+                addManualRegistration(node,
                         new RegistrationId("1001"),
                         EFFECTIVE_TIME,
                         ManualTimeSource.OPERATOR_ENTERED);
@@ -437,7 +438,7 @@ public class TimingNodeRegistrationTest {
             node.open(new LocationId(24));
             delivered.clear();
 
-            TimingNodeTypes.RegistrationResult committed = addManualRegistration(node, 
+            TimingNodeTypes.RegistrationResult committed = addManualRegistration(node,
                     new RegistrationId("1001"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.AUTOMATIC);
@@ -549,7 +550,7 @@ public class TimingNodeRegistrationTest {
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
                     node.open(new LocationId(24)));
-            TimingNodeTypes.RegistrationResult committed = addManualRegistration(node, 
+            TimingNodeTypes.RegistrationResult committed = addManualRegistration(node,
                     new RegistrationId("1003"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.AUTOMATIC);
@@ -627,6 +628,11 @@ public class TimingNodeRegistrationTest {
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
             TimingData.AutomaticTimeSource registrationTimeSource) {
+
+        failIfInvalidArgument(
+                registrationTimeSource == TimingData.AutomaticTimeSource.API
+                        || registrationTimeSource == TimingData.AutomaticTimeSource.NODE,
+                "test automatic registration time source must be API or NODE");
 
         Supplier<TimingNodeTypes.RegistrationResult> addRegistration = () -> {
             TimingNodeTypes.RegistrationResult result;
