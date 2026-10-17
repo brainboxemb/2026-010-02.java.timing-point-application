@@ -109,6 +109,7 @@ public class LogBookDataLaneTest {
                         250L);
 
         dataLane.activate();
+        lane.offer(new BlockingOperationItem());
         try {
             assertTrue(blockerStarted.await(1L, TimeUnit.SECONDS));
 
@@ -161,6 +162,7 @@ public class LogBookDataLaneTest {
                         25L);
 
         dataLane.activate();
+        lane.offer(new BlockingOperationItem());
         try {
             assertTrue(blockerStarted.await(1L, TimeUnit.SECONDS));
 
