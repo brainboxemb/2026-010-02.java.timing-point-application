@@ -178,7 +178,6 @@ public final class TimingNode extends LifecycleComponent {
         failIfInvalidArgument(locationId != null, "locationId must not be null");
         synchronized (operationLock) {
             failIfInactive();
-            failIfNotOperational();
 
             OpenResult result;
             if (functionalStateProp.get() == FunctionalState.OPEN) {
@@ -207,7 +206,6 @@ public final class TimingNode extends LifecycleComponent {
 
         synchronized (operationLock) {
             failIfInactive();
-            failIfNotOperational();
 
             CloseResult result;
             if (functionalStateProp.get() == FunctionalState.CLOSED) {
@@ -338,18 +336,6 @@ public final class TimingNode extends LifecycleComponent {
         properties.update();
     }
 
-    /** Rejects functional commands while startup is incomplete or failed. */
-    private void failIfNotOperational() {
-        OperationalState state = operationalStateProp.get();
-        if (state != OperationalState.OK) {
-            throw new IllegalStateException(
-                    "TimingNode "
-                            + timingNodeId.value()
-                            + " is not operational: "
-                            + state);
-        }
-    }
-
     /**
      * Handles a registration event on the TagProcessor lane.
      *
@@ -359,8 +345,7 @@ public final class TimingNode extends LifecycleComponent {
     private void onNewRegistration(TagProcessor.NewRegistration registration) {
 
         synchronized (stateLock) {
-            if (operationalStateProp.get() != OperationalState.OK
-                    || functionalStateProp.get() != FunctionalState.OPEN) {
+            if (functionalStateProp.get() != FunctionalState.OPEN) {
                 return;
             }
 
