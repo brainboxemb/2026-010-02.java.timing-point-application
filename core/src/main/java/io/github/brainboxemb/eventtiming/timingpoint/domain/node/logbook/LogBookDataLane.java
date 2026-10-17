@@ -20,9 +20,11 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * LogBook-specific adapter onto the shared typed TimingNode Data Lane.
  *
- * <p>Commands, queries and startup recovery are {@link LogBookOperationItem}
- * values. This class owns only LogBook-specific admission errors, ordered waits,
- * reentrancy checks and timeouts.</p>
+ * <p>Only normal LogBook commands and ordered queries are
+ * {@link LogBookOperationItem} values. Startup recovery is owned by
+ * TimingNode.MainTask and never enters this queue. This adapter owns only
+ * LogBook-specific admission errors, ordered waits, reentrancy checks and
+ * timeouts.</p>
  */
 final class LogBookDataLane {
     private static final Logger LOG = LoggerFactory.getLogger(LogBookDataLane.class);
@@ -82,7 +84,7 @@ final class LogBookDataLane {
         this.orderedQueryWaitTimeoutMillis = orderedQueryWaitTimeoutMillis;
     }
 
-    /** Starts normal LogBook command/query admission after recovery is complete. */
+    /** Starts normal LogBook command/query admission during LogBook activation. */
     void activate() {
         dataLane.start();
     }
