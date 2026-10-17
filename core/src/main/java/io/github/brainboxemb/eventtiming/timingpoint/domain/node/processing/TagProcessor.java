@@ -69,7 +69,7 @@ public final class TagProcessor extends LifecycleComponent {
                 monotonicClock,
                 metrics,
                 lane,
-                policy.observationQueueCapacity());
+                defaultMaxObservationsPerRun(policy));
     }
 
     /** Creates a TagProcessor backed by the supplied live read-only policy configuration. */
@@ -85,7 +85,23 @@ public final class TagProcessor extends LifecycleComponent {
                 monotonicClock,
                 metrics,
                 lane,
-                policyConfiguration.startupValue().observationQueueCapacity());
+                defaultMaxObservationsPerRun(policyConfiguration));
+    }
+
+    /** Uses the configured ingress capacity as the default observation batch size. */
+    private static int defaultMaxObservationsPerRun(TagProcessingPolicy policy) {
+        failIfInvalidArgument(policy != null, "policy must not be null");
+        return policy.observationQueueCapacity();
+    }
+
+    /** Uses the configured ingress capacity as the default observation batch size. */
+    private static int defaultMaxObservationsPerRun(
+            ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration) {
+
+        failIfInvalidArgument(policyConfiguration != null, "policyConfiguration must not be null");
+        TagProcessingPolicy startupPolicy = policyConfiguration.startupValue();
+        failIfInvalidArgument(startupPolicy != null, "policyConfiguration.startupValue must not be null");
+        return startupPolicy.observationQueueCapacity();
     }
 
     /** Creates a TagProcessor with an explicit observation batch size. */
