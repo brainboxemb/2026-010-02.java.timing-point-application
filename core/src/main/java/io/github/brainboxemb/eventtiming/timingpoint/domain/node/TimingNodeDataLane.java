@@ -61,19 +61,9 @@ public final class TimingNodeDataLane implements AutoCloseable {
         upstreamTurnProcessor = processor;
     }
 
-    /**
-     * Starts the lane and admits recovery as its first item.
-     *
-     * <p>This method and both offer methods share the same short lock so no
-     * producer can insert an item between {@code lane.start()} and recovery
-     * admission.</p>
-     */
-    public synchronized SerialLane.OfferResult start(
-            LogBookOperationItem<?> startupOperation) {
-
-        failIfInvalidArgument(startupOperation != null, "startupOperation must not be null");
+    /** Starts accepting normal Data Lane items. */
+    public synchronized void start() {
         lane.start();
-        return lane.offer(startupOperation);
     }
 
     /** Queues one LogBook operation item. */
