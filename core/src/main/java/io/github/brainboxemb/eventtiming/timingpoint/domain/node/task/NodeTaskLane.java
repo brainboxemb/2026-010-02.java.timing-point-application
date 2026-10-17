@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.task;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialQueue;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTaskLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -9,23 +9,20 @@ import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Consumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * NodeService Task Lane item queue on one shared {@link RunnableSerialLane}.
+ * NodeService-specific adapter onto the shared typed {@link TimingNodeTaskLane}.
  *
- * <p>The queue contains NodeService-owned items, not Runnable or Callable
- * wrappers. {@link SerialQueue} owns bounded FIFO admission and the one-worker
- * scheduling invariant. NodeTaskLane owns lifecycle, reentrancy and result wait
- * handling.</p>
+ * <p>The shared Task Lane owns FIFO admission and the one-worker scheduling
+ * invariant. NodeTaskLane owns NodeService result waits, timeout handling and
+ * same-lane reentrancy checks.</p>
  */
 final class NodeTaskLane {
 
     /** One caller-owned value that can be queued on the NodeService Task Lane. */
-    interface Item {
-        String name();
+    interface Item extends NodeServiceTaskItem {
     }
 
     /** Task Lane item whose caller waits for a later result. */
@@ -33,35 +30,32 @@ final class NodeTaskLane {
         Future<R> result();
     }
 
-    private final RunnableSerialLane serialLane;
-    private final SerialQueue<Item> items;
+    private final TimingNodeTaskLane taskLane;
     private final long operationTimeoutMillis;
 
-    /** Creates the Task Lane item queue around one externally composed RunnableSerialLane. */
+    /** Creates the NodeService adapter on one shared typed Task Lane. */
     NodeTaskLane(
-            RunnableSerialLane serialLane,
+            TimingNodeTaskLane taskLane,
             long operationTimeoutMillis,
-            Consumer<Item> itemProcessor) {
+            java.util.function.Consumer<NodeServiceTaskItem> itemProcessor) {
 
-        failIfInvalidArgument(serialLane != null, "serialLane must not be null");
+        failIfInvalidArgument(taskLane != null, "taskLane must not be null");
         failIfInvalidArgument(operationTimeoutMillis > 0L, "operationTimeoutMillis must be positive");
         failIfInvalidArgument(itemProcessor != null, "itemProcessor must not be null");
 
-        this.serialLane = serialLane;
-        this.items = new SerialQueue<Item>(serialLane, itemProcessor);
+        this.taskLane = taskLane;
         this.operationTimeoutMillis = operationTimeoutMillis;
+        taskLane.bindNodeService(itemProcessor);
     }
 
     /** Starts the logical Task Lane and opens item admission. */
     void activate() {
-        serialLane.start();
-        items.start();
+        taskLane.start();
     }
 
     /** Stops item admission, drains accepted items and closes the logical Task Lane. */
     void deactivate() {
-        items.close();
-        serialLane.close();
+        taskLane.close();
     }
 
     /** Queues one fire-and-forget Task Lane item. */
@@ -72,13 +66,13 @@ final class NodeTaskLane {
 
     /** Reports whether the current Java thread owns this Task Lane turn. */
     boolean isExecutingOnCurrentThread() {
-        return serialLane.isExecutingOnCurrentThread();
+        return taskLane.isExecutingOnCurrentThread();
     }
 
     /** Fails fast when mutable Task Lane state is accessed outside its lane turn. */
     void requireCurrentThread(String operation) {
         failIfInvalidArgument(operation != null && !operation.trim().isEmpty(), "operation must not be blank");
-        if (!serialLane.isExecutingOnCurrentThread()) {
+        if (!taskLane.isExecutingOnCurrentThread()) {
             throw new IllegalStateException(operation + " requires the TimingNode Task Lane");
         }
     }
@@ -87,7 +81,7 @@ final class NodeTaskLane {
     <R> R submitAndWait(ResultItem<R> item) {
         failIfInvalidArgument(item != null, "item must not be null");
 
-        if (serialLane.isExecutingOnCurrentThread()) {
+        if (taskLane.isExecutingOnCurrentThread()) {
             throw new IllegalStateException(
                     "Reentrant ORDERED TimingNode operation "
                             + item.name()
@@ -102,9 +96,9 @@ final class NodeTaskLane {
         return await(item.result(), item.name());
     }
 
-    /** Converts SerialQueue admission outcomes to the existing Task Lane rejection boundary. */
+    /** Converts typed Task Lane admission outcomes to the NodeService rejection boundary. */
     private void offerOrReject(Item item) {
-        SerialQueue.OfferResult result = items.offer(item);
+        SerialLane.OfferResult result = taskLane.offer(item);
 
         switch (result) {
             case ACCEPTED:
@@ -139,12 +133,12 @@ final class NodeTaskLane {
             String operation,
             RejectedExecutionException rejection) {
 
-        if (serialLane.state() == RunnableSerialLane.State.FAILED) {
+        if (taskLane.state() == SerialLane.State.FAILED) {
             return new IllegalStateException(
                     operation + " could not run because the TimingNode Task Lane failed",
-                    serialLane.failure() == null ? rejection : serialLane.failure());
+                    taskLane.failure() == null ? rejection : taskLane.failure());
         }
-        if (serialLane.state() != RunnableSerialLane.State.RUNNING) {
+        if (!taskLane.isRunning()) {
             return new IllegalStateException(
                     operation + " could not be queued because the TimingNode Task Lane is not running",
                     rejection);
