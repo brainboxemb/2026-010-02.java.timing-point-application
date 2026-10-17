@@ -20,11 +20,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnl
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
@@ -41,8 +40,9 @@ public final class TimingNodeFixture {
     private static final long DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS =
             LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS;
 
-    private static final ExecutorService NODE_WORKER =
-            Executors.newSingleThreadExecutor(
+    private static final ScheduledThreadPoolExecutor NODE_WORKER =
+            new ScheduledThreadPoolExecutor(
+                    1,
                     runnable -> {
                         Thread thread =
                                 new Thread(
@@ -65,6 +65,7 @@ public final class TimingNodeFixture {
                     });
 
     static {
+        NODE_WORKER.setRemoveOnCancelPolicy(true);
         TAG_WORKER.setRemoveOnCancelPolicy(true);
     }
 
@@ -170,7 +171,7 @@ public final class TimingNodeFixture {
                         32,
                         "test-node-data-" + suffix,
                         NODE_WORKER),
-                new RunnableSerialLane(
+                new TaskSerialLane(
                         32,
                         32,
                         "test-node-task-" + suffix,
@@ -243,7 +244,7 @@ public final class TimingNodeFixture {
                         32,
                         "test-node-data-direct-" + suffix,
                         Runnable::run),
-                new RunnableSerialLane(
+                new TaskSerialLane(
                         32,
                         32,
                         "test-node-task-direct-" + suffix,
@@ -302,7 +303,7 @@ public final class TimingNodeFixture {
                 EventData.empty(),
                 UpstreamStream.unavailable(),
                 dataLane,
-                new RunnableSerialLane(
+                new TaskSerialLane(
                         32,
                         32,
                         "test-node-task-direct-" + suffix,
@@ -326,7 +327,7 @@ public final class TimingNodeFixture {
             EventData eventData,
             UpstreamStream upstreamStream,
             TimingNodeDataLane dataLane,
-            RunnableSerialLane taskLane,
+            TaskSerialLane taskLane,
             ScheduledSerialLane tagLane,
             long commitWaitTimeoutMillis,
             long orderedQueryWaitTimeoutMillis) {
@@ -343,6 +344,7 @@ public final class TimingNodeFixture {
                         SystemMonotonicClock.INSTANCE,
                         new LogBookMetrics(),
                         dataLane,
+                        NODE_WORKER,
                         commitWaitTimeoutMillis,
                         orderedQueryWaitTimeoutMillis);
 
@@ -367,7 +369,14 @@ public final class TimingNodeFixture {
                         new TagProcessingMetrics(),
                         tagLane);
 
-        TimingNode node = new TimingNode(new AntennaId("1"), timeSource, logBook, nodeService, tagProcessor);
+        TimingNode node =
+                new TimingNode(
+                        new AntennaId("1"),
+                        timeSource,
+                        logBook,
+                        nodeService,
+                        tagProcessor,
+                        taskLane);
 
         return new Components(
                 node,
