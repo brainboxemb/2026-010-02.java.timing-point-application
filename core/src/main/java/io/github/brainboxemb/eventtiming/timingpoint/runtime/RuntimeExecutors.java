@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
@@ -59,12 +60,12 @@ final class RuntimeExecutors implements AutoCloseable {
 
     /** Node-local logical lanes resolved for one TimingNode. */
     static final class TimingNodeExecutionResources {
-        private final RunnableSerialLane dataLane;
+        private final TimingNodeDataLane dataLane;
         private final RunnableSerialLane taskLane;
         private final ScheduledSerialLane tagProcessorLane;
 
         private TimingNodeExecutionResources(
-                RunnableSerialLane dataLane,
+                TimingNodeDataLane dataLane,
                 RunnableSerialLane taskLane,
                 ScheduledSerialLane tagProcessorLane) {
 
@@ -73,7 +74,7 @@ final class RuntimeExecutors implements AutoCloseable {
             this.tagProcessorLane = tagProcessorLane;
         }
 
-        RunnableSerialLane dataLane() {
+        TimingNodeDataLane dataLane() {
 
             return dataLane;
         }
@@ -168,15 +169,15 @@ final class RuntimeExecutors implements AutoCloseable {
     /**
      * Creates one node-local execution-resource set on shared Runtime executors.
      *
-     * <p>The Data Lane and Task Lane are distinct RunnableSerialLane instances with
-     * independent bounded queues and FIFO ordering, but they deliberately share
+     * <p>The typed Data Lane and legacy Task Lane keep independent bounded queues and FIFO
+     * ordering, but they deliberately share
      * the same TimingNode executor. TagProcessor keeps its separate scheduled
      * executor. Logical responsibility therefore does not imply another
      * Java thread.</p>
      */
     synchronized TimingNodeExecutionResources createTimingNodeExecutionResources() {
-        RunnableSerialLane dataLane =
-                new RunnableSerialLane(
+        TimingNodeDataLane dataLane =
+                new TimingNodeDataLane(
                         TIMING_NODE_DATA_LANE_QUEUE_CAPACITY,
                         TIMING_NODE_DATA_LANE_MAX_ITEMS_PER_RUN,
                         "TimingNodeData",
