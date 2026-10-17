@@ -72,20 +72,28 @@ public final class TimingNodeDataLane implements AutoCloseable {
         upstreamTurnProcessor = processor;
     }
 
-    /** Starts this logical Data Lane. */
-    public void start() {
+    /**
+     * Starts this logical Data Lane with the supplied LogBook startup operation
+     * as its first admitted item.
+     */
+    public synchronized SerialLane.OfferResult start(
+            LogBookOperationItem<?> startupOperation) {
+
+        failIfInvalidArgument(startupOperation != null, "startupOperation must not be null");
         lane.start();
+        return lane.offer(new LogBookItem(startupOperation));
     }
 
     /** Queues one LogBook operation item. */
-    public SerialLane.OfferResult offer(LogBookOperationItem<?> operation) {
+    public synchronized SerialLane.OfferResult offer(
+            LogBookOperationItem<?> operation) {
 
         failIfInvalidArgument(operation != null, "operation must not be null");
         return lane.offer(new LogBookItem(operation));
     }
 
     /** Queues one upstream turn in the same Data Lane FIFO. */
-    public SerialLane.OfferResult offerUpstreamTurn() {
+    public synchronized SerialLane.OfferResult offerUpstreamTurn() {
         return lane.offer(UpstreamTurn.INSTANCE);
     }
 
