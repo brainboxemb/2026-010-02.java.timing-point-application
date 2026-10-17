@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Start TimingNode asynchronously through its cooperative MainTask: lifecycle activation admits the task and returns; the MainTask reads and reconstructs persisted LogBook data on the shared node worker, while the already-started Data Lane may accept normal commands/queries that execute only after the startup step releases that worker. Recovery is not a queued `LogBookOperationItem`, and `INIT/OK/ERROR` readiness remains separate from functional `OPEN/CLOSED`.
+
+- Simplify typed `SerialLane<T>` to its queue/worker responsibility: remove the global current-lane stack, five-state/FAILED lifecycle, lane-local application failure policy and redundant exception handling; keep bounded FIFO, batch fairness, one-worker scheduling, drain-on-close and item metrics.
+
 - Add non-blocking ordered LogBook query submission: `submit(LogBookQuery)` queues the same typed Data Lane query operation and returns its `CompletableFuture`, allowing YieldingTasks to await Data Lane work without blocking the shared worker.
 
 - Add `TaskStep.await(...)`: a cooperative Task Lane task can release its worker while an asynchronous dependency is incomplete and is re-admitted only after that dependency completes.

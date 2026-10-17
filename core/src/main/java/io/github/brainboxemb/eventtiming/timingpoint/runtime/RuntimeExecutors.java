@@ -9,11 +9,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -61,12 +59,12 @@ final class RuntimeExecutors implements AutoCloseable {
     /** Node-local logical lanes resolved for one TimingNode. */
     static final class TimingNodeExecutionResources {
         private final TimingNodeDataLane dataLane;
-        private final RunnableSerialLane taskLane;
+        private final TaskSerialLane taskLane;
         private final ScheduledSerialLane tagProcessorLane;
 
         private TimingNodeExecutionResources(
                 TimingNodeDataLane dataLane,
-                RunnableSerialLane taskLane,
+                TaskSerialLane taskLane,
                 ScheduledSerialLane tagProcessorLane) {
 
             this.dataLane = dataLane;
@@ -79,7 +77,7 @@ final class RuntimeExecutors implements AutoCloseable {
             return dataLane;
         }
 
-        RunnableSerialLane taskLane() {
+        TaskSerialLane taskLane() {
 
             return taskLane;
         }
@@ -98,7 +96,7 @@ final class RuntimeExecutors implements AutoCloseable {
      * of configured lanes rather than by registration volume. Registration/command
      * overload remains bounded and visible in the lane-local queues.
      */
-    private final ThreadPoolExecutor timingNodeExecutor;
+    private final ScheduledThreadPoolExecutor timingNodeExecutor;
     private final ScheduledThreadPoolExecutor tagProcessorScheduledExecutor;
 
     /**
@@ -122,12 +120,11 @@ final class RuntimeExecutors implements AutoCloseable {
 
     RuntimeExecutors() {
 
-        timingNodeExecutor = new ThreadPoolExecutor(
-                1, 1,
-                0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<Runnable>(),
-                threadFactory("tp-dl-node"),
-                new ThreadPoolExecutor.AbortPolicy());
+        timingNodeExecutor =
+                new ScheduledThreadPoolExecutor(
+                        1,
+                        threadFactory("tp-dl-node"));
+        timingNodeExecutor.setRemoveOnCancelPolicy(true);
         tagProcessorScheduledExecutor =
                 new ScheduledThreadPoolExecutor(1, threadFactory("tp-dl-tagproc"));
         tagProcessorScheduledExecutor.setRemoveOnCancelPolicy(true);
@@ -169,7 +166,7 @@ final class RuntimeExecutors implements AutoCloseable {
     /**
      * Creates one node-local execution-resource set on shared Runtime executors.
      *
-     * <p>The typed Data Lane and legacy Task Lane keep independent bounded queues and FIFO
+     * <p>The typed Data Lane and cooperative Task Lane keep independent bounded queues and FIFO
      * ordering, but they deliberately share
      * the same TimingNode executor. TagProcessor keeps its separate scheduled
      * executor. Logical responsibility therefore does not imply another
@@ -182,8 +179,8 @@ final class RuntimeExecutors implements AutoCloseable {
                         TIMING_NODE_DATA_LANE_MAX_ITEMS_PER_RUN,
                         "TimingNodeData",
                         timingNodeExecutor);
-        RunnableSerialLane taskLane =
-                new RunnableSerialLane(
+        TaskSerialLane taskLane =
+                new TaskSerialLane(
                         TIMING_NODE_TASK_LANE_QUEUE_CAPACITY,
                         TIMING_NODE_TASK_LANE_MAX_ITEMS_PER_RUN,
                         "TimingNodeTask",

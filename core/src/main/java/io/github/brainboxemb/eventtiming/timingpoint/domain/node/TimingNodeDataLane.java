@@ -42,33 +42,28 @@ public final class TimingNodeDataLane implements AutoCloseable {
                 this::processItem);
     }
 
-    /** Binds the LogBook-owned operation processor during composition. */
+    /** Binds the LogBook processor during composition, before the lane starts. */
     public synchronized void bindLogBook(
             Consumer<LogBookOperationItem<?>> processor) {
 
         failIfInvalidArgument(processor != null, "processor must not be null");
+        failIfIllegalState(!lane.isRunning(), "LogBook processor must be bound before Data Lane start");
         failIfIllegalState(logBookProcessor == null, "LogBook Data Lane processor is already bound");
         logBookProcessor = processor;
     }
 
-    /** Binds the node-scoped upstream-turn processor during composition. */
+    /** Binds the upstream-turn processor during composition, before the lane starts. */
     public synchronized void bindUpstream(Runnable processor) {
 
         failIfInvalidArgument(processor != null, "processor must not be null");
+        failIfIllegalState(!lane.isRunning(), "Upstream processor must be bound before Data Lane start");
         failIfIllegalState(upstreamTurnProcessor == null, "Upstream Data Lane processor is already bound");
         upstreamTurnProcessor = processor;
     }
 
-    /**
-     * Starts this logical Data Lane with the supplied LogBook startup operation
-     * as its first admitted item.
-     */
-    public synchronized SerialLane.OfferResult start(
-            LogBookOperationItem<?> startupOperation) {
-
-        failIfInvalidArgument(startupOperation != null, "startupOperation must not be null");
+    /** Starts accepting normal Data Lane items. */
+    public synchronized void start() {
         lane.start();
-        return lane.offer(startupOperation);
     }
 
     /** Queues one LogBook operation item. */
@@ -93,14 +88,6 @@ public final class TimingNodeDataLane implements AutoCloseable {
         return lane.isRunning();
     }
 
-    public SerialLane.State state() {
-        return lane.state();
-    }
-
-    public Throwable failure() {
-        return lane.failure();
-    }
-
     public SerialLaneMetrics metrics() {
         return lane.metrics();
     }
@@ -112,22 +99,14 @@ public final class TimingNodeDataLane implements AutoCloseable {
 
     private void processItem(TimingNodeDataItem item) {
         if (item instanceof LogBookOperationItem<?>) {
-            Consumer<LogBookOperationItem<?>> processor;
-            synchronized (this) {
-                processor = logBookProcessor;
-            }
-            failIfIllegalState(processor != null, "LogBook Data Lane processor is not bound");
-            processor.accept((LogBookOperationItem<?>) item);
+            failIfIllegalState(logBookProcessor != null, "LogBook Data Lane processor is not bound");
+            logBookProcessor.accept((LogBookOperationItem<?>) item);
             return;
         }
 
         if (item == UpstreamTurn.INSTANCE) {
-            Runnable processor;
-            synchronized (this) {
-                processor = upstreamTurnProcessor;
-            }
-            failIfIllegalState(processor != null, "Upstream Data Lane processor is not bound");
-            processor.run();
+            failIfIllegalState(upstreamTurnProcessor != null, "Upstream Data Lane processor is not bound");
+            upstreamTurnProcessor.run();
             return;
         }
 

@@ -48,8 +48,8 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
@@ -88,11 +88,11 @@ final class RuntimeCharacterizationHarness
     private final CharacterizationConfig config;
     private final AtomicLong committedCount = new AtomicLong();
 
-    private ExecutorService nodeWorker;
+    private ScheduledThreadPoolExecutor nodeWorker;
     private ScheduledThreadPoolExecutor tagWorker;
     private ScheduledThreadPoolExecutor ioWorker;
     private TimingNodeDataLane dataLane;
-    private RunnableSerialLane taskLane;
+    private TaskSerialLane taskLane;
     private ScheduledSerialLane tagLane;
     private TaskSerialLane antennaLane;
     private SimulatedAntenna antenna;
@@ -137,9 +137,12 @@ final class RuntimeCharacterizationHarness
                 config.workDirectory());
 
         nodeWorker =
-                Executors.newSingleThreadExecutor(
+                new ScheduledThreadPoolExecutor(
+                        1,
                         threadFactory(
                                 "tp-dml-node-worker"));
+        nodeWorker.setRemoveOnCancelPolicy(
+                true);
         tagWorker =
                 new ScheduledThreadPoolExecutor(
                         1,
@@ -162,7 +165,7 @@ final class RuntimeCharacterizationHarness
                         "TimingNodeData",
                         nodeWorker);
         taskLane =
-                new RunnableSerialLane(
+                new TaskSerialLane(
                         TIMING_NODE_QUEUE_CAPACITY,
                         TIMING_NODE_QUEUE_CAPACITY,
                         "TimingNodeTask",
@@ -241,7 +244,8 @@ final class RuntimeCharacterizationHarness
                         timeSource,
                         logBook,
                         nodeService,
-                        tagProcessor);
+                        tagProcessor,
+                        taskLane);
 
         antenna =
                 new SimulatedAntenna();
@@ -285,6 +289,10 @@ final class RuntimeCharacterizationHarness
 
         nodeLifecycle.activateAll();
         nodeActive = true;
+        await(
+                () -> node.operationalState()
+                        == io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OperationalState.OK,
+                "TimingNode operational");
         node.open(LOCATION_ID);
 
         preloadHistory(
@@ -516,9 +524,44 @@ final class RuntimeCharacterizationHarness
                 "TagProcessor");
     }
 
-    /** Waits until all earlier LogBook Data Lane items have completed. */
-    private void awaitDataLaneBarrier() {
-        logBook.process(LogBookQueries.timingDataCount());
+    /**
+     * Waits until one ordered LogBook query can enter the Data Lane and complete.
+     *
+     * <p>A burst may temporarily fill the bounded item queue. FULL therefore
+     * means the barrier itself must retry later; other rejection/failure
+     * reasons remain real characterization failures.</p>
+     */
+    private void awaitDataLaneBarrier()
+            throws InterruptedException {
+
+        long deadline =
+                System.nanoTime()
+                        + TimeUnit.MILLISECONDS.toNanos(
+                                COMPLETION_TIMEOUT_MILLIS);
+
+        while (true) {
+            try {
+                logBook.process(
+                        LogBookQueries.timingDataCount());
+                return;
+            } catch (IllegalStateException ex) {
+                boolean full =
+                        ex.getCause()
+                                        instanceof RejectedExecutionException
+                                && ex.getMessage() != null
+                                && ex.getMessage().contains(
+                                        "Data Lane is full");
+                if (!full) {
+                    throw ex;
+                }
+            }
+
+            if (System.nanoTime() >= deadline) {
+                throw new IllegalStateException(
+                        "Timed out waiting for TimingNode Data Lane barrier admission");
+            }
+            Thread.sleep(5L);
+        }
     }
 
     /**

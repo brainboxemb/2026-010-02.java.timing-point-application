@@ -3,7 +3,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,13 +45,7 @@ final class LogBookRecoveryView {
 
     /** Returns the latest completed recovery result or explains why none is available. */
     LogBookRecoveryStatus current() {
-        SerialLane.State state = dataLane.state();
-        if (state == SerialLane.State.FAILED) {
-            throw new IllegalStateException(
-                    "recovery status CURRENT result is unavailable because the Data Lane failed",
-                    dataLane.failure());
-        }
-        if (state != SerialLane.State.RUNNING) {
+        if (!dataLane.isRunning()) {
             throw new IllegalStateException(
                     "recovery status CURRENT result is unavailable because the LogBook is not active");
         }

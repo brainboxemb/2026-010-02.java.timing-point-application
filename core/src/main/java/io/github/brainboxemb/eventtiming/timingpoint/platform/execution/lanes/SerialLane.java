@@ -5,113 +5,111 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Consumer;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
- * One bounded FIFO item lane serviced by one fixed worker.
+ * Bounded FIFO queue whose items are processed serially by one fixed worker.
  *
- * <p>The queue contains caller-owned items of type {@code T}. The backing
- * executor only sees this lane's one fixed worker runnable. Queueing another item
- * while that worker is scheduled or running never schedules a second worker for
- * the same lane.</p>
+ * <p>The queue stores caller-owned values of type {@code T}. The backing
+ * executor never sees those values; it only schedules {@link #queueWorker}.
+ * While that worker is scheduled or running, adding more items only extends the
+ * queue. A second worker for the same lane is never scheduled.</p>
  *
- * <p>Each worker run takes at most {@code maxItemsPerRun} items that were already
- * queued when the run started. Items arriving during that batch stay queued for
- * the next worker run.</p>
+ * <p>One worker run processes at most {@code maxItemsPerRun} items. If items
+ * remain afterwards, the same worker is scheduled once more. This gives other
+ * lanes sharing the same executor a chance to run between batches.</p>
  *
  * @param <T> queued item type
  */
 public final class SerialLane<T> implements AutoCloseable {
-    private static final Logger LOG = LoggerFactory.getLogger(SerialLane.class);
 
-    /** Logical item lane currently executing on this Java thread, if any. */
-    private static final ThreadLocal<SerialLane<?>> CURRENT_LANE =
-            new ThreadLocal<SerialLane<?>>();
-
-    /** Lifecycle of this logical lane, independent of the backing executor lifecycle. */
-    public enum State {
-        NEW,
-        RUNNING,
-        STOPPING,
-        STOPPED,
-        FAILED
-    }
-
-    /** Internal measurement envelope around one caller-owned item. */
+    /** Queue entry with only the timestamp needed for queue metrics. */
     private static final class QueuedItem<T> {
         private final T item;
         private final long queuedAtNanos;
 
         private QueuedItem(T item) {
             this.item = item;
-            this.queuedAtNanos = System.nanoTime();
+            queuedAtNanos = System.nanoTime();
         }
     }
 
     private final String laneName;
-    private final Executor backingExecutor;
+    private final Executor executor;
     private final ArrayBlockingQueue<QueuedItem<T>> queue;
     private final int maxItemsPerRun;
     private final Consumer<T> itemProcessor;
     private final Runnable queueWorker = this::runQueueWorker;
     private final SerialLaneMetrics metrics;
 
-    private State state = State.NEW;
-    private Throwable failure;
-    private boolean queueWorkerScheduled;
+    /** Java thread currently running this lane's worker, or null while idle. */
+    private volatile Thread executingThread;
+
+    private boolean accepting;
+    private boolean workerScheduled;
 
     /**
-     * Creates one typed logical lane on an externally owned executor.
+     * Creates one typed serial queue on an externally owned executor.
      *
-     * @param capacity maximum number of caller-owned items waiting in the queue
-     * @param maxItemsPerRun maximum number of items handled by one worker run
+     * @param capacity maximum number of waiting items
+     * @param maxItemsPerRun maximum number of items processed by one worker run
      * @param laneName diagnostic lane name
-     * @param backingExecutor physical execution dependency
-     * @param itemProcessor caller-owned processor for one queued item
+     * @param executor physical execution dependency
+     * @param itemProcessor caller-owned processing for one item
      */
     public SerialLane(
             int capacity,
             int maxItemsPerRun,
             String laneName,
-            Executor backingExecutor,
+            Executor executor,
             Consumer<T> itemProcessor) {
 
         failIfInvalidArgument(capacity >= 1, "capacity must be positive");
         failIfInvalidArgument(maxItemsPerRun >= 1, "maxItemsPerRun must be positive");
-        failIfInvalidArgument(laneName != null && !laneName.trim().isEmpty(), "laneName must not be blank");
-        failIfInvalidArgument(backingExecutor != null, "backingExecutor must not be null");
+        failIfInvalidArgument(
+                laneName != null && !laneName.trim().isEmpty(),
+                "laneName must not be blank");
+        failIfInvalidArgument(executor != null, "executor must not be null");
         failIfInvalidArgument(itemProcessor != null, "itemProcessor must not be null");
 
         this.laneName = laneName.trim();
-        this.backingExecutor = backingExecutor;
-        this.queue = new ArrayBlockingQueue<QueuedItem<T>>(capacity);
+        this.executor = executor;
+        queue = new ArrayBlockingQueue<QueuedItem<T>>(capacity);
         this.maxItemsPerRun = maxItemsPerRun;
         this.itemProcessor = itemProcessor;
-        this.metrics = new SerialLaneMetrics(queue::size);
+        metrics = new SerialLaneMetrics(queue::size);
     }
 
-    /** Starts or restarts this logical lane. */
+    /** Starts accepting items. A drained lane may be started again. */
     public synchronized void start() {
+        failIfIllegalState(!accepting, "SerialLane %s is already running", laneName);
         failIfIllegalState(
-                state == State.NEW || state == State.STOPPED,
-                "SerialLane cannot start from %s",
-                state);
-        state = State.RUNNING;
+                !workerScheduled,
+                "SerialLane %s is still draining",
+                laneName);
+        accepting = true;
+    }
+
+    /** Immediate result of attempting to queue one item. */
+    public enum OfferResult {
+        ACCEPTED,
+        FULL,
+        NOT_RUNNING
     }
 
     /**
-     * Attempts to queue one caller-owned item without waiting for capacity.
+     * Attempts to add one item without waiting for queue capacity.
+     *
+     * <p>The first item added while idle schedules the fixed worker. Further
+     * items do not schedule another worker.</p>
      */
     public OfferResult offer(T item) {
         failIfInvalidArgument(item != null, "item must not be null");
 
         boolean scheduleWorker = false;
         synchronized (this) {
-            if (state != State.RUNNING) {
+            if (!accepting) {
                 metrics.recordNotRunning();
                 return OfferResult.NOT_RUNNING;
             }
@@ -122,129 +120,92 @@ public final class SerialLane<T> implements AutoCloseable {
             }
 
             metrics.recordQueued(queue.size());
-            if (!queueWorkerScheduled) {
-                queueWorkerScheduled = true;
+            if (!workerScheduled) {
+                workerScheduled = true;
                 scheduleWorker = true;
             }
         }
 
         if (scheduleWorker) {
-            scheduleQueueWorker();
+            scheduleWorker();
         }
         return OfferResult.ACCEPTED;
     }
 
-    /** Immediate result of attempting to queue one item. */
-    public enum OfferResult {
-        ACCEPTED,
-        FULL,
-        NOT_RUNNING
+    /** Runs one bounded batch on the backing executor. */
+    private void runQueueWorker() {
+        int itemCount;
+        synchronized (this) {
+            itemCount = Math.min(queue.size(), maxItemsPerRun);
+        }
+
+        executingThread = Thread.currentThread();
+        try {
+            for (int index = 0; index < itemCount; index++) {
+                QueuedItem<T> item = queue.poll();
+                if (item == null) {
+                    break;
+                }
+                process(item);
+            }
+        } finally {
+            executingThread = null;
+            finishWorkerRun();
+        }
     }
 
-    /** Schedules the one fixed queue worker on the externally owned executor. */
-    private void scheduleQueueWorker() {
+    /** Processes one item and records its queue/execution timing. */
+    private void process(QueuedItem<T> queuedItem) {
+        long startedAtNanos = System.nanoTime();
         try {
-            backingExecutor.execute(queueWorker);
+            itemProcessor.accept(queuedItem.item);
+        } finally {
+            long finishedAtNanos = System.nanoTime();
+            metrics.recordCompleted(
+                    elapsedNanos(queuedItem.queuedAtNanos, startedAtNanos),
+                    elapsedNanos(startedAtNanos, finishedAtNanos));
+        }
+    }
+
+    /**
+     * Marks this worker idle when the queue is empty, otherwise schedules one
+     * later worker run for the remaining items.
+     */
+    private void finishWorkerRun() {
+        synchronized (this) {
+            if (queue.isEmpty()) {
+                workerScheduled = false;
+                notifyAll();
+                return;
+            }
+        }
+
+        scheduleWorker();
+    }
+
+    /** Schedules the fixed worker; executor rejection stops further admission. */
+    private void scheduleWorker() {
+        try {
+            executor.execute(queueWorker);
         } catch (RejectedExecutionException ex) {
-            failLane(ex);
+            synchronized (this) {
+                accepting = false;
+                workerScheduled = false;
+                queue.clear();
+                notifyAll();
+            }
             throw ex;
         }
     }
 
-    /** Runs one bounded batch of items already waiting when this worker run starts. */
-    private void runQueueWorker() {
-        final int itemCount;
-
-        synchronized (this) {
-            if (state == State.FAILED || queue.isEmpty()) {
-                queueWorkerScheduled = false;
-                notifyAll();
-                return;
-            }
-            itemCount = Math.min(queue.size(), maxItemsPerRun);
-        }
-
-        SerialLane<?> previousLane = CURRENT_LANE.get();
-        CURRENT_LANE.set(this);
-
-        try {
-            for (int index = 0; index < itemCount; index++) {
-                QueuedItem<T> queuedItem = queue.poll();
-                if (queuedItem == null) {
-                    break;
-                }
-
-                long startedAtNanos = System.nanoTime();
-                try {
-                    runQueuedItem(queuedItem.item);
-                } finally {
-                    long finishedAtNanos = System.nanoTime();
-                    metrics.recordCompleted(
-                            elapsedNanos(queuedItem.queuedAtNanos, startedAtNanos),
-                            elapsedNanos(startedAtNanos, finishedAtNanos));
-                }
-            }
-        } finally {
-            restoreCurrentLane(previousLane);
-
-            boolean scheduleNextBatch = false;
-            synchronized (this) {
-                if (state == State.FAILED) {
-                    queue.clear();
-                    queueWorkerScheduled = false;
-                    notifyAll();
-                } else if (queue.isEmpty()) {
-                    queueWorkerScheduled = false;
-                    notifyAll();
-                } else {
-                    scheduleNextBatch = true;
-                }
-            }
-
-            if (scheduleNextBatch) {
-                scheduleQueueWorker();
-            }
-        }
-    }
-
-    /** Runs caller-owned processing for one item while keeping lane failure semantics local. */
-    private void runQueuedItem(T item) {
-        try {
-            itemProcessor.accept(item);
-        } catch (RuntimeException ex) {
-            LOG.warn("Serial lane {} item processing failed", laneName, ex);
-        } catch (Error error) {
-            failLane(error);
-            throw error;
-        }
-    }
-
-    private static void restoreCurrentLane(SerialLane<?> previousLane) {
-        if (previousLane == null) {
-            CURRENT_LANE.remove();
-        } else {
-            CURRENT_LANE.set(previousLane);
-        }
-    }
-
-    /** Returns whether this lane is currently accepting items. */
+    /** Returns whether this lane currently accepts new items. */
     public synchronized boolean isRunning() {
-        return state == State.RUNNING;
+        return accepting;
     }
 
-    /** Returns the current logical lane lifecycle state for diagnostics. */
-    public synchronized State state() {
-        return state;
-    }
-
-    /** Returns the first fatal lane/executor failure, or {@code null} when healthy. */
-    public synchronized Throwable failure() {
-        return failure;
-    }
-
-    /** True only while this Java thread is executing this lane's item processor. */
+    /** True only while this Java thread is processing an item for this lane. */
     public boolean isExecutingOnCurrentThread() {
-        return CURRENT_LANE.get() == this;
+        return executingThread == Thread.currentThread();
     }
 
     /** Returns item-queue metrics for this lane. */
@@ -252,45 +213,24 @@ public final class SerialLane<T> implements AutoCloseable {
         return metrics;
     }
 
-    /** Stops accepting items and waits for already accepted items to finish. */
+    /**
+     * Stops admission and waits until all already accepted items are processed.
+     */
     @Override
     public synchronized void close() {
-        if (state == State.NEW) {
-            state = State.STOPPED;
-            return;
-        }
-
-        if (state == State.RUNNING) {
-            state = State.STOPPING;
-        }
-
-        if (state == State.STOPPED || state == State.FAILED) {
-            return;
-        }
+        accepting = false;
 
         boolean interrupted = false;
-        while (queueWorkerScheduled || !queue.isEmpty()) {
+        while (workerScheduled) {
             try {
-                wait(100L);
+                wait();
             } catch (InterruptedException ex) {
                 interrupted = true;
             }
         }
 
-        state = State.STOPPED;
         if (interrupted) {
             Thread.currentThread().interrupt();
-        }
-    }
-
-    /** Marks the lane terminally failed and drops items that can no longer progress. */
-    private synchronized void failLane(Throwable cause) {
-        if (state != State.FAILED) {
-            failure = cause;
-            state = State.FAILED;
-            queue.clear();
-            queueWorkerScheduled = false;
-            notifyAll();
         }
     }
 
