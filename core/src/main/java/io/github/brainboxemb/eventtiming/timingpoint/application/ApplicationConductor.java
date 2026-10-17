@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLi
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Coordinates application component lifecycle.
@@ -23,7 +23,7 @@ public final class ApplicationConductor {
     /** Registers one complete TimingSystem in application activation order. */
     public void registerTimingSystem(TimingSystem timingSystem) {
 
-        checkArgument(timingSystem != null, "timingSystem must not be null");
+        failIfInvalidArgument(timingSystem != null, "timingSystem must not be null");
         componentLifecycle.register(timingSystem);
     }
 

@@ -11,7 +11,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Node Task Lane execution adapter around one shared {@link SerialLane}.
@@ -28,8 +28,8 @@ final class NodeTaskLane {
     /** Creates the Task Lane adapter around one externally composed SerialLane. */
     NodeTaskLane(SerialLane serialLane, long operationTimeoutMillis) {
 
-        checkArgument(serialLane != null, "serialLane must not be null");
-        checkArgument(operationTimeoutMillis > 0L, "operationTimeoutMillis must be positive");
+        failIfInvalidArgument(serialLane != null, "serialLane must not be null");
+        failIfInvalidArgument(operationTimeoutMillis > 0L, "operationTimeoutMillis must be positive");
         this.serialLane = serialLane;
         this.operationTimeoutMillis = operationTimeoutMillis;
     }
@@ -49,7 +49,7 @@ final class NodeTaskLane {
     /** Queues one non-blocking Task Lane operation using normal rejection semantics. */
     void execute(Runnable operation) {
 
-        checkArgument(operation != null, "operation must not be null");
+        failIfInvalidArgument(operation != null, "operation must not be null");
         serialLane.execute(operation);
     }
 
@@ -62,7 +62,7 @@ final class NodeTaskLane {
     /** Fails fast when mutable Task Lane state is accessed outside its lane turn. */
     void requireCurrentThread(String operation) {
 
-        checkArgument(operation != null && !operation.trim().isEmpty(), "operation must not be blank");
+        failIfInvalidArgument(operation != null && !operation.trim().isEmpty(), "operation must not be blank");
         if (!serialLane.isExecutingOnCurrentThread()) {
             throw new IllegalStateException(operation + " requires the TimingNode Task Lane");
         }
@@ -71,8 +71,8 @@ final class NodeTaskLane {
     /** Submits one result-bearing operation and waits for its ordered result. */
     <R> R submitAndWait(Callable<R> work, String operation) {
 
-        checkArgument(work != null, "work must not be null");
-        checkArgument(operation != null && !operation.trim().isEmpty(), "operation must not be blank");
+        failIfInvalidArgument(work != null, "work must not be null");
+        failIfInvalidArgument(operation != null && !operation.trim().isEmpty(), "operation must not be blank");
 
         if (serialLane.isExecutingOnCurrentThread()) {
             throw new IllegalStateException(

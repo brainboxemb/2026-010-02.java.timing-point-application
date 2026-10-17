@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Node-local current race/reference data, owned exclusively by the Task Lane.
@@ -23,7 +23,7 @@ public final class RaceDataState {
 
     /** Creates node-local mutable race data over immutable EventData reference data. */
     public RaceDataState(EventData eventData) {
-        checkArgument(eventData != null, "eventData must not be null");
+        failIfInvalidArgument(eventData != null, "eventData must not be null");
         this.eventData = eventData;
     }
 
@@ -39,7 +39,7 @@ public final class RaceDataState {
 
     /** Resolves TeamId from fixed EventData first, then live upstream assignment state. */
     public TeamId teamIdFor(RegistrationId registrationId) {
-        checkArgument(registrationId != null, "registrationId must not be null");
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         TeamId configuredTeamId = eventData.teamIdFor(registrationId);
         return configuredTeamId != null
                 ? configuredTeamId
@@ -53,7 +53,7 @@ public final class RaceDataState {
 
     /** Validates and atomically applies one complete Central RACE_DATA change set. */
     public void applyChanges(UpstreamData.RaceData changes) {
-        checkArgument(changes != null, "raceData must not be null");
+        failIfInvalidArgument(changes != null, "raceData must not be null");
 
         TeamAssignments updatedAssignments = teamAssignments.copy();
         StageStartTimes updatedStarts = stageStartTimes.copy();
@@ -68,14 +68,14 @@ public final class RaceDataState {
     /** Applies team-assignment changes to the uncommitted transactional copy. */
     private void applyTeamAssignmentChanges(
             TeamAssignments updatedAssignments, UpstreamData.RaceData changes) {
-        checkArgument(changes.teamAssignmentChanges() != null,
+        failIfInvalidArgument(changes.teamAssignmentChanges() != null,
                 "team assignment changes must not be null");
 
         for (UpstreamData.TeamAssignmentChange change : changes.teamAssignmentChanges()) {
-            checkArgument(change != null, "team assignment change must not be null");
+            failIfInvalidArgument(change != null, "team assignment change must not be null");
             switch (change.operation()) {
                 case SET:
-                    checkArgument(eventData.teamIdFor(change.registrationId()) == null,
+                    failIfInvalidArgument(eventData.teamIdFor(change.registrationId()) == null,
                             "active assignment cannot override fixed EventData TeamId for %s",
                             change.registrationId());
                     updatedAssignments.assign(change.registrationId(), change.teamId());
@@ -93,11 +93,11 @@ public final class RaceDataState {
     /** Applies stage-start changes to the uncommitted transactional copy. */
     private static void applyStageStartChanges(
             StageStartTimes updatedStarts, UpstreamData.RaceData changes) {
-        checkArgument(changes.stageStartTimeChanges() != null,
+        failIfInvalidArgument(changes.stageStartTimeChanges() != null,
                 "stage start changes must not be null");
 
         for (UpstreamData.StageStartTimeChange change : changes.stageStartTimeChanges()) {
-            checkArgument(change != null, "stage start change must not be null");
+            failIfInvalidArgument(change != null, "stage start change must not be null");
             switch (change.operation()) {
                 case SET:
                     updatedStarts.set(change.teamId(), change.start());

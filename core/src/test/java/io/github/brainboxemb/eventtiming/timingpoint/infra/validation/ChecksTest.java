@@ -2,8 +2,8 @@ package io.github.brainboxemb.eventtiming.timingpoint.infra.validation;
 
 import org.junit.Test;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
@@ -11,9 +11,9 @@ public class ChecksTest {
 
     /** Verifies state-contract failure formatting. */
     @Test
-    public void checkStateFormatsFailureMessage() {
+    public void failIfIllegalStateFormatsFailureMessage() {
         try {
-            checkState(
+            failIfIllegalState(
                     false,
                     "state must be %s, was %s",
                     "NEW",
@@ -29,9 +29,9 @@ public class ChecksTest {
 
     /** Verifies argument-contract failure formatting. */
     @Test
-    public void checkArgumentFormatsFailureMessage() {
+    public void failIfInvalidArgumentFormatsFailureMessage() {
         try {
-            checkArgument(
+            failIfInvalidArgument(
                     false,
                     "capacity must be positive, was %s",
                     0);

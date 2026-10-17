@@ -21,7 +21,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.function.Consumer;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Presentation-facing application proxy for one TimingNode.
@@ -52,7 +52,7 @@ public final class TimingNodeProxy {
 
     TimingNodeProxy(TimingNode timingNode) {
 
-        checkArgument(timingNode != null, "timingNode must not be null");
+        failIfInvalidArgument(timingNode != null, "timingNode must not be null");
         this.timingNodeId = timingNode.nodeId();
         this.timingNode = timingNode;
         this.logBook = timingNode.logBook();
@@ -137,9 +137,9 @@ public final class TimingNodeProxy {
             ManualTimeSource timeSource)
             throws OperationException {
 
-        checkArgument(registrationId != null, "registrationId must not be null");
-        checkArgument(effectiveTime != null, "effectiveTime must not be null");
-        checkArgument(timeSource != null, "timeSource must not be null");
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+        failIfInvalidArgument(effectiveTime != null, "effectiveTime must not be null");
+        failIfInvalidArgument(timeSource != null, "timeSource must not be null");
         return timingNode.addManualRegistration(
                 registrationId,
                 effectiveTime,
@@ -164,15 +164,15 @@ public final class TimingNodeProxy {
             ManualTimeSource originalTimeSource)
             throws OperationException {
 
-        checkArgument(recordType != null, "recordType must not be null");
-        checkArgument(originalLocationId != null, "originalLocationId must not be null");
-        checkArgument(registrationId != null, "registrationId must not be null");
-        checkArgument(originalTime != null, "originalTime must not be null");
+        failIfInvalidArgument(recordType != null, "recordType must not be null");
+        failIfInvalidArgument(originalLocationId != null, "originalLocationId must not be null");
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+        failIfInvalidArgument(originalTime != null, "originalTime must not be null");
 
         RegistrationResult result;
         switch (recordType) {
             case AUTO_REG:
-                checkArgument(originalTimeSource == null, "AUTO_REG revoke must not carry originalTimeSource");
+                failIfInvalidArgument(originalTimeSource == null, "AUTO_REG revoke must not carry originalTimeSource");
                 result = logBook.process(
                         LogBookCommands.revokeAutomaticRegistration(
                                 originalLocationId,
@@ -180,7 +180,7 @@ public final class TimingNodeProxy {
                                 originalTime));
                 break;
             case MAN_REG:
-                checkArgument(originalTimeSource != null, "MAN_REG revoke requires originalTimeSource");
+                failIfInvalidArgument(originalTimeSource != null, "MAN_REG revoke requires originalTimeSource");
                 result = logBook.process(
                         LogBookCommands.revokeManualRegistration(
                                 originalLocationId,

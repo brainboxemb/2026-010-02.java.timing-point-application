@@ -7,7 +7,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * SerialLane with delayed and recurring admission support.
@@ -39,7 +39,7 @@ public class ScheduledSerialLane extends SerialLane {
             ScheduledExecutorService executor) {
 
         super(capacity, laneName, executor);
-        checkArgument(executor != null, "executor must not be null");
+        failIfInvalidArgument(executor != null, "executor must not be null");
         scheduler = new LaneScheduler(this, executor);
     }
 

@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLi
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Java component for one TimingSystem architecture responsibility.
@@ -29,9 +29,9 @@ public final class TimingSystem extends LifecycleComponent {
             AntennaManager antennaManager,
             TimingSystemConductor timingSystemConductor) {
 
-        checkArgument(id != null && !id.trim().isEmpty(), "TimingSystem id must not be blank");
-        checkArgument(timingNodes != null && !timingNodes.isEmpty(), "timingNodes must not be empty");
-        checkArgument(timingSystemConductor != null, "timingSystemConductor must not be null");
+        failIfInvalidArgument(id != null && !id.trim().isEmpty(), "TimingSystem id must not be blank");
+        failIfInvalidArgument(timingNodes != null && !timingNodes.isEmpty(), "timingNodes must not be empty");
+        failIfInvalidArgument(timingSystemConductor != null, "timingSystemConductor must not be null");
 
         this.id = id.trim();
         this.timingNodes = timingNodes;

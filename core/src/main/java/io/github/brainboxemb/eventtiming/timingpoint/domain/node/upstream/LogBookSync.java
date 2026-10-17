@@ -12,8 +12,8 @@ import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpst
 
 import java.util.List;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
  * Synchronizes this TimingNode's committed LogBook with Central.
@@ -37,9 +37,9 @@ final class LogBookSync {
 
     /** Creates TIMING_DATA synchronization state for one node-scoped upstream stream. */
     LogBookSync(NodeId nodeId, UpstreamStream stream, LogBookAccessor logBook) {
-        checkArgument(nodeId != null, "nodeId must not be null");
-        checkArgument(stream != null, "stream must not be null");
-        checkArgument(logBook != null, "logBook must not be null");
+        failIfInvalidArgument(nodeId != null, "nodeId must not be null");
+        failIfInvalidArgument(stream != null, "stream must not be null");
+        failIfInvalidArgument(logBook != null, "logBook must not be null");
         this.nodeId = nodeId;
         this.stream = stream;
         this.logBook = logBook;
@@ -68,13 +68,13 @@ final class LogBookSync {
      * <p>The captured head remains fixed for the complete synchronization run.</p>
      */
     void handleReq(UpstreamData.Req req) {
-        checkArgument(req != null, "req must not be null");
+        failIfInvalidArgument(req != null, "req must not be null");
         if (req.stream() != UpstreamData.Stream.TIMING_DATA) {
             throw new UnsupportedOperationException("Inbound REQ supports TIMING_DATA only");
         }
 
         long fromSequence = req.fromSequence();
-        checkArgument(fromSequence >= 1L && fromSequence <= TimingData.MAX_SEQUENCE_NUMBER,
+        failIfInvalidArgument(fromSequence >= 1L && fromSequence <= TimingData.MAX_SEQUENCE_NUMBER,
                 "REQ fromSequence is outside the supported range");
 
         long capturedHead = headSequence();
@@ -116,7 +116,7 @@ final class LogBookSync {
         if (records.isEmpty()) {
             syncActive = false;
         }
-        checkState(!records.isEmpty(),
+        failIfIllegalState(!records.isEmpty(),
                 "LogBook head %s advertised record %s but synchronization returned no data",
                 syncHead, nextSequence);
 
@@ -124,7 +124,7 @@ final class LogBookSync {
         if (first.sequenceNumber() != nextSequence) {
             syncActive = false;
         }
-        checkState(first.sequenceNumber() == nextSequence,
+        failIfIllegalState(first.sequenceNumber() == nextSequence,
                 "TimingData synchronization expected sequence %s but got %s",
                 nextSequence, first.sequenceNumber());
 
@@ -132,7 +132,7 @@ final class LogBookSync {
         if (last.sequenceNumber() > syncHead) {
             syncActive = false;
         }
-        checkState(last.sequenceNumber() <= syncHead,
+        failIfIllegalState(last.sequenceNumber() <= syncHead,
                 "TimingData synchronization crossed captured head %s", syncHead);
 
         stream.send(DefaultUpstreamData.timingData(nodeId, records));

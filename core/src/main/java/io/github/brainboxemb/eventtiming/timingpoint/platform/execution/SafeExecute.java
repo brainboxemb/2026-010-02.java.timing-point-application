@@ -6,7 +6,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Small guards for execution boundaries that handle expected runtime failures explicitly.
@@ -30,9 +30,9 @@ public final class SafeExecute {
             Supplier<T> operation,
             Class<E> failureType,
             Predicate<E> handledFailure) {
-        checkArgument(operation != null, "operation must not be null");
-        checkArgument(failureType != null, "failureType must not be null");
-        checkArgument(handledFailure != null, "handledFailure must not be null");
+        failIfInvalidArgument(operation != null, "operation must not be null");
+        failIfInvalidArgument(failureType != null, "failureType must not be null");
+        failIfInvalidArgument(handledFailure != null, "handledFailure must not be null");
 
         try {
             return Optional.ofNullable(operation.get());
@@ -56,9 +56,9 @@ public final class SafeExecute {
      * Other runtime failures propagate unchanged.</p>
      */
     public static void run(Runnable operation, Runnable cleanup, String message) {
-        checkArgument(operation != null, "operation must not be null");
-        checkArgument(cleanup != null, "cleanup must not be null");
-        checkArgument(message != null && !message.trim().isEmpty(), "message must not be blank");
+        failIfInvalidArgument(operation != null, "operation must not be null");
+        failIfInvalidArgument(cleanup != null, "cleanup must not be null");
+        failIfInvalidArgument(message != null && !message.trim().isEmpty(), "message must not be blank");
 
         try {
             operation.run();
@@ -77,8 +77,8 @@ public final class SafeExecute {
      * propagates to the caller.</p>
      */
     public static void runOrRethrow(Runnable operation, Consumer<RuntimeException> onFailure) {
-        checkArgument(operation != null, "operation must not be null");
-        checkArgument(onFailure != null, "onFailure must not be null");
+        failIfInvalidArgument(operation != null, "operation must not be null");
+        failIfInvalidArgument(onFailure != null, "onFailure must not be null");
 
         try {
             operation.run();
@@ -99,8 +99,8 @@ public final class SafeExecute {
     public static boolean runOrHandleRejection(
             Runnable operation,
             Consumer<RejectedExecutionException> onRejection) {
-        checkArgument(operation != null, "operation must not be null");
-        checkArgument(onRejection != null, "onRejection must not be null");
+        failIfInvalidArgument(operation != null, "operation must not be null");
+        failIfInvalidArgument(onRejection != null, "onRejection must not be null");
 
         try {
             operation.run();

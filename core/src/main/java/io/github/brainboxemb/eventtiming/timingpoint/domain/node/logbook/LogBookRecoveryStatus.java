@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
  * Result of one LogBook startup recovery attempt.
@@ -23,7 +23,7 @@ public final class LogBookRecoveryStatus {
     }
 
     public static LogBookRecoveryStatus failed(String failureMessage) {
-        checkArgument(
+        failIfInvalidArgument(
                 failureMessage != null && !failureMessage.trim().isEmpty(),
                 "failureMessage must not be blank");
         return new LogBookRecoveryStatus(false, failureMessage.trim());
@@ -39,7 +39,7 @@ public final class LogBookRecoveryStatus {
     }
 
     public String failureMessage() {
-        checkState(failed(), "recovery did not fail");
+        failIfIllegalState(failed(), "recovery did not fail");
         return failureMessage;
     }
 }

@@ -12,7 +12,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Adds delayed admission to an existing {@link SerialLane}.
@@ -46,16 +46,16 @@ public final class LaneScheduler {
 
     /** Creates delayed admission support for one existing SerialLane. */
     public LaneScheduler(SerialLane lane, ScheduledExecutorService scheduledExecutor) {
-        checkArgument(lane != null, "lane must not be null");
-        checkArgument(scheduledExecutor != null, "scheduledExecutor must not be null");
+        failIfInvalidArgument(lane != null, "lane must not be null");
+        failIfInvalidArgument(scheduledExecutor != null, "scheduledExecutor must not be null");
         this.lane = lane;
         this.scheduledExecutor = scheduledExecutor;
     }
 
     /** Schedules one Callable for later admission to the owning serial lane. */
     public <R> ScheduledOperation<R> submitAfter(Callable<R> operation, long delayNanos) {
-        checkArgument(operation != null, "operation must not be null");
-        checkArgument(delayNanos >= 0L, "delayNanos must not be negative");
+        failIfInvalidArgument(operation != null, "operation must not be null");
+        failIfInvalidArgument(delayNanos >= 0L, "delayNanos must not be negative");
 
         DelayedOperation<R> delayed = new DelayedOperation<R>(operation, delayNanos);
         delayed.schedule();
@@ -70,8 +70,8 @@ public final class LaneScheduler {
      * next normal delay is used rather than creating a second queue.</p>
      */
     public ScheduledRegistration scheduleWithFixedDelay(Runnable operation, long delayNanos) {
-        checkArgument(operation != null, "operation must not be null");
-        checkArgument(delayNanos > 0L, "delayNanos must be positive");
+        failIfInvalidArgument(operation != null, "operation must not be null");
+        failIfInvalidArgument(delayNanos > 0L, "delayNanos must be positive");
 
         RepeatingOperation repeating = new RepeatingOperation(operation, delayNanos);
         repeating.scheduleNext();

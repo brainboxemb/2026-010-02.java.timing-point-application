@@ -23,8 +23,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
  * Active tag-processing boundary between antenna observations and registrations.
@@ -83,14 +83,14 @@ public final class TagProcessor extends LifecycleComponent {
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
             ScheduledSerialLane lane) {
-        checkArgument(eventData != null, "eventData must not be null");
-        checkArgument(policyConfiguration != null, "policyConfiguration must not be null");
-        checkArgument(monotonicClock != null, "monotonicClock must not be null");
-        checkArgument(metrics != null, "metrics must not be null");
-        checkArgument(lane != null, "lane must not be null");
+        failIfInvalidArgument(eventData != null, "eventData must not be null");
+        failIfInvalidArgument(policyConfiguration != null, "policyConfiguration must not be null");
+        failIfInvalidArgument(monotonicClock != null, "monotonicClock must not be null");
+        failIfInvalidArgument(metrics != null, "metrics must not be null");
+        failIfInvalidArgument(lane != null, "lane must not be null");
 
         TagProcessingPolicy startupPolicy = policyConfiguration.startupValue();
-        checkArgument(startupPolicy != null, "policyConfiguration.startupValue must not be null");
+        failIfInvalidArgument(startupPolicy != null, "policyConfiguration.startupValue must not be null");
 
         this.eventData = eventData;
         this.policyConfiguration = policyConfiguration;
@@ -110,7 +110,7 @@ public final class TagProcessor extends LifecycleComponent {
     @Override
     protected void onActivate() {
         synchronized (lifecycleLock) {
-            checkState(state != State.ACTIVE, "TagProcessor is already active");
+            failIfIllegalState(state != State.ACTIVE, "TagProcessor is already active");
             lane.start();
             state = State.ACTIVE;
         }
@@ -154,7 +154,7 @@ public final class TagProcessor extends LifecycleComponent {
      * TagProcessor lane.</p>
      */
     public void onTagObserved(TagObservation observation) {
-        checkArgument(observation != null, "observation must not be null");
+        failIfInvalidArgument(observation != null, "observation must not be null");
 
         metrics.recordObservation();
 
@@ -376,8 +376,8 @@ public final class TagProcessor extends LifecycleComponent {
 
         /** Creates the immutable registration fact emitted after passage selection. */
         public NewRegistration(RegistrationId registrationId, TimingTimestamp observedAt) {
-            checkArgument(registrationId != null, "registrationId must not be null");
-            checkArgument(observedAt != null, "observedAt must not be null");
+            failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+            failIfInvalidArgument(observedAt != null, "observedAt must not be null");
             this.registrationId = registrationId;
             this.observedAt = observedAt;
         }

@@ -3,7 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.infra.validation;
 import java.util.Locale;
 
 /**
- * Compact programming-contract checks used to keep normal control flow readable.
+ * Always-enabled programming-contract failure helpers. Callers pass positive assertions: true means the contract holds.
  */
 public final class Checks {
 
@@ -11,21 +11,21 @@ public final class Checks {
     private Checks() {
     }
 
-    /** Throws IllegalStateException when the required program state is not present. */
-    public static void checkState(boolean condition, String message, Object... arguments) {
-        if (!condition) {
+    /** Fails with IllegalStateException when the required-state assertion is false. */
+    public static void failIfIllegalState(boolean assertion, String message, Object... arguments) {
+        if (!assertion) {
             throw new IllegalStateException(format(message, arguments));
         }
     }
 
-    /** Throws IllegalArgumentException when a supplied argument violates its contract. */
-    public static void checkArgument(boolean condition, String message, Object... arguments) {
-        if (!condition) {
+    /** Fails with IllegalArgumentException when the argument-contract assertion is false. */
+    public static void failIfInvalidArgument(boolean assertion, String message, Object... arguments) {
+        if (!assertion) {
             throw new IllegalArgumentException(format(message, arguments));
         }
     }
 
-    /** Formats a contract-check message using locale-independent formatting. */
+    /** Formats a contract-failure message using locale-independent formatting. */
     private static String format(String message, Object... arguments) {
         if (arguments == null || arguments.length == 0) {
             return message;

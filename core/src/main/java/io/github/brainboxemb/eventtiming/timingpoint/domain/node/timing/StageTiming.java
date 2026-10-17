@@ -17,8 +17,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
  * Derives the current elapsed stage times and ranking for one TimingNode.
@@ -34,9 +34,9 @@ public final class StageTiming {
 
     /** Creates the read-side timing calculator over current reference and race data. */
     public StageTiming(EventData eventData, TeamAssignments teamAssignments, StageStartTimes stageStartTimes) {
-        checkArgument(eventData != null, "eventData must not be null");
-        checkArgument(teamAssignments != null, "teamAssignments must not be null");
-        checkArgument(stageStartTimes != null, "stageStartTimes must not be null");
+        failIfInvalidArgument(eventData != null, "eventData must not be null");
+        failIfInvalidArgument(teamAssignments != null, "teamAssignments must not be null");
+        failIfInvalidArgument(stageStartTimes != null, "stageStartTimes must not be null");
         this.eventData = eventData;
         this.teamAssignments = teamAssignments;
         this.stageStartTimes = stageStartTimes;
@@ -51,8 +51,8 @@ public final class StageTiming {
      * input.</p>
      */
     public List<StageTime> ranking(ActiveRegistrations activeRegistrations, ZoneId raceTimeZone) {
-        checkArgument(activeRegistrations != null, "activeRegistrations must not be null");
-        checkArgument(raceTimeZone != null, "raceTimeZone must not be null");
+        failIfInvalidArgument(activeRegistrations != null, "activeRegistrations must not be null");
+        failIfInvalidArgument(raceTimeZone != null, "raceTimeZone must not be null");
 
         List<StageTime> resolved = new ArrayList<StageTime>();
 
@@ -69,7 +69,7 @@ public final class StageTiming {
             }
 
             TimingTimestamp registrationTime = registration.effectiveTime();
-            checkState(registrationTime.isAbsolute(), "committed TimingData effectiveTime must be absolute");
+            failIfIllegalState(registrationTime.isAbsolute(), "committed TimingData effectiveTime must be absolute");
 
             TimingTimestamp resolvedStart = resolveStart(start, registrationTime, raceTimeZone);
             resolved.add(new StageTime(

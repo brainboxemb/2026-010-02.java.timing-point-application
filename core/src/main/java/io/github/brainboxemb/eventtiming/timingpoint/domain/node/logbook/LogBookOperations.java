@@ -18,8 +18,8 @@ import java.time.temporal.ChronoUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
  * TimingData commit operations executed on the LogBook Data Lane.
@@ -52,12 +52,12 @@ final class LogBookOperations {
             MonotonicClock monotonicClock,
             LogBookMetrics metrics) {
 
-        checkArgument(state != null, "state must not be null");
-        checkArgument(timingDataPersistence != null, "timingDataPersistence must not be null");
-        checkArgument(timingDataFactory != null, "timingDataFactory must not be null");
-        checkArgument(timeSource != null, "timeSource must not be null");
-        checkArgument(monotonicClock != null, "monotonicClock must not be null");
-        checkArgument(metrics != null, "metrics must not be null");
+        failIfInvalidArgument(state != null, "state must not be null");
+        failIfInvalidArgument(timingDataPersistence != null, "timingDataPersistence must not be null");
+        failIfInvalidArgument(timingDataFactory != null, "timingDataFactory must not be null");
+        failIfInvalidArgument(timeSource != null, "timeSource must not be null");
+        failIfInvalidArgument(monotonicClock != null, "monotonicClock must not be null");
+        failIfInvalidArgument(metrics != null, "metrics must not be null");
 
         this.state = state;
         this.timingDataPersistence = timingDataPersistence;
@@ -71,7 +71,7 @@ final class LogBookOperations {
     void commitNodeOpen(LocationId locationId)
             throws TimingDataPersistence.PersistenceException {
 
-        checkArgument(locationId != null, "locationId must not be null");
+        failIfInvalidArgument(locationId != null, "locationId must not be null");
         state.ensureOperational();
         ensureTimingDataCommitAvailable();
 
@@ -84,7 +84,7 @@ final class LogBookOperations {
     void commitNodeClose(LocationId locationId)
             throws TimingDataPersistence.PersistenceException {
 
-        checkArgument(locationId != null, "locationId must not be null");
+        failIfInvalidArgument(locationId != null, "locationId must not be null");
         state.ensureOperational();
         ensureTimingDataCommitAvailable();
 
@@ -106,7 +106,7 @@ final class LogBookOperations {
             TimingData.TagSource tagSource,
             TimingData.AutomaticTimeSource registrationTimeSource)
             throws TimingDataPersistence.PersistenceException {
-        checkArgument(locationId != null, "locationId must not be null");
+        failIfInvalidArgument(locationId != null, "locationId must not be null");
         state.ensureOperational();
         ensureTimingDataCommitAvailable();
 
@@ -127,7 +127,7 @@ final class LogBookOperations {
             TimingTimestamp effectiveTime,
             ManualTimeSource registrationTimeSource)
             throws TimingDataPersistence.PersistenceException {
-        checkArgument(locationId != null, "locationId must not be null");
+        failIfInvalidArgument(locationId != null, "locationId must not be null");
         state.ensureOperational();
         ensureTimingDataCommitAvailable();
 
@@ -190,7 +190,7 @@ final class LogBookOperations {
     /** Records a LogBook recovery problem after startup loading fails. */
     void markTimingDataLoadFailed(Throwable failure) {
 
-        checkArgument(failure != null, "failure must not be null");
+        failIfInvalidArgument(failure != null, "failure must not be null");
 
         String detail = failure.getMessage();
         String message = "Persisted TimingData load failed for " + state.timingNodeId().value();
@@ -240,7 +240,7 @@ final class LogBookOperations {
     /** Normalizes an accepted registration effective time to centisecond precision. */
     private static TimingTimestamp normalizeRegistrationTime(TimingTimestamp time) {
 
-        checkArgument(time != null, "registration time must not be null");
+        failIfInvalidArgument(time != null, "registration time must not be null");
         return atCentisecond(time.instant());
     }
 
@@ -277,7 +277,7 @@ final class LogBookOperations {
     /** Persists one TimingData record before exposing it as committed in memory. */
     private void commitTimingData(TimingData data)
             throws TimingDataPersistence.PersistenceException {
-        checkState(data != null, "timingDataFactory returned null");
+        failIfIllegalState(data != null, "timingDataFactory returned null");
 
         metrics.recordAppendAttempt();
         long appendStartedNanos = monotonicClock.nowNanos();

@@ -20,8 +20,8 @@ import java.util.concurrent.CancellationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkState;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
  * Lifecycle and control state machine for one antenna set.
@@ -90,11 +90,11 @@ public final class AntennaManager extends LifecycleComponent {
             AntennaSet antennaSet,
             TaskSerialLane taskLane,
             AntennaSettings settings) {
-        checkArgument(settings != null, "settings must not be null");
+        failIfInvalidArgument(settings != null, "settings must not be null");
         this.settings = settings;
         inventoryEnabledSetting = settings.inventorySetting();
-        checkArgument(antennaSet != null, "antennaSet must not be null");
-        checkArgument(taskLane != null, "taskLane must not be null");
+        failIfInvalidArgument(antennaSet != null, "antennaSet must not be null");
+        failIfInvalidArgument(taskLane != null, "taskLane must not be null");
 
         antennaSet.seal();
         this.antennaSet = antennaSet;
@@ -118,7 +118,7 @@ public final class AntennaManager extends LifecycleComponent {
 
     @Override
     protected synchronized void onActivate() {
-        checkState(state == State.NEW || state == State.INACTIVE, "AntennaManager cannot activate from %s", state);
+        failIfIllegalState(state == State.NEW || state == State.INACTIVE, "AntennaManager cannot activate from %s", state);
 
         taskLane.start();
         state = State.ACTIVE;
@@ -194,7 +194,7 @@ public final class AntennaManager extends LifecycleComponent {
                 return;
             }
 
-            checkState(state != State.DEACTIVATING, "AntennaManager is already deactivating");
+            failIfIllegalState(state != State.DEACTIVATING, "AntennaManager is already deactivating");
             state = State.DEACTIVATING;
         }
 

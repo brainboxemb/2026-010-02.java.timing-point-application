@@ -8,7 +8,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.checkArgument;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Active RegistrationId-to-TeamId assignments for one TimingNode.
@@ -36,20 +36,20 @@ public final class TeamAssignments {
 
     /** Returns the live TeamId assignment for one RegistrationId, or null when absent. */
     public TeamId teamIdFor(RegistrationId registrationId) {
-        checkArgument(registrationId != null, "registrationId must not be null");
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         return assignments.get(registrationId);
     }
 
     /** Sets the live TeamId assignment for one RegistrationId. */
     public void assign(RegistrationId registrationId, TeamId teamId) {
-        checkArgument(registrationId != null, "registrationId must not be null");
-        checkArgument(teamId != null, "teamId must not be null");
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+        failIfInvalidArgument(teamId != null, "teamId must not be null");
         assignments.put(registrationId, teamId);
     }
 
     /** Removes any live assignment for the RegistrationId. */
     public void remove(RegistrationId registrationId) {
-        checkArgument(registrationId != null, "registrationId must not be null");
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         assignments.remove(registrationId);
     }
 
@@ -57,7 +57,7 @@ public final class TeamAssignments {
     public void validate() {
         Set<TeamId> teams = new LinkedHashSet<TeamId>();
         for (TeamId teamId : assignments.values()) {
-            checkArgument(
+            failIfInvalidArgument(
                     teams.add(teamId),
                     "one TeamId may not be assigned to multiple registrations: %s",
                     teamId);
@@ -66,7 +66,7 @@ public final class TeamAssignments {
 
     /** Replaces live state with a validated transactional assignment copy. */
     public void replaceWith(TeamAssignments updatedAssignments) {
-        checkArgument(updatedAssignments != null, "updatedAssignments must not be null");
+        failIfInvalidArgument(updatedAssignments != null, "updatedAssignments must not be null");
         updatedAssignments.validate();
         assignments.clear();
         assignments.putAll(updatedAssignments.assignments);
