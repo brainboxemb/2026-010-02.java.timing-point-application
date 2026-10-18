@@ -10,7 +10,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataProvider;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
@@ -89,7 +88,6 @@ final class RuntimeCharacterizationHarness
     private ScheduledThreadPoolExecutor nodeWorker;
     private ScheduledThreadPoolExecutor tagWorker;
     private ScheduledThreadPoolExecutor ioWorker;
-    private TimingNodeDataLane dataLane;
     private SerialTaskRunner taskLane;
     private SerialTaskRunner antennaLane;
     private SimulatedAntenna antenna;
@@ -155,12 +153,6 @@ final class RuntimeCharacterizationHarness
         ioWorker.setRemoveOnCancelPolicy(
                 true);
 
-        dataLane =
-                new TimingNodeDataLane(
-                        TIMING_NODE_QUEUE_CAPACITY,
-                        TIMING_NODE_QUEUE_CAPACITY,
-                        "TimingNodeData",
-                        nodeWorker);
         taskLane =
                 new SerialTaskRunner(
                         TIMING_NODE_QUEUE_CAPACITY,
@@ -209,7 +201,9 @@ final class RuntimeCharacterizationHarness
                         timeSource,
                         SystemMonotonicClock.INSTANCE,
                         logBookMetrics,
-                        dataLane,
+                        nodeWorker,
+                        TIMING_NODE_QUEUE_CAPACITY,
+                        TIMING_NODE_QUEUE_CAPACITY,
                         LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
                         LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
 
@@ -263,7 +257,7 @@ final class RuntimeCharacterizationHarness
 
         measurements =
                 new RuntimeMeasurementReader(
-                        dataLane.metrics(),
+                        logBook.dataLaneMetrics(),
                         logBookMetrics,
                         tagMetrics);
 
@@ -492,7 +486,7 @@ final class RuntimeCharacterizationHarness
 
         /*
          * Metrics and filter snapshots are observations, not lane barriers.
-         * Drain TagProcessor first and then the TimingNode Data Lane. This keeps
+         * Drain TagProcessor first and then the LogBook Data Lane. This keeps
          * the subsequent ORDERED history query out of the burst tail.
          */
         awaitTagProcessorBarrier();
@@ -549,7 +543,7 @@ final class RuntimeCharacterizationHarness
 
             if (System.nanoTime() >= deadline) {
                 throw new IllegalStateException(
-                        "Timed out waiting for TimingNode Data Lane barrier admission");
+                        "Timed out waiting for LogBook Data Lane barrier admission");
             }
             Thread.sleep(5L);
         }

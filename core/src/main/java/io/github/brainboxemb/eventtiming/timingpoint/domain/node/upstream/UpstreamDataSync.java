@@ -13,8 +13,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  *
  * <p>The helper owns the highest contiguous RACE_DATA sequence applied locally.
  * It does not own a worker: every state-changing method is called while the
- * NodeService Task Lane is current. TIMING_DATA/LogBook synchronization is
- * deliberately handled by {@link LogBookSync} on the Data Lane.</p>
+ * TimingNode Task Lane is current. TIMING_DATA synchronization is handled by
+ * {@link LogBookSync} on that same Task Lane; ordered LogBook reads yield while
+ * the LogBook Data Lane completes them.</p>
  */
 final class UpstreamDataSync {
     private final NodeId nodeId;

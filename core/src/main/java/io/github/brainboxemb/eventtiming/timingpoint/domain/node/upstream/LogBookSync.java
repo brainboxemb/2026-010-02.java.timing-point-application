@@ -1,28 +1,27 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
-
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
  * Synchronizes this TimingNode's committed LogBook with Central.
  *
  * <p>The LogBook is the TIMING_DATA source of truth. A REQ captures the current
- * source head once; records committed afterwards are intentionally excluded from
- * that synchronization run. Records are sent in batches of at most 256 per
- * Data Lane turn so a large synchronization cannot monopolize the
- * node.</p>
+ * source head once; records committed afterwards are intentionally excluded.
+ * Ordered batch reads are submitted asynchronously to the LogBook Data Lane so
+ * the owning upstream Task Lane can yield instead of blocking the shared worker.</p>
  */
 final class LogBookSync {
     private static final int MAX_RECORDS_PER_BATCH = 256;
@@ -62,11 +61,7 @@ final class LogBookSync {
                 ReadConsistency.CURRENT);
     }
 
-    /**
-     * Starts LogBook synchronization at the inclusive requested sequence.
-     *
-     * <p>The captured head remains fixed for the complete synchronization run.</p>
-     */
+    /** Starts synchronization at the inclusive requested sequence. */
     void handleReq(UpstreamData.Req req) {
         failIfInvalidArgument(req != null, "req must not be null");
         if (req.stream() != UpstreamData.Stream.TIMING_DATA) {
@@ -87,7 +82,7 @@ final class LogBookSync {
         }
     }
 
-    /** Reports whether a captured TIMING_DATA synchronization run still has records to send. */
+    /** Reports whether the captured synchronization run still has records to send. */
     boolean syncPending() {
         return syncActive;
     }
@@ -97,21 +92,23 @@ final class LogBookSync {
         syncActive = false;
     }
 
-    /**
-     * Sends the next batch using references to existing committed records.
-     *
-     * <p>At most 256 records are sent in one TimingNode serial-lane turn.</p>
-     */
-    void sendNextBatch() {
+    /** Submits the next ordered LogBook batch read without blocking the Task Lane. */
+    CompletableFuture<List<TimingData>> submitNextBatch() {
+        failIfIllegalState(syncActive, "No TIMING_DATA synchronization is active");
+
         int limit = (int) Math.min(
                 (long) MAX_RECORDS_PER_BATCH,
                 syncHead - nextSequence + 1L);
 
-        List<TimingData> records =
-                logBook.process(
-                        LogBookQueries.timingDataRange(
-                                nextSequence,
-                                limit));
+        return logBook.submit(
+                LogBookQueries.timingDataRange(
+                        nextSequence,
+                        limit));
+    }
+
+    /** Validates and sends one completed ordered LogBook batch. */
+    void sendNextBatch(List<TimingData> records) {
+        failIfInvalidArgument(records != null, "records must not be null");
 
         if (records.isEmpty()) {
             syncActive = false;

@@ -27,7 +27,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * is invoked by TimingNode.MainTask on the shared node worker and is not a Data
  * Lane operation. This class owns TimingData creation, time capture, durable
  * append/commit and startup reconstruction; command/query queueing and waiting
- * remain in {@link LogBookDataLane}.</p>
+ * remain in {@link LogBook}.</p>
  */
 final class LogBookOperations {
     private static final Logger LOG = LoggerFactory.getLogger(LogBookOperations.class);

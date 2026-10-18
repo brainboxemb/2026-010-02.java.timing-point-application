@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Move Data Lane ownership fully into LogBook: remove `TimingNodeDataLane`, `TimingNodeDataItem` and the redundant `LogBookDataLane` wrapper; LogBook now owns `SerialLane<LogBookOperationItem<?>>` directly, while upstream protocol work stays on the TimingNode Task Lane and yields with `TaskStep.await(...)` for ordered LogBook reads.
+
 - Simplify `TimingNode` activation to direct MainTask start: `onActivate()` now only starts the Task Lane, activates children and starts the known reusable MainTask; task completion owns the `INIT -> OK/ERROR` transition, and cancellation during deactivation publishes no completion state.
 
 - Make lifecycle activation component-local instead of transactional: `ComponentLifecycleManager` and `AbstractConductor` no longer roll back already activated components, failed components remain inactive while independent components continue, `TimingNode` reuses one MainTask, same-lane startup facts execute directly, Task Lane shutdown cancels without waiting for a running step, and LogBook recovery cannot publish state after deactivation.
@@ -21,7 +23,7 @@
 
 - Add `TaskStep.await(...)`: a cooperative Task Lane task can release its worker while an asynchronous dependency is incomplete and is re-admitted only after that dependency completes.
 
-- Make `SerialLane<T>` the typed item queue/worker boundary: queue items are caller-owned values, the backing executor sees only one fixed worker, LogBook uses `LogBookOperationItem` variants on one typed TimingNode Data Lane, and upstream turns share that FIFO as typed Data Lane items. `RunnableSerialLane` remains only for the independent runnable/simulation scheduling path.
+- Make `SerialLane<T>` the typed item queue/worker boundary: queue items are caller-owned values, the backing executor sees only one fixed worker, and LogBook uses `LogBookOperationItem` variants on its own typed SerialLane.
 
 - Simplify delayed serial scheduling: `submitAfter(...)` now returns one standard `CompletableFuture` for result/completion/cancellation, removing duplicate scheduled-operation wrapper APIs while recurring scheduling keeps one narrow caller-facing registration handle.
 

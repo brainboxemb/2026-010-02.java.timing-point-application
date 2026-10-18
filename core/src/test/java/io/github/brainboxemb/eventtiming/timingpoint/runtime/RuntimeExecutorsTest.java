@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookOperationItem;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
@@ -16,15 +15,8 @@ import static org.junit.Assert.assertTrue;
 
 public class RuntimeExecutorsTest {
 
-    private static final class TestDataOperation
-            extends LogBookOperationItem<Void> {
-        private TestDataOperation(String name) {
-            super(name, false, false);
-        }
-    }
-
     @Test
-    public void timingNodeDataLanesShareOneExecutorThread() throws Exception {
+    public void logBookExecutorsShareOneWorkerThread() throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
         RuntimeExecutors.TimingNodeExecutionResources first =
                 runtime.createTimingNodeExecutionResources();
@@ -36,35 +28,28 @@ public class RuntimeExecutorsTest {
         AtomicReference<String> secondThread = new AtomicReference<String>();
         CountDownLatch done = new CountDownLatch(2);
 
-        first.dataLane().bindLogBook(
-                ignored -> {
-                    firstThread.set(Thread.currentThread().getName());
-                    done.countDown();
-                });
-        second.dataLane().bindLogBook(
-                ignored -> {
-                    secondThread.set(Thread.currentThread().getName());
-                    done.countDown();
-                });
-
         try {
-            first.dataLane().start();
-            second.dataLane().start();
-            first.dataLane().offer(new TestDataOperation("first"));
-            second.dataLane().offer(new TestDataOperation("second"));
+            first.logBookDataLaneExecutor().execute(
+                    () -> {
+                        firstThread.set(Thread.currentThread().getName());
+                        done.countDown();
+                    });
+            second.logBookDataLaneExecutor().execute(
+                    () -> {
+                        secondThread.set(Thread.currentThread().getName());
+                        done.countDown();
+                    });
 
             assertTrue(done.await(1L, TimeUnit.SECONDS));
             assertEquals("tp-dl-node", firstThread.get());
             assertEquals(firstThread.get(), secondThread.get());
         } finally {
-            first.dataLane().close();
-            second.dataLane().close();
             runtime.close();
         }
     }
 
     @Test
-    public void timingNodeDataAndTaskLanesShareTheSameExecutorThread() throws Exception {
+    public void logBookAndTaskLanesShareTheSameExecutorThread() throws Exception {
         RuntimeExecutors runtime = new RuntimeExecutors();
         RuntimeExecutors.TimingNodeExecutionResources execution =
                 runtime.createTimingNodeExecutionResources();
@@ -74,15 +59,13 @@ public class RuntimeExecutorsTest {
         AtomicReference<String> taskThread = new AtomicReference<String>();
         CountDownLatch done = new CountDownLatch(2);
 
-        execution.dataLane().bindLogBook(
-                ignored -> {
-                    dataThread.set(Thread.currentThread().getName());
-                    done.countDown();
-                });
         execution.taskRunner().start();
         try {
-            execution.dataLane().start();
-            execution.dataLane().offer(new TestDataOperation("data"));
+            execution.logBookDataLaneExecutor().execute(
+                    () -> {
+                        dataThread.set(Thread.currentThread().getName());
+                        done.countDown();
+                    });
             execution.taskRunner().runTask(
                     () -> {
                         taskThread.set(Thread.currentThread().getName());
@@ -95,7 +78,6 @@ public class RuntimeExecutorsTest {
             assertEquals(dataThread.get(), taskThread.get());
         } finally {
             execution.taskRunner().close();
-            execution.dataLane().close();
             runtime.close();
         }
     }

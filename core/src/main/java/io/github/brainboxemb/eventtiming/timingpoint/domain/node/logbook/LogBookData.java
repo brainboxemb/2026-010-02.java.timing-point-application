@@ -11,10 +11,10 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
- * Passive committed TimingData history owned by one TimingNode Data Lane.
+ * Passive committed TimingData history owned by one LogBook Data Lane.
  *
  * <p>LogBookData has no worker or independent synchronization. Its record
- * collection is owned by the TimingNode Data Lane. Only the committed source
+ * collection is owned by LogBook and accessed serially through its Data Lane. Only the committed source
  * head is published separately as a volatile value so a DIRECT/CURRENT query
  * can read that scalar without entering the lane.</p>
  */
