@@ -83,12 +83,6 @@ final class RegistrationDuplicateFilter {
         }
     }
 
-    /** Reports whether remembered registrations still require housekeeping. */
-    boolean hasPendingState() {
-        return policyConfiguration.currentValue().duplicateWindowNanos() != 0L
-                && !registrations.isEmpty();
-    }
-
     private void removeExpired(long now) {
         long duplicateWindowNanos =
                 policyConfiguration.currentValue().duplicateWindowNanos();
