@@ -7,8 +7,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
@@ -25,9 +23,6 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 import java.time.Duration;
 import java.time.ZoneId;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -40,8 +35,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Coordinates node-local Task Lane data.
  *
- * <p>Events only wake the service. MainTask reads the LogBook head and fetches missing
- * TimingData itself in bounded batches. The individual data objects own their state.</p>
+ * <p>MainTask handles only LogBook availability. DataTask owns TimingData catch-up and
+ * bounded LogBook reads. The individual domain objects own their data.</p>
  */
 public final class NodeService extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(NodeService.class);
@@ -51,7 +46,7 @@ public final class NodeService extends LifecycleComponent {
     public static final EventInput<NodeService, LogBookStatus> LOGBOOK_STATUS =
             EventInput.of((service, source) -> source.subscribe(service::onLogBookStatus));
 
-    /** Post-commit signal; the TimingData payload is deliberately not consumed by NodeService. */
+    /** Post-commit signal; DataTask reads the authoritative TimingData from LogBook. */
     public static final EventInput<NodeService, TimingData> TIMING_DATA_CHANGED =
             EventInput.of((service, source) -> source.subscribe(service::onTimingDataChanged));
 
@@ -61,7 +56,8 @@ public final class NodeService extends LifecycleComponent {
     private final ActiveRegistrations activeRegistrations;
     private final StageTiming stageTiming;
     private final TeamRanking teamRanking;
-    private final MainTask mainTask;
+    private final DataTask dataTask;
+    private final MainTask mainTask = new MainTask();
 
     /** Creates the service over one LogBook and the node Task Lane. */
     public NodeService(
@@ -85,7 +81,14 @@ public final class NodeService extends LifecycleComponent {
         this.activeRegistrations = activeRegistrations;
         stageTiming = new StageTiming(eventData, raceData.teamAssignments(), raceData.stageStartTimes());
         teamRanking = new TeamRanking(stageTiming);
-        mainTask = new MainTask(logBook);
+        dataTask =
+                new DataTask(
+                        taskRunner,
+                        logBook,
+                        raceData,
+                        activeRegistrations,
+                        teamRanking,
+                        this::dataTaskFailed);
     }
 
     /** Verifies that TimingNode started the shared Task Lane first. */
@@ -95,18 +98,19 @@ public final class NodeService extends LifecycleComponent {
         failIfIllegalState(taskRunner.isRunning(), "TimingNode Task Lane is not running");
     }
 
-    /** Stops service catch-up. */
+    /** Stops service tasks. */
     @Override
     protected void onDeactivate() {
 
         mainTask.stop();
+        dataTask.stop();
     }
 
     /**
      * Applies one ordered Central RACE_DATA change set.
      *
      * <p>UpstreamHandler calls this while the node Task Lane is current. Team assignment
-     * changes are then reflected immediately in active-registration counts.</p>
+     * changes are then reflected immediately in active-registration counts and ranking.</p>
      */
     public void applyRaceData(UpstreamData.RaceData changes) {
 
@@ -130,14 +134,7 @@ public final class NodeService extends LifecycleComponent {
         return read(readCount);
     }
 
-    /**
-     * Visits at most {@code limit} active stage passages.
-     *
-     * <p>Duplicate passages for the same team remain separate rows. The visitor runs on
-     * the Task Lane and must remain short and non-blocking.</p>
-     *
-     * @return number of visited passages
-     */
+    /** Visits at most {@code limit} active stage passages. */
     public int visitStageTimes(ZoneId raceTimeZone, int limit, Consumer<StageTime> visitor) {
 
         failIfInvalidArgument(raceTimeZone != null, "raceTimeZone must not be null");
@@ -149,14 +146,7 @@ public final class NodeService extends LifecycleComponent {
         return read(visitPassages);
     }
 
-    /**
-     * Visits at most {@code limit} ranked teams at one location.
-     *
-     * <p>TeamRanking maintains the selected active registration per team incrementally,
-     * so this query does not scan all active registrations.</p>
-     *
-     * @return number of visited teams
-     */
+    /** Visits at most {@code limit} ranked teams at one location. */
     public int visitTeamRanking(
             LocationId locationId,
             ZoneId raceTimeZone,
@@ -173,208 +163,83 @@ public final class NodeService extends LifecycleComponent {
         return read(visitRanking);
     }
 
-    /** Updates MainTask availability from the current LogBook status. */
+    /** Passes LogBook availability changes to MainTask. */
     private void onLogBookStatus(LogBookStatus status) {
 
         failIfInvalidArgument(status != null, "status must not be null");
-
-        if (status == LogBookStatus.LOADED) {
-            mainTask.logBookReady();
-        } else if (status == LogBookStatus.ERROR) {
-            mainTask.logBookFailed();
-        }
+        mainTask.statusChanged(status);
     }
 
-    /** Wakes MainTask after a commit; the event payload is intentionally ignored. */
-    private void onTimingDataChanged(TimingData ignored) {
+    /** Wakes DataTask after a committed TimingData change. */
+    private void onTimingDataChanged(TimingData data) {
 
-        failIfInvalidArgument(ignored != null, "TimingData must not be null");
-        mainTask.timingDataChanged();
+        failIfInvalidArgument(data != null, "TimingData must not be null");
+        dataTask.dataChanged();
     }
 
-    /** Runs one ordered service read after MainTask has caught up with signalled LogBook changes. */
+    /** Runs one ordered service read after DataTask has caught up. */
     private <T> T read(Supplier<T> operation) {
 
-        return NodeServiceQuery.execute(taskRunner, QUERY_TIMEOUT, mainTask.catchUpCompletion(), operation);
+        return NodeServiceQuery.execute(
+                taskRunner,
+                QUERY_TIMEOUT,
+                dataTask.caughtUp(),
+                operation);
     }
 
-    /** Applies one committed TimingData record to the interested Task Lane data objects. */
-    private void applyTimingData(TimingData data) {
+    /** Logs a failed DataTask catch-up. */
+    private void dataTaskFailed(Throwable failure) {
 
-        ActiveRegistrations.Change change =
-                activeRegistrations.apply(data, raceData::teamIdFor);
-        teamRanking.apply(change);
+        LOG.error("NodeService DataTask failed for node {}", nodeId.value(), failure);
     }
 
-    /** Logs a failed MainTask catch-up. */
-    private void catchUpFailed(Throwable failure) {
-
-        LOG.error("NodeService TimingData catch-up failed for node {}", nodeId.value(), failure);
-    }
-
-    /**
-     * Keeps Task Lane data caught up with committed LogBook TimingData.
-     *
-     * <p>The task owns only its source cursor and one pending bounded LogBook read. Wake
-     * requests coalesce while a run is active.</p>
-     */
+    /** Handles only LogBook availability transitions. */
     private final class MainTask extends AbstractTask {
-        private static final int TIMING_DATA_BATCH_SIZE = 64;
+        private LogBookStatus status = LogBookStatus.INIT;
 
-        private final LogBookAccessor logBook;
+        /** Stores the latest LogBook status and wakes MainTask. */
+        private synchronized void statusChanged(LogBookStatus newStatus) {
 
-        private boolean logBookReady;
-        private boolean rebuild;
-        private long signalVersion;
-        private long nextSequence = 1L;
-        private CompletableFuture<List<TimingData>> pendingRead;
-        private volatile CompletableFuture<Void> catchUpCompletion = new CompletableFuture<Void>();
-
-        private MainTask(LogBookAccessor logBook) {
-
-            this.logBook = logBook;
-        }
-
-        /** Marks the LogBook ready and schedules a complete initial catch-up. */
-        private synchronized void logBookReady() {
-
-            logBookReady = true;
-            rebuild = true;
-            signalVersion++;
-            nextSequence = 1L;
-            beginCatchUp();
+            status = newStatus;
             wake(taskRunner);
         }
 
-        /** Fails pending service reads when the LogBook enters ERROR. */
-        private synchronized void logBookFailed() {
-
-            catchUpCompletion.completeExceptionally(
-                    new IllegalStateException("LogBook is in ERROR state"));
-        }
-
-        /** Schedules catch-up after newly committed TimingData. */
-        private synchronized void timingDataChanged() {
-
-            if (logBookReady) {
-                signalVersion++;
-                beginCatchUp();
-                wake(taskRunner);
-            }
-        }
-
-        /** Returns completion of all LogBook changes signalled so far. */
-        private CompletionStage<Void> catchUpCompletion() {
-
-            return catchUpCompletion;
-        }
-
-        /** Cancels catch-up and resets the source cursor for later activation. */
+        /** Stops MainTask and resets its status. */
         private synchronized void stop() {
 
             cancel();
-            logBookReady = false;
-            rebuild = false;
-            nextSequence = 1L;
-            pendingRead = null;
-            catchUpCompletion.cancel(true);
-            catchUpCompletion = new CompletableFuture<Void>();
+            status = LogBookStatus.INIT;
         }
 
-        /** Preserves the source cursor while clearing one-run asynchronous state. */
+        /** MainTask keeps its status between wake-driven runs. */
         @Override
         protected void resetForRun() {
-
-            pendingRead = null;
+            // Status is updated by LogBook events.
         }
 
-        /** Reads and applies missing TimingData until the current LogBook head is reached. */
+        /** Applies the latest LogBook availability state. */
         @Override
         public TaskStep runStep() {
 
-            if (rebuild) {
-                activeRegistrations.reset();
-                teamRanking.reset();
-                rebuild = false;
-            }
-
-            if (pendingRead != null) {
-                applyCompletedRead();
-            }
-
-            long observedVersion = currentSignalVersion();
-            long head =
-                    logBook.process(
-                            LogBookQueries.timingDataHead(),
-                            LogBookQuery.ReadConsistency.CURRENT);
-            if (nextSequence <= head) {
-                submitNextRead(head);
-                return TaskStep.await(pendingRead);
-            }
-
-            if (!completeCatchUp(observedVersion)) {
-                return TaskStep.again();
+            switch (currentStatus()) {
+                case LOADED:
+                    dataTask.loadAll();
+                    break;
+                case ERROR:
+                    dataTask.unavailable();
+                    break;
+                case INIT:
+                    break;
+                default:
+                    throw new IllegalStateException("Unsupported LogBook status");
             }
             return TaskStep.done();
         }
 
-        /** Fails pending service reads if one catch-up run fails. */
-        @Override
-        protected void onRunCompleted(Throwable failure) {
+        /** Returns the latest LogBook status. */
+        private synchronized LogBookStatus currentStatus() {
 
-            pendingRead = null;
-            if (failure != null) {
-                catchUpCompletion.completeExceptionally(failure);
-                catchUpFailed(failure);
-            }
-        }
-
-        /** Starts a bounded ordered LogBook read from the current source cursor. */
-        private void submitNextRead(long head) {
-
-            long remaining = head - nextSequence + 1L;
-            int limit = (int) Math.min((long) TIMING_DATA_BATCH_SIZE, remaining);
-            pendingRead = logBook.submit(LogBookQueries.timingDataRange(nextSequence, limit));
-        }
-
-        /** Applies one completed TimingData batch in source order. */
-        private void applyCompletedRead() {
-
-            List<TimingData> records = pendingRead.join();
-            pendingRead = null;
-
-            failIfIllegalState(!records.isEmpty(), "No TimingData returned for sequence %s", nextSequence);
-
-            for (TimingData data : records) {
-                long sequence = data.sequenceNumber();
-                failIfIllegalState(sequence == nextSequence, "Expected sequence %s, got %s", nextSequence, sequence);
-                applyTimingData(data);
-                nextSequence++;
-            }
-        }
-
-        /** Returns the latest LogBook-change signal generation. */
-        private synchronized long currentSignalVersion() {
-
-            return signalVersion;
-        }
-
-        /** Completes catch-up only when no newer signal arrived during the final head read. */
-        private synchronized boolean completeCatchUp(long observedVersion) {
-
-            if (observedVersion != signalVersion) {
-                return false;
-            }
-            catchUpCompletion.complete(null);
-            return true;
-        }
-
-        /** Starts a new completion window when the service was previously caught up. */
-        private void beginCatchUp() {
-
-            if (catchUpCompletion.isDone()) {
-                catchUpCompletion = new CompletableFuture<Void>();
-            }
+            return status;
         }
     }
 }
