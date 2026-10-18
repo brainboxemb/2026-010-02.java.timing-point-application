@@ -56,14 +56,10 @@ final class TagObservationFilter {
             TagProcessingMetrics metrics,
             BiConsumer<RegistrationId, TimingTimestamp>
                     validObservationCallback) {
-        failIfInvalidArgument(
-                policyConfiguration != null,
-                "policyConfiguration must not be null");
+        failIfInvalidArgument(policyConfiguration != null, "policyConfiguration must not be null");
         failIfInvalidArgument(monotonicClock != null, "monotonicClock must not be null");
         failIfInvalidArgument(metrics != null, "metrics must not be null");
-        failIfInvalidArgument(
-                validObservationCallback != null,
-                "validObservationCallback must not be null");
+        failIfInvalidArgument(validObservationCallback != null, "validObservationCallback must not be null");
         this.policyConfiguration = policyConfiguration;
         this.monotonicClock = monotonicClock;
         this.metrics = metrics;
@@ -134,11 +130,6 @@ final class TagObservationFilter {
     boolean discard(RegistrationId registrationId) {
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         return bursts.remove(registrationId) != null;
-    }
-
-    /** Reports whether one or more passage bursts are still being aggregated. */
-    boolean hasPendingState() {
-        return !bursts.isEmpty();
     }
 
     /** Returns diagnostic snapshots of the currently open passage bursts. */
