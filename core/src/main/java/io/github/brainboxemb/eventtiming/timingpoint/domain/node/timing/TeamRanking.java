@@ -13,6 +13,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
+import java.util.Objects;
+import java.util.PriorityQueue;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 
@@ -76,7 +78,7 @@ public final class TeamRanking {
         Map<Long, Candidate> registrations = candidatesByRegistration.get(registrationId);
         if (registrations != null) {
             for (Candidate candidate : registrations.values()) {
-                if (!java.util.Objects.equals(candidate.teamId, teamId)) {
+                if (!Objects.equals(candidate.teamId, teamId)) {
                     removeFromTeam(candidate);
                     candidate.teamId = teamId;
                     addToTeam(candidate);
@@ -113,8 +115,8 @@ public final class TeamRanking {
             return 0;
         }
 
-        java.util.PriorityQueue<TeamRank> fastest =
-                new java.util.PriorityQueue<TeamRank>(limit, FASTEST_TEAM_FIRST.reversed());
+        PriorityQueue<TeamRank> fastest =
+                new PriorityQueue<TeamRank>(limit, FASTEST_TEAM_FIRST.reversed());
 
         for (Map.Entry<TeamId, NavigableSet<Candidate>> entry : teams.entrySet()) {
             Candidate candidate = entry.getValue().first();
