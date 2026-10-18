@@ -13,39 +13,45 @@ final class NodeServiceUpdateTask extends AbstractTask {
     private final Runnable operation;
     private final Consumer<Throwable> failureHandler;
 
-    private NodeServiceUpdateTask(
-            Runnable operation,
-            Consumer<Throwable> failureHandler) {
+    private NodeServiceUpdateTask(Runnable operation, Consumer<Throwable> failureHandler) {
 
         failIfInvalidArgument(operation != null, "operation must not be null");
         failIfInvalidArgument(failureHandler != null, "failureHandler must not be null");
+
         this.operation = operation;
         this.failureHandler = failureHandler;
     }
 
-    /** Queues one independent ordered state update. */
-    static void execute(
+    /** Queues one ordered state update and returns after admission. */
+    static void queue(
             SerialTaskRunner taskRunner,
             Runnable operation,
             Consumer<Throwable> failureHandler) {
 
         failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
+
         new NodeServiceUpdateTask(operation, failureHandler).wake(taskRunner);
     }
 
+    /** Resets one-shot task state before admission. */
     @Override
     protected void resetForRun() {
+
         // One-shot task has no reusable state.
     }
 
+    /** Executes the queued state update. */
     @Override
     public TaskStep runStep() {
+
         operation.run();
         return TaskStep.done();
     }
 
+    /** Delegates asynchronous update failure to NodeService. */
     @Override
     protected void onRunCompleted(Throwable failure) {
+
         if (failure != null) {
             failureHandler.accept(failure);
         }
