@@ -20,8 +20,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -31,6 +29,8 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -62,12 +62,7 @@ public class TagProcessorTest {
                         runnable -> new Thread(runnable, threadName));
         worker.setRemoveOnCancelPolicy(true);
         ownedWorkers.add(worker);
-        return new TagExecution(
-                new ScheduledSerialLane(
-                        32,
-                        32,
-                        threadName,
-                        worker));
+        return new TagExecution(worker);
     }
 
     private static final TimingTimestamp OBSERVED_AT =
@@ -91,13 +86,13 @@ public class TagProcessorTest {
                 policy(8),
                 clock,
                 metrics,
-                execution.lane);
+                execution.executor);
 
         activate(processor);
         try {
             processor.onTagObserved(
                     observation("TAG-001", -42, OBSERVED_AT));
-            awaitLane(execution.lane);
+            awaitExecutor(execution.executor);
 
             assertEquals(
                     1L,
@@ -124,7 +119,7 @@ public class TagProcessorTest {
                 policy(8),
                 clock,
                 metrics,
-                execution.lane);
+                execution.executor);
         connectToNode(processor, node);
         CountDownLatch committed = new CountDownLatch(1);
         node.logBook().newDataEntryEvent().subscribe(data -> {
@@ -141,7 +136,7 @@ public class TagProcessorTest {
                     observation("TAG-A", -60, OBSERVED_AT));
             processor.onTagObserved(
                     observation("TAG-B", -30, STRONGER_OBSERVED_AT));
-            awaitLane(execution.lane);
+            awaitExecutor(execution.executor);
 
             List<TagPassageSnapshot> passages =
                     processor.passageSnapshots();
@@ -157,7 +152,7 @@ public class TagProcessorTest {
             clock.advanceNanos(100L);
 
             assertTrue(committed.await(1, TimeUnit.SECONDS));
-            awaitLane(execution.lane);
+            awaitExecutor(execution.executor);
             assertEquals(2, store.appended.size());
             AutomaticRegistration registration =
                     (AutomaticRegistration) store.appended.get(1);
@@ -195,7 +190,7 @@ public class TagProcessorTest {
                 policy(8),
                 clock,
                 metrics,
-                execution.lane);
+                execution.executor);
         connectToNode(processor, node);
         CountDownLatch committed = new CountDownLatch(1);
         node.logBook().newDataEntryEvent().subscribe(data -> {
@@ -210,7 +205,7 @@ public class TagProcessorTest {
         try {
             processor.onTagObserved(
                     observation("TAG-A", -60, OBSERVED_AT));
-            awaitLane(execution.lane);
+            awaitExecutor(execution.executor);
 
             /*
              * This closes the first passage. TagObservationFilter has already
@@ -221,12 +216,12 @@ public class TagProcessorTest {
             clock.advanceNanos(100L);
             processor.onTagObserved(
                     observation("TAG-B", -50, STRONGER_OBSERVED_AT));
-            awaitLane(execution.lane);
+            awaitExecutor(execution.executor);
             assertTrue(committed.await(1, TimeUnit.SECONDS));
 
             processor.onTagObserved(
                     observation("TAG-C", -40, STRONGER_OBSERVED_AT));
-            awaitLane(execution.lane);
+            awaitExecutor(execution.executor);
 
             TagProcessingMetrics.Snapshot snapshot = metrics.snapshot();
             assertEquals(3L, snapshot.observations());
@@ -255,7 +250,7 @@ public class TagProcessorTest {
                 policy(8),
                 clock,
                 metrics,
-                execution.lane);
+                execution.executor);
         CountDownLatch registrationPublished =
                 new CountDownLatch(1);
         processor.NEW_REGISTRATION
@@ -266,12 +261,12 @@ public class TagProcessorTest {
         try {
             processor.onTagObserved(
                     observation("TAG-A", -60, OBSERVED_AT));
-            awaitLane(execution.lane);
+            awaitExecutor(execution.executor);
 
             clock.advanceNanos(100L);
             processor.onTagObserved(
                     observation("TAG-B", -50, STRONGER_OBSERVED_AT));
-            awaitLane(execution.lane);
+            awaitExecutor(execution.executor);
             assertTrue(
                     registrationPublished.await(
                             1,
@@ -280,7 +275,7 @@ public class TagProcessorTest {
             clock.advanceNanos(100L);
             processor.onTagObserved(
                     observation("TAG-C", -40, STRONGER_OBSERVED_AT));
-            awaitLane(execution.lane);
+            awaitExecutor(execution.executor);
 
             TagProcessingMetrics.Snapshot snapshot = metrics.snapshot();
             assertEquals(3L, snapshot.mapped());
@@ -312,7 +307,7 @@ public class TagProcessorTest {
                 configuration.timingNode(new NodeId("A")).tagProcessing(),
                 clock,
                 new TagProcessingMetrics(),
-                execution.lane);
+                execution.executor);
         connectToNode(processor, node);
         CountDownLatch committed = new CountDownLatch(1);
         node.logBook().newDataEntryEvent().subscribe(data -> {
@@ -327,7 +322,7 @@ public class TagProcessorTest {
         try {
             processor.onTagObserved(
                     observation("TAG-A", -50, OBSERVED_AT));
-            awaitLane(execution.lane);
+            awaitExecutor(execution.executor);
 
             clock.advanceNanos(50L);
 
@@ -358,28 +353,29 @@ public class TagProcessorTest {
     public void filterAndDuplicateHousekeepingUseSeparateScheduledRuns()
             throws Exception {
         FakeMonotonicClock clock = new FakeMonotonicClock();
-        RecordingScheduledLane lane = new RecordingScheduledLane();
+        RecordingScheduledExecutor executor = new RecordingScheduledExecutor();
         TagProcessor processor = new TagProcessor(
                 eventDataFor("TAG-A", "N-001"),
                 policy(8),
                 clock,
                 new TagProcessingMetrics(),
-                lane);
+                executor);
 
         activate(processor);
         try {
             processor.onTagObserved(observation("TAG-A", -50, OBSERVED_AT));
-            awaitLane(lane);
+            awaitExecutor(executor);
 
-            assertEquals(1, lane.scheduledOperations.size());
+            assertEquals(1, executor.scheduledOperations.size());
 
             clock.advanceNanos(100L);
-            lane.scheduledOperations.get(0).run();
+            executor.execute(executor.scheduledOperations.get(0));
+            awaitExecutor(executor);
 
-            assertEquals(2, lane.scheduledOperations.size());
+            assertEquals(2, executor.scheduledOperations.size());
         } finally {
             deactivate(processor);
-            lane.closeWorker();
+            executor.closeWorker();
         }
     }
 
@@ -400,13 +396,13 @@ public class TagProcessorTest {
                 configuration.timingNode(new NodeId("A")).tagProcessing(),
                 clock,
                 new TagProcessingMetrics(),
-                execution.lane);
+                execution.executor);
 
         activate(processor);
         try {
             processor.onTagObserved(
                     observation("TAG-001", -42, OBSERVED_AT));
-            awaitLane(execution.lane);
+            awaitExecutor(execution.executor);
 
             TagProcessingPolicy fasterSweep =
                     new TagProcessingPolicy(
@@ -421,16 +417,15 @@ public class TagProcessorTest {
                             .timingNode(new NodeId("A"))
                             .tagProcessing()
                             .override(fasterSweep));
-            awaitLane(execution.lane);
+            awaitExecutor(execution.executor);
 
             /*
-             * The override cancels the previous housekeeping registration and
-             * the processor remains usable on the same serial lane. Periodic
-             * scheduling/cancellation itself is verified by LaneSchedulerTest.
+             * The override replaces the JDK fixed-delay registrations while
+             * the processor remains usable on the same single-thread executor.
              */
             processor.onTagObserved(
                     observation("TAG-002", -41, OBSERVED_AT));
-            awaitLane(execution.lane);
+            awaitExecutor(execution.executor);
         } finally {
             deactivate(processor);
         }
@@ -448,13 +443,13 @@ public class TagProcessorTest {
                 policy(1),
                 clock,
                 metrics,
-                execution.lane);
+                execution.executor);
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
         activate(processor);
         try {
-            execution.lane.execute(() -> {
+            execution.executor.execute(() -> {
                         blockerStarted.countDown();
                         await(releaseBlocker);
                     });
@@ -488,12 +483,12 @@ public class TagProcessorTest {
                 policy(4),
                 clock,
                 metrics,
-                execution.lane);
+                execution.executor);
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
         activate(processor);
-        execution.lane.execute(() -> {
+        execution.executor.execute(() -> {
                     blockerStarted.countDown();
                     await(releaseBlocker);
                 });
@@ -572,10 +567,10 @@ public class TagProcessorTest {
                                                 registration.observedAt())));
     }
 
-    private static void awaitLane(RunnableSerialLane lane)
+    private static void awaitExecutor(ScheduledExecutorService executor)
             throws Exception {
         CountDownLatch barrier = new CountDownLatch(1);
-        lane.execute(barrier::countDown);
+        executor.execute(barrier::countDown);
         assertTrue(barrier.await(1, TimeUnit.SECONDS));
     }
 
@@ -597,37 +592,40 @@ public class TagProcessorTest {
                 timeSource);
     }
 
-    private static final class RecordingScheduledLane extends ScheduledSerialLane {
-        private final ScheduledThreadPoolExecutor worker;
-        private final List<Runnable> scheduledOperations = new ArrayList<Runnable>();
+    private static final class RecordingScheduledExecutor
+            extends ScheduledThreadPoolExecutor {
+        private final List<Runnable> scheduledOperations =
+                new ArrayList<Runnable>();
 
-        private RecordingScheduledLane() {
-            this(new ScheduledThreadPoolExecutor(1));
-        }
-
-        private RecordingScheduledLane(ScheduledThreadPoolExecutor worker) {
-            super(8, 8, "recording-tag-lane", worker);
-            this.worker = worker;
+        private RecordingScheduledExecutor() {
+            super(1);
+            setRemoveOnCancelPolicy(true);
         }
 
         @Override
-        public ScheduledRegistration scheduleWithFixedDelay(
+        public ScheduledFuture<?> scheduleWithFixedDelay(
                 Runnable operation,
-                long delayNanos) {
+                long initialDelay,
+                long delay,
+                TimeUnit unit) {
             scheduledOperations.add(operation);
-            return () -> { };
+            return super.scheduleWithFixedDelay(
+                    () -> { },
+                    1L,
+                    1L,
+                    TimeUnit.DAYS);
         }
 
         private void closeWorker() {
-            worker.shutdownNow();
+            shutdownNow();
         }
     }
 
     private static final class TagExecution {
-        private final ScheduledSerialLane lane;
+        private final ScheduledThreadPoolExecutor executor;
 
-        private TagExecution(ScheduledSerialLane lane) {
-            this.lane = lane;
+        private TagExecution(ScheduledThreadPoolExecutor executor) {
+            this.executor = executor;
         }
     }
 

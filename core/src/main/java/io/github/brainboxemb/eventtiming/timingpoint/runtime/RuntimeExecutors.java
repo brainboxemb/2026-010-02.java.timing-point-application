@@ -2,8 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -31,22 +30,12 @@ final class RuntimeExecutors implements AutoCloseable {
     static final int TIMING_NODE_DATA_LANE_MAX_ITEMS_PER_RUN = 32;
     static final int TIMING_NODE_TASK_LANE_QUEUE_CAPACITY = 32;
     static final int TIMING_NODE_TASK_LANE_MAX_ITEMS_PER_RUN = 32;
-    static final int TAG_PROCESSOR_LANE_QUEUE_CAPACITY = 32;
-    static final int TAG_PROCESSOR_LANE_MAX_ITEMS_PER_RUN = 32;
-    static final int TAG_PROCESSOR_OBSERVATION_MAX_ITEMS_PER_RUN = 32;
     static final int ANTENNA_CONTROL_LANE_QUEUE_CAPACITY = 8;
     static final int ANTENNA_CONTROL_LANE_MAX_ITEMS_PER_RUN = 8;
     static final int SIMULATION_LANE_QUEUE_CAPACITY = 32;
     static final int SIMULATION_LANE_MAX_ITEMS_PER_RUN = 32;
     static final int TIMING_SYSTEM_CONDUCTOR_LANE_QUEUE_CAPACITY = 8;
     static final int TIMING_SYSTEM_CONDUCTOR_LANE_MAX_ITEMS_PER_RUN = 8;
-
-    /*
-     * Baseline lane batch sizes equal their queue capacities. TagProcessor
-     * observation batching is separate because its SerialQueue contains actual
-     * TagObservation items while the ScheduledSerialLane queues worker/timer
-     * callbacks.
-     */
 
     /*
      * Step-5 baseline: one physical blocking-I/O thread.
@@ -59,17 +48,17 @@ final class RuntimeExecutors implements AutoCloseable {
     /** Node-local logical lanes resolved for one TimingNode. */
     static final class TimingNodeExecutionResources {
         private final TimingNodeDataLane dataLane;
-        private final TaskSerialLane taskLane;
-        private final ScheduledSerialLane tagProcessorLane;
+        private final SerialTaskRunner taskRunner;
+        private final ScheduledExecutorService tagProcessorScheduler;
 
         private TimingNodeExecutionResources(
                 TimingNodeDataLane dataLane,
-                TaskSerialLane taskLane,
-                ScheduledSerialLane tagProcessorLane) {
+                SerialTaskRunner taskRunner,
+                ScheduledExecutorService tagProcessorScheduler) {
 
             this.dataLane = dataLane;
-            this.taskLane = taskLane;
-            this.tagProcessorLane = tagProcessorLane;
+            this.taskRunner = taskRunner;
+            this.tagProcessorScheduler = tagProcessorScheduler;
         }
 
         TimingNodeDataLane dataLane() {
@@ -77,14 +66,14 @@ final class RuntimeExecutors implements AutoCloseable {
             return dataLane;
         }
 
-        TaskSerialLane taskLane() {
+        SerialTaskRunner taskRunner() {
 
-            return taskLane;
+            return taskRunner;
         }
 
-        ScheduledSerialLane tagProcessorLane() {
+        ScheduledExecutorService tagProcessorScheduler() {
 
-            return tagProcessorLane;
+            return tagProcessorScheduler;
         }
     }
 
@@ -167,9 +156,10 @@ final class RuntimeExecutors implements AutoCloseable {
      * Creates one node-local execution-resource set on shared Runtime executors.
      *
      * <p>The typed Data Lane and cooperative Task Lane keep independent bounded queues and FIFO
-     * ordering, but they deliberately share
-     * the same TimingNode executor. TagProcessor keeps its separate scheduled
-     * executor. Logical responsibility therefore does not imply another
+     * ordering, but they deliberately share the same TimingNode executor.
+     * TagProcessor receives the Runtime-owned single-thread scheduled executor
+     * directly; its bounded observation SerialLane and scheduled work share that
+     * physical thread. Logical responsibility therefore does not imply another
      * Java thread.</p>
      */
     synchronized TimingNodeExecutionResources createTimingNodeExecutionResources() {
@@ -179,24 +169,19 @@ final class RuntimeExecutors implements AutoCloseable {
                         TIMING_NODE_DATA_LANE_MAX_ITEMS_PER_RUN,
                         "TimingNodeData",
                         timingNodeExecutor);
-        TaskSerialLane taskLane =
-                new TaskSerialLane(
+        SerialTaskRunner taskRunner =
+                new SerialTaskRunner(
                         TIMING_NODE_TASK_LANE_QUEUE_CAPACITY,
                         TIMING_NODE_TASK_LANE_MAX_ITEMS_PER_RUN,
                         "TimingNodeTask",
                         timingNodeExecutor);
 
-        ScheduledSerialLane tagProcessorLane =
-                new ScheduledSerialLane(
-                        TAG_PROCESSOR_LANE_QUEUE_CAPACITY,
-                        TAG_PROCESSOR_LANE_MAX_ITEMS_PER_RUN,
-                        "TagProcessor",
-                        tagProcessorScheduledExecutor);
-
         serialLanes.add(dataLane);
-        serialLanes.add(taskLane);
-        serialLanes.add(tagProcessorLane);
-        return new TimingNodeExecutionResources(dataLane, taskLane, tagProcessorLane);
+        serialLanes.add(taskRunner);
+        return new TimingNodeExecutionResources(
+                dataLane,
+                taskRunner,
+                tagProcessorScheduledExecutor);
     }
 
     /**
@@ -205,9 +190,9 @@ final class RuntimeExecutors implements AutoCloseable {
      * <p>The lane is logically owned by that TimingSystemConductor. Runtime owns the physical
      * coordination executor underneath it.</p>
      */
-    synchronized TaskSerialLane createTimingSystemConductorLane() {
-        TaskSerialLane conductorLane =
-                new TaskSerialLane(
+    synchronized SerialTaskRunner createTimingSystemConductorLane() {
+        SerialTaskRunner conductorLane =
+                new SerialTaskRunner(
                         TIMING_SYSTEM_CONDUCTOR_LANE_QUEUE_CAPACITY,
                         TIMING_SYSTEM_CONDUCTOR_LANE_MAX_ITEMS_PER_RUN,
                         "TimingSystemConductor",
@@ -217,9 +202,9 @@ final class RuntimeExecutors implements AutoCloseable {
     }
 
     /** Creates the cooperative serial control lane owned by one AntennaManager. */
-    synchronized TaskSerialLane createAntennaControlLane(Duration operationTimeout) {
-        TaskSerialLane antennaControlLane =
-                new TaskSerialLane(
+    synchronized SerialTaskRunner createAntennaControlLane(Duration operationTimeout) {
+        SerialTaskRunner antennaControlLane =
+                new SerialTaskRunner(
                         ANTENNA_CONTROL_LANE_QUEUE_CAPACITY,
                         ANTENNA_CONTROL_LANE_MAX_ITEMS_PER_RUN,
                         "AntennaManager",

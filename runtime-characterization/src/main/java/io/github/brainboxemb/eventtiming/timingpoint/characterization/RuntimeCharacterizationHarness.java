@@ -29,9 +29,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.ClockTimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement.JvmRuntimeSnapshot;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement.RuntimeMeasurementReader;
@@ -92,9 +90,8 @@ final class RuntimeCharacterizationHarness
     private ScheduledThreadPoolExecutor tagWorker;
     private ScheduledThreadPoolExecutor ioWorker;
     private TimingNodeDataLane dataLane;
-    private TaskSerialLane taskLane;
-    private ScheduledSerialLane tagLane;
-    private TaskSerialLane antennaLane;
+    private SerialTaskRunner taskLane;
+    private SerialTaskRunner antennaLane;
     private SimulatedAntenna antenna;
     private AntennaManager antennaManager;
     private LogBook logBook;
@@ -165,19 +162,13 @@ final class RuntimeCharacterizationHarness
                         "TimingNodeData",
                         nodeWorker);
         taskLane =
-                new TaskSerialLane(
+                new SerialTaskRunner(
                         TIMING_NODE_QUEUE_CAPACITY,
                         TIMING_NODE_QUEUE_CAPACITY,
                         "TimingNodeTask",
                         nodeWorker);
-        tagLane =
-                new ScheduledSerialLane(
-                        TAG_PROCESSOR_QUEUE_CAPACITY,
-                        TAG_PROCESSOR_QUEUE_CAPACITY,
-                        "TagProcessor",
-                        tagWorker);
         antennaLane =
-                new TaskSerialLane(
+                new SerialTaskRunner(
                         ANTENNA_CONTROL_QUEUE_CAPACITY,
                         ANTENNA_CONTROL_QUEUE_CAPACITY,
                         "AntennaManager",
@@ -237,14 +228,15 @@ final class RuntimeCharacterizationHarness
                         tagConfiguration,
                         SystemMonotonicClock.INSTANCE,
                         tagMetrics,
-                        tagLane);
+                        tagWorker);
         node =
                 new TimingNode(
                         ANTENNA_ID,
                         timeSource,
                         logBook,
                         nodeService,
-                        tagProcessor);
+                        tagProcessor,
+                        taskLane);
 
         antenna =
                 new SimulatedAntenna();
@@ -518,8 +510,8 @@ final class RuntimeCharacterizationHarness
     /** Waits until all TagProcessor work queued before this barrier has completed. */
     private void awaitTagProcessorBarrier()
             throws InterruptedException {
-        awaitLaneBarrier(
-                tagLane,
+        awaitExecutorBarrier(
+                tagWorker,
                 "TagProcessor");
     }
 
@@ -563,31 +555,28 @@ final class RuntimeCharacterizationHarness
         }
     }
 
-    /**
-     * Queues one barrier using standard Executor rejection semantics and waits
-     * until that barrier reaches the front of the supplied serial lane.
-     */
-    private void awaitLaneBarrier(
-            RunnableSerialLane lane,
-            String laneName)
+    /** Waits until work already submitted to one executor has completed. */
+    private void awaitExecutorBarrier(
+            ExecutorService executor,
+            String executorName)
             throws InterruptedException {
         CountDownLatch barrier = new CountDownLatch(1);
         await(
                 () -> {
                     try {
-                        lane.execute(barrier::countDown);
+                        executor.execute(barrier::countDown);
                         return true;
                     } catch (RejectedExecutionException ex) {
                         return false;
                     }
                 },
-                laneName + " barrier execution");
+                executorName + " barrier execution");
 
         if (!barrier.await(
                 COMPLETION_TIMEOUT_MILLIS,
                 TimeUnit.MILLISECONDS)) {
             throw new IllegalStateException(
-                    "Timed out waiting for " + laneName + " barrier");
+                    "Timed out waiting for " + executorName + " barrier");
         }
     }
 

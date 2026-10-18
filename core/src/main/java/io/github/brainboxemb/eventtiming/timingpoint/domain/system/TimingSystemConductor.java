@@ -5,7 +5,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.AbstractConductor;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManager;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
@@ -30,13 +30,13 @@ public final class TimingSystemConductor extends AbstractConductor {
 
     private final TimingNodeList nodes;
     private final AntennaManager antennaManager;
-    private final TaskSerialLane taskLane;
+    private final SerialTaskRunner taskLane;
     private final MainTask mainTask = new MainTask();
 
     public TimingSystemConductor(
             TimingNodeList timingNodes,
             AntennaManager antennaManager,
-            TaskSerialLane coordinationLane) {
+            SerialTaskRunner coordinationLane) {
 
         super("TimingSystemConductor", coordinationLane);
 

@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -23,8 +23,8 @@ public class AbstractTaskTest {
             throws Exception {
         ScheduledExecutorService worker =
                 Executors.newSingleThreadScheduledExecutor();
-        TaskSerialLane lane =
-                new TaskSerialLane(
+        SerialTaskRunner lane =
+                new SerialTaskRunner(
                         8,
                         8,
                         "task-coalesce",
@@ -99,8 +99,8 @@ public class AbstractTaskTest {
             throws Exception {
         ScheduledExecutorService worker =
                 Executors.newSingleThreadScheduledExecutor();
-        TaskSerialLane lane =
-                new TaskSerialLane(
+        SerialTaskRunner lane =
+                new SerialTaskRunner(
                         8,
                         8,
                         "task-failure",

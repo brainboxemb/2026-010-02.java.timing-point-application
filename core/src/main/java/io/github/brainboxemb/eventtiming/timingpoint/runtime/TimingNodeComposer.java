@@ -77,7 +77,7 @@ final class TimingNodeComposer {
         NodeServiceState nodeServiceState = new NodeServiceState(system.eventData());
 
         NodeService nodeService =
-                new NodeService(nodeConfig.timingNodeId(), execution.taskLane(), nodeServiceState);
+                new NodeService(nodeConfig.timingNodeId(), execution.taskRunner(), nodeServiceState);
 
         TagProcessor tagProcessor =
                 new TagProcessor(
@@ -85,14 +85,14 @@ final class TimingNodeComposer {
                         tagConfiguration,
                         monotonicClock,
                         new TagProcessingMetrics(),
-                        execution.tagProcessorLane(),
-                        RuntimeExecutors.TAG_PROCESSOR_OBSERVATION_MAX_ITEMS_PER_RUN);
+                        execution.tagProcessorScheduler());
 
         return new TimingNode(
                 antennaId,
                 timeSource,
                 logBook,
                 nodeService,
-                tagProcessor);
+                tagProcessor,
+                execution.taskRunner());
     }
 }

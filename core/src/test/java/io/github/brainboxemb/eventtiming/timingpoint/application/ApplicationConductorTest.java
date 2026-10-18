@@ -18,7 +18,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaSet;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -122,7 +122,7 @@ public class ApplicationConductorTest {
                             new AntennaSet().add(
                                     new AntennaId("1"),
                                     new SimulatedAntenna()),
-                            new TaskSerialLane(
+                            new SerialTaskRunner(
                                     8,
                                     8,
                                     "app-antenna-" + label,
@@ -135,7 +135,7 @@ public class ApplicationConductorTest {
                     new TimingSystemConductor(
                             timingNodes,
                             manager,
-                            new TaskSerialLane(
+                            new SerialTaskRunner(
                                     8,
                                     8,
                                     "app-system-" + label,

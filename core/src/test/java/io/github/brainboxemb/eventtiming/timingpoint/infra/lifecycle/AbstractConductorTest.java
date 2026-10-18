@@ -1,11 +1,11 @@
 package io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
 
 import org.junit.Test;
@@ -20,10 +20,10 @@ public class AbstractConductorTest {
 
     @Test
     public void activatesComponentsStartsLaneThenRunsConcreteHook() {
-        ExecutorService worker =
-                Executors.newSingleThreadExecutor();
-        RunnableSerialLane lane =
-                new RunnableSerialLane(
+        ScheduledExecutorService worker =
+                Executors.newSingleThreadScheduledExecutor();
+        SerialTaskRunner lane =
+                new SerialTaskRunner(
                         4,
                         4,
                         "abstract-conductor-test",
@@ -48,8 +48,8 @@ public class AbstractConductorTest {
                             "component.deactivate"),
                     calls);
             assertEquals(
-                    RunnableSerialLane.State.STOPPED,
-                    lane.state());
+                    false,
+                    lane.isRunning());
         } finally {
             worker.shutdownNow();
         }
@@ -57,10 +57,10 @@ public class AbstractConductorTest {
 
     @Test
     public void hookFailureClosesLaneAndRollsBackComponents() {
-        ExecutorService worker =
-                Executors.newSingleThreadExecutor();
-        RunnableSerialLane lane =
-                new RunnableSerialLane(
+        ScheduledExecutorService worker =
+                Executors.newSingleThreadScheduledExecutor();
+        SerialTaskRunner lane =
+                new SerialTaskRunner(
                         4,
                         4,
                         "abstract-conductor-test",
@@ -94,8 +94,8 @@ public class AbstractConductorTest {
                             "component.deactivate"),
                     calls);
             assertEquals(
-                    RunnableSerialLane.State.STOPPED,
-                    lane.state());
+                    false,
+                    lane.isRunning());
         } finally {
             worker.shutdownNow();
         }
@@ -125,7 +125,7 @@ public class AbstractConductorTest {
         private final RuntimeException hookFailure;
 
         private TestConductor(
-                RunnableSerialLane lane,
+                SerialTaskRunner lane,
                 List<String> calls,
                 RuntimeException hookFailure) {
             super("TestConductor", lane);
@@ -140,8 +140,8 @@ public class AbstractConductorTest {
         @Override
         protected void onActivated() {
             assertEquals(
-                    RunnableSerialLane.State.RUNNING,
-                    coordinationLane().state());
+                    true,
+                    coordinationLane().isRunning());
 
             calls.add(
                     "hook");

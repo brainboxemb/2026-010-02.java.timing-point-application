@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager;
 
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 
 import java.util.List;
@@ -31,7 +31,7 @@ final class AntennaShutdownTask implements YieldingTask {
      * Runs shutdown as one cooperative task and waits for the ordered cleanup
      * sequence to finish.
      */
-    void runAndWait(TaskSerialLane taskLane) {
+    void runAndWait(SerialTaskRunner taskLane) {
         reset();
         taskLane.await(taskLane.runTask(this));
     }

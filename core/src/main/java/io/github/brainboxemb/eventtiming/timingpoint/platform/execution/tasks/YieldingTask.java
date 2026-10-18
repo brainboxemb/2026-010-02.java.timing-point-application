@@ -1,10 +1,9 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 
 /**
  * One cooperatively scheduled operation or control task executed by a
- * {@link TaskSerialLane}.
+ * {@link SerialTaskRunner}.
  *
  * <p>Each invocation performs exactly one logical cooperative step and
  * returns what the task lane should do next. A task may implement a multi-phase
