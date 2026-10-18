@@ -7,9 +7,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnl
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -18,17 +15,20 @@ import java.util.function.BiConsumer;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Runs passage-filter sweeps while TagProcessor has an open passage.
+ * Schedules passage-filter expiry sweeps only while passages are open.
  *
- * <p>The observation lane and this job use the same single-thread scheduler.
- * Filter state is changed only on that scheduler thread.</p>
+ * <p>Observation processing and delayed sweeps share the same single-thread
+ * scheduler. {@link TagObservationFilter} therefore owns ordinary mutable
+ * state without locks. This job only owns scheduling and publishes one cheap
+ * volatile pending flag for external characterization reads; it does not build
+ * or copy diagnostic passage snapshots.</p>
  */
 final class FilterJob {
     private final ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration;
     private final ScheduledExecutorService scheduler;
     private final TagObservationFilter filter;
 
-    private volatile List<TagPassageSnapshot> passageSnapshots = Collections.emptyList();
+    private volatile boolean pendingPassages;
     private volatile boolean active;
     private ScheduledFuture<?> scheduled;
 
@@ -55,14 +55,14 @@ final class FilterJob {
                 validObservationCallback);
     }
 
-    /** Enables the job and resumes a retained open passage without waiting for a sweep. */
+    /** Enables the job and resumes retained passage scheduling. */
     synchronized void start() {
         if (active) {
             return;
         }
 
         active = true;
-        scheduler.execute(this::scheduleNext);
+        scheduler.execute(this::resume);
     }
 
     /** Disables the job and cancels its one pending delayed sweep. */
@@ -72,21 +72,25 @@ final class FilterJob {
     }
 
     /** Adds one mapped observation and schedules a sweep when passage state exists. */
-    void add(RegistrationId registrationId, TagObservation observation) {
-        filter.add(registrationId, observation);
-        updateSnapshots();
+    void add(
+            RegistrationId registrationId,
+            TagObservation observation) {
+        filter.add(
+                registrationId,
+                observation);
+        updatePendingState();
         scheduleNext();
     }
 
     /** Discards an open passage after duplicate suppression starts. */
     void discard(RegistrationId registrationId) {
         filter.discard(registrationId);
-        updateSnapshots();
+        updatePendingState();
     }
 
-    /** Returns the latest passage diagnostics without scheduling work. */
-    List<TagPassageSnapshot> passageSnapshots() {
-        return passageSnapshots;
+    /** Reports pending passage state without copying the filter contents. */
+    boolean hasPendingPassages() {
+        return pendingPassages;
     }
 
     /** Queues reconciliation with the current policy and returns immediately. */
@@ -96,6 +100,12 @@ final class FilterJob {
         if (active) {
             scheduler.execute(this::applyPolicyChange);
         }
+    }
+
+    /** Reconciles retained filter state when the job becomes active. */
+    private void resume() {
+        updatePendingState();
+        scheduleNext();
     }
 
     /** Runs one delayed sweep and schedules another only while a passage remains open. */
@@ -108,7 +118,7 @@ final class FilterJob {
         }
 
         filter.periodic();
-        updateSnapshots();
+        updatePendingState();
         scheduleNext();
     }
 
@@ -122,8 +132,13 @@ final class FilterJob {
         }
 
         filter.periodic();
-        updateSnapshots();
+        updatePendingState();
         scheduleNext();
+    }
+
+    /** Publishes the filter's current empty/non-empty state for external readers. */
+    private void updatePendingState() {
+        pendingPassages = filter.hasPendingState();
     }
 
     /** Schedules one future sweep when the job is active and passage state exists. */
@@ -136,7 +151,7 @@ final class FilterJob {
         scheduled = scheduler.schedule(this::run, cadenceNanos, TimeUnit.NANOSECONDS);
     }
 
-    /** Cancels the one pending delayed sweep when one exists. */
+    /** Cancels the one pending sweep when one exists. */
     private void cancelScheduled() {
         ScheduledFuture<?> current = scheduled;
         scheduled = null;
@@ -144,13 +159,5 @@ final class FilterJob {
         if (current != null) {
             current.cancel(false);
         }
-    }
-
-    /** Copies current filter state for lock-free engineering reads. */
-    private void updateSnapshots() {
-        List<TagPassageSnapshot> current = filter.snapshots();
-        passageSnapshots = current.isEmpty()
-                ? Collections.<TagPassageSnapshot>emptyList()
-                : Collections.unmodifiableList(new ArrayList<TagPassageSnapshot>(current));
     }
 }

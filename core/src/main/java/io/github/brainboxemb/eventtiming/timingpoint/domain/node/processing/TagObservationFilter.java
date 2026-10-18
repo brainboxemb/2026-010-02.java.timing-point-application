@@ -1,9 +1,9 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing;
 
+import io.github.brainboxemb.eventtiming.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingdata.CompactTimingTime;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
@@ -11,8 +11,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.Monoto
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
@@ -22,7 +20,23 @@ import org.slf4j.LoggerFactory;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Passive passage state called only on the TagProcessor scheduler thread.
+ * Groups mapped tag observations into one passage per RegistrationId.
+ *
+ * <p>A passage starts with the first observation for a RegistrationId. Later
+ * observations update only the last-seen time and the strongest RSSI
+ * selection. The selected observation is therefore the strongest observation
+ * seen during the passage; equal RSSI keeps the earlier observation.</p>
+ *
+ * <p>A passage closes after the configured quiet timeout or maximum passage
+ * duration. Closing removes the passage from {@code bursts} before publishing
+ * its selected observation. This matters because the publication callback may
+ * start duplicate suppression and discard a newly started passage for the same
+ * RegistrationId.</p>
+ *
+ * <p>All methods are called on the TagProcessor scheduler thread. The filter
+ * therefore needs no internal locking. Periodic sweeps reuse one
+ * {@code expiredBursts} list; no temporary list or immutable diagnostic
+ * snapshot is created for every sweep or observation.</p>
  */
 final class TagObservationFilter {
     private static final Logger LOG =
@@ -34,7 +48,10 @@ final class TagObservationFilter {
     private final BiConsumer<RegistrationId, TimingTimestamp>
             validObservationCallback;
 
-    private final Map<RegistrationId, BurstState> bursts = new HashMap<>();
+    private final Map<RegistrationId, BurstState> bursts =
+            new HashMap<RegistrationId, BurstState>();
+    private final ArrayList<BurstState> expiredBursts =
+            new ArrayList<BurstState>();
 
     /** Creates a passage filter with a fixed processing policy. */
     TagObservationFilter(
@@ -67,21 +84,29 @@ final class TagObservationFilter {
         this.validObservationCallback = validObservationCallback;
     }
 
-    /** Adds one mapped observation to the RegistrationId's current passage burst. */
+    /**
+     * Adds one mapped observation to its RegistrationId passage.
+     *
+     * <p>If the previous passage already expired, that passage is removed,
+     * a new passage is started for the incoming observation, and only then is
+     * the previous selected observation published. The callback can therefore
+     * safely discard the newly started passage when duplicate suppression
+     * begins.</p>
+     */
     void add(
             RegistrationId registrationId,
             TagObservation observation) {
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         failIfInvalidArgument(observation != null, "observation must not be null");
 
-        ClosedBurst closedBurst = null;
+        BurstState closedBurst = null;
         long now = monotonicClock.nowNanos();
         TagProcessingPolicy policy = policyConfiguration.currentValue();
         BurstState state = bursts.get(registrationId);
 
         if (state != null && state.expired(now, policy)) {
             bursts.remove(registrationId);
-            closedBurst = state.close(registrationId);
+            closedBurst = state;
             metrics.recordClosedBurst();
             state = null;
         }
@@ -89,35 +114,48 @@ final class TagObservationFilter {
         if (state == null) {
             bursts.put(
                     registrationId,
-                    new BurstState(observation, now));
+                    new BurstState(
+                            registrationId,
+                            observation,
+                            now));
         } else {
-            state.add(observation, now);
+            state.add(
+                    observation,
+                    now);
         }
 
         sendValidObservation(closedBurst);
     }
 
-    /** Closes expired passage bursts and publishes their selected observations. */
+    /**
+     * Closes every passage that expired since the previous sweep.
+     *
+     * <p>Expired states are first removed while the map iterator is active and
+     * stored in the reusable {@code expiredBursts} buffer. Publication happens
+     * only after iteration, because the callback may mutate passage state.</p>
+     */
     void periodic() {
-        List<ClosedBurst> closedBursts = new ArrayList<>();
+        expiredBursts.clear();
+
         long now = monotonicClock.nowNanos();
         TagProcessingPolicy policy = policyConfiguration.currentValue();
-
         Iterator<Map.Entry<RegistrationId, BurstState>> iterator =
                 bursts.entrySet().iterator();
+
         while (iterator.hasNext()) {
-            Map.Entry<RegistrationId, BurstState> entry = iterator.next();
-            BurstState state = entry.getValue();
+            BurstState state = iterator.next().getValue();
             if (state.expired(now, policy)) {
                 iterator.remove();
-                closedBursts.add(state.close(entry.getKey()));
+                expiredBursts.add(state);
                 metrics.recordClosedBurst();
             }
         }
 
-        for (ClosedBurst closedBurst : closedBursts) {
-            sendValidObservation(closedBurst);
+        for (int index = 0; index < expiredBursts.size(); index++) {
+            sendValidObservation(
+                    expiredBursts.get(index));
         }
+        expiredBursts.clear();
     }
 
     /** Discards any currently aggregated next passage for one RegistrationId. */
@@ -126,92 +164,66 @@ final class TagObservationFilter {
         return bursts.remove(registrationId) != null;
     }
 
-    /** Reports whether the filter currently owns one or more open passages. */
+    /** Reports whether one or more passages are still open. */
     boolean hasPendingState() {
         return !bursts.isEmpty();
     }
 
-    /** Returns diagnostic snapshots of the currently open passage bursts. */
-    List<TagPassageSnapshot> snapshots() {
-        List<TagPassageSnapshot> result =
-                new ArrayList<TagPassageSnapshot>(
-                        bursts.size());
-        for (Map.Entry<RegistrationId, BurstState> entry
-                : bursts.entrySet()) {
-            result.add(
-                    entry.getValue()
-                            .snapshot(
-                                    entry.getKey()));
-        }
-        return result;
-    }
-
-    /** Publishes one closed burst's selected observation when a burst was actually closed. */
-    private void sendValidObservation(ClosedBurst closedBurst) {
-        if (closedBurst == null) {
+    /** Publishes the strongest observation selected from one removed passage. */
+    private void sendValidObservation(BurstState burst) {
+        if (burst == null) {
             return;
         }
 
         TimingTimestamp observedAt =
                 CompactTimingTime.toTimestamp(
-                        closedBurst.observedAt);
+                        burst.maxRssiObservedAt);
         LOG.info(
                 "Tag passage selected: registrationId={}, tagId={}, rssi={}, observedAt={}",
-                closedBurst.registrationId.value(),
-                closedBurst.tagId.value(),
-                closedBurst.rssi,
+                burst.registrationId,
+                burst.maxRssiTagId,
+                burst.maxRssi,
                 observedAt);
 
         validObservationCallback.accept(
-                closedBurst.registrationId,
+                burst.registrationId,
                 observedAt);
     }
 
-    private static final class ClosedBurst {
-        private final RegistrationId registrationId;
-        private final TagId tagId;
-        private final int rssi;
-        private final long observedAt;
-
-        /** Captures the immutable selected observation of one closed registration burst. */
-        private ClosedBurst(
-                RegistrationId registrationId,
-                TagId tagId,
-                int rssi,
-                long observedAt) {
-            this.registrationId = registrationId;
-            this.tagId = tagId;
-            this.rssi = rssi;
-            this.observedAt = observedAt;
-        }
-    }
-
+    /**
+     * Mutable state for one currently visible RegistrationId passage.
+     *
+     * <p>Only the values needed to decide passage expiry and select the
+     * strongest observation are retained. Per-tag diagnostic counters are not
+     * part of passage filtering and therefore are not maintained here.</p>
+     */
     private static final class BurstState {
+        private final RegistrationId registrationId;
         private final long firstSeenNanos;
-        private final Map<TagId, MutableTagStats> tagStats =
-                new LinkedHashMap<TagId, MutableTagStats>();
 
         private long lastSeenNanos;
         private int maxRssi;
         private TagId maxRssiTagId;
         private long maxRssiObservedAt;
 
-        /** Starts a mutable passage burst from its first observation. */
-        private BurstState(TagObservation observation, long now) {
+        /** Starts one passage from its first observation. */
+        private BurstState(
+                RegistrationId registrationId,
+                TagObservation observation,
+                long now) {
+            this.registrationId = registrationId;
             firstSeenNanos = now;
             lastSeenNanos = now;
             maxRssi = observation.rssi();
             maxRssiTagId = observation.tagId();
             maxRssiObservedAt = observation.observedAtValue();
-            recordTag(
-                    observation);
         }
 
-        /** Adds one observation and updates the burst's maximum-RSSI selection. */
-        private void add(TagObservation observation, long now) {
+        /** Adds one observation and keeps the first observation at equal RSSI. */
+        private void add(
+                TagObservation observation,
+                long now) {
             lastSeenNanos = now;
-            recordTag(
-                    observation);
             if (observation.rssi() > maxRssi) {
                 maxRssi = observation.rssi();
                 maxRssiTagId = observation.tagId();
@@ -219,95 +231,12 @@ final class TagObservationFilter {
             }
         }
 
-        /** Updates per-TagId diagnostic statistics for one observation. */
-        private void recordTag(
-                TagObservation observation) {
-            MutableTagStats stats =
-                    tagStats.get(
-                            observation.tagId());
-            if (stats == null) {
-                tagStats.put(
-                        observation.tagId(),
-                        new MutableTagStats(
-                                observation));
-            } else {
-                stats.add(
-                        observation);
-            }
-        }
-
-        /** Reports whether quiet-time or maximum-duration closure is due. */
-        private boolean expired(long now, TagProcessingPolicy policy) {
+        /** Reports whether quiet time or maximum passage duration has elapsed. */
+        private boolean expired(
+                long now,
+                TagProcessingPolicy policy) {
             return now - lastSeenNanos >= policy.quietTimeoutNanos()
                     || now - firstSeenNanos >= policy.maxBurstDurationNanos();
-        }
-
-        /** Freezes the burst's selected maximum-RSSI observation. */
-        private ClosedBurst close(
-                RegistrationId registrationId) {
-            return new ClosedBurst(
-                    registrationId,
-                    maxRssiTagId,
-                    maxRssi,
-                    maxRssiObservedAt);
-        }
-
-        /** Builds the engineering snapshot for this still-open burst. */
-        private TagPassageSnapshot snapshot(
-                RegistrationId registrationId) {
-            List<TagPassageSnapshot.TagStats> tags =
-                    new ArrayList<TagPassageSnapshot.TagStats>(
-                            tagStats.size());
-            for (MutableTagStats stats
-                    : tagStats.values()) {
-                tags.add(
-                        stats.snapshot());
-            }
-
-            return new TagPassageSnapshot(
-                    registrationId,
-                    tags,
-                    maxRssiTagId,
-                    maxRssi,
-                    maxRssiObservedAt);
-        }
-    }
-
-    private static final class MutableTagStats {
-        private final TagId tagId;
-        private long observationCount;
-        private int strongestRssi;
-        private final long firstObservedAt;
-        private long lastObservedAt;
-
-        /** Starts per-tag diagnostics from the first observation. */
-        private MutableTagStats(
-                TagObservation observation) {
-            tagId = observation.tagId();
-            observationCount = 1L;
-            strongestRssi = observation.rssi();
-            firstObservedAt = observation.observedAtValue();
-            lastObservedAt = observation.observedAtValue();
-        }
-
-        /** Updates per-tag diagnostics with one additional observation. */
-        private void add(
-                TagObservation observation) {
-            observationCount++;
-            lastObservedAt = observation.observedAtValue();
-            if (observation.rssi() > strongestRssi) {
-                strongestRssi = observation.rssi();
-            }
-        }
-
-        /** Returns the immutable diagnostic statistics for this TagId. */
-        private TagPassageSnapshot.TagStats snapshot() {
-            return new TagPassageSnapshot.TagStats(
-                    tagId,
-                    observationCount,
-                    strongestRssi,
-                    firstObservedAt,
-                    lastObservedAt);
         }
     }
 }
