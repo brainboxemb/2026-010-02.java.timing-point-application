@@ -47,7 +47,7 @@ public class TimingNodeRegistrationTest {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
         List<TimingData> delivered = new ArrayList<>();
-        node.logBook().newDataEntryEvent().subscribe(delivered::add);
+        node.NEW_DATA_ENTRY.subscribe(delivered::add);
 
         activate(node);
         try {
