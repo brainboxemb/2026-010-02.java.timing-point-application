@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
@@ -15,6 +16,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyKey;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
@@ -85,6 +87,9 @@ public final class TimingNode extends LifecycleComponent {
     /** Current properties and their change subscriptions for this TimingNode. */
     public final PropertyContainer PROPERTIES = properties;
 
+    /** Post-commit TimingData produced by this node's LogBook. */
+    public final EventSource<TimingData> NEW_DATA_ENTRY;
+
     /** Creates one TimingNode with its clock and child components. */
     public TimingNode(
             AntennaId antennaId,
@@ -109,6 +114,7 @@ public final class TimingNode extends LifecycleComponent {
         this.antennaId = antennaId;
         this.timeSource = timeSource;
         this.logBook = logBook;
+        this.NEW_DATA_ENTRY = logBook.NEW_DATA_ENTRY;
         this.tagProcessor = tagProcessor;
         this.taskRunner = taskRunner;
         lifecycle.register(nodeService);
@@ -116,12 +122,12 @@ public final class TimingNode extends LifecycleComponent {
         lifecycle.register(tagProcessor);
 
         /*
-         * Recovery only signals LogBook readiness. NodeService.MainTask reads the
+         * LOADED only signals LogBook readiness. NodeService.MainTask reads the
          * current head and fetches missing TimingData in its own bounded batches.
          */
-        NodeService.LOGBOOK_RECOVERED.bind(
+        NodeService.LOGBOOK_STATUS.bind(
                 nodeService,
-                logBook.RECOVERY_STATUS_CHANGED);
+                logBook.STATUS);
         NodeService.TIMING_DATA_CHANGED.bind(
                 nodeService,
                 logBook.NEW_DATA_ENTRY);
@@ -268,8 +274,8 @@ public final class TimingNode extends LifecycleComponent {
      * Activates child components and starts the asynchronous node MainTask.
      *
      * <p>Activation returns after the MainTask is admitted. The node remains
-     * {@link OperationalState#INIT} while that task loads and reconstructs the
-     * LogBook on the node executor.</p>
+     * {@link OperationalState#INIT} while that task loads the LogBook on the
+     * node executor.</p>
      */
     @Override
     protected void onActivate() {
