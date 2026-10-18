@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
@@ -147,6 +148,7 @@ public final class ActiveRegistrations {
         Map<TeamId, Integer> teams =
                 teamsByLocation.computeIfAbsent(locationId, ignored -> new HashMap<>());
         int next = teams.getOrDefault(teamId, 0) + change;
+        failIfIllegalState(next >= 0, "team reference count must not be negative");
 
         if (next == 0) {
             teams.remove(teamId);
