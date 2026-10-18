@@ -156,8 +156,8 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     /**
      * Marks the LogBook lifecycle-active.
      *
-     * <p>TimingNode.MainTask starts recovery after child activation. The Data
-     * Lane remains stopped until that task completes recovery.</p>
+     * <p>TimingNode.MainTask starts persisted TimingData loading after child
+     * activation. Data Lane work may queue while that load runs on the shared worker.</p>
      */
     @Override
     protected void onActivate() {
