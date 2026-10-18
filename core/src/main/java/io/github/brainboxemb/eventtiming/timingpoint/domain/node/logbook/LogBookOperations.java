@@ -23,7 +23,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * TimingData persistence/state operations owned by LogBook.
  *
- * <p>Normal commits execute on the LogBook Data Lane. Persisted-data recovery
+ * <p>Normal commits execute on the LogBook Data Lane. Persisted-data loading
  * is invoked by TimingNode.MainTask on the shared node worker and is not a Data
  * Lane operation. This class owns TimingData creation, time capture, durable
  * append/commit and startup reconstruction; command/query queueing and waiting
@@ -190,10 +190,9 @@ final class LogBookOperations {
         for (TimingData data : loadResult.records()) {
             state.addCommittedTimingData(data);
         }
-        state.repairedIncompleteTail(loadResult.repairedIncompleteTail());
     }
 
-    /** Records a LogBook recovery problem after startup loading fails. */
+    /** Records a LogBook load problem after persisted TimingData loading fails. */
     void markTimingDataLoadFailed(Throwable failure) {
 
         failIfInvalidArgument(failure != null, "failure must not be null");

@@ -32,12 +32,11 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Data Lane component for one TimingNode's committed TimingData.
  *
- * <p>LogBook owns persisted-data recovery plus the Data Lane boundary for ordered
- * commands, ORDERED queries, durable TimingData commit and publication of immutable
- * recovery/read views. Recovery runs when TimingNode.MainTask calls
- * {@link #loadPersistedData()}. The LogBook Data Lane may share a Runtime-owned
- * executor with TimingNode's Task Lane, but its queue and lifecycle belong to
- * this LogBook.</p>
+ * <p>LogBook owns persisted TimingData loading plus the Data Lane boundary for ordered
+ * commands, ORDERED queries and durable TimingData commit. Loading runs when
+ * TimingNode.MainTask calls {@link #loadPersistedData()}. The LogBook Data Lane may share
+ * a Runtime-owned executor with TimingNode's Task Lane, but its queue and lifecycle belong
+ * to this LogBook.</p>
  */
 public final class LogBook extends LifecycleComponent implements LogBookAccessor, LogBookTestControl {
     private static final Logger LOG = LoggerFactory.getLogger(LogBook.class);
@@ -47,7 +46,6 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     private final LogBookState logBookState;
     private final LogBookOperations logBookOperations;
     private final SerialLane<LogBookOperationItem<?>> dataLane;
-    private final LogBookRecoveryView recoveryView;
     private final LogBookMetrics metrics;
     private final long commitWaitTimeoutMillis;
     private final long orderedQueryWaitTimeoutMillis;
@@ -55,10 +53,12 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
             new AtomicReference<WriteFailure>();
 
     private final EventWithMetrics<TimingData> newDataEntryEvent;
+    private final Event<LogBookStatus> statusEvent = new Event<LogBookStatus>();
     private final Event<LogBookFailure> commandFailedEvent = new Event<LogBookFailure>();
+    private volatile LogBookStatus status = LogBookStatus.INIT;
 
-    /** Completed startup-recovery source. */
-    public final EventSource<LogBookRecoveryStatus> RECOVERY_STATUS_CHANGED;
+    /** LogBook availability status source. */
+    public final EventSource<LogBookStatus> STATUS = statusEvent;
 
     /** Post-commit TimingData source. */
     public final EventSource<TimingData> NEW_DATA_ENTRY;
@@ -97,9 +97,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         failIfInvalidArgument(dataLaneCapacity > 0, "dataLaneCapacity must be positive");
         failIfInvalidArgument(dataLaneMaxItemsPerRun > 0, "dataLaneMaxItemsPerRun must be positive");
         failIfInvalidArgument(commitWaitTimeoutMillis > 0L, "commitWaitTimeoutMillis must be positive");
-        failIfInvalidArgument(
-                orderedQueryWaitTimeoutMillis > 0L,
-                "orderedQueryWaitTimeoutMillis must be positive");
+        failIfInvalidArgument(orderedQueryWaitTimeoutMillis > 0L, "orderedQueryWaitTimeoutMillis must be positive");
 
         this.logBookState = new LogBookState(timingNodeId);
         this.logBookOperations = new LogBookOperations(
@@ -116,7 +114,6 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                         "LogBookData",
                         dataLaneExecutor,
                         this::processDataLaneItem);
-        this.recoveryView = new LogBookRecoveryView(timingNodeId, this.dataLane::isRunning);
         this.metrics = metrics;
         this.commitWaitTimeoutMillis = commitWaitTimeoutMillis;
         this.orderedQueryWaitTimeoutMillis = orderedQueryWaitTimeoutMillis;
@@ -124,7 +121,6 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                 new EventWithMetrics<TimingData>(
                         monotonicClock,
                         metrics.timingDataEventMetrics());
-        this.RECOVERY_STATUS_CHANGED = recoveryView.recoveryStatusChangedEvent();
         this.NEW_DATA_ENTRY = newDataEntryEvent;
     }
 
@@ -160,8 +156,8 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     /**
      * Marks the LogBook lifecycle-active.
      *
-     * <p>TimingNode.MainTask starts recovery after child activation. The Data
-     * Lane remains stopped until that task completes recovery.</p>
+     * <p>TimingNode.MainTask starts persisted TimingData loading after child
+     * activation. Data Lane work may queue while that load runs on the shared worker.</p>
      */
     @Override
     protected void onActivate() {
@@ -174,16 +170,12 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         dataLane.start();
     }
 
-    /**
-     * Stops new Data Lane work and makes the CURRENT recovery result unavailable.
-     *
-     * <p>The owned {@link SerialLane} drains already accepted LogBook operations.</p>
-     */
+    /** Stops new Data Lane work and returns status to INIT. */
     @Override
     protected void onDeactivate() {
 
         dataLane.close();
-        recoveryView.clear();
+        status = LogBookStatus.INIT;
     }
 
     /**
@@ -308,36 +300,17 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         }
     }
 
-    /**
-     * Returns the recovery event through the abstraction-compatible LogBookAccessor contract.
-     *
-     * <p>Concrete composition uses {@link #RECOVERY_STATUS_CHANGED} directly.</p>
-     */
-    public EventSource<LogBookRecoveryStatus> recoveryStatusChangedEvent() {
-
-        return RECOVERY_STATUS_CHANGED;
-    }
-
-    /**
-     * Returns the post-commit event through the abstraction-compatible LogBookAccessor contract.
-     *
-     * <p>Concrete composition uses {@link #NEW_DATA_ENTRY} directly.</p>
-     */
-    public EventSource<TimingData> newDataEntryEvent() {
-
-        return NEW_DATA_ENTRY;
-    }
-
     /** Returns the committed TimingData head while already inside LogBook query handling. */
     long currentTimingDataHead() {
 
         return logBookState.timingDataHead();
     }
 
-    /** Returns the latest safely published CURRENT recovery result. */
-    LogBookRecoveryStatus publishedRecoveryStatus() {
+    /** Returns the current LogBook availability status. */
+    @Override
+    public LogBookStatus status() {
 
-        return recoveryView.current();
+        return status;
     }
 
     /**
@@ -348,12 +321,13 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
      * queue meanwhile, but cannot execute on that same worker until this startup
      * step returns.</p>
      */
-    public LogBookRecoveryStatus loadPersistedData() {
+    public void loadPersistedData() {
         failIfInactive();
         LOG.info(
                 "TimingNode {} persisted TimingData load started",
                 timingNodeId().value());
 
+        LogBookStatus loadedStatus;
         try {
             TimingDataPersistence.LoadResult loadResult =
                     logBookOperations.loadPersistedTimingData();
@@ -373,21 +347,29 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                         "TimingNode {} repaired an incomplete final TimingData record tail during load",
                         timingNodeId().value());
             }
+            loadedStatus = LogBookStatus.LOADED;
 
         } catch (TimingDataPersistence.PersistenceException | RuntimeException ex) {
-            // An inactive LogBook is a cancelled startup flow, not a recovery failure.
+            // An inactive LogBook is a cancelled startup flow, not a load failure.
             failIfInactive();
             logBookOperations.markTimingDataLoadFailed(ex);
             LOG.error(
                     "Persisted TimingData load failed for {}",
                     timingNodeId().value(),
                     ex);
+            loadedStatus = LogBookStatus.ERROR;
         }
 
         failIfInactive();
-        LogBookRecoveryStatus status = logBookState.recoveryStatus();
-        recoveryView.publishInitial(status);
-        return status;
+        publishStatus(loadedStatus);
+    }
+
+    /** Publishes one LogBook status change. */
+    private void publishStatus(LogBookStatus newStatus) {
+
+        status = newStatus;
+        LOG.info("TimingNode {} LogBook status {}", timingNodeId().value(), newStatus);
+        statusEvent.emit(newStatus);
     }
 
     /** One queued state-changing LogBook command. */

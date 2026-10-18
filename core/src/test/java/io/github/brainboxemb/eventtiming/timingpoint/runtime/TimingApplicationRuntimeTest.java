@@ -649,7 +649,7 @@ public class TimingApplicationRuntimeTest {
             CountDownLatch committed = new CountDownLatch(1);
             AtomicReference<AutomaticRegistration> automatic =
                     new AtomicReference<>();
-            application.timingNode().logBook().newDataEntryEvent().subscribe(data -> {
+            application.timingNode().NEW_DATA_ENTRY.subscribe(data -> {
                 if (data instanceof AutomaticRegistration) {
                     automatic.set((AutomaticRegistration) data);
                     committed.countDown();

@@ -253,7 +253,7 @@ final class RuntimeCharacterizationHarness
                         ANTENNA_ID));
         nodeLifecycle.register(node);
         antennaLifecycle.register(antennaManager);
-        logBook.newDataEntryEvent()
+        logBook.NEW_DATA_ENTRY
                 .subscribe(
                         ignored ->
                                 committedCount.incrementAndGet());

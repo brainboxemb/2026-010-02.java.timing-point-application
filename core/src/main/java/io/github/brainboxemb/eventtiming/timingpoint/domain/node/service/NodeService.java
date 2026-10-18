@@ -9,7 +9,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookRecoveryStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
@@ -47,9 +47,9 @@ public final class NodeService extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(NodeService.class);
     private static final Duration QUERY_TIMEOUT = Duration.ofSeconds(2L);
 
-    /** Completed LogBook recovery signal. */
-    public static final EventInput<NodeService, LogBookRecoveryStatus> LOGBOOK_RECOVERED =
-            EventInput.of((service, source) -> source.subscribe(service::onLogBookRecovered));
+    /** LogBook availability status input. */
+    public static final EventInput<NodeService, LogBookStatus> LOGBOOK_STATUS =
+            EventInput.of((service, source) -> source.subscribe(service::onLogBookStatus));
 
     /** Post-commit signal; the TimingData payload is deliberately not consumed by NodeService. */
     public static final EventInput<NodeService, TimingData> TIMING_DATA_CHANGED =
@@ -173,15 +173,15 @@ public final class NodeService extends LifecycleComponent {
         return read(visitRanking);
     }
 
-    /** Wakes MainTask after successful LogBook startup recovery. */
-    private void onLogBookRecovered(LogBookRecoveryStatus recovery) {
+    /** Updates MainTask availability from the current LogBook status. */
+    private void onLogBookStatus(LogBookStatus status) {
 
-        failIfInvalidArgument(recovery != null, "recovery must not be null");
+        failIfInvalidArgument(status != null, "status must not be null");
 
-        if (recovery.failed()) {
-            mainTask.logBookFailed(recovery.failureMessage());
-        } else {
+        if (status == LogBookStatus.LOADED) {
             mainTask.logBookReady();
+        } else if (status == LogBookStatus.ERROR) {
+            mainTask.logBookFailed();
         }
     }
 
@@ -246,12 +246,11 @@ public final class NodeService extends LifecycleComponent {
             wake(taskRunner);
         }
 
-        /** Fails pending service reads when LogBook recovery failed. */
-        private synchronized void logBookFailed(String message) {
+        /** Fails pending service reads when the LogBook enters ERROR. */
+        private synchronized void logBookFailed() {
 
-            failIfInvalidArgument(message != null && !message.trim().isEmpty(), "message must not be blank");
             catchUpCompletion.completeExceptionally(
-                    new IllegalStateException("LogBook recovery failed: " + message.trim()));
+                    new IllegalStateException("LogBook is in ERROR state"));
         }
 
         /** Schedules catch-up after newly committed TimingData. */

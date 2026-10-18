@@ -135,7 +135,7 @@ public class WebSocketOutboundDeliveryTest {
                                 .instant());
         LifecycleTestSupport.activate(node);
         try {
-            node.logBook().newDataEntryEvent()
+            node.NEW_DATA_ENTRY
                     .subscribe(
                             data -> {
                                 delivery.send(

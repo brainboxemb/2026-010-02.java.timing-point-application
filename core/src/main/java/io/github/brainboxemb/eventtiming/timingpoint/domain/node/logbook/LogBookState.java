@@ -13,7 +13,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Passive mutable state behind one LogBook component.
  *
  * <p>This object owns committed in-memory TimingData history and LogBook
- * recovery facts. It has no TimingNode OPEN/CLOSED state, TimingDataFactory,
+ * load-failure state. It has no TimingNode OPEN/CLOSED state, TimingDataFactory,
  * time source, persistence, metrics, queueing, timeout, logging or
  * event-delivery responsibility.</p>
  */
@@ -21,8 +21,7 @@ final class LogBookState {
     private final NodeId timingNodeId;
     private final LogBookData logBookData;
 
-    private boolean repairedIncompleteTail;
-    private String recoveryFailureMessage;
+    private String loadFailureMessage;
 
     /** Creates empty passive LogBook state for one TimingNode. */
     LogBookState(NodeId timingNodeId) {
@@ -44,25 +43,18 @@ final class LogBookState {
         return logBookData.headSequence();
     }
 
-    /** Records whether startup recovery repaired an incomplete persisted tail. */
-    void repairedIncompleteTail(boolean repaired) {
-
-        repairedIncompleteTail = repaired;
-    }
-
-    /** Records failure of persisted TimingData recovery. */
+    /** Records failure of persisted TimingData loading. */
     void markTimingDataLoadFailed(String message) {
 
         failIfInvalidArgument(message != null && !message.trim().isEmpty(), "message must not be blank");
-        repairedIncompleteTail = false;
-        recoveryFailureMessage = message.trim();
+        loadFailureMessage = message.trim();
     }
 
-    /** Rejects normal LogBook access after startup recovery failed. */
+    /** Rejects normal LogBook access after persisted TimingData loading failed. */
     void ensureOperational() {
 
-        if (recoveryFailureMessage != null) {
-            throw new IllegalStateException(recoveryFailureMessage);
+        if (loadFailureMessage != null) {
+            throw new IllegalStateException(loadFailureMessage);
         }
     }
 
@@ -108,14 +100,6 @@ final class LogBookState {
         ensureOperational();
         logBookData.visitLatest(limit, visitor);
         return logBookData.size();
-    }
-
-    /** Builds the immutable result of the completed LogBook recovery attempt. */
-    LogBookRecoveryStatus recoveryStatus() {
-
-        return recoveryFailureMessage == null
-                ? LogBookRecoveryStatus.success(repairedIncompleteTail, timingDataHead())
-                : LogBookRecoveryStatus.failed(recoveryFailureMessage);
     }
 
     /** Returns the newest committed TimingData record. */

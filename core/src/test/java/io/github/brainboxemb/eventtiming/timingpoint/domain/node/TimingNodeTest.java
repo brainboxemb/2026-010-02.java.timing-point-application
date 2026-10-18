@@ -11,7 +11,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookTestControl;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookRecoveryStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.property.Property;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyUpdate;
@@ -158,7 +158,7 @@ public class TimingNodeTest {
 
             activationCaller.join(250L);
             assertFalse(
-                    "activate() must return while MainTask recovery is running",
+                    "activate() must return while persisted-data load is running",
                     activationCaller.isAlive());
             assertNull(activationFailure[0]);
             assertEquals(
@@ -202,8 +202,8 @@ public class TimingNodeTest {
                         "timing-node-stop-worker",
                         1000L);
         LogBook logBook = (LogBook) node.logBook();
-        CountDownLatch recoveryPublished = new CountDownLatch(1);
-        logBook.RECOVERY_STATUS_CHANGED.subscribe(ignored -> recoveryPublished.countDown());
+        CountDownLatch statusPublished = new CountDownLatch(1);
+        logBook.STATUS.subscribe(ignored -> statusPublished.countDown());
 
         activate(node);
         assertTrue(
@@ -231,8 +231,8 @@ public class TimingNodeTest {
                 "blocking persistence did not return",
                 persistence.loadReturned.await(1L, TimeUnit.SECONDS));
         assertFalse(
-                "inactive LogBook must not publish recovery status",
-                recoveryPublished.await(100L, TimeUnit.MILLISECONDS));
+                "inactive LogBook must not publish status",
+                statusPublished.await(100L, TimeUnit.MILLISECONDS));
         assertEquals(
                 "cancelled MainTask must not publish a completion state",
                 TimingNodeTypes.OperationalState.INIT,
@@ -252,9 +252,7 @@ public class TimingNodeTest {
             awaitOperationalState(
                     node,
                     TimingNodeTypes.OperationalState.OK);
-            LogBookRecoveryStatus recovery =
-                    node.logBook().process(LogBookQueries.recoveryStatus());
-            assertTrue(recovery.failed());
+            assertEquals(LogBookStatus.ERROR, node.logBook().status());
             assertEquals(
                     TimingNodeTypes.FunctionalState.CLOSED,
                     node.functionalState());
@@ -303,7 +301,7 @@ public class TimingNodeTest {
                 new DefaultTimingDataFactory(),
                 TimingNodeTest::now);
         List<TimingData> committedEvents = new ArrayList<TimingData>();
-        node.logBook().newDataEntryEvent().subscribe(committedEvents::add);
+        node.NEW_DATA_ENTRY.subscribe(committedEvents::add);
 
         activate(node);
         try {
@@ -409,7 +407,7 @@ public class TimingNodeTest {
                 new DefaultTimingDataFactory(),
                 TimingNodeTest::now);
         List<TimingData> committedEvents = new ArrayList<TimingData>();
-        node.logBook().newDataEntryEvent().subscribe(committedEvents::add);
+        node.NEW_DATA_ENTRY.subscribe(committedEvents::add);
 
         activate(node);
         try {
@@ -539,7 +537,7 @@ public class TimingNodeTest {
                         "timing-node-full-logbook-test",
                         1000L);
         CountDownLatch committed = new CountDownLatch(2);
-        node.logBook().newDataEntryEvent().subscribe(
+        node.NEW_DATA_ENTRY.subscribe(
                 ignored -> committed.countDown());
 
         activate(node);
@@ -706,7 +704,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void currentStatusDoesNotWaitBehindQueuedWork() throws Exception {
+    public void logBookStatusDoesNotWaitBehindQueuedWork() throws Exception {
         BlockingAppendPersistence persistence =
                 new BlockingAppendPersistence();
         TimingNode node =
@@ -728,20 +726,7 @@ public class TimingNodeTest {
                             1L,
                             TimeUnit.SECONDS));
 
-            LogBookRecoveryStatus current =
-                    node.logBook().process(
-                            LogBookQueries.recoveryStatus(),
-                            ReadConsistency.CURRENT);
-            assertFalse(current.failed());
-
-            try {
-                node.logBook().process(
-                        LogBookQueries.recoveryStatus(),
-                        ReadConsistency.ORDERED);
-                fail("expected ordered recovery query timeout behind blocked lane");
-            } catch (IllegalStateException expected) {
-                assertTrue(expected.getMessage().contains("timed out"));
-            }
+            assertEquals(LogBookStatus.LOADED, node.logBook().status());
 
             persistence.releaseAppend.countDown();
             assertEquals(
@@ -775,7 +760,7 @@ public class TimingNodeTest {
                         functionalEvent.countDown();
                     }
                 });
-        node.logBook().newDataEntryEvent().subscribe(
+        node.NEW_DATA_ENTRY.subscribe(
                 ignored -> historyEvent.countDown());
 
         activate(node);
@@ -822,40 +807,6 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void orderedRecoveryQueryReadsDirectlyInsideLogBookVisitor() {
-        TimingNode node = node(new NodeId("A"));
-        final LogBookRecoveryStatus[] orderedStatus =
-                new LogBookRecoveryStatus[1];
-        final LogBookRecoveryStatus[] currentStatus =
-                new LogBookRecoveryStatus[1];
-
-        activate(node);
-        try {
-            node.open(new LocationId(24));
-
-            node.logBook().process(
-                    LogBookQueries.visitTimingDataRange(
-                            1L,
-                            1,
-                            ignored -> {
-                                orderedStatus[0] =
-                                        node.logBook().process(
-                                                LogBookQueries.recoveryStatus(),
-                                                ReadConsistency.ORDERED);
-                                currentStatus[0] =
-                                        node.logBook().process(
-                                                LogBookQueries.recoveryStatus(),
-                                                ReadConsistency.CURRENT);
-                            }));
-
-            assertFalse(orderedStatus[0].failed());
-            assertFalse(currentStatus[0].failed());
-        } finally {
-            deactivate(node);
-        }
-    }
-
-    @Test
     public void statusIsClosedOutsideActivation() {
         TimingNode node = node(new NodeId("A"));
 
@@ -895,7 +846,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void recoveryFailureStillAllowsDataLaneActivation() throws Exception {
+    public void logBookErrorStillAllowsTimingNodeOpen() throws Exception {
         TimingNode node = TimingNodeFixture.createDirect(
                 new NodeId("A"),
                 new FailingLoadPersistence(),
@@ -907,9 +858,7 @@ public class TimingNodeTest {
             awaitOperationalState(
                     node,
                     TimingNodeTypes.OperationalState.OK);
-            LogBookRecoveryStatus recovery =
-                    node.logBook().process(LogBookQueries.recoveryStatus());
-            assertTrue(recovery.failed());
+            assertEquals(LogBookStatus.ERROR, node.logBook().status());
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
                     node.open(new LocationId(24)));
@@ -922,6 +871,7 @@ public class TimingNodeTest {
     public void commandBeforeStartIsUnavailableWhileStatusIsReadable() {
         TimingNode node = node(new NodeId("A"));
 
+        assertEquals(LogBookStatus.INIT, node.logBook().status());
         assertEquals(TimingNodeTypes.FunctionalState.CLOSED, node.functionalState());
         try {
             node.open(new LocationId(24));

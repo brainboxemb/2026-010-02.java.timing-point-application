@@ -63,7 +63,7 @@ public final class TimingNodeProxy {
                     "TimingNode LogBook does not expose engineering test control");
         }
         this.logBookTestControl = (LogBookTestControl) logBook;
-        this.NEW_DATA_ENTRY = logBook.newDataEntryEvent();
+        this.NEW_DATA_ENTRY = timingNode.NEW_DATA_ENTRY;
         timingNode.PROPERTIES.CHANGED.subscribe(this::publishVisibleStatusChange);
     }
 

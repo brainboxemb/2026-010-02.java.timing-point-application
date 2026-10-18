@@ -122,7 +122,7 @@ public class TagProcessorTest {
                 execution.executor);
         connectToNode(processor, node);
         CountDownLatch committed = new CountDownLatch(1);
-        node.logBook().newDataEntryEvent().subscribe(data -> {
+        node.NEW_DATA_ENTRY.subscribe(data -> {
             if (data instanceof AutomaticRegistration) {
                 committed.countDown();
             }
@@ -193,7 +193,7 @@ public class TagProcessorTest {
                 execution.executor);
         connectToNode(processor, node);
         CountDownLatch committed = new CountDownLatch(1);
-        node.logBook().newDataEntryEvent().subscribe(data -> {
+        node.NEW_DATA_ENTRY.subscribe(data -> {
             if (data instanceof AutomaticRegistration) {
                 committed.countDown();
             }
@@ -310,7 +310,7 @@ public class TagProcessorTest {
                 execution.executor);
         connectToNode(processor, node);
         CountDownLatch committed = new CountDownLatch(1);
-        node.logBook().newDataEntryEvent().subscribe(data -> {
+        node.NEW_DATA_ENTRY.subscribe(data -> {
             if (data instanceof AutomaticRegistration) {
                 committed.countDown();
             }

@@ -4,7 +4,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixtu
 import io.github.brainboxemb.eventtiming.timingpoint.application.CommandResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookRecoveryStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookStatus;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData.AutomaticRegistration;
@@ -47,7 +47,7 @@ public class TimingNodeRegistrationTest {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
         List<TimingData> delivered = new ArrayList<>();
-        node.logBook().newDataEntryEvent().subscribe(delivered::add);
+        node.NEW_DATA_ENTRY.subscribe(delivered::add);
 
         activate(node);
         try {
@@ -361,7 +361,7 @@ public class TimingNodeRegistrationTest {
         List<TimingData> delivered = new ArrayList<>();
         Consumer<TimingData> listener = delivered::add;
 
-        assertTrue(node.logBook().newDataEntryEvent().subscribe(listener));
+        assertTrue(node.NEW_DATA_ENTRY.subscribe(listener));
 
         activate(node);
         try {
@@ -396,7 +396,7 @@ public class TimingNodeRegistrationTest {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
         List<TimingData> delivered = new ArrayList<>();
-        node.logBook().newDataEntryEvent().subscribe(delivered::add);
+        node.NEW_DATA_ENTRY.subscribe(delivered::add);
 
         activate(node);
         try {
@@ -430,10 +430,10 @@ public class TimingNodeRegistrationTest {
         TimingNode node = node(store);
         List<TimingData> delivered = new ArrayList<>();
 
-        node.logBook().newDataEntryEvent().subscribe(data -> {
+        node.NEW_DATA_ENTRY.subscribe(data -> {
             throw new IllegalStateException("expected listener failure");
         });
-        node.logBook().newDataEntryEvent().subscribe(delivered::add);
+        node.NEW_DATA_ENTRY.subscribe(delivered::add);
 
         activate(node);
         try {
@@ -519,7 +519,7 @@ public class TimingNodeRegistrationTest {
         store.loaded.add(loadedData(1L, 11));
         TimingNode node = node(store);
         List<TimingData> delivered = new ArrayList<>();
-        node.logBook().newDataEntryEvent().subscribe(delivered::add);
+        node.NEW_DATA_ENTRY.subscribe(delivered::add);
 
         activate(node);
         try {
@@ -546,9 +546,7 @@ public class TimingNodeRegistrationTest {
                     TimingNodeTypes.FunctionalState.CLOSED,
                     node.functionalState());
             assertFalse(node.locationId() != null);
-            assertFalse(
-                    node.logBook().process(LogBookQueries.recoveryStatus())
-                            .repairedIncompleteTail());
+            assertEquals(LogBookStatus.LOADED, node.logBook().status());
             assertEquals(2, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
 
             assertEquals(
@@ -566,7 +564,7 @@ public class TimingNodeRegistrationTest {
     }
 
     @Test
-    public void startupReportsRepairedIncompleteTailInRecoveryStatus() throws Exception {
+    public void startupLoadsDataAfterRepairingIncompleteTail() throws Exception {
         RecordingStore store = new RecordingStore();
         store.loaded.add(loadedData(1L, 11));
         store.repairedIncompleteTail = true;
@@ -577,9 +575,7 @@ public class TimingNodeRegistrationTest {
             awaitOperationalState(
                     node,
                     TimingNodeTypes.OperationalState.OK);
-            assertTrue(
-                    node.logBook().process(LogBookQueries.recoveryStatus())
-                            .repairedIncompleteTail());
+            assertEquals(LogBookStatus.LOADED, node.logBook().status());
             assertEquals(1, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
         } finally {
             deactivate(node);
@@ -597,9 +593,7 @@ public class TimingNodeRegistrationTest {
             awaitOperationalState(
                     node,
                     TimingNodeTypes.OperationalState.OK);
-            LogBookRecoveryStatus recovery =
-                    node.logBook().process(LogBookQueries.recoveryStatus());
-            assertTrue(recovery.failed());
+            assertEquals(LogBookStatus.ERROR, node.logBook().status());
 
             assertEquals(
                     TimingNodeTypes.FunctionalState.CLOSED,
