@@ -70,6 +70,27 @@ public class ActiveRegistrationsTest {
         assertEquals(1, active.uniqueTeamCount());
     }
 
+    /** Different registration IDs for one team count once at the same location. */
+    @Test
+    public void multipleRegistrationIdsForOneTeamCountOnce() {
+        ActiveRegistrations active = new ActiveRegistrations();
+        TeamId teamId = new TeamId("0001");
+        active.apply(registration(1L, TimingData.RegistrationAction.ADD), id -> teamId);
+        TimingTimestamp timestamp =
+                new TimingTimestamp(Instant.parse("2026-10-13T12:00:00Z"));
+        TimingData second = FACTORY.createAutomaticRegistration(
+                new TimingDataFactory.Context(
+                        NODE_ID, 2L, LOCATION_ID, timestamp, timestamp),
+                new RegistrationId("RT-X-0001"));
+        active.apply(second, id -> teamId);
+
+        assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
+        assertEquals(1, active.uniqueTeamCount());
+
+        active.apply(registration(3L, TimingData.RegistrationAction.REV), id -> teamId);
+        assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
+    }
+
     /** A REV with an unmatched original time must not change any count. */
     @Test
     public void unmatchedRevokeDoesNotChangeCounts() {
