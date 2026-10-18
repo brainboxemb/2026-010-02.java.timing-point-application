@@ -316,6 +316,10 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         try {
             TimingDataPersistence.LoadResult loadResult =
                     logBookOperations.loadPersistedTimingData();
+
+            // The blocking load may outlive TimingNode deactivation. Do not
+            // restore or publish startup state for an inactive LogBook.
+            failIfInactive();
             logBookOperations.restorePersistedTimingData(loadResult);
 
             LOG.info(
@@ -331,6 +335,8 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
 
             initialDataLoadedEvent.emit(loadResult.records());
         } catch (TimingDataPersistence.PersistenceException | RuntimeException ex) {
+            // An inactive LogBook is a cancelled startup flow, not a recovery failure.
+            failIfInactive();
             logBookOperations.markTimingDataLoadFailed(ex);
             LOG.error(
                     "Persisted TimingData load failed for {}",
@@ -338,6 +344,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                     ex);
         }
 
+        failIfInactive();
         LogBookRecoveryStatus status = logBookState.recoveryStatus();
         recoveryView.publishInitial(status);
         return status;

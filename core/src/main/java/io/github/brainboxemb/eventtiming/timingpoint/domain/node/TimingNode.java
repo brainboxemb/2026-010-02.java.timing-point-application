@@ -71,7 +71,7 @@ public final class TimingNode extends LifecycleComponent {
     private final Object operationLock = new Object();
     private final Object stateLock = new Object();
 
-    private CompletableFuture<Void> mainTaskRun;
+    private final MainTask mainTask = new MainTask();
 
     /** Antenna observation input; internally consumed by the TagProcessor. */
     public static final EventInput<TimingNode, TagObservation> TAG_OBSERVATIONS =
@@ -273,19 +273,16 @@ public final class TimingNode extends LifecycleComponent {
 
         setOperationalState(OperationalState.INIT);
         taskRunner.start();
-        try {
-            lifecycle.activateAll();
-        } catch (RuntimeException | Error failure) {
-            taskRunner.close();
-            throw failure;
-        }
+        lifecycle.activateAll();
 
-        CompletableFuture<Void> run = taskRunner.runTask(new MainTask());
-        mainTaskRun = run;
+        CompletableFuture<Void> run = taskRunner.runTask(mainTask);
         run.whenComplete(
                 (ignored, failure) -> {
-                    if (failure != null && !run.isCancelled()) {
-                        setOperationalState(OperationalState.ERROR);
+                    if (!run.isCancelled()) {
+                        setOperationalState(
+                                failure == null
+                                        ? OperationalState.OK
+                                        : OperationalState.ERROR);
                     }
                 });
     }
@@ -294,50 +291,24 @@ public final class TimingNode extends LifecycleComponent {
     @Override
     protected void onDeactivate() {
 
-        CompletableFuture<Void> run = mainTaskRun;
-        mainTaskRun = null;
-        if (run != null && !run.isDone()) {
-            run.cancel(true);
-        }
-
-        try {
-            lifecycle.deactivateAll();
-        } finally {
-            taskRunner.close();
-            synchronized (stateLock) {
-                operationalStateProp.set(OperationalState.INIT);
-                functionalStateProp.set(FunctionalState.CLOSED);
-                locationIdProp.set(null);
-                properties.sync();
-            }
+        taskRunner.close();
+        lifecycle.deactivateAll();
+        synchronized (stateLock) {
+            operationalStateProp.set(OperationalState.INIT);
+            functionalStateProp.set(FunctionalState.CLOSED);
+            locationIdProp.set(null);
+            properties.sync();
         }
     }
 
     /** Startup flow executed asynchronously on this node's Task Lane. */
     private final class MainTask implements YieldingTask {
-        private boolean recoveryLoaded;
-
         @Override
         public TaskStep runStep() {
-            if (!recoveryLoaded) {
-                logBook.loadPersistedData();
-                recoveryLoaded = true;
-
-                /*
-                 * LogBook owns its own recovery result. A recovery failure is a
-                 * degraded child-component condition, not a TimingNode failure.
-                 * On successful recovery, INITIAL_DATA_LOADED may have queued
-                 * NodeService rebuild work on this same Task Lane, so yield once
-                 * before publishing node readiness.
-                 */
-                return TaskStep.again();
-            }
-
-            setOperationalState(OperationalState.OK);
+            logBook.loadPersistedData();
             return TaskStep.done();
         }
     }
-
     /** Changes runtime readiness without changing OPEN/CLOSED functional state. */
     private void setOperationalState(OperationalState state) {
         synchronized (stateLock) {

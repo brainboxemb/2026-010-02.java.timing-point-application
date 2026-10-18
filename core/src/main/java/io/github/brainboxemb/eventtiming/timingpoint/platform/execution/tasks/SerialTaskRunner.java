@@ -397,7 +397,7 @@ public final class SerialTaskRunner implements AutoCloseable {
         }
     }
 
-    /** Cancels waiting runs, stops admission and drains queued task-run entries. */
+    /** Cancels task runs and stops admission without waiting for a running task step. */
     @Override
     public void close() {
         TaskRun[] runs;
@@ -410,7 +410,7 @@ public final class SerialTaskRunner implements AutoCloseable {
         for (TaskRun run : runs) {
             run.result.cancel(true);
         }
-        lane.close();
+        lane.stop();
     }
 
     private static long timeoutNanos(Duration timeout) {

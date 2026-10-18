@@ -7,16 +7,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Executes ordered activation, rollback and reverse deactivation for components
+ * Executes ordered activation and reverse deactivation for components
  * registered by an owning coordinator.
  *
  * <p>This helper owns no startup policy. The owning Application or TimingSystem
  * coordinator decides which components participate and when lifecycle execution
  * is requested. Internal lifecycle is driven through {@link LifecycleComponent}
  * without exposing activate/deactivate methods in each component's public API.
- * This class preserves activation order, rolls back components that already
- * activated when a later activation fails, and deactivates active components in
- * reverse order.</p>
+ * This class preserves activation order and deactivates active components in
+ * reverse order. Each component owns its own operational state; failure to
+ * activate one component does not prevent independent components from receiving
+ * their activation.</p>
  */
 public final class ComponentLifecycleManager {
     private static final Logger LOG =
@@ -88,45 +89,36 @@ public final class ComponentLifecycleManager {
     }
 
     /**
-     * Activates registered components in order.
+     * Activates every registered component in registration order.
      *
-     * <p>If activation fails, only components that completed activation are
-     * deactivated, in reverse order. The original failure remains primary and
-     * rollback failures are attached as suppressed failures.</p>
+     * <p>A component whose activation throws remains inactive. The failure is
+     * logged and activation continues with the next independent component.
+     * Operational startup problems should normally be represented by the
+     * component's own state rather than by an escaped activation exception.</p>
      */
     public synchronized void activateAll() {
         if (state == State.ACTIVE) {
             throw new IllegalStateException("Components are already active");
         }
 
-        int activatedCount = 0;
-        try {
-            for (Component component : components) {
-                LOG.info(
-                        "Activating {}",
-                        component.name);
+        for (Component component : components) {
+            LOG.info(
+                    "Activating {}",
+                    component.name);
+            try {
                 component.lifecycleComponent.activateLifecycle();
-                activatedCount++;
                 LOG.info(
                         "{} activated",
                         component.name);
+            } catch (RuntimeException ex) {
+                LOG.error(
+                        "{} activation failed; continuing with remaining components",
+                        component.name,
+                        ex);
             }
-            state = State.ACTIVE;
-        } catch (RuntimeException ex) {
-            rollback(
-                    activatedCount,
-                    ex);
-            state = State.INACTIVE;
-            throw ex;
-        } catch (Error error) {
-            rollback(
-                    activatedCount,
-                    error);
-            state = State.INACTIVE;
-            throw error;
         }
+        state = State.ACTIVE;
     }
-
     /**
      * Deactivates active components in reverse activation order.
      */
@@ -167,32 +159,6 @@ public final class ComponentLifecycleManager {
 
             state = State.INACTIVE;
             rethrow(firstFailure);
-        }
-    }
-
-    private void rollback(
-            int activatedCount,
-            Throwable originalFailure) {
-        LOG.warn(
-                "Component activation failed after {} component(s); rolling back",
-                activatedCount,
-                originalFailure);
-
-        for (int index = activatedCount - 1;
-                index >= 0;
-                index--) {
-            Component component =
-                    components.get(index);
-            try {
-                LOG.info(
-                        "Rolling back {}",
-                        component.name);
-                component.lifecycleComponent.deactivateLifecycle();
-            } catch (RuntimeException ex) {
-                originalFailure.addSuppressed(ex);
-            } catch (Error error) {
-                originalFailure.addSuppressed(error);
-            }
         }
     }
 

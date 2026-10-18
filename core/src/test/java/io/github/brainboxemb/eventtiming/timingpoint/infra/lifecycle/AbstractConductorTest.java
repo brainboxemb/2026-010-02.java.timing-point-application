@@ -13,8 +13,6 @@ import org.junit.Test;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.activate;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.fail;
 
 public class AbstractConductorTest {
 
@@ -40,52 +38,6 @@ public class AbstractConductorTest {
         try {
             activate(conductor);
             deactivate(conductor);
-
-            assertEquals(
-                    Arrays.asList(
-                            "component.activate",
-                            "hook",
-                            "component.deactivate"),
-                    calls);
-            assertEquals(
-                    false,
-                    lane.isRunning());
-        } finally {
-            worker.shutdownNow();
-        }
-    }
-
-    @Test
-    public void hookFailureClosesLaneAndRollsBackComponents() {
-        ScheduledExecutorService worker =
-                Executors.newSingleThreadScheduledExecutor();
-        SerialTaskRunner lane =
-                new SerialTaskRunner(
-                        4,
-                        4,
-                        "abstract-conductor-test",
-                        worker);
-        List<String> calls =
-                new ArrayList<String>();
-        RuntimeException failure =
-                new RuntimeException(
-                        "startup hook failed");
-
-        TestConductor conductor =
-                new TestConductor(
-                        lane,
-                        calls,
-                        failure);
-
-        try {
-            try {
-                activate(conductor);
-                fail("expected activation failure");
-            } catch (RuntimeException expected) {
-                assertSame(
-                        failure,
-                        expected);
-            }
 
             assertEquals(
                     Arrays.asList(

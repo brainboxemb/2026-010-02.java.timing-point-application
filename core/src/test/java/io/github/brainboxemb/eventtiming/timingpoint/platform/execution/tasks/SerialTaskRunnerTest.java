@@ -371,6 +371,53 @@ public class SerialTaskRunnerTest {
     }
 
     @Test
+    public void closeDoesNotWaitForRunningTaskStep()
+            throws Exception {
+        ScheduledExecutorService worker =
+                Executors.newScheduledThreadPool(1);
+        SerialTaskRunner runner =
+                new SerialTaskRunner(
+                        4,
+                        4,
+                        "non-blocking-close",
+                        worker,
+                        Duration.ofSeconds(1));
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        runner.start();
+
+        runner.runTask(
+                () -> {
+                    started.countDown();
+                    boolean interrupted = false;
+                    while (release.getCount() != 0L) {
+                        try {
+                            release.await();
+                        } catch (InterruptedException ex) {
+                            interrupted = true;
+                        }
+                    }
+                    if (interrupted) {
+                        Thread.currentThread().interrupt();
+                    }
+                    return TaskStep.done();
+                });
+
+        assertTrue(started.await(500L, TimeUnit.MILLISECONDS));
+
+        Thread closer = new Thread(runner::close);
+        closer.start();
+        closer.join(250L);
+
+        assertTrue(
+                "close() must return without waiting for the running task step",
+                !closer.isAlive());
+
+        release.countDown();
+        worker.shutdownNow();
+        assertTrue(worker.awaitTermination(1L, TimeUnit.SECONDS));
+    }
+    @Test
     public void rejectedBackingWorkerRejectsInitialAdmission() {
         ScheduledExecutorService worker =
                 Executors.newScheduledThreadPool(1);
