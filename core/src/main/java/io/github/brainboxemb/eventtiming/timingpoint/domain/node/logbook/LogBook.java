@@ -210,7 +210,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
 
         failIfInvalidArgument(command != null, "command must not be null");
         SafeExecute.runOrHandleRejection(
-                () -> offerOrReject(new CommandOperationItem<Object>(castCommand(command), false)),
+                () -> executeCommand(command),
                 ex -> LOG.error(
                         "LogBook command {} for node {} could not be queued on the Data Lane",
                         command.name(),
@@ -407,9 +407,8 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private static LogBookCommand<Object> castCommand(LogBookCommand<?> command) {
-        return (LogBookCommand<Object>) command;
+    private <R> void executeCommand(LogBookCommand<R> command) {
+        offerOrReject(new CommandOperationItem<R>(command, false));
     }
 
     private void failIfNotReentrant(String operation) {
