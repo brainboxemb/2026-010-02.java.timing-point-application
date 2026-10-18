@@ -41,9 +41,7 @@ public final class TagProcessingPolicy {
         duplicateWindowNanos =
                 nonNegativeNanos(duplicateWindow, "duplicateWindow");
         sweepCadenceNanos = positiveNanos(sweepCadence, "sweepCadence");
-        failIfInvalidArgument(
-                observationQueueCapacity > 0,
-                "observationQueueCapacity must be positive");
+        failIfInvalidArgument(observationQueueCapacity > 0, "observationQueueCapacity must be positive");
         this.observationQueueCapacity = observationQueueCapacity;
     }
 

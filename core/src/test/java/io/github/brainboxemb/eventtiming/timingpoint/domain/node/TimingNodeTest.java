@@ -50,6 +50,17 @@ public class TimingNodeTest {
         }
     }
 
+    /** Waits for asynchronous TimingNode startup before testing steady-state LogBook behavior. */
+    private static void awaitOperational(TimingNode node) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1L);
+        while (node.operationalState() == TimingNodeTypes.OperationalState.INIT
+                && System.nanoTime() < deadline) {
+            Thread.sleep(1L);
+        }
+
+        assertEquals(TimingNodeTypes.OperationalState.OK, node.operationalState());
+    }
+
     private ExecutorService newDataLaneExecutor(String threadName) {
         ExecutorService worker =
                 Executors.newSingleThreadExecutor(
@@ -713,6 +724,8 @@ public class TimingNodeTest {
 
         activate(node);
         try {
+            awaitOperational(node);
+
             node.logBook().execute(
                     LogBookCommands.commitNodeOpen(new LocationId(24)));
             assertTrue(
