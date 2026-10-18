@@ -119,7 +119,7 @@ public class RuntimeMeasurementReaderTest {
                         logBookMetrics,
                         tagMetrics);
 
-        node.logBook().newDataEntryEvent()
+        node.NEW_DATA_ENTRY
                 .subscribe(
                         ignored -> {
                             // Keep one ordinary listener in the measured path.
