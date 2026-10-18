@@ -846,7 +846,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void recoveryFailureStillAllowsDataLaneActivation() throws Exception {
+    public void logBookErrorStillAllowsTimingNodeOpen() throws Exception {
         TimingNode node = TimingNodeFixture.createDirect(
                 new NodeId("A"),
                 new FailingLoadPersistence(),
@@ -858,9 +858,7 @@ public class TimingNodeTest {
             awaitOperationalState(
                     node,
                     TimingNodeTypes.OperationalState.OK);
-            LogBookRecoveryStatus recovery =
-                    node.logBook().process(LogBookQueries.recoveryStatus());
-            assertTrue(recovery.failed());
+            assertEquals(LogBookStatus.ERROR, node.logBook().status());
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
                     node.open(new LocationId(24)));
