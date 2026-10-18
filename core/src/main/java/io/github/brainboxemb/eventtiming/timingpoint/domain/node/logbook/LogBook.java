@@ -104,7 +104,8 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                         timingNodeId,
                         serialLane,
                         commitWaitTimeoutMillis,
-                        orderedQueryWaitTimeoutMillis);
+                        orderedQueryWaitTimeoutMillis,
+                        this::processDataLaneItem);
         this.recoveryView = new LogBookRecoveryView(timingNodeId, dataLane);
         this.metrics = metrics;
         this.commitWaitTimeoutMillis = commitWaitTimeoutMillis;
@@ -172,7 +173,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     public <R> R process(LogBookCommand<R> command) {
 
         failIfInvalidArgument(command != null, "command must not be null");
-        return dataLane.submitCommandAndWait(() -> applyCommand(command), command.name());
+        return dataLane.submitCommandAndWait(command);
     }
 
     /**
@@ -184,9 +185,8 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     public void execute(LogBookCommand<?> command) {
 
         failIfInvalidArgument(command != null, "command must not be null");
-        Runnable processQueuedCommand = () -> processQueuedCommand(command);
         SafeExecute.runOrHandleRejection(
-                () -> dataLane.execute(processQueuedCommand),
+                () -> dataLane.execute(command),
                 ex -> LOG.error(
                         "LogBook command {} for node {} could not be queued on the Data Lane",
                         command.name(),
@@ -229,7 +229,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                 if (dataLane.isExecutingOnCurrentThread()) {
                     return query.readOrdered(logBookState);
                 }
-                return dataLane.submitQueryAndWait(() -> query.readOrdered(logBookState), query.name());
+                return dataLane.submitQueryAndWait(query);
             default:
                 throw new IllegalStateException("Unsupported read consistency " + consistency);
         }
@@ -298,17 +298,48 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         recoveryView.publishInitial(logBookState.recoveryStatus());
     }
 
-    /** Processes one previously queued fire-and-forget command on the LogBook Data Lane. */
-    private <R> void processQueuedCommand(LogBookCommand<R> command) {
+    /** Processes one typed Data Lane item on the LogBook-owned serial worker. */
+    private void processDataLaneItem(LogBookDataLane.Item<?> item) {
+
+        if (item instanceof LogBookDataLane.CommandItem<?>) {
+            processCommandItem((LogBookDataLane.CommandItem<?>) item);
+        } else if (item instanceof LogBookDataLane.QueryItem<?>) {
+            processQueryItem((LogBookDataLane.QueryItem<?>) item);
+        } else {
+            throw new IllegalStateException(
+                    "Unsupported LogBook Data Lane item " + item.getClass().getName());
+        }
+    }
+
+    /** Applies one queued command and completes its result holder. */
+    private <R> void processCommandItem(LogBookDataLane.CommandItem<R> item) {
 
         try {
-            applyCommand(command);
+            item.complete(applyCommand(item.command()));
         } catch (Exception ex) {
+            item.fail(ex);
+            if (!item.callerWaits()) {
+                LOG.error(
+                        "Queued LogBook command {} failed during Data Lane execution",
+                        item.name(),
+                        ex);
+            }
+        } catch (Error error) {
+            item.fail(error);
+            throw error;
+        }
+    }
 
-            LOG.error(
-                    "Queued LogBook command {} failed during Data Lane execution",
-                    command.name(),
-                    ex);
+    /** Reads one queued ORDERED query and completes its result holder. */
+    private <R> void processQueryItem(LogBookDataLane.QueryItem<R> item) {
+
+        try {
+            item.complete(item.query().readOrdered(logBookState));
+        } catch (RuntimeException ex) {
+            item.fail(ex);
+        } catch (Error error) {
+            item.fail(error);
+            throw error;
         }
     }
 

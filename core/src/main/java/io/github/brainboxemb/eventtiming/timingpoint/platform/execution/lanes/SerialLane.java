@@ -95,6 +95,9 @@ public class SerialLane implements Executor, AutoCloseable {
     /** Physical execution dependency supplied by Runtime composition. */
     private final Executor backingExecutor;
 
+    /** Configured maximum number of queued lane entries. */
+    private final int capacity;
+
     /** Bounded FIFO work queue owned by this lane. */
     private final ArrayBlockingQueue<QueuedWork> queue;
 
@@ -124,6 +127,7 @@ public class SerialLane implements Executor, AutoCloseable {
 
         this.laneName = laneName.trim();
         this.backingExecutor = backingExecutor;
+        this.capacity = capacity;
         this.queue = new ArrayBlockingQueue<QueuedWork>(capacity);
         this.maxItemsPerRun = maxItemsPerRun;
         this.metrics = new SerialLaneMetrics(queue::size);
@@ -297,6 +301,16 @@ public class SerialLane implements Executor, AutoCloseable {
         } else {
             CURRENT_LANE.set(previousLane);
         }
+    }
+
+    /** Configured queue capacity used by typed item queues on this lane. */
+    int capacity() {
+        return capacity;
+    }
+
+    /** Configured worker batch size used by typed item queues on this lane. */
+    int maxItemsPerRun() {
+        return maxItemsPerRun;
     }
 
     /** Returns whether this lane is currently accepting normal work. */

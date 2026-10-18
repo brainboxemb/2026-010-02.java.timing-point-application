@@ -35,6 +35,18 @@ public final class SerialQueue<T> implements AutoCloseable {
     private boolean accepting;
     private boolean workerScheduled;
 
+    /** Creates an item queue using the supplied lane's configured capacity and batch size. */
+    public SerialQueue(
+            SerialLane lane,
+            Consumer<T> itemProcessor) {
+
+        this(
+                capacity(lane),
+                maxItemsPerRun(lane),
+                lane,
+                itemProcessor);
+    }
+
     /**
      * Creates one bounded item queue serviced by the supplied serial lane.
      *
@@ -135,6 +147,18 @@ public final class SerialQueue<T> implements AutoCloseable {
         if (interrupted) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    /** Reads queue capacity only after validating the supplied lane. */
+    private static int capacity(SerialLane lane) {
+        failIfInvalidArgument(lane != null, "lane must not be null");
+        return lane.capacity();
+    }
+
+    /** Reads worker batch size only after validating the supplied lane. */
+    private static int maxItemsPerRun(SerialLane lane) {
+        failIfInvalidArgument(lane != null, "lane must not be null");
+        return lane.maxItemsPerRun();
     }
 
     /** Returns the current number of caller-owned items waiting in this queue. */
