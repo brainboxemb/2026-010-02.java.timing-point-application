@@ -34,14 +34,15 @@ public final class TeamRanking {
             Comparator.comparing((Candidate value) -> value.registration.effectiveTime().instant())
                     .thenComparingLong(value -> value.registration.sequenceNumber());
 
-    private static final Comparator<TeamRank> FASTEST_TEAM_FIRST =
-            Comparator.comparing(TeamRank::elapsed)
-                    .thenComparing(value -> value.stageTime().teamId().value());
+    private static final Comparator<StageTime> FASTEST_TEAM_FIRST =
+            Comparator.comparing(StageTime::elapsed)
+                    .thenComparing(value -> value.teamId().value());
 
     private final StageTiming stageTiming;
     private final Map<Long, Candidate> candidatesBySequence = new HashMap<>();
-    private final Map<RegistrationId, Map<Long, Candidate>> candidatesByRegistration = new HashMap<>();
-    private final Map<LocationId, Map<TeamId, NavigableSet<Candidate>>> candidatesByLocation = new HashMap<>();
+    private final Map<RegistrationId, Map<Long, Candidate>> candidatesByRegistrationId = new HashMap<>();
+    private final Map<LocationId, Map<TeamId, NavigableSet<Candidate>>> candidatesByLocationAndTeam =
+            new HashMap<>();
 
     /** Creates the ranking index over the shared StageTiming resolver. */
     public TeamRanking(StageTiming stageTiming) {
@@ -54,8 +55,8 @@ public final class TeamRanking {
     public void reset() {
 
         candidatesBySequence.clear();
-        candidatesByRegistration.clear();
-        candidatesByLocation.clear();
+        candidatesByRegistrationId.clear();
+        candidatesByLocationAndTeam.clear();
     }
 
     /** Applies one actual active-registration ADD or matched REV. */
@@ -75,7 +76,7 @@ public final class TeamRanking {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
 
-        Map<Long, Candidate> registrations = candidatesByRegistration.get(registrationId);
+        Map<Long, Candidate> registrations = candidatesByRegistrationId.get(registrationId);
         if (registrations != null) {
             for (Candidate candidate : registrations.values()) {
                 if (!Objects.equals(candidate.teamId, teamId)) {
@@ -110,27 +111,27 @@ public final class TeamRanking {
             return 0;
         }
 
-        Map<TeamId, NavigableSet<Candidate>> teams = candidatesByLocation.get(locationId);
+        Map<TeamId, NavigableSet<Candidate>> teams = candidatesByLocationAndTeam.get(locationId);
         if (teams == null) {
             return 0;
         }
 
-        PriorityQueue<TeamRank> fastest =
-                new PriorityQueue<TeamRank>(limit, FASTEST_TEAM_FIRST.reversed());
+        PriorityQueue<StageTime> fastest =
+                new PriorityQueue<StageTime>(limit, FASTEST_TEAM_FIRST.reversed());
 
         for (Map.Entry<TeamId, NavigableSet<Candidate>> entry : teams.entrySet()) {
             Candidate candidate = entry.getValue().first();
             StageTime stageTime =
                     stageTiming.resolve(candidate.registration, entry.getKey(), raceTimeZone);
             if (stageTime != null) {
-                fastest.offer(new TeamRank(1, stageTime));
+                fastest.offer(stageTime);
                 if (fastest.size() > limit) {
                     fastest.poll();
                 }
             }
         }
 
-        List<TeamRank> ordered = new ArrayList<TeamRank>(fastest);
+        List<StageTime> ordered = new ArrayList<StageTime>(fastest);
         ordered.sort(FASTEST_TEAM_FIRST);
         return visitRanked(ordered, visitor);
     }
@@ -143,7 +144,7 @@ public final class TeamRanking {
         RegistrationId registrationId = registrationId(registration);
         Candidate candidate = new Candidate(registration, registrationId, teamId);
         candidatesBySequence.put(registration.sequenceNumber(), candidate);
-        candidatesByRegistration
+        candidatesByRegistrationId
                 .computeIfAbsent(registrationId, ignored -> new HashMap<>())
                 .put(registration.sequenceNumber(), candidate);
         addToTeam(candidate);
@@ -157,10 +158,10 @@ public final class TeamRanking {
 
         removeFromTeam(candidate);
 
-        Map<Long, Candidate> registrations = candidatesByRegistration.get(candidate.registrationId);
+        Map<Long, Candidate> registrations = candidatesByRegistrationId.get(candidate.registrationId);
         registrations.remove(sequenceNumber);
         if (registrations.isEmpty()) {
-            candidatesByRegistration.remove(candidate.registrationId);
+            candidatesByRegistrationId.remove(candidate.registrationId);
         }
     }
 
@@ -168,7 +169,7 @@ public final class TeamRanking {
     private void addToTeam(Candidate candidate) {
 
         if (candidate.teamId != null) {
-            candidatesByLocation
+            candidatesByLocationAndTeam
                     .computeIfAbsent(candidate.registration.locationId(), ignored -> new HashMap<>())
                     .computeIfAbsent(candidate.teamId, ignored -> new TreeSet<>(CANDIDATE_ORDER))
                     .add(candidate);
@@ -180,7 +181,7 @@ public final class TeamRanking {
 
         if (candidate.teamId != null) {
             LocationId locationId = candidate.registration.locationId();
-            Map<TeamId, NavigableSet<Candidate>> teams = candidatesByLocation.get(locationId);
+            Map<TeamId, NavigableSet<Candidate>> teams = candidatesByLocationAndTeam.get(locationId);
             NavigableSet<Candidate> registrations = teams.get(candidate.teamId);
             registrations.remove(candidate);
 
@@ -188,23 +189,23 @@ public final class TeamRanking {
                 teams.remove(candidate.teamId);
             }
             if (teams.isEmpty()) {
-                candidatesByLocation.remove(locationId);
+                candidatesByLocationAndTeam.remove(locationId);
             }
         }
     }
 
     /** Visits competition-ranked team rows after bounded sorting. */
-    private static int visitRanked(List<TeamRank> ordered, Consumer<TeamRank> visitor) {
+    private static int visitRanked(List<StageTime> ordered, Consumer<TeamRank> visitor) {
 
         Duration previousElapsed = null;
         int rank = 0;
         for (int index = 0; index < ordered.size(); index++) {
-            TeamRank value = ordered.get(index);
-            if (previousElapsed == null || !previousElapsed.equals(value.elapsed())) {
+            StageTime stageTime = ordered.get(index);
+            if (previousElapsed == null || !previousElapsed.equals(stageTime.elapsed())) {
                 rank = index + 1;
-                previousElapsed = value.elapsed();
+                previousElapsed = stageTime.elapsed();
             }
-            visitor.accept(new TeamRank(rank, value.stageTime()));
+            visitor.accept(new TeamRank(rank, stageTime));
         }
         return ordered.size();
     }
