@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
 
 import java.time.Duration;
+import java.util.concurrent.CompletionStage;
 
 /**
  * Continuation decision returned by one {@link YieldingTask} step.
@@ -13,6 +14,8 @@ public final class TaskStep {
         AGAIN,
         /** Re-admit the task only after the supplied delay. */
         AFTER,
+        /** Re-admit the task only after the supplied asynchronous dependency completes. */
+        AWAIT,
         /** Complete the current yielding-task run. */
         DONE
     }
@@ -28,13 +31,23 @@ public final class TaskStep {
 
     private final Type type;
     private final Duration delay;
+    private final CompletionStage<?> completion;
 
     /** Creates one immutable continuation decision. */
     private TaskStep(
             Type type,
             Duration delay) {
+        this(type, delay, null);
+    }
+
+    /** Creates one immutable continuation decision. */
+    private TaskStep(
+            Type type,
+            Duration delay,
+            CompletionStage<?> completion) {
         this.type = type;
         this.delay = delay;
+        this.completion = completion;
     }
 
     /**
@@ -63,6 +76,25 @@ public final class TaskStep {
                 delay);
     }
 
+    /**
+     * Releases the lane until the supplied asynchronous dependency completes.
+     *
+     * <p>The dependency result is not interpreted here. Completion only makes
+     * the task eligible for another step; the task remains responsible for
+     * reading or handling that dependency in its own state.</p>
+     */
+    public static TaskStep await(
+            CompletionStage<?> completion) {
+        if (completion == null) {
+            throw new IllegalArgumentException(
+                    "completion must not be null");
+        }
+        return new TaskStep(
+                Type.AWAIT,
+                null,
+                completion);
+    }
+
     /** Completes the yielding task. */
     public static TaskStep done() {
         return DONE;
@@ -73,8 +105,13 @@ public final class TaskStep {
         return type;
     }
 
-    /** Returns the delay for AFTER, or null for AGAIN/DONE. */
+    /** Returns the delay for AFTER, or null for other continuation types. */
     public Duration delay() {
         return delay;
+    }
+
+    /** Returns the dependency for AWAIT, or null for other continuation types. */
+    public CompletionStage<?> completion() {
+        return completion;
     }
 }
