@@ -12,7 +12,6 @@ import org.slf4j.LoggerFactory;
  *
  * <ul>
  *   <li>registered application-component activation order;</li>
- *   <li>rollback when activation fails;</li>
  *   <li>the supplied Application serial lane lifecycle;</li>
  *   <li>reverse-order component deactivation;</li>
  *   <li>preservation of cleanup failures as suppressed failures.</li>
@@ -50,7 +49,7 @@ public abstract class AbstractConductor extends LifecycleComponent {
      * Registers one component in activation order.
      *
      * <p>Concrete conductors use this only while they are being constructed.
-     * Normal deactivation and activation rollback use the reverse order.</p>
+     * Normal deactivation uses the reverse order.</p>
      */
     protected final void registerComponent(
             String name,
@@ -74,9 +73,8 @@ public abstract class AbstractConductor extends LifecycleComponent {
      * Activates registered components, starts the coordination lane and then
      * invokes the concrete startup hook.
      *
-     * <p>If any phase fails, this method closes the lane and deactivates already
-     * active components before rethrowing the original failure. Cleanup failures
-     * are attached as suppressed failures.</p>
+     * <p>There is deliberately no generic activation rollback here. Registered
+     * components own their own operational state and activation behaviour.</p>
      */
     @Override
     protected final void onActivate() {
@@ -84,23 +82,14 @@ public abstract class AbstractConductor extends LifecycleComponent {
                 "Starting {}",
                 diagnosticName);
 
-        try {
-            componentLifecycle.activateAll();
-            coordinationLane.start();
-            onActivated();
+        componentLifecycle.activateAll();
+        coordinationLane.start();
+        onActivated();
 
-            LOG.info(
-                    "{} started",
-                    diagnosticName);
-        } catch (RuntimeException ex) {
-            cleanupAfterActivationFailure(ex);
-            throw ex;
-        } catch (Error error) {
-            cleanupAfterActivationFailure(error);
-            throw error;
-        }
+        LOG.info(
+                "{} started",
+                diagnosticName);
     }
-
     /**
      * Stops coordination-lane work and then deactivates components in reverse
      * activation order.
@@ -156,30 +145,6 @@ public abstract class AbstractConductor extends LifecycleComponent {
      * device.</p>
      */
     protected abstract void onActivated();
-
-    private void cleanupAfterActivationFailure(
-            Throwable originalFailure) {
-        LOG.warn(
-                "{} activation failed; cleaning up",
-                diagnosticName,
-                originalFailure);
-
-        try {
-            coordinationLane.close();
-        } catch (RuntimeException ex) {
-            originalFailure.addSuppressed(ex);
-        } catch (Error error) {
-            originalFailure.addSuppressed(error);
-        }
-
-        try {
-            componentLifecycle.deactivateAll();
-        } catch (RuntimeException ex) {
-            originalFailure.addSuppressed(ex);
-        } catch (Error error) {
-            originalFailure.addSuppressed(error);
-        }
-    }
 
     private static Throwable appendFailure(
             Throwable firstFailure,
