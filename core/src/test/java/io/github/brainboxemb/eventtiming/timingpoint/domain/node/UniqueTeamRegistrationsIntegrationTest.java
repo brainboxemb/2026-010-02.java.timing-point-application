@@ -147,20 +147,6 @@ public class UniqueTeamRegistrationsIntegrationTest {
             LocationId locationId,
             int expected) {
 
-        long deadline =
-                System.nanoTime()
-                        + java.util.concurrent.TimeUnit.SECONDS.toNanos(2L);
-        while (System.nanoTime() < deadline) {
-            try {
-                if (service.uniqueTeamRegistrationCount(locationId) == expected) {
-                    return;
-                }
-            } catch (IllegalStateException ignored) {
-                // Derived state is still catching up to recovered LogBook history.
-            }
-            Thread.yield();
-        }
-
         assertEquals(
                 expected,
                 service.uniqueTeamRegistrationCount(locationId));
