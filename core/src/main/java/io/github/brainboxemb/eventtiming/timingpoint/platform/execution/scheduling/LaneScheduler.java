@@ -4,7 +4,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.Se
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -23,24 +22,6 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  */
 public final class LaneScheduler {
 
-    public interface ScheduledRegistration extends AutoCloseable {
-        /** Stops future scheduling owned by this registration. */
-        @Override
-        void close();
-    }
-
-    public interface ScheduledOperation<R> extends ScheduledRegistration {
-        /** Returns the Future representing the operation's final result. */
-        Future<R> futureResult();
-
-        /** Returns the completion-stage view of the operation result. */
-        CompletionStage<R> completion();
-
-        /** Cancels the scheduled operation and any admitted lane work still cancellable. */
-        @Override
-        void close();
-    }
-
     private final SerialLane lane;
     private final ScheduledExecutorService scheduledExecutor;
 
@@ -53,33 +34,32 @@ public final class LaneScheduler {
     }
 
     /** Schedules one Callable for later admission to the owning serial lane. */
-    public <R> ScheduledOperation<R> submitAfter(Callable<R> operation, long delayNanos) {
+    public <R> CompletableFuture<R> submitAfter(Callable<R> operation, long delayNanos) {
         failIfInvalidArgument(operation != null, "operation must not be null");
         failIfInvalidArgument(delayNanos >= 0L, "delayNanos must not be negative");
 
         DelayedOperation<R> delayed = new DelayedOperation<R>(operation, delayNanos);
         delayed.schedule();
-        return delayed;
+        return delayed.completion();
     }
 
     /**
-     * Schedules recurring fire-and-forget work with delay measured after each lane turn.
+     * Schedules recurring fire-and-forget work with delay measured after each queued operation.
      *
      * <p>The scheduled executor only wakes the operation. The callback itself always runs
      * on the owning serial lane. If that bounded lane is temporarily full, the
      * next normal delay is used rather than creating a second queue.</p>
      */
-    public ScheduledRegistration scheduleWithFixedDelay(Runnable operation, long delayNanos) {
+    public Runnable scheduleWithFixedDelay(Runnable operation, long delayNanos) {
         failIfInvalidArgument(operation != null, "operation must not be null");
         failIfInvalidArgument(delayNanos > 0L, "delayNanos must be positive");
 
         RepeatingOperation repeating = new RepeatingOperation(operation, delayNanos);
         repeating.scheduleNext();
-        return repeating;
+        return repeating::cancel;
     }
 
-    private final class DelayedOperation<R>
-            implements ScheduledOperation<R> {
+    private final class DelayedOperation<R> {
         private final Callable<R> operation;
         private final long delayNanos;
         private final CompletableFuture<R> completion =
@@ -161,23 +141,9 @@ public final class LaneScheduler {
             }
         }
 
-        /** Returns the Future representing this delayed operation's final result. */
-        @Override
-        public Future<R> futureResult() {
+        /** Returns the one public result/cancellation handle for this delayed operation. */
+        private CompletableFuture<R> completion() {
             return completion;
-        }
-
-        /** Returns the completion-stage view used by asynchronous consumers. */
-        @Override
-        public CompletionStage<R> completion() {
-            return completion;
-        }
-
-        /** Cancels this delayed operation and any trigger or lane Future still active. */
-        @Override
-        public void close() {
-            completion.cancel(true);
-            cancelActive();
         }
 
         /** Cancels both the timer trigger and any lane Future already admitted for this operation. */
@@ -196,8 +162,7 @@ public final class LaneScheduler {
         }
     }
 
-    private final class RepeatingOperation
-            implements ScheduledRegistration {
+    private final class RepeatingOperation {
         private final Runnable operation;
         private final long delayNanos;
 
@@ -246,7 +211,7 @@ public final class LaneScheduler {
             }
         }
 
-        /** Runs one admitted fixed-delay turn and schedules its next trigger afterwards. */
+        /** Runs one admitted fixed-delay operation and schedules its next trigger afterwards. */
         private void runAndScheduleNext() {
             try {
                 operation.run();
@@ -256,8 +221,7 @@ public final class LaneScheduler {
         }
 
         /** Stops future fixed-delay triggers without interrupting unrelated lane work. */
-        @Override
-        public void close() {
+        private void cancel() {
             ScheduledFuture<?> pending;
             synchronized (this) {
                 if (closed) {
