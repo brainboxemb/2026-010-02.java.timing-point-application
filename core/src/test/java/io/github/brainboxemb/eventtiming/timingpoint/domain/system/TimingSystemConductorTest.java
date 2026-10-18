@@ -92,7 +92,7 @@ public class TimingSystemConductorTest {
     }
 
     @Test
-    public void activationDoesNotWaitForNodeRecoveryAndLaterStatusWakesReconciliation()
+    public void activationWaitsForNodeRecoveryBeforeReconciliation()
             throws Exception {
         BlockingPersistence persistence = new BlockingPersistence();
         TimingNode node = newTimingNode("A", persistence);
@@ -130,14 +130,19 @@ public class TimingSystemConductorTest {
                             1L,
                             TimeUnit.SECONDS));
             activationCaller.join(250L);
-            assertFalse(
-                    "TimingSystemConductor activation waited for TimingNode recovery",
+            assertTrue(
+                    "TimingSystemConductor activation must wait for TimingNode recovery",
                     activationCaller.isAlive());
-            assertNull(activationFailure[0]);
             assertEquals(FunctionalState.CLOSED, node.functionalState());
             assertFalse(antenna.inventoryRunning());
 
             persistence.releaseLoad.countDown();
+            activationCaller.join(1000L);
+
+            assertFalse(
+                    "TimingSystemConductor activation did not complete after node recovery",
+                    activationCaller.isAlive());
+            assertNull(activationFailure[0]);
 
             node.open(new LocationId(24));
             await(

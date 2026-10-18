@@ -25,12 +25,12 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Data Lane component for one TimingNode's committed TimingData.
  *
- * <p>LogBook owns persisted-data recovery plus the Data Lane boundary for ordered
- * commands, ORDERED queries, durable TimingData commit and publication of immutable
- * recovery/read views. Recovery runs when TimingNode.MainTask calls
- * {@link #loadPersistedData()}; LogBook owns no executor. The supplied
- * {@link TimingNodeDataLane} may share a Runtime-owned worker with other logical
- * lanes.</p>
+ * <p>LogBook owns synchronous startup recovery plus the Data Lane boundary for
+ * ordered commands, ORDERED queries, durable TimingData commit and publication
+ * of immutable recovery/read views. Recovery runs during LogBook activation
+ * before normal Data Lane admission starts. LogBook owns no executor. The
+ * supplied {@link TimingNodeDataLane} may share a Runtime-owned worker with
+ * other logical lanes.</p>
  */
 public final class LogBook extends LifecycleComponent implements LogBookAccessor, LogBookTestControl {
     private static final Logger LOG = LoggerFactory.getLogger(LogBook.class);
@@ -143,19 +143,13 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     }
 
     /**
-     * Marks the LogBook lifecycle-active.
-     *
-     * <p>TimingNode.MainTask starts recovery after child activation. The Data
-     * Lane remains stopped until that task completes recovery.</p>
+     * Loads persisted TimingData synchronously and then starts normal Data Lane
+     * command/query admission.
      */
     @Override
     protected void onActivate() {
 
-        /*
-         * Normal operations may already queue while TimingNode.MainTask loads
-         * persisted state. Data Lane and Task Lane share the same node worker,
-         * so those operations cannot execute until the startup task yields.
-         */
+        loadPersistedData();
         dataLane.activate();
     }
 
@@ -299,16 +293,8 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         return recoveryView.current();
     }
 
-    /**
-     * Loads persisted TimingData as the TimingNode MainTask startup step.
-     *
-     * <p>The call is intentionally synchronous. TimingNode invokes it from its
-     * asynchronous MainTask on the shared node worker. Data Lane operations may
-     * queue meanwhile, but cannot execute on that same worker until this startup
-     * step returns.</p>
-     */
-    public LogBookRecoveryStatus loadPersistedData() {
-        failIfInactive();
+    /** Loads and reconstructs persisted TimingData during synchronous activation. */
+    private void loadPersistedData() {
         LOG.info(
                 "TimingNode {} persisted TimingData load started",
                 timingNodeId().value());
@@ -338,9 +324,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                     ex);
         }
 
-        LogBookRecoveryStatus status = logBookState.recoveryStatus();
-        recoveryView.publishInitial(status);
-        return status;
+        recoveryView.publishInitial(logBookState.recoveryStatus());
     }
 
     /** Processes one typed LogBook operation on the shared Data Lane worker. */

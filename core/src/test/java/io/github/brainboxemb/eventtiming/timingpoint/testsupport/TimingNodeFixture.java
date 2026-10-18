@@ -374,8 +374,7 @@ public final class TimingNodeFixture {
                         timeSource,
                         logBook,
                         nodeService,
-                        tagProcessor,
-                        taskLane);
+                        tagProcessor);
 
         return new Components(
                 node,

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Start TimingNode asynchronously through its cooperative MainTask: lifecycle activation admits the task and returns; the MainTask reads and reconstructs persisted LogBook data on the shared node worker, while the already-started Data Lane may accept normal commands/queries that execute only after the startup step releases that worker. Recovery is not a queued `LogBookOperationItem`, and `INIT/OK/ERROR` readiness remains separate from functional `OPEN/CLOSED`.
+- Keep TimingNode startup simple and synchronous: LogBook activation reads and reconstructs persisted TimingData before normal Data Lane admission starts; TimingNode activation returns only after that recovery attempt and then publishes operational `OK` or `ERROR`. Recovery is not a queued `LogBookOperationItem`, LogBook owns no executor, and operational readiness remains separate from functional `OPEN/CLOSED`.
 
 - Simplify typed `SerialLane<T>` to its queue/worker responsibility: remove the global current-lane stack, five-state/FAILED lifecycle, lane-local application failure policy and redundant exception handling; keep bounded FIFO, batch fairness, one-worker scheduling, drain-on-close and item metrics.
 

@@ -120,7 +120,7 @@ public class TimingNodeTest {
     }
 
     @Test
-    public void activationReturnsWhileMainTaskLoadsPersistedData()
+    public void activationWaitsForPersistedDataRecovery()
             throws Exception {
         TimingNodeDataLane dataLane =
                 newDataLane(
@@ -154,28 +154,23 @@ public class TimingNodeTest {
                             TimeUnit.SECONDS));
 
             activationCaller.join(250L);
-            assertFalse(
-                    "activate() must return while MainTask recovery is running",
+            assertTrue(
+                    "activate() must wait for persisted-data recovery",
                     activationCaller.isAlive());
-            assertNull(activationFailure[0]);
             assertEquals(
                     TimingNodeTypes.OperationalState.INIT,
                     node.operationalState());
             assertFalse(
-                    "persisted-data recovery must not run on the Data Lane",
+                    "persisted-data recovery must not run as a Data Lane item",
                     persistence.executedOnNodeLane);
 
             persistence.releaseLoad.countDown();
+            activationCaller.join(1000L);
 
-            long deadline =
-                    System.nanoTime()
-                            + TimeUnit.SECONDS.toNanos(1L);
-            while (node.operationalState()
-                            == TimingNodeTypes.OperationalState.INIT
-                    && System.nanoTime() < deadline) {
-                Thread.sleep(1L);
-            }
-
+            assertFalse(
+                    "activate() did not complete after persisted-data recovery",
+                    activationCaller.isAlive());
+            assertNull(activationFailure[0]);
             assertEquals(
                     TimingNodeTypes.OperationalState.OK,
                     node.operationalState());

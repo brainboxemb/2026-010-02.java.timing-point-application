@@ -244,8 +244,7 @@ final class RuntimeCharacterizationHarness
                         timeSource,
                         logBook,
                         nodeService,
-                        tagProcessor,
-                        taskLane);
+                        tagProcessor);
 
         antenna =
                 new SimulatedAntenna();

@@ -228,8 +228,7 @@ public class UpstreamHandlerTest {
                         timeSource,
                         logBook,
                         tasks,
-                        tags,
-                        taskLane);
+                        tags);
 
         activate(timingNode);
         try {
