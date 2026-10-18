@@ -15,10 +15,12 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Keeps NodeService derived state caught up with the LogBook source head.
+ * Rebuilds NodeService derived state from recovered LogBook history.
  *
- * <p>The LogBook publishes only its committed head. This task chooses its own
- * bounded read size and yields while each ordered LogBook range query runs.</p>
+ * <p>The recovery event carries only the recovered source head. This task
+ * chooses its own bounded range size and yields while each ordered LogBook
+ * query runs. Commits arriving during recovery extend the target head so no
+ * record can overtake the reconstruction.</p>
  */
 final class NodeServiceHistoryTask extends AbstractTask {
     private static final int TIMING_DATA_BATCH_SIZE = 256;
@@ -27,6 +29,7 @@ final class NodeServiceHistoryTask extends AbstractTask {
     private final NodeServiceState state;
     private final Consumer<Throwable> failureHandler;
 
+    private volatile boolean recovering;
     private volatile long targetHead = -1L;
     private long nextSequence = 1L;
     private boolean initialized;
@@ -46,9 +49,27 @@ final class NodeServiceHistoryTask extends AbstractTask {
         this.failureHandler = failureHandler;
     }
 
-    /** Updates the desired LogBook head and wakes the catch-up task. */
-    void headChanged(long head, SerialTaskRunner taskRunner) {
+    /** Starts reconstruction up to the recovered committed head. */
+    synchronized void recover(
+            long head,
+            SerialTaskRunner taskRunner) {
+
         failIfInvalidArgument(head >= 0L, "head must not be negative");
+        failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
+
+        targetHead = head;
+        nextSequence = 1L;
+        initialized = false;
+        recovering = true;
+        wake(taskRunner);
+    }
+
+    /** Extends an in-progress reconstruction to include a later commit. */
+    synchronized void extendTo(
+            long head,
+            SerialTaskRunner taskRunner) {
+
+        failIfInvalidArgument(head >= 1L, "head must be positive");
         failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
 
         if (head > targetHead) {
@@ -57,9 +78,15 @@ final class NodeServiceHistoryTask extends AbstractTask {
         wake(taskRunner);
     }
 
-    /** Cancels current work and resets history state for a later activation. */
-    void stop() {
+    /** Reports whether committed records still belong to reconstruction. */
+    boolean isRecovering() {
+        return recovering;
+    }
+
+    /** Cancels current work and resets reconstruction state. */
+    synchronized void stop() {
         cancel();
+        recovering = false;
         targetHead = -1L;
         nextSequence = 1L;
         initialized = false;
@@ -82,22 +109,19 @@ final class NodeServiceHistoryTask extends AbstractTask {
             applyCompletedRead();
         }
 
-        long head = targetHead;
-        if (nextSequence > head) {
-            state.completeDerivedTimingRecovery();
-            return TaskStep.done();
+        if (nextSequence <= targetHead) {
+            submitNextRead();
+            return TaskStep.await(pendingRead);
         }
 
-        int limit =
-                (int) Math.min(
-                        (long) TIMING_DATA_BATCH_SIZE,
-                        head - nextSequence + 1L);
-        pendingRead =
-                logBook.submit(
-                        LogBookQueries.timingDataRange(
-                                nextSequence,
-                                limit));
-        return TaskStep.await(pendingRead);
+        state.completeDerivedTimingRecovery();
+        recovering = false;
+
+        if (nextSequence <= targetHead) {
+            recovering = true;
+            return TaskStep.again();
+        }
+        return TaskStep.done();
     }
 
     @Override
@@ -109,6 +133,19 @@ final class NodeServiceHistoryTask extends AbstractTask {
         }
     }
 
+    /** Submits the next bounded ordered LogBook range read. */
+    private void submitNextRead() {
+        int limit =
+                (int) Math.min(
+                        (long) TIMING_DATA_BATCH_SIZE,
+                        targetHead - nextSequence + 1L);
+        pendingRead =
+                logBook.submit(
+                        LogBookQueries.timingDataRange(
+                                nextSequence,
+                                limit));
+    }
+
     /** Applies one completed batch in strict source-sequence order. */
     private void applyCompletedRead() {
         List<TimingData> records = pendingRead.join();
@@ -116,7 +153,7 @@ final class NodeServiceHistoryTask extends AbstractTask {
 
         failIfIllegalState(
                 !records.isEmpty(),
-                "LogBook head %s advertised sequence %s but returned no TimingData",
+                "LogBook recovery head %s advertised sequence %s but returned no TimingData",
                 targetHead,
                 nextSequence);
 
