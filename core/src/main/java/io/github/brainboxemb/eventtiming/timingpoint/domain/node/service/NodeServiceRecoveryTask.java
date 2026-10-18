@@ -163,7 +163,7 @@ final class NodeServiceRecoveryTask extends AbstractTask {
 
         for (TimingData data : records) {
             long sequence = data.sequenceNumber();
-            failIfIllegalState(sequence == nextSequence, "Expected TimingData sequence %s, got %s", nextSequence, sequence);
+            failIfIllegalState(sequence == nextSequence, "Expected sequence %s, got %s", nextSequence, sequence);
             state.applyTimingData(data);
             nextSequence++;
         }
