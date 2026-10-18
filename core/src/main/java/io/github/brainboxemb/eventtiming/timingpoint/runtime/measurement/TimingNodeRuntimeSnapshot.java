@@ -18,43 +18,43 @@ public final class TimingNodeRuntimeSnapshot {
         this.logBook = logBook;
     }
 
-    /** Returns the current Data Lane queue depth. */
+    /** Returns the current LogBook LogBook Data Lane queue depth. */
     public int queueDepth() {
         return lane.queueDepth();
     }
-    /** Returns the largest observed Data Lane queue depth. */
+    /** Returns the largest observed LogBook Data Lane queue depth. */
     public int queueHighWaterMark() {
         return lane.queueHighWaterMark();
     }
-    /** Returns how many Data Lane items were successfully queued. */
-    public long queuedTaskCount() {
+    /** Returns how many LogBook Data Lane items were successfully queued. */
+    public long queuedItemCount() {
         return lane.queuedCount();
     }
-    /** Returns how many Data Lane items were rejected because the queue was full. */
+    /** Returns how many LogBook Data Lane items were rejected because the queue was full. */
     public long queueFullCount() {
         return lane.fullCount();
     }
-    /** Returns how many Data Lane items were rejected because the lane was not running. */
+    /** Returns how many LogBook Data Lane items were rejected because the lane was not running. */
     public long queueNotRunningCount() {
         return lane.notRunningCount();
     }
-    /** Returns how many Data Lane items completed execution. */
+    /** Returns how many LogBook Data Lane items completed execution. */
     public long queueCompletedCount() {
         return lane.completedCount();
     }
-    /** Returns cumulative Data Lane queue-wait time. */
+    /** Returns cumulative LogBook Data Lane queue-wait time. */
     public long totalQueueWaitNanos() {
         return lane.totalQueueWaitNanos();
     }
-    /** Returns the longest observed Data Lane queue wait. */
+    /** Returns the longest observed LogBook Data Lane queue wait. */
     public long maxQueueWaitNanos() {
         return lane.maxQueueWaitNanos();
     }
-    /** Returns cumulative Data Lane task execution time. */
+    /** Returns cumulative LogBook Data Lane item execution time. */
     public long totalExecutionNanos() {
         return lane.totalExecutionNanos();
     }
-    /** Returns the longest observed Data Lane task execution time. */
+    /** Returns the longest observed LogBook Data Lane item execution time. */
     public long maxExecutionNanos() {
         return lane.maxExecutionNanos();
     }
