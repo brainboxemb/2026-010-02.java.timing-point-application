@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.property.Property;
@@ -116,11 +116,15 @@ public final class TimingNode extends LifecycleComponent {
         lifecycle.register(tagProcessor);
 
         /*
-         * LogBook owns persisted TimingData facts. NodeService consumes those
-         * facts directly; TimingNode state remains independent from LogBook history.
+         * Recovery only signals LogBook readiness. NodeService.MainTask reads the
+         * current head and fetches missing TimingData in its own bounded batches.
          */
-        NodeService.INITIAL_TIMING_DATA.bind(nodeService, logBook.INITIAL_DATA_LOADED);
-        NodeService.COMMITTED_TIMING_DATA.bind(nodeService, logBook.NEW_DATA_ENTRY);
+        NodeService.LOGBOOK_RECOVERED.bind(
+                nodeService,
+                logBook.RECOVERY_STATUS_CHANGED);
+        NodeService.TIMING_DATA_CHANGED.bind(
+                nodeService,
+                logBook.NEW_DATA_ENTRY);
 
         // Listener runs synchronously on the TagProcessor lane; it must not block.
         NEW_REGISTRATION.bind(this, tagProcessor.NEW_REGISTRATION);

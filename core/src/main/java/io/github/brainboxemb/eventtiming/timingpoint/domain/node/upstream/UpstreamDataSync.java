@@ -4,6 +4,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
+
+import java.util.function.Consumer;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
@@ -20,7 +22,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 final class UpstreamDataSync {
     private final NodeId nodeId;
     private final UpstreamStream stream;
-    private final UpstreamTaskState taskState;
+    private final Consumer<UpstreamData.RaceData> raceDataConsumer;
 
     /*
      * Highest contiguous Central sequence committed to live TeamAssignments and
@@ -29,13 +31,13 @@ final class UpstreamDataSync {
     private long appliedSequence;
 
     /** Creates RACE_DATA synchronization state over the Task Lane-owned state boundary. */
-    UpstreamDataSync(NodeId nodeId, UpstreamStream stream, UpstreamTaskState taskState) {
+    UpstreamDataSync(NodeId nodeId, UpstreamStream stream, Consumer<UpstreamData.RaceData> raceDataConsumer) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(stream != null, "stream must not be null");
-        failIfInvalidArgument(taskState != null, "taskState must not be null");
+        failIfInvalidArgument(raceDataConsumer != null, "raceDataConsumer must not be null");
         this.nodeId = nodeId;
         this.stream = stream;
-        this.taskState = taskState;
+        this.raceDataConsumer = raceDataConsumer;
     }
 
     /**
@@ -63,7 +65,7 @@ final class UpstreamDataSync {
         } else {
             // RaceData is Task Lane-owned. ACK only after the complete change set
             // validated and was atomically applied to the current task state.
-            taskState.applyRaceData(raceData);
+            raceDataConsumer.accept(raceData);
             appliedSequence = receivedSequence;
             sendAck(receivedSequence);
         }

@@ -46,18 +46,18 @@ public final class UpstreamHandler {
             SerialTaskRunner taskRunner,
             UpstreamStream stream,
             LogBookAccessor logBook,
-            UpstreamTaskState taskState) {
+            Consumer<UpstreamData.RaceData> raceDataConsumer) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
         failIfInvalidArgument(stream != null, "stream must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
-        failIfInvalidArgument(taskState != null, "taskState must not be null");
+        failIfInvalidArgument(raceDataConsumer != null, "raceDataConsumer must not be null");
 
         this.nodeId = nodeId;
         this.taskRunner = taskRunner;
         this.stream = stream;
         this.heartbeat = new UpstreamHeartbeat(nodeId, stream);
-        this.upstreamDataSync = new UpstreamDataSync(nodeId, stream, taskState);
+        this.upstreamDataSync = new UpstreamDataSync(nodeId, stream, raceDataConsumer);
         this.logBookSync = new LogBookSync(nodeId, stream, logBook);
     }
 

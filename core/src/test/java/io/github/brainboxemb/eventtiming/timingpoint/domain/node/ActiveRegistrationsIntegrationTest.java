@@ -10,6 +10,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
@@ -27,7 +28,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.Life
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
 import static org.junit.Assert.assertEquals;
 
-public class UniqueTeamRegistrationsIntegrationTest {
+public class ActiveRegistrationsIntegrationTest {
 
     /** Verifies recovered registrations are recounted against current team assignments. */
     @Test
@@ -54,9 +55,10 @@ public class UniqueTeamRegistrationsIntegrationTest {
                     components.upstreamHandler();
 
             // RT-A-0001 is fixed by EventData. RT-R-0001 is still unresolved.
-            assertEquals(
-                    1,
-                    components.upstreamTaskState().uniqueTeamRegistrationCount());
+            awaitUniqueTeamCount(
+                    components.nodeService(),
+                    new LocationId(1),
+                    1);
 
             stream.receive(
                     DefaultUpstreamData.raceData(
@@ -73,15 +75,53 @@ public class UniqueTeamRegistrationsIntegrationTest {
 
             // The LogBook is unchanged; the current assignment now resolves the
             // second active RegistrationId to a second unique TeamId.
-            assertEquals(
-                    2,
-                    components.upstreamTaskState().uniqueTeamRegistrationCount());
+            awaitUniqueTeamCount(
+                    components.nodeService(),
+                    new LocationId(1),
+                    2);
             assertEquals(
                     Integer.valueOf(2),
                     node.logBook().process(
                             LogBookQueries.timingDataCount()));
         } finally {
             deactivate(node);
+        }
+    }
+
+
+    /** Verifies recovered TimingData larger than one batch is read completely. */
+    @Test
+    public void recoveredTimingDataIsReadInBoundedBatches() {
+        TimingData[] records = new TimingData[1000];
+        for (int index = 0; index < records.length - 1; index++) {
+            records[index] =
+                    registration(
+                            index + 1L,
+                            "RT-A-0001");
+        }
+        records[records.length - 1] =
+                registration(
+                        records.length,
+                        "RT-A-0002");
+
+        TimingNodeFixture.Components components =
+                TimingNodeFixture.createDirectComponents(
+                        new NodeId("A"),
+                        new StaticPersistence(records),
+                        new DefaultTimingDataFactory(),
+                        () -> Instant.parse("2026-10-13T12:05:00Z"),
+                        new DefaultEventData(),
+                        new InMemoryUpstreamStream());
+
+        activate(components.node());
+        try {
+            awaitOperational(components.node());
+            awaitUniqueTeamCount(
+                    components.nodeService(),
+                    new LocationId(1),
+                    2);
+        } finally {
+            deactivate(components.node());
         }
     }
 
@@ -98,6 +138,18 @@ public class UniqueTeamRegistrationsIntegrationTest {
         assertEquals(
                 TimingNodeTypes.OperationalState.OK,
                 node.operationalState());
+    }
+
+
+    /** Waits until NodeService has caught up to the published LogBook head. */
+    private static void awaitUniqueTeamCount(
+            NodeService service,
+            LocationId locationId,
+            int expected) {
+
+        assertEquals(
+                expected,
+                service.uniqueTeamRegistrationCount(locationId));
     }
 
     /** Builds one persisted automatic registration for the recovery fixture. */

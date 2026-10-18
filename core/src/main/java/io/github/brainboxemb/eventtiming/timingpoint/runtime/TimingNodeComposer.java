@@ -8,8 +8,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persist
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServiceState;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
@@ -76,10 +77,17 @@ final class TimingNodeComposer {
                         LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
                         LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
 
-        NodeServiceState nodeServiceState = new NodeServiceState(system.eventData());
+        RaceDataState raceData = new RaceDataState(system.eventData());
+        ActiveRegistrations activeRegistrations = new ActiveRegistrations();
 
         NodeService nodeService =
-                new NodeService(nodeConfig.timingNodeId(), execution.taskRunner(), nodeServiceState);
+                new NodeService(
+                        nodeConfig.timingNodeId(),
+                        execution.taskRunner(),
+                        logBook,
+                        system.eventData(),
+                        raceData,
+                        activeRegistrations);
 
         TagProcessor tagProcessor =
                 new TagProcessor(
