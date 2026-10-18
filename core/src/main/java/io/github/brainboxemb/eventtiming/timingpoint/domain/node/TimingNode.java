@@ -116,8 +116,8 @@ public final class TimingNode extends LifecycleComponent {
         lifecycle.register(tagProcessor);
 
         /*
-         * Recovery passes only the committed head. NodeService chooses its own
-         * history batch size; later commits remain one-record incremental facts.
+         * Recovery only signals LogBook readiness. NodeService.MainTask reads the
+         * current head and fetches missing TimingData in its own bounded batches.
          */
         NodeService.LOGBOOK_RECOVERED.bind(
                 nodeService,
