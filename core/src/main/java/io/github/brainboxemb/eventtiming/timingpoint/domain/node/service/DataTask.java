@@ -22,7 +22,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Keeps NodeService data caught up with committed LogBook TimingData.
  *
- * <p>The task owns the LogBook cursor, bounded asynchronous reads and catch-up completion.
+ * <p>The task owns the LogBook cursor, bounded asynchronous reads and catch-up caughtUp.
  * NodeService only starts a full load after LogBook becomes LOADED and wakes this task
  * after later TimingData commits.</p>
  */
@@ -37,11 +37,11 @@ final class DataTask extends AbstractTask {
     private final Consumer<Throwable> failureHandler;
 
     private boolean available;
-    private boolean reloadRequested;
+    private boolean loadFromStart;
     private long signalVersion;
     private long nextSequence = 1L;
     private CompletableFuture<List<TimingData>> pendingRead;
-    private volatile CompletableFuture<Void> completion = new CompletableFuture<Void>();
+    private volatile CompletableFuture<Void> caughtUp = new CompletableFuture<Void>();
 
     DataTask(
             SerialTaskRunner taskRunner,
@@ -67,10 +67,10 @@ final class DataTask extends AbstractTask {
     }
 
     /** Starts a complete load from sequence one after LogBook becomes LOADED. */
-    synchronized void load() {
+    synchronized void loadAll() {
 
         available = true;
-        reloadRequested = true;
+        loadFromStart = true;
         signalVersion++;
         beginCatchUp();
         wake(taskRunner);
@@ -90,13 +90,13 @@ final class DataTask extends AbstractTask {
     synchronized void unavailable() {
 
         available = false;
-        completion.completeExceptionally(new IllegalStateException("LogBook is in ERROR state"));
+        caughtUp.completeExceptionally(new IllegalStateException("LogBook is in ERROR state"));
     }
 
-    /** Returns completion of all LogBook changes signalled so far. */
-    CompletionStage<Void> completion() {
+    /** Returns completion after all signalled LogBook changes have been applied. */
+    CompletionStage<Void> caughtUp() {
 
-        return completion;
+        return caughtUp;
     }
 
     /** Cancels active work and resets the task for later activation. */
@@ -104,11 +104,11 @@ final class DataTask extends AbstractTask {
 
         cancel();
         available = false;
-        reloadRequested = false;
+        loadFromStart = false;
         nextSequence = 1L;
         pendingRead = null;
-        completion.cancel(true);
-        completion = new CompletableFuture<Void>();
+        caughtUp.cancel(true);
+        caughtUp = new CompletableFuture<Void>();
     }
 
     /** Clears one-run asynchronous state before a new run starts. */
@@ -122,7 +122,7 @@ final class DataTask extends AbstractTask {
     @Override
     public TaskStep runStep() {
 
-        if (takeReloadRequest()) {
+        if (takeLoadFromStart()) {
             activeRegistrations.reset();
             teamRanking.reset();
             nextSequence = 1L;
@@ -154,16 +154,16 @@ final class DataTask extends AbstractTask {
 
         pendingRead = null;
         if (failure != null) {
-            completion.completeExceptionally(failure);
+            caughtUp.completeExceptionally(failure);
             failureHandler.accept(failure);
         }
     }
 
     /** Returns and clears a pending full-load request. */
-    private synchronized boolean takeReloadRequest() {
+    private synchronized boolean takeLoadFromStart() {
 
-        boolean requested = reloadRequested;
-        reloadRequested = false;
+        boolean requested = loadFromStart;
+        loadFromStart = false;
         return requested;
     }
 
@@ -206,15 +206,15 @@ final class DataTask extends AbstractTask {
         if (observedVersion != signalVersion) {
             return false;
         }
-        completion.complete(null);
+        caughtUp.complete(null);
         return true;
     }
 
-    /** Starts a new completion window after the previous catch-up finished. */
+    /** Starts a new catch-up completion after the previous catch-up finished. */
     private void beginCatchUp() {
 
-        if (completion.isDone()) {
-            completion = new CompletableFuture<Void>();
+        if (caughtUp.isDone()) {
+            caughtUp = new CompletableFuture<Void>();
         }
     }
 }
