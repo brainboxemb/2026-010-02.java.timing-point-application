@@ -116,6 +116,31 @@ public class TeamRankingTest {
         assertEquals(1, ranking.get(1).rank());
     }
 
+    /** Ranking candidates stay scoped to their TimingData location. */
+    @Test
+    public void rankingIsScopedPerLocation() {
+        Fixture fixture = fixture();
+        fixture.setStart("0001", LocalTime.NOON);
+
+        fixture.add(
+                automaticAt(
+                        1L,
+                        1,
+                        "RT-A-0001",
+                        Instant.parse("2026-10-13T12:00:20Z"),
+                        TimingData.RegistrationAction.ADD));
+        fixture.add(
+                automaticAt(
+                        2L,
+                        2,
+                        "RT-A-0001",
+                        Instant.parse("2026-10-13T12:00:10Z"),
+                        TimingData.RegistrationAction.ADD));
+
+        assertEquals(1L, fixture.ranking(new LocationId(1)).get(0).stageTime().sequenceNumber());
+        assertEquals(2L, fixture.ranking(new LocationId(2)).get(0).stageTime().sequenceNumber());
+    }
+
     /** A reserve registration enters ranking when its live team assignment appears. */
     @Test
     public void teamAssignmentMovesExistingCandidateIntoRanking() {
@@ -154,9 +179,24 @@ public class TeamRankingTest {
             Instant effectiveTime,
             TimingData.RegistrationAction action) {
 
+        return automaticAt(sequence, 1, registrationId, effectiveTime, action);
+    }
+
+    private static TimingData.AutomaticRegistration automaticAt(
+            long sequence,
+            int location,
+            String registrationId,
+            Instant effectiveTime,
+            TimingData.RegistrationAction action) {
+
         TimingTimestamp timestamp = new TimingTimestamp(effectiveTime);
         TimingDataFactory.Context context =
-                new TimingDataFactory.Context(NODE_ID, sequence, LOCATION_ID, timestamp, timestamp);
+                new TimingDataFactory.Context(
+                        NODE_ID,
+                        sequence,
+                        new LocationId(location),
+                        timestamp,
+                        timestamp);
         return FACTORY.createAutomaticRegistration(
                 context,
                 new RegistrationId(registrationId),
@@ -186,8 +226,13 @@ public class TeamRankingTest {
 
         private List<TeamRank> ranking() {
 
+            return ranking(LOCATION_ID);
+        }
+
+        private List<TeamRank> ranking(LocationId locationId) {
+
             List<TeamRank> result = new ArrayList<TeamRank>();
-            teamRanking.visit(LOCATION_ID, ZoneOffset.UTC, 16, result::add);
+            teamRanking.visit(locationId, ZoneOffset.UTC, 16, result::add);
             return result;
         }
     }
