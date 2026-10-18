@@ -1,8 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.service;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
@@ -23,35 +23,36 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Owns node-local race data and derived timing state.
  *
- * <p>All mutable state is processed in TimingNode Task Lane order. LogBook
- * history initializes the service and later committed TimingData updates it
- * incrementally.</p>
+ * <p>The LogBook publishes only its committed TimingData head. NodeService
+ * chooses how to read that history and keeps its derived state caught up in
+ * bounded Task Lane batches.</p>
  */
 public final class NodeService extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(NodeService.class);
     private static final Duration QUERY_TIMEOUT = Duration.ofSeconds(2L);
 
-    /** Initial LogBook history used to build node-local derived state. */
-    public static final EventInput<NodeService, List<TimingData>> INITIAL_TIMING_DATA =
-            EventInput.of((service, source) -> source.subscribe(service::initialTimingDataLoaded));
-
-    /** Newly committed TimingData used to update node-local derived state. */
-    public static final EventInput<NodeService, TimingData> COMMITTED_TIMING_DATA =
-            EventInput.of((service, source) -> source.subscribe(service::timingDataCommitted));
+    /** Published LogBook head used to catch derived state up to committed history. */
+    public static final EventInput<NodeService, Long> TIMING_DATA_HEAD_CHANGED =
+            EventInput.of(
+                    (service, source) ->
+                            source.subscribe(service::timingDataHeadChanged));
 
     private final NodeId nodeId;
     private final SerialTaskRunner taskRunner;
     private final NodeServiceState state;
     private final StageTiming stageTiming;
+    private final NodeServiceHistoryTask historyTask;
 
     /** Creates the service on the TimingNode Task Lane. */
     public NodeService(
             NodeId nodeId,
             SerialTaskRunner taskRunner,
+            LogBookAccessor logBook,
             NodeServiceState state) {
 
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
+        failIfInvalidArgument(logBook != null, "logBook must not be null");
         failIfInvalidArgument(state != null, "state must not be null");
 
         this.nodeId = nodeId;
@@ -62,6 +63,11 @@ public final class NodeService extends LifecycleComponent {
                         state.eventData(),
                         state.teamAssignments(),
                         state.stageStartTimes());
+        historyTask =
+                new NodeServiceHistoryTask(
+                        logBook,
+                        state,
+                        this::historyFailed);
     }
 
     /** Verifies that TimingNode started the shared Task Lane first. */
@@ -70,9 +76,10 @@ public final class NodeService extends LifecycleComponent {
         failIfIllegalState(taskRunner.isRunning(), "TimingNode Task Lane is not running");
     }
 
-    /** Makes derived timing unavailable when the service stops. */
+    /** Stops history processing and makes derived timing unavailable. */
     @Override
     protected void onDeactivate() {
+        historyTask.stop();
         state.markDerivedTimingUnavailable();
     }
 
@@ -88,14 +95,10 @@ public final class NodeService extends LifecycleComponent {
         return read(() -> stageTiming.ranking(state.activeRegistrations(), raceTimeZone));
     }
 
-    /** Rebuilds derived state from the initially loaded LogBook history. */
-    private void initialTimingDataLoaded(List<TimingData> loadedData) {
-        update("initial TimingData", () -> state.rebuildDerivedTiming(loadedData));
-    }
-
-    /** Applies one newly committed TimingData record. */
-    private void timingDataCommitted(TimingData data) {
-        update("committed TimingData", () -> state.applyCommittedTimingData(data));
+    /** Wakes bounded LogBook catch-up after recovery or a later commit. */
+    private void timingDataHeadChanged(Long head) {
+        failIfInvalidArgument(head != null, "TimingData head must not be null");
+        historyTask.headChanged(head.longValue(), taskRunner);
     }
 
     /** Runs one ordered result-bearing service read. */
@@ -103,20 +106,10 @@ public final class NodeService extends LifecycleComponent {
         return NodeServiceQuery.execute(taskRunner, QUERY_TIMEOUT, operation);
     }
 
-    /** Runs one ordered fire-and-forget service update. */
-    private void update(String name, Runnable operation) {
-        NodeServiceUpdateTask.execute(
-                taskRunner,
-                operation,
-                failure -> updateFailed(name, failure));
-    }
-
-    /** Marks derived state stale when a queued service update fails. */
-    private void updateFailed(String name, Throwable failure) {
-        state.markDerivedTimingStale();
+    /** Reports failed LogBook catch-up and leaves derived state stale. */
+    private void historyFailed(Throwable failure) {
         LOG.error(
-                "NodeService {} failed for node {}; derived timing is stale",
-                name,
+                "NodeService TimingData catch-up failed for node {}; derived timing is stale",
                 nodeId.value(),
                 failure);
     }
