@@ -163,18 +163,10 @@ final class NodeServiceHistoryTask extends AbstractTask {
         List<TimingData> records = pendingRead.join();
         pendingRead = null;
 
-        failIfIllegalState(
-                !records.isEmpty(),
-                "LogBook recovery head %s advertised sequence %s but returned no TimingData",
-                targetHead,
-                nextSequence);
+        failIfIllegalState(!records.isEmpty(), "LogBook recovery head %s advertised sequence %s but returned no TimingData", targetHead, nextSequence);
 
         for (TimingData data : records) {
-            failIfIllegalState(
-                    data.sequenceNumber() == nextSequence,
-                    "NodeService expected TimingData sequence %s but got %s",
-                    nextSequence,
-                    data.sequenceNumber());
+            failIfIllegalState(data.sequenceNumber() == nextSequence, "NodeService expected TimingData sequence %s but got %s", nextSequence, data.sequenceNumber());
             state.applyTimingData(data);
             nextSequence++;
         }
