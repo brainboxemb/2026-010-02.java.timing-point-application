@@ -116,11 +116,12 @@ public final class TimingNode extends LifecycleComponent {
         lifecycle.register(tagProcessor);
 
         /*
-         * LogBook owns persisted TimingData facts. NodeService consumes those
-         * facts directly; TimingNode state remains independent from LogBook history.
+         * NodeService tracks only the published LogBook head and decides itself
+         * how much committed TimingData to read per Task Lane turn.
          */
-        NodeService.INITIAL_TIMING_DATA.bind(nodeService, logBook.INITIAL_DATA_LOADED);
-        NodeService.COMMITTED_TIMING_DATA.bind(nodeService, logBook.NEW_DATA_ENTRY);
+        NodeService.TIMING_DATA_HEAD_CHANGED.bind(
+                nodeService,
+                logBook.TIMING_DATA_HEAD_CHANGED);
 
         // Listener runs synchronously on the TagProcessor lane; it must not block.
         NEW_REGISTRATION.bind(this, tagProcessor.NEW_REGISTRATION);
