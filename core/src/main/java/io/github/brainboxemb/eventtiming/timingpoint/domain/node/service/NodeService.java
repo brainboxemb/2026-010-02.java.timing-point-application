@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.service;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
+import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -13,6 +14,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDa
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.TeamRank;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.TeamRanking;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
@@ -57,6 +60,7 @@ public final class NodeService extends LifecycleComponent {
     private final RaceDataState raceData;
     private final ActiveRegistrations activeRegistrations;
     private final StageTiming stageTiming;
+    private final TeamRanking teamRanking;
     private final MainTask mainTask;
 
     /** Creates the service over one LogBook and the node Task Lane. */
@@ -80,6 +84,7 @@ public final class NodeService extends LifecycleComponent {
         this.raceData = raceData;
         this.activeRegistrations = activeRegistrations;
         stageTiming = new StageTiming(eventData, raceData.teamAssignments(), raceData.stageStartTimes());
+        teamRanking = new TeamRanking(stageTiming);
         mainTask = new MainTask(logBook);
     }
 
@@ -110,7 +115,9 @@ public final class NodeService extends LifecycleComponent {
         raceData.applyChanges(changes);
         for (UpstreamData.TeamAssignmentChange change : changes.teamAssignmentChanges()) {
             RegistrationId registrationId = change.registrationId();
-            activeRegistrations.teamAssignmentChanged(registrationId, raceData.teamIdFor(registrationId));
+            TeamId teamId = raceData.teamIdFor(registrationId);
+            activeRegistrations.teamAssignmentChanged(registrationId, teamId);
+            teamRanking.teamAssignmentChanged(registrationId, teamId);
         }
     }
 
@@ -124,21 +131,45 @@ public final class NodeService extends LifecycleComponent {
     }
 
     /**
-     * Visits at most {@code limit} fastest stage times in ranking order.
+     * Visits at most {@code limit} active stage passages.
      *
-     * <p>This call waits for ordered Task Lane execution. The visitor runs on the Task Lane
-     * and must remain short and non-blocking.</p>
+     * <p>Duplicate passages for the same team remain separate rows. The visitor runs on
+     * the Task Lane and must remain short and non-blocking.</p>
      *
-     * @return number of visited rows
+     * @return number of visited passages
      */
-    public int visitStageTiming(ZoneId raceTimeZone, int limit, Consumer<StageTime> visitor) {
+    public int visitStageTimes(ZoneId raceTimeZone, int limit, Consumer<StageTime> visitor) {
 
         failIfInvalidArgument(raceTimeZone != null, "raceTimeZone must not be null");
         failIfInvalidArgument(limit >= 0, "limit must not be negative");
         failIfInvalidArgument(visitor != null, "visitor must not be null");
 
+        Supplier<Integer> visitPassages =
+                () -> stageTiming.visit(activeRegistrations, raceTimeZone, limit, visitor);
+        return read(visitPassages);
+    }
+
+    /**
+     * Visits at most {@code limit} ranked teams at one location.
+     *
+     * <p>TeamRanking maintains the selected active registration per team incrementally,
+     * so this query does not scan all active registrations.</p>
+     *
+     * @return number of visited teams
+     */
+    public int visitTeamRanking(
+            LocationId locationId,
+            ZoneId raceTimeZone,
+            int limit,
+            Consumer<TeamRank> visitor) {
+
+        failIfInvalidArgument(locationId != null, "locationId must not be null");
+        failIfInvalidArgument(raceTimeZone != null, "raceTimeZone must not be null");
+        failIfInvalidArgument(limit >= 0, "limit must not be negative");
+        failIfInvalidArgument(visitor != null, "visitor must not be null");
+
         Supplier<Integer> visitRanking =
-                () -> stageTiming.visitRanking(activeRegistrations, raceTimeZone, limit, visitor);
+                () -> teamRanking.visit(locationId, raceTimeZone, limit, visitor);
         return read(visitRanking);
     }
 
@@ -170,7 +201,9 @@ public final class NodeService extends LifecycleComponent {
     /** Applies one committed TimingData record to the interested Task Lane data objects. */
     private void applyTimingData(TimingData data) {
 
-        activeRegistrations.apply(data, raceData::teamIdFor);
+        ActiveRegistrations.Change change =
+                activeRegistrations.apply(data, raceData::teamIdFor);
+        teamRanking.apply(change);
     }
 
     /** Logs a failed MainTask catch-up. */
@@ -262,6 +295,7 @@ public final class NodeService extends LifecycleComponent {
 
             if (rebuild) {
                 activeRegistrations.reset();
+                teamRanking.reset();
                 rebuild = false;
             }
 

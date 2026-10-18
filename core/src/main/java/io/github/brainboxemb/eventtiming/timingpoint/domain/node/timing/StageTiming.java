@@ -8,37 +8,27 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.StageStartTimes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.TeamAssignments;
 
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.PriorityQueue;
 import java.util.function.Consumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Derives current elapsed stage times and ranking for one TimingNode.
+ * Resolves active registrations to stage passages.
  *
- * <p>StageTiming is read-side only. It interprets active registrations together with
- * current EventData, TeamAssignments and StageStartTimes. It retains only the requested
- * number of fastest rows while calculating a ranking.</p>
+ * <p>Every active registration remains an independent passage. Multiple registrations for
+ * the same team therefore remain multiple StageTime rows. Team ranking is maintained by
+ * {@link TeamRanking}, which selects one active registration per team separately.</p>
  */
 public final class StageTiming {
-    private static final Comparator<StageTime> FASTEST_FIRST =
-            Comparator.comparing(StageTime::elapsed)
-                    .thenComparing(value -> value.teamId().value())
-                    .thenComparing(value -> value.registrationId().value());
-
     private final EventData eventData;
     private final TeamAssignments teamAssignments;
     private final StageStartTimes stageStartTimes;
 
-    /** Creates the read-side timing calculator over current reference and race data. */
+    /** Creates the passage resolver over current reference and race data. */
     public StageTiming(EventData eventData, TeamAssignments teamAssignments, StageStartTimes stageStartTimes) {
 
         failIfInvalidArgument(eventData != null, "eventData must not be null");
@@ -51,14 +41,13 @@ public final class StageTiming {
     }
 
     /**
-     * Visits at most {@code limit} fastest resolved stage times.
+     * Visits at most {@code limit} resolved active passages in active-record order.
      *
-     * <p>The visitor runs synchronously on the caller's thread. Unresolved registrations
-     * are skipped. Temporary ranking storage is bounded by {@code limit}.</p>
+     * <p>Unresolved registrations are skipped. No team deduplication or ranking occurs.</p>
      *
-     * @return number of visited rows
+     * @return number of visited passages
      */
-    public int visitRanking(
+    public int visit(
             ActiveRegistrations activeRegistrations,
             ZoneId raceTimeZone,
             int limit,
@@ -69,63 +58,53 @@ public final class StageTiming {
         failIfInvalidArgument(limit >= 0, "limit must not be negative");
         failIfInvalidArgument(visitor != null, "visitor must not be null");
 
-        if (limit == 0) {
-            return 0;
-        }
-
-        PriorityQueue<StageTime> fastest = new PriorityQueue<StageTime>(limit, FASTEST_FIRST.reversed());
+        int visited = 0;
         for (TimingData registration : activeRegistrations.values()) {
-            StageTime stageTime = resolveStageTime(registration, raceTimeZone);
+            if (visited >= limit) {
+                break;
+            }
+
+            StageTime stageTime = resolve(registration, raceTimeZone);
             if (stageTime != null) {
-                fastest.offer(stageTime);
-                if (fastest.size() > limit) {
-                    fastest.poll();
-                }
+                visitor.accept(stageTime);
+                visited++;
             }
         }
-
-        List<StageTime> ordered = new ArrayList<StageTime>(fastest);
-        ordered.sort(FASTEST_FIRST);
-        return visitRanked(ordered, visitor);
+        return visited;
     }
 
-    /** Resolves one active registration to an unranked elapsed stage time. */
-    private StageTime resolveStageTime(TimingData registration, ZoneId raceTimeZone) {
+    /** Resolves one active registration using its current TeamId. */
+    StageTime resolve(TimingData registration, ZoneId raceTimeZone) {
 
         RegistrationId registrationId = registrationId(registration);
         TeamId teamId = resolveTeamId(registrationId);
-        TimingTimestamp start = teamId == null ? null : stageStartTimes.startFor(teamId);
-        if (start == null) {
-            return null;
-        }
-
-        TimingTimestamp registrationTime = registration.effectiveTime();
-        failIfIllegalState(registrationTime.isAbsolute(), "committed TimingData effectiveTime must be absolute");
-
-        TimingTimestamp resolvedStart = resolveStart(start, registrationTime, raceTimeZone);
-        return new StageTime(0, teamId, registrationId, resolvedStart, registrationTime);
+        return resolve(registration, teamId, raceTimeZone);
     }
 
-    /** Visits the ordered rows with competition ranking applied. */
-    private static int visitRanked(List<StageTime> ordered, Consumer<StageTime> visitor) {
+    /** Resolves one active registration using an already selected TeamId. */
+    StageTime resolve(TimingData registration, TeamId teamId, ZoneId raceTimeZone) {
 
-        Duration previousElapsed = null;
-        int rank = 0;
-        for (int index = 0; index < ordered.size(); index++) {
-            StageTime value = ordered.get(index);
-            if (previousElapsed == null || !previousElapsed.equals(value.elapsed())) {
-                rank = index + 1;
-                previousElapsed = value.elapsed();
-            }
-            visitor.accept(
+        failIfInvalidArgument(registration != null, "registration must not be null");
+        failIfInvalidArgument(raceTimeZone != null, "raceTimeZone must not be null");
+
+        StageTime stageTime = null;
+        TimingTimestamp start = teamId == null ? null : stageStartTimes.startFor(teamId);
+        if (start != null) {
+            RegistrationId registrationId = registrationId(registration);
+            TimingTimestamp registrationTime = registration.effectiveTime();
+            failIfIllegalState(registrationTime.isAbsolute(), "committed TimingData effectiveTime must be absolute");
+
+            TimingTimestamp resolvedStart = resolveStart(start, registrationTime, raceTimeZone);
+            stageTime =
                     new StageTime(
-                            rank,
-                            value.teamId(),
-                            value.registrationId(),
-                            value.startedAt(),
-                            value.finishedAt()));
+                            registration.sequenceNumber(),
+                            registration.locationId(),
+                            teamId,
+                            registrationId,
+                            resolvedStart,
+                            registrationTime);
         }
-        return ordered.size();
+        return stageTime;
     }
 
     /** Resolves TeamId from configured EventData first and live assignment state second. */
@@ -138,13 +117,14 @@ public final class StageTiming {
     /** Extracts RegistrationId from an active automatic or manual registration. */
     private static RegistrationId registrationId(TimingData data) {
 
+        RegistrationId registrationId = null;
         if (data instanceof TimingData.AutomaticRegistration) {
-            return ((TimingData.AutomaticRegistration) data).registrationId();
+            registrationId = ((TimingData.AutomaticRegistration) data).registrationId();
+        } else if (data instanceof TimingData.ManualRegistration) {
+            registrationId = ((TimingData.ManualRegistration) data).registrationId();
         }
-        if (data instanceof TimingData.ManualRegistration) {
-            return ((TimingData.ManualRegistration) data).registrationId();
-        }
-        throw new IllegalArgumentException("TimingData is not a registration");
+        failIfIllegalState(registrationId != null, "TimingData is not a registration");
+        return registrationId;
     }
 
     /** Resolves partial stage-start information to an absolute timestamp. */
