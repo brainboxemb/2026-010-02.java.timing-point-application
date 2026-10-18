@@ -79,7 +79,11 @@ final class TimingNodeComposer {
         NodeServiceState nodeServiceState = new NodeServiceState(system.eventData());
 
         NodeService nodeService =
-                new NodeService(nodeConfig.timingNodeId(), execution.taskRunner(), nodeServiceState);
+                new NodeService(
+                        nodeConfig.timingNodeId(),
+                        execution.taskRunner(),
+                        logBook,
+                        nodeServiceState);
 
         TagProcessor tagProcessor =
                 new TagProcessor(
