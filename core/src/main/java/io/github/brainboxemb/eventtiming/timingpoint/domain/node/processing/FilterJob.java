@@ -17,7 +17,7 @@ import java.util.function.BiConsumer;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
-/** Schedules passage-filter sweeps while passage state exists. */
+/** Owns scheduled passage-filter sweeps for TagProcessor. */
 final class FilterJob {
     private final ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration;
     private final ScheduledExecutorService scheduler;
@@ -25,9 +25,8 @@ final class FilterJob {
 
     private volatile List<TagPassageSnapshot> passageSnapshots =
             Collections.emptyList();
-
     private boolean started;
-    private ScheduledFuture<?> scheduled;
+    private ScheduledFuture<?> schedule;
 
     FilterJob(
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
@@ -49,24 +48,15 @@ final class FilterJob {
                         validObservationCallback);
     }
 
-    /** Enables scheduling. Existing passage state resumes on the shared scheduler. */
-    void start() {
-        synchronized (this) {
-            if (started) {
-                return;
-            }
-            started = true;
-        }
-        scheduler.execute(this::resume);
+    synchronized void start() {
+        started = true;
     }
 
-    /** Disables scheduling and cancels the next pending sweep. */
     synchronized void stop() {
         started = false;
-        cancelScheduled();
+        cancel();
     }
 
-    /** Adds one mapped observation and starts timed filtering when required. */
     void add(
             RegistrationId registrationId,
             TagObservation observation) {
@@ -76,93 +66,85 @@ final class FilterJob {
         updateSchedule();
     }
 
-    /** Discards one open passage after duplicate suppression starts. */
     void discard(RegistrationId registrationId) {
         filter.discard(registrationId);
         publishPassageSnapshots();
         updateSchedule();
     }
 
-    /** Latest immutable engineering snapshot of current passages. */
     List<TagPassageSnapshot> passageSnapshots() {
         return passageSnapshots;
     }
 
-    /** Re-evaluates passage state and cadence on the shared scheduler. */
     void policyChanged(ConfigurationChange<TagProcessingPolicy> change) {
         failIfInvalidArgument(change != null, "change must not be null");
         if (isStarted()) {
-            scheduler.execute(() -> applyPolicyChange(change));
+            scheduler.execute(
+                    () -> {
+                        if (isStarted()) {
+                            filter.periodic();
+                            publishPassageSnapshots();
+                            if (change.previousValue().sweepCadenceNanos()
+                                    != change.currentValue().sweepCadenceNanos()) {
+                                restartSchedule();
+                            } else {
+                                updateSchedule();
+                            }
+                        }
+                    });
         }
     }
 
-    private void resume() {
+    private void run() {
         if (isStarted()) {
+            filter.periodic();
+            publishPassageSnapshots();
             updateSchedule();
         }
-    }
-
-    private void applyPolicyChange(ConfigurationChange<TagProcessingPolicy> change) {
-        if (!isStarted()) {
-            return;
-        }
-
-        if (change.previousValue().sweepCadenceNanos()
-                != change.currentValue().sweepCadenceNanos()) {
-            synchronized (this) {
-                cancelScheduled();
-            }
-        }
-
-        filter.periodic();
-        publishPassageSnapshots();
-        updateSchedule();
-    }
-
-    /** Executes one sweep and schedules another only while passage state remains. */
-    private void runScheduled() {
-        synchronized (this) {
-            scheduled = null;
-            if (!started) {
-                return;
-            }
-        }
-
-        filter.periodic();
-        publishPassageSnapshots();
-        updateSchedule();
     }
 
     private void updateSchedule() {
         if (!filter.hasPendingState()) {
             synchronized (this) {
-                cancelScheduled();
+                cancel();
             }
             return;
         }
 
         synchronized (this) {
-            if (!started || scheduled != null) {
+            if (!started) {
                 return;
             }
-
-            long cadenceNanos =
-                    policyConfiguration.currentValue().sweepCadenceNanos();
-            scheduled =
-                    scheduler.schedule(
-                            this::runScheduled,
-                            cadenceNanos,
-                            TimeUnit.NANOSECONDS);
+            if (schedule != null && schedule.isDone()) {
+                schedule = null;
+            }
+            if (schedule == null) {
+                long cadenceNanos =
+                        policyConfiguration.currentValue().sweepCadenceNanos();
+                schedule =
+                        scheduler.scheduleWithFixedDelay(
+                                this::run,
+                                cadenceNanos,
+                                cadenceNanos,
+                                TimeUnit.NANOSECONDS);
+            }
         }
+    }
+
+    private void restartSchedule() {
+        synchronized (this) {
+            cancel();
+        }
+        updateSchedule();
     }
 
     private synchronized boolean isStarted() {
         return started;
     }
 
-    private void cancelScheduled() {
-        ScheduledFuture<?> current = scheduled;
-        scheduled = null;
+    private void cancel() {
+        ScheduledFuture<?> current = schedule;
+        schedule = null;
         if (current != null) {
             current.cancel(false);
         }
