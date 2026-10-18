@@ -83,6 +83,7 @@ final class RegistrationDuplicateFilter {
         }
     }
 
+    /** Removes entries whose current duplicate window has elapsed. */
     private void removeExpired(long now) {
         long duplicateWindowNanos =
                 policyConfiguration.currentValue().duplicateWindowNanos();
@@ -97,6 +98,7 @@ final class RegistrationDuplicateFilter {
         }
     }
 
+    /** Rejects a missing RegistrationId at the duplicate-filter boundary. */
     private static void requireRegistrationId(RegistrationId registrationId) {
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
     }
