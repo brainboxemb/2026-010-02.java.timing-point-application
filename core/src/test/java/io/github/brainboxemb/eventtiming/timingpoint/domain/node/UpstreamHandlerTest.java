@@ -33,7 +33,6 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -281,7 +280,7 @@ public class UpstreamHandlerTest {
             assertTrue(port.inputAvailable());
 
             // Cross the Task Lane after the already-admitted inbound PING.
-            node.nodeService().stageTiming(ZoneOffset.UTC);
+            node.nodeService().uniqueTeamRegistrationCount(new LocationId(1));
 
             UpstreamHandlerTypes.HeartbeatStatus status =
                     port.heartbeatStatus();
