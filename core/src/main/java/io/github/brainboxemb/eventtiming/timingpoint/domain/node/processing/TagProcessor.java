@@ -55,8 +55,8 @@ public final class TagProcessor extends LifecycleComponent {
 
     private boolean observationProcessingScheduled;
 
-    private volatile ScheduledSerialLane.ScheduledRegistration observationFilterTask;
-    private volatile ScheduledSerialLane.ScheduledRegistration housekeepingTask;
+    private ScheduledSerialLane.ScheduledRegistration observationFilterTask;
+    private ScheduledSerialLane.ScheduledRegistration housekeepingTask;
     private volatile List<TagPassageSnapshot> passageSnapshots = Collections.emptyList();
 
     /** Creates a TagProcessor with one fixed startup policy. */
@@ -235,7 +235,6 @@ public final class TagProcessor extends LifecycleComponent {
                 observationFilter.add(registrationId, observation);
                 publishPassageSnapshots();
                 ensureObservationFilter();
-                ensureHousekeeping();
             }
         }
     }
