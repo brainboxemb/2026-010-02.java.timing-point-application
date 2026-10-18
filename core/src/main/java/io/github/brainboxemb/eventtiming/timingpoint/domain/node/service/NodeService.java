@@ -14,6 +14,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.Se
 import java.time.Duration;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -26,9 +27,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Owns node-local race data and derived timing state.
  *
- * <p>Recovery receives only the recovered LogBook head. NodeService then reads
- * committed TimingData itself in bounded batches. Later single-record commits are
- * applied incrementally without reading them back from the LogBook.</p>
+ * <p>Recovery receives only the recovered LogBook head. NodeService reads the required
+ * committed TimingData in bounded batches. Later commits are applied incrementally without
+ * reading them back from the LogBook.</p>
  */
 public final class NodeService extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(NodeService.class);
@@ -36,15 +37,11 @@ public final class NodeService extends LifecycleComponent {
 
     /** Completed LogBook recovery used to start bounded TimingData reconstruction. */
     public static final EventInput<NodeService, LogBookRecoveryStatus> LOGBOOK_RECOVERED =
-            EventInput.of(
-                    (service, source) ->
-                            source.subscribe(service::onLogBookRecovered));
+            EventInput.of((service, source) -> source.subscribe(service::onLogBookRecovered));
 
     /** Newly committed TimingData used for incremental derived-state updates. */
     public static final EventInput<NodeService, TimingData> COMMITTED_TIMING_DATA =
-            EventInput.of(
-                    (service, source) ->
-                            source.subscribe(service::onTimingDataCommitted));
+            EventInput.of((service, source) -> source.subscribe(service::onTimingDataCommitted));
 
     private final NodeId nodeId;
     private final SerialTaskRunner taskRunner;
@@ -67,42 +64,37 @@ public final class NodeService extends LifecycleComponent {
         this.nodeId = nodeId;
         this.taskRunner = taskRunner;
         this.state = state;
-        stageTiming =
-                new StageTiming(
-                        state.eventData(),
-                        state.teamAssignments(),
-                        state.stageStartTimes());
-        recoveryTask =
-                new NodeServiceRecoveryTask(
-                        logBook,
-                        state,
-                        this::recoveryFailed);
+        stageTiming = new StageTiming(state.eventData(), state.teamAssignments(), state.stageStartTimes());
+        recoveryTask = new NodeServiceRecoveryTask(logBook, state, this::recoveryFailed);
     }
 
     /** Verifies that TimingNode started the shared Task Lane first. */
     @Override
     protected void onActivate() {
+
         failIfIllegalState(taskRunner.isRunning(), "TimingNode Task Lane is not running");
     }
 
     /** Stops TimingData recovery and makes derived timing unavailable. */
     @Override
     protected void onDeactivate() {
+
         recoveryTask.stop();
         state.markDerivedTimingUnavailable();
     }
 
     /** Returns the number of uniquely registered teams at one location. */
     public int uniqueTeamRegistrationCount(LocationId locationId) {
+
         failIfInvalidArgument(locationId != null, "locationId must not be null");
 
-        Supplier<Integer> readCount =
-                () -> state.uniqueTeamRegistrationCount(locationId);
+        Supplier<Integer> readCount = () -> state.uniqueTeamRegistrationCount(locationId);
         return read(readCount);
     }
 
     /** Returns the current derived stage ranking. */
     public List<StageTime> stageTiming(ZoneId raceTimeZone) {
+
         failIfInvalidArgument(raceTimeZone != null, "raceTimeZone must not be null");
 
         Supplier<List<StageTime>> readRanking =
@@ -110,65 +102,51 @@ public final class NodeService extends LifecycleComponent {
         return read(readRanking);
     }
 
-    /** Starts bounded reconstruction after successful LogBook recovery. */
+    /** Starts bounded TimingData reconstruction after successful LogBook recovery. */
     private void onLogBookRecovered(LogBookRecoveryStatus recovery) {
+
         failIfInvalidArgument(recovery != null, "recovery must not be null");
+
         if (!recovery.failed()) {
-            recoveryTask.recover(
-                    recovery.timingDataHead(),
-                    taskRunner);
+            recoveryTask.recover(recovery.timingDataHead(), taskRunner);
         }
     }
 
     /** Applies one new commit directly unless startup reconstruction is still catching up. */
     private void onTimingDataCommitted(TimingData data) {
+
         failIfInvalidArgument(data != null, "data must not be null");
 
         if (recoveryTask.isRecovering()) {
-            recoveryTask.extendTo(
-                    data.sequenceNumber(),
-                    taskRunner);
+            recoveryTask.extendTo(data.sequenceNumber(), taskRunner);
         } else {
-            Runnable applyCommittedTimingData =
-                    () -> state.applyTimingData(data);
+            Runnable applyCommittedTimingData = () -> state.applyTimingData(data);
             Consumer<Throwable> handleFailure =
                     failure -> updateFailed("committed TimingData", failure);
-            NodeServiceUpdateTask.execute(
-                    taskRunner,
-                    applyCommittedTimingData,
-                    handleFailure);
+            NodeServiceUpdateTask.execute(taskRunner, applyCommittedTimingData, handleFailure);
         }
     }
 
     /** Runs one ordered service read, waiting cooperatively for startup recovery when needed. */
     private <T> T read(Supplier<T> operation) {
-        return NodeServiceQuery.execute(
-                taskRunner,
-                QUERY_TIMEOUT,
+
+        CompletionStage<?> recovery =
                 recoveryTask.isRecovering()
                         ? recoveryTask.recoveryCompletion()
-                        : null,
-                operation);
+                        : null;
+        return NodeServiceQuery.execute(taskRunner, QUERY_TIMEOUT, recovery, operation);
     }
 
     /** Reports failed startup TimingData reconstruction. */
     private void recoveryFailed(Throwable failure) {
-        LOG.error(
-                "NodeService TimingData recovery failed for node {}",
-                nodeId.value(),
-                failure);
+
+        LOG.error("NodeService TimingData recovery failed for node {}", nodeId.value(), failure);
     }
 
     /** Marks derived state stale after an incremental update failed. */
-    private void updateFailed(
-            String operation,
-            Throwable failure) {
+    private void updateFailed(String operation, Throwable failure) {
 
         state.markDerivedTimingStale();
-        LOG.error(
-                "NodeService {} failed for node {}; derived timing is stale",
-                operation,
-                nodeId.value(),
-                failure);
+        LOG.error("NodeService {} failed for node {}; derived timing is stale", operation, nodeId.value(), failure);
     }
 }
