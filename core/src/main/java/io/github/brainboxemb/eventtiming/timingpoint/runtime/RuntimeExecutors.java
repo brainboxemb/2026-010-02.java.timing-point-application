@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 
 import java.time.Duration;
@@ -32,8 +31,6 @@ final class RuntimeExecutors implements AutoCloseable {
     static final int TIMING_NODE_TASK_LANE_MAX_ITEMS_PER_RUN = 32;
     static final int ANTENNA_CONTROL_LANE_QUEUE_CAPACITY = 8;
     static final int ANTENNA_CONTROL_LANE_MAX_ITEMS_PER_RUN = 8;
-    static final int SIMULATION_LANE_QUEUE_CAPACITY = 32;
-    static final int SIMULATION_LANE_MAX_ITEMS_PER_RUN = 32;
     static final int TIMING_SYSTEM_CONDUCTOR_LANE_QUEUE_CAPACITY = 8;
     static final int TIMING_SYSTEM_CONDUCTOR_LANE_MAX_ITEMS_PER_RUN = 8;
 
@@ -217,21 +214,6 @@ final class RuntimeExecutors implements AutoCloseable {
     ScheduledExecutorService sharedIoScheduledExecutor() {
 
         return sharedIoScheduledExecutor;
-    }
-
-    /**
-     * Creates the engineering simulated-tag lane on the shared scheduled I/O
-     * executor. Scenario delays therefore release its thread while still
-     * keeping a bounded logical execution lane.
-     */
-    synchronized RunnableSerialLane createSimulationLane() {
-        RunnableSerialLane simulationLane = new RunnableSerialLane(
-                SIMULATION_LANE_QUEUE_CAPACITY,
-                SIMULATION_LANE_MAX_ITEMS_PER_RUN,
-                "SimulatedTagScenario",
-                sharedIoScheduledExecutor);
-        serialLanes.add(simulationLane);
-        return simulationLane;
     }
 
     @Override

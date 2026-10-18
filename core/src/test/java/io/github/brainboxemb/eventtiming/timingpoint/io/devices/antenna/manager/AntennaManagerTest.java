@@ -12,7 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 
 import java.time.Duration;
@@ -223,12 +223,13 @@ public class AntennaManagerTest {
                                 shared,
                                 Duration.ofSeconds(1)));
 
-        RunnableSerialLane sibling =
-                new RunnableSerialLane(
+        SerialLane<Runnable> sibling =
+                new SerialLane<Runnable>(
                         4,
                         4,
                         "sibling-io-test",
-                        shared);
+                        shared,
+                        Runnable::run);
         sibling.start();
 
         try {
@@ -240,8 +241,10 @@ public class AntennaManagerTest {
 
             CountDownLatch duringSelfTestDelay =
                     new CountDownLatch(1);
-            sibling.execute(
-                            duringSelfTestDelay::countDown);
+            assertEquals(
+                    SerialLane.OfferResult.ACCEPTED,
+                    sibling.offer(
+                            duringSelfTestDelay::countDown));
             assertTrue(
                     "self-test stabilization must not occupy the shared worker",
                     duringSelfTestDelay.await(
@@ -263,8 +266,10 @@ public class AntennaManagerTest {
 
             CountDownLatch duringInitializeDelay =
                     new CountDownLatch(1);
-            sibling.execute(
-                            duringInitializeDelay::countDown);
+            assertEquals(
+                    SerialLane.OfferResult.ACCEPTED,
+                    sibling.offer(
+                            duringInitializeDelay::countDown));
             assertTrue(
                     "initialize stabilization must not occupy the shared worker",
                     duringInitializeDelay.await(

@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -113,12 +113,13 @@ public class SerialTaskRunnerTest {
                         "yielding-delay",
                         worker,
                         Duration.ofSeconds(1));
-        RunnableSerialLane siblingLane =
-                new RunnableSerialLane(
+        SerialLane<Runnable> siblingLane =
+                new SerialLane<Runnable>(
                         8,
                         8,
                         "yielding-sibling",
-                        worker);
+                        worker,
+                        Runnable::run);
         taskLane.start();
         siblingLane.start();
 
@@ -146,7 +147,9 @@ public class SerialTaskRunnerTest {
 
             CountDownLatch siblingRan =
                     new CountDownLatch(1);
-            siblingLane.execute(siblingRan::countDown);
+            assertEquals(
+                    SerialLane.OfferResult.ACCEPTED,
+                    siblingLane.offer(siblingRan::countDown));
             assertTrue(
                     "yielding delay must release the shared worker",
                     siblingRan.await(
@@ -174,12 +177,13 @@ public class SerialTaskRunnerTest {
                         "yielding-await",
                         worker,
                         Duration.ofSeconds(1));
-        RunnableSerialLane siblingLane =
-                new RunnableSerialLane(
+        SerialLane<Runnable> siblingLane =
+                new SerialLane<Runnable>(
                         8,
                         8,
                         "yielding-await-sibling",
-                        worker);
+                        worker,
+                        Runnable::run);
         taskLane.start();
         siblingLane.start();
 
@@ -212,7 +216,9 @@ public class SerialTaskRunnerTest {
 
             CountDownLatch siblingRan =
                     new CountDownLatch(1);
-            siblingLane.execute(siblingRan::countDown);
+            assertEquals(
+                    SerialLane.OfferResult.ACCEPTED,
+                    siblingLane.offer(siblingRan::countDown));
             assertTrue(
                     "awaiting task must release the shared worker",
                     siblingRan.await(
