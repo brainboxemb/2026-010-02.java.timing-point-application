@@ -132,6 +132,11 @@ final class TagObservationFilter {
         return bursts.remove(registrationId) != null;
     }
 
+    /** Reports whether the filter currently owns one or more open passages. */
+    boolean hasPendingState() {
+        return !bursts.isEmpty();
+    }
+
     /** Returns diagnostic snapshots of the currently open passage bursts. */
     List<TagPassageSnapshot> snapshots() {
         List<TagPassageSnapshot> result =
