@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add non-blocking ordered LogBook query submission: `submit(LogBookQuery)` queues the same typed Data Lane query operation and returns its `CompletableFuture`, allowing YieldingTasks to await Data Lane work without blocking the shared worker.
+
 - Add `TaskStep.await(...)`: a cooperative Task Lane task can release its worker while an asynchronous dependency is incomplete and is re-admitted only after that dependency completes.
 
 - Make `SerialLane<T>` the typed item queue/worker boundary: queue items are caller-owned values, the backing executor sees only one fixed worker, LogBook uses `LogBookOperationItem` variants on one typed TimingNode Data Lane, and upstream turns share that FIFO as typed Data Lane items. The previous executor-shaped implementation is temporarily named `RunnableSerialLane` for remaining cooperative-task paths.

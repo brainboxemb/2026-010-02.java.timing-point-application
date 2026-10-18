@@ -14,6 +14,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataL
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
@@ -192,6 +193,31 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                         command.name(),
                         timingNodeId().value(),
                         ex));
+    }
+
+    /**
+     * Queues one ORDERED query and returns its completion without waiting.
+     *
+     * <p>If already on the Data Lane, the ordered requirement is already
+     * satisfied and the result is returned as an already-completed future.</p>
+     */
+    @Override
+    public <R> CompletableFuture<R> submit(LogBookQuery<R> query) {
+
+        failIfInvalidArgument(query != null, "query must not be null");
+
+        if (dataLane.isExecutingOnCurrentThread()) {
+            try {
+                return CompletableFuture.completedFuture(
+                        query.readOrdered(logBookState));
+            } catch (RuntimeException ex) {
+                CompletableFuture<R> failed = new CompletableFuture<R>();
+                failed.completeExceptionally(ex);
+                return failed;
+            }
+        }
+
+        return dataLane.submitQuery(query);
     }
 
     /**

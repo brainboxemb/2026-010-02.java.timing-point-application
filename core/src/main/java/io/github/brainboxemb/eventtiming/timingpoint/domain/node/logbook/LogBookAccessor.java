@@ -4,6 +4,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * Intentional access boundary for one TimingNode LogBook.
  *
@@ -29,6 +31,14 @@ public interface LogBookAccessor {
      * this fire-and-forget path has no caller result.</p>
      */
     void execute(LogBookCommand<?> command);
+
+    /**
+     * Queues one ORDERED query and returns its completion without waiting.
+     *
+     * <p>This is the non-blocking form used by YieldingTasks that must release
+     * the shared physical worker while waiting for Data Lane work.</p>
+     */
+    <R> CompletableFuture<R> submit(LogBookQuery<R> query);
 
     /**
      * Processes one ORDERED query.
