@@ -192,6 +192,7 @@ public final class NodeService extends LifecycleComponent {
 
         private boolean logBookReady;
         private boolean rebuild;
+        private long signalVersion;
         private long nextSequence = 1L;
         private CompletableFuture<List<TimingData>> pendingRead;
         private volatile CompletableFuture<Void> catchUpCompletion = new CompletableFuture<Void>();
@@ -206,6 +207,7 @@ public final class NodeService extends LifecycleComponent {
 
             logBookReady = true;
             rebuild = true;
+            signalVersion++;
             nextSequence = 1L;
             beginCatchUp();
             wake(taskRunner);
@@ -223,6 +225,7 @@ public final class NodeService extends LifecycleComponent {
         private synchronized void timingDataChanged() {
 
             if (logBookReady) {
+                signalVersion++;
                 beginCatchUp();
                 wake(taskRunner);
             }
@@ -266,6 +269,7 @@ public final class NodeService extends LifecycleComponent {
                 applyCompletedRead();
             }
 
+            long observedVersion = currentSignalVersion();
             long head =
                     logBook.process(
                             LogBookQueries.timingDataHead(),
@@ -275,7 +279,9 @@ public final class NodeService extends LifecycleComponent {
                 return TaskStep.await(pendingRead);
             }
 
-            catchUpCompletion.complete(null);
+            if (!completeCatchUp(observedVersion)) {
+                return TaskStep.again();
+            }
             return TaskStep.done();
         }
 
@@ -312,6 +318,22 @@ public final class NodeService extends LifecycleComponent {
                 applyTimingData(data);
                 nextSequence++;
             }
+        }
+
+        /** Returns the latest LogBook-change signal generation. */
+        private synchronized long currentSignalVersion() {
+
+            return signalVersion;
+        }
+
+        /** Completes catch-up only when no newer signal arrived during the final head read. */
+        private synchronized boolean completeCatchUp(long observedVersion) {
+
+            if (observedVersion != signalVersion) {
+                return false;
+            }
+            catchUpCompletion.complete(null);
+            return true;
         }
 
         /** Starts a new completion window when the service was previously caught up. */
