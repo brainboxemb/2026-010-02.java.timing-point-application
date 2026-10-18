@@ -11,6 +11,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.TeamRank;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
@@ -18,6 +20,9 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -89,6 +94,60 @@ public class ActiveRegistrationsIntegrationTest {
     }
 
 
+    /** Duplicate passages stay visible while team ranking selects one maintained candidate. */
+    @Test
+    public void recoveredPassagesAndTeamRankingRemainSeparate() {
+        InMemoryUpstreamStream stream = new InMemoryUpstreamStream();
+        TimingNodeFixture.Components components =
+                TimingNodeFixture.createDirectComponents(
+                        new NodeId("A"),
+                        new StaticPersistence(
+                                registrationAt(
+                                        1L,
+                                        "RT-A-0001",
+                                        Instant.parse("2026-10-13T12:00:20Z")),
+                                registrationAt(
+                                        2L,
+                                        "RT-A-0001",
+                                        Instant.parse("2026-10-13T12:00:10Z"))),
+                        new DefaultTimingDataFactory(),
+                        () -> Instant.parse("2026-10-13T12:05:00Z"),
+                        new DefaultEventData(),
+                        stream);
+
+        activate(components.node());
+        try {
+            awaitOperational(components.node());
+
+            stream.receive(
+                    DefaultUpstreamData.raceData(
+                            new NodeId("A"),
+                            1L,
+                            Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
+                            Collections.singletonList(
+                                    DefaultUpstreamData.stageStartSet("0001", LocalTime.NOON))));
+            org.junit.Assert.assertTrue(components.upstreamHandler().inputAvailable());
+            stream.takeSent();
+
+            List<StageTime> passages = new ArrayList<StageTime>();
+            components.nodeService().visitStageTimes(ZoneOffset.UTC, 16, passages::add);
+
+            List<TeamRank> ranking = new ArrayList<TeamRank>();
+            components.nodeService()
+                    .visitTeamRanking(
+                            new LocationId(1),
+                            ZoneOffset.UTC,
+                            16,
+                            ranking::add);
+
+            assertEquals(2, passages.size());
+            assertEquals(1, ranking.size());
+            assertEquals(2L, ranking.get(0).stageTime().sequenceNumber());
+        } finally {
+            deactivate(components.node());
+        }
+    }
+
     /** Verifies recovered TimingData larger than one batch is read completely. */
     @Test
     public void recoveredTimingDataIsReadInBoundedBatches() {
@@ -153,13 +212,20 @@ public class ActiveRegistrationsIntegrationTest {
     }
 
     /** Builds one persisted automatic registration for the recovery fixture. */
-    private static TimingData registration(
+    private static TimingData registration(long sequence, String registrationId) {
+
+        Instant effectiveTime =
+                Instant.parse("2026-10-13T12:00:00Z").plusMillis(sequence);
+        return registrationAt(sequence, registrationId, effectiveTime);
+    }
+
+    /** Builds one persisted automatic registration at an explicit effective time. */
+    private static TimingData registrationAt(
             long sequence,
-            String registrationId) {
-        TimingTimestamp time =
-                new TimingTimestamp(
-                        Instant.parse("2026-10-13T12:00:00Z")
-                                .plusMillis(sequence));
+            String registrationId,
+            Instant effectiveTime) {
+
+        TimingTimestamp time = new TimingTimestamp(effectiveTime);
         return new DefaultTimingDataFactory()
                 .createAutomaticRegistration(
                         new TimingDataFactory.Context(
