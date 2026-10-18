@@ -1,12 +1,16 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.service;
 
+import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookRecoveryStatus;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
@@ -14,6 +18,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
+import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
 import java.time.Duration;
 import java.time.ZoneId;
@@ -32,9 +37,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Coordinates node-local Task Lane data.
  *
- * <p>Events only wake the service. MainTask reads the current LogBook head and fetches
- * missing TimingData itself in bounded batches. Startup recovery and later commits therefore
- * use the same catch-up path.</p>
+ * <p>Events only wake the service. MainTask reads the LogBook head and fetches missing
+ * TimingData itself in bounded batches. The individual data objects own their state.</p>
  */
 public final class NodeService extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(NodeService.class);
@@ -50,7 +54,8 @@ public final class NodeService extends LifecycleComponent {
 
     private final NodeId nodeId;
     private final SerialTaskRunner taskRunner;
-    private final NodeServiceState state;
+    private final RaceDataState raceData;
+    private final ActiveRegistrations activeRegistrations = new ActiveRegistrations();
     private final StageTiming stageTiming;
     private final MainTask mainTask;
 
@@ -59,17 +64,17 @@ public final class NodeService extends LifecycleComponent {
             NodeId nodeId,
             SerialTaskRunner taskRunner,
             LogBookAccessor logBook,
-            NodeServiceState state) {
+            EventData eventData) {
 
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
-        failIfInvalidArgument(state != null, "state must not be null");
+        failIfInvalidArgument(eventData != null, "eventData must not be null");
 
         this.nodeId = nodeId;
         this.taskRunner = taskRunner;
-        this.state = state;
-        stageTiming = new StageTiming(state.eventData(), state.teamAssignments(), state.stageStartTimes());
+        raceData = new RaceDataState(eventData);
+        stageTiming = new StageTiming(eventData, raceData.teamAssignments(), raceData.stageStartTimes());
         mainTask = new MainTask(logBook);
     }
 
@@ -80,12 +85,28 @@ public final class NodeService extends LifecycleComponent {
         failIfIllegalState(taskRunner.isRunning(), "TimingNode Task Lane is not running");
     }
 
-    /** Stops service catch-up and makes derived timing unavailable. */
+    /** Stops service catch-up. */
     @Override
     protected void onDeactivate() {
 
         mainTask.stop();
-        state.markDerivedTimingUnavailable();
+    }
+
+    /**
+     * Applies one ordered Central RACE_DATA change set.
+     *
+     * <p>UpstreamHandler calls this while the node Task Lane is current. Team assignment
+     * changes are then reflected immediately in active-registration counts.</p>
+     */
+    public void applyRaceData(UpstreamData.RaceData changes) {
+
+        failIfInvalidArgument(changes != null, "changes must not be null");
+
+        raceData.applyChanges(changes);
+        for (UpstreamData.TeamAssignmentChange change : changes.teamAssignmentChanges()) {
+            RegistrationId registrationId = change.registrationId();
+            activeRegistrations.teamAssignmentChanged(registrationId, raceData.teamIdFor(registrationId));
+        }
     }
 
     /** Returns the number of uniquely registered teams at one location. */
@@ -93,7 +114,7 @@ public final class NodeService extends LifecycleComponent {
 
         failIfInvalidArgument(locationId != null, "locationId must not be null");
 
-        Supplier<Integer> readCount = () -> state.uniqueTeamRegistrationCount(locationId);
+        Supplier<Integer> readCount = () -> activeRegistrations.uniqueTeamCount(locationId);
         return read(readCount);
     }
 
@@ -112,7 +133,7 @@ public final class NodeService extends LifecycleComponent {
         failIfInvalidArgument(visitor != null, "visitor must not be null");
 
         Supplier<Integer> visitRanking =
-                () -> stageTiming.visitRanking(state.activeRegistrations(), raceTimeZone, limit, visitor);
+                () -> stageTiming.visitRanking(activeRegistrations, raceTimeZone, limit, visitor);
         return read(visitRanking);
     }
 
@@ -121,7 +142,9 @@ public final class NodeService extends LifecycleComponent {
 
         failIfInvalidArgument(recovery != null, "recovery must not be null");
 
-        if (!recovery.failed()) {
+        if (recovery.failed()) {
+            mainTask.logBookFailed(recovery.failureMessage());
+        } else {
             mainTask.logBookReady();
         }
     }
@@ -136,11 +159,16 @@ public final class NodeService extends LifecycleComponent {
     /** Runs one ordered service read after MainTask has caught up with signalled LogBook changes. */
     private <T> T read(Supplier<T> operation) {
 
-        CompletionStage<?> catchUp = mainTask.catchUpCompletion();
-        return NodeServiceQuery.execute(taskRunner, QUERY_TIMEOUT, catchUp, operation);
+        return NodeServiceQuery.execute(taskRunner, QUERY_TIMEOUT, mainTask.catchUpCompletion(), operation);
     }
 
-    /** Logs a failed MainTask catch-up and leaves derived timing stale. */
+    /** Applies one committed TimingData record to the interested Task Lane data objects. */
+    private void applyTimingData(TimingData data) {
+
+        activeRegistrations.apply(data, raceData::teamIdFor);
+    }
+
+    /** Logs a failed MainTask catch-up. */
     private void catchUpFailed(Throwable failure) {
 
         LOG.error("NodeService TimingData catch-up failed for node {}", nodeId.value(), failure);
@@ -161,8 +189,7 @@ public final class NodeService extends LifecycleComponent {
         private boolean rebuild;
         private long nextSequence = 1L;
         private CompletableFuture<List<TimingData>> pendingRead;
-        private volatile CompletableFuture<Void> catchUpCompletion =
-                CompletableFuture.completedFuture(null);
+        private volatile CompletableFuture<Void> catchUpCompletion = new CompletableFuture<Void>();
 
         private MainTask(LogBookAccessor logBook) {
 
@@ -179,7 +206,15 @@ public final class NodeService extends LifecycleComponent {
             wake(taskRunner);
         }
 
-        /** Schedules catch-up after a newly committed TimingData record. */
+        /** Fails pending service reads when LogBook recovery failed. */
+        private synchronized void logBookFailed(String message) {
+
+            failIfInvalidArgument(message != null && !message.trim().isEmpty(), "message must not be blank");
+            catchUpCompletion.completeExceptionally(
+                    new IllegalStateException("LogBook recovery failed: " + message.trim()));
+        }
+
+        /** Schedules catch-up after newly committed TimingData. */
         private synchronized void timingDataChanged() {
 
             if (logBookReady) {
@@ -203,7 +238,7 @@ public final class NodeService extends LifecycleComponent {
             nextSequence = 1L;
             pendingRead = null;
             catchUpCompletion.cancel(true);
-            catchUpCompletion = CompletableFuture.completedFuture(null);
+            catchUpCompletion = new CompletableFuture<Void>();
         }
 
         /** Preserves the source cursor while clearing one-run asynchronous state. */
@@ -218,7 +253,7 @@ public final class NodeService extends LifecycleComponent {
         public TaskStep runStep() {
 
             if (rebuild) {
-                state.beginDerivedTimingRecovery();
+                activeRegistrations.reset();
                 rebuild = false;
             }
 
@@ -235,18 +270,16 @@ public final class NodeService extends LifecycleComponent {
                 return TaskStep.await(pendingRead);
             }
 
-            state.completeDerivedTimingRecovery();
             catchUpCompletion.complete(null);
             return TaskStep.done();
         }
 
-        /** Marks derived data stale if one catch-up run fails. */
+        /** Fails pending service reads if one catch-up run fails. */
         @Override
         protected void onRunCompleted(Throwable failure) {
 
             pendingRead = null;
             if (failure != null) {
-                state.markDerivedTimingStale();
                 catchUpCompletion.completeExceptionally(failure);
                 catchUpFailed(failure);
             }
@@ -271,12 +304,12 @@ public final class NodeService extends LifecycleComponent {
             for (TimingData data : records) {
                 long sequence = data.sequenceNumber();
                 failIfIllegalState(sequence == nextSequence, "Expected sequence %s, got %s", nextSequence, sequence);
-                state.applyTimingData(data);
+                applyTimingData(data);
                 nextSequence++;
             }
         }
 
-        /** Starts a new completion window when the task was previously caught up. */
+        /** Starts a new completion window when the service was previously caught up. */
         private void beginCatchUp() {
 
             if (catchUpCompletion.isDone()) {
