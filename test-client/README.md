@@ -27,13 +27,13 @@ Use the small supported scripting facade, not internal Java objects:
 timing.log("Example batch")
 timing.batch{count=10, from=1, to=2000, order="random",
              seed=42, intervalMs=500, profile="normal"}
-timing.simulate("RT-A-0100", "simple")
+timing.simulate("A0100", "simple")
 timing.sleep(1000)
 ```
 
 `order` accepts `linear` or `random` (seeded/reproducible); the profiles
 are `simple`, `normal` or `edge`. Registrations use the same
-`RT-A-%04d` generator as the Simulation GUI. The currently selected
+`A%04d` generator as the Simulation GUI. The currently selected
 LIVE TimingNode is captured when Run starts; disconnect, node change or
 loss of connection stops the script. Simulation calls separately require the
 TAG_SCENARIO_SIMULATION capability. Script and GUI simulation batches cannot
@@ -120,7 +120,7 @@ java -jar app\target\timing-point-app-<version>.jar config\development-simulatio
 
 That configuration uses the same algorithmic `reference` EventData provider
 as `config/application.yml`: normal tag/registration mappings span
-`RT-A-0001` through `RT-A-9999`, with paired tags `TT-A-NNNN-1/2`.
+`A0001` through `A9999`, with paired tags `TT-A-NNNN-1/2`.
 Its dedicated TimingData file isolates engineering experiments from normal
 development history. A simulated antenna, not a special EventData provider,
 generates tag observations.
@@ -343,8 +343,8 @@ Selecting that row follows the latest incoming records. Selecting a historical r
 or scrolling upward pauses following for that table only; selecting the empty
 final row resumes. This row is never an actual registration or LogBook record.
 TeamID is an interpreted reference-data value, not a renamed RegistrationId. In the
-default/reference profile, `RT-A-NNNN` projects directly to TeamID `NNNN`;
-`RT-R-NNNN` remains unresolved until reserve assignment data is available. The
+default/reference profile, `ANNNN` projects directly to TeamID `NNNN`;
+`RNNNN` remains unresolved until reserve assignment data is available. The
 technical LogBook always keeps the actual RegistrationId. A manual registration with manually entered time therefore deliberately shows
 `Type = MAN` and `Code = MAN`; a manual registration whose time was captured
 automatically by the client shows `Type = MAN` and `Code = AUTO`. An automatic registration already carries all needed

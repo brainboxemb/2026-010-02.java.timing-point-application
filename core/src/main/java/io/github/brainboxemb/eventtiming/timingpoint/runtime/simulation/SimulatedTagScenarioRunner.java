@@ -321,8 +321,8 @@ public final class SimulatedTagScenarioRunner
             List<TagId> tags) {
         int variant =
                 Math.floorMod(
-                        registrationId.value()
-                                .hashCode(),
+                        registrationId.type()
+                                + registrationId.number(),
                         3);
         TagId first =
                 tags.get(0);

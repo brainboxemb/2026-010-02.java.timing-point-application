@@ -358,7 +358,7 @@ public class TimingNodeTest {
                     open.effectiveTime());
             assertEquals(
                     TimingTimestamp.parse(
-                            "2026-10-02T08:00:00.134Z"),
+                            "2026-10-02T08:00:00.13Z"),
                     open.recordedAt());
         } finally {
             deactivate(node);

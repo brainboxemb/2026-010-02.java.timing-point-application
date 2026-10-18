@@ -44,8 +44,8 @@ public class ActiveRegistrationsIntegrationTest {
                 TimingNodeFixture.createDirectComponents(
                         new NodeId("A"),
                         new StaticPersistence(
-                                registration(1L, "RT-A-0001"),
-                                registration(2L, "RT-R-0001")),
+                                registration(1L, "A0001"),
+                                registration(2L, "R0001")),
                         new DefaultTimingDataFactory(),
                         () -> Instant.parse("2026-10-13T12:05:00Z"),
                         new DefaultEventData(),
@@ -59,7 +59,7 @@ public class ActiveRegistrationsIntegrationTest {
             UpstreamHandler port =
                     components.upstreamHandler();
 
-            // RT-A-0001 is fixed by EventData. RT-R-0001 is still unresolved.
+            // A0001 is fixed by EventData. R0001 is still unresolved.
             awaitUniqueTeamCount(
                     components.nodeService(),
                     new LocationId(1),
@@ -71,7 +71,7 @@ public class ActiveRegistrationsIntegrationTest {
                             1L,
                             Collections.singletonList(
                                     DefaultUpstreamData.teamAssignmentSet(
-                                            "RT-R-0001",
+                                            "R0001",
                                             "0042")),
                             Collections.<UpstreamData.StageStartTimeChange>emptyList()));
             org.junit.Assert.assertTrue(
@@ -104,11 +104,11 @@ public class ActiveRegistrationsIntegrationTest {
                         new StaticPersistence(
                                 registrationAt(
                                         1L,
-                                        "RT-A-0001",
+                                        "A0001",
                                         Instant.parse("2026-10-13T12:00:20Z")),
                                 registrationAt(
                                         2L,
-                                        "RT-A-0001",
+                                        "A0001",
                                         Instant.parse("2026-10-13T12:00:10Z"))),
                         new DefaultTimingDataFactory(),
                         () -> Instant.parse("2026-10-13T12:05:00Z"),
@@ -156,12 +156,12 @@ public class ActiveRegistrationsIntegrationTest {
             records[index] =
                     registration(
                             index + 1L,
-                            "RT-A-0001");
+                            "A0001");
         }
         records[records.length - 1] =
                 registration(
                         records.length,
-                        "RT-A-0002");
+                        "A0002");
 
         TimingNodeFixture.Components components =
                 TimingNodeFixture.createDirectComponents(

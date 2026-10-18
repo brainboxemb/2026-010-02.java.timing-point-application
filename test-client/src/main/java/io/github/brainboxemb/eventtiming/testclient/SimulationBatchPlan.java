@@ -26,9 +26,9 @@ final class SimulationBatchPlan {
             throw new IllegalArgumentException(
                     "Count must be positive");
         }
-        if (from < 1 || to < from) {
+        if (from < 1 || to < from || to > 9999) {
             throw new IllegalArgumentException(
-                    "Registration range must satisfy 1 <= from <= to");
+                    "Registration range must satisfy 1 <= from <= to <= 9999");
         }
         if (order == null) {
             throw new IllegalArgumentException(
@@ -68,7 +68,7 @@ final class SimulationBatchPlan {
                 index++) {
             result.add(
                     String.format(
-                            "RT-A-%04d",
+                            "A%04d",
                             numbers.get(index)));
         }
         return Collections.unmodifiableList(

@@ -1,7 +1,7 @@
 -- Event Timing SI-02 Engineering Client example
 -- Runs locally in the desktop client, not on the Timing Application.
 -- Requires Events LIVE, selected TimingNode and simulation capability.
--- Registration IDs are generated as RT-A-0001, RT-A-0002, ...
+-- Registration IDs are generated as A0001, A0002, ...
 
 timing.log("Starting a repeatable batch")
 timing.batch {

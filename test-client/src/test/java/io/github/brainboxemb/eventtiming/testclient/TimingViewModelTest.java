@@ -208,7 +208,7 @@ class TimingViewModelTest {
                 24,
                 "AUTO_REG",
                 "2026-10-01T10:00:00.00Z",
-                "RT-A-0042",
+                "A0042",
                 List.of("ADD"),
                 "2026-10-01T10:00:00.100Z",
                 "{}"));
@@ -218,7 +218,7 @@ class TimingViewModelTest {
                 24,
                 "AUTO_REG",
                 "2026-10-01T10:00:01.00Z",
-                "RT-R-0001",
+                "R0001",
                 List.of("ADD"),
                 "2026-10-01T10:00:01.100Z",
                 "{}"));

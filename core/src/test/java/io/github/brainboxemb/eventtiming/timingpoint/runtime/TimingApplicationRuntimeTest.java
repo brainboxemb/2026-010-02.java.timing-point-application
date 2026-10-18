@@ -434,7 +434,7 @@ public class TimingApplicationRuntimeTest {
                     .NEW_DATA_ENTRY
                     .subscribe(data -> {
                         if (data instanceof AutomaticRegistration
-                                && new RegistrationId("RT-A-0042")
+                                && new RegistrationId("A0042")
                                         .equals(((AutomaticRegistration) data).registrationId())) {
                             simulatedCommit.countDown();
                         }
@@ -442,7 +442,7 @@ public class TimingApplicationRuntimeTest {
             assertEquals(
                     SimulationControl.StartResult.ACCEPTED,
                     application.presentationGateway().simulation()
-                            .startRegistration(new RegistrationId("RT-A-0042"), "simple"));
+                            .startRegistration(new RegistrationId("A0042"), "simple"));
             assertTrue(
                     "Reference EventData passage should commit through the antenna path",
                     simulatedCommit.await(3L, TimeUnit.SECONDS));
@@ -629,8 +629,8 @@ public class TimingApplicationRuntimeTest {
                 config(file, tagProcessingPolicy),
                 antennaSet,
                 eventData(
-                        "TAG-1001", "R-1001",
-                        "TAG-1001-B", "R-1001"));
+                        "TAG-1001", "R1001",
+                        "TAG-1001-B", "R1001"));
 
         assertEquals(
                 tagProcessingPolicy,
@@ -667,7 +667,7 @@ public class TimingApplicationRuntimeTest {
                     "quiet-timeout housekeeping did not commit the passage",
                     committed.await(2L, TimeUnit.SECONDS));
             assertEquals(
-                    new RegistrationId("R-1001"),
+                    new RegistrationId("R1001"),
                     automatic.get().registrationId());
             assertEquals(observedAt, automatic.get().effectiveTime());
 

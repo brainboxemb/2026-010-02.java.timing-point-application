@@ -5,7 +5,7 @@ import java.util.Locale;
 /**
  * Canonical participant identifiers for black-box test data.
  *
- * <p>Normal: TT-A-0001-1 and TT-A-0001-2 belong to RT-A-0001,
+ * <p>Normal: TT-A-0001-1 and TT-A-0001-2 belong to A0001,
  * with TeamId 0001. The -1/-2 suffix distinguishes physical tags,
  * not participants. Reserve identifiers use R instead of A; reserve
  * RegistrationId-to-TeamId assignment comes from reference data rather
@@ -19,7 +19,7 @@ final class TestParticipantIds {
     }
 
     static String normalRegistration(int teamNumber) {
-        return "RT-A-" + number(teamNumber);
+        return "A" + number(teamNumber);
     }
 
     static String normalTag(int teamNumber, int tagNumber) {
@@ -31,7 +31,7 @@ final class TestParticipantIds {
     }
 
     static String reserveRegistration(int reserveNumber) {
-        return "RT-R-" + number(reserveNumber);
+        return "R" + number(reserveNumber);
     }
 
     static String reserveTag(int reserveNumber, int tagNumber) {

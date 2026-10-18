@@ -15,7 +15,7 @@ public final class TestParticipantIdsTest {
     public void normalPairHasOneRegistrationAndTeamIdentity() {
         assertEquals("TT-A-0001-1", TestParticipantIds.normalTag(1, 1));
         assertEquals("TT-A-0001-2", TestParticipantIds.normalTag(1, 2));
-        assertEquals("RT-A-0001", TestParticipantIds.normalRegistration(1));
+        assertEquals("A0001", TestParticipantIds.normalRegistration(1));
         assertEquals("0001", TestParticipantIds.normalTeam(1));
     }
 
@@ -23,7 +23,7 @@ public final class TestParticipantIdsTest {
     public void reservePairHasNoImplicitTeamAssignment() {
         assertEquals("TT-R-0001-1", TestParticipantIds.reserveTag(1, 1));
         assertEquals("TT-R-0001-2", TestParticipantIds.reserveTag(1, 2));
-        assertEquals("RT-R-0001", TestParticipantIds.reserveRegistration(1));
+        assertEquals("R0001", TestParticipantIds.reserveRegistration(1));
     }
 
     @Test(expected = IllegalArgumentException.class)

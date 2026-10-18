@@ -16,9 +16,9 @@ class SimulationBatchPlanTest {
     void createsAscendingRegistrationSelection() {
         assertEquals(
                 List.of(
-                        "RT-A-0010",
-                        "RT-A-0011",
-                        "RT-A-0012"),
+                        "A0010",
+                        "A0011",
+                        "A0012"),
                 SimulationBatchPlan.registrationIds(
                         3,
                         10,
@@ -65,8 +65,7 @@ class SimulationBatchPlanTest {
         for (String registrationId : first) {
             int number =
                     Integer.parseInt(
-                            registrationId.substring(
-                                    "RT-A-".length()));
+                            registrationId.substring(1));
             assertTrue(
                     number >= 1
                             && number <= 100);

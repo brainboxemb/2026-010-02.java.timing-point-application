@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Store RegistrationId as one packed integer behind the canonical type-letter plus four-digit value, and use the compact key in default TimingData and reference processing.
+
+- Store default TimingData values as compact scalars instead of retaining Context, NodeId, LocationId and TimingTimestamp wrappers per record. Absolute record times use one yyyyMMddHHmmsscc long at centisecond precision; public value objects are reconstructed only at the TimingData API boundary.
+
 - Make the TagProcessor jobs follow the Java readability rules: FilterJob and HousekeepingJob each keep at most one delayed JDK run while relevant state exists, runtime policy changes replan that one run, every job helper documents its purpose, and simple contract guards stay on one line.
 
 - Simplify TagProcessor around explicit scheduled jobs: move passage-filter scheduling to `FilterJob` and duplicate cleanup scheduling to `HousekeepingJob`, keep both jobs on the Runtime-owned scheduler, make lifecycle start/stop visible in `TagProcessor`, and remove TagProcessor-local scheduling locks, futures and defensive try/catch handling.

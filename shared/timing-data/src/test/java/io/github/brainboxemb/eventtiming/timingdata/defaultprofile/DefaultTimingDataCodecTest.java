@@ -22,7 +22,7 @@ public class DefaultTimingDataCodecTest {
     private static final TimingTimestamp EFFECTIVE =
             TimingTimestamp.parse("2026-09-30T20:01:39.12Z");
     private static final TimingTimestamp RECORDED =
-            TimingTimestamp.parse("2026-09-30T20:01:45.456Z");
+            TimingTimestamp.parse("2026-09-30T20:01:45.45Z");
 
     private final DefaultTimingDataFactory factory = new DefaultTimingDataFactory();
     private final DefaultTimingDataCodec codec = new DefaultTimingDataCodec();
@@ -31,7 +31,7 @@ public class DefaultTimingDataCodecTest {
     public void encodesAutomaticRegistrationInCanonicalMemberOrder() throws Exception {
         TimingData data = factory.createAutomaticRegistration(
                 context(1L),
-                new RegistrationId("registration-0042"));
+                new RegistrationId("A0042"));
 
         String json = new String(codec.encode(data), StandardCharsets.UTF_8);
 
@@ -42,9 +42,9 @@ public class DefaultTimingDataCodecTest {
                         + "\"locId\":7,"
                         + "\"recType\":\"AUTO_REG\","
                         + "\"time\":\"2026-09-30T20:01:39.12Z\","
-                        + "\"regId\":\"registration-0042\","
+                        + "\"regId\":\"A0042\","
                         + "\"code\":[\"ADD\"],"
-                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\"}",
+                        + "\"recTime\":\"2026-09-30T20:01:45.450Z\"}",
                 json);
         assertFalse(json.endsWith("\n"));
     }
@@ -57,7 +57,7 @@ public class DefaultTimingDataCodecTest {
                 TimingData.TagSource.API,
                 TimingData.AutomaticTimeSource.NODE);
         TimingData.AutomaticRegistration record = factory.createAutomaticRegistration(
-                contextual, new RegistrationId("RT-A-0001"));
+                contextual, new RegistrationId("A0001"));
 
         String json = new String(codec.encode(record), StandardCharsets.UTF_8);
         assertTrue(json.contains(
@@ -73,7 +73,7 @@ public class DefaultTimingDataCodecTest {
         TimingData.AutomaticRegistration legacy =
                 (TimingData.AutomaticRegistration) codec.decode(
                         codec.encode(factory.createAutomaticRegistration(
-                                context(1L), new RegistrationId("RT-A-0001"))));
+                                context(1L), new RegistrationId("A0001"))));
         assertEquals(null, legacy.tagSource());
         assertEquals(null, legacy.registrationTimeSource());
 
@@ -89,7 +89,7 @@ public class DefaultTimingDataCodecTest {
         TimingData.ManualRegistration original =
                 factory.createManualRegistration(
                         context(2L),
-                        new RegistrationId("registration-\"0042"),
+                        new RegistrationId("A0042"),
                         TimingData.ManualTimeSource.OPERATOR_ENTERED);
 
         String json = new String(codec.encode(original), StandardCharsets.UTF_8);
@@ -103,7 +103,7 @@ public class DefaultTimingDataCodecTest {
                 (TimingData.ManualRegistration) decoded;
         assertCommon(manual, 2L);
         assertEquals(
-                new RegistrationId("registration-\"0042"),
+                new RegistrationId("A0042"),
                 manual.registrationId());
         assertSame(
                 TimingData.ManualTimeSource.OPERATOR_ENTERED,
@@ -115,7 +115,7 @@ public class DefaultTimingDataCodecTest {
         TimingData.ManualRegistration original =
                 factory.createManualRegistration(
                         context(2L),
-                        new RegistrationId("registration-0042"),
+                        new RegistrationId("A0042"),
                         TimingData.ManualTimeSource.AUTOMATIC);
 
         String json = new String(codec.encode(original), StandardCharsets.UTF_8);
@@ -140,7 +140,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"recType\":\"NODE_INFO\","
                         + "\"time\":\"2026-09-30T20:01:39.12Z\","
                         + "\"code\":[\"OPEN\"],"
-                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\"}",
+                        + "\"recTime\":\"2026-09-30T20:01:45.450Z\"}",
                 json);
 
         TimingData decoded = codec.decode(codec.encode(original));
@@ -170,7 +170,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"locId\":7,"
                         + "\"recType\":\"NODE_INFO\","
                         + "\"time\":\"2026-09-30T20:01:39.12Z\","
-                        + "\"regId\":\"registration-0042\","
+                        + "\"regId\":\"A0042\","
                         + "\"code\":[\"OPEN\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
                         + "}"));
@@ -192,7 +192,7 @@ public class DefaultTimingDataCodecTest {
         TimingData.AutomaticRegistration original =
                 factory.createAutomaticRegistration(
                         context(5L),
-                        new RegistrationId("registration-0042"),
+                        new RegistrationId("A0042"),
                         TimingData.RegistrationAction.REV);
 
         String json =
@@ -219,7 +219,7 @@ public class DefaultTimingDataCodecTest {
         TimingData.ManualRegistration original =
                 factory.createManualRegistration(
                         context(6L),
-                        new RegistrationId("registration-0042"),
+                        new RegistrationId("A0042"),
                         TimingData.ManualTimeSource.OPERATOR_ENTERED,
                         TimingData.RegistrationAction.REV);
 
@@ -255,7 +255,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"locId\":7,"
                         + "\"recType\":\"AUTO_REG\","
                         + "\"time\":\"2026-09-30T20:01:39.12Z\","
-                        + "\"regId\":\"registration-0042\","
+                        + "\"regId\":\"A0042\","
                         + "\"code\":[\"ADD\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
                         + "}"));
@@ -265,7 +265,7 @@ public class DefaultTimingDataCodecTest {
                 (TimingData.AutomaticRegistration) decoded;
         assertCommon(automatic, 1L);
         assertEquals(
-                new RegistrationId("registration-0042"),
+                new RegistrationId("A0042"),
                 automatic.registrationId());
     }
 
@@ -274,7 +274,7 @@ public class DefaultTimingDataCodecTest {
         TimingData decoded = codec.decode(json(
                 "{"
                         + "\"extra\":{\"future\":[1,2,3]},"
-                        + "\"regId\":\"registration-0042\","
+                        + "\"regId\":\"A0042\","
                         + "\"recTime\":\"2026-09-30T20:01:45.456Z\","
                         + "\"v\":1,"
                         + "\"locId\":7,"
@@ -304,7 +304,7 @@ public class DefaultTimingDataCodecTest {
                                 TimingTimestamp.parse(
                                         "2026-09-30T20:01:45.1Z")),
                         new RegistrationId(
-                                "registration-0042"));
+                                "A0042"));
 
         String json =
                 new String(
@@ -320,7 +320,7 @@ public class DefaultTimingDataCodecTest {
     }
 
     @Test
-    public void writerRejectsFinerThanProfilePrecision() throws Exception {
+    public void factoryStoresFinerInputAtCentisecondPrecision() throws Exception {
         TimingData data =
                 factory.createAutomaticRegistration(
                         new TimingDataFactory.Context(
@@ -331,19 +331,18 @@ public class DefaultTimingDataCodecTest {
                                         "2026-09-30T20:01:39.129Z"),
                                 RECORDED),
                         new RegistrationId(
-                                "registration-0042"));
+                                "A0042"));
 
-        try {
-            codec.encode(data);
-            fail("expected precision failure");
-        } catch (TimingDataCodec.CodecException expected) {
-            assertSame(
-                    TimingDataCodec.CodecException.Reason.ENCODE_FAILURE,
-                    expected.reason());
-            assertTrue(
-                    expected.getMessage().contains(
-                            "centisecond"));
-        }
+        assertEquals(
+                TimingTimestamp.parse(
+                        "2026-09-30T20:01:39.12Z"),
+                data.effectiveTime());
+        assertTrue(
+                new String(
+                        codec.encode(data),
+                        StandardCharsets.UTF_8)
+                        .contains(
+                                "\"time\":\"2026-09-30T20:01:39.12Z\""));
     }
 
     @Test
@@ -358,18 +357,18 @@ public class DefaultTimingDataCodecTest {
                                         + "\"locId\":7,"
                                         + "\"recType\":\"AUTO_REG\","
                                         + "\"time\":\"2026-09-30T20:01:39.123456789Z\","
-                                        + "\"regId\":\"registration-0042\","
+                                        + "\"regId\":\"A0042\","
                                         + "\"code\":[\"ADD\"],"
                                         + "\"recTime\":\"2026-09-30T20:01:45.456789Z\""
                                         + "}"));
 
         assertEquals(
                 TimingTimestamp.parse(
-                        "2026-09-30T20:01:39.123456789Z"),
+                        "2026-09-30T20:01:39.12Z"),
                 decoded.effectiveTime());
         assertEquals(
                 TimingTimestamp.parse(
-                        "2026-09-30T20:01:45.456789Z"),
+                        "2026-09-30T20:01:45.45Z"),
                 decoded.recordedAt());
     }
 
@@ -425,7 +424,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"locId\":7,"
                         + "\"recType\":\"AUTO_REG\","
                         + "\"time\":\"2026-09-30T20:01:39.12Z\","
-                        + "\"regId\":\"registration-0042\","
+                        + "\"regId\":\"A0042\","
                         + "\"code\":[\"REV\",\"AUTO\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
                         + "}"));
@@ -443,7 +442,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"locId\":7,"
                         + "\"recType\":\"MAN_REG\","
                         + "\"time\":\"2026-09-30T20:01:39.12Z\","
-                        + "\"regId\":\"registration-0042\","
+                        + "\"regId\":\"A0042\","
                         + "\"code\":[\"ADD\",\"AUTO\",\"MAN\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
                         + "}"));
@@ -459,7 +458,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"locId\":7,"
                         + "\"recType\":\"MAN_REG\","
                         + "\"time\":\"2026-09-30T20:01:39.12Z\","
-                        + "\"regId\":\"registration-0042\","
+                        + "\"regId\":\"A0042\","
                         + "\"code\":[\"ADD\",\"ADD\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
                         + "}"));

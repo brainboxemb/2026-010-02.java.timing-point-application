@@ -9,7 +9,7 @@ import static org.junit.Assert.assertSame;
 
 public class TimingDataFactoryTest {
     private static final TimingTimestamp EFFECTIVE =
-            TimingTimestamp.parse("2026-09-30T20:01:39.123000000Z");
+            TimingTimestamp.parse("2026-09-30T20:01:39.12Z");
     private static final TimingTimestamp RECORDED =
             TimingTimestamp.parse("2026-09-30T20:01:40.000000000Z");
 
@@ -47,20 +47,20 @@ public class TimingDataFactoryTest {
     @Test
     public void defaultFactoryReturnsTypedAutomaticRegistration() {
         TimingDataFactory.Context context = context();
-        TimingDataTypes.RegistrationId registrationId = new TimingDataTypes.RegistrationId("registration-0042");
+        TimingDataTypes.RegistrationId registrationId = new TimingDataTypes.RegistrationId("A0042");
 
         TimingData.AutomaticRegistration automatic =
                 new DefaultTimingDataFactory()
                         .createAutomaticRegistration(context, registrationId);
 
         assertCommonFields(automatic);
-        assertSame(registrationId, automatic.registrationId());
+        assertEquals(registrationId, automatic.registrationId());
     }
 
     @Test
     public void defaultFactoryReturnsTypedManualRegistration() {
         TimingDataFactory.Context context = context();
-        TimingDataTypes.RegistrationId registrationId = new TimingDataTypes.RegistrationId("registration-0042");
+        TimingDataTypes.RegistrationId registrationId = new TimingDataTypes.RegistrationId("A0042");
 
         TimingData.ManualRegistration manual =
                 new DefaultTimingDataFactory().createManualRegistration(
@@ -69,14 +69,14 @@ public class TimingDataFactoryTest {
                         TimingData.ManualTimeSource.OPERATOR_ENTERED);
 
         assertCommonFields(manual);
-        assertSame(registrationId, manual.registrationId());
+        assertEquals(registrationId, manual.registrationId());
         assertSame(TimingData.ManualTimeSource.OPERATOR_ENTERED, manual.timeSource());
     }
 
     @Test
     public void alternateProfileCanReturnDifferentConcreteClassesThroughSameTypedApi() {
         TimingDataFactory.Context context = context();
-        TimingDataTypes.RegistrationId registrationId = new TimingDataTypes.RegistrationId("registration-0042");
+        TimingDataTypes.RegistrationId registrationId = new TimingDataTypes.RegistrationId("A0042");
         TimingDataFactory defaultFactory = new DefaultTimingDataFactory();
         TimingDataFactory dummyFactory = new DummyEventTimingDataFactory();
 
@@ -95,7 +95,7 @@ public class TimingDataFactoryTest {
     public void defaultFactoryRejectsMissingManualTimeSource() {
         new DefaultTimingDataFactory().createManualRegistration(
                 context(),
-                new TimingDataTypes.RegistrationId("registration-0042"),
+                new TimingDataTypes.RegistrationId("A0042"),
                 null);
     }
 
@@ -112,8 +112,8 @@ public class TimingDataFactoryTest {
         assertEquals(new TimingDataTypes.NodeId("A"), data.timingNodeId());
         assertEquals(7L, data.sequenceNumber());
         assertEquals(new TimingDataTypes.LocationId(12), data.locationId());
-        assertSame(EFFECTIVE, data.effectiveTime());
-        assertSame(RECORDED, data.recordedAt());
+        assertEquals(EFFECTIVE, data.effectiveTime());
+        assertEquals(RECORDED, data.recordedAt());
     }
 
     private static final class DummyEventTimingDataFactory implements TimingDataFactory {

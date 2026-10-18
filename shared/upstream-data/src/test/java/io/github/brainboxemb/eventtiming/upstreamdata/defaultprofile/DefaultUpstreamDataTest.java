@@ -20,10 +20,10 @@ public class DefaultUpstreamDataTest {
                     1L,
                     Arrays.asList(
                             DefaultUpstreamData.teamAssignmentSet(
-                                    "RT-R-0001",
+                                    "R0001",
                                     "0042"),
                             DefaultUpstreamData.teamAssignmentDelete(
-                                    "RT-R-0001")),
+                                    "R0001")),
                     Collections.<UpstreamData.StageStartTimeChange>emptyList());
             fail("expected invalid RaceData");
         } catch (IllegalArgumentException expected) {

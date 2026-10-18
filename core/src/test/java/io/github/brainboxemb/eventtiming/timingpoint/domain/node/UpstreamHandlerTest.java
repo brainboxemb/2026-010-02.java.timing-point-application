@@ -66,7 +66,7 @@ public class UpstreamHandlerTest {
                             1L,
                             Collections.singletonList(
                                     DefaultUpstreamData.teamAssignmentSet(
-                                            "RT-R-0001",
+                                            "R0001",
                                             "0042")),
                             Collections.<UpstreamData.StageStartTimeChange>emptyList()));
 
@@ -607,7 +607,7 @@ public class UpstreamHandlerTest {
                             1L,
                             Collections.singletonList(
                                     DefaultUpstreamData.teamAssignmentSet(
-                                            "RT-R-0001",
+                                            "R0001",
                                             "0042")),
                             Collections.<UpstreamData.StageStartTimeChange>emptyList()));
             assertTrue(
@@ -750,7 +750,7 @@ public class UpstreamHandlerTest {
                                     timestamp,
                                     timestamp),
                             new RegistrationId(
-                                    "RT-A-0001")));
+                                    "A0001")));
         }
         return records;
     }

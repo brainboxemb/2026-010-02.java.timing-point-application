@@ -22,12 +22,12 @@ public final class DefaultEventData extends EventData {
     public static final int FIRST_NUMBER = 1;
     public static final int LAST_NUMBER = 9999;
 
+    private static final char NORMAL_TYPE = 'A';
+    private static final char RESERVE_TYPE = 'R';
+
     private static final Pattern TAG_PATTERN =
             Pattern.compile(
                     "^TT-([AR])-(\\d{4})-([12])$");
-    private static final Pattern REGISTRATION_PATTERN =
-            Pattern.compile(
-                    "^RT-([AR])-(\\d{4})$");
     private static final Pattern TEAM_PATTERN =
             Pattern.compile(
                     "^(\\d{4})$");
@@ -59,9 +59,7 @@ public final class DefaultEventData extends EventData {
                 true);
     }
 
-    /**
-     * Creates a normal-registration-only subset using the same identifier grammar.
-     */
+    /** Creates a normal-registration-only subset using the same identifier grammar. */
     public static DefaultEventData normalOnly(
             int firstNumber,
             int lastNumber) {
@@ -97,35 +95,33 @@ public final class DefaultEventData extends EventData {
         Matcher matcher =
                 TAG_PATTERN.matcher(
                         tagId.value());
-        if (!matcher.matches()
-                || !inRange(matcher.group(2))
-                || (!reserveSupported
-                        && "R".equals(matcher.group(1)))) {
+        if (!matcher.matches()) {
+            return null;
+        }
+
+        char type = matcher.group(1).charAt(0);
+        int number = Integer.parseInt(matcher.group(2));
+        if (!supported(type, number)) {
             return null;
         }
 
         return new RegistrationId(
-                "RT-"
-                        + matcher.group(1)
-                        + "-"
-                        + matcher.group(2));
+                type,
+                number);
     }
 
     @Override
     public List<TagId> tagIdsFor(
             RegistrationId registrationId) {
-        ParsedRegistration parsed =
-                parseRegistration(
-                        registrationId);
-        if (parsed == null) {
+        if (!supported(registrationId)) {
             return Collections.emptyList();
         }
 
         String prefix =
                 "TT-"
-                        + parsed.kind
+                        + registrationId.type()
                         + "-"
-                        + parsed.number
+                        + fourDigits(registrationId.number())
                         + "-";
         return Collections.unmodifiableList(
                 Arrays.asList(
@@ -136,15 +132,13 @@ public final class DefaultEventData extends EventData {
     @Override
     public TeamId teamIdFor(
             RegistrationId registrationId) {
-        ParsedRegistration parsed =
-                parseRegistration(
-                        registrationId);
-        if (parsed == null
-                || !"A".equals(parsed.kind)) {
+        if (!supported(registrationId)
+                || registrationId.type() != NORMAL_TYPE) {
             return null;
         }
         return new TeamId(
-                parsed.number);
+                fourDigits(
+                        registrationId.number()));
     }
 
     @Override
@@ -158,14 +152,18 @@ public final class DefaultEventData extends EventData {
         Matcher matcher =
                 TEAM_PATTERN.matcher(
                         teamId.value());
-        if (!matcher.matches()
-                || !inRange(matcher.group(1))) {
+        if (!matcher.matches()) {
+            return null;
+        }
+
+        int number = Integer.parseInt(matcher.group(1));
+        if (!inRange(number)) {
             return null;
         }
 
         return new RegistrationId(
-                "RT-A-"
-                        + matcher.group(1));
+                NORMAL_TYPE,
+                number);
     }
 
     @Override
@@ -173,46 +171,39 @@ public final class DefaultEventData extends EventData {
         return false;
     }
 
-    private ParsedRegistration parseRegistration(
+    private boolean supported(
             RegistrationId registrationId) {
         if (registrationId == null) {
             throw new IllegalArgumentException(
                     "registrationId must not be null");
         }
+        return supported(
+                registrationId.type(),
+                registrationId.number());
+    }
 
-        Matcher matcher =
-                REGISTRATION_PATTERN.matcher(
-                        registrationId.value());
-        if (!matcher.matches()
-                || !inRange(matcher.group(2))
-                || (!reserveSupported
-                        && "R".equals(matcher.group(1)))) {
-            return null;
-        }
-
-        return new ParsedRegistration(
-                matcher.group(1),
-                matcher.group(2));
+    private boolean supported(
+            char type,
+            int number) {
+        return (type == NORMAL_TYPE
+                        || reserveSupported
+                                && type == RESERVE_TYPE)
+                && inRange(number);
     }
 
     private boolean inRange(
-            String numberText) {
-        int number =
-                Integer.parseInt(
-                        numberText);
+            int number) {
         return number >= firstNumber
                 && number <= lastNumber;
     }
 
-    private static final class ParsedRegistration {
-        private final String kind;
-        private final String number;
-
-        private ParsedRegistration(
-                String kind,
-                String number) {
-            this.kind = kind;
-            this.number = number;
-        }
+    private static String fourDigits(
+            int number) {
+        char[] value = new char[4];
+        value[0] = (char) ('0' + number / 1000);
+        value[1] = (char) ('0' + number / 100 % 10);
+        value[2] = (char) ('0' + number / 10 % 10);
+        value[3] = (char) ('0' + number % 10);
+        return new String(value);
     }
 }
