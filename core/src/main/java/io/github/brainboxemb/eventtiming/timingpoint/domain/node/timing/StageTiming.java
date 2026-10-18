@@ -103,8 +103,7 @@ public final class StageTiming {
         failIfIllegalState(registrationTime.isAbsolute(), "committed TimingData effectiveTime must be absolute");
 
         TimingTimestamp resolvedStart = resolveStart(start, registrationTime, raceTimeZone);
-        Duration elapsed = Duration.between(resolvedStart.instant(), registrationTime.instant());
-        return new StageTime(0, teamId, registrationId, elapsed);
+        return new StageTime(0, teamId, registrationId, resolvedStart, registrationTime);
     }
 
     /** Visits the ordered rows with competition ranking applied. */
@@ -118,7 +117,13 @@ public final class StageTiming {
                 rank = index + 1;
                 previousElapsed = value.elapsed();
             }
-            visitor.accept(new StageTime(rank, value.teamId(), value.registrationId(), value.elapsed()));
+            visitor.accept(
+                    new StageTime(
+                            rank,
+                            value.teamId(),
+                            value.registrationId(),
+                            value.startedAt(),
+                            value.finishedAt()));
         }
         return ordered.size();
     }
