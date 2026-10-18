@@ -36,6 +36,22 @@ public class CompactTimingTimeTest {
     }
 
     @Test
+    public void calculatesElapsedCentisecondsAcrossMidnightAndLeapDay() {
+        long beforeMidnight =
+                CompactTimingTime.fromTimestamp(
+                        TimingTimestamp.parse("2024-02-28T23:59:59.90Z"));
+        long afterMidnight =
+                CompactTimingTime.fromTimestamp(
+                        TimingTimestamp.parse("2024-02-29T00:00:00.10Z"));
+
+        assertEquals(
+                20L,
+                CompactTimingTime.elapsedCentiseconds(
+                        beforeMidnight,
+                        afterMidnight));
+    }
+
+    @Test
     public void truncatesSubCentisecondTime() {
         long packed = CompactTimingTime.fromTimestamp(
                 TimingTimestamp.parse("2026-10-18T12:30:15.251Z"));

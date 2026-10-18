@@ -452,6 +452,22 @@ final class CharacterizationEvidenceWriter {
                 delta(
                         before.duplicates(),
                         after.duplicates()));
+        json.writeNumberField(
+                "passagePoolInitialSize",
+                after.passagePoolInitialSize());
+        json.writeNumberField(
+                "passagePoolSizeAfter",
+                after.passagePoolSize());
+        json.writeNumberField(
+                "passagePoolGrowth",
+                after.passagePoolSize()
+                        - after.passagePoolInitialSize());
+        json.writeNumberField(
+                "passagePoolInUseAfter",
+                after.passagePoolInUse());
+        json.writeNumberField(
+                "passagePoolPeakInUseAfter",
+                after.passagePoolPeakInUse());
         json.writeEndObject();
     }
 

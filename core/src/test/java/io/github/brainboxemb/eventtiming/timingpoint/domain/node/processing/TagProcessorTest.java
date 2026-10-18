@@ -69,6 +69,8 @@ public class TagProcessorTest {
             TimingTimestamp.parse("2026-10-01T12:00:00.000000000Z");
     private static final TimingTimestamp STRONGER_OBSERVED_AT =
             TimingTimestamp.parse("2026-10-01T12:00:00.050000000Z");
+    private static final TimingTimestamp NEXT_PASSAGE_OBSERVED_AT =
+            TimingTimestamp.parse("2026-10-01T12:00:00.150000000Z");
     private static final TimingTimestamp RECORDED_AT =
             TimingTimestamp.parse("2026-10-01T12:00:01.000000000Z");
 
@@ -141,7 +143,7 @@ public class TagProcessorTest {
             assertTrue(
                     processor.hasPendingPassages());
 
-            clock.advanceNanos(100L);
+            clock.advanceMillis(100L);
 
             assertTrue(committed.await(1, TimeUnit.SECONDS));
             awaitExecutor(execution.executor);
@@ -202,14 +204,13 @@ public class TagProcessorTest {
             awaitExecutor(execution.executor);
 
             /*
-             * This closes the first passage. TagObservationFilter has already
-             * created a new burst for N0001B before the selected registration
-             * is published. Selecting that registration starts duplicate
-             * suppression and discards the just-created next burst.
+             * The observed 150 ms gap closes the first passage. The filter has
+             * already started the next passage for N0001B before publishing the
+             * selected registration. Duplicate suppression then discards that
+             * just-started next passage.
              */
-            clock.advanceNanos(100L);
             processor.onTagObserved(
-                    observation("N0001B", -50, STRONGER_OBSERVED_AT));
+                    observation("N0001B", -50, NEXT_PASSAGE_OBSERVED_AT));
             awaitExecutor(execution.executor);
             assertTrue(committed.await(1, TimeUnit.SECONDS));
 
@@ -257,18 +258,16 @@ public class TagProcessorTest {
                     observation("N0001A", -60, OBSERVED_AT));
             awaitExecutor(execution.executor);
 
-            clock.advanceNanos(100L);
             processor.onTagObserved(
-                    observation("N0001B", -50, STRONGER_OBSERVED_AT));
+                    observation("N0001B", -50, NEXT_PASSAGE_OBSERVED_AT));
             awaitExecutor(execution.executor);
             assertTrue(
                     registrationPublished.await(
                             1,
                             TimeUnit.SECONDS));
 
-            clock.advanceNanos(100L);
             processor.onTagObserved(
-                    observation("N0001A", -40, STRONGER_OBSERVED_AT));
+                    observation("N0001A", -40, NEXT_PASSAGE_OBSERVED_AT));
             awaitExecutor(execution.executor);
 
             TagProcessingMetrics.Snapshot snapshot = metrics.snapshot();
@@ -318,13 +317,13 @@ public class TagProcessorTest {
                     observation("N0001A", -50, OBSERVED_AT));
             awaitExecutor(execution.executor);
 
-            clock.advanceNanos(50L);
+            clock.advanceMillis(50L);
 
             TagProcessingPolicy shorterQuietWindow =
                     new TagProcessingPolicy(
-                            Duration.ofNanos(40L),
-                            Duration.ofNanos(500L),
-                            Duration.ofNanos(1000L),
+                            Duration.ofMillis(40L),
+                            Duration.ofMillis(500L),
+                            Duration.ofMillis(1000L),
                             Duration.ofMillis(5L),
                             8);
 
@@ -533,9 +532,9 @@ public class TagProcessorTest {
 
     private static TagProcessingPolicy policy(int queueCapacity) {
         return new TagProcessingPolicy(
-                Duration.ofNanos(100L),
-                Duration.ofNanos(500L),
-                Duration.ofNanos(1000L),
+                Duration.ofMillis(100L),
+                Duration.ofMillis(500L),
+                Duration.ofMillis(1000L),
                 Duration.ofMillis(5L),
                 queueCapacity);
     }
@@ -668,8 +667,8 @@ public class TagProcessorTest {
             return now;
         }
 
-        private void advanceNanos(long nanos) {
-            now += nanos;
+        private void advanceMillis(long millis) {
+            now += TimeUnit.MILLISECONDS.toNanos(millis);
         }
     }
 
