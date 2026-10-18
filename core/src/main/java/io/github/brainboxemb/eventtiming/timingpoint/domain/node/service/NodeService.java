@@ -13,7 +13,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.Se
 
 import java.time.Duration;
 import java.time.ZoneId;
-import java.util.List;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -92,14 +91,23 @@ public final class NodeService extends LifecycleComponent {
         return read(readCount);
     }
 
-    /** Returns the current derived stage ranking. */
-    public List<StageTime> stageTiming(ZoneId raceTimeZone) {
+    /**
+     * Visits at most {@code limit} fastest stage times in ranking order.
+     *
+     * <p>This call waits for ordered Task Lane execution. The visitor runs on the Task Lane
+     * and must remain short and non-blocking.</p>
+     *
+     * @return number of visited rows
+     */
+    public int visitStageTiming(ZoneId raceTimeZone, int limit, Consumer<StageTime> visitor) {
 
         failIfInvalidArgument(raceTimeZone != null, "raceTimeZone must not be null");
+        failIfInvalidArgument(limit >= 0, "limit must not be negative");
+        failIfInvalidArgument(visitor != null, "visitor must not be null");
 
-        Supplier<List<StageTime>> readRanking =
-                () -> stageTiming.ranking(state.activeRegistrations(), raceTimeZone);
-        return read(readRanking);
+        Supplier<Integer> visitRanking =
+                () -> stageTiming.visitRanking(state.activeRegistrations(), raceTimeZone, limit, visitor);
+        return read(visitRanking);
     }
 
     /** Starts bounded TimingData reconstruction after successful LogBook recovery. */
