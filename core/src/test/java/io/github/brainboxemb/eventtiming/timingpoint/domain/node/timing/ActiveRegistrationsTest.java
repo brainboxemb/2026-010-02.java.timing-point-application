@@ -32,10 +32,10 @@ public class ActiveRegistrationsTest {
         TimingData lifecycle = FACTORY.createNodeOpen(context(3L, Instant.parse("2026-10-13T12:01:00Z")));
         TimingData revoke = registration(4L, TimingData.RegistrationAction.REV);
 
-        active.apply(first);
-        active.apply(second);
-        active.apply(lifecycle);
-        active.apply(revoke);
+        active.apply(first, id -> null);
+        active.apply(second, id -> null);
+        active.apply(lifecycle, id -> null);
+        active.apply(revoke, id -> null);
 
         List<TimingData> remaining = values(active);
         assertEquals(1, remaining.size());
