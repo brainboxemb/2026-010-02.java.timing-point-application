@@ -55,7 +55,7 @@ public final class NodeService extends LifecycleComponent {
     private final NodeId nodeId;
     private final SerialTaskRunner taskRunner;
     private final RaceDataState raceData;
-    private final ActiveRegistrations activeRegistrations = new ActiveRegistrations();
+    private final ActiveRegistrations activeRegistrations;
     private final StageTiming stageTiming;
     private final MainTask mainTask;
 
@@ -64,16 +64,21 @@ public final class NodeService extends LifecycleComponent {
             NodeId nodeId,
             SerialTaskRunner taskRunner,
             LogBookAccessor logBook,
-            EventData eventData) {
+            EventData eventData,
+            RaceDataState raceData,
+            ActiveRegistrations activeRegistrations) {
 
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
         failIfInvalidArgument(eventData != null, "eventData must not be null");
+        failIfInvalidArgument(raceData != null, "raceData must not be null");
+        failIfInvalidArgument(activeRegistrations != null, "activeRegistrations must not be null");
 
         this.nodeId = nodeId;
         this.taskRunner = taskRunner;
-        raceData = new RaceDataState(eventData);
+        this.raceData = raceData;
+        this.activeRegistrations = activeRegistrations;
         stageTiming = new StageTiming(eventData, raceData.teamAssignments(), raceData.stageStartTimes());
         mainTask = new MainTask(logBook);
     }
