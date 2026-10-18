@@ -33,7 +33,7 @@ public final class NodeService extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(NodeService.class);
     private static final Duration QUERY_TIMEOUT = Duration.ofSeconds(2L);
 
-    /** Completed LogBook recovery used to start bounded history reconstruction. */
+    /** Completed LogBook recovery used to start bounded TimingData reconstruction. */
     public static final EventInput<NodeService, LogBookRecoveryStatus> LOGBOOK_RECOVERED =
             EventInput.of(
                     (service, source) ->
@@ -84,7 +84,7 @@ public final class NodeService extends LifecycleComponent {
         failIfIllegalState(taskRunner.isRunning(), "TimingNode Task Lane is not running");
     }
 
-    /** Stops history processing and makes derived timing unavailable. */
+    /** Stops TimingData recovery and makes derived timing unavailable. */
     @Override
     protected void onDeactivate() {
         recoveryTask.stop();
@@ -94,13 +94,19 @@ public final class NodeService extends LifecycleComponent {
     /** Returns the number of uniquely registered teams at one location. */
     public int uniqueTeamRegistrationCount(LocationId locationId) {
         failIfInvalidArgument(locationId != null, "locationId must not be null");
-        return read(() -> state.uniqueTeamRegistrationCount(locationId));
+
+        Supplier<Integer> readCount =
+                () -> state.uniqueTeamRegistrationCount(locationId);
+        return read(readCount);
     }
 
     /** Returns the current derived stage ranking. */
     public List<StageTime> stageTiming(ZoneId raceTimeZone) {
         failIfInvalidArgument(raceTimeZone != null, "raceTimeZone must not be null");
-        return read(() -> stageTiming.ranking(state.activeRegistrations(), raceTimeZone));
+
+        Supplier<List<StageTime>> readRanking =
+                () -> stageTiming.ranking(state.activeRegistrations(), raceTimeZone);
+        return read(readRanking);
     }
 
     /** Starts bounded reconstruction after successful LogBook recovery. */
@@ -122,10 +128,14 @@ public final class NodeService extends LifecycleComponent {
                     data.sequenceNumber(),
                     taskRunner);
         } else {
+            Runnable applyCommittedTimingData =
+                    () -> state.applyTimingData(data);
+            java.util.function.Consumer<Throwable> handleFailure =
+                    failure -> updateFailed("committed TimingData", failure);
             NodeServiceUpdateTask.execute(
                     taskRunner,
-                    () -> state.applyTimingData(data),
-                    failure -> updateFailed("committed TimingData", failure));
+                    applyCommittedTimingData,
+                    handleFailure);
         }
     }
 
