@@ -8,6 +8,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.Monoto
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Signal;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.SignalSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventWithMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
@@ -53,6 +55,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
             new AtomicReference<WriteFailure>();
 
     private final EventWithMetrics<TimingData> newDataEntryEvent;
+    private final Signal timingDataChangedSignal = new Signal();
     private final Event<LogBookStatus> statusEvent = new Event<LogBookStatus>();
     private final Event<LogBookFailure> commandFailedEvent = new Event<LogBookFailure>();
     private volatile LogBookStatus status = LogBookStatus.INIT;
@@ -60,8 +63,11 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     /** LogBook availability status source. */
     public final EventSource<LogBookStatus> STATUS = statusEvent;
 
-    /** Post-commit TimingData source. */
+    /** Post-commit TimingData source for consumers that need the committed record. */
     public final EventSource<TimingData> NEW_DATA_ENTRY;
+
+    /** Post-commit signal for consumers that only need to know TimingData changed. */
+    public final SignalSource TIMING_DATA_CHANGED = timingDataChangedSignal;
 
     /** Failed LogBook command source. */
     public final EventSource<LogBookFailure> COMMAND_FAILED = commandFailedEvent;
@@ -540,6 +546,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
             R result = command.apply(logBookOperations);
 
             if (logBookState.timingDataHead() > headBefore) {
+                timingDataChangedSignal.fire();
                 newDataEntryEvent.emit(logBookState.latestCommittedTimingData());
             }
             return result;
