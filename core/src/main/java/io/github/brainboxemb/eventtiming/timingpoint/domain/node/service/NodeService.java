@@ -1,8 +1,10 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.service;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookRecoveryStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
@@ -23,19 +25,25 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Owns node-local race data and derived timing state.
  *
- * <p>The LogBook publishes only its committed TimingData head. NodeService
- * chooses how to read that history and keeps its derived state caught up in
- * bounded Task Lane batches.</p>
+ * <p>Recovery receives only the recovered LogBook head. NodeService then reads
+ * committed history itself in bounded batches. Later single-record commits are
+ * applied incrementally without reading them back from the LogBook.</p>
  */
 public final class NodeService extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(NodeService.class);
     private static final Duration QUERY_TIMEOUT = Duration.ofSeconds(2L);
 
-    /** Published LogBook head used to catch derived state up to committed history. */
-    public static final EventInput<NodeService, Long> TIMING_DATA_HEAD_CHANGED =
+    /** Completed LogBook recovery used to start bounded history reconstruction. */
+    public static final EventInput<NodeService, LogBookRecoveryStatus> LOGBOOK_RECOVERED =
             EventInput.of(
                     (service, source) ->
-                            source.subscribe(service::timingDataHeadChanged));
+                            source.subscribe(service::logBookRecovered));
+
+    /** Newly committed TimingData used for incremental derived-state updates. */
+    public static final EventInput<NodeService, TimingData> COMMITTED_TIMING_DATA =
+            EventInput.of(
+                    (service, source) ->
+                            source.subscribe(service::timingDataCommitted));
 
     private final NodeId nodeId;
     private final SerialTaskRunner taskRunner;
@@ -95,10 +103,30 @@ public final class NodeService extends LifecycleComponent {
         return read(() -> stageTiming.ranking(state.activeRegistrations(), raceTimeZone));
     }
 
-    /** Wakes bounded LogBook catch-up after recovery or a later commit. */
-    private void timingDataHeadChanged(Long head) {
-        failIfInvalidArgument(head != null, "TimingData head must not be null");
-        historyTask.headChanged(head.longValue(), taskRunner);
+    /** Starts bounded reconstruction after successful LogBook recovery. */
+    private void logBookRecovered(LogBookRecoveryStatus recovery) {
+        failIfInvalidArgument(recovery != null, "recovery must not be null");
+        if (!recovery.failed()) {
+            historyTask.recover(
+                    recovery.timingDataHead(),
+                    taskRunner);
+        }
+    }
+
+    /** Applies one new commit directly unless startup reconstruction is still catching up. */
+    private void timingDataCommitted(TimingData data) {
+        failIfInvalidArgument(data != null, "data must not be null");
+
+        if (historyTask.isRecovering()) {
+            historyTask.extendTo(
+                    data.sequenceNumber(),
+                    taskRunner);
+        } else {
+            NodeServiceUpdateTask.execute(
+                    taskRunner,
+                    () -> state.applyTimingData(data),
+                    failure -> updateFailed("committed TimingData", failure));
+        }
     }
 
     /** Runs one ordered result-bearing service read. */
@@ -106,10 +134,23 @@ public final class NodeService extends LifecycleComponent {
         return NodeServiceQuery.execute(taskRunner, QUERY_TIMEOUT, operation);
     }
 
-    /** Reports failed LogBook catch-up and leaves derived state stale. */
+    /** Reports failed startup history reconstruction. */
     private void historyFailed(Throwable failure) {
         LOG.error(
-                "NodeService TimingData catch-up failed for node {}; derived timing is stale",
+                "NodeService history recovery failed for node {}",
+                nodeId.value(),
+                failure);
+    }
+
+    /** Marks derived state stale after an incremental update failed. */
+    private void updateFailed(
+            String operation,
+            Throwable failure) {
+
+        state.markDerivedTimingStale();
+        LOG.error(
+                "NodeService {} failed for node {}; derived timing is stale",
+                operation,
                 nodeId.value(),
                 failure);
     }
