@@ -83,6 +83,11 @@ final class RegistrationDuplicateFilter {
         }
     }
 
+    /** Reports whether remembered registrations still exist. */
+    boolean hasPendingState() {
+        return !registrations.isEmpty();
+    }
+
     /** Removes entries whose current duplicate window has elapsed. */
     private void removeExpired(long now) {
         long duplicateWindowNanos =
