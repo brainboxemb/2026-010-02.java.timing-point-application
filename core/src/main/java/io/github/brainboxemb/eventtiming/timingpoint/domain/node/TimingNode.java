@@ -116,12 +116,15 @@ public final class TimingNode extends LifecycleComponent {
         lifecycle.register(tagProcessor);
 
         /*
-         * NodeService tracks only the published LogBook head and decides itself
-         * how much committed TimingData to read per Task Lane turn.
+         * Recovery passes only the committed head. NodeService chooses its own
+         * history batch size; later commits remain one-record incremental facts.
          */
-        NodeService.TIMING_DATA_HEAD_CHANGED.bind(
+        NodeService.LOGBOOK_RECOVERED.bind(
                 nodeService,
-                logBook.TIMING_DATA_HEAD_CHANGED);
+                logBook.RECOVERY_STATUS_CHANGED);
+        NodeService.COMMITTED_TIMING_DATA.bind(
+                nodeService,
+                logBook.NEW_DATA_ENTRY);
 
         // Listener runs synchronously on the TagProcessor lane; it must not block.
         NEW_REGISTRATION.bind(this, tagProcessor.NEW_REGISTRATION);
