@@ -123,7 +123,7 @@ public final class NodeService extends LifecycleComponent {
             Runnable applyCommittedTimingData = () -> state.applyTimingData(data);
             Consumer<Throwable> handleFailure =
                     failure -> updateFailed("committed TimingData", failure);
-            NodeServiceUpdateTask.execute(taskRunner, applyCommittedTimingData, handleFailure);
+            NodeServiceUpdateTask.queue(taskRunner, applyCommittedTimingData, handleFailure);
         }
     }
 
