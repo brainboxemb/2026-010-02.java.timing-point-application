@@ -22,7 +22,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Keeps NodeService data caught up with committed LogBook TimingData.
  *
- * <p>The task owns the LogBook cursor, bounded asynchronous reads and catch-up caughtUp.
+ * <p>The task owns the LogBook cursor, bounded asynchronous reads and catch-up completion.
  * NodeService only starts a full load after LogBook becomes LOADED and wakes this task
  * after later TimingData commits.</p>
  */
