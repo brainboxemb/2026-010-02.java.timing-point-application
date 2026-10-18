@@ -9,7 +9,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
@@ -57,12 +56,6 @@ public class RuntimeMeasurementReaderTest {
         tagWorker.setRemoveOnCancelPolicy(
                 true);
 
-        TimingNodeDataLane dataLane =
-                new TimingNodeDataLane(
-                        8,
-                        8,
-                        "measurement-node-data",
-                        nodeWorker);
         SerialTaskRunner taskLane =
                 new SerialTaskRunner(
                         8,
@@ -90,7 +83,9 @@ public class RuntimeMeasurementReaderTest {
                         timeSource,
                         SystemMonotonicClock.INSTANCE,
                         logBookMetrics,
-                        dataLane,
+                        nodeWorker,
+                        8,
+                        8,
                         LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
                         LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
         NodeService nodeService =
@@ -113,7 +108,7 @@ public class RuntimeMeasurementReaderTest {
 
         RuntimeMeasurementReader reader =
                 new RuntimeMeasurementReader(
-                        dataLane.metrics(),
+                        logBook.dataLaneMetrics(),
                         logBookMetrics,
                         tagMetrics);
 
@@ -154,7 +149,7 @@ public class RuntimeMeasurementReaderTest {
             TimingNodeRuntimeSnapshot nodeSnapshot =
                     reader.timingNode();
             assertTrue(
-                    nodeSnapshot.queuedTaskCount() >= 2L);
+                    nodeSnapshot.queuedItemCount() >= 2L);
             assertEquals(
                     0L,
                     nodeSnapshot.queueFullCount());

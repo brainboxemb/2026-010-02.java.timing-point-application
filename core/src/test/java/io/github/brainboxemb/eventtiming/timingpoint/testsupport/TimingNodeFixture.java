@@ -5,7 +5,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
@@ -23,7 +22,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.System
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
-import java.util.concurrent.Executors;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 /**
@@ -165,19 +164,17 @@ public final class TimingNodeFixture {
                 timeSource,
                 EventData.empty(),
                 UpstreamStream.unavailable(),
-                new TimingNodeDataLane(
-                        32,
-                        32,
-                        "test-node-data-" + suffix,
-                        NODE_WORKER),
+                NODE_WORKER,
+                32,
+                32,
+                DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
+                DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS,
                 new SerialTaskRunner(
                         32,
                         32,
                         "test-node-task-" + suffix,
                         NODE_WORKER),
-                TAG_WORKER,
-                DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
-                DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS)
+                TAG_WORKER)
                 .node();
     }
 
@@ -234,51 +231,28 @@ public final class TimingNodeFixture {
                 timeSource,
                 eventData,
                 upstreamStream,
-                new TimingNodeDataLane(
-                        32,
-                        32,
-                        "test-node-data-direct-" + suffix,
-                        NODE_WORKER),
+                NODE_WORKER,
+                32,
+                32,
+                DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
+                DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS,
                 new SerialTaskRunner(
                         32,
                         32,
                         "test-node-task-direct-" + suffix,
                         NODE_WORKER),
-                TAG_WORKER,
-                DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
-                DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
+                TAG_WORKER);
     }
 
-    /**
-     * Creates one TimingNode using the same short wait guard for commit and ORDERED-query tests.
-     *
-     * <p>Use the two-timeout overload when the distinction itself is under test.</p>
-     */
-    public static TimingNode createWithDataLane(
+    /** Creates one TimingNode with explicit LogBook lane execution settings. */
+    public static TimingNode createWithLogBookExecution(
             NodeId nodeId,
             TimingDataPersistence persistence,
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
-            TimingNodeDataLane dataLane,
-            long waitTimeoutMillis) {
-
-        return createWithDataLane(
-                nodeId,
-                persistence,
-                timingDataFactory,
-                timeSource,
-                dataLane,
-                waitTimeoutMillis,
-                waitTimeoutMillis);
-    }
-
-    /** Creates one TimingNode with explicit commit and ORDERED-query wait guards. */
-    public static TimingNode createWithDataLane(
-            NodeId nodeId,
-            TimingDataPersistence persistence,
-            TimingDataFactory timingDataFactory,
-            TimeSource timeSource,
-            TimingNodeDataLane dataLane,
+            Executor dataLaneExecutor,
+            int dataLaneCapacity,
+            int dataLaneMaxItemsPerRun,
             long commitWaitTimeoutMillis,
             long orderedQueryWaitTimeoutMillis) {
         String suffix =
@@ -293,15 +267,17 @@ public final class TimingNodeFixture {
                 timeSource,
                 EventData.empty(),
                 UpstreamStream.unavailable(),
-                dataLane,
+                dataLaneExecutor,
+                dataLaneCapacity,
+                dataLaneMaxItemsPerRun,
+                commitWaitTimeoutMillis,
+                orderedQueryWaitTimeoutMillis,
                 new SerialTaskRunner(
                         32,
                         32,
                         "test-node-task-direct-" + suffix,
                         NODE_WORKER),
-                TAG_WORKER,
-                commitWaitTimeoutMillis,
-                orderedQueryWaitTimeoutMillis)
+                TAG_WORKER)
                 .node();
     }
 
@@ -313,11 +289,13 @@ public final class TimingNodeFixture {
             TimeSource timeSource,
             EventData eventData,
             UpstreamStream upstreamStream,
-            TimingNodeDataLane dataLane,
-            SerialTaskRunner taskLane,
-            ScheduledThreadPoolExecutor tagWorker,
+            Executor dataLaneExecutor,
+            int dataLaneCapacity,
+            int dataLaneMaxItemsPerRun,
             long commitWaitTimeoutMillis,
-            long orderedQueryWaitTimeoutMillis) {
+            long orderedQueryWaitTimeoutMillis,
+            SerialTaskRunner taskLane,
+            ScheduledThreadPoolExecutor tagWorker) {
         ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
                 ReadOnlyConfiguration.fixed(
                         TagProcessingPolicy.defaults());
@@ -330,7 +308,9 @@ public final class TimingNodeFixture {
                         timeSource,
                         SystemMonotonicClock.INSTANCE,
                         new LogBookMetrics(),
-                        dataLane,
+                        dataLaneExecutor,
+                        dataLaneCapacity,
+                        dataLaneMaxItemsPerRun,
                         commitWaitTimeoutMillis,
                         orderedQueryWaitTimeoutMillis);
 
@@ -341,7 +321,6 @@ public final class TimingNodeFixture {
         UpstreamHandler upstreamHandler =
                 new UpstreamHandler(
                         nodeId,
-                        dataLane,
                         taskLane,
                         upstreamStream,
                         logBook,

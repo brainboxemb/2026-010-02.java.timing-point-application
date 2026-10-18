@@ -12,17 +12,17 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.metrics.RuntimeObs
  * through TimingNode, PresentationGateway, IF-03, console or remote shell.</p>
  */
 public final class RuntimeMeasurementReader {
-    private final SerialLaneMetrics timingNodeLaneMetrics;
+    private final SerialLaneMetrics logBookDataLaneMetrics;
     private final LogBookMetrics logBookMetrics;
     private final TagProcessingMetrics tagProcessingMetrics;
 
     /** Creates a pull reader over the supplied component-owned metric sources. */
     public RuntimeMeasurementReader(
-            SerialLaneMetrics timingNodeLaneMetrics,
+            SerialLaneMetrics logBookDataLaneMetrics,
             LogBookMetrics logBookMetrics,
             TagProcessingMetrics tagProcessingMetrics) {
-        if (timingNodeLaneMetrics == null) {
-            throw new IllegalArgumentException("timingNodeLaneMetrics must not be null");
+        if (logBookDataLaneMetrics == null) {
+            throw new IllegalArgumentException("logBookDataLaneMetrics must not be null");
         }
         if (logBookMetrics == null) {
             throw new IllegalArgumentException("logBookMetrics must not be null");
@@ -30,15 +30,15 @@ public final class RuntimeMeasurementReader {
         if (tagProcessingMetrics == null) {
             throw new IllegalArgumentException("tagProcessingMetrics must not be null");
         }
-        this.timingNodeLaneMetrics = timingNodeLaneMetrics;
+        this.logBookDataLaneMetrics = logBookDataLaneMetrics;
         this.logBookMetrics = logBookMetrics;
         this.tagProcessingMetrics = tagProcessingMetrics;
     }
 
-    /** Returns one current TimingNode Data Lane/LogBook engineering snapshot. */
+    /** Returns one current LogBook Data Lane/LogBook engineering snapshot. */
     public TimingNodeRuntimeSnapshot timingNode() {
         return new TimingNodeRuntimeSnapshot(
-                timingNodeLaneMetrics.snapshot(),
+                logBookDataLaneMetrics.snapshot(),
                 logBookMetrics.snapshot());
     }
 

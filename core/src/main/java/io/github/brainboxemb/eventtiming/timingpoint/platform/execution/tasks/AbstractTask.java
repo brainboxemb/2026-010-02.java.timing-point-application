@@ -42,23 +42,25 @@ public abstract class AbstractTask implements YieldingTask {
      *
      * <p>If a run is already active, repeated wake requests collapse into one
      * follow-up run after the current run completes successfully.</p>
+     *
+     * @return true when the request is retained; false when a new run could not be admitted
      */
-    public final void wake(SerialTaskRunner taskLane) {
+    public final boolean wake(SerialTaskRunner taskLane) {
         checkLane(taskLane);
 
         synchronized (this) {
             if (isRunning()) {
                 wakePending = true;
-                return;
+                return true;
             }
 
             wakePending = false;
             try {
                 startRun(taskLane);
-                return;
+                return true;
             } catch (RuntimeException ex) {
                 completeFailedWake(ex);
-                return;
+                return false;
             } catch (Error error) {
                 completeFailedWake(error);
                 throw error;

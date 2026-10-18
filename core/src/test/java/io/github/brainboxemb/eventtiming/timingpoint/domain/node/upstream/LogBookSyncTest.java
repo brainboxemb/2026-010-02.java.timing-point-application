@@ -3,7 +3,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
@@ -59,11 +58,9 @@ public class LogBookSyncTest {
                 () -> Instant.EPOCH,
                 SystemMonotonicClock.INSTANCE,
                 new LogBookMetrics(),
-                new TimingNodeDataLane(
-                        8,
-                        8,
-                        "test-logbook-sync-data",
-                        Runnable::run),
+                Runnable::run,
+                8,
+                8,
                 LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
                 LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
     }
