@@ -14,6 +14,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.Se
 import java.time.Duration;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import org.slf4j.Logger;
@@ -130,7 +131,7 @@ public final class NodeService extends LifecycleComponent {
         } else {
             Runnable applyCommittedTimingData =
                     () -> state.applyTimingData(data);
-            java.util.function.Consumer<Throwable> handleFailure =
+            Consumer<Throwable> handleFailure =
                     failure -> updateFailed("committed TimingData", failure);
             NodeServiceUpdateTask.execute(
                     taskRunner,
