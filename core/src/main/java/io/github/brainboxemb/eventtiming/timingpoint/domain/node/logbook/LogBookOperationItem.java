@@ -5,7 +5,7 @@ import java.util.concurrent.CompletableFuture;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Base data item for one LogBook operation admitted to the TimingNode Data Lane.
+ * Base data item for one operation admitted to the LogBook Data Lane.
  *
  * <p>The item carries operation data and, where needed, its result holder. It is
  * deliberately not executable work.</p>
