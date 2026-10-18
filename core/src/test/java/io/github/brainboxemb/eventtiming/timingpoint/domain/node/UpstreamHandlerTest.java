@@ -127,7 +127,7 @@ public class UpstreamHandlerTest {
         }
     }
 
-    /** Verifies that a heartbeat is queued on the Task Lane while the Data Lane is occupied. */
+    /** Verifies that Task Lane work waits while LogBook I/O owns the shared worker. */
     @Test
     public void heartbeatIsQueuedToTaskLaneWhileDataLaneIsBusy()
             throws Exception {
@@ -136,12 +136,6 @@ public class UpstreamHandlerTest {
         nodeWorker.setRemoveOnCancelPolicy(true);
         ScheduledThreadPoolExecutor tagWorker =
                 new ScheduledThreadPoolExecutor(1);
-        TimingNodeDataLane dataLane =
-                new TimingNodeDataLane(
-                        4,
-                        4,
-                        "heartbeat-data-test",
-                        nodeWorker);
         SerialTaskRunner taskLane =
                 new SerialTaskRunner(
                         4,
@@ -193,7 +187,9 @@ public class UpstreamHandlerTest {
                         timeSource,
                         SystemMonotonicClock.INSTANCE,
                         new LogBookMetrics(),
-                        dataLane,
+                        nodeWorker,
+                        4,
+                        4,
                         LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
                         LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
         NodeServiceState taskState =
@@ -203,7 +199,6 @@ public class UpstreamHandlerTest {
         UpstreamHandler upstreamHandler =
                 new UpstreamHandler(
                         new NodeId("A"),
-                        dataLane,
                         taskLane,
                         stream,
                         logBook,
@@ -285,13 +280,7 @@ public class UpstreamHandlerTest {
                             request.pingId()));
             assertTrue(port.inputAvailable());
 
-            /*
-             * inputAvailable admits a Data Lane turn, which then admits the
-             * heartbeat handling task. Cross both ordered boundaries before
-             * inspecting the published heartbeat snapshot.
-             */
-            node.node().logBook().process(
-                    LogBookQueries.timingDataCount());
+            // Cross the Task Lane after the already-admitted inbound PING.
             node.nodeService().stageTiming(ZoneOffset.UTC);
 
             UpstreamHandlerTypes.HeartbeatStatus status =
