@@ -320,8 +320,8 @@ final class CharacterizationEvidenceWriter {
         json.writeNumberField(
                 "queuedTaskDelta",
                 delta(
-                        before.queuedTaskCount(),
-                        after.queuedTaskCount()));
+                        before.queuedItemCount(),
+                        after.queuedItemCount()));
         json.writeNumberField(
                 "queueFullDelta",
                 delta(
