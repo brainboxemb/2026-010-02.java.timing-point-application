@@ -163,8 +163,8 @@ public final class TimingNode extends LifecycleComponent {
     /**
      * Returns this TimingNode's own runtime readiness.
      *
-     * <p>Child-component health is independent. For example, a failed LogBook
-     * recovery does not put the TimingNode itself in ERROR.</p>
+     * <p>Child-component health is independent. For example, LogBook ERROR
+     * does not put the TimingNode itself in ERROR.</p>
      */
     public OperationalState operationalState() {
 
