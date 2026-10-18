@@ -190,10 +190,9 @@ final class LogBookOperations {
         for (TimingData data : loadResult.records()) {
             state.addCommittedTimingData(data);
         }
-        state.repairedIncompleteTail(loadResult.repairedIncompleteTail());
     }
 
-    /** Records a LogBook recovery problem after startup loading fails. */
+    /** Records a LogBook load problem after persisted TimingData loading fails. */
     void markTimingDataLoadFailed(Throwable failure) {
 
         failIfInvalidArgument(failure != null, "failure must not be null");
