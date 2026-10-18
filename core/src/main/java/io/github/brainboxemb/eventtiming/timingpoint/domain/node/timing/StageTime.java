@@ -11,6 +11,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 
 /** One resolved active registration in the stage passage list. */
 public final class StageTime {
+    private final long sequenceNumber;
     private final LocationId locationId;
     private final TeamId teamId;
     private final RegistrationId registrationId;
@@ -18,12 +19,14 @@ public final class StageTime {
     private final TimingTimestamp finishedAt;
 
     StageTime(
+            long sequenceNumber,
             LocationId locationId,
             TeamId teamId,
             RegistrationId registrationId,
             TimingTimestamp startedAt,
             TimingTimestamp finishedAt) {
 
+        failIfInvalidArgument(sequenceNumber >= 1L, "sequenceNumber must be positive");
         failIfInvalidArgument(locationId != null, "locationId must not be null");
         failIfInvalidArgument(teamId != null, "teamId must not be null");
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
@@ -32,11 +35,18 @@ public final class StageTime {
         failIfInvalidArgument(startedAt.isAbsolute(), "startedAt must be absolute");
         failIfInvalidArgument(finishedAt.isAbsolute(), "finishedAt must be absolute");
 
+        this.sequenceNumber = sequenceNumber;
         this.locationId = locationId;
         this.teamId = teamId;
         this.registrationId = registrationId;
         this.startedAt = startedAt;
         this.finishedAt = finishedAt;
+    }
+
+    /** Returns the source TimingData sequence for this passage. */
+    public long sequenceNumber() {
+
+        return sequenceNumber;
     }
 
     /** Returns the TimingData location for this passage. */
