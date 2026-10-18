@@ -158,7 +158,7 @@ public class TimingNodeTest {
 
             activationCaller.join(250L);
             assertFalse(
-                    "activate() must return while MainTask recovery is running",
+                    "activate() must return while persisted-data load is running",
                     activationCaller.isAlive());
             assertNull(activationFailure[0]);
             assertEquals(
