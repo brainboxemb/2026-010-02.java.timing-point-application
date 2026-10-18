@@ -4,7 +4,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookDataLane;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
@@ -59,13 +58,10 @@ public class LogBookSyncTest {
                 () -> Instant.EPOCH,
                 SystemMonotonicClock.INSTANCE,
                 new LogBookMetrics(),
-                new LogBookDataLane(
-                        nodeId,
-                        8,
-                        8,
-                        "test-logbook-sync-data",
-                        Runnable::run,
-                        LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
-                        LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS));
+                Runnable::run,
+                8,
+                8,
+                LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
+                LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
     }
 }
