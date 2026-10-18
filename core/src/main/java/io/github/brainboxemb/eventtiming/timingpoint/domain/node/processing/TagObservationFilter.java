@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Passive passage state owned and called only by the TagProcessor execution lane.
+ * Passive passage state called only on the TagProcessor scheduler thread.
  */
 final class TagObservationFilter {
     private static final Logger LOG =
@@ -169,16 +169,9 @@ final class TagObservationFilter {
                 closedBurst.rssi,
                 closedBurst.observedAt);
 
-        try {
-            validObservationCallback.accept(
-                    closedBurst.registrationId,
-                    closedBurst.observedAt);
-        } catch (RuntimeException ex) {
-            LOG.warn(
-                    "Could not process valid observation for {}",
-                    closedBurst.registrationId.value(),
-                    ex);
-        }
+        validObservationCallback.accept(
+                closedBurst.registrationId,
+                closedBurst.observedAt);
     }
 
     private static final class ClosedBurst {

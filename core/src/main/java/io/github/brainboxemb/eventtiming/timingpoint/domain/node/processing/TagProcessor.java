@@ -3,23 +3,16 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ConfigurationChange;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,43 +20,26 @@ import org.slf4j.LoggerFactory;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Active tag-processing boundary between antenna observations and registrations.
+ * Maps antenna observations to registrations through one bounded serial lane.
  *
- * <p>Antenna observations use one bounded typed {@link SerialLane}. Periodic
- * filter and housekeeping work use the supplied JDK
- * {@link ScheduledExecutorService} directly. Runtime supplies one single-thread
- * executor for both, so TagProcessor state is never processed concurrently and
- * no second scheduled-lane abstraction is needed.</p>
+ * <p>Timed passage filtering and duplicate cleanup are owned by
+ * {@link FilterJob} and {@link HousekeepingJob}. Both jobs use the same
+ * Runtime-owned single-thread scheduler as the observation lane.</p>
  */
 public final class TagProcessor extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(TagProcessor.class);
 
-    /** Runtime-policy changes consumed by this processor. */
-    private static final EventInput<TagProcessor, ConfigurationChange<TagProcessingPolicy>>
-            POLICY_CHANGED =
-                    EventInput.of(
-                            (processor, source) ->
-                                    source.subscribe(processor::onPolicyConfigurationChanged));
-
     private final EventData eventData;
+    private final TagProcessingMetrics metrics;
+    private final FilterJob filterJob;
+    private final HousekeepingJob housekeepingJob;
+    private final SerialLane<TagObservation> observations;
+
     private final Event<NewRegistration> newRegistration =
             new Event<NewRegistration>();
 
     /** Selected-registration source published after passage filtering. */
     public final EventSource<NewRegistration> NEW_REGISTRATION = newRegistration;
-
-    private final ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration;
-    private final RegistrationDuplicateFilter duplicateFilter;
-    private final TagProcessingMetrics metrics;
-    private final TagObservationFilter observationFilter;
-    private final SerialLane<TagObservation> observations;
-    private final ScheduledExecutorService scheduler;
-    private final Object lifecycleLock = new Object();
-
-    private ScheduledFuture<?> observationFilterTask;
-    private ScheduledFuture<?> housekeepingTask;
-    private volatile List<TagPassageSnapshot> passageSnapshots =
-            Collections.emptyList();
 
     /** Creates a TagProcessor with one fixed startup policy. */
     public TagProcessor(
@@ -90,9 +66,7 @@ public final class TagProcessor extends LifecycleComponent {
             ScheduledExecutorService scheduler) {
 
         failIfInvalidArgument(eventData != null, "eventData must not be null");
-        failIfInvalidArgument(
-                policyConfiguration != null,
-                "policyConfiguration must not be null");
+        failIfInvalidArgument(policyConfiguration != null, "policyConfiguration must not be null");
         failIfInvalidArgument(monotonicClock != null, "monotonicClock must not be null");
         failIfInvalidArgument(metrics != null, "metrics must not be null");
         failIfInvalidArgument(scheduler != null, "scheduler must not be null");
@@ -103,43 +77,45 @@ public final class TagProcessor extends LifecycleComponent {
                 "policyConfiguration.startupValue must not be null");
 
         this.eventData = eventData;
-        this.policyConfiguration = policyConfiguration;
         this.metrics = metrics;
-        this.scheduler = scheduler;
+
+        filterJob =
+                new FilterJob(
+                        policyConfiguration,
+                        monotonicClock,
+                        metrics,
+                        scheduler,
+                        this::processValidObservation);
+        housekeepingJob =
+                new HousekeepingJob(
+                        policyConfiguration,
+                        monotonicClock,
+                        scheduler);
         observations =
                 new SerialLane<TagObservation>(
                         startupPolicy.observationQueueCapacity(),
                         startupPolicy.observationQueueCapacity(),
                         "TagProcessor",
                         scheduler,
-                        this::processObservationSafely);
-        duplicateFilter =
-                new RegistrationDuplicateFilter(
-                        policyConfiguration,
-                        monotonicClock);
-        observationFilter =
-                new TagObservationFilter(
-                        policyConfiguration,
-                        monotonicClock,
-                        metrics,
-                        this::processValidObservation);
+                        this::processObservation);
 
-        POLICY_CHANGED.bind(this, policyConfiguration.changes());
+        policyConfiguration.changes().subscribe(filterJob::policyChanged);
+        policyConfiguration.changes().subscribe(housekeepingJob::policyChanged);
     }
 
-    /** Starts bounded observation admission. */
+    /** Starts both timed jobs and then bounded observation admission. */
     @Override
     protected void onActivate() {
+        filterJob.start();
+        housekeepingJob.start();
         observations.start();
     }
 
-    /** Cancels periodic work and drains already accepted observations. */
+    /** Stops timed work and then drains observations that were already accepted. */
     @Override
     protected void onDeactivate() {
-        synchronized (lifecycleLock) {
-            cancelObservationFilterLocked();
-            cancelHousekeepingLocked();
-        }
+        filterJob.stop();
+        housekeepingJob.stop();
         observations.close();
     }
 
@@ -148,21 +124,12 @@ public final class TagProcessor extends LifecycleComponent {
         failIfInvalidArgument(observation != null, "observation must not be null");
 
         metrics.recordObservation();
-
         if (!isActive()) {
             metrics.recordProcessorNotRunning();
             return;
         }
 
-        final SerialLane.OfferResult result;
-        try {
-            result = observations.offer(observation);
-        } catch (RejectedExecutionException ex) {
-            metrics.recordProcessorNotRunning();
-            LOG.warn("Could not schedule TagProcessor observation worker", ex);
-            return;
-        }
-
+        SerialLane.OfferResult result = observations.offer(observation);
         switch (result) {
             case ACCEPTED:
                 break;
@@ -180,19 +147,7 @@ public final class TagProcessor extends LifecycleComponent {
 
     /** Returns the latest immutable engineering snapshot of active tag passages. */
     public List<TagPassageSnapshot> passageSnapshots() {
-        return passageSnapshots;
-    }
-
-    /** Contains one observation failure so later observations continue. */
-    private void processObservationSafely(TagObservation observation) {
-        try {
-            processObservation(observation);
-        } catch (RuntimeException ex) {
-            LOG.warn(
-                    "Could not process tag observation {}",
-                    observation.tagId().value(),
-                    ex);
-        }
+        return filterJob.passageSnapshots();
     }
 
     /** Maps and filters one queued antenna observation. */
@@ -205,182 +160,23 @@ public final class TagProcessor extends LifecycleComponent {
 
         RegistrationId registrationId =
                 eventData.registrationIdFor(observation.tagId());
+
         if (registrationId == null) {
             metrics.recordUnmapped();
             LOG.debug(
                     "Tag observation ignored because TagId {} is unmapped",
                     observation.tagId().value());
-            return;
-        }
-
-        metrics.recordMapped();
-        if (duplicateFilter.isDuplicate(registrationId)) {
-            metrics.recordDuplicate();
-            LOG.debug(
-                    "Tag observation suppressed as duplicate: registrationId={}, tagId={}",
-                    registrationId.value(),
-                    observation.tagId().value());
-            return;
-        }
-
-        observationFilter.add(registrationId, observation);
-        publishPassageSnapshots();
-        ensureObservationFilter();
-    }
-
-    /** Starts the JDK fixed-delay filter task while passage state exists. */
-    private void ensureObservationFilter() {
-        if (!observationFilter.hasPendingState()) {
-            return;
-        }
-
-        synchronized (lifecycleLock) {
-            if (!isActive() || observationFilterTask != null) {
-                return;
+        } else {
+            metrics.recordMapped();
+            if (housekeepingJob.isDuplicate(registrationId)) {
+                metrics.recordDuplicate();
+                LOG.debug(
+                        "Tag observation suppressed as duplicate: registrationId={}, tagId={}",
+                        registrationId.value(),
+                        observation.tagId().value());
+            } else {
+                filterJob.add(registrationId, observation);
             }
-
-            long cadenceNanos =
-                    policyConfiguration.currentValue().sweepCadenceNanos();
-            observationFilterTask =
-                    scheduler.scheduleWithFixedDelay(
-                            this::processObservationFilter,
-                            cadenceNanos,
-                            cadenceNanos,
-                            TimeUnit.NANOSECONDS);
-        }
-    }
-
-    /** Starts the JDK fixed-delay duplicate housekeeping while state exists. */
-    private void ensureHousekeeping() {
-        if (!duplicateFilter.hasPendingState()) {
-            return;
-        }
-
-        synchronized (lifecycleLock) {
-            if (!isActive() || housekeepingTask != null) {
-                return;
-            }
-
-            long cadenceNanos =
-                    policyConfiguration.currentValue().sweepCadenceNanos();
-            housekeepingTask =
-                    scheduler.scheduleWithFixedDelay(
-                            this::processHousekeeping,
-                            cadenceNanos,
-                            cadenceNanos,
-                            TimeUnit.NANOSECONDS);
-        }
-    }
-
-    /** Serializes a policy change on the same single-thread scheduler. */
-    private void onPolicyConfigurationChanged(
-            ConfigurationChange<TagProcessingPolicy> change) {
-
-        synchronized (lifecycleLock) {
-            if (!isActive()) {
-                return;
-            }
-        }
-
-        try {
-            scheduler.execute(
-                    () -> applyPolicyChange(change));
-        } catch (RejectedExecutionException ex) {
-            LOG.warn("Could not schedule TagProcessor policy change", ex);
-        }
-    }
-
-    private void applyPolicyChange(
-            ConfigurationChange<TagProcessingPolicy> change) {
-
-        synchronized (lifecycleLock) {
-            if (!isActive()) {
-                return;
-            }
-
-            duplicateFilter.onPolicyChanged();
-
-            if (change.previousValue().sweepCadenceNanos()
-                    != change.currentValue().sweepCadenceNanos()) {
-                cancelObservationFilterLocked();
-                cancelHousekeepingLocked();
-            }
-
-            processObservationFilterLocked();
-            processHousekeepingLocked();
-            ensureObservationFilter();
-            ensureHousekeeping();
-        }
-    }
-
-    /** Executes one scheduled filter sweep on the shared TagProcessor thread. */
-    private void processObservationFilter() {
-        synchronized (lifecycleLock) {
-            if (!isActive()) {
-                return;
-            }
-            processObservationFilterLocked();
-        }
-    }
-
-    private void processObservationFilterLocked() {
-        try {
-            observationFilter.periodic();
-            publishPassageSnapshots();
-        } catch (RuntimeException ex) {
-            LOG.warn("Tag observation filter processing failed", ex);
-        }
-
-        if (!observationFilter.hasPendingState()) {
-            cancelObservationFilterLocked();
-        }
-    }
-
-    /** Executes one scheduled duplicate-state housekeeping pass. */
-    private void processHousekeeping() {
-        synchronized (lifecycleLock) {
-            if (!isActive()) {
-                return;
-            }
-            processHousekeepingLocked();
-        }
-    }
-
-    private void processHousekeepingLocked() {
-        try {
-            duplicateFilter.periodic();
-        } catch (RuntimeException ex) {
-            LOG.warn("Tag-processing housekeeping failed", ex);
-        }
-
-        if (!duplicateFilter.hasPendingState()) {
-            cancelHousekeepingLocked();
-        }
-    }
-
-    /** Publishes an immutable engineering snapshot of current passage state. */
-    private void publishPassageSnapshots() {
-        List<TagPassageSnapshot> current = observationFilter.snapshots();
-        passageSnapshots =
-                current.isEmpty()
-                        ? Collections.<TagPassageSnapshot>emptyList()
-                        : Collections.unmodifiableList(
-                                new ArrayList<TagPassageSnapshot>(current));
-    }
-
-    private void cancelObservationFilterLocked() {
-        ScheduledFuture<?> task = observationFilterTask;
-        observationFilterTask = null;
-        if (task != null) {
-            task.cancel(false);
-        }
-    }
-
-    private void cancelHousekeepingLocked() {
-        ScheduledFuture<?> task = housekeepingTask;
-        housekeepingTask = null;
-        if (task != null) {
-            task.cancel(false);
         }
     }
 
@@ -389,16 +185,13 @@ public final class TagProcessor extends LifecycleComponent {
             RegistrationId registrationId,
             TimingTimestamp observedAt) {
 
-        duplicateFilter.recordRegistration(registrationId);
-        ensureHousekeeping();
+        housekeepingJob.recordRegistration(registrationId);
 
         /*
-         * The observation that closed the previous passage may already have
-         * started a next passage. The selected registration now owns the
-         * duplicate window, so that next passage can be discarded locally.
+         * Closing the previous passage may already have started a next passage.
+         * Once duplicate suppression starts, that next passage is no longer useful.
          */
-        observationFilter.discard(registrationId);
-        publishPassageSnapshots();
+        filterJob.discard(registrationId);
 
         newRegistration.emit(
                 new NewRegistration(

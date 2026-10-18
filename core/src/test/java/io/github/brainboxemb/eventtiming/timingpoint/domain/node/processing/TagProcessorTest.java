@@ -350,7 +350,7 @@ public class TagProcessorTest {
     }
 
     @Test
-    public void filterAndDuplicateHousekeepingUseSeparateScheduledRuns()
+    public void filterAndDuplicateHousekeepingUseSeparateJobs()
             throws Exception {
         FakeMonotonicClock clock = new FakeMonotonicClock();
         RecordingScheduledExecutor executor = new RecordingScheduledExecutor();
@@ -377,6 +377,38 @@ public class TagProcessorTest {
             deactivate(processor);
             executor.closeWorker();
         }
+    }
+
+    @Test
+    public void stoppedJobsDoNotScheduleAnotherRun()
+            throws Exception {
+        FakeMonotonicClock clock = new FakeMonotonicClock();
+        RecordingScheduledExecutor executor = new RecordingScheduledExecutor();
+        TagProcessor processor = new TagProcessor(
+                eventDataFor("TAG-A", "N-001"),
+                policy(8),
+                clock,
+                new TagProcessingMetrics(),
+                executor);
+
+        activate(processor);
+        processor.onTagObserved(observation("TAG-A", -50, OBSERVED_AT));
+        awaitExecutor(executor);
+
+        assertEquals(1, executor.scheduledOperations.size());
+        Runnable scheduledFilterRun = executor.scheduledOperations.get(0);
+
+        deactivate(processor);
+
+        clock.advanceNanos(100L);
+        executor.execute(scheduledFilterRun);
+        awaitExecutor(executor);
+
+        assertEquals(
+                "a stopped FilterJob must not schedule another run",
+                1,
+                executor.scheduledOperations.size());
+        executor.closeWorker();
     }
 
     @Test
@@ -420,8 +452,8 @@ public class TagProcessorTest {
             awaitExecutor(execution.executor);
 
             /*
-             * The override replaces the JDK fixed-delay registrations while
-             * the processor remains usable on the same single-thread executor.
+             * The jobs replace their next scheduled run while the processor
+             * remains usable on the same single-thread executor.
              */
             processor.onTagObserved(
                     observation("TAG-002", -41, OBSERVED_AT));

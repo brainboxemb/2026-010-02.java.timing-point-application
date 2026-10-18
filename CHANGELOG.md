@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Simplify TagProcessor around explicit scheduled jobs: move passage-filter scheduling to `FilterJob` and duplicate cleanup scheduling to `HousekeepingJob`, keep both jobs on the Runtime-owned scheduler, make lifecycle start/stop visible in `TagProcessor`, and remove TagProcessor-local scheduling locks, futures and defensive try/catch handling.
+
 - Move Data Lane ownership fully into LogBook: remove `TimingNodeDataLane`, `TimingNodeDataItem` and the redundant `LogBookDataLane` wrapper; LogBook now owns `SerialLane<LogBookOperationItem<?>>` directly, while upstream protocol work stays on the TimingNode Task Lane and yields with `TaskStep.await(...)` for ordered LogBook reads.
 
 - Simplify `TimingNode` activation to direct MainTask start: `onActivate()` now only starts the Task Lane, activates children and starts the known reusable MainTask; task completion owns the `INIT -> OK/ERROR` transition, and cancellation during deactivation publishes no completion state.
