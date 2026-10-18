@@ -755,7 +755,7 @@ public class TimingNodeTest {
                         new NodeId("A"),
                         persistence,
                         2,
-                        "timing-node-test",
+                        "timing-node-state-event-test",
                         1000L);
         CountDownLatch functionalEvent = new CountDownLatch(1);
         CountDownLatch historyEvent = new CountDownLatch(1);
