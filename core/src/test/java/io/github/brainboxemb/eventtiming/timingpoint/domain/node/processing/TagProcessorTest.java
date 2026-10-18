@@ -350,7 +350,8 @@ public class TagProcessorTest {
     }
 
     @Test
-    public void activationStartsFilterAndHousekeepingJobs() {
+    public void idleProcessorDoesNotScheduleFilterOrHousekeepingRuns()
+            throws Exception {
         RecordingScheduledExecutor executor = new RecordingScheduledExecutor();
         TagProcessor processor = new TagProcessor(
                 eventDataFor("TAG-A", "N-001"),
@@ -361,7 +362,8 @@ public class TagProcessorTest {
 
         activate(processor);
         try {
-            assertEquals(2, executor.scheduledOperations.size());
+            awaitExecutor(executor);
+            assertTrue(executor.scheduledOperations.isEmpty());
         } finally {
             deactivate(processor);
             executor.closeWorker();
@@ -369,7 +371,8 @@ public class TagProcessorTest {
     }
 
     @Test
-    public void deactivationCancelsFilterAndHousekeepingJobs() {
+    public void firstObservationSchedulesOneFilterRun()
+            throws Exception {
         RecordingScheduledExecutor executor = new RecordingScheduledExecutor();
         TagProcessor processor = new TagProcessor(
                 eventDataFor("TAG-A", "N-001"),
@@ -379,17 +382,41 @@ public class TagProcessorTest {
                 executor);
 
         activate(processor);
-        assertEquals(2, executor.scheduledFutures.size());
+        try {
+            processor.onTagObserved(observation("TAG-A", -50, OBSERVED_AT));
+            awaitExecutor(executor);
 
+            assertEquals(1, executor.scheduledOperations.size());
+        } finally {
+            deactivate(processor);
+            executor.closeWorker();
+        }
+    }
+
+    @Test
+    public void deactivationCancelsPendingFilterRun()
+            throws Exception {
+        RecordingScheduledExecutor executor = new RecordingScheduledExecutor();
+        TagProcessor processor = new TagProcessor(
+                eventDataFor("TAG-A", "N-001"),
+                policy(8),
+                new FakeMonotonicClock(),
+                new TagProcessingMetrics(),
+                executor);
+
+        activate(processor);
+        processor.onTagObserved(observation("TAG-A", -50, OBSERVED_AT));
+        awaitExecutor(executor);
+
+        assertEquals(1, executor.scheduledFutures.size());
         deactivate(processor);
 
         assertTrue(executor.scheduledFutures.get(0).isCancelled());
-        assertTrue(executor.scheduledFutures.get(1).isCancelled());
         executor.closeWorker();
     }
 
     @Test
-    public void runtimeCadenceOverrideReplacesBothJobSchedules()
+    public void runtimeCadenceOverrideReplacesPendingFilterRun()
             throws Exception {
         FakeMonotonicClock clock = new FakeMonotonicClock();
         RecordingScheduledExecutor executor = new RecordingScheduledExecutor();
@@ -407,7 +434,9 @@ public class TagProcessorTest {
 
         activate(processor);
         try {
-            assertEquals(2, executor.scheduledOperations.size());
+            processor.onTagObserved(observation("TAG-001", -42, OBSERVED_AT));
+            awaitExecutor(executor);
+            assertEquals(1, executor.scheduledOperations.size());
 
             TagProcessingPolicy fasterSweep =
                     new TagProcessingPolicy(
@@ -424,10 +453,8 @@ public class TagProcessorTest {
                             .override(fasterSweep));
 
             awaitExecutor(executor);
-            assertEquals(4, executor.scheduledOperations.size());
-
-            processor.onTagObserved(observation("TAG-001", -42, OBSERVED_AT));
-            awaitExecutor(executor);
+            assertEquals(2, executor.scheduledOperations.size());
+            assertTrue(executor.scheduledFutures.get(0).isCancelled());
         } finally {
             deactivate(processor);
             executor.closeWorker();
@@ -607,16 +634,14 @@ public class TagProcessorTest {
         }
 
         @Override
-        public ScheduledFuture<?> scheduleWithFixedDelay(
+        public ScheduledFuture<?> schedule(
                 Runnable operation,
-                long initialDelay,
                 long delay,
                 TimeUnit unit) {
             scheduledOperations.add(operation);
             ScheduledFuture<?> future =
-                    super.scheduleWithFixedDelay(
+                    super.schedule(
                             () -> { },
-                            1L,
                             1L,
                             TimeUnit.DAYS);
             scheduledFutures.add(future);
