@@ -183,7 +183,7 @@ public final class NodeService extends LifecycleComponent {
         return NodeServiceQuery.execute(
                 taskRunner,
                 QUERY_TIMEOUT,
-                dataTask.completion(),
+                dataTask.caughtUp(),
                 operation);
     }
 
@@ -223,7 +223,7 @@ public final class NodeService extends LifecycleComponent {
 
             switch (currentStatus()) {
                 case LOADED:
-                    dataTask.load();
+                    dataTask.loadAll();
                     break;
                 case ERROR:
                     dataTask.unavailable();
