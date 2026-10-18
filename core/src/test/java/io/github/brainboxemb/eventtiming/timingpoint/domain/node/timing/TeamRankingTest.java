@@ -89,6 +89,31 @@ public class TeamRankingTest {
         assertEquals(Duration.ofSeconds(20), ranking.get(0).elapsed());
     }
 
+    /** An unmatched REV produces no mutation and leaves the selected passage unchanged. */
+    @Test
+    public void unmatchedRevokeDoesNotChangeSelectedCandidate() {
+        Fixture fixture = fixture();
+        fixture.setStart("0001", LocalTime.NOON);
+
+        fixture.add(
+                automatic(
+                        1L,
+                        "RT-A-0001",
+                        Instant.parse("2026-10-13T12:00:20Z"),
+                        TimingData.RegistrationAction.ADD));
+        fixture.add(
+                automatic(
+                        2L,
+                        "RT-A-0001",
+                        Instant.parse("2026-10-13T12:00:30Z"),
+                        TimingData.RegistrationAction.REV));
+
+        List<TeamRank> ranking = fixture.ranking();
+
+        assertEquals(1, ranking.size());
+        assertEquals(1L, ranking.get(0).stageTime().sequenceNumber());
+    }
+
     /** Equal selected elapsed times share competition rank across teams. */
     @Test
     public void equalTeamTimesShareRank() {
@@ -166,6 +191,10 @@ public class TeamRankingTest {
         assertEquals(1, ranking.size());
         assertEquals(teamId, ranking.get(0).stageTime().teamId());
         assertEquals(1L, ranking.get(0).stageTime().sequenceNumber());
+
+        fixture.activeRegistrations.teamAssignmentChanged(registrationId, null);
+        fixture.teamRanking.teamAssignmentChanged(registrationId, null);
+        assertTrue(fixture.ranking().isEmpty());
     }
 
     private static Fixture fixture() {
