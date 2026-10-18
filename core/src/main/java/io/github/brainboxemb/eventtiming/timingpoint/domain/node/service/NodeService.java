@@ -1,21 +1,18 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.service;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
 
 import java.time.Duration;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,52 +21,30 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Node-local service for Task Lane-owned RaceData and derived timing.
+ * Owns node-local race data and derived timing state.
  *
- * <p>The TimingNode owns one {@link SerialTaskRunner}. This service submits
- * one-step tasks to that runner for immutable LogBook facts and ordered queries.
- * Multi-step node startup uses the same runner, so all Task Lane work shares
- * one bounded FIFO without an additional NodeService item queue.</p>
+ * <p>All mutable state is processed in TimingNode Task Lane order. LogBook
+ * history initializes the service and later committed TimingData updates it
+ * incrementally.</p>
  */
 public final class NodeService extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(NodeService.class);
-    private static final Duration TASK_QUERY_TIMEOUT = Duration.ofSeconds(2L);
+    private static final Duration QUERY_TIMEOUT = Duration.ofSeconds(2L);
 
-    private final class StageTimingTask implements YieldingTask {
-        private final ZoneId raceTimeZone;
-        private List<StageTime> result;
-
-        private StageTimingTask(ZoneId raceTimeZone) {
-            this.raceTimeZone = raceTimeZone;
-        }
-
-        @Override
-        public TaskStep runStep() {
-            result = buildStageTiming(raceTimeZone);
-            return TaskStep.done();
-        }
-
-        private List<StageTime> result() {
-            return result;
-        }
-    }
-
-    /** Initial LogBook history input used to rebuild derived timing state. */
+    /** Initial LogBook history used to build node-local derived state. */
     public static final EventInput<NodeService, List<TimingData>> INITIAL_TIMING_DATA =
-            EventInput.of(
-                    (service, source) -> source.subscribe(service::onInitialTimingDataLoaded));
+            EventInput.of((service, source) -> source.subscribe(service::initialTimingDataLoaded));
 
-    /** Newly committed LogBook TimingData input used for incremental updates. */
+    /** Newly committed TimingData used to update node-local derived state. */
     public static final EventInput<NodeService, TimingData> COMMITTED_TIMING_DATA =
-            EventInput.of(
-                    (service, source) -> source.subscribe(service::onTimingDataCommitted));
+            EventInput.of((service, source) -> source.subscribe(service::timingDataCommitted));
 
     private final NodeId nodeId;
     private final SerialTaskRunner taskRunner;
     private final NodeServiceState state;
     private final StageTiming stageTiming;
 
-    /** Creates the service on the TimingNode-owned cooperative task runner. */
+    /** Creates the service on the TimingNode Task Lane. */
     public NodeService(
             NodeId nodeId,
             SerialTaskRunner taskRunner,
@@ -89,129 +64,60 @@ public final class NodeService extends LifecycleComponent {
                         state.stageStartTimes());
     }
 
-    /** TimingNode starts the shared runner before activating this service. */
+    /** Verifies that TimingNode started the shared Task Lane first. */
     @Override
     protected void onActivate() {
-        failIfIllegalState(
-                taskRunner.isRunning(),
-                "TimingNode task runner must be running before NodeService activation");
+        failIfIllegalState(taskRunner.isRunning(), "TimingNode Task Lane is not running");
     }
 
-    /** Marks derived timing unavailable when the owning node stops. */
+    /** Makes derived timing unavailable when the service stops. */
     @Override
     protected void onDeactivate() {
         state.markDerivedTimingUnavailable();
     }
 
-    /** Returns the maintained unique-team count for one location. */
+    /** Returns the number of uniquely registered teams at one location. */
     public int uniqueTeamRegistrationCount(LocationId locationId) {
         failIfInvalidArgument(locationId != null, "locationId must not be null");
-
-        if (taskRunner.isExecutingOnCurrentThread()) {
-            return state.uniqueTeamRegistrationCount(locationId);
-        }
-
-        final int[] count = new int[1];
-        taskRunner.await(
-                taskRunner.runTask(
-                        () -> {
-                            count[0] = state.uniqueTeamRegistrationCount(locationId);
-                            return TaskStep.done();
-                        }),
-                TASK_QUERY_TIMEOUT);
-        return count[0];
+        return read(() -> state.uniqueTeamRegistrationCount(locationId));
     }
 
-    /** Returns the current derived stage ranking in Task Lane order. */
+    /** Returns the current derived stage ranking. */
     public List<StageTime> stageTiming(ZoneId raceTimeZone) {
         failIfInvalidArgument(raceTimeZone != null, "raceTimeZone must not be null");
-
-        if (taskRunner.isExecutingOnCurrentThread()) {
-            return buildStageTiming(raceTimeZone);
-        }
-
-        StageTimingTask task = new StageTimingTask(raceTimeZone);
-        taskRunner.await(taskRunner.runTask(task), TASK_QUERY_TIMEOUT);
-        return task.result();
+        return read(() -> stageTiming.ranking(state.activeRegistrations(), raceTimeZone));
     }
 
-    private List<StageTime> buildStageTiming(ZoneId raceTimeZone) {
-        requireTaskRunner("stageTiming");
-        return stageTiming.ranking(
-                state.activeRegistrations(),
-                raceTimeZone);
+    /** Rebuilds derived state from the initially loaded LogBook history. */
+    private void initialTimingDataLoaded(List<TimingData> loadedData) {
+        update("initial TimingData", () -> state.rebuildDerivedTiming(loadedData));
     }
 
-    /** Queues startup history as one Task Lane step and returns immediately. */
-    private void onInitialTimingDataLoaded(List<TimingData> loadedData) {
-        handoffTimingFact(
-                "initial TimingData",
-                () -> rebuildDerivedTiming(loadedData));
+    /** Applies one newly committed TimingData record. */
+    private void timingDataCommitted(TimingData data) {
+        update("committed TimingData", () -> state.applyCommittedTimingData(data));
     }
 
-    /** Queues one newly committed TimingData fact and returns immediately. */
-    private void onTimingDataCommitted(TimingData data) {
-        handoffTimingFact(
-                "committed TimingData",
-                () -> applyCommittedTimingData(data));
+    /** Runs one ordered result-bearing service read. */
+    private <T> T read(Supplier<T> operation) {
+        return NodeServiceQuery.execute(taskRunner, QUERY_TIMEOUT, operation);
     }
 
-    private void handoffTimingFact(
-            String name,
-            Runnable operation) {
-
-        if (taskRunner.isExecutingOnCurrentThread()) {
-            operation.run();
-            return;
-        }
-
-        final CompletableFuture<Void> run;
-        try {
-            run =
-                    taskRunner.runTask(
-                            () -> {
-                                operation.run();
-                                return TaskStep.done();
-                            });
-        } catch (RuntimeException ex) {
-            recordTaskFailure(name, ex);
-            return;
-        }
-
-        run.whenComplete(
-                (ignored, failure) -> {
-                    if (failure != null && !run.isCancelled()) {
-                        recordTaskFailure(name, failure);
-                    }
-                });
+    /** Runs one ordered fire-and-forget service update. */
+    private void update(String name, Runnable operation) {
+        NodeServiceUpdateTask.execute(
+                taskRunner,
+                operation,
+                failure -> updateFailed(name, failure));
     }
 
-    private void recordTaskFailure(
-            String name,
-            Throwable failure) {
-
+    /** Marks derived state stale when a queued service update fails. */
+    private void updateFailed(String name, Throwable failure) {
         state.markDerivedTimingStale();
         LOG.error(
-                "Task runner failed {} for node {}; derived timing state is stale",
+                "NodeService {} failed for node {}; derived timing is stale",
                 name,
                 nodeId.value(),
                 failure);
-    }
-
-    private void rebuildDerivedTiming(Iterable<TimingData> loadedData) {
-        requireTaskRunner("rebuildDerivedTiming");
-        state.rebuildDerivedTiming(loadedData);
-    }
-
-    private void applyCommittedTimingData(TimingData data) {
-        requireTaskRunner("applyCommittedTimingData");
-        state.applyCommittedTimingData(data);
-    }
-
-    private void requireTaskRunner(String operation) {
-        failIfIllegalState(
-                taskRunner.isExecutingOnCurrentThread(),
-                "%s requires the TimingNode task runner",
-                operation);
     }
 }
