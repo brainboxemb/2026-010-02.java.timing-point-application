@@ -365,6 +365,35 @@ public class TagProcessorTest {
     }
 
     @Test
+    public void filterAndDuplicateHousekeepingUseSeparateScheduledRuns()
+            throws Exception {
+        FakeMonotonicClock clock = new FakeMonotonicClock();
+        RecordingScheduledLane lane = new RecordingScheduledLane();
+        TagProcessor processor = new TagProcessor(
+                eventDataFor("TAG-A", "N-001"),
+                policy(8),
+                clock,
+                new TagProcessingMetrics(),
+                lane);
+
+        activate(processor);
+        try {
+            processor.onTagObserved(observation("TAG-A", -50, OBSERVED_AT));
+            awaitLane(lane);
+
+            assertEquals(1, lane.scheduledOperations.size());
+
+            clock.advanceNanos(100L);
+            lane.scheduledOperations.get(0).run();
+
+            assertEquals(2, lane.scheduledOperations.size());
+        } finally {
+            deactivate(processor);
+            lane.closeWorker();
+        }
+    }
+
+    @Test
     public void runtimeCadenceOverrideReplacesHousekeepingRegistration()
             throws Exception {
         TimingNode node = node(new RecordingStore());
@@ -576,6 +605,32 @@ public class TagProcessorTest {
                 store,
                 new DefaultTimingDataFactory(),
                 timeSource);
+    }
+
+    private static final class RecordingScheduledLane extends ScheduledSerialLane {
+        private final ScheduledThreadPoolExecutor worker;
+        private final List<Runnable> scheduledOperations = new ArrayList<Runnable>();
+
+        private RecordingScheduledLane() {
+            this(new ScheduledThreadPoolExecutor(1));
+        }
+
+        private RecordingScheduledLane(ScheduledThreadPoolExecutor worker) {
+            super(8, 8, "recording-tag-lane", worker);
+            this.worker = worker;
+        }
+
+        @Override
+        public ScheduledRegistration scheduleWithFixedDelay(
+                Runnable operation,
+                long delayNanos) {
+            scheduledOperations.add(operation);
+            return () -> { };
+        }
+
+        private void closeWorker() {
+            worker.shutdownNow();
+        }
     }
 
     private static final class TagExecution {

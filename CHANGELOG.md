@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make TagProcessor execution intent explicit: queued antenna observations use `processQueuedObservations()`, passage expiry uses its own scheduled `processObservationFilter()`, duplicate-state cleanup uses a separate scheduled `processHousekeeping()`, and duplicate local lifecycle/atomic scheduling state is removed in favor of `LifecycleComponent` plus one lock-guarded observation-processing flag.
+
 - Reduce `SerialLane` to one bounded FIFO queue and one fixed scheduled worker: each worker run processes up to configurable `maxItemsPerRun` queued items, work arriving during that batch remains for the next run, timing is recorded centrally, and LogBook names its queued fire-and-forget operation by intent.
 
 - Remove the unchanged committed-TimingData relay from TimingNode: NodeService now consumes the LogBook commit event directly and TimingNodeProxy exposes the same LogBook event through LogBookAccessor, keeping TimingNode focused on node state and coordination.
