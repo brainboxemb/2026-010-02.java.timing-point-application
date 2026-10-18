@@ -42,12 +42,6 @@ public final class ActiveRegistrations {
         teamsAcrossLocations.clear();
     }
 
-    /** Applies one TimingData record without resolving a team. */
-    public void apply(TimingData data) {
-
-        apply(data, registrationId -> null);
-    }
-
     /** Applies one TimingData record and updates maintained counts. */
     public void apply(TimingData data, Function<RegistrationId, TeamId> teamResolver) {
 
