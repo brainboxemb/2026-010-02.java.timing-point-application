@@ -303,7 +303,7 @@ public class TimingNodeTest {
                 new DefaultTimingDataFactory(),
                 TimingNodeTest::now);
         List<TimingData> committedEvents = new ArrayList<TimingData>();
-        node.logBook().newDataEntryEvent().subscribe(committedEvents::add);
+        node.NEW_DATA_ENTRY.subscribe(committedEvents::add);
 
         activate(node);
         try {
