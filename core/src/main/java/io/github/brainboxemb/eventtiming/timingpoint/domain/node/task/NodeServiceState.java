@@ -4,12 +4,12 @@ import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.StageStartTimes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.TeamAssignments;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.UniqueTeamRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamTaskState;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 
@@ -33,7 +33,6 @@ public final class NodeServiceState implements UpstreamTaskState {
     private final EventData eventData;
     private final RaceDataState raceData;
     private final ActiveRegistrations activeRegistrations = new ActiveRegistrations();
-    private final UniqueTeamRegistrations uniqueTeamRegistrations = new UniqueTeamRegistrations();
 
     private boolean derivedTimingReady;
 
@@ -83,11 +82,9 @@ public final class NodeServiceState implements UpstreamTaskState {
         failIfInvalidArgument(loadedData != null, "loadedData must not be null");
 
         activeRegistrations.reset();
-        uniqueTeamRegistrations.reset();
 
         for (TimingData data : loadedData) {
-            activeRegistrations.apply(data);
-            updateUniqueTeamRegistrations(data);
+            activeRegistrations.apply(data, raceData::teamIdFor);
         }
 
         derivedTimingStale = false;
@@ -100,8 +97,7 @@ public final class NodeServiceState implements UpstreamTaskState {
         if (!derivedTimingReady) {
             derivedTimingStale = true;
         } else {
-            activeRegistrations.apply(data);
-            updateUniqueTeamRegistrations(data);
+            activeRegistrations.apply(data, raceData::teamIdFor);
         }
     }
 
@@ -122,6 +118,12 @@ public final class NodeServiceState implements UpstreamTaskState {
     @Override
     public void applyRaceData(UpstreamData.RaceData changes) {
         raceData.applyChanges(changes);
+        for (UpstreamData.TeamAssignmentChange change : changes.teamAssignmentChanges()) {
+            RegistrationId registrationId = change.registrationId();
+            activeRegistrations.teamAssignmentChanged(
+                    registrationId,
+                    raceData.teamIdFor(registrationId));
+        }
     }
 
     /** Resolves the current TeamId for one registration on the Task Lane. */
@@ -136,35 +138,16 @@ public final class NodeServiceState implements UpstreamTaskState {
         return raceData.stageStartTimeFor(teamId);
     }
 
-    /** Returns the number of unique currently registered teams. */
+    /** Returns the maintained unique-team count across all locations. */
     @Override
     public int uniqueTeamRegistrationCount() {
         ensureDerivedTimingAvailable();
-        return uniqueTeamRegistrations.uniqueTeamCount(raceData::teamIdFor);
+        return activeRegistrations.uniqueTeamCount();
     }
 
-    /** Updates the unique-team index from one committed registration record. */
-    private void updateUniqueTeamRegistrations(TimingData data) {
-        if (data instanceof TimingData.AutomaticRegistration) {
-            TimingData.AutomaticRegistration registration = (TimingData.AutomaticRegistration) data;
-            applyUniqueTeamRegistrationChange(
-                    registration.registrationId(),
-                    registration.action());
-        } else if (data instanceof TimingData.ManualRegistration) {
-            TimingData.ManualRegistration registration = (TimingData.ManualRegistration) data;
-            applyUniqueTeamRegistrationChange(
-                    registration.registrationId(),
-                    registration.action());
-        }
-    }
-
-    /** Applies one registration ADD/REV to the compact unique-team index. */
-    private void applyUniqueTeamRegistrationChange(
-            RegistrationId registrationId, TimingData.RegistrationAction action) {
-        if (action == TimingData.RegistrationAction.ADD) {
-            uniqueTeamRegistrations.registered(registrationId);
-        } else if (action == TimingData.RegistrationAction.REV) {
-            uniqueTeamRegistrations.revoked(registrationId);
-        }
+    /** Returns the maintained number of unique teams at one location. */
+    public int uniqueTeamRegistrationCount(LocationId locationId) {
+        ensureDerivedTimingAvailable();
+        return activeRegistrations.uniqueTeamCount(locationId);
     }
 }
