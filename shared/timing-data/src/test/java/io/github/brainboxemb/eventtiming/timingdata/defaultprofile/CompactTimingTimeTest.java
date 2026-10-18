@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingdata.defaultprofile;
 
+import io.github.brainboxemb.eventtiming.timingdata.CompactTimingTime;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import org.junit.Test;
 

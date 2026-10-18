@@ -1,6 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
+import io.github.brainboxemb.eventtiming.eventdata.TagId;
+import io.github.brainboxemb.eventtiming.timingdata.CompactTimingTime;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
@@ -147,27 +149,31 @@ public final class TagProcessor extends LifecycleComponent {
 
     /** Maps and filters one queued antenna observation. */
     private void processObservation(TagObservation observation) {
-        LOG.trace(
-                "Tag observation: tagId={}, rssi={}, observedAt={}",
-                observation.tagId().value(),
-                observation.rssi(),
-                observation.observedAt());
+        TagId tagId = observation.tagId();
+        if (LOG.isTraceEnabled()) {
+            LOG.trace(
+                    "Tag observation: tagId={}, rssi={}, observedAt={}",
+                    tagId,
+                    observation.rssi(),
+                    CompactTimingTime.toTimestamp(
+                            observation.observedAtValue()));
+        }
 
         RegistrationId registrationId =
-                eventData.registrationIdFor(observation.tagId());
+                eventData.registrationIdFor(tagId);
 
         if (registrationId == null) {
             metrics.recordUnmapped();
             LOG.debug(
                     "Tag observation ignored because TagId {} is unmapped",
-                    observation.tagId().value());
+                    tagId);
         } else if (housekeepingJob.isDuplicate(registrationId)) {
             metrics.recordMapped();
             metrics.recordDuplicate();
             LOG.debug(
                     "Tag observation suppressed as duplicate: registrationId={}, tagId={}",
-                    registrationId.value(),
-                    observation.tagId().value());
+                    registrationId,
+                    tagId);
         } else {
             metrics.recordMapped();
             filterJob.add(registrationId, observation);

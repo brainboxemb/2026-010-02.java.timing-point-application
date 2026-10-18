@@ -38,11 +38,11 @@ public class TagObservationFilterTest {
                         new SelectedObservation(registrationId, observedAt)));
 
         assertFalse(filter.hasPendingState());
-        filter.add(REGISTRATION_ID, observation("TAG-A", -60, OBSERVED_1));
+        filter.add(REGISTRATION_ID, observation("N0001A", -60, OBSERVED_1));
         clock.advanceNanos(10L);
-        filter.add(REGISTRATION_ID, observation("TAG-B", -40, OBSERVED_2));
+        filter.add(REGISTRATION_ID, observation("N0001B", -40, OBSERVED_2));
         clock.advanceNanos(10L);
-        filter.add(REGISTRATION_ID, observation("TAG-A", -40, OBSERVED_3));
+        filter.add(REGISTRATION_ID, observation("N0001A", -40, OBSERVED_3));
         assertTrue(filter.hasPendingState());
 
         List<TagPassageSnapshot> snapshots =
@@ -51,20 +51,20 @@ public class TagObservationFilterTest {
         TagPassageSnapshot passage =
                 snapshots.get(0);
         assertEquals(REGISTRATION_ID, passage.registrationId());
-        assertEquals(new TagId("TAG-B"), passage.selectedTagId());
+        assertEquals(new TagId("N0001B"), passage.selectedTagId());
         assertEquals(-40, passage.selectedRssi());
         assertEquals(OBSERVED_2, passage.selectedObservedAt());
         assertEquals(2, passage.tags().size());
 
         TagPassageSnapshot.TagStats tagA =
                 passage.tags().get(0);
-        assertEquals(new TagId("TAG-A"), tagA.tagId());
+        assertEquals(new TagId("N0001A"), tagA.tagId());
         assertEquals(2L, tagA.observationCount());
         assertEquals(-40, tagA.strongestRssi());
 
         TagPassageSnapshot.TagStats tagB =
                 passage.tags().get(1);
-        assertEquals(new TagId("TAG-B"), tagB.tagId());
+        assertEquals(new TagId("N0001B"), tagB.tagId());
         assertEquals(1L, tagB.observationCount());
         assertEquals(-40, tagB.strongestRssi());
 
@@ -88,7 +88,7 @@ public class TagObservationFilterTest {
                     throw new AssertionError("discarded passage must not close");
                 });
 
-        filter.add(REGISTRATION_ID, observation("TAG-A", -60, OBSERVED_1));
+        filter.add(REGISTRATION_ID, observation("N0001A", -60, OBSERVED_1));
 
         assertTrue(filter.hasPendingState());
         assertTrue(filter.discard(REGISTRATION_ID));
@@ -112,9 +112,9 @@ public class TagObservationFilterTest {
                 (registrationId, observedAt) -> valid.add(
                         new SelectedObservation(registrationId, observedAt)));
 
-        filter.add(REGISTRATION_ID, observation("TAG-A", -60, OBSERVED_1));
+        filter.add(REGISTRATION_ID, observation("N0001A", -60, OBSERVED_1));
         clock.advanceNanos(90L);
-        filter.add(REGISTRATION_ID, observation("TAG-B", -40, OBSERVED_2));
+        filter.add(REGISTRATION_ID, observation("N0001B", -40, OBSERVED_2));
         clock.advanceNanos(60L);
         filter.periodic();
 

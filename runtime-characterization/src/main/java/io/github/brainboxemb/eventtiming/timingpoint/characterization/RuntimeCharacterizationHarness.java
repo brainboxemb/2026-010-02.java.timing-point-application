@@ -640,7 +640,7 @@ final class RuntimeCharacterizationHarness
     private static String tagId(
             int index) {
         return String.format(
-                "TAG-%05d",
+                "N%04dA",
                 index + 1);
     }
 

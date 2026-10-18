@@ -120,7 +120,7 @@ java -jar app\target\timing-point-app-<version>.jar config\development-simulatio
 
 That configuration uses the same algorithmic `reference` EventData provider
 as `config/application.yml`: normal tag/registration mappings span
-`A0001` through `A9999`, with paired tags `TT-A-NNNN-1/2`.
+`A0001` through `A9999`, with paired tags such as `A0001A` and `A0001B`.
 Its dedicated TimingData file isolates engineering experiments from normal
 development history. A simulated antenna, not a special EventData provider,
 generates tag observations.

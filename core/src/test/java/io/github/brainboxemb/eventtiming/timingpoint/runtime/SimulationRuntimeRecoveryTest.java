@@ -51,8 +51,8 @@ import static org.junit.Assert.assertTrue;
  */
 public class SimulationRuntimeRecoveryTest {
     private static final AntennaId ANTENNA_ID = new AntennaId("1");
-    private static final TagId FIRST_TAG = new TagId("TAG-1001");
-    private static final TagId SECOND_TAG = new TagId("TAG-1002");
+    private static final TagId FIRST_TAG = new TagId("R1001A");
+    private static final TagId SECOND_TAG = new TagId("R1002A");
     private static final RegistrationId FIRST_REGISTRATION =
             new RegistrationId("R1001");
     private static final RegistrationId SECOND_REGISTRATION =

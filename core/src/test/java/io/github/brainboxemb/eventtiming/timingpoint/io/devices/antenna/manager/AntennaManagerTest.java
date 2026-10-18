@@ -340,7 +340,7 @@ public class AntennaManagerTest {
 
             TagObservation observation =
                     new TagObservation(
-                            new TagId("TAG-1"),
+                            new TagId("X0001A"),
                             -40,
                             TimingTimestamp.parse(
                                     "2026-10-05T12:00:00.000000000Z"));

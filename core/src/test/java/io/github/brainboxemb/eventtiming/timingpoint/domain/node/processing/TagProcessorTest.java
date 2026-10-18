@@ -91,7 +91,7 @@ public class TagProcessorTest {
         activate(processor);
         try {
             processor.onTagObserved(
-                    observation("TAG-001", -42, OBSERVED_AT));
+                    observation("N0001A", -42, OBSERVED_AT));
             awaitExecutor(execution.executor);
 
             assertEquals(
@@ -113,9 +113,9 @@ public class TagProcessorTest {
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                                 eventDataFor(
-                        "TAG-A", "N0001",
-                        "TAG-B", "N0001",
-                        "TAG-C", "N0001"),
+                        "N0001A", "N0001",
+                        "N0001B", "N0001",
+                        "N0001A", "N0001"),
                 policy(8),
                 clock,
                 metrics,
@@ -133,9 +133,9 @@ public class TagProcessorTest {
         activate(processor);
         try {
             processor.onTagObserved(
-                    observation("TAG-A", -60, OBSERVED_AT));
+                    observation("N0001A", -60, OBSERVED_AT));
             processor.onTagObserved(
-                    observation("TAG-B", -30, STRONGER_OBSERVED_AT));
+                    observation("N0001B", -30, STRONGER_OBSERVED_AT));
             awaitExecutor(execution.executor);
 
             List<TagPassageSnapshot> passages =
@@ -145,7 +145,7 @@ public class TagProcessorTest {
                     new RegistrationId("N0001"),
                     passages.get(0).registrationId());
             assertEquals(
-                    new TagId("TAG-B"),
+                    new TagId("N0001B"),
                     passages.get(0).selectedTagId());
             assertEquals(2, passages.get(0).tags().size());
 
@@ -184,9 +184,9 @@ public class TagProcessorTest {
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                                 eventDataFor(
-                        "TAG-A", "N0001",
-                        "TAG-B", "N0001",
-                        "TAG-C", "N0001"),
+                        "N0001A", "N0001",
+                        "N0001B", "N0001",
+                        "N0001A", "N0001"),
                 policy(8),
                 clock,
                 metrics,
@@ -204,23 +204,23 @@ public class TagProcessorTest {
         activate(processor);
         try {
             processor.onTagObserved(
-                    observation("TAG-A", -60, OBSERVED_AT));
+                    observation("N0001A", -60, OBSERVED_AT));
             awaitExecutor(execution.executor);
 
             /*
              * This closes the first passage. TagObservationFilter has already
-             * created a new burst for TAG-B before the selected registration
+             * created a new burst for N0001B before the selected registration
              * is published. Selecting that registration starts duplicate
              * suppression and discards the just-created next burst.
              */
             clock.advanceNanos(100L);
             processor.onTagObserved(
-                    observation("TAG-B", -50, STRONGER_OBSERVED_AT));
+                    observation("N0001B", -50, STRONGER_OBSERVED_AT));
             awaitExecutor(execution.executor);
             assertTrue(committed.await(1, TimeUnit.SECONDS));
 
             processor.onTagObserved(
-                    observation("TAG-C", -40, STRONGER_OBSERVED_AT));
+                    observation("N0001A", -40, STRONGER_OBSERVED_AT));
             awaitExecutor(execution.executor);
 
             TagProcessingMetrics.Snapshot snapshot = metrics.snapshot();
@@ -244,9 +244,9 @@ public class TagProcessorTest {
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                 eventDataFor(
-                        "TAG-A", "N0001",
-                        "TAG-B", "N0001",
-                        "TAG-C", "N0001"),
+                        "N0001A", "N0001",
+                        "N0001B", "N0001",
+                        "N0001A", "N0001"),
                 policy(8),
                 clock,
                 metrics,
@@ -260,12 +260,12 @@ public class TagProcessorTest {
         activate(processor);
         try {
             processor.onTagObserved(
-                    observation("TAG-A", -60, OBSERVED_AT));
+                    observation("N0001A", -60, OBSERVED_AT));
             awaitExecutor(execution.executor);
 
             clock.advanceNanos(100L);
             processor.onTagObserved(
-                    observation("TAG-B", -50, STRONGER_OBSERVED_AT));
+                    observation("N0001B", -50, STRONGER_OBSERVED_AT));
             awaitExecutor(execution.executor);
             assertTrue(
                     registrationPublished.await(
@@ -274,7 +274,7 @@ public class TagProcessorTest {
 
             clock.advanceNanos(100L);
             processor.onTagObserved(
-                    observation("TAG-C", -40, STRONGER_OBSERVED_AT));
+                    observation("N0001A", -40, STRONGER_OBSERVED_AT));
             awaitExecutor(execution.executor);
 
             TagProcessingMetrics.Snapshot snapshot = metrics.snapshot();
@@ -301,9 +301,9 @@ public class TagProcessorTest {
                         startup);
         TagProcessor processor = new TagProcessor(
                                 eventDataFor(
-                        "TAG-A", "N0001",
-                        "TAG-B", "N0001",
-                        "TAG-C", "N0001"),
+                        "N0001A", "N0001",
+                        "N0001B", "N0001",
+                        "N0001A", "N0001"),
                 configuration.timingNode(new NodeId("A")).tagProcessing(),
                 clock,
                 new TagProcessingMetrics(),
@@ -321,7 +321,7 @@ public class TagProcessorTest {
         activate(processor);
         try {
             processor.onTagObserved(
-                    observation("TAG-A", -50, OBSERVED_AT));
+                    observation("N0001A", -50, OBSERVED_AT));
             awaitExecutor(execution.executor);
 
             clock.advanceNanos(50L);
@@ -354,7 +354,7 @@ public class TagProcessorTest {
             throws Exception {
         RecordingScheduledExecutor executor = new RecordingScheduledExecutor();
         TagProcessor processor = new TagProcessor(
-                eventDataFor("TAG-A", "N0001"),
+                eventDataFor("N0001A", "N0001"),
                 policy(8),
                 new FakeMonotonicClock(),
                 new TagProcessingMetrics(),
@@ -375,7 +375,7 @@ public class TagProcessorTest {
             throws Exception {
         RecordingScheduledExecutor executor = new RecordingScheduledExecutor();
         TagProcessor processor = new TagProcessor(
-                eventDataFor("TAG-A", "N0001"),
+                eventDataFor("N0001A", "N0001"),
                 policy(8),
                 new FakeMonotonicClock(),
                 new TagProcessingMetrics(),
@@ -383,7 +383,7 @@ public class TagProcessorTest {
 
         activate(processor);
         try {
-            processor.onTagObserved(observation("TAG-A", -50, OBSERVED_AT));
+            processor.onTagObserved(observation("N0001A", -50, OBSERVED_AT));
             awaitExecutor(executor);
 
             assertEquals(1, executor.scheduledOperations.size());
@@ -398,14 +398,14 @@ public class TagProcessorTest {
             throws Exception {
         RecordingScheduledExecutor executor = new RecordingScheduledExecutor();
         TagProcessor processor = new TagProcessor(
-                eventDataFor("TAG-A", "N0001"),
+                eventDataFor("N0001A", "N0001"),
                 policy(8),
                 new FakeMonotonicClock(),
                 new TagProcessingMetrics(),
                 executor);
 
         activate(processor);
-        processor.onTagObserved(observation("TAG-A", -50, OBSERVED_AT));
+        processor.onTagObserved(observation("N0001A", -50, OBSERVED_AT));
         awaitExecutor(executor);
 
         assertEquals(1, executor.scheduledFutures.size());
@@ -434,7 +434,7 @@ public class TagProcessorTest {
 
         activate(processor);
         try {
-            processor.onTagObserved(observation("TAG-001", -42, OBSERVED_AT));
+            processor.onTagObserved(observation("N0001A", -42, OBSERVED_AT));
             awaitExecutor(executor);
             assertEquals(1, executor.scheduledOperations.size());
 
@@ -486,9 +486,9 @@ public class TagProcessorTest {
             assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
             processor.onTagObserved(
-                    observation("TAG-001", -42, OBSERVED_AT));
+                    observation("N0001A", -42, OBSERVED_AT));
             processor.onTagObserved(
-                    observation("TAG-002", -41, OBSERVED_AT));
+                    observation("N0002A", -41, OBSERVED_AT));
 
             assertEquals(
                     1L,
@@ -525,7 +525,7 @@ public class TagProcessorTest {
         assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
 
         processor.onTagObserved(
-                observation("TAG-001", -42, OBSERVED_AT));
+                observation("N0001A", -42, OBSERVED_AT));
 
         Thread stopper = new Thread(() -> LifecycleTestSupport.deactivate(processor));
         stopper.start();
@@ -558,8 +558,8 @@ public class TagProcessorTest {
 
     private static EventData referenceEventData() {
         return eventDataFor(
-                "TAG-001", "N0001",
-                "TAG-002", "N0002");
+                "N0001A", "N0001",
+                "N0002A", "N0002");
     }
 
     private static EventData eventDataFor(

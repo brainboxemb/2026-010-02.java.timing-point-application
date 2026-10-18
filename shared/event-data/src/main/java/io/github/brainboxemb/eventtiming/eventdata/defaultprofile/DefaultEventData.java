@@ -25,9 +25,6 @@ public final class DefaultEventData extends EventData {
     private static final char NORMAL_TYPE = 'A';
     private static final char RESERVE_TYPE = 'R';
 
-    private static final Pattern TAG_PATTERN =
-            Pattern.compile(
-                    "^TT-([AR])-(\\d{4})-([12])$");
     private static final Pattern TEAM_PATTERN =
             Pattern.compile(
                     "^(\\d{4})$");
@@ -92,22 +89,15 @@ public final class DefaultEventData extends EventData {
                     "tagId must not be null");
         }
 
-        Matcher matcher =
-                TAG_PATTERN.matcher(
-                        tagId.value());
-        if (!matcher.matches()) {
-            return null;
-        }
-
-        char type = matcher.group(1).charAt(0);
-        int number = Integer.parseInt(matcher.group(2));
-        if (!supported(type, number)) {
+        if (!supported(
+                tagId.type(),
+                tagId.number())) {
             return null;
         }
 
         return new RegistrationId(
-                type,
-                number);
+                tagId.type(),
+                tagId.number());
     }
 
     @Override
@@ -117,16 +107,16 @@ public final class DefaultEventData extends EventData {
             return Collections.emptyList();
         }
 
-        String prefix =
-                "TT-"
-                        + registrationId.type()
-                        + "-"
-                        + fourDigits(registrationId.number())
-                        + "-";
         return Collections.unmodifiableList(
                 Arrays.asList(
-                        new TagId(prefix + "1"),
-                        new TagId(prefix + "2")));
+                        new TagId(
+                                registrationId.type(),
+                                registrationId.number(),
+                                'A'),
+                        new TagId(
+                                registrationId.type(),
+                                registrationId.number(),
+                                'B')));
     }
 
     @Override

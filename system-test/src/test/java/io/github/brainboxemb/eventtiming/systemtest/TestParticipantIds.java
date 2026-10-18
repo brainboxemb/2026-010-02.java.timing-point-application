@@ -5,7 +5,7 @@ import java.util.Locale;
 /**
  * Canonical participant identifiers for black-box test data.
  *
- * <p>Normal: TT-A-0001-1 and TT-A-0001-2 belong to A0001,
+ * <p>Normal: A0001A and A0001B belong to A0001,
  * with TeamId 0001. The -1/-2 suffix distinguishes physical tags,
  * not participants. Reserve identifiers use R instead of A; reserve
  * RegistrationId-to-TeamId assignment comes from reference data rather
@@ -23,7 +23,7 @@ final class TestParticipantIds {
     }
 
     static String normalTag(int teamNumber, int tagNumber) {
-        return "TT-A-" + number(teamNumber) + "-" + tag(tagNumber);
+        return "A" + number(teamNumber) + tag(tagNumber);
     }
 
     static String normalTeam(int teamNumber) {
@@ -35,7 +35,7 @@ final class TestParticipantIds {
     }
 
     static String reserveTag(int reserveNumber, int tagNumber) {
-        return "TT-R-" + number(reserveNumber) + "-" + tag(tagNumber);
+        return "R" + number(reserveNumber) + tag(tagNumber);
     }
 
     private static String number(int value) {
@@ -45,10 +45,13 @@ final class TestParticipantIds {
         return String.format(Locale.ROOT, "%04d", value);
     }
 
-    private static int tag(int value) {
-        if (value != 1 && value != 2) {
-            throw new IllegalArgumentException("Physical tag number must be 1 or 2");
+    private static char tag(int value) {
+        if (value == 1) {
+            return 'A';
         }
-        return value;
+        if (value == 2) {
+            return 'B';
+        }
+        throw new IllegalArgumentException("Physical tag number must be 1 or 2");
     }
 }

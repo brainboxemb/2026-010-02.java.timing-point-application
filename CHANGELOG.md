@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Store TagId as one packed int with type, four-digit number and A/B variant, and retain TagObservation timestamps as compact centisecond longs through passage filtering.
+
 - Store RegistrationId as one packed integer behind the canonical type-letter plus four-digit value, and use the compact key in default TimingData and reference processing.
 
 - Store default TimingData values as compact scalars instead of retaining Context, NodeId, LocationId and TimingTimestamp wrappers per record. Absolute record times use one yyyyMMddHHmmsscc long at centisecond precision; public value objects are reconstructed only at the TimingData API boundary.

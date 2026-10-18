@@ -1,13 +1,14 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
+import io.github.brainboxemb.eventtiming.timingdata.CompactTimingTime;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 
 /** One immutable decoded tag observation. */
 public final class TagObservation {
     private final TagId tagId;
     private final int rssi;
-    private final TimingTimestamp observedAt;
+    private final long observedAt;
 
     /** Creates one immutable decoded observation from the antenna source. */
     public TagObservation(
@@ -22,7 +23,7 @@ public final class TagObservation {
         }
         this.tagId = tagId;
         this.rssi = rssi;
-        this.observedAt = observedAt;
+        this.observedAt = CompactTimingTime.fromTimestamp(observedAt);
     }
 
     /** Returns the observed TagId. */
@@ -35,8 +36,13 @@ public final class TagObservation {
         return rssi;
     }
 
+    /** Returns the compact centisecond observation time used by the processing hot path. */
+    public long observedAtValue() {
+        return observedAt;
+    }
+
     /** Returns the observation time assigned at the antenna/I-O boundary. */
     public TimingTimestamp observedAt() {
-        return observedAt;
+        return CompactTimingTime.toTimestamp(observedAt);
     }
 }
