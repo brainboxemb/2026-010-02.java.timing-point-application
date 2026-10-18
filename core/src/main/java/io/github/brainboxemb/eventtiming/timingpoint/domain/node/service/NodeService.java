@@ -16,6 +16,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.TeamRank
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.TeamRanking;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.SignalInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
@@ -47,8 +48,8 @@ public final class NodeService extends LifecycleComponent {
             EventInput.of((service, source) -> source.subscribe(service::onLogBookStatus));
 
     /** Post-commit signal; DataTask reads the authoritative TimingData from LogBook. */
-    public static final EventInput<NodeService, TimingData> TIMING_DATA_CHANGED =
-            EventInput.of((service, source) -> source.subscribe(service::onTimingDataChanged));
+    public static final SignalInput<NodeService> TIMING_DATA_CHANGED =
+            SignalInput.of((service, source) -> source.subscribe(service::onTimingDataChanged));
 
     private final NodeId nodeId;
     private final SerialTaskRunner taskRunner;
@@ -170,10 +171,9 @@ public final class NodeService extends LifecycleComponent {
         mainTask.logBookStatusChanged(status);
     }
 
-    /** Wakes DataTask after a committed TimingData change. */
-    private void onTimingDataChanged(TimingData data) {
+    /** Wakes DataTask after committed TimingData changed. */
+    private void onTimingDataChanged() {
 
-        failIfInvalidArgument(data != null, "TimingData must not be null");
         dataTask.dataChanged();
     }
 
