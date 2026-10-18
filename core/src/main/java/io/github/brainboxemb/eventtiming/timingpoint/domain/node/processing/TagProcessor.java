@@ -8,6 +8,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnl
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialQueue;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
@@ -16,7 +17,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 
 import org.slf4j.Logger;
@@ -50,10 +50,8 @@ public final class TagProcessor extends LifecycleComponent {
     private final TagProcessingMetrics metrics;
     private final TagObservationFilter observationFilter;
     private final ScheduledSerialLane lane;
-    private final ArrayBlockingQueue<TagObservation> inputQueue;
+    private final SerialQueue<TagObservation> observations;
     private final Object lifecycleLock = new Object();
-
-    private boolean observationProcessingScheduled;
 
     private ScheduledSerialLane.ScheduledRegistration observationFilterTask;
     private ScheduledSerialLane.ScheduledRegistration housekeepingTask;
@@ -66,7 +64,13 @@ public final class TagProcessor extends LifecycleComponent {
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
             ScheduledSerialLane lane) {
-        this(eventData, ReadOnlyConfiguration.fixed(policy), monotonicClock, metrics, lane);
+        this(
+                eventData,
+                ReadOnlyConfiguration.fixed(policy),
+                monotonicClock,
+                metrics,
+                lane,
+                defaultMaxObservationsPerRun(policy));
     }
 
     /** Creates a TagProcessor backed by the supplied live read-only policy configuration. */
@@ -76,11 +80,45 @@ public final class TagProcessor extends LifecycleComponent {
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
             ScheduledSerialLane lane) {
+        this(
+                eventData,
+                policyConfiguration,
+                monotonicClock,
+                metrics,
+                lane,
+                defaultMaxObservationsPerRun(policyConfiguration));
+    }
+
+    /** Uses the configured ingress capacity as the default observation batch size. */
+    private static int defaultMaxObservationsPerRun(TagProcessingPolicy policy) {
+        failIfInvalidArgument(policy != null, "policy must not be null");
+        return policy.observationQueueCapacity();
+    }
+
+    /** Uses the configured ingress capacity as the default observation batch size. */
+    private static int defaultMaxObservationsPerRun(
+            ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration) {
+
+        failIfInvalidArgument(policyConfiguration != null, "policyConfiguration must not be null");
+        TagProcessingPolicy startupPolicy = policyConfiguration.startupValue();
+        failIfInvalidArgument(startupPolicy != null, "policyConfiguration.startupValue must not be null");
+        return startupPolicy.observationQueueCapacity();
+    }
+
+    /** Creates a TagProcessor with an explicit observation batch size. */
+    public TagProcessor(
+            EventData eventData,
+            ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
+            MonotonicClock monotonicClock,
+            TagProcessingMetrics metrics,
+            ScheduledSerialLane lane,
+            int maxObservationsPerRun) {
         failIfInvalidArgument(eventData != null, "eventData must not be null");
         failIfInvalidArgument(policyConfiguration != null, "policyConfiguration must not be null");
         failIfInvalidArgument(monotonicClock != null, "monotonicClock must not be null");
         failIfInvalidArgument(metrics != null, "metrics must not be null");
         failIfInvalidArgument(lane != null, "lane must not be null");
+        failIfInvalidArgument(maxObservationsPerRun >= 1, "maxObservationsPerRun must be positive");
 
         TagProcessingPolicy startupPolicy = policyConfiguration.startupValue();
         failIfInvalidArgument(startupPolicy != null, "policyConfiguration.startupValue must not be null");
@@ -89,7 +127,12 @@ public final class TagProcessor extends LifecycleComponent {
         this.policyConfiguration = policyConfiguration;
         this.metrics = metrics;
         this.lane = lane;
-        this.inputQueue = new ArrayBlockingQueue<>(startupPolicy.observationQueueCapacity());
+        observations =
+                new SerialQueue<TagObservation>(
+                        startupPolicy.observationQueueCapacity(),
+                        maxObservationsPerRun,
+                        lane,
+                        this::processObservationSafely);
         duplicateFilter = new RegistrationDuplicateFilter(policyConfiguration, monotonicClock);
         observationFilter = new TagObservationFilter(
                 policyConfiguration, monotonicClock, metrics, this::processValidObservation);
@@ -103,6 +146,7 @@ public final class TagProcessor extends LifecycleComponent {
     @Override
     protected void onActivate() {
         lane.start();
+        observations.start();
     }
 
     /**
@@ -114,17 +158,10 @@ public final class TagProcessor extends LifecycleComponent {
         synchronized (lifecycleLock) {
             cancelObservationFilterLocked();
             cancelHousekeepingLocked();
-            if (!inputQueue.isEmpty()) {
-                try {
-                    lane.execute(this::processQueuedObservations);
-                } catch (RejectedExecutionException ex) {
-                    inputQueue.clear();
-                }
-            }
         }
 
+        observations.close();
         lane.close();
-        inputQueue.clear();
     }
 
     /**
@@ -139,14 +176,31 @@ public final class TagProcessor extends LifecycleComponent {
 
         metrics.recordObservation();
 
-        synchronized (lifecycleLock) {
-            if (!isActive()) {
-                metrics.recordProcessorNotRunning();
-            } else if (!inputQueue.offer(observation)) {
+        if (!isActive()) {
+            metrics.recordProcessorNotRunning();
+            return;
+        }
+
+        final SerialQueue.OfferResult result;
+        try {
+            result = observations.offer(observation);
+        } catch (RejectedExecutionException ex) {
+            metrics.recordProcessorNotRunning();
+            LOG.warn("Could not schedule TagProcessor observation worker", ex);
+            return;
+        }
+
+        switch (result) {
+            case ACCEPTED:
+                break;
+            case FULL:
                 metrics.recordObservationQueueFull();
-            } else {
-                scheduleObservationProcessingLocked();
-            }
+                break;
+            case NOT_RUNNING:
+                metrics.recordProcessorNotRunning();
+                break;
+            default:
+                throw new IllegalStateException("Unsupported observation queue result " + result);
         }
     }
 
@@ -159,47 +213,6 @@ public final class TagProcessor extends LifecycleComponent {
      */
     public List<TagPassageSnapshot> passageSnapshots() {
         return passageSnapshots;
-    }
-
-    /** Schedules queued-observation processing when no run is already pending. */
-    private void scheduleObservationProcessingLocked() {
-        if (observationProcessingScheduled) {
-            return;
-        }
-
-        observationProcessingScheduled = true;
-        try {
-            lane.execute(this::processQueuedObservations);
-        } catch (RejectedExecutionException ex) {
-            observationProcessingScheduled = false;
-            metrics.recordProcessorNotRunning();
-        }
-    }
-
-    /**
-     * Processes the observations that were queued when this processing run started.
-     *
-     * <p>Observations arriving during the run remain in the bounded ingress queue
-     * and cause one follow-up run.</p>
-     */
-    private void processQueuedObservations() {
-        try {
-            int count = inputQueue.size();
-            for (int index = 0; index < count; index++) {
-                TagObservation observation = inputQueue.poll();
-                if (observation == null) {
-                    break;
-                }
-                processObservationSafely(observation);
-            }
-        } finally {
-            synchronized (lifecycleLock) {
-                observationProcessingScheduled = false;
-                if (isActive() && !inputQueue.isEmpty()) {
-                    scheduleObservationProcessingLocked();
-                }
-            }
-        }
     }
 
     /** Contains one observation-processing failure so later antenna observations can continue. */

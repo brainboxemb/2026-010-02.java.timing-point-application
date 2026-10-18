@@ -34,6 +34,7 @@ final class RuntimeExecutors implements AutoCloseable {
     static final int TIMING_NODE_TASK_LANE_MAX_ITEMS_PER_RUN = 32;
     static final int TAG_PROCESSOR_LANE_QUEUE_CAPACITY = 32;
     static final int TAG_PROCESSOR_LANE_MAX_ITEMS_PER_RUN = 32;
+    static final int TAG_PROCESSOR_OBSERVATION_MAX_ITEMS_PER_RUN = 32;
     static final int ANTENNA_CONTROL_LANE_QUEUE_CAPACITY = 8;
     static final int ANTENNA_CONTROL_LANE_MAX_ITEMS_PER_RUN = 8;
     static final int SIMULATION_LANE_QUEUE_CAPACITY = 32;
@@ -42,9 +43,10 @@ final class RuntimeExecutors implements AutoCloseable {
     static final int TIMING_SYSTEM_CONDUCTOR_LANE_MAX_ITEMS_PER_RUN = 8;
 
     /*
-     * Baseline batch sizes equal their queue capacities, so one worker run may
-     * process the backlog present at its start. Keeping both values explicit
-     * allows later fairness tuning without changing queue capacity.
+     * Baseline lane batch sizes equal their queue capacities. TagProcessor
+     * observation batching is separate because its SerialQueue contains actual
+     * TagObservation items while the ScheduledSerialLane queues worker/timer
+     * callbacks.
      */
 
     /*
