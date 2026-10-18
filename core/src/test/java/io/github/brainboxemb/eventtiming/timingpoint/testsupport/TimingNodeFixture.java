@@ -316,7 +316,7 @@ public final class TimingNodeFixture {
 
         NodeServiceState nodeServiceState = new NodeServiceState(eventData);
 
-        NodeService nodeService = new NodeService(nodeId, taskLane, nodeServiceState);
+        NodeService nodeService = new NodeService(nodeId, taskLane, logBook, nodeServiceState);
 
         UpstreamHandler upstreamHandler =
                 new UpstreamHandler(
