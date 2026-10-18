@@ -49,8 +49,7 @@ final class TimingNodeComposer {
             TimeSource timeSource) {
 
         RuntimeExecutors.TimingNodeExecutionResources execution =
-                executors.createTimingNodeExecutionResources(
-                        nodeConfig.timingNodeId());
+                executors.createTimingNodeExecutionResources();
         ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
                 configuration.timingNode(
                         nodeConfig.timingNodeId())
@@ -71,7 +70,11 @@ final class TimingNodeComposer {
                         timeSource,
                         monotonicClock,
                         new LogBookMetrics(),
-                        execution.logBookDataLane());
+                        execution.logBookDataLaneExecutor(),
+                        RuntimeExecutors.LOGBOOK_DATA_LANE_QUEUE_CAPACITY,
+                        RuntimeExecutors.LOGBOOK_DATA_LANE_MAX_ITEMS_PER_RUN,
+                        LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
+                        LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
 
         NodeServiceState nodeServiceState = new NodeServiceState(system.eventData());
 
