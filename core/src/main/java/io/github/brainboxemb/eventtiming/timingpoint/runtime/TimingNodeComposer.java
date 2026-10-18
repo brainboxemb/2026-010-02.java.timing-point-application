@@ -88,6 +88,12 @@ final class TimingNodeComposer {
                         execution.tagProcessorLane(),
                         RuntimeExecutors.TAG_PROCESSOR_OBSERVATION_MAX_ITEMS_PER_RUN);
 
-        return new TimingNode(antennaId, timeSource, logBook, nodeService, tagProcessor);
+        return new TimingNode(
+                antennaId,
+                timeSource,
+                logBook,
+                nodeService,
+                tagProcessor,
+                execution.taskLane());
     }
 }

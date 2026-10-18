@@ -15,6 +15,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
+import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyUpdate;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
@@ -63,7 +64,7 @@ public final class TimingNodeProxy {
         }
         this.logBookTestControl = (LogBookTestControl) logBook;
         this.NEW_DATA_ENTRY = logBook.newDataEntryEvent();
-        timingNode.PROPERTIES.CHANGED.subscribe(ignored -> publishStatus());
+        timingNode.PROPERTIES.CHANGED.subscribe(this::publishVisibleStatusChange);
     }
 
     /** Returns this node's ID. */
@@ -265,10 +266,19 @@ public final class TimingNodeProxy {
                 LogBookQueries.visitLatestTimingData(limit, visitor));
     }
 
-    /** Publishes one client status after one committed property-container update. */
-    private void publishStatus() {
+    /**
+     * Publishes only property changes represented by {@link TimingNodeStatus}.
+     *
+     * <p>Operational readiness is a separate TimingNode property. Until it is
+     * part of the presentation status contract, changing it must not emit an
+     * unchanged client-visible functional/location snapshot.</p>
+     */
+    private void publishVisibleStatusChange(PropertyUpdate update) {
 
-        statusChangedEvent.emit(status());
+        if (update.contains(TimingNode.FUNCTIONAL_STATE)
+                || update.contains(TimingNode.LOCATION_ID)) {
+            statusChangedEvent.emit(status());
+        }
     }
 }
 

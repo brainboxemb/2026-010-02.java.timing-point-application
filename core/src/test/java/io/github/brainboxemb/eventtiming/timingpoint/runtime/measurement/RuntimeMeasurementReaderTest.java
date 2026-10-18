@@ -24,13 +24,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaI
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.ArrayList;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.function.Supplier;
 
@@ -51,8 +49,9 @@ public class RuntimeMeasurementReaderTest {
     @Test
     public void readsComponentOwnedSnapshotsWithoutLogBookMetricsApi()
             throws Exception {
-        ExecutorService nodeWorker =
-                Executors.newSingleThreadExecutor();
+        ScheduledThreadPoolExecutor nodeWorker =
+                new ScheduledThreadPoolExecutor(1);
+        nodeWorker.setRemoveOnCancelPolicy(true);
         ScheduledThreadPoolExecutor tagWorker =
                 new ScheduledThreadPoolExecutor(
                         1);
@@ -65,8 +64,8 @@ public class RuntimeMeasurementReaderTest {
                         8,
                         "measurement-node-data",
                         nodeWorker);
-        RunnableSerialLane taskLane =
-                new RunnableSerialLane(
+        TaskSerialLane taskLane =
+                new TaskSerialLane(
                         8,
                         8,
                         "measurement-node-task",
@@ -116,7 +115,8 @@ public class RuntimeMeasurementReaderTest {
                         timeSource,
                         logBook,
                         nodeService,
-                        tags);
+                        tags,
+                        taskLane);
 
         RuntimeMeasurementReader reader =
                 new RuntimeMeasurementReader(
@@ -132,6 +132,7 @@ public class RuntimeMeasurementReaderTest {
 
         LifecycleTestSupport.activate(node);
         try {
+            awaitOperational(node);
             node.open(new LocationId(24));
             Supplier<TimingData> addRegistration = () -> {
                 return node.logBook().process(
@@ -196,6 +197,18 @@ public class RuntimeMeasurementReaderTest {
             tagWorker.shutdownNow();
             nodeWorker.shutdownNow();
         }
+    }
+
+    private static void awaitOperational(TimingNode node)
+            throws InterruptedException {
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(1L);
+        while (node.operationalState() != TimingNodeTypes.OperationalState.OK
+                && System.nanoTime() < deadline) {
+            Thread.sleep(1L);
+        }
+        assertEquals(
+                TimingNodeTypes.OperationalState.OK,
+                node.operationalState());
     }
 
     private static final class RecordingPersistence

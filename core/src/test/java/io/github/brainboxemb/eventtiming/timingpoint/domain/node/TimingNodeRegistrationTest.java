@@ -318,6 +318,9 @@ public class TimingNodeRegistrationTest {
         activate(node);
         try {
             node.open(new LocationId(24));
+            assertEquals(
+                    1,
+                    node.logBook().process(LogBookQueries.timingDataCount()).intValue());
             store.failNext = true;
 
             try {
@@ -397,6 +400,9 @@ public class TimingNodeRegistrationTest {
         activate(node);
         try {
             node.open(new LocationId(24));
+            assertEquals(
+                    1,
+                    node.logBook().process(LogBookQueries.timingDataCount()).intValue());
             delivered.clear();
             store.failNext = true;
 
@@ -431,6 +437,9 @@ public class TimingNodeRegistrationTest {
         activate(node);
         try {
             node.open(new LocationId(24));
+            assertEquals(
+                    1,
+                    node.logBook().process(LogBookQueries.timingDataCount()).intValue());
             delivered.clear();
 
             CommandResult committed = addManualRegistration(node,

@@ -21,13 +21,13 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 
 /**
- * TimingData commit operations executed on the LogBook Data Lane.
+ * TimingData persistence/state operations owned by LogBook.
  *
- * <p>This class owns TimingData creation, time capture, durable append/commit
- * and startup reconstruction. TimingNode runtime-state decisions stay outside
- * this component.
- * Mutable facts and committed in-memory history remain in {@link LogBookState};
- * queueing/waiting remains in {@link LogBookDataLane}.</p>
+ * <p>Normal commits execute on the LogBook Data Lane. Persisted-data recovery
+ * is invoked by TimingNode.MainTask on the shared node worker and is not a Data
+ * Lane operation. This class owns TimingData creation, time capture, durable
+ * append/commit and startup reconstruction; command/query queueing and waiting
+ * remain in {@link LogBookDataLane}.</p>
  */
 final class LogBookOperations {
     private static final Logger LOG = LoggerFactory.getLogger(LogBookOperations.class);
@@ -175,15 +175,22 @@ final class LogBookOperations {
         return commitRegistration(data);
     }
 
-    /** Rebuilds committed in-memory history from durable TimingData during activation. */
+    /** Reads and validates persisted TimingData without mutating LogBook state. */
     TimingDataPersistence.LoadResult loadPersistedTimingData()
             throws TimingDataPersistence.PersistenceException {
-        TimingDataPersistence.LoadResult loadResult = timingDataPersistence.load();
+
+        return timingDataPersistence.load();
+    }
+
+    /** Rebuilds in-memory LogBook state from one completed persistence load. */
+    void restorePersistedTimingData(
+            TimingDataPersistence.LoadResult loadResult) {
+
+        failIfInvalidArgument(loadResult != null, "loadResult must not be null");
         for (TimingData data : loadResult.records()) {
             state.addCommittedTimingData(data);
         }
         state.repairedIncompleteTail(loadResult.repairedIncompleteTail());
-        return loadResult;
     }
 
     /** Records a LogBook recovery problem after startup loading fails. */

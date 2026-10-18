@@ -25,9 +25,10 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Data Lane component for one TimingNode's committed TimingData.
  *
- * <p>LogBook is the single execution boundary for ordered commands,
- * ORDERED queries, persisted-data startup loading, durable TimingData commit and publication of immutable
- * recovery/read views. It owns no physical thread: the supplied
+ * <p>LogBook owns persisted-data recovery plus the Data Lane boundary for ordered
+ * commands, ORDERED queries, durable TimingData commit and publication of immutable
+ * recovery/read views. Recovery runs when TimingNode.MainTask calls
+ * {@link #loadPersistedData()}; LogBook owns no executor. The supplied
  * {@link TimingNodeDataLane} may share a Runtime-owned worker with other logical
  * lanes.</p>
  */
@@ -142,14 +143,19 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     }
 
     /**
-     * Starts the Data Lane and queues persisted TimingData loading as its first task.
+     * Marks the LogBook lifecycle-active.
      *
-     * <p>The call does not wait for file I/O. CURRENT recovery status remains
-     * unavailable until that first ordered task has completed startup recovery.</p>
+     * <p>TimingNode.MainTask starts recovery after child activation. The Data
+     * Lane remains stopped until that task completes recovery.</p>
      */
     @Override
     protected void onActivate() {
 
+        /*
+         * Normal operations may already queue while TimingNode.MainTask loads
+         * persisted state. Data Lane and Task Lane share the same node worker,
+         * so those operations cannot execute until the startup task yields.
+         */
         dataLane.activate();
     }
 
@@ -293,13 +299,25 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         return recoveryView.current();
     }
 
-    /** Loads persisted TimingData, then publishes the recovery result on either outcome. */
-    private void loadPersistedData() {
-
-        LOG.info("TimingNode {} persisted TimingData load started", timingNodeId().value());
+    /**
+     * Loads persisted TimingData as the TimingNode MainTask startup step.
+     *
+     * <p>The call is intentionally synchronous. TimingNode invokes it from its
+     * asynchronous MainTask on the shared node worker. Data Lane operations may
+     * queue meanwhile, but cannot execute on that same worker until this startup
+     * step returns.</p>
+     */
+    public LogBookRecoveryStatus loadPersistedData() {
+        failIfInactive();
+        LOG.info(
+                "TimingNode {} persisted TimingData load started",
+                timingNodeId().value());
 
         try {
-            TimingDataPersistence.LoadResult loadResult = logBookOperations.loadPersistedTimingData();
+            TimingDataPersistence.LoadResult loadResult =
+                    logBookOperations.loadPersistedTimingData();
+            logBookOperations.restorePersistedTimingData(loadResult);
+
             LOG.info(
                     "TimingNode {} persisted TimingData load completed: records={}, tailRepaired={}",
                     timingNodeId().value(),
@@ -313,7 +331,6 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
 
             initialDataLoadedEvent.emit(loadResult.records());
         } catch (TimingDataPersistence.PersistenceException | RuntimeException ex) {
-
             logBookOperations.markTimingDataLoadFailed(ex);
             LOG.error(
                     "Persisted TimingData load failed for {}",
@@ -321,15 +338,15 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                     ex);
         }
 
-        recoveryView.publishInitial(logBookState.recoveryStatus());
+        LogBookRecoveryStatus status = logBookState.recoveryStatus();
+        recoveryView.publishInitial(status);
+        return status;
     }
 
     /** Processes one typed LogBook operation on the shared Data Lane worker. */
     private void processDataLaneItem(LogBookOperationItem<?> item) {
 
-        if (item instanceof LogBookDataLane.StartupOperationItem) {
-            loadPersistedData();
-        } else if (item instanceof LogBookDataLane.CommandOperationItem<?>) {
+        if (item instanceof LogBookDataLane.CommandOperationItem<?>) {
             processCommandItem((LogBookDataLane.CommandOperationItem<?>) item);
         } else if (item instanceof LogBookDataLane.QueryOperationItem<?>) {
             processQueryItem((LogBookDataLane.QueryOperationItem<?>) item);

@@ -20,6 +20,18 @@ public final class TimingNodeTypes {
         OPEN
     }
 
+    /** Runtime readiness of a TimingNode independent from OPEN/CLOSED. */
+    public enum OperationalState {
+        /** Startup/recovery is still in progress. */
+        INIT,
+
+        /** Normal TimingNode operations are available. */
+        OK,
+
+        /** Startup completed with a problem that prevents normal operation. */
+        ERROR
+    }
+
     /** Result of the idempotent TimingNode open operation. */
     public enum OpenResult {
         /** The operation changed the TimingNode to OPEN. */

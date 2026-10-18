@@ -20,19 +20,14 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * LogBook-specific adapter onto the shared typed TimingNode Data Lane.
  *
- * <p>Commands, queries and startup recovery are {@link LogBookOperationItem}
- * values. This class owns only LogBook-specific admission errors, ordered waits,
- * reentrancy checks and timeouts.</p>
+ * <p>Only normal LogBook commands and ordered queries are
+ * {@link LogBookOperationItem} values. Startup recovery is owned by
+ * TimingNode.MainTask and never enters this queue. This adapter owns only
+ * LogBook-specific admission errors, ordered waits, reentrancy checks and
+ * timeouts.</p>
  */
 final class LogBookDataLane {
     private static final Logger LOG = LoggerFactory.getLogger(LogBookDataLane.class);
-
-    /** First LogBook operation admitted when the Data Lane starts. */
-    static final class StartupOperationItem extends LogBookOperationItem<Void> {
-        private StartupOperationItem() {
-            super("loadPersistedData", false, false);
-        }
-    }
 
     /** One queued state-changing LogBook command. */
     static final class CommandOperationItem<R> extends LogBookOperationItem<R> {
@@ -89,15 +84,9 @@ final class LogBookDataLane {
         this.orderedQueryWaitTimeoutMillis = orderedQueryWaitTimeoutMillis;
     }
 
-    /** Starts the Data Lane with persisted-data recovery as its first typed item. */
+    /** Starts normal LogBook command/query admission during LogBook activation. */
     void activate() {
-        SerialLane.OfferResult result =
-                dataLane.start(new StartupOperationItem());
-        if (result != SerialLane.OfferResult.ACCEPTED) {
-            dataLane.close();
-            throw new IllegalStateException(
-                    "Persisted TimingData load could not be queued: " + result);
-        }
+        dataLane.start();
     }
 
     /** Stops new Data Lane work and drains already accepted items. */
@@ -116,12 +105,9 @@ final class LogBookDataLane {
         return dataLane.isExecutingOnCurrentThread();
     }
 
-    SerialLane.State state() {
-        return dataLane.state();
-    }
-
-    Throwable failure() {
-        return dataLane.failure();
+    /** Returns whether the underlying Data Lane currently accepts operations. */
+    boolean isRunning() {
+        return dataLane.isRunning();
     }
 
     /** Queues one result-bearing command operation and waits for its ordered result. */
@@ -276,22 +262,6 @@ final class LogBookDataLane {
             String operationType,
             RejectedExecutionException rejection) {
 
-        if (dataLane.state() == SerialLane.State.FAILED) {
-            Throwable cause =
-                    dataLane.failure() == null
-                            ? rejection
-                            : dataLane.failure();
-            LOG.error(
-                    "TimingNode {} LogBook {} {} failed: reason=FAILED, cause=Data Lane failure",
-                    nodeId.value(),
-                    operationType,
-                    operation,
-                    cause);
-            return new IllegalStateException(
-                    operation + " could not run because the TimingNode Data Lane failed",
-                    cause);
-        }
-
         if (!dataLane.isRunning()) {
             LOG.warn(
                     "TimingNode {} LogBook {} {} failed: reason=UNAVAILABLE",
@@ -313,5 +283,5 @@ final class LogBookDataLane {
         return new IllegalStateException(
                 operation + " could not be queued because the TimingNode Data Lane is full",
                 rejection);
-    }
+     }
 }

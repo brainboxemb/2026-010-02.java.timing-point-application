@@ -19,6 +19,13 @@ import static org.junit.Assert.fail;
 /** Verifies that LogBook command and ORDERED-query waits use distinct guards. */
 public class LogBookDataLaneTest {
 
+    private static final class BlockingOperationItem
+            extends LogBookOperationItem<Void> {
+        private BlockingOperationItem() {
+            super("block", false, false);
+        }
+    }
+
     @Test
     public void commandUsesCommitWaitTimeout() throws Exception {
         ExecutorService worker = Executors.newSingleThreadExecutor();
@@ -32,9 +39,11 @@ public class LogBookDataLaneTest {
                         "logbook-command-timeout-test",
                         worker);
         lane.bindLogBook(
-                ignored -> {
-                    blockerStarted.countDown();
-                    await(releaseBlocker);
+                operation -> {
+                    if (operation instanceof BlockingOperationItem) {
+                        blockerStarted.countDown();
+                        await(releaseBlocker);
+                    }
                 });
 
         LogBookDataLane dataLane =
@@ -45,6 +54,7 @@ public class LogBookDataLaneTest {
                         250L);
 
         dataLane.activate();
+        lane.offer(new BlockingOperationItem());
         try {
             assertTrue(blockerStarted.await(1L, TimeUnit.SECONDS));
 
@@ -80,7 +90,7 @@ public class LogBookDataLaneTest {
                         worker);
         lane.bindLogBook(
                 operation -> {
-                    if (operation instanceof LogBookDataLane.StartupOperationItem) {
+                    if (operation instanceof BlockingOperationItem) {
                         blockerStarted.countDown();
                         await(releaseBlocker);
                     } else if (operation instanceof LogBookDataLane.QueryOperationItem<?>) {
@@ -99,6 +109,7 @@ public class LogBookDataLaneTest {
                         250L);
 
         dataLane.activate();
+        lane.offer(new BlockingOperationItem());
         try {
             assertTrue(blockerStarted.await(1L, TimeUnit.SECONDS));
 
@@ -151,6 +162,7 @@ public class LogBookDataLaneTest {
                         25L);
 
         dataLane.activate();
+        lane.offer(new BlockingOperationItem());
         try {
             assertTrue(blockerStarted.await(1L, TimeUnit.SECONDS));
 

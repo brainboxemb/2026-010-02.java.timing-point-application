@@ -49,6 +49,7 @@ public class UniqueTeamRegistrationsIntegrationTest {
 
         activate(node);
         try {
+            awaitOperational(node);
             UpstreamHandler port =
                     components.upstreamHandler();
 
@@ -82,6 +83,21 @@ public class UniqueTeamRegistrationsIntegrationTest {
         } finally {
             deactivate(node);
         }
+    }
+
+    /** Waits until recovered Task Lane state is available. */
+    private static void awaitOperational(TimingNode node) {
+        long deadline =
+                System.nanoTime()
+                        + java.util.concurrent.TimeUnit.SECONDS.toNanos(1L);
+        while (node.operationalState()
+                        == TimingNodeTypes.OperationalState.INIT
+                && System.nanoTime() < deadline) {
+            Thread.yield();
+        }
+        assertEquals(
+                TimingNodeTypes.OperationalState.OK,
+                node.operationalState());
     }
 
     /** Builds one persisted automatic registration for the recovery fixture. */
