@@ -1,8 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery.ReadConsistency;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -57,9 +55,4 @@ public interface LogBookAccessor {
      */
     <R> R process(LogBookQuery<R> query, ReadConsistency consistency);
 
-    /** Returns the recovery event; listeners are invoked synchronously on the LogBook Data Lane. */
-    EventSource<LogBookRecoveryStatus> recoveryStatusChangedEvent();
-
-    /** Returns the post-commit event; listeners are invoked synchronously on the LogBook Data Lane. */
-    EventSource<TimingData> newDataEntryEvent();
 }
