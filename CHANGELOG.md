@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Queue NodeService Task Lane facts and stage-timing queries as typed items through `SerialQueue`, removing per-fact Runnable and per-query Callable wrappers while keeping one bounded FIFO and one fixed worker.
+
 - Queue LogBook `CommandItem` / `QueryItem` values through `SerialQueue` instead of wrapping each Data Lane operation in a `Runnable` or `Callable`; command/query result futures remain part of the queued item while LogBook owns their processing.
 
 - Introduce `SerialQueue<T>` for real queued items: the queue owns capacity, `maxItemsPerRun`, one fixed worker and the one-worker scheduling guard. TagProcessor now queues `TagObservation` values directly and no longer carries its own observation queue or `observationProcessingScheduled` state.
