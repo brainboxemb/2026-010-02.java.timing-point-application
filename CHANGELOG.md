@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Use antenna observation timestamps for passage boundaries and preallocate reusable RegistrationPassage state from a generic object pool; retain two fixed per-tag statistic slots and expose pool size/peak-use metrics for characterization.
+
 - Simplify TagObservationFilter hot-path state: document the passage algorithm, remove continuously rebuilt passage snapshots and per-tag diagnostic maps, reuse one expired-burst buffer, and publish only a cheap pending-passage flag for characterization.
 
 - Store TagId as one packed int with type, four-digit number and A/B variant, and retain TagObservation timestamps as compact centisecond longs through passage filtering.

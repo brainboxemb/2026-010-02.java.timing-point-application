@@ -19,6 +19,11 @@ public final class TagProcessingMetrics {
     private final AtomicLong unmappedCount = new AtomicLong();
     private final AtomicLong duplicateCount = new AtomicLong();
 
+    private volatile int passagePoolInitialSize;
+    private volatile int passagePoolSize;
+    private volatile int passagePoolInUse;
+    private volatile int passagePoolPeakInUse;
+
     /** Records one observation accepted by TagProcessor ingress. */
     void recordObservation() {
         observationCount.incrementAndGet();
@@ -34,7 +39,7 @@ public final class TagProcessingMetrics {
         processorNotRunningCount.incrementAndGet();
     }
 
-    /** Records one passage burst closed by filter policy. */
+    /** Records one passage closed by filter policy. */
     void recordClosedBurst() {
         closedBurstCount.incrementAndGet();
     }
@@ -54,6 +59,18 @@ public final class TagProcessingMetrics {
         duplicateCount.incrementAndGet();
     }
 
+    /** Publishes the current reusable RegistrationPassage pool state. */
+    void recordPassagePool(
+            int initialSize,
+            int size,
+            int inUse,
+            int peakInUse) {
+        passagePoolInitialSize = initialSize;
+        passagePoolSize = size;
+        passagePoolInUse = inUse;
+        passagePoolPeakInUse = peakInUse;
+    }
+
     /**
      * Returns an immutable pull-based view of the current processing metrics.
      *
@@ -68,7 +85,11 @@ public final class TagProcessingMetrics {
                 closedBurstCount.get(),
                 mappedCount.get(),
                 unmappedCount.get(),
-                duplicateCount.get());
+                duplicateCount.get(),
+                passagePoolInitialSize,
+                passagePoolSize,
+                passagePoolInUse,
+                passagePoolPeakInUse);
     }
 
     /** Immutable pull-based view of the current TagProcessor counters. */
@@ -80,6 +101,10 @@ public final class TagProcessingMetrics {
         private final long mapped;
         private final long unmapped;
         private final long duplicates;
+        private final int passagePoolInitialSize;
+        private final int passagePoolSize;
+        private final int passagePoolInUse;
+        private final int passagePoolPeakInUse;
 
         /** Creates one immutable metric snapshot from current counters. */
         private Snapshot(
@@ -89,7 +114,11 @@ public final class TagProcessingMetrics {
                 long closedBursts,
                 long mapped,
                 long unmapped,
-                long duplicates) {
+                long duplicates,
+                int passagePoolInitialSize,
+                int passagePoolSize,
+                int passagePoolInUse,
+                int passagePoolPeakInUse) {
             this.observations = observations;
             this.observationQueueFull = observationQueueFull;
             this.processorNotRunning = processorNotRunning;
@@ -97,42 +126,58 @@ public final class TagProcessingMetrics {
             this.mapped = mapped;
             this.unmapped = unmapped;
             this.duplicates = duplicates;
+            this.passagePoolInitialSize = passagePoolInitialSize;
+            this.passagePoolSize = passagePoolSize;
+            this.passagePoolInUse = passagePoolInUse;
+            this.passagePoolPeakInUse = passagePoolPeakInUse;
         }
 
-        /** Returns accepted observation ingress count. */
         public long observations() {
             return observations;
         }
 
-        /** Returns observation rejections caused by a full queue. */
         public long observationQueueFull() {
             return observationQueueFull;
         }
 
-        /** Returns observation rejections while TagProcessor was not running. */
         public long processorNotRunning() {
             return processorNotRunning;
         }
 
-        /** Returns the number of passage bursts closed by filter policy. */
         public long closedBursts() {
             return closedBursts;
         }
 
-        /** Returns observations successfully mapped to registrations. */
         public long mapped() {
             return mapped;
         }
 
-        /** Returns observations without a registration mapping. */
         public long unmapped() {
             return unmapped;
         }
 
-        /** Returns selected registrations suppressed as duplicates. */
         public long duplicates() {
             return duplicates;
         }
 
+        /** Returns the RegistrationPassage objects created during pool initialization. */
+        public int passagePoolInitialSize() {
+            return passagePoolInitialSize;
+        }
+
+        /** Returns the total RegistrationPassage objects created so far. */
+        public int passagePoolSize() {
+            return passagePoolSize;
+        }
+
+        /** Returns RegistrationPassage objects currently checked out of the pool. */
+        public int passagePoolInUse() {
+            return passagePoolInUse;
+        }
+
+        /** Returns the highest simultaneous RegistrationPassage usage observed. */
+        public int passagePoolPeakInUse() {
+            return passagePoolPeakInUse;
+        }
     }
 }
