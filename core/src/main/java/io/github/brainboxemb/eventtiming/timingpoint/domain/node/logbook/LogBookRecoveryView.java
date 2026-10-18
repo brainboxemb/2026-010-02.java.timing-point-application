@@ -4,6 +4,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 
+import java.util.function.BooleanSupplier;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,18 +21,18 @@ final class LogBookRecoveryView {
     private static final Logger LOG = LoggerFactory.getLogger(LogBookRecoveryView.class);
 
     private final NodeId timingNodeId;
-    private final LogBookDataLane dataLane;
+    private final BooleanSupplier active;
     private final Event<LogBookRecoveryStatus> recoveryStatusChangedEvent =
             new Event<LogBookRecoveryStatus>();
 
     /** Latest completed recovery result visible to CURRENT queries. */
     private volatile LogBookRecoveryStatus publishedRecoveryStatus;
 
-    LogBookRecoveryView(NodeId timingNodeId, LogBookDataLane dataLane) {
+    LogBookRecoveryView(NodeId timingNodeId, BooleanSupplier active) {
         failIfInvalidArgument(timingNodeId != null, "timingNodeId must not be null");
-        failIfInvalidArgument(dataLane != null, "dataLane must not be null");
+        failIfInvalidArgument(active != null, "active must not be null");
         this.timingNodeId = timingNodeId;
-        this.dataLane = dataLane;
+        this.active = active;
     }
 
     /** Returns the event published when the startup recovery attempt completes. */
@@ -45,7 +47,7 @@ final class LogBookRecoveryView {
 
     /** Returns the latest completed recovery result or explains why none is available. */
     LogBookRecoveryStatus current() {
-        if (!dataLane.isRunning()) {
+        if (!active.getAsBoolean()) {
             throw new IllegalStateException(
                     "recovery status CURRENT result is unavailable because the LogBook is not active");
         }
