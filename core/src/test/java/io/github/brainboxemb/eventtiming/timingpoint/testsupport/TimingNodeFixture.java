@@ -11,10 +11,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persist
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeServiceState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamTaskState;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
@@ -80,7 +80,7 @@ public final class TimingNodeFixture {
         private final NodeService nodeService;
         private final TagProcessor tagProcessor;
         private final UpstreamHandler upstreamHandler;
-        private final UpstreamTaskState upstreamTaskState;
+        private final RaceDataState raceData;
 
         /** Creates test-only references to one fully composed TimingNode graph. */
         private Components(
@@ -89,13 +89,13 @@ public final class TimingNodeFixture {
                 NodeService nodeService,
                 TagProcessor tagProcessor,
                 UpstreamHandler upstreamHandler,
-                UpstreamTaskState upstreamTaskState) {
+                RaceDataState raceData) {
             this.node = node;
             this.logBook = logBook;
             this.nodeService = nodeService;
             this.tagProcessor = tagProcessor;
             this.upstreamHandler = upstreamHandler;
-            this.upstreamTaskState = upstreamTaskState;
+            this.raceData = raceData;
         }
 
         /** Returns the composed TimingNode owner. */
@@ -123,14 +123,9 @@ public final class TimingNodeFixture {
             return upstreamHandler;
         }
 
-        /**
-         * Returns the test-only passive upstream state view.
-         *
-         * <p>Use only after the direct fixture has completed the corresponding
-         * Task Lane operation; production code never exposes this state.</p>
-         */
-        public UpstreamTaskState upstreamTaskState() {
-            return upstreamTaskState;
+        /** Returns the test-owned RaceDataState used by NodeService. */
+        public RaceDataState raceData() {
+            return raceData;
         }
     }
 
@@ -314,9 +309,17 @@ public final class TimingNodeFixture {
                         commitWaitTimeoutMillis,
                         orderedQueryWaitTimeoutMillis);
 
-        NodeServiceState nodeServiceState = new NodeServiceState(eventData);
+        RaceDataState raceData = new RaceDataState(eventData);
+        ActiveRegistrations activeRegistrations = new ActiveRegistrations();
 
-        NodeService nodeService = new NodeService(nodeId, taskLane, logBook, nodeServiceState);
+        NodeService nodeService =
+                new NodeService(
+                        nodeId,
+                        taskLane,
+                        logBook,
+                        eventData,
+                        raceData,
+                        activeRegistrations);
 
         UpstreamHandler upstreamHandler =
                 new UpstreamHandler(
@@ -324,7 +327,7 @@ public final class TimingNodeFixture {
                         taskLane,
                         upstreamStream,
                         logBook,
-                        nodeServiceState);
+                        nodeService::applyRaceData);
 
         TagProcessor tagProcessor =
                 new TagProcessor(
@@ -349,6 +352,6 @@ public final class TimingNodeFixture {
                 nodeService,
                 tagProcessor,
                 upstreamHandler,
-                nodeServiceState);
+                raceData);
     }
 }
