@@ -16,33 +16,26 @@ import java.util.function.Function;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Keeps active registrations and incremental unique-team counts.
+ * Keeps active registrations and unique-team counts per location.
  *
- * <p>ADD records remain available for stage timing. REV removes one matching active ADD
- * using registration ID, location and effective time. Only a matched REV changes counts.
- * Unique-team counts are maintained per location and across the complete node.</p>
- *
- * <p>Team assignments can change independently from TimingData. NodeService forwards those
- * changes on the Task Lane so counts can be updated without rescanning registrations.</p>
+ * <p>ADD records remain available for StageTiming. REV removes one matching active ADD
+ * using registration ID, location and effective time. Team counts are updated only when
+ * the active registration state actually changes.</p>
  */
 public final class ActiveRegistrations {
-    private final List<TimingData> active = new ArrayList<>();
-    private final Map<RegistrationId, Map<LocationId, Integer>> occurrences = new HashMap<>();
-    private final Map<RegistrationId, TeamId> resolvedTeams = new HashMap<>();
+    private final List<TimingData> activeRecords = new ArrayList<>();
+    private final Map<RegistrationId, RegistrationState> registrationsById = new HashMap<>();
     private final Map<LocationId, Map<TeamId, Integer>> teamsByLocation = new HashMap<>();
-    private final Map<TeamId, Integer> teamsAcrossLocations = new HashMap<>();
 
-    /** Clears active registrations and all derived counts before TimingData recovery. */
+    /** Clears active registrations and derived location counts before TimingData recovery. */
     public void reset() {
 
-        active.clear();
-        occurrences.clear();
-        resolvedTeams.clear();
+        activeRecords.clear();
+        registrationsById.clear();
         teamsByLocation.clear();
-        teamsAcrossLocations.clear();
     }
 
-    /** Applies one TimingData record and updates maintained counts. */
+    /** Applies one TimingData record and updates active registrations and location counts. */
     public void apply(TimingData data, Function<RegistrationId, TeamId> teamResolver) {
 
         failIfInvalidArgument(data != null, "data must not be null");
@@ -52,43 +45,22 @@ public final class ActiveRegistrations {
         if (registrationId != null) {
             TimingData.RegistrationAction action = registrationAction(data);
             if (action == TimingData.RegistrationAction.ADD) {
-                active.add(data);
-                addOccurrence(registrationId, data.locationId());
-                teamAssignmentChanged(registrationId, teamResolver.apply(registrationId));
+                addRegistration(data, registrationId, teamResolver.apply(registrationId));
             } else if (action == TimingData.RegistrationAction.REV) {
-                TimingData activeRegistration = removeMatchingRegistration(data);
-                if (activeRegistration != null) {
-                    removeOccurrence(registrationId, activeRegistration.locationId());
-                }
+                revokeRegistration(data, registrationId);
             }
         }
     }
 
-    /** Updates one registration's resolved team and its maintained counts. */
+    /** Updates the resolved team for all active occurrences of one registration. */
     public void teamAssignmentChanged(RegistrationId registrationId, TeamId teamId) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
 
-        Map<LocationId, Integer> locations = occurrences.get(registrationId);
-        TeamId previousTeam = resolvedTeams.get(registrationId);
-
-        if (locations == null) {
-            resolvedTeams.remove(registrationId);
-        } else if (!Objects.equals(previousTeam, teamId)) {
-            for (Map.Entry<LocationId, Integer> entry : locations.entrySet()) {
-                if (previousTeam != null) {
-                    adjustCount(entry.getKey(), previousTeam, -entry.getValue());
-                }
-                if (teamId != null) {
-                    adjustCount(entry.getKey(), teamId, entry.getValue());
-                }
-            }
-
-            if (teamId == null) {
-                resolvedTeams.remove(registrationId);
-            } else {
-                resolvedTeams.put(registrationId, teamId);
-            }
+        RegistrationState registration = registrationsById.get(registrationId);
+        if (registration != null && !Objects.equals(registration.teamId, teamId)) {
+            moveTeamCounts(registration, registration.teamId, teamId);
+            registration.teamId = teamId;
         }
     }
 
@@ -101,91 +73,105 @@ public final class ActiveRegistrations {
         return teams == null ? 0 : teams.size();
     }
 
-    /** Returns the maintained number of unique teams across all locations. */
-    public int uniqueTeamCount() {
-
-        return teamsAcrossLocations.size();
-    }
-
-    /** Returns active registration records for same-lane stage timing. */
+    /** Returns active registration records for same-lane StageTiming reads. */
     Iterable<TimingData> values() {
 
-        return Collections.unmodifiableList(active);
+        return Collections.unmodifiableList(activeRecords);
     }
 
-    /** Adds one active occurrence at the supplied location. */
-    private void addOccurrence(RegistrationId registrationId, LocationId locationId) {
+    /** Adds one active registration occurrence and its resolved team reference. */
+    private void addRegistration(TimingData data, RegistrationId registrationId, TeamId teamId) {
 
-        Map<LocationId, Integer> locations = occurrences.computeIfAbsent(registrationId, ignored -> new HashMap<>());
-        locations.merge(locationId, 1, Integer::sum);
+        activeRecords.add(data);
 
-        TeamId teamId = resolvedTeams.get(registrationId);
-        if (teamId != null) {
-            adjustCount(locationId, teamId, 1);
+        RegistrationState registration =
+                registrationsById.computeIfAbsent(registrationId, ignored -> new RegistrationState());
+        registration.occurrencesByLocation.merge(data.locationId(), 1, Integer::sum);
+
+        if (!Objects.equals(registration.teamId, teamId)) {
+            moveTeamCounts(registration, registration.teamId, teamId);
+            registration.teamId = teamId;
+        } else if (teamId != null) {
+            adjustTeamCount(data.locationId(), teamId, 1);
         }
     }
 
-    /** Removes one active occurrence at the supplied location. */
+    /** Revokes exactly one active registration occurrence when its ADD identity matches. */
+    private void revokeRegistration(TimingData revoke, RegistrationId registrationId) {
+
+        TimingData activeRegistration = removeMatchingRegistration(revoke, registrationId);
+        if (activeRegistration != null) {
+            removeOccurrence(registrationId, activeRegistration.locationId());
+        }
+    }
+
+    /** Removes one occurrence from the registration and location-team indexes. */
     private void removeOccurrence(RegistrationId registrationId, LocationId locationId) {
 
-        Map<LocationId, Integer> locations = occurrences.get(registrationId);
-        int remaining = locations.get(locationId) - 1;
+        RegistrationState registration = registrationsById.get(registrationId);
+        int remaining = registration.occurrencesByLocation.get(locationId) - 1;
+
         if (remaining == 0) {
-            locations.remove(locationId);
+            registration.occurrencesByLocation.remove(locationId);
         } else {
-            locations.put(locationId, remaining);
+            registration.occurrencesByLocation.put(locationId, remaining);
         }
 
-        TeamId teamId = resolvedTeams.get(registrationId);
-        if (teamId != null) {
-            adjustCount(locationId, teamId, -1);
+        if (registration.teamId != null) {
+            adjustTeamCount(locationId, registration.teamId, -1);
         }
 
-        if (locations.isEmpty()) {
-            occurrences.remove(registrationId);
-            resolvedTeams.remove(registrationId);
+        if (registration.occurrencesByLocation.isEmpty()) {
+            registrationsById.remove(registrationId);
         }
     }
 
-    /** Adjusts one team's reference count at a location and across the node. */
-    private void adjustCount(LocationId locationId, TeamId teamId, int change) {
+    /** Moves all active occurrences from one resolved team to another. */
+    private void moveTeamCounts(RegistrationState registration, TeamId previousTeam, TeamId newTeam) {
 
-        Map<TeamId, Integer> locationTeams = teamsByLocation.computeIfAbsent(locationId, ignored -> new HashMap<>());
-        adjust(locationTeams, teamId, change);
-        adjust(teamsAcrossLocations, teamId, change);
+        for (Map.Entry<LocationId, Integer> entry : registration.occurrencesByLocation.entrySet()) {
+            if (previousTeam != null) {
+                adjustTeamCount(entry.getKey(), previousTeam, -entry.getValue());
+            }
+            if (newTeam != null) {
+                adjustTeamCount(entry.getKey(), newTeam, entry.getValue());
+            }
+        }
+    }
 
-        if (locationTeams.isEmpty()) {
+    /** Adjusts one team's reference count at one location. */
+    private void adjustTeamCount(LocationId locationId, TeamId teamId, int change) {
+
+        Map<TeamId, Integer> teams =
+                teamsByLocation.computeIfAbsent(locationId, ignored -> new HashMap<>());
+        int next = teams.getOrDefault(teamId, 0) + change;
+
+        if (next == 0) {
+            teams.remove(teamId);
+        } else {
+            teams.put(teamId, next);
+        }
+
+        if (teams.isEmpty()) {
             teamsByLocation.remove(locationId);
         }
     }
 
-    /** Adjusts one reference count and removes the entry when it reaches zero. */
-    private static void adjust(Map<TeamId, Integer> counts, TeamId teamId, int change) {
+    /** Removes one active ADD matching registration ID, location and effective time. */
+    private TimingData removeMatchingRegistration(TimingData revoke, RegistrationId registrationId) {
 
-        int next = counts.getOrDefault(teamId, 0) + change;
-        if (next == 0) {
-            counts.remove(teamId);
-        } else {
-            counts.put(teamId, next);
-        }
-    }
-
-    /** Removes exactly one active ADD matching the REV identity. */
-    private TimingData removeMatchingRegistration(TimingData revoke) {
-
-        RegistrationId revokeId = registrationIdOrNull(revoke);
-        for (int index = active.size() - 1; index >= 0; index--) {
-            TimingData activeRegistration = active.get(index);
-            boolean sameRegistration = revokeId.equals(registrationIdOrNull(activeRegistration));
-            boolean sameLocation = Objects.equals(revoke.locationId(), activeRegistration.locationId());
-            boolean sameTime = revoke.effectiveTime().equals(activeRegistration.effectiveTime());
+        TimingData matchingRegistration = null;
+        for (int index = activeRecords.size() - 1; index >= 0 && matchingRegistration == null; index--) {
+            TimingData candidate = activeRecords.get(index);
+            boolean sameRegistration = registrationId.equals(registrationIdOrNull(candidate));
+            boolean sameLocation = Objects.equals(revoke.locationId(), candidate.locationId());
+            boolean sameTime = revoke.effectiveTime().equals(candidate.effectiveTime());
 
             if (sameRegistration && sameLocation && sameTime) {
-                active.remove(index);
-                return activeRegistration;
+                matchingRegistration = activeRecords.remove(index);
             }
         }
-        return null;
+        return matchingRegistration;
     }
 
     /** Returns the RegistrationId for a registration record, otherwise null. */
@@ -210,5 +196,11 @@ public final class ActiveRegistrations {
             action = ((TimingData.ManualRegistration) data).action();
         }
         return action;
+    }
+
+    /** Active occurrences and current team resolution for one RegistrationId. */
+    private static final class RegistrationState {
+        private final Map<LocationId, Integer> occurrencesByLocation = new HashMap<>();
+        private TeamId teamId;
     }
 }
