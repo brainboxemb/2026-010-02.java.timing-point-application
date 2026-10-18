@@ -7,15 +7,10 @@ import java.util.function.Consumer;
 /**
  * Standard read operations owned by the LogBook/Data Lane component.
  *
- * <p>Recovery status and the published LogBook source head support CURRENT
- * direct reads as well as ORDERED reads. Mutable record/range access remains ORDERED.</p>
+ * <p>The published LogBook source head supports CURRENT direct reads as well as
+ * ORDERED reads. Mutable record/range access remains ORDERED.</p>
  */
 public final class LogBookQueries {
-    private static final LogBookQuery<LogBookRecoveryStatus> RECOVERY_STATUS =
-            new LogBookQuery<>(
-                    "recoveryStatus",
-                    LogBookState::recoveryStatus,
-                    LogBook::publishedRecoveryStatus);
     private static final LogBookQuery<Integer> TIMING_DATA_COUNT =
             new LogBookQuery<>(
                     "timingDataCount",
@@ -30,10 +25,6 @@ public final class LogBookQueries {
     private LogBookQueries() {
     }
 
-    /** Returns the completed LogBook startup recovery result. */
-    public static LogBookQuery<LogBookRecoveryStatus> recoveryStatus() {
-        return RECOVERY_STATUS;
-    }
 
     /** Returns the number of committed TimingData records. */
     public static LogBookQuery<Integer> timingDataCount() {
