@@ -214,6 +214,7 @@ final class RuntimeCharacterizationHarness
                 new NodeService(
                         NODE_ID,
                         taskLane,
+                        logBook,
                         nodeServiceState);
 
         tagProcessor =
