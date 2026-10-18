@@ -34,6 +34,8 @@ final class NodeServiceHistoryTask extends AbstractTask {
     private long nextSequence = 1L;
     private boolean initialized;
     private CompletableFuture<List<TimingData>> pendingRead;
+    private volatile CompletableFuture<Void> recoveryCompletion =
+            CompletableFuture.completedFuture(null);
 
     NodeServiceHistoryTask(
             LogBookAccessor logBook,
@@ -60,6 +62,7 @@ final class NodeServiceHistoryTask extends AbstractTask {
         targetHead = head;
         nextSequence = 1L;
         initialized = false;
+        recoveryCompletion = new CompletableFuture<Void>();
         recovering = true;
         wake(taskRunner);
     }
@@ -83,10 +86,16 @@ final class NodeServiceHistoryTask extends AbstractTask {
         return recovering;
     }
 
+    /** Returns completion of the current recovery catch-up. */
+    CompletableFuture<Void> recoveryCompletion() {
+        return recoveryCompletion;
+    }
+
     /** Cancels current work and resets reconstruction state. */
     synchronized void stop() {
         cancel();
         recovering = false;
+        recoveryCompletion.cancel(true);
         targetHead = -1L;
         nextSequence = 1L;
         initialized = false;
@@ -121,6 +130,8 @@ final class NodeServiceHistoryTask extends AbstractTask {
             recovering = true;
             return TaskStep.again();
         }
+
+        recoveryCompletion.complete(null);
         return TaskStep.done();
     }
 
@@ -129,6 +140,7 @@ final class NodeServiceHistoryTask extends AbstractTask {
         pendingRead = null;
         if (failure != null) {
             state.markDerivedTimingStale();
+            recoveryCompletion.completeExceptionally(failure);
             failureHandler.accept(failure);
         }
     }
