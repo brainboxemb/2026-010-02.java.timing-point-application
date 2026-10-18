@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 
@@ -8,23 +9,22 @@ import java.time.Duration;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
-/** One resolved row in the current StageTiming ranking. */
+/** One resolved active registration in the stage passage list. */
 public final class StageTime {
-    private final int rank;
+    private final LocationId locationId;
     private final TeamId teamId;
     private final RegistrationId registrationId;
     private final TimingTimestamp startedAt;
     private final TimingTimestamp finishedAt;
 
-    /** Creates one resolved ranking row from its start and finish timestamps. */
     StageTime(
-            int rank,
+            LocationId locationId,
             TeamId teamId,
             RegistrationId registrationId,
             TimingTimestamp startedAt,
             TimingTimestamp finishedAt) {
 
-        failIfInvalidArgument(rank >= 0, "rank must not be negative");
+        failIfInvalidArgument(locationId != null, "locationId must not be null");
         failIfInvalidArgument(teamId != null, "teamId must not be null");
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         failIfInvalidArgument(startedAt != null, "startedAt must not be null");
@@ -32,26 +32,26 @@ public final class StageTime {
         failIfInvalidArgument(startedAt.isAbsolute(), "startedAt must be absolute");
         failIfInvalidArgument(finishedAt.isAbsolute(), "finishedAt must be absolute");
 
-        this.rank = rank;
+        this.locationId = locationId;
         this.teamId = teamId;
         this.registrationId = registrationId;
         this.startedAt = startedAt;
         this.finishedAt = finishedAt;
     }
 
-    /** Returns the competition rank, where equal elapsed times share a rank. */
-    public int rank() {
+    /** Returns the TimingData location for this passage. */
+    public LocationId locationId() {
 
-        return rank;
+        return locationId;
     }
 
-    /** Returns the resolved team identity for this ranking row. */
+    /** Returns the resolved team identity for this passage. */
     public TeamId teamId() {
 
         return teamId;
     }
 
-    /** Returns the registration that produced this stage finish. */
+    /** Returns the registration that produced this passage. */
     public RegistrationId registrationId() {
 
         return registrationId;
@@ -63,13 +63,13 @@ public final class StageTime {
         return startedAt;
     }
 
-    /** Returns the registration's absolute effective finish time. */
+    /** Returns the registration's absolute effective passage time. */
     public TimingTimestamp finishedAt() {
 
         return finishedAt;
     }
 
-    /** Returns the elapsed time between stage start and finish. */
+    /** Returns the elapsed time between stage start and this passage. */
     public Duration elapsed() {
 
         return Duration.between(startedAt.instant(), finishedAt.instant());
