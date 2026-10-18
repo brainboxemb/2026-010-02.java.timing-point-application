@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -16,15 +15,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-/** Verifies that LogBook command and ORDERED-query waits use distinct guards. */
+/** Verifies LogBook Data Lane admission and distinct command/query wait guards. */
 public class LogBookDataLaneTest {
-
-    private static final class BlockingOperationItem
-            extends LogBookOperationItem<Void> {
-        private BlockingOperationItem() {
-            super("block", false, false);
-        }
-    }
 
     @Test
     public void commandUsesCommitWaitTimeout() throws Exception {
@@ -32,29 +24,18 @@ public class LogBookDataLaneTest {
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
-        TimingNodeDataLane lane =
-                new TimingNodeDataLane(
-                        4,
-                        4,
-                        "logbook-command-timeout-test",
-                        worker);
-        lane.bindLogBook(
-                operation -> {
-                    if (operation instanceof BlockingOperationItem) {
-                        blockerStarted.countDown();
-                        await(releaseBlocker);
-                    }
-                });
-
         LogBookDataLane dataLane =
-                new LogBookDataLane(
-                        new NodeId("A"),
-                        lane,
+                lane(
+                        worker,
                         25L,
-                        250L);
+                        250L,
+                        operation -> {
+                            blockerStarted.countDown();
+                            await(releaseBlocker);
+                        });
 
         dataLane.activate();
-        lane.offer(new BlockingOperationItem());
+        dataLane.execute(new LogBookCommand<Void>("block", ignored -> null));
         try {
             assertTrue(blockerStarted.await(1L, TimeUnit.SECONDS));
 
@@ -82,34 +63,25 @@ public class LogBookDataLaneTest {
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
-        TimingNodeDataLane lane =
-                new TimingNodeDataLane(
-                        4,
-                        4,
-                        "logbook-query-submit-test",
-                        worker);
-        lane.bindLogBook(
-                operation -> {
-                    if (operation instanceof BlockingOperationItem) {
-                        blockerStarted.countDown();
-                        await(releaseBlocker);
-                    } else if (operation instanceof LogBookDataLane.QueryOperationItem<?>) {
-                        @SuppressWarnings("unchecked")
-                        LogBookDataLane.QueryOperationItem<String> query =
-                                (LogBookDataLane.QueryOperationItem<String>) operation;
-                        query.complete("done");
-                    }
-                });
-
         LogBookDataLane dataLane =
-                new LogBookDataLane(
-                        new NodeId("A"),
-                        lane,
+                lane(
+                        worker,
                         250L,
-                        250L);
+                        250L,
+                        operation -> {
+                            if (operation instanceof LogBookDataLane.QueryOperationItem<?>) {
+                                @SuppressWarnings("unchecked")
+                                LogBookDataLane.QueryOperationItem<String> query =
+                                        (LogBookDataLane.QueryOperationItem<String>) operation;
+                                query.complete("done");
+                            } else {
+                                blockerStarted.countDown();
+                                await(releaseBlocker);
+                            }
+                        });
 
         dataLane.activate();
-        lane.offer(new BlockingOperationItem());
+        dataLane.execute(new LogBookCommand<Void>("block", ignored -> null));
         try {
             assertTrue(blockerStarted.await(1L, TimeUnit.SECONDS));
 
@@ -142,27 +114,18 @@ public class LogBookDataLaneTest {
         CountDownLatch blockerStarted = new CountDownLatch(1);
         CountDownLatch releaseBlocker = new CountDownLatch(1);
 
-        TimingNodeDataLane lane =
-                new TimingNodeDataLane(
-                        4,
-                        4,
-                        "logbook-query-timeout-test",
-                        worker);
-        lane.bindLogBook(
-                ignored -> {
-                    blockerStarted.countDown();
-                    await(releaseBlocker);
-                });
-
         LogBookDataLane dataLane =
-                new LogBookDataLane(
-                        new NodeId("A"),
-                        lane,
+                lane(
+                        worker,
                         250L,
-                        25L);
+                        25L,
+                        ignored -> {
+                            blockerStarted.countDown();
+                            await(releaseBlocker);
+                        });
 
         dataLane.activate();
-        lane.offer(new BlockingOperationItem());
+        dataLane.execute(new LogBookCommand<Void>("block", ignored -> null));
         try {
             assertTrue(blockerStarted.await(1L, TimeUnit.SECONDS));
 
@@ -181,6 +144,25 @@ public class LogBookDataLaneTest {
             dataLane.deactivate();
             worker.shutdownNow();
         }
+    }
+
+    private static LogBookDataLane lane(
+            ExecutorService worker,
+            long commandTimeoutMillis,
+            long queryTimeoutMillis,
+            java.util.function.Consumer<LogBookOperationItem<?>> processor) {
+
+        LogBookDataLane lane =
+                new LogBookDataLane(
+                        new NodeId("A"),
+                        4,
+                        4,
+                        "logbook-data-test",
+                        worker,
+                        commandTimeoutMillis,
+                        queryTimeoutMillis);
+        lane.bind(processor);
+        return lane;
     }
 
     private static void await(CountDownLatch latch) {
