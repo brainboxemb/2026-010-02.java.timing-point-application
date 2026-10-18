@@ -35,8 +35,7 @@ public final class TagProcessor extends LifecycleComponent {
     private final HousekeepingJob housekeepingJob;
     private final SerialLane<TagObservation> observations;
 
-    private final Event<NewRegistration> newRegistration =
-            new Event<NewRegistration>();
+    private final Event<NewRegistration> newRegistration = new Event<NewRegistration>();
 
     /** Selected-registration source published after passage filtering. */
     public final EventSource<NewRegistration> NEW_REGISTRATION = newRegistration;
@@ -176,9 +175,7 @@ public final class TagProcessor extends LifecycleComponent {
     }
 
     /** Converts one filter-approved observation into a registration event. */
-    private void processValidObservation(
-            RegistrationId registrationId,
-            TimingTimestamp observedAt) {
+    private void processValidObservation(RegistrationId registrationId, TimingTimestamp observedAt) {
 
         housekeepingJob.recordRegistration(registrationId);
 
@@ -197,9 +194,7 @@ public final class TagProcessor extends LifecycleComponent {
         private final TimingTimestamp observedAt;
 
         /** Creates the immutable registration fact emitted after passage selection. */
-        public NewRegistration(
-                RegistrationId registrationId,
-                TimingTimestamp observedAt) {
+        public NewRegistration(RegistrationId registrationId, TimingTimestamp observedAt) {
 
             failIfInvalidArgument(registrationId != null, "registrationId must not be null");
             failIfInvalidArgument(observedAt != null, "observedAt must not be null");
