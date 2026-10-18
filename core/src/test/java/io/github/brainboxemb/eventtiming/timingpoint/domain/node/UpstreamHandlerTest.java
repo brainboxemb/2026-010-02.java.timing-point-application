@@ -20,8 +20,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.Upstre
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServiceState;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeServiceState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
