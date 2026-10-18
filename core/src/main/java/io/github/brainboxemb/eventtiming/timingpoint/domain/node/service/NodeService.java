@@ -91,12 +91,11 @@ public final class NodeService extends LifecycleComponent {
                         this::dataTaskFailed);
     }
 
-    /** Starts the simple LogBook-status MainTask on the shared Task Lane. */
+    /** Verifies that TimingNode started the shared Task Lane first. */
     @Override
     protected void onActivate() {
 
         failIfIllegalState(taskRunner.isRunning(), "TimingNode Task Lane is not running");
-        mainTask.activate();
     }
 
     /** Stops service tasks. */
@@ -197,13 +196,6 @@ public final class NodeService extends LifecycleComponent {
     /** Handles only LogBook availability transitions. */
     private final class MainTask extends AbstractTask {
         private LogBookStatus status = LogBookStatus.INIT;
-
-        /** Starts MainTask in INIT for one NodeService activation. */
-        private synchronized void activate() {
-
-            status = LogBookStatus.INIT;
-            start(taskRunner);
-        }
 
         /** Stores the latest LogBook status and wakes MainTask. */
         private synchronized void statusChanged(LogBookStatus newStatus) {
