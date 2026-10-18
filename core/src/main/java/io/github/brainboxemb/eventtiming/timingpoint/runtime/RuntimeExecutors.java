@@ -1,6 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookDataLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 
 import java.time.Duration;
@@ -25,8 +27,8 @@ import java.util.concurrent.TimeUnit;
  * and progress never depend on priority.</p>
  */
 final class RuntimeExecutors implements AutoCloseable {
-    static final int TIMING_NODE_DATA_LANE_QUEUE_CAPACITY = 32;
-    static final int TIMING_NODE_DATA_LANE_MAX_ITEMS_PER_RUN = 32;
+    static final int LOGBOOK_DATA_LANE_QUEUE_CAPACITY = 32;
+    static final int LOGBOOK_DATA_LANE_MAX_ITEMS_PER_RUN = 32;
     static final int TIMING_NODE_TASK_LANE_QUEUE_CAPACITY = 32;
     static final int TIMING_NODE_TASK_LANE_MAX_ITEMS_PER_RUN = 32;
     static final int ANTENNA_CONTROL_LANE_QUEUE_CAPACITY = 8;
@@ -44,23 +46,23 @@ final class RuntimeExecutors implements AutoCloseable {
 
     /** Node-local logical lanes resolved for one TimingNode. */
     static final class TimingNodeExecutionResources {
-        private final TimingNodeDataLane dataLane;
+        private final LogBookDataLane logBookDataLane;
         private final SerialTaskRunner taskRunner;
         private final ScheduledExecutorService tagProcessorScheduler;
 
         private TimingNodeExecutionResources(
-                TimingNodeDataLane dataLane,
+                LogBookDataLane logBookDataLane,
                 SerialTaskRunner taskRunner,
                 ScheduledExecutorService tagProcessorScheduler) {
 
-            this.dataLane = dataLane;
+            this.logBookDataLane = logBookDataLane;
             this.taskRunner = taskRunner;
             this.tagProcessorScheduler = tagProcessorScheduler;
         }
 
-        TimingNodeDataLane dataLane() {
+        LogBookDataLane logBookDataLane() {
 
-            return dataLane;
+            return logBookDataLane;
         }
 
         SerialTaskRunner taskRunner() {
@@ -152,20 +154,24 @@ final class RuntimeExecutors implements AutoCloseable {
     /**
      * Creates one node-local execution-resource set on shared Runtime executors.
      *
-     * <p>The typed Data Lane and cooperative Task Lane keep independent bounded queues and FIFO
+     * <p>The LogBook Data Lane and TimingNode Task Lane keep independent bounded queues and FIFO
      * ordering, but they deliberately share the same TimingNode executor.
      * TagProcessor receives the Runtime-owned single-thread scheduled executor
      * directly; its bounded observation SerialLane and scheduled work share that
      * physical thread. Logical responsibility therefore does not imply another
      * Java thread.</p>
      */
-    synchronized TimingNodeExecutionResources createTimingNodeExecutionResources() {
-        TimingNodeDataLane dataLane =
-                new TimingNodeDataLane(
-                        TIMING_NODE_DATA_LANE_QUEUE_CAPACITY,
-                        TIMING_NODE_DATA_LANE_MAX_ITEMS_PER_RUN,
-                        "TimingNodeData",
-                        timingNodeExecutor);
+    synchronized TimingNodeExecutionResources createTimingNodeExecutionResources(
+            NodeId nodeId) {
+        LogBookDataLane logBookDataLane =
+                new LogBookDataLane(
+                        nodeId,
+                        LOGBOOK_DATA_LANE_QUEUE_CAPACITY,
+                        LOGBOOK_DATA_LANE_MAX_ITEMS_PER_RUN,
+                        "LogBookData",
+                        timingNodeExecutor,
+                        LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
+                        LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
         SerialTaskRunner taskRunner =
                 new SerialTaskRunner(
                         TIMING_NODE_TASK_LANE_QUEUE_CAPACITY,
@@ -173,10 +179,10 @@ final class RuntimeExecutors implements AutoCloseable {
                         "TimingNodeTask",
                         timingNodeExecutor);
 
-        serialLanes.add(dataLane);
+        serialLanes.add(logBookDataLane);
         serialLanes.add(taskRunner);
         return new TimingNodeExecutionResources(
-                dataLane,
+                logBookDataLane,
                 taskRunner,
                 tagProcessorScheduledExecutor);
     }
