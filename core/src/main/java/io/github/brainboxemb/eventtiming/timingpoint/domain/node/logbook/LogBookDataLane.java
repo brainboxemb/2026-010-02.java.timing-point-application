@@ -1,32 +1,33 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLaneMetrics;
 
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * LogBook-specific adapter onto the shared typed TimingNode Data Lane.
+ * Serial Data Lane owned by one LogBook.
  *
- * <p>Only normal LogBook commands and ordered queries are
- * {@link LogBookOperationItem} values. Startup recovery is owned by
- * TimingNode.MainTask and never enters this queue. This adapter owns only
- * LogBook-specific admission errors, ordered waits, reentrancy checks and
- * timeouts.</p>
+ * <p>The lane contains only {@link LogBookOperationItem} values: normal commands
+ * and ORDERED queries. Startup recovery runs on TimingNode's Task Lane and is
+ * never admitted here.</p>
  */
-final class LogBookDataLane {
+public final class LogBookDataLane implements AutoCloseable {
     private static final Logger LOG = LoggerFactory.getLogger(LogBookDataLane.class);
 
     /** One queued state-changing LogBook command. */
@@ -61,37 +62,59 @@ final class LogBookDataLane {
     }
 
     private final NodeId nodeId;
-    private final TimingNodeDataLane dataLane;
+    private final SerialLane<LogBookOperationItem<?>> lane;
     private final long commitWaitTimeoutMillis;
     private final long orderedQueryWaitTimeoutMillis;
 
-    LogBookDataLane(
+    private Consumer<LogBookOperationItem<?>> processor;
+
+    /**
+     * Creates one bounded LogBook Data Lane on the supplied Runtime-owned executor.
+     */
+    public LogBookDataLane(
             NodeId nodeId,
-            TimingNodeDataLane dataLane,
+            int capacity,
+            int maxItemsPerRun,
+            String laneName,
+            Executor executor,
             long commitWaitTimeoutMillis,
             long orderedQueryWaitTimeoutMillis) {
 
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
-        failIfInvalidArgument(dataLane != null, "dataLane must not be null");
         failIfInvalidArgument(commitWaitTimeoutMillis > 0L, "commitWaitTimeoutMillis must be positive");
         failIfInvalidArgument(
                 orderedQueryWaitTimeoutMillis > 0L,
                 "orderedQueryWaitTimeoutMillis must be positive");
 
         this.nodeId = nodeId;
-        this.dataLane = dataLane;
+        this.lane =
+                new SerialLane<LogBookOperationItem<?>>(
+                        capacity,
+                        maxItemsPerRun,
+                        laneName,
+                        executor,
+                        this::processItem);
         this.commitWaitTimeoutMillis = commitWaitTimeoutMillis;
         this.orderedQueryWaitTimeoutMillis = orderedQueryWaitTimeoutMillis;
     }
 
-    /** Starts normal LogBook command/query admission during LogBook activation. */
-    void activate() {
-        dataLane.start();
+    /** Binds the owning LogBook processor before the lane starts. */
+    void bind(Consumer<LogBookOperationItem<?>> processor) {
+        failIfInvalidArgument(processor != null, "processor must not be null");
+        failIfIllegalState(!lane.isRunning(), "LogBook processor must be bound before Data Lane start");
+        failIfIllegalState(this.processor == null, "LogBook Data Lane processor is already bound");
+        this.processor = processor;
     }
 
-    /** Stops new Data Lane work and drains already accepted items. */
+    /** Starts normal LogBook command/query admission during LogBook activation. */
+    void activate() {
+        failIfIllegalState(processor != null, "LogBook Data Lane processor is not bound");
+        lane.start();
+    }
+
+    /** Stops new LogBook work and drains already accepted operations. */
     void deactivate() {
-        dataLane.close();
+        lane.close();
     }
 
     /** Queues one fire-and-forget LogBook command operation. */
@@ -100,14 +123,14 @@ final class LogBookDataLane {
         offerOrReject(new CommandOperationItem<R>(command, false));
     }
 
-    /** Returns true only while the current Java thread executes this Data Lane. */
-    boolean isExecutingOnCurrentThread() {
-        return dataLane.isExecutingOnCurrentThread();
+    /** Returns true only while the current Java thread executes this LogBook Data Lane. */
+    public boolean isExecutingOnCurrentThread() {
+        return lane.isExecutingOnCurrentThread();
     }
 
-    /** Returns whether the underlying Data Lane currently accepts operations. */
-    boolean isRunning() {
-        return dataLane.isRunning();
+    /** Returns current engineering metrics for this LogBook Data Lane. */
+    public SerialLaneMetrics metrics() {
+        return lane.metrics();
     }
 
     /** Queues one result-bearing command operation and waits for its ordered result. */
@@ -158,25 +181,34 @@ final class LogBookDataLane {
                 false);
     }
 
+    long commitWaitTimeoutMillis() {
+        return commitWaitTimeoutMillis;
+    }
+
+    private void processItem(LogBookOperationItem<?> item) {
+        failIfIllegalState(processor != null, "LogBook Data Lane processor is not bound");
+        processor.accept(item);
+    }
+
     private void failIfNotReentrant(String operation) {
-        if (dataLane.isExecutingOnCurrentThread()) {
+        if (lane.isExecutingOnCurrentThread()) {
             throw new IllegalStateException(
-                    "Reentrant ORDERED TimingNode operation "
+                    "Reentrant ORDERED LogBook operation "
                             + operation
                             + " cannot wait for the same Data Lane");
         }
     }
 
     private void offerOrReject(LogBookOperationItem<?> item) {
-        SerialLane.OfferResult result = dataLane.offer(item);
+        SerialLane.OfferResult result = lane.offer(item);
 
         switch (result) {
             case ACCEPTED:
                 return;
             case FULL:
-                throw new RejectedExecutionException("TimingNode Data Lane item queue is full");
+                throw new RejectedExecutionException("LogBook Data Lane item queue is full");
             case NOT_RUNNING:
-                throw new RejectedExecutionException("TimingNode Data Lane item queue is not running");
+                throw new RejectedExecutionException("LogBook Data Lane item queue is not running");
             default:
                 throw new IllegalStateException("Unsupported Data Lane item queue result " + result);
         }
@@ -203,7 +235,7 @@ final class LogBookDataLane {
                         ex);
                 throw new IllegalStateException(
                         operation + " timed out after " + timeoutMillis
-                                + " ms; final TimingNode outcome is unknown",
+                                + " ms; final LogBook outcome is unknown",
                         ex);
             }
 
@@ -226,7 +258,7 @@ final class LogBookDataLane {
                     operation,
                     ex);
             throw new IllegalStateException(
-                    operation + " was interrupted while waiting for the TimingNode result",
+                    operation + " was interrupted while waiting for the LogBook result",
                     ex);
         } catch (CancellationException ex) {
             LOG.error(
@@ -236,7 +268,7 @@ final class LogBookDataLane {
                     operation,
                     ex);
             throw new IllegalStateException(
-                    operation + " was cancelled because the TimingNode Data Lane failed",
+                    operation + " was cancelled because the LogBook Data Lane failed",
                     ex);
         } catch (ExecutionException ex) {
             Throwable cause = ex.getCause();
@@ -249,7 +281,7 @@ final class LogBookDataLane {
                     cause == null ? ex : cause);
             throw new IllegalStateException(
                     operation
-                            + " failed while executing on the TimingNode Data Lane"
+                            + " failed while executing on the LogBook Data Lane"
                             + (detail == null || detail.trim().isEmpty()
                                     ? ""
                                     : ": " + detail.trim()),
@@ -262,7 +294,7 @@ final class LogBookDataLane {
             String operationType,
             RejectedExecutionException rejection) {
 
-        if (!dataLane.isRunning()) {
+        if (!lane.isRunning()) {
             LOG.warn(
                     "TimingNode {} LogBook {} {} failed: reason=UNAVAILABLE",
                     nodeId.value(),
@@ -270,7 +302,7 @@ final class LogBookDataLane {
                     operation,
                     rejection);
             return new IllegalStateException(
-                    operation + " could not be queued because the TimingNode Data Lane is not running",
+                    operation + " could not be queued because the LogBook Data Lane is not running",
                     rejection);
         }
 
@@ -281,7 +313,12 @@ final class LogBookDataLane {
                 operation,
                 rejection);
         return new IllegalStateException(
-                operation + " could not be queued because the TimingNode Data Lane is full",
+                operation + " could not be queued because the LogBook Data Lane is full",
                 rejection);
-     }
+    }
+
+    @Override
+    public void close() {
+        lane.close();
+    }
 }
