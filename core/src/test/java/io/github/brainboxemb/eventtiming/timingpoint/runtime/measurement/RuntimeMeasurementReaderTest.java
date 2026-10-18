@@ -149,7 +149,7 @@ public class RuntimeMeasurementReaderTest {
             TimingNodeRuntimeSnapshot nodeSnapshot =
                     reader.timingNode();
             assertTrue(
-                    nodeSnapshot.queuedTaskCount() >= 2L);
+                    nodeSnapshot.queuedItemCount() >= 2L);
             assertEquals(
                     0L,
                     nodeSnapshot.queueFullCount());
