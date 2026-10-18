@@ -22,10 +22,9 @@ final class HousekeepingJob {
     private final ScheduledExecutorService scheduler;
     private final RegistrationDuplicateFilter duplicateFilter;
 
-    private volatile boolean started;
     private ScheduledFuture<?> schedule;
 
-    /** Creates duplicate-window state and its scheduled housekeeping wrapper. */
+    /** Creates duplicate-window state and stores the scheduler used for housekeeping. */
     HousekeepingJob(
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
             MonotonicClock monotonicClock,
@@ -40,20 +39,24 @@ final class HousekeepingJob {
         this.duplicateFilter = new RegistrationDuplicateFilter(policyConfiguration, monotonicClock);
     }
 
-    /** Starts one fixed-delay housekeeping schedule and returns immediately. */
+    /** Starts periodic duplicate cleanup and returns immediately. */
     synchronized void start() {
-        if (started) {
-            return;
+        if (schedule == null) {
+            long cadenceNanos = policyConfiguration.currentValue().sweepCadenceNanos();
+            schedule = scheduler.scheduleWithFixedDelay(
+                    this::run,
+                    cadenceNanos,
+                    cadenceNanos,
+                    TimeUnit.NANOSECONDS);
         }
-
-        started = true;
-        schedule = schedule();
     }
 
-    /** Cancels future housekeeping; an already running sweep may finish. */
+    /** Stops future housekeeping; a sweep already running may finish. */
     synchronized void stop() {
-        started = false;
-        cancelSchedule();
+        if (schedule != null) {
+            schedule.cancel(false);
+            schedule = null;
+        }
     }
 
     /** Returns whether the registration is still inside its duplicate window. */
@@ -66,59 +69,31 @@ final class HousekeepingJob {
         duplicateFilter.recordRegistration(registrationId);
     }
 
-    /** Queues application of a changed policy and returns immediately. */
+    /** Queues policy reconciliation on the TagProcessor scheduler and returns immediately. */
     void policyChanged(ConfigurationChange<TagProcessingPolicy> change) {
         failIfInvalidArgument(change != null, "change must not be null");
-
-        if (started) {
-            scheduler.execute(this::applyPolicyChange);
-        }
+        scheduler.execute(this::applyPolicyChange);
     }
 
     /** Removes duplicate entries whose configured window has expired. */
     private void run() {
-        if (started) {
-            duplicateFilter.periodic();
-        }
+        duplicateFilter.periodic();
     }
 
-    /** Reconciles duplicate state and restarts the timer with the current cadence. */
-    private void applyPolicyChange() {
-        if (!started) {
+    /** Reconciles duplicate state and replaces the active schedule with the new cadence. */
+    private synchronized void applyPolicyChange() {
+        if (schedule == null) {
             return;
         }
 
         duplicateFilter.onPolicyChanged();
-        restartSchedule();
-    }
 
-    /** Replaces the current fixed-delay registration after a policy change. */
-    private synchronized void restartSchedule() {
-        if (!started) {
-            return;
-        }
-
-        cancelSchedule();
-        schedule = schedule();
-    }
-
-    /** Registers the next fixed-delay series using the current policy cadence. */
-    private ScheduledFuture<?> schedule() {
+        schedule.cancel(false);
         long cadenceNanos = policyConfiguration.currentValue().sweepCadenceNanos();
-        return scheduler.scheduleWithFixedDelay(
+        schedule = scheduler.scheduleWithFixedDelay(
                 this::run,
                 cadenceNanos,
                 cadenceNanos,
                 TimeUnit.NANOSECONDS);
-    }
-
-    /** Cancels the current JDK schedule when one exists. */
-    private void cancelSchedule() {
-        ScheduledFuture<?> current = schedule;
-        schedule = null;
-
-        if (current != null) {
-            current.cancel(false);
-        }
     }
 }
