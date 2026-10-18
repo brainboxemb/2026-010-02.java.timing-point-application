@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Make lifecycle activation component-local instead of transactional: `ComponentLifecycleManager` attempts every registered component without generic rollback, failed components remain inactive while independent components continue, `TimingNode` reuses one stateless MainTask, and Task Lane shutdown cancels without waiting for a running task step.
+- Make lifecycle activation component-local instead of transactional: `ComponentLifecycleManager` and `AbstractConductor` no longer roll back already activated components, failed components remain inactive while independent components continue, `TimingNode` reuses one stateless MainTask, same-lane startup facts execute directly, Task Lane shutdown cancels without waiting for a running step, and LogBook recovery cannot publish state after deactivation.
 
 - Remove the last legacy scheduling wrappers: simulated tag scenarios now schedule their bounded next step directly on the Runtime-owned `ScheduledExecutorService`, `RunnableSerialLane` and `LaneScheduler` are deleted, and stale delayed scenario work is generation-guarded across deactivate/reactivate.
 
