@@ -481,14 +481,13 @@ final class RuntimeCharacterizationHarness
                                     >= expectedObservationCount
                             && processedOrRejected
                                     >= expectedObservationCount
-                            && tagProcessor
-                                    .passageSnapshots()
-                                    .isEmpty();
+                            && !tagProcessor
+                                    .hasPendingPassages();
                 },
                 "burst processing to settle");
 
         /*
-         * Metrics and filter snapshots are observations, not lane barriers.
+         * Metrics and the pending-passage flag are observations, not lane barriers.
          * Drain TagProcessor first and then the LogBook Data Lane. This keeps
          * the subsequent ORDERED history query out of the burst tail.
          */

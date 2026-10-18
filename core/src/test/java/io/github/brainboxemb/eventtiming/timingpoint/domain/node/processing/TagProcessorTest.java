@@ -138,21 +138,15 @@ public class TagProcessorTest {
                     observation("N0001B", -30, STRONGER_OBSERVED_AT));
             awaitExecutor(execution.executor);
 
-            List<TagPassageSnapshot> passages =
-                    processor.passageSnapshots();
-            assertEquals(1, passages.size());
-            assertEquals(
-                    new RegistrationId("N0001"),
-                    passages.get(0).registrationId());
-            assertEquals(
-                    new TagId("N0001B"),
-                    passages.get(0).selectedTagId());
-            assertEquals(2, passages.get(0).tags().size());
+            assertTrue(
+                    processor.hasPendingPassages());
 
             clock.advanceNanos(100L);
 
             assertTrue(committed.await(1, TimeUnit.SECONDS));
             awaitExecutor(execution.executor);
+            assertFalse(
+                    processor.hasPendingPassages());
             assertEquals(2, store.appended.size());
             AutomaticRegistration registration =
                     (AutomaticRegistration) store.appended.get(1);

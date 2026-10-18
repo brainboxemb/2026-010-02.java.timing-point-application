@@ -10,7 +10,18 @@ import java.util.Map;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
-/** Passive selected-registration duplicate-window state. */
+/**
+ * Remembers accepted registrations during the configured duplicate window.
+ *
+ * <p>{@link #isDuplicate(RegistrationId)} performs the fast-path check and
+ * removes an expired entry immediately when it is encountered. The periodic
+ * sweep only removes entries that are no longer observed, keeping the map
+ * bounded without affecting passage selection.</p>
+ *
+ * <p>The filter is called only from the TagProcessor scheduler thread, so the
+ * map needs no locking. One map entry is retained per registration currently
+ * inside its duplicate window.</p>
+ */
 final class RegistrationDuplicateFilter {
     private final ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration;
     private final MonotonicClock monotonicClock;

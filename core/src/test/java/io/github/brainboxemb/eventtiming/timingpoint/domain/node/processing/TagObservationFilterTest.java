@@ -45,29 +45,6 @@ public class TagObservationFilterTest {
         filter.add(REGISTRATION_ID, observation("N0001A", -40, OBSERVED_3));
         assertTrue(filter.hasPendingState());
 
-        List<TagPassageSnapshot> snapshots =
-                filter.snapshots();
-        assertEquals(1, snapshots.size());
-        TagPassageSnapshot passage =
-                snapshots.get(0);
-        assertEquals(REGISTRATION_ID, passage.registrationId());
-        assertEquals(new TagId("N0001B"), passage.selectedTagId());
-        assertEquals(-40, passage.selectedRssi());
-        assertEquals(OBSERVED_2, passage.selectedObservedAt());
-        assertEquals(2, passage.tags().size());
-
-        TagPassageSnapshot.TagStats tagA =
-                passage.tags().get(0);
-        assertEquals(new TagId("N0001A"), tagA.tagId());
-        assertEquals(2L, tagA.observationCount());
-        assertEquals(-40, tagA.strongestRssi());
-
-        TagPassageSnapshot.TagStats tagB =
-                passage.tags().get(1);
-        assertEquals(new TagId("N0001B"), tagB.tagId());
-        assertEquals(1L, tagB.observationCount());
-        assertEquals(-40, tagB.strongestRssi());
-
         clock.advanceNanos(100L);
         filter.periodic();
 

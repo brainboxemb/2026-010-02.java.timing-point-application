@@ -13,7 +13,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 
-import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 
 import org.slf4j.Logger;
@@ -22,11 +21,15 @@ import org.slf4j.LoggerFactory;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Maps antenna observations to registrations through one bounded serial lane.
+ * Maps antenna observations to registrations and selects one time per passage.
  *
- * <p>Timed passage filtering and duplicate cleanup are owned by
- * {@link FilterJob} and {@link HousekeepingJob}. Both jobs use the same
- * Runtime-owned single-thread scheduler as the observation lane.</p>
+ * <p>Every accepted observation is processed on one bounded serial lane. The
+ * TagId is first mapped to a RegistrationId and checked against duplicate
+ * suppression. Non-duplicate observations enter {@link TagObservationFilter},
+ * which groups them into passages and selects the strongest RSSI observation.
+ * {@link FilterJob} closes expired passages; {@link HousekeepingJob} expires
+ * duplicate-suppression windows. All three use the same Runtime-owned
+ * single-thread scheduler, so passage state is never processed concurrently.</p>
  */
 public final class TagProcessor extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(TagProcessor.class);
@@ -142,9 +145,9 @@ public final class TagProcessor extends LifecycleComponent {
         }
     }
 
-    /** Returns the latest immutable engineering snapshot of active tag passages. */
-    public List<TagPassageSnapshot> passageSnapshots() {
-        return filterJob.passageSnapshots();
+    /** Reports whether passage filtering still owns one or more open passages. */
+    public boolean hasPendingPassages() {
+        return filterJob.hasPendingPassages();
     }
 
     /** Maps and filters one queued antenna observation. */
