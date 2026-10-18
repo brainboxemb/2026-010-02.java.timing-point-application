@@ -12,7 +12,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.manager.AntennaManagerTypes.State;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.TaskSerialLane;
 
 import java.time.Duration;
@@ -223,8 +223,8 @@ public class AntennaManagerTest {
                                 shared,
                                 Duration.ofSeconds(1)));
 
-        SerialLane sibling =
-                new SerialLane(
+        RunnableSerialLane sibling =
+                new RunnableSerialLane(
                         4,
                         4,
                         "sibling-io-test",

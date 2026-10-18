@@ -26,7 +26,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persist
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
@@ -38,7 +38,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Future;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -138,14 +137,14 @@ public class UpstreamHandlerTest {
                 Executors.newSingleThreadExecutor();
         ScheduledThreadPoolExecutor tagWorker =
                 new ScheduledThreadPoolExecutor(1);
-        SerialLane dataLane =
-                new SerialLane(
+        TimingNodeDataLane dataLane =
+                new TimingNodeDataLane(
                         4,
                         4,
                         "heartbeat-data-test",
                         nodeWorker);
-        SerialLane taskLane =
-                new SerialLane(
+        RunnableSerialLane taskLane =
+                new RunnableSerialLane(
                         4,
                         4,
                         "heartbeat-task-test",
@@ -191,11 +190,12 @@ public class UpstreamHandlerTest {
         TimeSource timeSource =
                 () -> Instant.parse(
                         "2026-10-13T12:00:00Z");
+        BlockingAppendPersistence persistence =
+                new BlockingAppendPersistence();
         LogBook logBook =
                 new LogBook(
                         new NodeId("A"),
-                        new MemoryPersistence(
-                                Collections.<TimingData>emptyList()),
+                        persistence,
                         new DefaultTimingDataFactory(),
                         timeSource,
                         SystemMonotonicClock.INSTANCE,
@@ -230,26 +230,13 @@ public class UpstreamHandlerTest {
                         tasks,
                         tags);
 
-        CountDownLatch blockerStarted =
-                new CountDownLatch(1);
-        CountDownLatch releaseBlocker =
-                new CountDownLatch(1);
-
         activate(timingNode);
         try {
-            // Barrier behind initial recovery before occupying the Data Lane.
-            timingNode.logBook().process(LogBookQueries.recoveryStatus());
-
-            Future<Void> blocker =
-                    dataLane.submit(
-                            () -> {
-                                blockerStarted.countDown();
-                                releaseBlocker.await();
-                                return null;
-                            });
+            // The real NODE_OPEN LogBook operation owns the Data Lane while append blocks.
+            timingNode.open(new LocationId(24));
             assertTrue(
-                    blockerStarted.await(
-                            1,
+                    persistence.appendStarted.await(
+                            1L,
                             TimeUnit.SECONDS));
 
             long queuedBeforeHeartbeat =
@@ -268,13 +255,13 @@ public class UpstreamHandlerTest {
                     1L,
                     heartbeatSent.getCount());
 
-            releaseBlocker.countDown();
+            persistence.releaseAppend.countDown();
             assertTrue(
                     heartbeatSent.await(
                             1,
                             TimeUnit.SECONDS));
         } finally {
-            releaseBlocker.countDown();
+            persistence.releaseAppend.countDown();
             deactivate(timingNode);
             nodeWorker.shutdownNow();
             tagWorker.shutdownNow();
@@ -742,6 +729,32 @@ public class UpstreamHandlerTest {
                                     "RT-A-0001")));
         }
         return records;
+    }
+
+    private static final class BlockingAppendPersistence
+            implements TimingDataPersistence {
+        private final CountDownLatch appendStarted = new CountDownLatch(1);
+        private final CountDownLatch releaseAppend = new CountDownLatch(1);
+
+        @Override
+        public LoadResult load() {
+            return new LoadResult(
+                    Collections.<TimingData>emptyList(),
+                    false);
+        }
+
+        @Override
+        public void append(TimingData data) {
+            appendStarted.countDown();
+            try {
+                releaseAppend.await();
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(
+                        "interrupted while blocking test append",
+                        ex);
+            }
+        }
     }
 
     private static final class MemoryPersistence

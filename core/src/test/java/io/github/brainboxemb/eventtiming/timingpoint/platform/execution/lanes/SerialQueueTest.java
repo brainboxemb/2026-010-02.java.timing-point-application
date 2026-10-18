@@ -94,8 +94,8 @@ public class SerialQueueTest {
     public void rejectedWorkerScheduleDoesNotLeaveStrandedItems()
             throws Exception {
         ExecutorService executor = Executors.newSingleThreadExecutor();
-        SerialLane lane =
-                new SerialLane(
+        RunnableSerialLane lane =
+                new RunnableSerialLane(
                         1,
                         1,
                         "serial-item-queue-rejection",
@@ -120,7 +120,7 @@ public class SerialQueueTest {
                     });
             assertTrue(blockerStarted.await(1L, TimeUnit.SECONDS));
 
-            // Occupy the one waiting slot in SerialLane itself.
+            // Occupy the one waiting slot in RunnableSerialLane itself.
             lane.execute(() -> { });
 
             try {
@@ -161,7 +161,7 @@ public class SerialQueueTest {
         }
     }
 
-    private static final class CountingSerialLane extends SerialLane {
+    private static final class CountingSerialLane extends RunnableSerialLane {
         private final AtomicInteger executeCalls = new AtomicInteger();
 
         private CountingSerialLane(

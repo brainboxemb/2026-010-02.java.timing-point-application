@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.platform.execution.scheduling;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -22,8 +22,8 @@ public class LaneSchedulerTest {
         ScheduledThreadPoolExecutor worker =
                 worker(
                         "lane-scheduler-delay");
-        SerialLane lane =
-                new SerialLane(
+        RunnableSerialLane lane =
+                new RunnableSerialLane(
                         8,
                         8,
                         "delay",
@@ -69,8 +69,8 @@ public class LaneSchedulerTest {
         ScheduledThreadPoolExecutor worker =
                 worker(
                         "lane-scheduler-periodic");
-        SerialLane lane =
-                new SerialLane(
+        RunnableSerialLane lane =
+                new RunnableSerialLane(
                         8,
                         8,
                         "periodic",
@@ -117,8 +117,8 @@ public class LaneSchedulerTest {
         ScheduledThreadPoolExecutor worker =
                 worker(
                         "lane-scheduler-cancel");
-        SerialLane lane =
-                new SerialLane(
+        RunnableSerialLane lane =
+                new RunnableSerialLane(
                         8,
                         8,
                         "cancel",
@@ -168,8 +168,8 @@ public class LaneSchedulerTest {
         ScheduledThreadPoolExecutor worker =
                 worker(
                         "lane-scheduler-one-shot-cancel");
-        SerialLane lane =
-                new SerialLane(
+        RunnableSerialLane lane =
+                new RunnableSerialLane(
                         8,
                         8,
                         "one-shot-cancel",

@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.task;
 
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialQueue;
 
 import java.util.concurrent.CancellationException;
@@ -14,7 +14,7 @@ import java.util.function.Consumer;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * NodeService Task Lane item queue on one shared {@link SerialLane}.
+ * NodeService Task Lane item queue on one shared {@link RunnableSerialLane}.
  *
  * <p>The queue contains NodeService-owned items, not Runnable or Callable
  * wrappers. {@link SerialQueue} owns bounded FIFO admission and the one-worker
@@ -33,13 +33,13 @@ final class NodeTaskLane {
         Future<R> result();
     }
 
-    private final SerialLane serialLane;
+    private final RunnableSerialLane serialLane;
     private final SerialQueue<Item> items;
     private final long operationTimeoutMillis;
 
-    /** Creates the Task Lane item queue around one externally composed SerialLane. */
+    /** Creates the Task Lane item queue around one externally composed RunnableSerialLane. */
     NodeTaskLane(
-            SerialLane serialLane,
+            RunnableSerialLane serialLane,
             long operationTimeoutMillis,
             Consumer<Item> itemProcessor) {
 
@@ -139,12 +139,12 @@ final class NodeTaskLane {
             String operation,
             RejectedExecutionException rejection) {
 
-        if (serialLane.state() == SerialLane.State.FAILED) {
+        if (serialLane.state() == RunnableSerialLane.State.FAILED) {
             return new IllegalStateException(
                     operation + " could not run because the TimingNode Task Lane failed",
                     serialLane.failure() == null ? rejection : serialLane.failure());
         }
-        if (serialLane.state() != SerialLane.State.RUNNING) {
+        if (serialLane.state() != RunnableSerialLane.State.RUNNING) {
             return new IllegalStateException(
                     operation + " could not be queued because the TimingNode Task Lane is not running",
                     rejection);

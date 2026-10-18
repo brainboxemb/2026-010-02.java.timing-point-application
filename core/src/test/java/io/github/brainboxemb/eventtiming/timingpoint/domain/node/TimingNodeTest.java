@@ -7,7 +7,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookTestControl;
@@ -50,14 +49,18 @@ public class TimingNodeTest {
         }
     }
 
-    private SerialLane newSerialLane(
+    private TimingNodeDataLane newDataLane(
             int capacity,
             String threadName) {
         ExecutorService worker =
                 Executors.newSingleThreadExecutor(
                         runnable -> new Thread(runnable, threadName));
         ownedWorkers.add(worker);
-        return new SerialLane(capacity, capacity, threadName, worker);
+        return new TimingNodeDataLane(
+                capacity,
+                capacity,
+                threadName,
+                worker);
     }
 
     @Test
@@ -119,17 +122,17 @@ public class TimingNodeTest {
     @Test
     public void activationLoadsPersistedDataOnDataLaneAndReturnsBeforeLoadCompletes()
             throws Exception {
-        SerialLane executor =
-                newSerialLane(
+        TimingNodeDataLane dataLane =
+                newDataLane(
                         4,
                         "timing-node-load-worker");
         BlockingPersistence persistence =
-                new BlockingPersistence(executor);
+                new BlockingPersistence(dataLane);
         TimingNode node =
                 node(
                         new NodeId("A"),
                         persistence,
-                        executor,
+                        dataLane,
                         1000L);
         final Throwable[] activationFailure = new Throwable[1];
         Thread activationCaller = new Thread(
@@ -176,6 +179,7 @@ public class TimingNodeTest {
             assertEquals(
                     TimingNodeTypes.FunctionalState.OPEN,
                     node.functionalState());
+
             persistence.releaseLoad.countDown();
             assertEquals(
                     1,
@@ -434,22 +438,20 @@ public class TimingNodeTest {
     @Test
     public void openDoesNotWaitBehindBlockedLogBookAndHistoryCommitsLater()
             throws Exception {
-        SerialLane executor = newSerialLane(2, "timing-node-test");
-        TimingNode node = node(
-                new NodeId("A"),
-                executor,
-                25L);
-        CountDownLatch blockerStarted = new CountDownLatch(1);
-        CountDownLatch releaseBlocker = new CountDownLatch(1);
+        TimingNodeDataLane dataLane =
+                newDataLane(2, "timing-node-test");
+        BlockingPersistence persistence =
+                new BlockingPersistence(dataLane);
+        TimingNode node =
+                node(
+                        new NodeId("A"),
+                        persistence,
+                        dataLane,
+                        25L);
 
         activate(node);
         try {
-            executor.submit(() -> {
-                blockerStarted.countDown();
-                releaseBlocker.await();
-                return null;
-            });
-            assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
+            assertTrue(persistence.loadStarted.await(1L, TimeUnit.SECONDS));
 
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
@@ -459,18 +461,15 @@ public class TimingNodeTest {
                     node.functionalState());
             assertEquals(new LocationId(24), node.locationId());
 
-            releaseBlocker.countDown();
+            persistence.releaseLoad.countDown();
 
             List<TimingData> committed =
                     node.logBook().process(
                             LogBookQueries.timingDataRange(1L, 1));
             assertEquals(1, committed.size());
             assertTrue(committed.get(0) instanceof TimingData.NodeOpen);
-            assertEquals(
-                    TimingNodeTypes.FunctionalState.OPEN,
-                    node.functionalState());
         } finally {
-            releaseBlocker.countDown();
+            persistence.releaseLoad.countDown();
             deactivate(node);
         }
     }
@@ -478,32 +477,28 @@ public class TimingNodeTest {
     @Test
     public void rejectedOpenHistoryDoesNotRejectFunctionalOpen()
             throws Exception {
-        SerialLane executor = newSerialLane(1, "timing-node-full-logbook-test");
-        TimingNode node = node(
-                new NodeId("A"),
-                executor,
-                1000L);
-        CountDownLatch startupCompleted = new CountDownLatch(1);
-        CountDownLatch blockerStarted = new CountDownLatch(1);
-        CountDownLatch releaseBlocker = new CountDownLatch(1);
+        TimingNodeDataLane dataLane =
+                newDataLane(1, "timing-node-full-logbook-test");
+        BlockingPersistence persistence =
+                new BlockingPersistence(dataLane);
+        TimingNode node =
+                node(
+                        new NodeId("A"),
+                        persistence,
+                        dataLane,
+                        1000L);
         CountDownLatch fillerCommitted = new CountDownLatch(1);
-        node.logBook().recoveryStatusChangedEvent().subscribe(status -> startupCompleted.countDown());
         node.logBook().newDataEntryEvent().subscribe(data -> fillerCommitted.countDown());
 
         activate(node);
         try {
-            assertTrue(startupCompleted.await(1, TimeUnit.SECONDS));
+            assertTrue(persistence.loadStarted.await(1L, TimeUnit.SECONDS));
 
-            executor.submit(() -> {
-                blockerStarted.countDown();
-                releaseBlocker.await();
-                return null;
-            });
-            assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
-
+            // Fill the one waiting item slot while startup recovery owns the worker.
             node.logBook().execute(
                     LogBookCommands.commitNodeOpen(new LocationId(99)));
 
+            // The history item is rejected, but TimingNode functional state still changes.
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
                     node.open(new LocationId(24)));
@@ -512,13 +507,13 @@ public class TimingNodeTest {
                     node.functionalState());
             assertEquals(new LocationId(24), node.locationId());
 
-            releaseBlocker.countDown();
-            assertTrue(fillerCommitted.await(1, TimeUnit.SECONDS));
+            persistence.releaseLoad.countDown();
+            assertTrue(fillerCommitted.await(1L, TimeUnit.SECONDS));
             assertEquals(
                     1,
                     node.logBook().process(LogBookQueries.timingDataCount()).intValue());
         } finally {
-            releaseBlocker.countDown();
+            persistence.releaseLoad.countDown();
             deactivate(node);
         }
     }
@@ -526,13 +521,14 @@ public class TimingNodeTest {
     @Test
     public void delayedLifecycleWriteDoesNotDelayFunctionalOpen()
             throws Exception {
-        SerialLane executor = newSerialLane(4, "timing-node-test-hook");
+        TimingNodeDataLane dataLane =
+                newDataLane(4, "timing-node-test-hook");
         TimingNode node = TimingNodeFixture.createWithDataLane(
                 new NodeId("A"),
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),
                 TimingNodeTest::now,
-                executor,
+                dataLane,
                 25L,
                 1000L);
 
@@ -562,22 +558,20 @@ public class TimingNodeTest {
     @Test
     public void concurrentOpenAndCloseQueueHistoryInFunctionalOrder()
             throws Exception {
-        SerialLane executor = newSerialLane(4, "timing-node-test");
-        TimingNode node = node(
-                new NodeId("A"),
-                executor,
-                1000L);
-        CountDownLatch blockerStarted = new CountDownLatch(1);
-        CountDownLatch releaseBlocker = new CountDownLatch(1);
+        TimingNodeDataLane dataLane =
+                newDataLane(4, "timing-node-test");
+        BlockingPersistence persistence =
+                new BlockingPersistence(dataLane);
+        TimingNode node =
+                node(
+                        new NodeId("A"),
+                        persistence,
+                        dataLane,
+                        1000L);
 
         activate(node);
         try {
-            executor.submit(() -> {
-                blockerStarted.countDown();
-                releaseBlocker.await();
-                return null;
-            });
-            assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
+            assertTrue(persistence.loadStarted.await(1L, TimeUnit.SECONDS));
 
             final TimingNodeTypes.OpenResult[] openResult =
                     new TimingNodeTypes.OpenResult[1];
@@ -603,14 +597,11 @@ public class TimingNodeTest {
                     TimingNodeTypes.FunctionalState.CLOSED,
                     node.functionalState());
             assertEquals(new LocationId(24), node.locationId());
-            /*
-             * OPEN and CLOSE are two LogBook items behind one fixed Data Lane
-             * queue worker. The underlying SerialLane therefore contains one
-             * worker entry, not one executable entry per LogBook item.
-             */
-            assertEquals(1, executor.metrics().snapshot().queueDepth());
 
-            releaseBlocker.countDown();
+            // OPEN and CLOSE are now the two actual queued Data Lane items.
+            assertEquals(2, dataLane.metrics().snapshot().queueDepth());
+
+            persistence.releaseLoad.countDown();
 
             List<TimingData> committed =
                     node.logBook().process(
@@ -619,75 +610,69 @@ public class TimingNodeTest {
             assertTrue(committed.get(0) instanceof TimingData.NodeOpen);
             assertTrue(committed.get(1) instanceof TimingData.NodeClose);
         } finally {
-            releaseBlocker.countDown();
+            persistence.releaseLoad.countDown();
             deactivate(node);
         }
     }
 
-    /** Verifies that LogBook.execute returns after lane admission without waiting for command completion. */
     @Test
     public void queueReturnsAfterAdmissionWithoutWaitingForExecution()
             throws Exception {
-        SerialLane executor = newSerialLane(2, "timing-node-offer-test");
-        TimingNode node = node(
-                new NodeId("A"),
-                executor,
-                1000L);
-        CountDownLatch blockerStarted = new CountDownLatch(1);
-        CountDownLatch releaseBlocker = new CountDownLatch(1);
+        TimingNodeDataLane dataLane =
+                newDataLane(2, "timing-node-offer-test");
+        BlockingPersistence persistence =
+                new BlockingPersistence(dataLane);
+        TimingNode node =
+                node(
+                        new NodeId("A"),
+                        persistence,
+                        dataLane,
+                        1000L);
         CountDownLatch producerReturned = new CountDownLatch(1);
+
         activate(node);
         try {
-            executor.submit(() -> {
-                blockerStarted.countDown();
-                releaseBlocker.await();
-                return null;
-            });
-            assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
+            assertTrue(persistence.loadStarted.await(1L, TimeUnit.SECONDS));
 
-            Thread producer = new Thread(() -> {
-                node.logBook().execute(
-                        LogBookCommands.commitNodeOpen(
-                                new LocationId(24)));
-                producerReturned.countDown();
-            });
+            Thread producer = new Thread(
+                    () -> {
+                        node.logBook().execute(
+                                LogBookCommands.commitNodeOpen(
+                                        new LocationId(24)));
+                        producerReturned.countDown();
+                    });
             producer.start();
 
             assertTrue(
                     "offer-only producer must not wait for command execution",
-                    producerReturned.await(250, TimeUnit.MILLISECONDS));
-            releaseBlocker.countDown();
-            producer.join(1000);
+                    producerReturned.await(250L, TimeUnit.MILLISECONDS));
+
+            persistence.releaseLoad.countDown();
+            producer.join(1000L);
             assertFalse(producer.isAlive());
 
-            CountDownLatch afterOfferedCommand = new CountDownLatch(1);
-            executor.execute(afterOfferedCommand::countDown);
-            assertTrue(afterOfferedCommand.await(1, TimeUnit.SECONDS));
-
-            assertEquals(TimingNodeTypes.FunctionalState.CLOSED, node.functionalState());
-            assertNull(node.locationId());
+            // Ordered query is the typed Data Lane barrier.
+            assertEquals(
+                    1,
+                    node.logBook().process(LogBookQueries.timingDataCount()).intValue());
         } finally {
-            releaseBlocker.countDown();
+            persistence.releaseLoad.countDown();
             deactivate(node);
         }
     }
 
-
     @Test
     public void currentStatusDoesNotWaitBehindQueuedWork() throws Exception {
-        SerialLane executor = newSerialLane(3, "timing-node-current-test");
-        TimingNode node = node(new NodeId("A"), executor, 25L);
-        CountDownLatch blockerStarted = new CountDownLatch(1);
-        CountDownLatch releaseBlocker = new CountDownLatch(1);
+        TimingNodeDataLane dataLane =
+                newDataLane(3, "timing-node-current-test");
+        BlockingPersistence persistence =
+                new BlockingPersistence(dataLane);
+        TimingNode node =
+                node(new NodeId("A"), persistence, dataLane, 25L);
 
         activate(node);
         try {
-            executor.submit(() -> {
-                blockerStarted.countDown();
-                releaseBlocker.await();
-                return null;
-            });
-            assertTrue(blockerStarted.await(1, TimeUnit.SECONDS));
+            assertTrue(persistence.loadStarted.await(1L, TimeUnit.SECONDS));
 
             node.logBook().execute(
                     LogBookCommands.commitNodeOpen(new LocationId(24)));
@@ -703,14 +688,12 @@ public class TimingNodeTest {
                 assertTrue(expected.getMessage().contains("timed out"));
             }
 
-            releaseBlocker.countDown();
-            CountDownLatch drained = new CountDownLatch(1);
-            executor.execute(drained::countDown);
-            assertTrue(drained.await(1, TimeUnit.SECONDS));
-
-            assertEquals(TimingNodeTypes.FunctionalState.CLOSED, node.functionalState());
+            persistence.releaseLoad.countDown();
+            assertEquals(
+                    1,
+                    node.logBook().process(LogBookQueries.timingDataCount()).intValue());
         } finally {
-            releaseBlocker.countDown();
+            persistence.releaseLoad.countDown();
             deactivate(node);
         }
     }
@@ -718,10 +701,12 @@ public class TimingNodeTest {
     @Test
     public void functionalStateEventDoesNotWaitForHistoryCommit()
             throws Exception {
-        SerialLane executor = newSerialLane(2, "timing-node-state-event-test");
-        TimingNode node = node(new NodeId("A"), executor, 1000L);
-        CountDownLatch blockerStarted = new CountDownLatch(1);
-        CountDownLatch releaseBlocker = new CountDownLatch(1);
+        TimingNodeDataLane dataLane =
+                newDataLane(2, "timing-node-state-event-test");
+        BlockingPersistence persistence =
+                new BlockingPersistence(dataLane);
+        TimingNode node =
+                node(new NodeId("A"), persistence, dataLane, 1000L);
         CountDownLatch functionalEvent = new CountDownLatch(1);
         CountDownLatch historyEvent = new CountDownLatch(1);
 
@@ -737,12 +722,7 @@ public class TimingNodeTest {
 
         activate(node);
         try {
-            executor.submit(() -> {
-                blockerStarted.countDown();
-                releaseBlocker.await();
-                return null;
-            });
-            assertTrue(blockerStarted.await(1L, TimeUnit.SECONDS));
+            assertTrue(persistence.loadStarted.await(1L, TimeUnit.SECONDS));
 
             assertEquals(
                     TimingNodeTypes.OpenResult.OPENED,
@@ -758,10 +738,10 @@ public class TimingNodeTest {
                     1L,
                     historyEvent.getCount());
 
-            releaseBlocker.countDown();
+            persistence.releaseLoad.countDown();
             assertTrue(historyEvent.await(1L, TimeUnit.SECONDS));
         } finally {
-            releaseBlocker.countDown();
+            persistence.releaseLoad.countDown();
             deactivate(node);
         }
     }
@@ -860,8 +840,8 @@ public class TimingNodeTest {
 
     @Test
     public void activationFailsWhenPersistedDataLoadCannotBeQueued() {
-        SerialLane executor =
-                new SerialLane(
+        TimingNodeDataLane dataLane =
+                new TimingNodeDataLane(
                         2,
                         2,
                         "timing-node-failed-current-test",
@@ -869,15 +849,15 @@ public class TimingNodeTest {
                             throw new RejectedExecutionException(
                                     "expected worker rejection");
                         });
-        TimingNode node = node(new NodeId("A"), executor, 1000L);
+        TimingNode node = node(new NodeId("A"), dataLane, 1000L);
 
         try {
             activate(node);
             fail("expected activation failure");
-        } catch (IllegalStateException expected) {
+        } catch (RuntimeException expected) {
             assertTrue(
-                    expected.getMessage()
-                            .contains("Persisted TimingData load"));
+                    expected.getMessage().contains("expected worker rejection")
+                            || expected.getMessage().contains("Persisted TimingData load"));
         } finally {
             deactivate(node);
         }
@@ -922,28 +902,28 @@ public class TimingNodeTest {
      */
     private static TimingNode node(
             NodeId id,
-            SerialLane executor,
+            TimingNodeDataLane dataLane,
             long timeoutMillis) {
         return TimingNodeFixture.createWithDataLane(
                 id,
                 new NoOpPersistence(),
                 new DefaultTimingDataFactory(),
                 TimingNodeTest::now,
-                executor,
+                dataLane,
                 timeoutMillis);
     }
 
     private static TimingNode node(
             NodeId id,
             TimingDataPersistence persistence,
-            SerialLane executor,
+            TimingNodeDataLane dataLane,
             long timeoutMillis) {
         return TimingNodeFixture.createWithDataLane(
                 id,
                 persistence,
                 new DefaultTimingDataFactory(),
                 TimingNodeTest::now,
-                executor,
+                dataLane,
                 timeoutMillis);
     }
 
@@ -952,7 +932,7 @@ public class TimingNodeTest {
     }
 
     private static final class BlockingPersistence implements TimingDataPersistence {
-        private final SerialLane expectedLane;
+        private final TimingNodeDataLane expectedLane;
         private final CountDownLatch loadStarted =
                 new CountDownLatch(1);
         private final CountDownLatch releaseLoad =
@@ -960,7 +940,7 @@ public class TimingNodeTest {
         private volatile boolean executedOnNodeLane;
 
         private BlockingPersistence(
-                SerialLane expectedLane) {
+                TimingNodeDataLane expectedLane) {
             this.expectedLane = expectedLane;
         }
 

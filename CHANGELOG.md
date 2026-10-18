@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make `SerialLane<T>` the typed item queue/worker boundary: queue items are caller-owned values, the backing executor sees only one fixed worker, LogBook uses `LogBookOperationItem` variants on one typed TimingNode Data Lane, and upstream turns share that FIFO as typed Data Lane items. The previous executor-shaped implementation is temporarily named `RunnableSerialLane` for remaining cooperative-task paths.
+
 - Queue NodeService Task Lane facts and stage-timing queries as typed items through `SerialQueue`, removing per-fact Runnable and per-query Callable wrappers while keeping one bounded FIFO and one fixed worker.
 
 - Queue LogBook `CommandItem` / `QueryItem` values through `SerialQueue` instead of wrapping each Data Lane operation in a `Runnable` or `Callable`; command/query result futures remain part of the queued item while LogBook owns their processing.

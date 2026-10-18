@@ -20,7 +20,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.SerialLane;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.RunnableSerialLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.lanes.ScheduledSerialLane;
 
 import java.time.Duration;
@@ -52,16 +52,6 @@ public class TagProcessorTest {
         for (ExecutorService worker : ownedWorkers) {
             worker.shutdownNow();
         }
-    }
-
-    private SerialLane newSerialLane(
-            int capacity,
-            String threadName) {
-        ExecutorService worker =
-                Executors.newSingleThreadExecutor(
-                        runnable -> new Thread(runnable, threadName));
-        ownedWorkers.add(worker);
-        return new SerialLane(capacity, capacity, threadName, worker);
     }
 
     private TagExecution newTagExecution(
@@ -582,7 +572,7 @@ public class TagProcessorTest {
                                                 registration.observedAt())));
     }
 
-    private static void awaitLane(SerialLane lane)
+    private static void awaitLane(RunnableSerialLane lane)
             throws Exception {
         CountDownLatch barrier = new CountDownLatch(1);
         lane.execute(barrier::countDown);

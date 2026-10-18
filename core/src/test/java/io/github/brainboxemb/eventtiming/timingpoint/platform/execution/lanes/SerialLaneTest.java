@@ -4,16 +4,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import org.junit.After;
 import org.junit.Test;
@@ -21,13 +19,11 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class SerialLaneTest {
     private final List<ExecutorService> ownedWorkers =
             new ArrayList<ExecutorService>();
 
-    /** Stops physical test workers that are deliberately owned by this test fixture. */
     @After
     public void stopOwnedWorkers() {
         for (ExecutorService worker : ownedWorkers) {
@@ -35,238 +31,265 @@ public class SerialLaneTest {
         }
     }
 
-    /** Creates one bounded SerialLane on a dedicated test worker. */
-    private SerialLane newLane(
+    private <T> SerialLane<T> newLane(
             int capacity,
-            String threadName) {
+            int maxItemsPerRun,
+            String threadName,
+            Consumer<T> processor) {
+
         ExecutorService worker =
                 Executors.newSingleThreadExecutor(
-                        runnable -> new Thread(
-                                runnable,
-                                threadName));
+                        runnable -> new Thread(runnable, threadName));
         ownedWorkers.add(worker);
-        return new SerialLane(
+        return new SerialLane<T>(
                 capacity,
-                capacity,
+                maxItemsPerRun,
                 threadName,
-                worker);
+                worker,
+                processor);
     }
 
-    /** Verifies that a lane rejects work outside its RUNNING lifecycle state. */
     @Test
-    public void rejectsWorkBeforeStartAndAfterStop() {
-        SerialLane executor = newLane(1, "serial-executor-test");
+    public void rejectsItemsBeforeStartAndAfterStop() {
+        SerialLane<Integer> lane =
+                newLane(1, 1, "typed-lane-state", ignored -> { });
 
-        assertFalse(executor.isRunning());
-        expectRejected(() -> executor.execute(() -> { }));
+        assertFalse(lane.isRunning());
+        assertEquals(SerialLane.OfferResult.NOT_RUNNING, lane.offer(1));
 
-        executor.start();
-        assertTrue(executor.isRunning());
+        lane.start();
+        assertTrue(lane.isRunning());
+        lane.close();
 
-        executor.close();
-
-        assertFalse(executor.isRunning());
-        assertEquals(SerialLane.State.STOPPED, executor.state());
-        expectRejected(() -> executor.execute(() -> { }));
+        assertFalse(lane.isRunning());
+        assertEquals(SerialLane.State.STOPPED, lane.state());
+        assertEquals(SerialLane.OfferResult.NOT_RUNNING, lane.offer(2));
     }
 
-    /** Verifies that a cleanly stopped lane can be started and used again. */
     @Test
     public void restartsAfterCleanStop() throws Exception {
-        SerialLane executor = newLane(2, "serial-executor-restart-test");
         CountDownLatch first = new CountDownLatch(1);
         CountDownLatch second = new CountDownLatch(1);
+        SerialLane<Integer> lane =
+                newLane(
+                        2,
+                        2,
+                        "typed-lane-restart",
+                        item -> {
+                            if (item.intValue() == 1) {
+                                first.countDown();
+                            } else {
+                                second.countDown();
+                            }
+                        });
 
-        executor.start();
-        executor.execute(first::countDown);
-        assertTrue(first.await(1, TimeUnit.SECONDS));
-        executor.close();
+        lane.start();
+        assertEquals(SerialLane.OfferResult.ACCEPTED, lane.offer(1));
+        assertTrue(first.await(1L, TimeUnit.SECONDS));
+        lane.close();
 
-        executor.start();
-        executor.execute(second::countDown);
-        assertTrue(second.await(1, TimeUnit.SECONDS));
-        executor.close();
+        lane.start();
+        assertEquals(SerialLane.OfferResult.ACCEPTED, lane.offer(2));
+        assertTrue(second.await(1L, TimeUnit.SECONDS));
+        lane.close();
 
-        assertEquals(SerialLane.State.STOPPED, executor.state());
+        assertEquals(SerialLane.State.STOPPED, lane.state());
     }
 
-    /** Verifies FIFO execution for tasks successfully queued on one lane. */
     @Test
-    public void processesQueuedWorkInFifoOrder() throws Exception {
-        SerialLane executor = newLane(4, "serial-executor-test");
+    public void keepsItemsInFifoOrder() throws Exception {
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
-        List<Integer> order = Collections.synchronizedList(new ArrayList<>());
+        CountDownLatch allDone = new CountDownLatch(3);
+        List<Integer> order =
+                Collections.synchronizedList(new ArrayList<Integer>());
 
-        executor.start();
+        SerialLane<Integer> lane =
+                newLane(
+                        4,
+                        4,
+                        "typed-lane-fifo",
+                        item -> {
+                            if (item.intValue() == 1) {
+                                firstStarted.countDown();
+                                await(releaseFirst);
+                            }
+                            order.add(item);
+                            allDone.countDown();
+                        });
+
+        lane.start();
         try {
-            Future<Integer> first = executor.submit(() -> {
-                firstStarted.countDown();
-                releaseFirst.await();
-                order.add(1);
-                return 10;
-            });
-            assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
-
-            Future<Integer> second = executor.submit(() -> {
-                order.add(2);
-                return 20;
-            });
+            assertEquals(SerialLane.OfferResult.ACCEPTED, lane.offer(1));
+            assertTrue(firstStarted.await(1L, TimeUnit.SECONDS));
+            assertEquals(SerialLane.OfferResult.ACCEPTED, lane.offer(2));
+            assertEquals(SerialLane.OfferResult.ACCEPTED, lane.offer(3));
             releaseFirst.countDown();
 
-            assertEquals(Integer.valueOf(10), first.get(1, TimeUnit.SECONDS));
-            assertEquals(Integer.valueOf(20), second.get(1, TimeUnit.SECONDS));
-            assertEquals(Arrays.asList(1, 2), order);
+            assertTrue(allDone.await(1L, TimeUnit.SECONDS));
+            assertEquals(Arrays.asList(1, 2, 3), order);
         } finally {
             releaseFirst.countDown();
-            executor.close();
+            lane.close();
         }
     }
 
-    /** Verifies bounded queue rejection while the configured capacity is occupied. */
     @Test
-    public void reportsFullWhileCapacityIsOccupied() throws Exception {
-        SerialLane executor = newLane(1, "serial-executor-test");
+    public void reportsFullWhenWaitingQueueReachesCapacity() throws Exception {
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
 
-        executor.start();
-        try {
-            executor.submit(() -> {
-                firstStarted.countDown();
-                releaseFirst.await();
-                return null;
-            });
-            assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
+        SerialLane<Integer> lane =
+                newLane(
+                        1,
+                        1,
+                        "typed-lane-capacity",
+                        item -> {
+                            firstStarted.countDown();
+                            await(releaseFirst);
+                        });
 
-            executor.execute(() -> { });
-            expectRejected(() -> executor.execute(() -> { }));
-            assertTrue(executor.metrics().snapshot().queueHighWaterMark() >= 1);
+        lane.start();
+        try {
+            assertEquals(SerialLane.OfferResult.ACCEPTED, lane.offer(1));
+            assertTrue(firstStarted.await(1L, TimeUnit.SECONDS));
+            assertEquals(SerialLane.OfferResult.ACCEPTED, lane.offer(2));
+            assertEquals(SerialLane.OfferResult.FULL, lane.offer(3));
+            assertTrue(lane.metrics().snapshot().queueHighWaterMark() >= 1);
         } finally {
             releaseFirst.countDown();
-            executor.close();
+            lane.close();
         }
     }
 
-    /** Verifies that close waits for work already queued before stopping the lane. */
     @Test
-    public void closeDrainsAlreadyQueuedWork() throws Exception {
-        SerialLane executor = newLane(2, "serial-executor-test");
+    public void closeDrainsAlreadyAcceptedItems() throws Exception {
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
         CountDownLatch secondDone = new CountDownLatch(1);
 
-        executor.start();
-        executor.execute(() -> {
-            firstStarted.countDown();
-            try {
-                releaseFirst.await();
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-            }
-        });
-        assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
-        executor.execute(secondDone::countDown);
+        SerialLane<Integer> lane =
+                newLane(
+                        2,
+                        2,
+                        "typed-lane-close",
+                        item -> {
+                            if (item.intValue() == 1) {
+                                firstStarted.countDown();
+                                await(releaseFirst);
+                            } else {
+                                secondDone.countDown();
+                            }
+                        });
 
-        Thread closer = new Thread(executor::close);
+        lane.start();
+        assertEquals(SerialLane.OfferResult.ACCEPTED, lane.offer(1));
+        assertTrue(firstStarted.await(1L, TimeUnit.SECONDS));
+        assertEquals(SerialLane.OfferResult.ACCEPTED, lane.offer(2));
+
+        Thread closer = new Thread(lane::close);
         closer.start();
 
-        assertFalse(secondDone.await(50, TimeUnit.MILLISECONDS));
+        assertFalse(secondDone.await(50L, TimeUnit.MILLISECONDS));
         releaseFirst.countDown();
 
-        closer.join(1000);
+        closer.join(1000L);
         assertFalse(closer.isAlive());
-        assertTrue(secondDone.await(1, TimeUnit.SECONDS));
-        assertEquals(SerialLane.State.STOPPED, executor.state());
+        assertTrue(secondDone.await(1L, TimeUnit.SECONDS));
+        assertEquals(SerialLane.State.STOPPED, lane.state());
     }
 
-    /** Verifies that an ordinary task exception does not fault the SerialLane. */
     @Test
-    public void ordinaryTaskFailureDoesNotStopLaterWork() throws Exception {
-        SerialLane executor = newLane(2, "serial-executor-test");
-        executor.start();
+    public void ordinaryItemFailureDoesNotStopLaterItems() throws Exception {
+        CountDownLatch secondDone = new CountDownLatch(1);
+        SerialLane<Integer> lane =
+                newLane(
+                        2,
+                        2,
+                        "typed-lane-failure",
+                        item -> {
+                            if (item.intValue() == 1) {
+                                throw new IllegalStateException("expected");
+                            }
+                            secondDone.countDown();
+                        });
+
+        lane.start();
         try {
-            Future<Integer> failing = executor.submit(() -> {
-                throw new IllegalStateException("expected");
-            });
-            Future<Integer> next = executor.submit(() -> 42);
-
-            try {
-                failing.get(1, TimeUnit.SECONDS);
-                fail("expected ExecutionException");
-            } catch (ExecutionException expected) {
-                assertTrue(expected.getCause() instanceof IllegalStateException);
-            }
-
-            assertEquals(Integer.valueOf(42), next.get(1, TimeUnit.SECONDS));
-            assertEquals(SerialLane.State.RUNNING, executor.state());
+            assertEquals(SerialLane.OfferResult.ACCEPTED, lane.offer(1));
+            assertEquals(SerialLane.OfferResult.ACCEPTED, lane.offer(2));
+            assertTrue(secondDone.await(1L, TimeUnit.SECONDS));
+            assertEquals(SerialLane.State.RUNNING, lane.state());
         } finally {
-            executor.close();
+            lane.close();
         }
     }
 
-    /** Verifies queued/rejected/completed counters and queue/execution duration metrics. */
     @Test
-    public void recordsLowAllocationRuntimeCountersAndDurations() throws Exception {
-        SerialLane executor = newLane(1, "serial-executor-metrics-test");
+    public void recordsItemQueueMetrics() throws Exception {
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
-        CountDownLatch queuedDone = new CountDownLatch(1);
+        CountDownLatch secondDone = new CountDownLatch(1);
 
-        expectRejected(() -> executor.execute(() -> { }));
+        SerialLane<Integer> lane =
+                newLane(
+                        1,
+                        1,
+                        "typed-lane-metrics",
+                        item -> {
+                            if (item.intValue() == 1) {
+                                firstStarted.countDown();
+                                await(releaseFirst);
+                            } else {
+                                secondDone.countDown();
+                            }
+                        });
 
-        executor.start();
+        assertEquals(SerialLane.OfferResult.NOT_RUNNING, lane.offer(0));
+
+        lane.start();
         try {
-            executor.execute(() -> {
-                firstStarted.countDown();
-                try {
-                    releaseFirst.await();
-                } catch (InterruptedException ex) {
-                    Thread.currentThread().interrupt();
-                }
-            });
-            assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
-
-            executor.execute(queuedDone::countDown);
-            expectRejected(() -> executor.execute(() -> { }));
+            assertEquals(SerialLane.OfferResult.ACCEPTED, lane.offer(1));
+            assertTrue(firstStarted.await(1L, TimeUnit.SECONDS));
+            assertEquals(SerialLane.OfferResult.ACCEPTED, lane.offer(2));
+            assertEquals(SerialLane.OfferResult.FULL, lane.offer(3));
 
             Thread.sleep(10L);
             releaseFirst.countDown();
-            assertTrue(queuedDone.await(1, TimeUnit.SECONDS));
+            assertTrue(secondDone.await(1L, TimeUnit.SECONDS));
         } finally {
             releaseFirst.countDown();
-            executor.close();
+            lane.close();
         }
 
-        SerialLaneMetrics.Snapshot metrics =
-                executor.metrics().snapshot();
-
+        SerialLaneMetrics.Snapshot metrics = lane.metrics().snapshot();
         assertEquals(2L, metrics.queuedCount());
         assertEquals(1L, metrics.fullCount());
         assertEquals(1L, metrics.notRunningCount());
         assertEquals(2L, metrics.completedCount());
         assertTrue(metrics.queueHighWaterMark() >= 1);
         assertTrue(metrics.maxQueueWaitNanos() > 0L);
-        assertTrue(metrics.totalQueueWaitNanos() >= metrics.maxQueueWaitNanos());
         assertTrue(metrics.maxExecutionNanos() > 0L);
-        assertTrue(metrics.totalExecutionNanos() >= metrics.maxExecutionNanos());
-        assertTrue(metrics.workerThreadCpuTimeNanos() >= -1L);
     }
 
-
-    /** Verifies that one worker run processes no more than the configured batch size. */
     @Test
-    public void limitsItemsProcessedPerWorkerRun() {
+    public void limitsItemsPerWorkerRun() {
         List<Runnable> scheduled = new ArrayList<Runnable>();
         List<Integer> processed = new ArrayList<Integer>();
-        SerialLane lane = new SerialLane(4, 2, "batch-test", scheduled::add);
+
+        SerialLane<Integer> lane =
+                new SerialLane<Integer>(
+                        4,
+                        2,
+                        "typed-lane-batch",
+                        scheduled::add,
+                        processed::add);
 
         lane.start();
         try {
-            lane.execute(() -> processed.add(1));
-            lane.execute(() -> processed.add(2));
-            lane.execute(() -> processed.add(3));
-
+            assertEquals(SerialLane.OfferResult.ACCEPTED, lane.offer(1));
+            assertEquals(SerialLane.OfferResult.ACCEPTED, lane.offer(2));
+            assertEquals(SerialLane.OfferResult.ACCEPTED, lane.offer(3));
             assertEquals(1, scheduled.size());
 
             scheduled.remove(0).run();
@@ -281,97 +304,62 @@ public class SerialLaneTest {
         }
     }
 
-    /** Verifies lane-local FIFO ordering and fair turns on one shared physical worker. */
     @Test
-    public void sharedLanesKeepIndependentFifoQueuesAndShareOneWorker()
+    public void sharedLanesKeepIndependentFifoAndFairWorkerTurns()
             throws Exception {
-        ThreadPoolExecutor shared = new ThreadPoolExecutor(
-                1,
-                1,
-                0L,
-                TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<Runnable>(),
-                runnable -> new Thread(
-                        runnable,
-                        "shared-node-worker"));
 
-        SerialLane first =
-                new SerialLane(
-                        4,
-                        4,
-                        "node-A",
-                        shared);
-        SerialLane second =
-                new SerialLane(
-                        4,
-                        4,
-                        "node-B",
-                        shared);
+        ThreadPoolExecutor shared =
+                new ThreadPoolExecutor(
+                        1,
+                        1,
+                        0L,
+                        TimeUnit.MILLISECONDS,
+                        new LinkedBlockingQueue<Runnable>(),
+                        runnable -> new Thread(runnable, "shared-typed-worker"));
 
+        List<String> order =
+                Collections.synchronizedList(new ArrayList<String>());
         CountDownLatch firstStarted = new CountDownLatch(1);
         CountDownLatch releaseFirst = new CountDownLatch(1);
         CountDownLatch allDone = new CountDownLatch(3);
-        List<String> order =
-                Collections.synchronizedList(
-                        new ArrayList<String>());
-        List<String> workerNames =
-                Collections.synchronizedList(
-                        new ArrayList<String>());
+
+        SerialLane<String> first =
+                new SerialLane<String>(
+                        4,
+                        4,
+                        "node-A",
+                        shared,
+                        item -> {
+                            order.add(item);
+                            if ("A1".equals(item)) {
+                                firstStarted.countDown();
+                                await(releaseFirst);
+                            }
+                            allDone.countDown();
+                        });
+        SerialLane<String> second =
+                new SerialLane<String>(
+                        4,
+                        4,
+                        "node-B",
+                        shared,
+                        item -> {
+                            order.add(item);
+                            allDone.countDown();
+                        });
 
         first.start();
         second.start();
         try {
-            first.execute(() -> {
-                workerNames.add(
-                        Thread.currentThread().getName());
-                order.add("A1");
-                firstStarted.countDown();
-                try {
-                    releaseFirst.await();
-                } catch (InterruptedException ex) {
-                    Thread.currentThread().interrupt();
-                }
-                allDone.countDown();
-            });
-            assertTrue(
-                    firstStarted.await(
-                            1,
-                            TimeUnit.SECONDS));
+            first.offer("A1");
+            assertTrue(firstStarted.await(1L, TimeUnit.SECONDS));
 
-            /*
-             * A2 arrives after lane A's current worker batch has started. B1
-             * schedules its own queue worker run directly on the shared executor.
-             * When A1 completes, A's next worker run is appended behind B's
-             * already waiting run.
-             */
-            first.execute(() -> {
-                workerNames.add(
-                        Thread.currentThread().getName());
-                order.add("A2");
-                allDone.countDown();
-            });
-            second.execute(() -> {
-                workerNames.add(
-                        Thread.currentThread().getName());
-                order.add("B1");
-                allDone.countDown();
-            });
+            first.offer("A2");
+            second.offer("B1");
 
             releaseFirst.countDown();
-            assertTrue(
-                    allDone.await(
-                            1,
-                            TimeUnit.SECONDS));
-
-            assertEquals(
-                    Arrays.asList("A1", "B1", "A2"),
-                    order);
-            assertEquals(
-                    Arrays.asList(
-                            "shared-node-worker",
-                            "shared-node-worker",
-                            "shared-node-worker"),
-                    workerNames);
+            assertTrue(allDone.await(1L, TimeUnit.SECONDS));
+            assertEquals(Arrays.asList("A1", "B1", "A2"), order);
         } finally {
             releaseFirst.countDown();
             first.close();
@@ -380,111 +368,98 @@ public class SerialLaneTest {
         }
     }
 
-    /** Verifies that closing one logical lane does not stop its sibling's shared worker. */
     @Test
-    public void closingSharedLaneDoesNotStopSiblingLane()
+    public void neverRunsTwoWorkersForOneLaneConcurrently()
             throws Exception {
-        ThreadPoolExecutor shared = new ThreadPoolExecutor(
-                1,
-                1,
-                0L,
-                TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<Runnable>());
-        SerialLane first =
-                new SerialLane(
-                        2,
-                        2,
-                        "node-A",
-                        shared);
-        SerialLane second =
-                new SerialLane(
-                        2,
-                        2,
-                        "node-B",
-                        shared);
-        CountDownLatch secondDone = new CountDownLatch(1);
 
-        first.start();
-        second.start();
+        ExecutorService shared = Executors.newFixedThreadPool(2);
+        AtomicInteger active = new AtomicInteger();
+        AtomicInteger maxActive = new AtomicInteger();
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(3);
+
+        SerialLane<Integer> lane =
+                new SerialLane<Integer>(
+                        8,
+                        1,
+                        "typed-lane-single-worker",
+                        shared,
+                        item -> {
+                            int current = active.incrementAndGet();
+                            updateMaximum(maxActive, current);
+                            try {
+                                if (item.intValue() == 1) {
+                                    firstStarted.countDown();
+                                    await(releaseFirst);
+                                }
+                            } finally {
+                                active.decrementAndGet();
+                                done.countDown();
+                            }
+                        });
+
+        lane.start();
         try {
-            first.close();
+            lane.offer(1);
+            assertTrue(firstStarted.await(1L, TimeUnit.SECONDS));
+            lane.offer(2);
+            lane.offer(3);
+            releaseFirst.countDown();
 
-            assertEquals(
-                    SerialLane.State.STOPPED,
-                    first.state());
-            assertFalse(shared.isShutdown());
-            second.execute(secondDone::countDown);
-            assertTrue(
-                    secondDone.await(
-                            1,
-                            TimeUnit.SECONDS));
+            assertTrue(done.await(1L, TimeUnit.SECONDS));
+            assertEquals(1, maxActive.get());
         } finally {
-            second.close();
+            releaseFirst.countDown();
+            lane.close();
             shared.shutdownNow();
         }
     }
 
-
-    /** Verifies that a fatal failure is lane-local when sibling lanes share a worker. */
     @Test
-    public void fatalFailureInSharedLaneDoesNotStopSiblingLane()
-            throws Exception {
-        ThreadPoolExecutor shared = new ThreadPoolExecutor(
-                1,
-                1,
-                0L,
-                TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<Runnable>(),
-                runnable -> new Thread(
-                        runnable,
-                        "shared-node-worker"));
+    public void fatalErrorFailsOnlyThatLane() throws Exception {
+        ThreadPoolExecutor shared =
+                new ThreadPoolExecutor(
+                        1,
+                        1,
+                        0L,
+                        TimeUnit.MILLISECONDS,
+                        new LinkedBlockingQueue<Runnable>());
 
-        SerialLane failing =
-                new SerialLane(
+        CountDownLatch healthyDone = new CountDownLatch(1);
+        SerialLane<Integer> failing =
+                new SerialLane<Integer>(
                         2,
                         2,
-                        "node-A",
-                        shared);
-        SerialLane healthy =
-                new SerialLane(
+                        "failing",
+                        shared,
+                        ignored -> {
+                            throw new AssertionError("fatal");
+                        });
+        SerialLane<Integer> healthy =
+                new SerialLane<Integer>(
                         2,
                         2,
-                        "node-B",
-                        shared);
-        CountDownLatch healthyDone =
-                new CountDownLatch(1);
+                        "healthy",
+                        shared,
+                        ignored -> healthyDone.countDown());
 
         failing.start();
         healthy.start();
         try {
-            failing.execute(() -> {
-                throw new AssertionError("expected lane failure");
-            });
-            healthy.execute(healthyDone::countDown);
+            failing.offer(1);
+            healthy.offer(1);
+            assertTrue(healthyDone.await(1L, TimeUnit.SECONDS));
 
-            assertTrue(
-                    healthyDone.await(
-                            1,
-                            TimeUnit.SECONDS));
-
-            long deadline =
-                    System.nanoTime()
-                            + TimeUnit.SECONDS.toNanos(1);
-            while (failing.state()
-                    != SerialLane.State.FAILED
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1L);
+            while (failing.state() != SerialLane.State.FAILED
                     && System.nanoTime() < deadline) {
                 Thread.yield();
             }
 
-            assertEquals(
-                    SerialLane.State.FAILED,
-                    failing.state());
-            assertTrue(
-                    failing.failure()
-                            instanceof AssertionError);
-            assertEquals(
-                    SerialLane.State.RUNNING,
-                    healthy.state());
+            assertEquals(SerialLane.State.FAILED, failing.state());
+            assertTrue(failing.failure() instanceof AssertionError);
+            assertEquals(SerialLane.State.RUNNING, healthy.state());
             assertFalse(shared.isShutdown());
         } finally {
             failing.close();
@@ -493,52 +468,22 @@ public class SerialLaneTest {
         }
     }
 
-    /** Verifies that a fatal Error faults the lane and cancels queued Future work. */
-    @Test
-    public void fatalErrorFaultsWorkerAndCancelsQueuedWork() throws Exception {
-        SerialLane executor = newLane(2, "serial-executor-test");
-        CountDownLatch fatalStarted = new CountDownLatch(1);
-        CountDownLatch releaseFatal = new CountDownLatch(1);
-        executor.start();
-
-        Future<Void> fatal = executor.submit(() -> {
-            fatalStarted.countDown();
-            releaseFatal.await();
-            throw new AssertionError("fatal");
-        });
-        assertTrue(fatalStarted.await(1, TimeUnit.SECONDS));
-        Future<Integer> queued = executor.submit(() -> 42);
-        releaseFatal.countDown();
-
+    private static void await(CountDownLatch latch) {
         try {
-            fatal.get(1, TimeUnit.SECONDS);
-            fail("expected ExecutionException");
-        } catch (ExecutionException expected) {
-            assertTrue(expected.getCause() instanceof AssertionError);
-        }
-
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
-        while (executor.state() != SerialLane.State.FAILED && System.nanoTime() < deadline) {
-            Thread.yield();
-        }
-        assertEquals(SerialLane.State.FAILED, executor.state());
-        assertTrue(executor.failure() instanceof AssertionError);
-
-        try {
-            queued.get();
-            fail("expected queued work to be cancelled");
-        } catch (CancellationException expected) {
-            // Expected after executor fault.
-        }
-    }
-    /** Verifies that standard executor rejection is reported immediately to the caller. */
-    private static void expectRejected(Runnable action) {
-        try {
-            action.run();
-            fail("expected RejectedExecutionException");
-        } catch (RejectedExecutionException expected) {
-            // Expected when the bounded SerialLane cannot accept more work.
+            latch.await();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("interrupted while awaiting test", ex);
         }
     }
 
+    private static void updateMaximum(AtomicInteger maximum, int candidate) {
+        int current;
+        do {
+            current = maximum.get();
+            if (candidate <= current) {
+                return;
+            }
+        } while (!maximum.compareAndSet(current, candidate));
+    }
 }

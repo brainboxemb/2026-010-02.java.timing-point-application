@@ -9,13 +9,13 @@ import java.util.concurrent.ScheduledExecutorService;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * SerialLane with delayed and recurring admission support.
+ * RunnableSerialLane with delayed and recurring admission support.
  *
  * <p>The supplied ScheduledExecutorService is both the backing executor for
  * ordinary queue processing and the timer source for delayed admission. Scheduled
  * callbacks are always admitted back to this lane before application work runs.</p>
  */
-public class ScheduledSerialLane extends SerialLane {
+public class ScheduledSerialLane extends RunnableSerialLane {
 
     /** Handle for one recurring scheduling registration. */
     public interface ScheduledRegistration extends AutoCloseable {
