@@ -129,9 +129,15 @@ public final class NodeService extends LifecycleComponent {
         }
     }
 
-    /** Runs one ordered result-bearing service read. */
+    /** Runs one ordered service read, waiting cooperatively for startup recovery when needed. */
     private <T> T read(Supplier<T> operation) {
-        return NodeServiceQuery.execute(taskRunner, QUERY_TIMEOUT, operation);
+        return NodeServiceQuery.execute(
+                taskRunner,
+                QUERY_TIMEOUT,
+                historyTask.isRecovering()
+                        ? historyTask.recoveryCompletion()
+                        : null,
+                operation);
     }
 
     /** Reports failed startup history reconstruction. */
