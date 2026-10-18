@@ -313,7 +313,7 @@ public class StageTimingTest {
     private static ActiveRegistrations active(Iterable<TimingData> records) {
         ActiveRegistrations active = new ActiveRegistrations();
         for (TimingData record : records) {
-            active.apply(record);
+            active.apply(record, id -> null);
         }
         return active;
     }
