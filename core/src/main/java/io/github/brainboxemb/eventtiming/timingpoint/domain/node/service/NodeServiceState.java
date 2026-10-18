@@ -77,28 +77,23 @@ public final class NodeServiceState implements UpstreamTaskState {
         derivedTimingStale = true;
     }
 
-    /** Rebuilds compact derived registration state from transient startup history. */
-    void rebuildDerivedTiming(Iterable<TimingData> loadedData) {
-        failIfInvalidArgument(loadedData != null, "loadedData must not be null");
-
+    /** Clears derived registration state before reading recovered LogBook history. */
+    void beginDerivedTimingRecovery() {
         activeRegistrations.reset();
-
-        for (TimingData data : loadedData) {
-            activeRegistrations.apply(data, raceData::teamIdFor);
-        }
-
+        derivedTimingReady = false;
         derivedTimingStale = false;
-        derivedTimingReady = true;
     }
 
-    /** Applies one newly committed TimingData record to derived registration state. */
-    void applyCommittedTimingData(TimingData data) {
+    /** Applies one ordered TimingData record read from the LogBook. */
+    void applyTimingData(TimingData data) {
         failIfInvalidArgument(data != null, "data must not be null");
-        if (!derivedTimingReady) {
-            derivedTimingStale = true;
-        } else {
-            activeRegistrations.apply(data, raceData::teamIdFor);
-        }
+        activeRegistrations.apply(data, raceData::teamIdFor);
+    }
+
+    /** Marks derived timing ready after reaching the currently published LogBook head. */
+    void completeDerivedTimingRecovery() {
+        derivedTimingStale = false;
+        derivedTimingReady = true;
     }
 
     /** Returns compact active-registration state after availability checks. */
