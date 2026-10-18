@@ -31,11 +31,11 @@ public class EventDataProviderTest {
         assertEquals(
                 normal,
                 eventData.registrationIdFor(
-                        new TagId("TT-A-0001-1")));
+                        new TagId("A0001A")));
         assertEquals(
                 normal,
                 eventData.registrationIdFor(
-                        new TagId("TT-A-0001-2")));
+                        new TagId("A0001B")));
         assertEquals(
                 2,
                 eventData.tagIdsFor(normal).size());
@@ -52,22 +52,22 @@ public class EventDataProviderTest {
         assertEquals(
                 upperNormal,
                 eventData.registrationIdFor(
-                        new TagId("TT-A-9999-1")));
+                        new TagId("A9999A")));
         assertEquals(
                 new RegistrationId("A2001"),
                 eventData.registrationIdFor(
-                        new TagId("TT-A-2001-2")));
+                        new TagId("A2001B")));
 
         RegistrationId reserve =
                 new RegistrationId("R0001");
         assertEquals(
                 reserve,
                 eventData.registrationIdFor(
-                        new TagId("TT-R-0001-1")));
+                        new TagId("R0001A")));
         assertEquals(
                 reserve,
                 eventData.registrationIdFor(
-                        new TagId("TT-R-0001-2")));
+                        new TagId("R0001B")));
         assertEquals(
                 2,
                 eventData.tagIdsFor(reserve).size());
@@ -76,7 +76,7 @@ public class EventDataProviderTest {
 
         assertNull(
                 eventData.registrationIdFor(
-                        new TagId("TT-A-0000-1")));
+                        new TagId("A0000A")));
         assertTrue(
                 eventData.tagIdsFor(
                         new RegistrationId("A0000"))
@@ -96,13 +96,13 @@ public class EventDataProviderTest {
                         new RegistrationId("A0001"))
                         .size());
         assertEquals(
-                "TT-A-0001-1",
+                "A0001A",
                 eventData.tagIdsFor(
                         new RegistrationId("A0001"))
                         .get(0)
                         .value());
         assertEquals(
-                "TT-A-0001-2",
+                "A0001B",
                 eventData.tagIdsFor(
                         new RegistrationId("A0001"))
                         .get(1)

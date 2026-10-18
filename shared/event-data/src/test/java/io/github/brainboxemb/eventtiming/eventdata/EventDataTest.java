@@ -19,10 +19,10 @@ public class EventDataTest {
         Map<TagId, RegistrationId> registrations =
                 new LinkedHashMap<TagId, RegistrationId>();
         registrations.put(
-                new TagId("TAG-A"),
+                new TagId("R0123A"),
                 registrationId);
         registrations.put(
-                new TagId("TAG-B"),
+                new TagId("R0123B"),
                 registrationId);
 
         EventData eventData =
@@ -32,18 +32,18 @@ public class EventDataTest {
         assertEquals(
                 registrationId,
                 eventData.registrationIdFor(
-                        new TagId("TAG-A")));
+                        new TagId("R0123A")));
         assertEquals(
                 registrationId,
                 eventData.registrationIdFor(
-                        new TagId("TAG-B")));
+                        new TagId("R0123B")));
         assertEquals(
                 2,
                 eventData.tagIdsFor(
                         registrationId).size());
         assertNull(
                 eventData.registrationIdFor(
-                        new TagId("TAG-X")));
+                        new TagId("R0999A")));
     }
 
     @Test

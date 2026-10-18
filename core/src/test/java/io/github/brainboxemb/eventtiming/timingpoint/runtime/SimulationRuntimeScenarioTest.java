@@ -40,9 +40,9 @@ public class SimulationRuntimeScenarioTest {
     private static final RegistrationId REGISTRATION =
             new RegistrationId("A0042");
     private static final TagId TAG_A =
-            new TagId("TT-A-0042-1");
+            new TagId("A0042A");
     private static final TagId TAG_B =
-            new TagId("TT-A-0042-2");
+            new TagId("A0042B");
 
     @Rule
     public final TemporaryFolder temporaryFolder =
@@ -285,11 +285,11 @@ public class SimulationRuntimeScenarioTest {
                 String tag =
                         observation.tagId()
                                 .value();
-                if ("TT-A-0004-1".equals(tag)) {
+                if ("A0004A".equals(tag)) {
                     normalTagAObserved = true;
-                } else if ("TT-A-0004-2".equals(tag)) {
+                } else if ("A0004B".equals(tag)) {
                     normalTagBObserved = true;
-                } else if ("TT-A-0003-2".equals(tag)) {
+                } else if ("A0003B".equals(tag)) {
                     edgeTagBObserved = true;
                 }
             }

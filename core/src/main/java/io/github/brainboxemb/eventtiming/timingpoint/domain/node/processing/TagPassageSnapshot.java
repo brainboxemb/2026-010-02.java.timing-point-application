@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing;
 
+import io.github.brainboxemb.eventtiming.timingdata.CompactTimingTime;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
@@ -20,16 +21,16 @@ public final class TagPassageSnapshot {
         private final TagId tagId;
         private final long observationCount;
         private final int strongestRssi;
-        private final TimingTimestamp firstObservedAt;
-        private final TimingTimestamp lastObservedAt;
+        private final long firstObservedAt;
+        private final long lastObservedAt;
 
         /** Creates immutable diagnostic statistics for one TagId in the passage. */
         TagStats(
                 TagId tagId,
                 long observationCount,
                 int strongestRssi,
-                TimingTimestamp firstObservedAt,
-                TimingTimestamp lastObservedAt) {
+                long firstObservedAt,
+                long lastObservedAt) {
             this.tagId = tagId;
             this.observationCount = observationCount;
             this.strongestRssi = strongestRssi;
@@ -54,12 +55,12 @@ public final class TagPassageSnapshot {
 
         /** Returns the first observation timestamp for this TagId. */
         public TimingTimestamp firstObservedAt() {
-            return firstObservedAt;
+            return CompactTimingTime.toTimestamp(firstObservedAt);
         }
 
         /** Returns the most recent observation timestamp for this TagId. */
         public TimingTimestamp lastObservedAt() {
-            return lastObservedAt;
+            return CompactTimingTime.toTimestamp(lastObservedAt);
         }
     }
 
@@ -67,7 +68,7 @@ public final class TagPassageSnapshot {
     private final List<TagStats> tags;
     private final TagId selectedTagId;
     private final int selectedRssi;
-    private final TimingTimestamp selectedObservedAt;
+    private final long selectedObservedAt;
 
     /** Creates one immutable snapshot of an open passage burst. */
     TagPassageSnapshot(
@@ -75,7 +76,7 @@ public final class TagPassageSnapshot {
             List<TagStats> tags,
             TagId selectedTagId,
             int selectedRssi,
-            TimingTimestamp selectedObservedAt) {
+            long selectedObservedAt) {
         this.registrationId = registrationId;
         this.tags =
                 Collections.unmodifiableList(
@@ -107,6 +108,6 @@ public final class TagPassageSnapshot {
 
     /** Returns the timestamp of the currently selected observation. */
     public TimingTimestamp selectedObservedAt() {
-        return selectedObservedAt;
+        return CompactTimingTime.toTimestamp(selectedObservedAt);
     }
 }

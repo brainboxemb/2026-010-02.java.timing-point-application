@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing;
 
+import io.github.brainboxemb.eventtiming.timingdata.CompactTimingTime;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
@@ -119,14 +120,7 @@ final class TagObservationFilter {
         }
     }
 
-    /**
-     * Discards any currently aggregated next passage for one RegistrationId.
-     *
-     * <p>This is used when closing a previous burst caused TimingNode to accept
-     * that registration. The observation that triggered closure may already
-     * have started the next burst inside add(...); once the duplicate window
-     * starts, retaining that burst would be wasted work.</p>
-     */
+    /** Discards any currently aggregated next passage for one RegistrationId. */
     boolean discard(RegistrationId registrationId) {
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         return bursts.remove(registrationId) != null;
@@ -152,36 +146,39 @@ final class TagObservationFilter {
         return result;
     }
 
-
     /** Publishes one closed burst's selected observation when a burst was actually closed. */
     private void sendValidObservation(ClosedBurst closedBurst) {
         if (closedBurst == null) {
             return;
         }
+
+        TimingTimestamp observedAt =
+                CompactTimingTime.toTimestamp(
+                        closedBurst.observedAt);
         LOG.info(
                 "Tag passage selected: registrationId={}, tagId={}, rssi={}, observedAt={}",
                 closedBurst.registrationId.value(),
                 closedBurst.tagId.value(),
                 closedBurst.rssi,
-                closedBurst.observedAt);
+                observedAt);
 
         validObservationCallback.accept(
                 closedBurst.registrationId,
-                closedBurst.observedAt);
+                observedAt);
     }
 
     private static final class ClosedBurst {
         private final RegistrationId registrationId;
         private final TagId tagId;
         private final int rssi;
-        private final TimingTimestamp observedAt;
+        private final long observedAt;
 
         /** Captures the immutable selected observation of one closed registration burst. */
         private ClosedBurst(
                 RegistrationId registrationId,
                 TagId tagId,
                 int rssi,
-                TimingTimestamp observedAt) {
+                long observedAt) {
             this.registrationId = registrationId;
             this.tagId = tagId;
             this.rssi = rssi;
@@ -197,7 +194,7 @@ final class TagObservationFilter {
         private long lastSeenNanos;
         private int maxRssi;
         private TagId maxRssiTagId;
-        private TimingTimestamp maxRssiObservedAt;
+        private long maxRssiObservedAt;
 
         /** Starts a mutable passage burst from its first observation. */
         private BurstState(TagObservation observation, long now) {
@@ -205,7 +202,7 @@ final class TagObservationFilter {
             lastSeenNanos = now;
             maxRssi = observation.rssi();
             maxRssiTagId = observation.tagId();
-            maxRssiObservedAt = observation.observedAt();
+            maxRssiObservedAt = observation.observedAtValue();
             recordTag(
                     observation);
         }
@@ -218,7 +215,7 @@ final class TagObservationFilter {
             if (observation.rssi() > maxRssi) {
                 maxRssi = observation.rssi();
                 maxRssiTagId = observation.tagId();
-                maxRssiObservedAt = observation.observedAt();
+                maxRssiObservedAt = observation.observedAtValue();
             }
         }
 
@@ -280,8 +277,8 @@ final class TagObservationFilter {
         private final TagId tagId;
         private long observationCount;
         private int strongestRssi;
-        private final TimingTimestamp firstObservedAt;
-        private TimingTimestamp lastObservedAt;
+        private final long firstObservedAt;
+        private long lastObservedAt;
 
         /** Starts per-tag diagnostics from the first observation. */
         private MutableTagStats(
@@ -289,15 +286,15 @@ final class TagObservationFilter {
             tagId = observation.tagId();
             observationCount = 1L;
             strongestRssi = observation.rssi();
-            firstObservedAt = observation.observedAt();
-            lastObservedAt = observation.observedAt();
+            firstObservedAt = observation.observedAtValue();
+            lastObservedAt = observation.observedAtValue();
         }
 
         /** Updates per-tag diagnostics with one additional observation. */
         private void add(
                 TagObservation observation) {
             observationCount++;
-            lastObservedAt = observation.observedAt();
+            lastObservedAt = observation.observedAtValue();
             if (observation.rssi() > strongestRssi) {
                 strongestRssi = observation.rssi();
             }

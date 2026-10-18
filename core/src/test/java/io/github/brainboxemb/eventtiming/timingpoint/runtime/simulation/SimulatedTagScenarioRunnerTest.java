@@ -26,9 +26,9 @@ public class SimulatedTagScenarioRunnerTest {
     private static final RegistrationId REGISTRATION =
             new RegistrationId("N0042");
     private static final TagId TAG_A =
-            new TagId("N0042-A");
+            new TagId("N0042A");
     private static final TagId TAG_B =
-            new TagId("N0042-B");
+            new TagId("N0042B");
     private static final Instant BASE_TIME =
             Instant.parse("2026-10-07T12:00:00Z");
 
@@ -168,13 +168,13 @@ public class SimulatedTagScenarioRunnerTest {
         RegistrationId singleRegistration =
                 new RegistrationId("N0002");
         TagId longA =
-                new TagId("N0001-A");
+                new TagId("N0001A");
         TagId longB =
-                new TagId("N0001-B");
+                new TagId("N0001B");
         TagId singleA =
-                new TagId("N0002-A");
+                new TagId("N0002A");
         TagId singleB =
-                new TagId("N0002-B");
+                new TagId("N0002B");
 
         Map<TagId, RegistrationId> mapping =
                 new LinkedHashMap<TagId, RegistrationId>();

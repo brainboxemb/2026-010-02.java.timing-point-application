@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingdata.defaultprofile;
 
+import io.github.brainboxemb.eventtiming.timingdata.CompactTimingTime;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;

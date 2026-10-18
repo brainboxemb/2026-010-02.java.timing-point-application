@@ -1,6 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingdata.defaultprofile;
-
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+package io.github.brainboxemb.eventtiming.timingdata;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -13,7 +11,7 @@ import java.time.ZoneOffset;
  * date is HHmmsscc. Values below 100000000 have no date. Absolute input
  * is truncated to centisecond precision before it is stored.</p>
  */
-final class CompactTimingTime {
+public final class CompactTimingTime {
     private static final long DATE_THRESHOLD = 100_000_000L;
     private static final long TIME_FACTOR = 100_000_000L;
 
@@ -21,7 +19,7 @@ final class CompactTimingTime {
     }
 
     /** Packs an absolute timestamp at centisecond precision. */
-    static long fromTimestamp(TimingTimestamp timestamp) {
+    public static long fromTimestamp(TimingTimestamp timestamp) {
         if (timestamp == null || !timestamp.isAbsolute()) {
             throw new IllegalArgumentException("timestamp must be absolute");
         }
@@ -40,7 +38,7 @@ final class CompactTimingTime {
     }
 
     /** Packs one local clock time without inventing a calendar date. */
-    static long timeOfDay(int hour, int minute, int second, int centisecond) {
+    public static long timeOfDay(int hour, int minute, int second, int centisecond) {
         if (hour < 0 || hour > 23 || minute < 0 || minute > 59
                 || second < 0 || second > 59 || centisecond < 0 || centisecond > 99) {
             throw new IllegalArgumentException("invalid time-of-day");
@@ -48,13 +46,13 @@ final class CompactTimingTime {
         return hour * 1_000_000L + minute * 10_000L + second * 100L + centisecond;
     }
 
-    static boolean hasDate(long value) {
-
+    /** Reports whether the compact value contains a calendar date. */
+    public static boolean hasDate(long value) {
         return value >= DATE_THRESHOLD;
     }
 
-    /** Restores a committed absolute UTC timestamp from its compact value. */
-    static TimingTimestamp toTimestamp(long value) {
+    /** Restores an absolute UTC timestamp from its compact value. */
+    public static TimingTimestamp toTimestamp(long value) {
         if (!hasDate(value)) {
             throw new IllegalArgumentException("absolute timestamp requires a date");
         }

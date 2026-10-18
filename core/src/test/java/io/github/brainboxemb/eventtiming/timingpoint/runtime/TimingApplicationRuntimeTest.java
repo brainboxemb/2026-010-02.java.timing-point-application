@@ -629,8 +629,8 @@ public class TimingApplicationRuntimeTest {
                 config(file, tagProcessingPolicy),
                 antennaSet,
                 eventData(
-                        "TAG-1001", "R1001",
-                        "TAG-1001-B", "R1001"));
+                        "R1001A", "R1001",
+                        "R1001B", "R1001"));
 
         assertEquals(
                 tagProcessingPolicy,
@@ -659,7 +659,7 @@ public class TimingApplicationRuntimeTest {
             TimingTimestamp observedAt =
                     TimingTimestamp.parse("2026-10-05T08:30:00.000000000Z");
             antenna.emit(
-                    new TagId("TAG-1001"),
+                    new TagId("R1001A"),
                     -42,
                     observedAt);
 
@@ -680,7 +680,7 @@ public class TimingApplicationRuntimeTest {
         assertFalse(antenna.inventoryRunning());
         try {
             antenna.emit(
-                    new TagId("TAG-1002"),
+                    new TagId("R1002A"),
                     -40,
                     TimingTimestamp.parse("2026-10-05T08:30:01.000000000Z"));
             fail("expected shut-down antenna after application shutdown");
