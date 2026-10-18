@@ -243,6 +243,10 @@ public class TimingNodeTest {
         assertFalse(
                 "inactive LogBook must not publish recovery status",
                 recoveryPublished.await(100L, TimeUnit.MILLISECONDS));
+        assertEquals(
+                "cancelled MainTask must not publish a completion state",
+                TimingNodeTypes.OperationalState.INIT,
+                node.operationalState());
         deactivationCaller.join(1000L);
     }
     @Test

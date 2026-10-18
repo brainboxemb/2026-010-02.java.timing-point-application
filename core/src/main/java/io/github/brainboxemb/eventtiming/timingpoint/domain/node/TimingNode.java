@@ -15,12 +15,11 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyKey;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.YieldingTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
@@ -274,17 +273,7 @@ public final class TimingNode extends LifecycleComponent {
         setOperationalState(OperationalState.INIT);
         taskRunner.start();
         lifecycle.activateAll();
-
-        CompletableFuture<Void> run = taskRunner.runTask(mainTask);
-        run.whenComplete(
-                (ignored, failure) -> {
-                    if (!run.isCancelled()) {
-                        setOperationalState(
-                                failure == null
-                                        ? OperationalState.OK
-                                        : OperationalState.ERROR);
-                    }
-                });
+        mainTask.start(taskRunner);
     }
 
     /** Deactivates all owned child components in reverse lifecycle order. */
@@ -302,11 +291,25 @@ public final class TimingNode extends LifecycleComponent {
     }
 
     /** Startup flow executed asynchronously on this node's Task Lane. */
-    private final class MainTask implements YieldingTask {
+    private final class MainTask extends AbstractTask {
+
+        @Override
+        protected void resetForRun() {
+            // Main task state is owned by TimingNode.
+        }
+
         @Override
         public TaskStep runStep() {
             logBook.loadPersistedData();
             return TaskStep.done();
+        }
+
+        @Override
+        protected void onRunCompleted(Throwable failure) {
+            setOperationalState(
+                    failure == null
+                            ? OperationalState.OK
+                            : OperationalState.ERROR);
         }
     }
     /** Changes runtime readiness without changing OPEN/CLOSED functional state. */
