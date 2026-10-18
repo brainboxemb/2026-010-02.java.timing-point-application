@@ -97,6 +97,7 @@ public final class StageTiming {
             TimingTimestamp resolvedStart = resolveStart(start, registrationTime, raceTimeZone);
             stageTime =
                     new StageTime(
+                            registration.sequenceNumber(),
                             registration.locationId(),
                             teamId,
                             registrationId,
