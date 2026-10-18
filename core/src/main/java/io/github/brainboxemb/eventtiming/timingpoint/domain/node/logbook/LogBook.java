@@ -10,7 +10,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventWithMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeDataLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.List;
@@ -28,9 +27,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * <p>LogBook owns persisted-data recovery plus the Data Lane boundary for ordered
  * commands, ORDERED queries, durable TimingData commit and publication of immutable
  * recovery/read views. Recovery runs when TimingNode.MainTask calls
- * {@link #loadPersistedData()}; LogBook owns no executor. The supplied
- * {@link TimingNodeDataLane} may share a Runtime-owned worker with other logical
- * lanes.</p>
+ * {@link #loadPersistedData()}. The LogBook Data Lane may share a Runtime-owned
+ * executor with TimingNode's Task Lane, but its queue and lifecycle belong to
+ * this LogBook.</p>
  */
 public final class LogBook extends LifecycleComponent implements LogBookAccessor, LogBookTestControl {
     private static final Logger LOG = LoggerFactory.getLogger(LogBook.class);
@@ -77,9 +76,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
             TimeSource timeSource,
             MonotonicClock monotonicClock,
             LogBookMetrics metrics,
-            TimingNodeDataLane dataLane,
-            long commitWaitTimeoutMillis,
-            long orderedQueryWaitTimeoutMillis) {
+            LogBookDataLane dataLane) {
 
         failIfInvalidArgument(timingNodeId != null, "timingNodeId must not be null");
         failIfInvalidArgument(timingDataPersistence != null, "timingDataPersistence must not be null");
@@ -88,10 +85,6 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         failIfInvalidArgument(monotonicClock != null, "monotonicClock must not be null");
         failIfInvalidArgument(metrics != null, "metrics must not be null");
         failIfInvalidArgument(dataLane != null, "dataLane must not be null");
-        failIfInvalidArgument(commitWaitTimeoutMillis > 0L, "commitWaitTimeoutMillis must be positive");
-        failIfInvalidArgument(
-                orderedQueryWaitTimeoutMillis > 0L,
-                "orderedQueryWaitTimeoutMillis must be positive");
 
         this.logBookState = new LogBookState(timingNodeId);
         this.logBookOperations = new LogBookOperations(
@@ -101,16 +94,11 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                 timeSource,
                 monotonicClock,
                 metrics);
-        dataLane.bindLogBook(this::processDataLaneItem);
-        this.dataLane =
-                new LogBookDataLane(
-                        timingNodeId,
-                        dataLane,
-                        commitWaitTimeoutMillis,
-                        orderedQueryWaitTimeoutMillis);
+        dataLane.bind(this::processDataLaneItem);
+        this.dataLane = dataLane;
         this.recoveryView = new LogBookRecoveryView(timingNodeId, this.dataLane);
         this.metrics = metrics;
-        this.commitWaitTimeoutMillis = commitWaitTimeoutMillis;
+        this.commitWaitTimeoutMillis = dataLane.commitWaitTimeoutMillis();
         this.newDataEntryEvent =
                 new EventWithMetrics<TimingData>(
                         monotonicClock,
@@ -162,7 +150,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     /**
      * Stops new Data Lane work and makes the CURRENT recovery result unavailable.
      *
-     * <p>Lane shutdown/drain semantics are owned by {@link TimingNodeDataLane}; LogBook
+     * <p>Lane shutdown/drain semantics are owned by {@link LogBookDataLane}; LogBook
      * does not implement a second shutdown queue.</p>
      */
     @Override
@@ -350,7 +338,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         return status;
     }
 
-    /** Processes one typed LogBook operation on the shared Data Lane worker. */
+    /** Processes one typed operation on this LogBook's Data Lane. */
     private void processDataLaneItem(LogBookOperationItem<?> item) {
 
         if (item instanceof LogBookDataLane.CommandOperationItem<?>) {
