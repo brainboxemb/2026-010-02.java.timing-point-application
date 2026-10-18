@@ -7,6 +7,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookTestControl;
@@ -190,6 +191,60 @@ public class TimingNodeTest {
         }
     }
 
+    @Test
+    public void deactivationDoesNotWaitForRunningMainTask()
+            throws Exception {
+        TimingNodeDataLane dataLane =
+                newDataLane(
+                        4,
+                        "timing-node-stop-worker");
+        UninterruptibleLoadPersistence persistence =
+                new UninterruptibleLoadPersistence();
+        TimingNode node =
+                node(
+                        new NodeId("A"),
+                        persistence,
+                        dataLane,
+                        1000L);
+        LogBook logBook = (LogBook) node.logBook();
+        CountDownLatch initialDataLoaded = new CountDownLatch(1);
+        CountDownLatch recoveryPublished = new CountDownLatch(1);
+        logBook.INITIAL_DATA_LOADED.subscribe(ignored -> initialDataLoaded.countDown());
+        logBook.RECOVERY_STATUS_CHANGED.subscribe(ignored -> recoveryPublished.countDown());
+
+        activate(node);
+        assertTrue(
+                "persisted-data load did not start",
+                persistence.loadStarted.await(
+                        1L,
+                        TimeUnit.SECONDS));
+
+        Thread deactivationCaller =
+                new Thread(
+                        () -> deactivate(node),
+                        "timing-node-deactivation-caller");
+        deactivationCaller.start();
+        deactivationCaller.join(250L);
+
+        assertFalse(
+                "deactivate() must not wait for the running MainTask",
+                deactivationCaller.isAlive());
+        assertEquals(
+                TimingNodeTypes.OperationalState.INIT,
+                node.operationalState());
+
+        persistence.releaseLoad.countDown();
+        assertTrue(
+                "blocking persistence did not return",
+                persistence.loadReturned.await(1L, TimeUnit.SECONDS));
+        assertFalse(
+                "inactive LogBook must not publish INITIAL_DATA_LOADED",
+                initialDataLoaded.await(100L, TimeUnit.MILLISECONDS));
+        assertFalse(
+                "inactive LogBook must not publish recovery status",
+                recoveryPublished.await(100L, TimeUnit.MILLISECONDS));
+        deactivationCaller.join(1000L);
+    }
     @Test
     public void failedPersistedDataLoadDoesNotReplaceFunctionalState() throws Exception {
         TimingNode node = TimingNodeFixture.createDirect(
@@ -950,6 +1005,40 @@ public class TimingNodeTest {
         return Instant.parse("2026-10-02T08:00:00Z");
     }
 
+    private static final class UninterruptibleLoadPersistence
+            implements TimingDataPersistence {
+        private final CountDownLatch loadStarted =
+                new CountDownLatch(1);
+        private final CountDownLatch releaseLoad =
+                new CountDownLatch(1);
+        private final CountDownLatch loadReturned =
+                new CountDownLatch(1);
+
+        @Override
+        public LoadResult load() {
+            loadStarted.countDown();
+            boolean interrupted = false;
+            while (releaseLoad.getCount() != 0L) {
+                try {
+                    releaseLoad.await();
+                } catch (InterruptedException ex) {
+                    interrupted = true;
+                }
+            }
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+            }
+            loadReturned.countDown();
+            return new LoadResult(
+                    Collections.<TimingData>emptyList(),
+                    false);
+        }
+
+        @Override
+        public void append(TimingData data) {
+            // MainTask deactivation test only.
+        }
+    }
     private static final class BlockingPersistence implements TimingDataPersistence {
         private final TimingNodeDataLane expectedLane;
         private final CountDownLatch loadStarted =

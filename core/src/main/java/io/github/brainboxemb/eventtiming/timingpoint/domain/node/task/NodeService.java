@@ -140,6 +140,11 @@ public final class NodeService extends LifecycleComponent {
             String name,
             Runnable operation) {
 
+        if (taskRunner.isExecutingOnCurrentThread()) {
+            operation.run();
+            return;
+        }
+
         final CompletableFuture<Void> run;
         try {
             run =

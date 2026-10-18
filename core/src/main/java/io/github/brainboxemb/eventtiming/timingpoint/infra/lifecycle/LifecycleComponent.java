@@ -34,9 +34,12 @@ public abstract class LifecycleComponent {
         active = true;
     }
 
-    /** Drives component deactivation from lifecycle infrastructure. */
+    /** Drives deactivation only for a component whose activation completed. */
     final void deactivateLifecycle() {
 
+        if (!active) {
+            return;
+        }
         active = false;
         onDeactivate();
     }

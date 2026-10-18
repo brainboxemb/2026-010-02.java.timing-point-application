@@ -112,44 +112,48 @@ public class ComponentLifecycleManagerTest {
     }
 
     @Test
-    public void rollsBackOnlyComponentsThatCompletedActivation() {
+    public void activationFailureDoesNotStopIndependentComponents() {
         List<String> calls =
                 new ArrayList<String>();
         RuntimeException failure =
                 new RuntimeException(
                         "second activation failed");
+        TestComponent first =
+                new TestComponent(calls, "first", null);
+        TestComponent second =
+                new TestComponent(calls, "second", failure);
+        TestComponent third =
+                new TestComponent(calls, "third", null);
         ComponentLifecycleManager lifecycle =
                 new ComponentLifecycleManager();
 
-        lifecycle.register(
-                "first",
-                new TestComponent(calls, "first", null));
-        lifecycle.register(
-                "second",
-                new TestComponent(calls, "second", failure));
+        lifecycle.register("first", first);
+        lifecycle.register("second", second);
+        lifecycle.register("third", third);
 
-        try {
-            lifecycle.activateAll();
-            fail("expected activation failure");
-        } catch (RuntimeException expected) {
-            assertSame(
-                    failure,
-                    expected);
-        }
+        lifecycle.activateAll();
 
         assertEquals(
                 Arrays.asList(
                         "first.activate",
                         "second.activate",
-                        "first.deactivate"),
+                        "third.activate"),
                 calls);
+        assertTrue(first.active());
+        assertFalse(second.active());
+        assertTrue(third.active());
 
         lifecycle.deactivateAll();
-        assertEquals(
-                3,
-                calls.size());
-    }
 
+        assertEquals(
+                Arrays.asList(
+                        "first.activate",
+                        "second.activate",
+                        "third.activate",
+                        "third.deactivate",
+                        "first.deactivate"),
+                calls);
+    }
     private static final class GuardedComponent extends LifecycleComponent {
         private GuardedComponent(RuntimeException inactiveFailure) {
             super(() -> inactiveFailure);
