@@ -221,11 +221,17 @@ public final class NodeService extends LifecycleComponent {
         @Override
         public TaskStep runStep() {
 
-            LogBookStatus currentStatus = currentStatus();
-            if (currentStatus == LogBookStatus.LOADED) {
-                dataTask.load();
-            } else if (currentStatus == LogBookStatus.ERROR) {
-                dataTask.unavailable();
+            switch (currentStatus()) {
+                case LOADED:
+                    dataTask.load();
+                    break;
+                case ERROR:
+                    dataTask.unavailable();
+                    break;
+                case INIT:
+                    break;
+                default:
+                    throw new IllegalStateException("Unsupported LogBook status");
             }
             return TaskStep.done();
         }
