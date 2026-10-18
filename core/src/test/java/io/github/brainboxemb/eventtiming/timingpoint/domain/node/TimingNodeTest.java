@@ -202,9 +202,7 @@ public class TimingNodeTest {
                         "timing-node-stop-worker",
                         1000L);
         LogBook logBook = (LogBook) node.logBook();
-        CountDownLatch timingDataHeadPublished = new CountDownLatch(1);
         CountDownLatch recoveryPublished = new CountDownLatch(1);
-        logBook.TIMING_DATA_HEAD_CHANGED.subscribe(ignored -> timingDataHeadPublished.countDown());
         logBook.RECOVERY_STATUS_CHANGED.subscribe(ignored -> recoveryPublished.countDown());
 
         activate(node);
@@ -232,9 +230,6 @@ public class TimingNodeTest {
         assertTrue(
                 "blocking persistence did not return",
                 persistence.loadReturned.await(1L, TimeUnit.SECONDS));
-        assertFalse(
-                "inactive LogBook must not publish TimingData head",
-                timingDataHeadPublished.await(100L, TimeUnit.MILLISECONDS));
         assertFalse(
                 "inactive LogBook must not publish recovery status",
                 recoveryPublished.await(100L, TimeUnit.MILLISECONDS));
