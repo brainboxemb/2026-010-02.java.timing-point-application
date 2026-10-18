@@ -20,8 +20,9 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.Upstre
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeService;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.task.NodeServiceState;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
@@ -33,7 +34,6 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -192,17 +192,23 @@ public class UpstreamHandlerTest {
                         4,
                         LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
                         LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
-        NodeServiceState taskState =
-                new NodeServiceState(
-                        eventData);
-        NodeService tasks = new NodeService(new NodeId("A"), taskLane, taskState);
+        RaceDataState raceData = new RaceDataState(eventData);
+        ActiveRegistrations activeRegistrations = new ActiveRegistrations();
+        NodeService tasks =
+                new NodeService(
+                        new NodeId("A"),
+                        taskLane,
+                        logBook,
+                        eventData,
+                        raceData,
+                        activeRegistrations);
         UpstreamHandler upstreamHandler =
                 new UpstreamHandler(
                         new NodeId("A"),
                         taskLane,
                         stream,
                         logBook,
-                        taskState);
+                        tasks::applyRaceData);
         TagProcessor tags =
                 new TagProcessor(
                         eventData,
@@ -281,7 +287,7 @@ public class UpstreamHandlerTest {
             assertTrue(port.inputAvailable());
 
             // Cross the Task Lane after the already-admitted inbound PING.
-            node.nodeService().stageTiming(ZoneOffset.UTC);
+            node.nodeService().uniqueTeamRegistrationCount(new LocationId(1));
 
             UpstreamHandlerTypes.HeartbeatStatus status =
                     port.heartbeatStatus();

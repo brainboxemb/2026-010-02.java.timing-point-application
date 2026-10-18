@@ -57,6 +57,8 @@ public class UpstreamDataSyncTest {
         return new UpstreamDataSync(
                 new NodeId("A"),
                 stream,
-                new TestUpstreamTaskState());
+                ignored -> {
+                    // Sequence behaviour only; RACE_DATA state is tested separately.
+                });
     }
 }

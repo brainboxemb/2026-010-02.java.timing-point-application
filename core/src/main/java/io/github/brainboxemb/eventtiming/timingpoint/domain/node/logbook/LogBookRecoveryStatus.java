@@ -6,32 +6,52 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Result of one LogBook startup recovery attempt.
  *
- * <p>This describes only LogBook recovery facts. It does not represent the
- * current OPEN/CLOSED state of the owning TimingNode.</p>
+ * <p>A successful result includes the committed TimingData head. Consumers can
+ * use that scalar to decide which history they need to read without receiving
+ * the complete recovered record list in the recovery event.</p>
  */
 public final class LogBookRecoveryStatus {
     private final boolean repairedIncompleteTail;
+    private final long timingDataHead;
     private final String failureMessage;
 
-    private LogBookRecoveryStatus(boolean repairedIncompleteTail, String failureMessage) {
+    private LogBookRecoveryStatus(
+            boolean repairedIncompleteTail,
+            long timingDataHead,
+            String failureMessage) {
+
         this.repairedIncompleteTail = repairedIncompleteTail;
+        this.timingDataHead = timingDataHead;
         this.failureMessage = failureMessage;
     }
 
-    public static LogBookRecoveryStatus success(boolean repairedIncompleteTail) {
-        return new LogBookRecoveryStatus(repairedIncompleteTail, null);
+    public static LogBookRecoveryStatus success(
+            boolean repairedIncompleteTail,
+            long timingDataHead) {
+
+        failIfInvalidArgument(timingDataHead >= 0L, "timingDataHead must not be negative");
+        return new LogBookRecoveryStatus(
+                repairedIncompleteTail,
+                timingDataHead,
+                null);
     }
 
     public static LogBookRecoveryStatus failed(String failureMessage) {
         failIfInvalidArgument(
                 failureMessage != null && !failureMessage.trim().isEmpty(),
                 "failureMessage must not be blank");
-        return new LogBookRecoveryStatus(false, failureMessage.trim());
+        return new LogBookRecoveryStatus(false, 0L, failureMessage.trim());
     }
 
     /** Reports whether startup repaired an incomplete final persisted record. */
     public boolean repairedIncompleteTail() {
         return repairedIncompleteTail;
+    }
+
+    /** Returns the recovered committed TimingData head. */
+    public long timingDataHead() {
+        failIfIllegalState(!failed(), "failed recovery has no TimingData head");
+        return timingDataHead;
     }
 
     public boolean failed() {

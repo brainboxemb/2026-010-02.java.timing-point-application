@@ -114,7 +114,7 @@ final class LogBookState {
     LogBookRecoveryStatus recoveryStatus() {
 
         return recoveryFailureMessage == null
-                ? LogBookRecoveryStatus.success(repairedIncompleteTail)
+                ? LogBookRecoveryStatus.success(repairedIncompleteTail, timingDataHead())
                 : LogBookRecoveryStatus.failed(recoveryFailureMessage);
     }
 

@@ -8,7 +8,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamTaskState;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
@@ -49,7 +49,7 @@ public class TimingNodeRaceDataTest {
             assertEquals(1L, ack.sequence());
             assertEquals(
                     new TeamId("0042"),
-                    fixture.state.teamIdFor(
+                    fixture.raceData.teamIdFor(
                             new RegistrationId(
                                     "RT-R-0001")));
         } finally {
@@ -77,7 +77,7 @@ public class TimingNodeRaceDataTest {
                     req.stream());
             assertEquals(1L, req.fromSequence());
             assertNull(
-                    fixture.state.teamIdFor(
+                    fixture.raceData.teamIdFor(
                             new RegistrationId(
                                     "RT-R-0001")));
         } finally {
@@ -113,7 +113,7 @@ public class TimingNodeRaceDataTest {
             assertEquals(1L, ack.sequence());
             assertEquals(
                     new TeamId("0042"),
-                    fixture.state.teamIdFor(
+                    fixture.raceData.teamIdFor(
                             new RegistrationId(
                                     "RT-R-0001")));
         } finally {
@@ -136,7 +136,7 @@ public class TimingNodeRaceDataTest {
             assertEquals(0, fixture.stream.sentCount());
             assertEquals(
                     new TeamId("0001"),
-                    fixture.state.teamIdFor(
+                    fixture.raceData.teamIdFor(
                             new RegistrationId(
                                     "RT-A-0001")));
         } finally {
@@ -165,7 +165,7 @@ public class TimingNodeRaceDataTest {
 
             assertEquals(0, fixture.stream.sentCount());
             assertNull(
-                    fixture.state.stageStartTimeFor(
+                    fixture.raceData.stageStartTimeFor(
                             new TeamId("0042")));
         } finally {
             deactivate(fixture.node);
@@ -194,7 +194,7 @@ public class TimingNodeRaceDataTest {
                             .sequence());
             assertEquals(
                     LocalTime.of(12, 30),
-                    fixture.state.stageStartTimeFor(
+                    fixture.raceData.stageStartTimeFor(
                             new TeamId("0042"))
                             .time());
 
@@ -212,7 +212,7 @@ public class TimingNodeRaceDataTest {
                             fixture.stream.takeSent())
                             .sequence());
             assertNull(
-                    fixture.state.stageStartTimeFor(
+                    fixture.raceData.stageStartTimeFor(
                             new TeamId("0042")));
         } finally {
             deactivate(fixture.node);
@@ -251,25 +251,25 @@ public class TimingNodeRaceDataTest {
                 components.node(),
                 stream,
                 components.upstreamHandler(),
-                components.upstreamTaskState());
+                components.raceData());
     }
 
     private static final class Fixture {
         private final TimingNode node;
         private final InMemoryUpstreamStream stream;
         private final UpstreamHandler port;
-        private final UpstreamTaskState state;
+        private final RaceDataState raceData;
 
         /** Creates one direct-lane integration fixture for RACE_DATA handling. */
         private Fixture(
                 TimingNode node,
                 InMemoryUpstreamStream stream,
                 UpstreamHandler port,
-                UpstreamTaskState state) {
+                RaceDataState raceData) {
             this.node = node;
             this.stream = stream;
             this.port = port;
-            this.state = state;
+            this.raceData = raceData;
         }
 
         /** Delivers one upstream message and verifies that the handler schedules it. */
