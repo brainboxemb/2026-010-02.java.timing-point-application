@@ -23,7 +23,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * TimingData persistence/state operations owned by LogBook.
  *
- * <p>Normal commits execute on the LogBook Data Lane. Persisted-data recovery
+ * <p>Normal commits execute on the LogBook Data Lane. Persisted-data loading
  * is invoked by TimingNode.MainTask on the shared node worker and is not a Data
  * Lane operation. This class owns TimingData creation, time capture, durable
  * append/commit and startup reconstruction; command/query queueing and waiting
