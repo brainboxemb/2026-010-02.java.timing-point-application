@@ -1,13 +1,11 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookDataLane;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -46,23 +44,23 @@ final class RuntimeExecutors implements AutoCloseable {
 
     /** Node-local logical lanes resolved for one TimingNode. */
     static final class TimingNodeExecutionResources {
-        private final LogBookDataLane logBookDataLane;
+        private final Executor logBookDataLaneExecutor;
         private final SerialTaskRunner taskRunner;
         private final ScheduledExecutorService tagProcessorScheduler;
 
         private TimingNodeExecutionResources(
-                LogBookDataLane logBookDataLane,
+                Executor logBookDataLaneExecutor,
                 SerialTaskRunner taskRunner,
                 ScheduledExecutorService tagProcessorScheduler) {
 
-            this.logBookDataLane = logBookDataLane;
+            this.logBookDataLaneExecutor = logBookDataLaneExecutor;
             this.taskRunner = taskRunner;
             this.tagProcessorScheduler = tagProcessorScheduler;
         }
 
-        LogBookDataLane logBookDataLane() {
+        Executor logBookDataLaneExecutor() {
 
-            return logBookDataLane;
+            return logBookDataLaneExecutor;
         }
 
         SerialTaskRunner taskRunner() {
@@ -161,17 +159,7 @@ final class RuntimeExecutors implements AutoCloseable {
      * physical thread. Logical responsibility therefore does not imply another
      * Java thread.</p>
      */
-    synchronized TimingNodeExecutionResources createTimingNodeExecutionResources(
-            NodeId nodeId) {
-        LogBookDataLane logBookDataLane =
-                new LogBookDataLane(
-                        nodeId,
-                        LOGBOOK_DATA_LANE_QUEUE_CAPACITY,
-                        LOGBOOK_DATA_LANE_MAX_ITEMS_PER_RUN,
-                        "LogBookData",
-                        timingNodeExecutor,
-                        LogBook.DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
-                        LogBook.DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS);
+    synchronized TimingNodeExecutionResources createTimingNodeExecutionResources() {
         SerialTaskRunner taskRunner =
                 new SerialTaskRunner(
                         TIMING_NODE_TASK_LANE_QUEUE_CAPACITY,
@@ -179,10 +167,9 @@ final class RuntimeExecutors implements AutoCloseable {
                         "TimingNodeTask",
                         timingNodeExecutor);
 
-        serialLanes.add(logBookDataLane);
         serialLanes.add(taskRunner);
         return new TimingNodeExecutionResources(
-                logBookDataLane,
+                timingNodeExecutor,
                 taskRunner,
                 tagProcessorScheduledExecutor);
     }
