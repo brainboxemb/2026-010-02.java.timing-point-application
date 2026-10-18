@@ -14,6 +14,9 @@ import java.util.concurrent.CompletableFuture;
  * startup-loading internals or engineering metrics.</p>
  */
 public interface LogBookAccessor {
+    /** Returns the current LogBook availability status without entering the Data Lane. */
+    LogBookStatus status();
+
     /**
      * Processes one command in LogBook order.
      *
