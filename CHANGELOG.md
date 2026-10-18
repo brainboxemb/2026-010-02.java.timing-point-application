@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Make the TagProcessor jobs follow the Java readability rules: FilterJob and HousekeepingJob now each own one fixed-delay JDK schedule for the complete active lifecycle, runtime policy changes replace that schedule, every job helper documents its purpose, and simple contract guards stay on one line.
+- Make the TagProcessor jobs follow the Java readability rules: FilterJob and HousekeepingJob each keep at most one delayed JDK run while relevant state exists, runtime policy changes replan that one run, every job helper documents its purpose, and simple contract guards stay on one line.
 
 - Simplify TagProcessor around explicit scheduled jobs: move passage-filter scheduling to `FilterJob` and duplicate cleanup scheduling to `HousekeepingJob`, keep both jobs on the Runtime-owned scheduler, make lifecycle start/stop visible in `TagProcessor`, and remove TagProcessor-local scheduling locks, futures and defensive try/catch handling.
 
