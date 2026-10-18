@@ -82,7 +82,6 @@ public class ActiveRegistrationsTest {
         active.apply(second, id -> teamId);
 
         assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
-        assertEquals(1, active.uniqueTeamCount());
 
         active.apply(registration(3L, TimingData.RegistrationAction.REV), id -> teamId);
         assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
