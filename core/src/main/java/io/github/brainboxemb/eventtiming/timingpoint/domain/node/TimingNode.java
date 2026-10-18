@@ -122,7 +122,7 @@ public final class TimingNode extends LifecycleComponent {
         NodeService.LOGBOOK_RECOVERED.bind(
                 nodeService,
                 logBook.RECOVERY_STATUS_CHANGED);
-        NodeService.COMMITTED_TIMING_DATA.bind(
+        NodeService.TIMING_DATA_CHANGED.bind(
                 nodeService,
                 logBook.NEW_DATA_ENTRY);
 
