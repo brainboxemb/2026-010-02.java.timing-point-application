@@ -55,7 +55,6 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
             new AtomicReference<WriteFailure>();
 
     private final EventWithMetrics<TimingData> newDataEntryEvent;
-    private final Event<Long> timingDataHeadChangedEvent = new Event<Long>();
     private final Event<LogBookFailure> commandFailedEvent = new Event<LogBookFailure>();
 
     /** Completed startup-recovery source. */
@@ -66,9 +65,6 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
 
     /** Failed LogBook command source. */
     public final EventSource<LogBookFailure> COMMAND_FAILED = commandFailedEvent;
-
-    /** Published committed TimingData head after recovery and later commits. */
-    public final EventSource<Long> TIMING_DATA_HEAD_CHANGED = timingDataHeadChangedEvent;
 
     /**
      * Creates one LogBook bound to the supplied Data Lane.
@@ -391,9 +387,6 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         failIfInactive();
         LogBookRecoveryStatus status = logBookState.recoveryStatus();
         recoveryView.publishInitial(status);
-        if (!status.failed()) {
-            timingDataHeadChangedEvent.emit(logBookState.timingDataHead());
-        }
         return status;
     }
 
@@ -566,7 +559,6 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
 
             if (logBookState.timingDataHead() > headBefore) {
                 newDataEntryEvent.emit(logBookState.latestCommittedTimingData());
-                timingDataHeadChangedEvent.emit(logBookState.timingDataHead());
             }
             return result;
         } catch (Exception ex) {
