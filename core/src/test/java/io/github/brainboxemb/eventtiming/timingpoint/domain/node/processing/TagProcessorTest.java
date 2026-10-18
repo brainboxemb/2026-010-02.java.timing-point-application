@@ -635,13 +635,15 @@ public class TagProcessorTest {
         }
 
         @Override
-        public ScheduledFuture<?> schedule(
+        public ScheduledFuture<?> scheduleWithFixedDelay(
                 Runnable operation,
+                long initialDelay,
                 long delay,
                 TimeUnit unit) {
             scheduledOperations.add(operation);
-            return super.schedule(
+            return super.scheduleWithFixedDelay(
                     () -> { },
+                    1L,
                     1L,
                     TimeUnit.DAYS);
         }
