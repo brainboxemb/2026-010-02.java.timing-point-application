@@ -12,24 +12,23 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 
 /** Executes one result-bearing NodeService read on the node Task Lane. */
 final class NodeServiceQuery<T> implements YieldingTask {
-    private final CompletionStage<?> dependency;
+    private final CompletionStage<?> recoveryCompletion;
     private final Supplier<T> operation;
     private T result;
 
-    private NodeServiceQuery(
-            CompletionStage<?> dependency,
-            Supplier<T> operation) {
+    private NodeServiceQuery(CompletionStage<?> recoveryCompletion, Supplier<T> operation) {
 
         failIfInvalidArgument(operation != null, "operation must not be null");
-        this.dependency = dependency;
+
+        this.recoveryCompletion = recoveryCompletion;
         this.operation = operation;
     }
 
-    /** Runs one ordered read, yielding first while the optional dependency is incomplete. */
+    /** Queues an ordered read and blocks the caller until the Task Lane returns its result. */
     static <T> T execute(
             SerialTaskRunner taskRunner,
             Duration timeout,
-            CompletionStage<?> dependency,
+            CompletionStage<?> recoveryCompletion,
             Supplier<T> operation) {
 
         failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
@@ -40,23 +39,20 @@ final class NodeServiceQuery<T> implements YieldingTask {
             return operation.get();
         }
 
-        NodeServiceQuery<T> query =
-                new NodeServiceQuery<T>(
-                        dependency,
-                        operation);
-        taskRunner.await(
-                taskRunner.runTask(query),
-                timeout);
+        NodeServiceQuery<T> query = new NodeServiceQuery<T>(recoveryCompletion, operation);
+        taskRunner.await(taskRunner.runTask(query), timeout);
         return query.result;
     }
 
+    /** Waits cooperatively for recovery and then executes the requested read. */
     @Override
     public TaskStep runStep() {
-        if (dependency != null) {
-            if (!dependency.toCompletableFuture().isDone()) {
-                return TaskStep.await(dependency);
+
+        if (recoveryCompletion != null) {
+            if (!recoveryCompletion.toCompletableFuture().isDone()) {
+                return TaskStep.await(recoveryCompletion);
             }
-            dependency.toCompletableFuture().join();
+            recoveryCompletion.toCompletableFuture().join();
         }
 
         result = operation.get();
