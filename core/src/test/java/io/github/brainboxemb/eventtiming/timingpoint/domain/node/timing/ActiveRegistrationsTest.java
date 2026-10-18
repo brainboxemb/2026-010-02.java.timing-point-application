@@ -78,7 +78,7 @@ public class ActiveRegistrationsTest {
         TimingData second = FACTORY.createAutomaticRegistration(
                 new TimingDataFactory.Context(
                         NODE_ID, 2L, LOCATION_ID, timestamp, timestamp),
-                new RegistrationId("RT-X-0001"));
+                new RegistrationId("X0001"));
         active.apply(second, id -> teamId);
 
         assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
@@ -117,7 +117,7 @@ public class ActiveRegistrationsTest {
         Instant differentTime = Instant.parse("2026-10-13T12:05:00Z");
         TimingData unmatched = FACTORY.createAutomaticRegistration(
                 context(2L, differentTime),
-                new RegistrationId("RT-A-0001"),
+                new RegistrationId("A0001"),
                 TimingData.RegistrationAction.REV);
         active.apply(unmatched, id -> teamId);
 
@@ -129,7 +129,7 @@ public class ActiveRegistrationsTest {
     @Test
     public void assignmentChangesUpdateTheExistingCount() {
         ActiveRegistrations active = new ActiveRegistrations();
-        RegistrationId registrationId = new RegistrationId("RT-A-0001");
+        RegistrationId registrationId = new RegistrationId("A0001");
         active.apply(registration(1L, TimingData.RegistrationAction.ADD),
                 id -> null);
         assertEquals(0, active.uniqueTeamCount(LOCATION_ID));
@@ -155,7 +155,7 @@ public class ActiveRegistrationsTest {
                         new LocationId(location),
                         timestamp,
                         timestamp),
-                new RegistrationId("RT-A-0001"),
+                new RegistrationId("A0001"),
                 action);
     }
 
@@ -173,7 +173,7 @@ public class ActiveRegistrationsTest {
         Instant effectiveTime = Instant.parse("2026-10-13T12:00:00Z");
         return FACTORY.createAutomaticRegistration(
                 context(sequence, effectiveTime),
-                new RegistrationId("RT-A-0001"),
+                new RegistrationId("A0001"),
                 action);
     }
 

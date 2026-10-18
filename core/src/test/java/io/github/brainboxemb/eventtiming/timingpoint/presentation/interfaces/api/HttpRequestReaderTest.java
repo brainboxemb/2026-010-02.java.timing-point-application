@@ -52,14 +52,14 @@ public class HttpRequestReaderTest {
     @Test
     public void autoRegistrationTimeMayBeOmittedButNotNull() {
         HttpRequestReader.AutoRegistrationRequest request =
-                reader.parseAutoRegistrationBody(bytes("{\"id\":\"RT-A-0001\"}"));
-        assertEquals("RT-A-0001", request.id);
+                reader.parseAutoRegistrationBody(bytes("{\"id\":\"A0001\"}"));
+        assertEquals("A0001", request.id);
         assertNull(request.time);
         assertFailure(
                 "INVALID_VALUE",
                 "time must be one JSON string",
                 () -> reader.parseAutoRegistrationBody(
-                        bytes("{\"id\":\"RT-A-0001\",\"time\":null}")));
+                        bytes("{\"id\":\"A0001\",\"time\":null}")));
     }
 
     @Test

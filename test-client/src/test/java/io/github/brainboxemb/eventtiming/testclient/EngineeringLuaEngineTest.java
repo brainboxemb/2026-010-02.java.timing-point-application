@@ -14,8 +14,8 @@ class EngineeringLuaEngineTest {
                 + "order='linear', intervalMs=0, profile='simple'}",
                 (id, profile) -> requests.add(id + ":" + profile),
                 output::add, () -> true);
-        assertEquals(List.of("RT-A-0017:simple", "RT-A-0018:simple",
-                "RT-A-0019:simple"), requests);
+        assertEquals(List.of("A0017:simple", "A0018:simple",
+                "A0019:simple"), requests);
         assertTrue(output.stream().anyMatch(x -> x.startsWith("Batch complete")));
     }
 
@@ -57,7 +57,7 @@ class EngineeringLuaEngineTest {
 
     @Test void localCapabilityRefusalIsNotReportedAsServerRejection() {
         LuaError ex = assertThrows(LuaError.class, () ->
-                EngineeringLuaEngine.run("timing.simulate('RT-A-0001', 'simple')",
+                EngineeringLuaEngine.run("timing.simulate('A0001', 'simple')",
                         (id, profile) -> {
                             throw new EngineeringLuaEngine.CapabilityUnavailable(
                                     "TAG_SCENARIO_SIMULATION disabled");

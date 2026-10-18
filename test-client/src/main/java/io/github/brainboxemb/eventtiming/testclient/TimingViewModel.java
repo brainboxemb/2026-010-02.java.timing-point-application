@@ -384,13 +384,12 @@ public final class TimingViewModel {
             String registrationId) {
         if (registrationId == null
                 || !registrationId.matches(
-                        "RT-A-\\d{4}")) {
+                        "A\\d{4}")) {
             return null;
         }
 
         String number =
-                registrationId.substring(
-                        "RT-A-".length());
+                registrationId.substring(1);
         return "0000".equals(number)
                 ? null
                 : number;

@@ -37,7 +37,7 @@ public class TimingNodeRaceDataTest {
             fixture.receive(
                     raceDataSet(
                             1L,
-                            "RT-R-0001",
+                            "R0001",
                             "0042"));
 
             UpstreamData.Ack ack =
@@ -51,7 +51,7 @@ public class TimingNodeRaceDataTest {
                     new TeamId("0042"),
                     fixture.raceData.teamIdFor(
                             new RegistrationId(
-                                    "RT-R-0001")));
+                                    "R0001")));
         } finally {
             deactivate(fixture.node);
         }
@@ -66,7 +66,7 @@ public class TimingNodeRaceDataTest {
             fixture.receive(
                     raceDataSet(
                             2L,
-                            "RT-R-0001",
+                            "R0001",
                             "0042"));
 
             UpstreamData.Req req =
@@ -79,7 +79,7 @@ public class TimingNodeRaceDataTest {
             assertNull(
                     fixture.raceData.teamIdFor(
                             new RegistrationId(
-                                    "RT-R-0001")));
+                                    "R0001")));
         } finally {
             deactivate(fixture.node);
         }
@@ -94,7 +94,7 @@ public class TimingNodeRaceDataTest {
             fixture.receive(
                     raceDataSet(
                             1L,
-                            "RT-R-0001",
+                            "R0001",
                             "0042"));
             fixture.stream.takeSent();
 
@@ -104,7 +104,7 @@ public class TimingNodeRaceDataTest {
                             1L,
                             Collections.singletonList(
                                     DefaultUpstreamData.teamAssignmentDelete(
-                                            "RT-R-0001")),
+                                            "R0001")),
                             Collections.<UpstreamData.StageStartTimeChange>emptyList()));
 
             UpstreamData.Ack ack =
@@ -115,7 +115,7 @@ public class TimingNodeRaceDataTest {
                     new TeamId("0042"),
                     fixture.raceData.teamIdFor(
                             new RegistrationId(
-                                    "RT-R-0001")));
+                                    "R0001")));
         } finally {
             deactivate(fixture.node);
         }
@@ -130,7 +130,7 @@ public class TimingNodeRaceDataTest {
             fixture.receive(
                     raceDataSet(
                             1L,
-                            "RT-A-0001",
+                            "A0001",
                             "9999"));
 
             assertEquals(0, fixture.stream.sentCount());
@@ -138,7 +138,7 @@ public class TimingNodeRaceDataTest {
                     new TeamId("0001"),
                     fixture.raceData.teamIdFor(
                             new RegistrationId(
-                                    "RT-A-0001")));
+                                    "A0001")));
         } finally {
             deactivate(fixture.node);
         }
@@ -156,7 +156,7 @@ public class TimingNodeRaceDataTest {
                             1L,
                             Collections.singletonList(
                                     DefaultUpstreamData.teamAssignmentSet(
-                                            "RT-A-0001",
+                                            "A0001",
                                             "9999")),
                             Collections.singletonList(
                                     DefaultUpstreamData.stageStartSet(

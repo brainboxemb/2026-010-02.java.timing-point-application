@@ -16,8 +16,8 @@ Local Lua scripts can run when the client is LIVE even if simulation is disabled
 - `timing.log(text)`: append to script Output.
 - `print(...)`: append tab-separated arguments to Output.
 - `timing.sleep(ms)`: interruptible sleep for 0–60000 milliseconds.
-- `timing.simulate(regId, profile)`: send one simulated passage for selected TimingNode via IF-03, e.g. `timing.simulate("RT-A-0100", "simple")`. Profile defaults to `normal`.
-- `timing.batch{count=10, from=1, to=2000, order="linear", seed=1, intervalMs=500, profile="normal"}`: send repeatable batch. `count` is required (1–10000); remaining values shown are defaults. Order: `linear` or seeded `random`. Profiles: `simple`, `normal`, `edge`. Intervals: 0–60000 ms. Generated IDs: `RT-A-NNNN`.
+- `timing.simulate(regId, profile)`: send one simulated passage for selected TimingNode via IF-03, e.g. `timing.simulate("A0100", "simple")`. Profile defaults to `normal`.
+- `timing.batch{count=10, from=1, to=2000, order="linear", seed=1, intervalMs=500, profile="normal"}`: send repeatable batch. `count` is required (1–10000); remaining values shown are defaults. Order: `linear` or seeded `random`. Profiles: `simple`, `normal`, `edge`. Intervals: 0–60000 ms. Generated IDs: `ANNNN`.
 
 ### Local smoke test (simulation not required)
 ```lua

@@ -389,7 +389,7 @@ final class RuntimeCharacterizationHarness
                             LOCATION_ID,
                             new RegistrationId(
                                     String.format(
-                                            "P%05d",
+                                            "P%04d",
                                             index + 1)),
                             time));
         }
@@ -647,7 +647,7 @@ final class RuntimeCharacterizationHarness
     private static String registrationId(
             int index) {
         return String.format(
-                "N%05d",
+                "N%04d",
                 index + 1);
     }
 

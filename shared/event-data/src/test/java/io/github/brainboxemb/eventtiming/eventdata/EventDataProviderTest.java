@@ -27,7 +27,7 @@ public class EventDataProviderTest {
                 eventData.isEmpty());
 
         RegistrationId normal =
-                new RegistrationId("RT-A-0001");
+                new RegistrationId("A0001");
         assertEquals(
                 normal,
                 eventData.registrationIdFor(
@@ -47,17 +47,19 @@ public class EventDataProviderTest {
                 eventData.registrationIdFor(
                         new TeamId("0001")));
 
-        // The normal reference profile is not limited to a simulation fixture.
-        RegistrationId upperNormal = new RegistrationId("RT-A-9999");
+        RegistrationId upperNormal =
+                new RegistrationId("A9999");
         assertEquals(
                 upperNormal,
-                eventData.registrationIdFor(new TagId("TT-A-9999-1")));
+                eventData.registrationIdFor(
+                        new TagId("TT-A-9999-1")));
         assertEquals(
-                new RegistrationId("RT-A-2001"),
-                eventData.registrationIdFor(new TagId("TT-A-2001-2")));
+                new RegistrationId("A2001"),
+                eventData.registrationIdFor(
+                        new TagId("TT-A-2001-2")));
 
         RegistrationId reserve =
-                new RegistrationId("RT-R-0001");
+                new RegistrationId("R0001");
         assertEquals(
                 reserve,
                 eventData.registrationIdFor(
@@ -77,7 +79,7 @@ public class EventDataProviderTest {
                         new TagId("TT-A-0000-1")));
         assertTrue(
                 eventData.tagIdsFor(
-                        new RegistrationId("RT-A-0000"))
+                        new RegistrationId("A0000"))
                         .isEmpty());
         assertNull(
                 eventData.registrationIdFor(
@@ -91,28 +93,28 @@ public class EventDataProviderTest {
         assertEquals(
                 2,
                 eventData.tagIdsFor(
-                        new RegistrationId("RT-A-0001"))
+                        new RegistrationId("A0001"))
                         .size());
         assertEquals(
                 "TT-A-0001-1",
                 eventData.tagIdsFor(
-                        new RegistrationId("RT-A-0001"))
+                        new RegistrationId("A0001"))
                         .get(0)
                         .value());
         assertEquals(
                 "TT-A-0001-2",
                 eventData.tagIdsFor(
-                        new RegistrationId("RT-A-0001"))
+                        new RegistrationId("A0001"))
                         .get(1)
                         .value());
         assertEquals(
                 2,
                 eventData.tagIdsFor(
-                        new RegistrationId("RT-A-2000"))
+                        new RegistrationId("A2000"))
                         .size());
         assertTrue(
                 eventData.tagIdsFor(
-                        new RegistrationId("RT-A-2001"))
+                        new RegistrationId("A2001"))
                         .isEmpty());
     }
 }

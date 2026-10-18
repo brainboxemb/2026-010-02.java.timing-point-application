@@ -41,7 +41,7 @@ public class DefaultUpstreamDataCodecTest {
                         new LocationId(1),
                         TimingTimestamp.parse("2026-10-13T08:00:00.12Z"),
                         TimingTimestamp.parse("2026-10-13T08:00:00.123Z")),
-                new RegistrationId("RT-A-0042"));
+                new RegistrationId("A0042"));
 
         UpstreamData.TimingDataTransfer transfer =
                 DefaultUpstreamData.timingData(
@@ -52,7 +52,7 @@ public class DefaultUpstreamDataCodecTest {
         assertTrue(json.startsWith(
                 "{\"v\":1,\"type\":\"TIMING_DATA\",\"nodeId\":\"A\",\"data\":[{"));
         assertTrue(json.contains("\"seqNr\":42"));
-        assertTrue(json.contains("\"regId\":\"RT-A-0042\""));
+        assertTrue(json.contains("\"regId\":\"A0042\""));
 
         UpstreamData.TimingDataTransfer decoded =
                 (UpstreamData.TimingDataTransfer) codec.decode(bytes(json));
@@ -70,10 +70,10 @@ public class DefaultUpstreamDataCodecTest {
                         123L,
                         Arrays.asList(
                                 DefaultUpstreamData.teamAssignmentSet(
-                                        "RT-R-0001",
+                                        "R0001",
                                         "0042"),
                                 DefaultUpstreamData.teamAssignmentDelete(
-                                        "RT-R-0002")),
+                                        "R0002")),
                         Arrays.asList(
                                 DefaultUpstreamData.stageStartSet(
                                         "0042",
@@ -119,7 +119,7 @@ public class DefaultUpstreamDataCodecTest {
         assertInvalid(
                 "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
                         + "\"seq\":1,\"data\":{\"teamAssignments\":["
-                        + "{\"op\":\"SET\",\"regId\":\"RT-R-0001\"}]}}");
+                        + "{\"op\":\"SET\",\"regId\":\"R0001\"}]}}");
 
         assertInvalid(
                 "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
@@ -337,8 +337,8 @@ public class DefaultUpstreamDataCodecTest {
         assertInvalid(
                 "{\"v\":1,\"type\":\"RACE_DATA\",\"nodeId\":\"A\","
                         + "\"seq\":1,\"data\":{\"teamAssignments\":["
-                        + "{\"op\":\"SET\",\"regId\":\"RT-R-0001\",\"teamId\":\"0042\"},"
-                        + "{\"op\":\"SET\",\"regId\":\"RT-R-0001\",\"teamId\":\"0043\"}]}}");
+                        + "{\"op\":\"SET\",\"regId\":\"R0001\",\"teamId\":\"0042\"},"
+                        + "{\"op\":\"SET\",\"regId\":\"R0001\",\"teamId\":\"0043\"}]}}");
     }
 
     @Test

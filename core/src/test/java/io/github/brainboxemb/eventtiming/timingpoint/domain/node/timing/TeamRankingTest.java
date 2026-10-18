@@ -39,13 +39,13 @@ public class TeamRankingTest {
         fixture.add(
                 automatic(
                         1L,
-                        "RT-A-0001",
+                        "A0001",
                         Instant.parse("2026-10-13T12:00:20Z"),
                         TimingData.RegistrationAction.ADD));
         fixture.add(
                 automatic(
                         2L,
-                        "RT-A-0001",
+                        "A0001",
                         Instant.parse("2026-10-13T12:00:10Z"),
                         TimingData.RegistrationAction.ADD));
 
@@ -66,19 +66,19 @@ public class TeamRankingTest {
         fixture.add(
                 automatic(
                         1L,
-                        "RT-A-0001",
+                        "A0001",
                         Instant.parse("2026-10-13T12:00:20Z"),
                         TimingData.RegistrationAction.ADD));
         fixture.add(
                 automatic(
                         2L,
-                        "RT-A-0001",
+                        "A0001",
                         Instant.parse("2026-10-13T12:00:10Z"),
                         TimingData.RegistrationAction.ADD));
         fixture.add(
                 automatic(
                         3L,
-                        "RT-A-0001",
+                        "A0001",
                         Instant.parse("2026-10-13T12:00:10Z"),
                         TimingData.RegistrationAction.REV));
 
@@ -98,13 +98,13 @@ public class TeamRankingTest {
         fixture.add(
                 automatic(
                         1L,
-                        "RT-A-0001",
+                        "A0001",
                         Instant.parse("2026-10-13T12:00:20Z"),
                         TimingData.RegistrationAction.ADD));
         fixture.add(
                 automatic(
                         2L,
-                        "RT-A-0001",
+                        "A0001",
                         Instant.parse("2026-10-13T12:00:30Z"),
                         TimingData.RegistrationAction.REV));
 
@@ -124,13 +124,13 @@ public class TeamRankingTest {
         fixture.add(
                 automatic(
                         1L,
-                        "RT-A-0001",
+                        "A0001",
                         Instant.parse("2026-10-13T12:00:10Z"),
                         TimingData.RegistrationAction.ADD));
         fixture.add(
                 automatic(
                         2L,
-                        "RT-A-0002",
+                        "A0002",
                         Instant.parse("2026-10-13T12:00:10Z"),
                         TimingData.RegistrationAction.ADD));
 
@@ -151,14 +151,14 @@ public class TeamRankingTest {
                 automaticAt(
                         1L,
                         1,
-                        "RT-A-0001",
+                        "A0001",
                         Instant.parse("2026-10-13T12:00:20Z"),
                         TimingData.RegistrationAction.ADD));
         fixture.add(
                 automaticAt(
                         2L,
                         2,
-                        "RT-A-0001",
+                        "A0001",
                         Instant.parse("2026-10-13T12:00:10Z"),
                         TimingData.RegistrationAction.ADD));
 
@@ -175,13 +175,13 @@ public class TeamRankingTest {
         fixture.add(
                 automatic(
                         1L,
-                        "RT-R-0001",
+                        "R0001",
                         Instant.parse("2026-10-13T12:00:30Z"),
                         TimingData.RegistrationAction.ADD));
 
         assertTrue(fixture.ranking().isEmpty());
 
-        RegistrationId registrationId = new RegistrationId("RT-R-0001");
+        RegistrationId registrationId = new RegistrationId("R0001");
         TeamId teamId = new TeamId("0042");
         fixture.activeRegistrations.teamAssignmentChanged(registrationId, teamId);
         fixture.teamRanking.teamAssignmentChanged(registrationId, teamId);

@@ -18,7 +18,7 @@ import static org.junit.Assert.assertTrue;
 
 public class TagObservationFilterTest {
     private static final RegistrationId REGISTRATION_ID =
-            new RegistrationId("N-001");
+            new RegistrationId("N0001");
     private static final TimingTimestamp OBSERVED_1 =
             TimingTimestamp.parse("2026-10-01T12:00:00.000000000Z");
     private static final TimingTimestamp OBSERVED_2 =

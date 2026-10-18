@@ -256,10 +256,10 @@ final class LogBookOperations {
         return new TimingTimestamp(Instant.ofEpochSecond(instant.getEpochSecond(), nanos));
     }
 
-    /** Captures record-creation bookkeeping at millisecond resolution. */
+    /** Captures record-creation bookkeeping at centisecond resolution. */
     private TimingTimestamp currentRecordedTime() {
 
-        return new TimingTimestamp(timeSource.now().truncatedTo(ChronoUnit.MILLIS));
+        return atCentisecond(timeSource.now());
     }
 
     /** Blocks later commits after an earlier persistence or in-memory commit failure. */

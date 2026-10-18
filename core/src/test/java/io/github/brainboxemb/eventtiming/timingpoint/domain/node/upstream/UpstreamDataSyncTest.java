@@ -23,7 +23,7 @@ public class UpstreamDataSyncTest {
                         new NodeId("A"),
                         1L,
                         Collections.singletonList(
-                                DefaultUpstreamData.teamAssignmentSet("RT-R-0001", "0042")),
+                                DefaultUpstreamData.teamAssignmentSet("R0001", "0042")),
                         Collections.<UpstreamData.StageStartTimeChange>emptyList()));
         stream.takeSent(); // ACK for sequence 1.
 

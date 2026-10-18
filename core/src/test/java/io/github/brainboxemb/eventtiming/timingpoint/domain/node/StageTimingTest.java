@@ -57,12 +57,12 @@ public class StageTimingTest {
                                 Arrays.<TimingData>asList(
                                         automatic(
                                                 1L,
-                                                "RT-A-0001",
+                                                "A0001",
                                                 Instant.parse("2026-10-13T12:00:20Z"),
                                                 TimingData.RegistrationAction.ADD),
                                         automatic(
                                                 2L,
-                                                "RT-A-0001",
+                                                "A0001",
                                                 Instant.parse("2026-10-13T12:00:10Z"),
                                                 TimingData.RegistrationAction.ADD))),
                         ZoneOffset.UTC);
@@ -88,7 +88,7 @@ public class StageTimingTest {
                                 Collections.<TimingData>singletonList(
                                         automatic(
                                                 1L,
-                                                "RT-A-0001",
+                                                "A0001",
                                                 Instant.parse("2026-10-13T22:00:10Z"),
                                                 TimingData.RegistrationAction.ADD))),
                         ZoneId.of("Europe/Amsterdam"));
@@ -109,7 +109,7 @@ public class StageTimingTest {
                                 Collections.<TimingData>singletonList(
                                         automatic(
                                                 1L,
-                                                "RT-A-0001",
+                                                "A0001",
                                                 Instant.parse("2026-10-13T22:00:10Z"),
                                                 TimingData.RegistrationAction.ADD))),
                         ZoneId.of("Europe/Amsterdam"));
@@ -120,7 +120,7 @@ public class StageTimingTest {
     @Test
     public void liveTeamAssignmentResolvesReserveRegistration() {
         Fixture fixture = fixture();
-        fixture.assignTeam("RT-R-0001", "0042");
+        fixture.assignTeam("R0001", "0042");
         fixture.setStart("0042", LocalTime.NOON, null);
 
         List<StageTime> passages =
@@ -130,14 +130,14 @@ public class StageTimingTest {
                                 Collections.<TimingData>singletonList(
                                         automatic(
                                                 1L,
-                                                "RT-R-0001",
+                                                "R0001",
                                                 Instant.parse("2026-10-13T12:00:30Z"),
                                                 TimingData.RegistrationAction.ADD))),
                         ZoneOffset.UTC);
 
         assertEquals(1, passages.size());
         assertEquals(new TeamId("0042"), passages.get(0).teamId());
-        assertEquals(new RegistrationId("RT-R-0001"), passages.get(0).registrationId());
+        assertEquals(new RegistrationId("R0001"), passages.get(0).registrationId());
         assertEquals(Duration.ofSeconds(30), passages.get(0).elapsed());
     }
 
@@ -149,7 +149,7 @@ public class StageTimingTest {
         TimingData add =
                 automatic(
                         1L,
-                        "RT-A-0001",
+                        "A0001",
                         Instant.parse("2026-10-13T12:00:10Z"),
                         TimingData.RegistrationAction.ADD);
         TimingData lifecycle =
@@ -157,13 +157,13 @@ public class StageTimingTest {
         TimingData revoke =
                 automatic(
                         3L,
-                        "RT-A-0001",
+                        "A0001",
                         Instant.parse("2026-10-13T12:00:10Z"),
                         TimingData.RegistrationAction.REV);
         TimingData unresolved =
                 automatic(
                         4L,
-                        "RT-R-0001",
+                        "R0001",
                         Instant.parse("2026-10-13T12:00:15Z"),
                         TimingData.RegistrationAction.ADD);
 
@@ -182,7 +182,7 @@ public class StageTimingTest {
         TimingData record =
                 automatic(
                         1L,
-                        "RT-A-0001",
+                        "A0001",
                         Instant.parse("2026-10-13T12:01:00Z"),
                         TimingData.RegistrationAction.ADD);
 
@@ -216,7 +216,7 @@ public class StageTimingTest {
         TimingData committed =
                 automatic(
                         1L,
-                        "RT-A-0001",
+                        "A0001",
                         Instant.parse("2026-10-13T12:00:20Z"),
                         TimingData.RegistrationAction.ADD);
         InMemoryUpstreamStream stream = new InMemoryUpstreamStream();

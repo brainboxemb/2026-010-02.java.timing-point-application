@@ -167,7 +167,7 @@ public class DefaultTimingDataPersistenceTest {
                         new LocationId(24),
                         EFFECTIVE,
                         RECORDED),
-                new RegistrationId("registration-" + sequence),
+                new RegistrationId('N', (int) sequence),
                 TimingData.ManualTimeSource.AUTOMATIC);
     }
 

@@ -38,7 +38,7 @@ import static org.junit.Assert.assertTrue;
 
 public class SimulationRuntimeScenarioTest {
     private static final RegistrationId REGISTRATION =
-            new RegistrationId("RT-A-0042");
+            new RegistrationId("A0042");
     private static final TagId TAG_A =
             new TagId("TT-A-0042-1");
     private static final TagId TAG_B =
@@ -182,11 +182,11 @@ public class SimulationRuntimeScenarioTest {
     public void allBuiltInProfilesCommitThroughTheFullSimulationPath()
             throws Exception {
         RegistrationId simpleRegistration =
-                new RegistrationId("RT-A-0001");
+                new RegistrationId("A0001");
         RegistrationId normalRegistration =
-                new RegistrationId("RT-A-0004");
+                new RegistrationId("A0004");
         RegistrationId edgeRegistration =
-                new RegistrationId("RT-A-0003");
+                new RegistrationId("A0003");
 
         SimulatedAntenna antenna =
                 new SimulatedAntenna();
@@ -300,7 +300,7 @@ public class SimulationRuntimeScenarioTest {
                     "normal profile must exercise the second mapped tag",
                     normalTagBObserved);
             assertFalse(
-                    "RT-A-0003 edge variant must remain a single-tag scenario",
+                    "A0003 edge variant must remain a single-tag scenario",
                     edgeTagBObserved);
 
             List<TimingData> history =

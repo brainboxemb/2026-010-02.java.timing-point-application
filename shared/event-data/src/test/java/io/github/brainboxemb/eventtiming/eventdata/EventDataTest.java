@@ -15,7 +15,7 @@ public class EventDataTest {
     @Test
     public void oneRegistrationCanOwnMultipleTags() {
         RegistrationId registrationId =
-                new RegistrationId("R-123");
+                new RegistrationId("R0123");
         Map<TagId, RegistrationId> registrations =
                 new LinkedHashMap<TagId, RegistrationId>();
         registrations.put(
@@ -49,7 +49,7 @@ public class EventDataTest {
     @Test
     public void mapBackedProfileCanResolveTeamInBothDirections() {
         RegistrationId registrationId =
-                new RegistrationId("R-123");
+                new RegistrationId("R0123");
         TeamId teamId =
                 new TeamId("0042");
 
@@ -74,6 +74,6 @@ public class EventDataTest {
                         teamId));
         assertNull(
                 eventData.teamIdFor(
-                        new RegistrationId("R-999")));
+                        new RegistrationId("R0999")));
     }
 }

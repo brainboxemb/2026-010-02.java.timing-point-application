@@ -289,7 +289,7 @@ public class HttpEndpointTest {
 
             Response generated = request(server.boundPort(), "POST",
                     "/api/v1/dev/node/A/auto-reg",
-                    "{\"id\":\"RT-A-0001\"}");
+                    "{\"id\":\"A0001\"}");
             assertEquals(200, generated.status);
             assertEquals("{\"seq\":2}", generated.body);
             Response implicit = request(server.boundPort(), "GET",
@@ -301,7 +301,7 @@ public class HttpEndpointTest {
 
             Response explicit = request(server.boundPort(), "POST",
                     "/api/v1/dev/node/A/auto-reg",
-                    "{\"id\":\"RT-A-0002\",\"time\":\"2026-10-01T12:00:00.987Z\"}");
+                    "{\"id\":\"A0002\",\"time\":\"2026-10-01T12:00:00.987Z\"}");
             assertEquals(200, explicit.status);
             Response history = request(server.boundPort(), "GET",
                     "/api/v1/node/A/logbook?last=1", null);

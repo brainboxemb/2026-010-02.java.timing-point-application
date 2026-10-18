@@ -22,10 +22,11 @@ import java.util.List;
 /**
  * Canonical IF-05 v1 JSON codec for the built-in default/reference profile.
  *
- * <p>The v1 interchange representation uses fixed timestamp text precision:
- * effective {@code time} is written at centisecond precision and
- * {@code recTime} at millisecond precision. The generic TimingTimestamp value
- * remains capable of representing finer precision outside this profile.</p>
+ * <p>The v1 interchange representation keeps its existing text shapes: effective
+ * {@code time} uses two fractional digits and {@code recTime} uses three. Both
+ * stored values are centisecond-aligned; the third recTime digit is therefore
+ * zero for newly encoded records. Finer input remains readable and is truncated
+ * to centisecond precision at the TimingData boundary.</p>
  *
  * <p>The codec owns one JSON object only. It deliberately does not add or remove
  * JSON Lines terminators: file framing, incomplete-tail handling and recovery
@@ -269,9 +270,9 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
             throws CodecException {
         requirePrecision(
                 timestamp,
-                1_000_000L,
+                10_000_000L,
                 "recTime",
-                "millisecond");
+                "centisecond");
         return RECORDED_TIME_FORMAT.format(
                 timestamp.instant());
     }
@@ -570,11 +571,19 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                     new NodeId(fields.nodeId),
                     fields.sequenceNumber,
                     new LocationId(fields.locationId),
-                    TimingTimestamp.parseAbsolute(fields.effectiveTimeText),
-                    TimingTimestamp.parseAbsolute(fields.recordedAtText));
+                    compactTimestamp(fields.effectiveTimeText),
+                    compactTimestamp(fields.recordedAtText));
         } catch (RuntimeException ex) {
             throw invalid("common IF-05 TimingData envelope is invalid", ex);
         }
+    }
+
+    /** Parses accepted IF-05 input and applies the stored centisecond precision. */
+    private static TimingTimestamp compactTimestamp(String text) {
+
+        TimingTimestamp parsed = TimingTimestamp.parseAbsolute(text);
+        return CompactTimingTime.toTimestamp(
+                CompactTimingTime.fromTimestamp(parsed));
     }
 
     private static void requireExactCodes(List<String> actual, String... expected)

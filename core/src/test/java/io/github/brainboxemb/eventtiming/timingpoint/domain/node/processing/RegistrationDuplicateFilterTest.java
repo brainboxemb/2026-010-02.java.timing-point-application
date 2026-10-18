@@ -17,7 +17,7 @@ public class RegistrationDuplicateFilterTest {
         FakeMonotonicClock clock = new FakeMonotonicClock();
         RegistrationDuplicateFilter filter =
                 new RegistrationDuplicateFilter(policy(), clock);
-        RegistrationId id = new RegistrationId("N-001");
+        RegistrationId id = new RegistrationId("N0001");
 
         assertFalse(filter.isDuplicate(id));
         assertFalse(filter.hasPendingState());
@@ -34,8 +34,8 @@ public class RegistrationDuplicateFilterTest {
         RegistrationDuplicateFilter filter =
                 new RegistrationDuplicateFilter(policy(), clock);
 
-        assertFalse(filter.isDuplicate(new RegistrationId("N-FULL")));
-        assertFalse(filter.isDuplicate(new RegistrationId("N-STOPPED")));
+        assertFalse(filter.isDuplicate(new RegistrationId("N0002")));
+        assertFalse(filter.isDuplicate(new RegistrationId("N0003")));
         assertFalse(filter.hasPendingState());
     }
 
@@ -44,7 +44,7 @@ public class RegistrationDuplicateFilterTest {
         FakeMonotonicClock clock = new FakeMonotonicClock();
         RegistrationDuplicateFilter filter =
                 new RegistrationDuplicateFilter(policy(), clock);
-        RegistrationId id = new RegistrationId("N-001");
+        RegistrationId id = new RegistrationId("N0001");
 
         filter.recordRegistration(id);
         clock.advanceNanos(100L);
@@ -58,7 +58,7 @@ public class RegistrationDuplicateFilterTest {
         FakeMonotonicClock clock = new FakeMonotonicClock();
         RegistrationDuplicateFilter filter =
                 new RegistrationDuplicateFilter(policy(), clock);
-        RegistrationId id = new RegistrationId("N-001");
+        RegistrationId id = new RegistrationId("N0001");
 
         filter.recordRegistration(id);
         filter.periodic();
@@ -80,7 +80,7 @@ public class RegistrationDuplicateFilterTest {
                                 Duration.ofNanos(5L),
                                 8),
                         clock);
-        RegistrationId id = new RegistrationId("N-001");
+        RegistrationId id = new RegistrationId("N0001");
 
         filter.recordRegistration(id);
 

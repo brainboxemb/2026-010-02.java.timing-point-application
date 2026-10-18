@@ -113,6 +113,14 @@ final class CharacterizationConfig {
             throw new IllegalArgumentException(
                     "history workload requires --preload > 0");
         }
+        if ((long) warmupCount + measuredCount > 9999L) {
+            throw new IllegalArgumentException(
+                    "warmup-count + measured-count must not exceed 9999");
+        }
+        if (preloadCount > 9999) {
+            throw new IllegalArgumentException(
+                    "preload must not exceed 9999");
+        }
 
         return new CharacterizationConfig(
                 runId,

@@ -113,9 +113,9 @@ public class TagProcessorTest {
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                                 eventDataFor(
-                        "TAG-A", "N-001",
-                        "TAG-B", "N-001",
-                        "TAG-C", "N-001"),
+                        "TAG-A", "N0001",
+                        "TAG-B", "N0001",
+                        "TAG-C", "N0001"),
                 policy(8),
                 clock,
                 metrics,
@@ -142,7 +142,7 @@ public class TagProcessorTest {
                     processor.passageSnapshots();
             assertEquals(1, passages.size());
             assertEquals(
-                    new RegistrationId("N-001"),
+                    new RegistrationId("N0001"),
                     passages.get(0).registrationId());
             assertEquals(
                     new TagId("TAG-B"),
@@ -157,7 +157,7 @@ public class TagProcessorTest {
             AutomaticRegistration registration =
                     (AutomaticRegistration) store.appended.get(1);
             assertEquals(
-                    new RegistrationId("N-001"),
+                    new RegistrationId("N0001"),
                     registration.registrationId());
             assertEquals(
                     STRONGER_OBSERVED_AT,
@@ -184,9 +184,9 @@ public class TagProcessorTest {
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                                 eventDataFor(
-                        "TAG-A", "N-001",
-                        "TAG-B", "N-001",
-                        "TAG-C", "N-001"),
+                        "TAG-A", "N0001",
+                        "TAG-B", "N0001",
+                        "TAG-C", "N0001"),
                 policy(8),
                 clock,
                 metrics,
@@ -244,9 +244,9 @@ public class TagProcessorTest {
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         TagProcessor processor = new TagProcessor(
                 eventDataFor(
-                        "TAG-A", "N-001",
-                        "TAG-B", "N-001",
-                        "TAG-C", "N-001"),
+                        "TAG-A", "N0001",
+                        "TAG-B", "N0001",
+                        "TAG-C", "N0001"),
                 policy(8),
                 clock,
                 metrics,
@@ -301,9 +301,9 @@ public class TagProcessorTest {
                         startup);
         TagProcessor processor = new TagProcessor(
                                 eventDataFor(
-                        "TAG-A", "N-001",
-                        "TAG-B", "N-001",
-                        "TAG-C", "N-001"),
+                        "TAG-A", "N0001",
+                        "TAG-B", "N0001",
+                        "TAG-C", "N0001"),
                 configuration.timingNode(new NodeId("A")).tagProcessing(),
                 clock,
                 new TagProcessingMetrics(),
@@ -354,7 +354,7 @@ public class TagProcessorTest {
             throws Exception {
         RecordingScheduledExecutor executor = new RecordingScheduledExecutor();
         TagProcessor processor = new TagProcessor(
-                eventDataFor("TAG-A", "N-001"),
+                eventDataFor("TAG-A", "N0001"),
                 policy(8),
                 new FakeMonotonicClock(),
                 new TagProcessingMetrics(),
@@ -375,7 +375,7 @@ public class TagProcessorTest {
             throws Exception {
         RecordingScheduledExecutor executor = new RecordingScheduledExecutor();
         TagProcessor processor = new TagProcessor(
-                eventDataFor("TAG-A", "N-001"),
+                eventDataFor("TAG-A", "N0001"),
                 policy(8),
                 new FakeMonotonicClock(),
                 new TagProcessingMetrics(),
@@ -398,7 +398,7 @@ public class TagProcessorTest {
             throws Exception {
         RecordingScheduledExecutor executor = new RecordingScheduledExecutor();
         TagProcessor processor = new TagProcessor(
-                eventDataFor("TAG-A", "N-001"),
+                eventDataFor("TAG-A", "N0001"),
                 policy(8),
                 new FakeMonotonicClock(),
                 new TagProcessingMetrics(),
@@ -558,8 +558,8 @@ public class TagProcessorTest {
 
     private static EventData referenceEventData() {
         return eventDataFor(
-                "TAG-001", "N-001",
-                "TAG-002", "N-002");
+                "TAG-001", "N0001",
+                "TAG-002", "N0002");
     }
 
     private static EventData eventDataFor(

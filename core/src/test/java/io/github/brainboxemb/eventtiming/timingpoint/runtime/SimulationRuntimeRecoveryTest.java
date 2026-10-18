@@ -54,9 +54,9 @@ public class SimulationRuntimeRecoveryTest {
     private static final TagId FIRST_TAG = new TagId("TAG-1001");
     private static final TagId SECOND_TAG = new TagId("TAG-1002");
     private static final RegistrationId FIRST_REGISTRATION =
-            new RegistrationId("R-1001");
+            new RegistrationId("R1001");
     private static final RegistrationId SECOND_REGISTRATION =
-            new RegistrationId("R-1002");
+            new RegistrationId("R1002");
     private static final TimingTimestamp FIRST_TIME =
             TimingTimestamp.parse("2026-10-07T08:00:00Z");
     private static final TimingTimestamp SECOND_TIME =

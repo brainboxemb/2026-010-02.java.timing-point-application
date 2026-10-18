@@ -27,7 +27,7 @@ public class LogBookDataTest {
         assertEquals(1L, logBookData.nextSequence());
         assertEquals(1L, logBookData.nextSequence());
 
-        logBookData.add(data("A", 1L, "1001"));
+        logBookData.add(data("A", 1L, "N1001"));
 
         assertEquals(2L, logBookData.nextSequence());
         assertEquals(1, logBookData.size());
@@ -36,8 +36,8 @@ public class LogBookDataTest {
     @Test
     public void latestReturnsNewestCommittedRecord() {
         LogBookData logBookData = new LogBookData(new NodeId("A"));
-        TimingData first = data("A", 1L, "1001");
-        TimingData second = data("A", 2L, "1002");
+        TimingData first = data("A", 1L, "N1001");
+        TimingData second = data("A", 2L, "N1002");
 
         logBookData.add(first);
         logBookData.add(second);
@@ -50,7 +50,7 @@ public class LogBookDataTest {
         LogBookData logBookData = new LogBookData(new NodeId("A"));
 
         try {
-            logBookData.add(data("A", 2L, "1002"));
+            logBookData.add(data("A", 2L, "N1002"));
             fail("expected sequence validation");
         } catch (IllegalArgumentException expected) {
             assertEquals(0, logBookData.size());
@@ -63,7 +63,7 @@ public class LogBookDataTest {
         LogBookData logBookData = new LogBookData(new NodeId("A"));
 
         try {
-            logBookData.add(data("B", 1L, "1001"));
+            logBookData.add(data("B", 1L, "N1001"));
             fail("expected TimingNode validation");
         } catch (IllegalArgumentException expected) {
             assertEquals(0, logBookData.size());
@@ -73,9 +73,9 @@ public class LogBookDataTest {
     @Test
     public void visitsBoundedRangesWithoutCreatingAReadList() {
         LogBookData logBookData = new LogBookData(new NodeId("A"));
-        TimingData first = data("A", 1L, "1001");
-        TimingData second = data("A", 2L, "1002");
-        TimingData third = data("A", 3L, "1003");
+        TimingData first = data("A", 1L, "N1001");
+        TimingData second = data("A", 2L, "N1002");
+        TimingData third = data("A", 3L, "N1003");
         logBookData.add(first);
         logBookData.add(second);
         logBookData.add(third);
