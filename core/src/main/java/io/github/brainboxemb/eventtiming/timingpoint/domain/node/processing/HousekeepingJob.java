@@ -11,118 +11,122 @@ import java.util.concurrent.TimeUnit;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
-/** Owns scheduled duplicate-window housekeeping for TagProcessor. */
+/**
+ * Runs duplicate-window housekeeping while remembered registrations exist.
+ *
+ * <p>Duplicate checks, registration updates and housekeeping use the same
+ * TagProcessor scheduler thread.</p>
+ */
 final class HousekeepingJob {
     private final ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration;
     private final ScheduledExecutorService scheduler;
     private final RegistrationDuplicateFilter duplicateFilter;
 
-    private boolean started;
-    private ScheduledFuture<?> schedule;
+    private volatile boolean active;
+    private ScheduledFuture<?> scheduled;
 
+    /** Creates duplicate-window state and stores the scheduler used for delayed cleanup. */
     HousekeepingJob(
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
             MonotonicClock monotonicClock,
             ScheduledExecutorService scheduler) {
 
         failIfInvalidArgument(policyConfiguration != null, "policyConfiguration must not be null");
+        failIfInvalidArgument(monotonicClock != null, "monotonicClock must not be null");
         failIfInvalidArgument(scheduler != null, "scheduler must not be null");
 
         this.policyConfiguration = policyConfiguration;
         this.scheduler = scheduler;
-        duplicateFilter =
-                new RegistrationDuplicateFilter(
-                        policyConfiguration,
-                        monotonicClock);
+        this.duplicateFilter = new RegistrationDuplicateFilter(policyConfiguration, monotonicClock);
     }
 
+    /** Enables the job and reconciles retained duplicate state on the scheduler thread. */
     synchronized void start() {
-        started = true;
-    }
-
-    synchronized void stop() {
-        started = false;
-        cancel();
-    }
-
-    boolean isDuplicate(RegistrationId registrationId) {
-        boolean duplicate = duplicateFilter.isDuplicate(registrationId);
-        updateSchedule();
-        return duplicate;
-    }
-
-    void recordRegistration(RegistrationId registrationId) {
-        duplicateFilter.recordRegistration(registrationId);
-        updateSchedule();
-    }
-
-    void policyChanged(ConfigurationChange<TagProcessingPolicy> change) {
-        failIfInvalidArgument(change != null, "change must not be null");
-        if (isStarted()) {
-            scheduler.execute(
-                    () -> {
-                        if (isStarted()) {
-                            duplicateFilter.onPolicyChanged();
-                            if (change.previousValue().sweepCadenceNanos()
-                                    != change.currentValue().sweepCadenceNanos()) {
-                                restartSchedule();
-                            } else {
-                                updateSchedule();
-                            }
-                        }
-                    });
-        }
-    }
-
-    private void run() {
-        if (isStarted()) {
-            duplicateFilter.periodic();
-            updateSchedule();
-        }
-    }
-
-    private void updateSchedule() {
-        if (!duplicateFilter.hasPendingState()) {
-            synchronized (this) {
-                cancel();
-            }
+        if (active) {
             return;
         }
 
+        active = true;
+        scheduler.execute(this::resume);
+    }
+
+    /** Disables the job and cancels its one pending cleanup. */
+    synchronized void stop() {
+        active = false;
+        cancelScheduled();
+    }
+
+    /** Returns whether the registration is still inside its duplicate window. */
+    boolean isDuplicate(RegistrationId registrationId) {
+        return duplicateFilter.isDuplicate(registrationId);
+    }
+
+    /** Starts or refreshes a duplicate window and schedules cleanup when needed. */
+    void recordRegistration(RegistrationId registrationId) {
+        duplicateFilter.recordRegistration(registrationId);
+        scheduleNext();
+    }
+
+    /** Queues reconciliation with the current policy and returns immediately. */
+    void policyChanged(ConfigurationChange<TagProcessingPolicy> change) {
+        failIfInvalidArgument(change != null, "change must not be null");
+
+        if (active) {
+            scheduler.execute(this::applyPolicyChange);
+        }
+    }
+
+    /** Reconciles retained duplicate state when the job becomes active. */
+    private void resume() {
+        if (!active) {
+            return;
+        }
+
+        duplicateFilter.onPolicyChanged();
+        scheduleNext();
+    }
+
+    /** Removes expired registrations and schedules another cleanup only when needed. */
+    private void run() {
         synchronized (this) {
-            if (!started) {
+            scheduled = null;
+            if (!active) {
                 return;
             }
-            if (schedule != null && schedule.isDone()) {
-                schedule = null;
-            }
-            if (schedule == null) {
-                long cadenceNanos =
-                        policyConfiguration.currentValue().sweepCadenceNanos();
-                schedule =
-                        scheduler.scheduleWithFixedDelay(
-                                this::run,
-                                cadenceNanos,
-                                cadenceNanos,
-                                TimeUnit.NANOSECONDS);
-            }
         }
+
+        duplicateFilter.periodic();
+        scheduleNext();
     }
 
-    private void restartSchedule() {
+    /** Applies the current policy and replans the one pending cleanup. */
+    private void applyPolicyChange() {
         synchronized (this) {
-            cancel();
+            if (!active) {
+                return;
+            }
+            cancelScheduled();
         }
-        updateSchedule();
+
+        duplicateFilter.onPolicyChanged();
+        scheduleNext();
     }
 
-    private synchronized boolean isStarted() {
-        return started;
+    /** Schedules one future cleanup when remembered duplicate state exists. */
+    private synchronized void scheduleNext() {
+        if (!active || scheduled != null || !duplicateFilter.hasPendingState()) {
+            return;
+        }
+
+        long cadenceNanos = policyConfiguration.currentValue().sweepCadenceNanos();
+        scheduled = scheduler.schedule(this::run, cadenceNanos, TimeUnit.NANOSECONDS);
     }
 
-    private void cancel() {
-        ScheduledFuture<?> current = schedule;
-        schedule = null;
+    /** Cancels the one pending cleanup when one exists. */
+    private void cancelScheduled() {
+        ScheduledFuture<?> current = scheduled;
+        scheduled = null;
+
         if (current != null) {
             current.cancel(false);
         }

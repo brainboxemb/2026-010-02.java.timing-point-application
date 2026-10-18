@@ -35,8 +35,7 @@ public final class TagProcessor extends LifecycleComponent {
     private final HousekeepingJob housekeepingJob;
     private final SerialLane<TagObservation> observations;
 
-    private final Event<NewRegistration> newRegistration =
-            new Event<NewRegistration>();
+    private final Event<NewRegistration> newRegistration = new Event<NewRegistration>();
 
     /** Selected-registration source published after passage filtering. */
     public final EventSource<NewRegistration> NEW_REGISTRATION = newRegistration;
@@ -72,25 +71,21 @@ public final class TagProcessor extends LifecycleComponent {
         failIfInvalidArgument(scheduler != null, "scheduler must not be null");
 
         TagProcessingPolicy startupPolicy = policyConfiguration.startupValue();
-        failIfInvalidArgument(
-                startupPolicy != null,
-                "policyConfiguration.startupValue must not be null");
+        failIfInvalidArgument(startupPolicy != null, "policyConfiguration.startupValue must not be null");
 
         this.eventData = eventData;
         this.metrics = metrics;
 
-        filterJob =
-                new FilterJob(
-                        policyConfiguration,
-                        monotonicClock,
-                        metrics,
-                        scheduler,
-                        this::processValidObservation);
-        housekeepingJob =
-                new HousekeepingJob(
-                        policyConfiguration,
-                        monotonicClock,
-                        scheduler);
+        filterJob = new FilterJob(
+                policyConfiguration,
+                monotonicClock,
+                metrics,
+                scheduler,
+                this::processValidObservation);
+        housekeepingJob = new HousekeepingJob(
+                policyConfiguration,
+                monotonicClock,
+                scheduler);
         observations =
                 new SerialLane<TagObservation>(
                         startupPolicy.observationQueueCapacity(),
@@ -166,24 +161,21 @@ public final class TagProcessor extends LifecycleComponent {
             LOG.debug(
                     "Tag observation ignored because TagId {} is unmapped",
                     observation.tagId().value());
+        } else if (housekeepingJob.isDuplicate(registrationId)) {
+            metrics.recordMapped();
+            metrics.recordDuplicate();
+            LOG.debug(
+                    "Tag observation suppressed as duplicate: registrationId={}, tagId={}",
+                    registrationId.value(),
+                    observation.tagId().value());
         } else {
             metrics.recordMapped();
-            if (housekeepingJob.isDuplicate(registrationId)) {
-                metrics.recordDuplicate();
-                LOG.debug(
-                        "Tag observation suppressed as duplicate: registrationId={}, tagId={}",
-                        registrationId.value(),
-                        observation.tagId().value());
-            } else {
-                filterJob.add(registrationId, observation);
-            }
+            filterJob.add(registrationId, observation);
         }
     }
 
     /** Converts one filter-approved observation into a registration event. */
-    private void processValidObservation(
-            RegistrationId registrationId,
-            TimingTimestamp observedAt) {
+    private void processValidObservation(RegistrationId registrationId, TimingTimestamp observedAt) {
 
         housekeepingJob.recordRegistration(registrationId);
 
@@ -193,10 +185,7 @@ public final class TagProcessor extends LifecycleComponent {
          */
         filterJob.discard(registrationId);
 
-        newRegistration.emit(
-                new NewRegistration(
-                        registrationId,
-                        observedAt));
+        newRegistration.emit(new NewRegistration(registrationId, observedAt));
     }
 
     /** Immutable registration selected from one completed tag passage. */
@@ -205,24 +194,20 @@ public final class TagProcessor extends LifecycleComponent {
         private final TimingTimestamp observedAt;
 
         /** Creates the immutable registration fact emitted after passage selection. */
-        public NewRegistration(
-                RegistrationId registrationId,
-                TimingTimestamp observedAt) {
+        public NewRegistration(RegistrationId registrationId, TimingTimestamp observedAt) {
 
-            failIfInvalidArgument(
-                    registrationId != null,
-                    "registrationId must not be null");
-            failIfInvalidArgument(
-                    observedAt != null,
-                    "observedAt must not be null");
+            failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+            failIfInvalidArgument(observedAt != null, "observedAt must not be null");
             this.registrationId = registrationId;
             this.observedAt = observedAt;
         }
 
+        /** Returns the selected registration. */
         public RegistrationId registrationId() {
             return registrationId;
         }
 
+        /** Returns the selected observation time. */
         public TimingTimestamp observedAt() {
             return observedAt;
         }

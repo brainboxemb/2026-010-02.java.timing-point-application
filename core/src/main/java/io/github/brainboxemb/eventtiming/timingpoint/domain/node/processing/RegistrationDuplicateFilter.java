@@ -83,12 +83,12 @@ final class RegistrationDuplicateFilter {
         }
     }
 
-    /** Reports whether remembered registrations still require housekeeping. */
+    /** Reports whether remembered registrations still exist. */
     boolean hasPendingState() {
-        return policyConfiguration.currentValue().duplicateWindowNanos() != 0L
-                && !registrations.isEmpty();
+        return !registrations.isEmpty();
     }
 
+    /** Removes entries whose current duplicate window has elapsed. */
     private void removeExpired(long now) {
         long duplicateWindowNanos =
                 policyConfiguration.currentValue().duplicateWindowNanos();
@@ -103,6 +103,7 @@ final class RegistrationDuplicateFilter {
         }
     }
 
+    /** Rejects a missing RegistrationId at the duplicate-filter boundary. */
     private static void requireRegistrationId(RegistrationId registrationId) {
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
     }
