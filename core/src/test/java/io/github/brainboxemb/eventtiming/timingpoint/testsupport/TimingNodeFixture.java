@@ -6,7 +6,6 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookDataLane;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingMetrics;
@@ -23,6 +22,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.System
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 /**
@@ -164,14 +164,11 @@ public final class TimingNodeFixture {
                 timeSource,
                 EventData.empty(),
                 UpstreamStream.unavailable(),
-                new LogBookDataLane(
-                        nodeId,
-                        32,
-                        32,
-                        "test-logbook-data-" + suffix,
-                        NODE_WORKER,
-                        DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
-                        DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS),
+                NODE_WORKER,
+                32,
+                32,
+                DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
+                DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS,
                 new SerialTaskRunner(
                         32,
                         32,
@@ -234,14 +231,11 @@ public final class TimingNodeFixture {
                 timeSource,
                 eventData,
                 upstreamStream,
-                new LogBookDataLane(
-                        nodeId,
-                        32,
-                        32,
-                        "test-logbook-data-direct-" + suffix,
-                        NODE_WORKER,
-                        DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
-                        DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS),
+                NODE_WORKER,
+                32,
+                32,
+                DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
+                DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS,
                 new SerialTaskRunner(
                         32,
                         32,
@@ -250,13 +244,17 @@ public final class TimingNodeFixture {
                 TAG_WORKER);
     }
 
-    /** Creates one TimingNode with an explicit LogBook Data Lane. */
-    public static TimingNode createWithLogBookDataLane(
+    /** Creates one TimingNode with explicit LogBook lane execution settings. */
+    public static TimingNode createWithLogBookExecution(
             NodeId nodeId,
             TimingDataPersistence persistence,
             TimingDataFactory timingDataFactory,
             TimeSource timeSource,
-            LogBookDataLane dataLane) {
+            Executor dataLaneExecutor,
+            int dataLaneCapacity,
+            int dataLaneMaxItemsPerRun,
+            long commitWaitTimeoutMillis,
+            long orderedQueryWaitTimeoutMillis) {
         String suffix =
                 nodeId == null
                         ? "missing"
@@ -269,7 +267,11 @@ public final class TimingNodeFixture {
                 timeSource,
                 EventData.empty(),
                 UpstreamStream.unavailable(),
-                dataLane,
+                dataLaneExecutor,
+                dataLaneCapacity,
+                dataLaneMaxItemsPerRun,
+                commitWaitTimeoutMillis,
+                orderedQueryWaitTimeoutMillis,
                 new SerialTaskRunner(
                         32,
                         32,
@@ -287,7 +289,11 @@ public final class TimingNodeFixture {
             TimeSource timeSource,
             EventData eventData,
             UpstreamStream upstreamStream,
-            LogBookDataLane dataLane,
+            Executor dataLaneExecutor,
+            int dataLaneCapacity,
+            int dataLaneMaxItemsPerRun,
+            long commitWaitTimeoutMillis,
+            long orderedQueryWaitTimeoutMillis,
             SerialTaskRunner taskLane,
             ScheduledThreadPoolExecutor tagWorker) {
         ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
@@ -302,7 +308,11 @@ public final class TimingNodeFixture {
                         timeSource,
                         SystemMonotonicClock.INSTANCE,
                         new LogBookMetrics(),
-                        dataLane);
+                        dataLaneExecutor,
+                        dataLaneCapacity,
+                        dataLaneMaxItemsPerRun,
+                        commitWaitTimeoutMillis,
+                        orderedQueryWaitTimeoutMillis);
 
         NodeServiceState nodeServiceState = new NodeServiceState(eventData);
 
