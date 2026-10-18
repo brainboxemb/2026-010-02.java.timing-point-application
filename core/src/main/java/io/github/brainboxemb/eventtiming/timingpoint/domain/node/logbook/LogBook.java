@@ -34,9 +34,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  *
  * <p>LogBook owns persisted TimingData loading plus the Data Lane boundary for ordered
  * commands, ORDERED queries and durable TimingData commit. Loading runs when
- * TimingNode.MainTask calls {@link #loadPersistedData()}. The LogBook Data Lane may share a Runtime-owned
- * executor with TimingNode's Task Lane, but its queue and lifecycle belong to
- * this LogBook.</p>
+ * TimingNode.MainTask calls {@link #loadPersistedData()}. The LogBook Data Lane may share
+ * a Runtime-owned executor with TimingNode's Task Lane, but its queue and lifecycle belong
+ * to this LogBook.</p>
  */
 public final class LogBook extends LifecycleComponent implements LogBookAccessor, LogBookTestControl {
     private static final Logger LOG = LoggerFactory.getLogger(LogBook.class);
@@ -97,9 +97,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         failIfInvalidArgument(dataLaneCapacity > 0, "dataLaneCapacity must be positive");
         failIfInvalidArgument(dataLaneMaxItemsPerRun > 0, "dataLaneMaxItemsPerRun must be positive");
         failIfInvalidArgument(commitWaitTimeoutMillis > 0L, "commitWaitTimeoutMillis must be positive");
-        failIfInvalidArgument(
-                orderedQueryWaitTimeoutMillis > 0L,
-                "orderedQueryWaitTimeoutMillis must be positive");
+        failIfInvalidArgument(orderedQueryWaitTimeoutMillis > 0L, "orderedQueryWaitTimeoutMillis must be positive");
 
         this.logBookState = new LogBookState(timingNodeId);
         this.logBookOperations = new LogBookOperations(
@@ -302,15 +300,14 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         }
     }
 
-
     /** Returns the committed TimingData head while already inside LogBook query handling. */
     long currentTimingDataHead() {
 
         return logBookState.timingDataHead();
     }
 
-
     /** Returns the current LogBook availability status. */
+    @Override
     public LogBookStatus status() {
 
         return status;
@@ -353,7 +350,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
             loadedStatus = LogBookStatus.LOADED;
 
         } catch (TimingDataPersistence.PersistenceException | RuntimeException ex) {
-            // An inactive LogBook is a cancelled startup flow, not a recovery failure.
+            // An inactive LogBook is a cancelled startup flow, not a load failure.
             failIfInactive();
             logBookOperations.markTimingDataLoadFailed(ex);
             LOG.error(
