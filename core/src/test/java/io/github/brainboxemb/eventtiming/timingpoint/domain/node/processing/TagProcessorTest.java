@@ -633,11 +633,16 @@ public class TagProcessorTest {
             setRemoveOnCancelPolicy(true);
         }
 
+        /** Records delayed Job runs while preserving normal zero-delay executor work. */
         @Override
         public ScheduledFuture<?> schedule(
                 Runnable operation,
                 long delay,
                 TimeUnit unit) {
+            if (delay <= 0L) {
+                return super.schedule(operation, delay, unit);
+            }
+
             scheduledOperations.add(operation);
             ScheduledFuture<?> future =
                     super.schedule(
