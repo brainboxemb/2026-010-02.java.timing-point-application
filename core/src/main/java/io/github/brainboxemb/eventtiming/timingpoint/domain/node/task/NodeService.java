@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.task;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
@@ -100,6 +101,25 @@ public final class NodeService extends LifecycleComponent {
     @Override
     protected void onDeactivate() {
         state.markDerivedTimingUnavailable();
+    }
+
+    /** Returns the maintained unique-team count for one location. */
+    public int uniqueTeamRegistrationCount(LocationId locationId) {
+        failIfInvalidArgument(locationId != null, "locationId must not be null");
+
+        if (taskRunner.isExecutingOnCurrentThread()) {
+            return state.uniqueTeamRegistrationCount(locationId);
+        }
+
+        final int[] count = new int[1];
+        taskRunner.await(
+                taskRunner.runTask(
+                        () -> {
+                            count[0] = state.uniqueTeamRegistrationCount(locationId);
+                            return TaskStep.done();
+                        }),
+                TASK_QUERY_TIMEOUT);
+        return count[0];
     }
 
     /** Returns the current derived stage ranking in Task Lane order. */
