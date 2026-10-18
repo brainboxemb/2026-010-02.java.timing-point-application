@@ -18,10 +18,10 @@ import java.util.function.BiConsumer;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Runs passage-filter sweeps while TagProcessor is active.
+ * Runs passage-filter sweeps while TagProcessor has an open passage.
  *
  * <p>The observation lane and this job use the same single-thread scheduler.
- * Filter state therefore needs no internal locking.</p>
+ * Filter state is changed only on that scheduler thread.</p>
  */
 final class FilterJob {
     private final ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration;
@@ -29,9 +29,10 @@ final class FilterJob {
     private final TagObservationFilter filter;
 
     private volatile List<TagPassageSnapshot> passageSnapshots = Collections.emptyList();
-    private ScheduledFuture<?> schedule;
+    private volatile boolean active;
+    private ScheduledFuture<?> scheduled;
 
-    /** Creates the filter and stores the scheduler used for its periodic sweep. */
+    /** Creates the filter and stores the scheduler used for delayed sweeps. */
     FilterJob(
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
             MonotonicClock monotonicClock,
@@ -54,30 +55,27 @@ final class FilterJob {
                 validObservationCallback);
     }
 
-    /** Starts periodic filtering and returns immediately. */
+    /** Enables the job and resumes a retained open passage without waiting for a sweep. */
     synchronized void start() {
-        if (schedule == null) {
-            long cadenceNanos = policyConfiguration.currentValue().sweepCadenceNanos();
-            schedule = scheduler.scheduleWithFixedDelay(
-                    this::run,
-                    cadenceNanos,
-                    cadenceNanos,
-                    TimeUnit.NANOSECONDS);
+        if (active) {
+            return;
         }
+
+        active = true;
+        scheduler.execute(this::scheduleNext);
     }
 
-    /** Stops future filter sweeps; a sweep already running may finish. */
+    /** Disables the job and cancels its one pending delayed sweep. */
     synchronized void stop() {
-        if (schedule != null) {
-            schedule.cancel(false);
-            schedule = null;
-        }
+        active = false;
+        cancelScheduled();
     }
 
-    /** Adds one mapped observation on the shared TagProcessor scheduler thread. */
+    /** Adds one mapped observation and schedules a sweep when passage state exists. */
     void add(RegistrationId registrationId, TagObservation observation) {
         filter.add(registrationId, observation);
         updateSnapshots();
+        scheduleNext();
     }
 
     /** Discards an open passage after duplicate suppression starts. */
@@ -91,34 +89,61 @@ final class FilterJob {
         return passageSnapshots;
     }
 
-    /** Queues policy reconciliation on the TagProcessor scheduler and returns immediately. */
+    /** Queues reconciliation with the current policy and returns immediately. */
     void policyChanged(ConfigurationChange<TagProcessingPolicy> change) {
         failIfInvalidArgument(change != null, "change must not be null");
-        scheduler.execute(this::applyPolicyChange);
+
+        if (active) {
+            scheduler.execute(this::applyPolicyChange);
+        }
     }
 
-    /** Runs one periodic filter sweep. */
+    /** Runs one delayed sweep and schedules another only while a passage remains open. */
     private void run() {
-        filter.periodic();
-        updateSnapshots();
-    }
-
-    /** Re-evaluates current passages and replaces the active schedule with the new cadence. */
-    private synchronized void applyPolicyChange() {
-        if (schedule == null) {
-            return;
+        synchronized (this) {
+            scheduled = null;
+            if (!active) {
+                return;
+            }
         }
 
         filter.periodic();
         updateSnapshots();
+        scheduleNext();
+    }
 
-        schedule.cancel(false);
+    /** Applies the current policy and replans the one pending sweep. */
+    private void applyPolicyChange() {
+        synchronized (this) {
+            if (!active) {
+                return;
+            }
+            cancelScheduled();
+        }
+
+        filter.periodic();
+        updateSnapshots();
+        scheduleNext();
+    }
+
+    /** Schedules one future sweep when the job is active and passage state exists. */
+    private synchronized void scheduleNext() {
+        if (!active || scheduled != null || !filter.hasPendingState()) {
+            return;
+        }
+
         long cadenceNanos = policyConfiguration.currentValue().sweepCadenceNanos();
-        schedule = scheduler.scheduleWithFixedDelay(
-                this::run,
-                cadenceNanos,
-                cadenceNanos,
-                TimeUnit.NANOSECONDS);
+        scheduled = scheduler.schedule(this::run, cadenceNanos, TimeUnit.NANOSECONDS);
+    }
+
+    /** Cancels the one pending delayed sweep when one exists. */
+    private void cancelScheduled() {
+        ScheduledFuture<?> current = scheduled;
+        scheduled = null;
+
+        if (current != null) {
+            current.cancel(false);
+        }
     }
 
     /** Copies current filter state for lock-free engineering reads. */
