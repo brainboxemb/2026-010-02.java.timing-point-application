@@ -36,21 +36,25 @@ public final class ActiveRegistrations {
         teamsByLocation.clear();
     }
 
-    /** Applies one TimingData record and updates active registrations and location counts. */
-    public void apply(TimingData data, Function<RegistrationId, TeamId> teamResolver) {
+    /** Applies one TimingData record and reports an actual active-registration change. */
+    public Change apply(TimingData data, Function<RegistrationId, TeamId> teamResolver) {
 
         failIfInvalidArgument(data != null, "data must not be null");
         failIfInvalidArgument(teamResolver != null, "teamResolver must not be null");
 
+        Change change = null;
         RegistrationId registrationId = registrationIdOrNull(data);
         if (registrationId != null) {
             TimingData.RegistrationAction action = registrationAction(data);
             if (action == TimingData.RegistrationAction.ADD) {
-                addRegistration(data, registrationId, teamResolver.apply(registrationId));
+                TeamId teamId = teamResolver.apply(registrationId);
+                addRegistration(data, registrationId, teamId);
+                change = Change.added(data, teamId);
             } else if (action == TimingData.RegistrationAction.REV) {
-                revokeRegistration(data, registrationId);
+                change = revokeRegistration(data, registrationId);
             }
         }
+        return change;
     }
 
     /** Updates the resolved team for all active occurrences of one registration. */
@@ -100,12 +104,17 @@ public final class ActiveRegistrations {
     }
 
     /** Revokes exactly one active registration occurrence when its ADD identity matches. */
-    private void revokeRegistration(TimingData revoke, RegistrationId registrationId) {
+    private Change revokeRegistration(TimingData revoke, RegistrationId registrationId) {
 
+        Change change = null;
         TimingData activeRegistration = removeMatchingRegistration(revoke, registrationId);
         if (activeRegistration != null) {
+            RegistrationState registration = registrationsById.get(registrationId);
+            TeamId teamId = registration.teamId;
             removeOccurrence(registrationId, activeRegistration.locationId());
+            change = Change.removed(activeRegistration, teamId);
         }
+        return change;
     }
 
     /** Removes one occurrence from the registration and location-team indexes. */
@@ -200,6 +209,54 @@ public final class ActiveRegistrations {
             action = ((TimingData.ManualRegistration) data).action();
         }
         return action;
+    }
+
+
+    /** One actual ADD or matched REV change to the active-registration set. */
+    public static final class Change {
+        public enum Action {
+            ADDED,
+            REMOVED
+        }
+
+        private final Action action;
+        private final TimingData registration;
+        private final TeamId teamId;
+
+        private Change(Action action, TimingData registration, TeamId teamId) {
+
+            this.action = action;
+            this.registration = registration;
+            this.teamId = teamId;
+        }
+
+        private static Change added(TimingData registration, TeamId teamId) {
+
+            return new Change(Action.ADDED, registration, teamId);
+        }
+
+        private static Change removed(TimingData registration, TeamId teamId) {
+
+            return new Change(Action.REMOVED, registration, teamId);
+        }
+
+        /** Returns whether the active registration was added or removed. */
+        public Action action() {
+
+            return action;
+        }
+
+        /** Returns the active ADD record affected by this change. */
+        public TimingData registration() {
+
+            return registration;
+        }
+
+        /** Returns the team resolved for the registration when this change occurred. */
+        public TeamId teamId() {
+
+            return teamId;
+        }
     }
 
     /** Active occurrences and current team resolution for one RegistrationId. */
