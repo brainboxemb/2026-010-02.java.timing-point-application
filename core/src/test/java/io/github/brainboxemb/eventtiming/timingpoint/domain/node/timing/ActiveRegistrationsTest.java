@@ -17,7 +17,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-/** Verifies the compact active-registration fold used instead of shadow TimingData history. */
+/** Verifies active registration state and per-location team counts. */
 public class ActiveRegistrationsTest {
     private static final NodeId NODE_ID = new NodeId("A");
     private static final LocationId LOCATION_ID = new LocationId(1);
@@ -25,7 +25,7 @@ public class ActiveRegistrationsTest {
 
     /** Verifies lifecycle records are ignored and one REV removes only one matching active ADD. */
     @Test
-    public void foldsHistoryIntoOnlyCurrentlyActiveRegistrations() {
+    public void foldsRecordsIntoOnlyCurrentlyActiveRegistrations() {
         ActiveRegistrations active = new ActiveRegistrations();
         TimingData first = registration(1L, TimingData.RegistrationAction.ADD);
         TimingData second = registration(2L, TimingData.RegistrationAction.ADD);
@@ -46,7 +46,6 @@ public class ActiveRegistrationsTest {
     @Test
     public void uniqueTeamCountsAreMaintainedPerLocation() {
         ActiveRegistrations active = new ActiveRegistrations();
-        RegistrationId registrationId = new RegistrationId("RT-A-0001");
         TeamId teamId = new TeamId("0001");
 
         active.apply(registration(1L, TimingData.RegistrationAction.ADD),
@@ -58,7 +57,6 @@ public class ActiveRegistrationsTest {
 
         assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
         assertEquals(1, active.uniqueTeamCount(new LocationId(2)));
-        assertEquals(1, active.uniqueTeamCount());
 
         active.apply(registration(4L, TimingData.RegistrationAction.REV),
                 id -> teamId);
@@ -67,7 +65,6 @@ public class ActiveRegistrationsTest {
                 id -> teamId);
         assertEquals(0, active.uniqueTeamCount(LOCATION_ID));
         assertEquals(1, active.uniqueTeamCount(new LocationId(2)));
-        assertEquals(1, active.uniqueTeamCount());
     }
 
     /** Different registration IDs for one team count once at the same location. */
@@ -85,10 +82,28 @@ public class ActiveRegistrationsTest {
         active.apply(second, id -> teamId);
 
         assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
-        assertEquals(1, active.uniqueTeamCount());
 
         active.apply(registration(3L, TimingData.RegistrationAction.REV), id -> teamId);
         assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
+    }
+
+    /** A new ADD may also carry a newer team resolution for existing occurrences. */
+    @Test
+    public void newerTeamResolutionMovesExistingOccurrencesBeforeAddingTheNewOne() {
+        ActiveRegistrations active = new ActiveRegistrations();
+        TeamId firstTeam = new TeamId("0001");
+        TeamId secondTeam = new TeamId("0002");
+
+        active.apply(registration(1L, TimingData.RegistrationAction.ADD), id -> firstTeam);
+        active.apply(registration(2L, TimingData.RegistrationAction.ADD), id -> secondTeam);
+
+        assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
+
+        active.apply(registration(3L, TimingData.RegistrationAction.REV), id -> secondTeam);
+        assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
+
+        active.apply(registration(4L, TimingData.RegistrationAction.REV), id -> secondTeam);
+        assertEquals(0, active.uniqueTeamCount(LOCATION_ID));
     }
 
     /** A REV with an unmatched original time must not change any count. */

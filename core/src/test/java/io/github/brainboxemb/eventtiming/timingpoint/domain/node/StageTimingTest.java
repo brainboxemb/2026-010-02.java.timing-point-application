@@ -68,6 +68,8 @@ public class StageTimingTest {
         assertEquals(2, ranking.size());
         assertEquals(1, ranking.get(0).rank());
         assertEquals(new TeamId("0002"), ranking.get(0).teamId());
+        assertEquals(Instant.parse("2026-10-13T12:00:00Z"), ranking.get(0).startedAt().instant());
+        assertEquals(Instant.parse("2026-10-13T12:00:10Z"), ranking.get(0).finishedAt().instant());
         assertEquals(Duration.ofSeconds(10), ranking.get(0).elapsed());
         assertEquals(2, ranking.get(1).rank());
         assertEquals(new TeamId("0001"), ranking.get(1).teamId());
@@ -232,6 +234,9 @@ public class StageTimingTest {
         List<StageTime> second =
                 ranking(fixture.stageTiming, active(Collections.singletonList(record)), ZoneOffset.UTC);
 
+        assertEquals(Instant.parse("2026-10-13T12:00:00Z"), first.get(0).startedAt().instant());
+        assertEquals(Instant.parse("2026-10-13T12:00:30Z"), second.get(0).startedAt().instant());
+        assertEquals(first.get(0).finishedAt(), second.get(0).finishedAt());
         assertEquals(Duration.ofSeconds(60), first.get(0).elapsed());
         assertEquals(Duration.ofSeconds(30), second.get(0).elapsed());
         assertEquals(1L, record.sequenceNumber());
