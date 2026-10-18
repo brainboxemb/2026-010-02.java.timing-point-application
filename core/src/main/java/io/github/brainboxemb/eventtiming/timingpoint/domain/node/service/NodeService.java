@@ -167,7 +167,7 @@ public final class NodeService extends LifecycleComponent {
     private void onLogBookStatus(LogBookStatus status) {
 
         failIfInvalidArgument(status != null, "status must not be null");
-        mainTask.statusChanged(status);
+        mainTask.logBookStatusChanged(status);
     }
 
     /** Wakes DataTask after a committed TimingData change. */
@@ -195,12 +195,12 @@ public final class NodeService extends LifecycleComponent {
 
     /** Handles only LogBook availability transitions. */
     private final class MainTask extends AbstractTask {
-        private LogBookStatus status = LogBookStatus.INIT;
+        private LogBookStatus logBookStatus = LogBookStatus.INIT;
 
         /** Stores the latest LogBook status and wakes MainTask. */
-        private synchronized void statusChanged(LogBookStatus newStatus) {
+        private synchronized void logBookStatusChanged(LogBookStatus newStatus) {
 
-            status = newStatus;
+            logBookStatus = newStatus;
             wake(taskRunner);
         }
 
@@ -208,10 +208,10 @@ public final class NodeService extends LifecycleComponent {
         private synchronized void stop() {
 
             cancel();
-            status = LogBookStatus.INIT;
+            logBookStatus = LogBookStatus.INIT;
         }
 
-        /** MainTask keeps its status between wake-driven runs. */
+        /** MainTask keeps the LogBook status between wake-driven runs. */
         @Override
         protected void resetForRun() {
             // Status is updated by LogBook events.
@@ -221,7 +221,7 @@ public final class NodeService extends LifecycleComponent {
         @Override
         public TaskStep runStep() {
 
-            switch (currentStatus()) {
+            switch (currentLogBookStatus()) {
                 case LOADED:
                     dataTask.loadAll();
                     break;
@@ -237,9 +237,9 @@ public final class NodeService extends LifecycleComponent {
         }
 
         /** Returns the latest LogBook status. */
-        private synchronized LogBookStatus currentStatus() {
+        private synchronized LogBookStatus currentLogBookStatus() {
 
-            return status;
+            return logBookStatus;
         }
     }
 }
