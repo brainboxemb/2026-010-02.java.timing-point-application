@@ -88,6 +88,25 @@ public class ActiveRegistrationsTest {
         assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
     }
 
+    /** A new ADD may also carry a newer team resolution for existing occurrences. */
+    @Test
+    public void newerTeamResolutionMovesExistingOccurrencesBeforeAddingTheNewOne() {
+        ActiveRegistrations active = new ActiveRegistrations();
+        TeamId firstTeam = new TeamId("0001");
+        TeamId secondTeam = new TeamId("0002");
+
+        active.apply(registration(1L, TimingData.RegistrationAction.ADD), id -> firstTeam);
+        active.apply(registration(2L, TimingData.RegistrationAction.ADD), id -> secondTeam);
+
+        assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
+
+        active.apply(registration(3L, TimingData.RegistrationAction.REV), id -> secondTeam);
+        assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
+
+        active.apply(registration(4L, TimingData.RegistrationAction.REV), id -> secondTeam);
+        assertEquals(0, active.uniqueTeamCount(LOCATION_ID));
+    }
+
     /** A REV with an unmatched original time must not change any count. */
     @Test
     public void unmatchedRevokeDoesNotChangeCounts() {
