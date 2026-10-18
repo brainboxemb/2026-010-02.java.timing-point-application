@@ -86,12 +86,14 @@ public final class ActiveRegistrations {
 
         RegistrationState registration =
                 registrationsById.computeIfAbsent(registrationId, ignored -> new RegistrationState());
-        registration.occurrencesByLocation.merge(data.locationId(), 1, Integer::sum);
 
         if (!Objects.equals(registration.teamId, teamId)) {
             moveTeamCounts(registration, registration.teamId, teamId);
             registration.teamId = teamId;
-        } else if (teamId != null) {
+        }
+
+        registration.occurrencesByLocation.merge(data.locationId(), 1, Integer::sum);
+        if (teamId != null) {
             adjustTeamCount(data.locationId(), teamId, 1);
         }
     }
