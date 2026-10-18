@@ -26,7 +26,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Owns node-local race data and derived timing state.
  *
  * <p>Recovery receives only the recovered LogBook head. NodeService then reads
- * committed history itself in bounded batches. Later single-record commits are
+ * committed TimingData itself in bounded batches. Later single-record commits are
  * applied incrementally without reading them back from the LogBook.</p>
  */
 public final class NodeService extends LifecycleComponent {
@@ -37,19 +37,19 @@ public final class NodeService extends LifecycleComponent {
     public static final EventInput<NodeService, LogBookRecoveryStatus> LOGBOOK_RECOVERED =
             EventInput.of(
                     (service, source) ->
-                            source.subscribe(service::logBookRecovered));
+                            source.subscribe(service::onLogBookRecovered));
 
     /** Newly committed TimingData used for incremental derived-state updates. */
     public static final EventInput<NodeService, TimingData> COMMITTED_TIMING_DATA =
             EventInput.of(
                     (service, source) ->
-                            source.subscribe(service::timingDataCommitted));
+                            source.subscribe(service::onTimingDataCommitted));
 
     private final NodeId nodeId;
     private final SerialTaskRunner taskRunner;
     private final NodeServiceState state;
     private final StageTiming stageTiming;
-    private final NodeServiceHistoryTask historyTask;
+    private final NodeServiceRecoveryTask recoveryTask;
 
     /** Creates the service on the TimingNode Task Lane. */
     public NodeService(
@@ -71,11 +71,11 @@ public final class NodeService extends LifecycleComponent {
                         state.eventData(),
                         state.teamAssignments(),
                         state.stageStartTimes());
-        historyTask =
-                new NodeServiceHistoryTask(
+        recoveryTask =
+                new NodeServiceRecoveryTask(
                         logBook,
                         state,
-                        this::historyFailed);
+                        this::recoveryFailed);
     }
 
     /** Verifies that TimingNode started the shared Task Lane first. */
@@ -87,7 +87,7 @@ public final class NodeService extends LifecycleComponent {
     /** Stops history processing and makes derived timing unavailable. */
     @Override
     protected void onDeactivate() {
-        historyTask.stop();
+        recoveryTask.stop();
         state.markDerivedTimingUnavailable();
     }
 
@@ -104,21 +104,21 @@ public final class NodeService extends LifecycleComponent {
     }
 
     /** Starts bounded reconstruction after successful LogBook recovery. */
-    private void logBookRecovered(LogBookRecoveryStatus recovery) {
+    private void onLogBookRecovered(LogBookRecoveryStatus recovery) {
         failIfInvalidArgument(recovery != null, "recovery must not be null");
         if (!recovery.failed()) {
-            historyTask.recover(
+            recoveryTask.recover(
                     recovery.timingDataHead(),
                     taskRunner);
         }
     }
 
     /** Applies one new commit directly unless startup reconstruction is still catching up. */
-    private void timingDataCommitted(TimingData data) {
+    private void onTimingDataCommitted(TimingData data) {
         failIfInvalidArgument(data != null, "data must not be null");
 
-        if (historyTask.isRecovering()) {
-            historyTask.extendTo(
+        if (recoveryTask.isRecovering()) {
+            recoveryTask.extendTo(
                     data.sequenceNumber(),
                     taskRunner);
         } else {
@@ -134,16 +134,16 @@ public final class NodeService extends LifecycleComponent {
         return NodeServiceQuery.execute(
                 taskRunner,
                 QUERY_TIMEOUT,
-                historyTask.isRecovering()
-                        ? historyTask.recoveryCompletion()
+                recoveryTask.isRecovering()
+                        ? recoveryTask.recoveryCompletion()
                         : null,
                 operation);
     }
 
-    /** Reports failed startup history reconstruction. */
-    private void historyFailed(Throwable failure) {
+    /** Reports failed startup TimingData reconstruction. */
+    private void recoveryFailed(Throwable failure) {
         LOG.error(
-                "NodeService history recovery failed for node {}",
+                "NodeService TimingData recovery failed for node {}",
                 nodeId.value(),
                 failure);
     }
