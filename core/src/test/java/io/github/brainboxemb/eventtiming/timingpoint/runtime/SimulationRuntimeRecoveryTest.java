@@ -289,7 +289,8 @@ public class SimulationRuntimeRecoveryTest {
         antenna.emit(
                 tagId,
                 -42,
-                observedAt);
+                observedAt.instant().toEpochMilli(),
+                System.nanoTime());
 
         assertTrue(
                 "simulated antenna observation did not commit a registration",

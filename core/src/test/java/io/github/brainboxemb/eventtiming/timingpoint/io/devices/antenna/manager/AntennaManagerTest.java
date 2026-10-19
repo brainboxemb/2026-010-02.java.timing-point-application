@@ -343,7 +343,10 @@ public class AntennaManagerTest {
                             new TagId("X0001A"),
                             -40,
                             TimingTimestamp.parse(
-                                    "2026-10-05T12:00:00.000000000Z"));
+                                    "2026-10-05T12:00:00.000000000Z")
+                                    .instant()
+                                    .toEpochMilli(),
+                            123L);
             antenna.emit(
                     observation);
 

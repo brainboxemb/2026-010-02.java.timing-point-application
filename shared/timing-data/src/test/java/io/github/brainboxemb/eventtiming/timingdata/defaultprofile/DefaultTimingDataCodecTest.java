@@ -41,7 +41,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"seqNr\":1,"
                         + "\"locId\":7,"
                         + "\"recType\":\"AUTO_REG\","
-                        + "\"time\":\"2026-09-30T20:01:39.12Z\","
+                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
                         + "\"regId\":\"A0042\","
                         + "\"code\":[\"ADD\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.450Z\"}",
@@ -138,7 +138,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"seqNr\":3,"
                         + "\"locId\":7,"
                         + "\"recType\":\"NODE_INFO\","
-                        + "\"time\":\"2026-09-30T20:01:39.12Z\","
+                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
                         + "\"code\":[\"OPEN\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.450Z\"}",
                 json);
@@ -169,7 +169,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"seqNr\":3,"
                         + "\"locId\":7,"
                         + "\"recType\":\"NODE_INFO\","
-                        + "\"time\":\"2026-09-30T20:01:39.12Z\","
+                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
                         + "\"regId\":\"A0042\","
                         + "\"code\":[\"OPEN\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
@@ -181,7 +181,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"seqNr\":4,"
                         + "\"locId\":7,"
                         + "\"recType\":\"NODE_INFO\","
-                        + "\"time\":\"2026-09-30T20:01:39.12Z\","
+                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
                         + "\"code\":[\"ADD\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
                         + "}"));
@@ -254,7 +254,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"seqNr\":1,"
                         + "\"locId\":7,"
                         + "\"recType\":\"AUTO_REG\","
-                        + "\"time\":\"2026-09-30T20:01:39.12Z\","
+                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
                         + "\"regId\":\"A0042\","
                         + "\"code\":[\"ADD\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
@@ -281,7 +281,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"seqNr\":2,"
                         + "\"code\":[\"AUTO\",\"ADD\"],"
                         + "\"recType\":\"MAN_REG\","
-                        + "\"time\":\"2026-09-30T20:01:39.12Z\","
+                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
                         + "\"nodeId\":\"A\""
                         + "}"));
 
@@ -313,14 +313,14 @@ public class DefaultTimingDataCodecTest {
 
         assertTrue(
                 json.contains(
-                        "\"time\":\"2026-09-30T20:01:39.90Z\""));
+                        "\"time\":\"2026-09-30T20:01:39.900Z\""));
         assertTrue(
                 json.contains(
                         "\"recTime\":\"2026-09-30T20:01:45.100Z\""));
     }
 
     @Test
-    public void factoryStoresFinerInputAtCentisecondPrecision() throws Exception {
+    public void factoryStoresFinerInputAtMillisecondPrecision() throws Exception {
         TimingData data =
                 factory.createAutomaticRegistration(
                         new TimingDataFactory.Context(
@@ -335,14 +335,14 @@ public class DefaultTimingDataCodecTest {
 
         assertEquals(
                 TimingTimestamp.parse(
-                        "2026-09-30T20:01:39.12Z"),
+                        "2026-09-30T20:01:39.129Z"),
                 data.effectiveTime());
         assertTrue(
                 new String(
                         codec.encode(data),
                         StandardCharsets.UTF_8)
                         .contains(
-                                "\"time\":\"2026-09-30T20:01:39.12Z\""));
+                                "\"time\":\"2026-09-30T20:01:39.120Z\""));
     }
 
     @Test
@@ -364,11 +364,11 @@ public class DefaultTimingDataCodecTest {
 
         assertEquals(
                 TimingTimestamp.parse(
-                        "2026-09-30T20:01:39.12Z"),
+                        "2026-09-30T20:01:39.123Z"),
                 decoded.effectiveTime());
         assertEquals(
                 TimingTimestamp.parse(
-                        "2026-09-30T20:01:45.45Z"),
+                        "2026-09-30T20:01:45.456Z"),
                 decoded.recordedAt());
     }
 
@@ -395,7 +395,7 @@ public class DefaultTimingDataCodecTest {
                             + "\"seqNr\":9,"
                             + "\"locId\":7,"
                             + "\"recType\":\"FUTURE_RECORD\","
-                            + "\"time\":\"2026-09-30T20:01:39.12Z\","
+                            + "\"time\":\"2026-09-30T20:01:39.120Z\","
                             + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
                             + "}"));
             fail("expected unsupported record type");
@@ -423,7 +423,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"seqNr\":1,"
                         + "\"locId\":7,"
                         + "\"recType\":\"AUTO_REG\","
-                        + "\"time\":\"2026-09-30T20:01:39.12Z\","
+                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
                         + "\"regId\":\"A0042\","
                         + "\"code\":[\"REV\",\"AUTO\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
@@ -441,7 +441,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"seqNr\":1,"
                         + "\"locId\":7,"
                         + "\"recType\":\"MAN_REG\","
-                        + "\"time\":\"2026-09-30T20:01:39.12Z\","
+                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
                         + "\"regId\":\"A0042\","
                         + "\"code\":[\"ADD\",\"AUTO\",\"MAN\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
@@ -457,7 +457,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"seqNr\":1,"
                         + "\"locId\":7,"
                         + "\"recType\":\"MAN_REG\","
-                        + "\"time\":\"2026-09-30T20:01:39.12Z\","
+                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
                         + "\"regId\":\"A0042\","
                         + "\"code\":[\"ADD\",\"ADD\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
