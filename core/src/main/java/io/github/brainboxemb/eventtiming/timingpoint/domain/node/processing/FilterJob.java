@@ -102,13 +102,23 @@ final class FilterJob {
         }
     }
 
-    /** Reconciles retained filter state when the job becomes active. */
+    /**
+     * Re-enters scheduling after activation without creating filter state.
+     *
+     * <p>If passages survived a lifecycle pause, only their pending/empty state
+     * is republished and one delayed sweep is scheduled.</p>
+     */
     private void resume() {
         updatePendingState();
         scheduleNext();
     }
 
-    /** Runs one delayed sweep and schedules another only while a passage remains open. */
+    /**
+     * Runs one delayed idle-flush sweep.
+     *
+     * <p>The scheduled reference is cleared before filtering so the same run
+     * may schedule exactly one successor when passages remain open.</p>
+     */
     private void run() {
         synchronized (this) {
             scheduled = null;
@@ -122,7 +132,13 @@ final class FilterJob {
         scheduleNext();
     }
 
-    /** Applies the current policy and replans the one pending sweep. */
+    /**
+     * Applies new timing thresholds to already-open passages.
+     *
+     * <p>The previously planned delay used the old policy, so it is cancelled.
+     * The filter is evaluated immediately and, if state remains, exactly one
+     * new sweep is scheduled with the current cadence.</p>
+     */
     private void applyPolicyChange() {
         synchronized (this) {
             if (!active) {
@@ -141,7 +157,12 @@ final class FilterJob {
         pendingPassages = filter.hasPendingState();
     }
 
-    /** Schedules one future sweep when the job is active and passage state exists. */
+    /**
+     * Keeps at most one delayed passage sweep outstanding.
+     *
+     * <p>No timer is kept alive while the filter is empty. A new observation
+     * re-enters this method and starts housekeeping again.</p>
+     */
     private synchronized void scheduleNext() {
         if (!active || scheduled != null || !filter.hasPendingState()) {
             return;
