@@ -21,8 +21,9 @@ public class RegistrationDuplicateFilterTest {
                 new RegistrationDuplicateFilter(policy(8), clock, metrics);
         RegistrationId id = new RegistrationId("N0001");
 
-        assertEquals(16, metrics.snapshot().duplicateTableInitialCapacity());
-        assertEquals(16, metrics.snapshot().duplicateTableCapacity());
+        assertEquals(
+                ActiveDuplicateRegistrations.INITIAL_CAPACITY,
+                metrics.snapshot().duplicateStateInitialCapacity());
         assertFalse(filter.isDuplicate(id));
         assertFalse(filter.hasPendingState());
 
@@ -30,8 +31,8 @@ public class RegistrationDuplicateFilterTest {
 
         assertTrue(filter.hasPendingState());
         assertTrue(filter.isDuplicate(id));
-        assertEquals(1, metrics.snapshot().duplicateTableSize());
-        assertEquals(1, metrics.snapshot().duplicateTablePeakSize());
+        assertEquals(1, metrics.snapshot().duplicateStateSize());
+        assertEquals(1, metrics.snapshot().duplicateStatePeakSize());
     }
 
     @Test
@@ -62,38 +63,77 @@ public class RegistrationDuplicateFilterTest {
     }
 
     @Test
-    public void periodicCleanupRemovesExpiredState() {
-        FakeMonotonicClock clock = new FakeMonotonicClock();
-        RegistrationDuplicateFilter filter =
-                new RegistrationDuplicateFilter(policy(8), clock, new TagProcessingMetrics());
-        RegistrationId id = new RegistrationId("N0001");
-
-        filter.recordRegistration(id);
-        filter.periodic();
-        clock.advanceNanos(100L);
-        filter.periodic();
-
-        assertFalse(filter.hasPendingState());
-    }
-
-    @Test
-    public void primitiveTableGrowsOnlyAfterInitialLoadThresholdIsExceeded() {
+    public void periodicCleanupKeepsOnlyRegistrationsInsideDuplicateWindow() {
         FakeMonotonicClock clock = new FakeMonotonicClock();
         TagProcessingMetrics metrics = new TagProcessingMetrics();
         RegistrationDuplicateFilter filter =
-                new RegistrationDuplicateFilter(policy(2), clock, metrics);
-
-        assertEquals(4, metrics.snapshot().duplicateTableInitialCapacity());
+                new RegistrationDuplicateFilter(policy(8), clock, metrics);
 
         filter.recordRegistration(new RegistrationId("N0001"));
+        clock.advanceNanos(50L);
         filter.recordRegistration(new RegistrationId("N0002"));
-        assertEquals(4, metrics.snapshot().duplicateTableCapacity());
+        clock.advanceNanos(50L);
 
-        filter.recordRegistration(new RegistrationId("N0003"));
+        filter.periodic();
 
-        assertEquals(8, metrics.snapshot().duplicateTableCapacity());
-        assertEquals(3, metrics.snapshot().duplicateTableSize());
-        assertEquals(3, metrics.snapshot().duplicateTablePeakSize());
+        assertFalse(filter.isDuplicate(new RegistrationId("N0001")));
+        assertTrue(filter.isDuplicate(new RegistrationId("N0002")));
+        assertEquals(1, metrics.snapshot().duplicateStateSize());
+    }
+
+    @Test
+    public void duplicateStateCapacityIsIndependentFromObservationQueueCapacity() {
+        TagProcessingMetrics smallQueueMetrics = new TagProcessingMetrics();
+        TagProcessingMetrics largeQueueMetrics = new TagProcessingMetrics();
+
+        new RegistrationDuplicateFilter(
+                policy(2),
+                new FakeMonotonicClock(),
+                smallQueueMetrics);
+        new RegistrationDuplicateFilter(
+                policy(4096),
+                new FakeMonotonicClock(),
+                largeQueueMetrics);
+
+        assertEquals(
+                ActiveDuplicateRegistrations.INITIAL_CAPACITY,
+                smallQueueMetrics.snapshot().duplicateStateCapacity());
+        assertEquals(
+                ActiveDuplicateRegistrations.INITIAL_CAPACITY,
+                largeQueueMetrics.snapshot().duplicateStateCapacity());
+    }
+
+    @Test
+    public void primitiveStateGrowsOnlyWhenActiveRegistrationsExceedCurrentStorage() {
+        FakeMonotonicClock clock = new FakeMonotonicClock();
+        TagProcessingMetrics metrics = new TagProcessingMetrics();
+        RegistrationDuplicateFilter filter =
+                new RegistrationDuplicateFilter(policy(8), clock, metrics);
+
+        for (int number = 1;
+                number <= ActiveDuplicateRegistrations.INITIAL_CAPACITY;
+                number++) {
+            filter.recordRegistration(new RegistrationId('N', number));
+        }
+
+        assertEquals(
+                ActiveDuplicateRegistrations.INITIAL_CAPACITY,
+                metrics.snapshot().duplicateStateCapacity());
+
+        filter.recordRegistration(
+                new RegistrationId(
+                        'N',
+                        ActiveDuplicateRegistrations.INITIAL_CAPACITY + 1));
+
+        assertEquals(
+                ActiveDuplicateRegistrations.INITIAL_CAPACITY * 2,
+                metrics.snapshot().duplicateStateCapacity());
+        assertEquals(
+                ActiveDuplicateRegistrations.INITIAL_CAPACITY + 1,
+                metrics.snapshot().duplicateStateSize());
+        assertEquals(
+                ActiveDuplicateRegistrations.INITIAL_CAPACITY + 1,
+                metrics.snapshot().duplicateStatePeakSize());
     }
 
     @Test
@@ -116,7 +156,7 @@ public class RegistrationDuplicateFilterTest {
 
         assertFalse(filter.isDuplicate(id));
         assertFalse(filter.hasPendingState());
-        assertEquals(0, metrics.snapshot().duplicateTableSize());
+        assertEquals(0, metrics.snapshot().duplicateStateSize());
     }
 
     private static TagProcessingPolicy policy(int queueCapacity) {
