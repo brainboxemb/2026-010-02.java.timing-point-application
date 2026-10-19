@@ -247,6 +247,7 @@ public final class ApiClient {
                 null));
     }
 
+    /** Parses IF-03 v1 functional status; the baseline contains nodes but no problems field. */
     static StatusResult parseStatus(String rawJson) throws IOException {
         JsonNode root = JSON.readTree(rawJson);
         List<TimingNodeInfo> nodes = new ArrayList<>();
@@ -257,21 +258,23 @@ public final class ApiClient {
         for (JsonNode node : nodeArray) {
             nodes.add(new TimingNodeInfo(
                     requiredText(node, "id"),
-                    optionalInt(node, "locationId"),
+                    optionalInt(node, "locId"),
                     requiredText(node, "state")));
         }
 
         List<ProblemInfo> problems = new ArrayList<>();
-        JsonNode problemArray = required(root, "problems");
-        if (!problemArray.isArray()) {
-            throw new IllegalArgumentException("IF-03 field is not an array: problems");
-        }
-        for (JsonNode problem : problemArray) {
-            problems.add(new ProblemInfo(
-                    requiredText(problem, "code"),
-                    requiredText(problem, "severity"),
-                    optionalText(problem, "nodeId"),
-                    requiredText(problem, "message")));
+        JsonNode problemArray = root.get("problems");
+        if (problemArray != null) {
+            if (!problemArray.isArray()) {
+                throw new IllegalArgumentException("IF-03 field is not an array: problems");
+            }
+            for (JsonNode problem : problemArray) {
+                problems.add(new ProblemInfo(
+                        requiredText(problem, "code"),
+                        requiredText(problem, "severity"),
+                        optionalText(problem, "nodeId"),
+                        requiredText(problem, "message")));
+            }
         }
 
         return new StatusResult(
