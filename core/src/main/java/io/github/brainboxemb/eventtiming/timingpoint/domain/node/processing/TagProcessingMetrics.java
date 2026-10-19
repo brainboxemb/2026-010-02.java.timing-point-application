@@ -74,7 +74,7 @@ public final class TagProcessingMetrics {
         passagePoolPeakInUse = peakInUse;
     }
 
-    /** Publishes the primitive duplicate table's current capacity and occupancy. */
+    /** Publishes current active duplicate-state capacity and occupancy. */
     void recordDuplicateState(
             int initialCapacity,
             int capacity,
