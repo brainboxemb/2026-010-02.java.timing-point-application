@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.service;
 
-import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
@@ -10,7 +9,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTimingRecord;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.TeamRank;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.TeamRanking;
@@ -54,7 +53,6 @@ public final class NodeService extends LifecycleComponent {
     private final SerialTaskRunner taskRunner;
     private final RaceDataState raceData;
     private final ActiveRegistrations activeRegistrations;
-    private final StageTiming stageTiming;
     private final TeamRanking teamRanking;
     private final DataTask dataTask;
     private final MainTask mainTask = new MainTask();
@@ -64,14 +62,12 @@ public final class NodeService extends LifecycleComponent {
             NodeId nodeId,
             SerialTaskRunner taskRunner,
             LogBookAccessor logBook,
-            EventData eventData,
             RaceDataState raceData,
             ActiveRegistrations activeRegistrations) {
 
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
-        failIfInvalidArgument(eventData != null, "eventData must not be null");
         failIfInvalidArgument(raceData != null, "raceData must not be null");
         failIfInvalidArgument(activeRegistrations != null, "activeRegistrations must not be null");
 
@@ -79,8 +75,7 @@ public final class NodeService extends LifecycleComponent {
         this.taskRunner = taskRunner;
         this.raceData = raceData;
         this.activeRegistrations = activeRegistrations;
-        stageTiming = new StageTiming(eventData, raceData.teamAssignments(), raceData.stageStartTimes());
-        teamRanking = new TeamRanking(stageTiming);
+        teamRanking = new TeamRanking(raceData);
         dataTask =
                 new DataTask(
                         taskRunner,
@@ -135,15 +130,35 @@ public final class NodeService extends LifecycleComponent {
     }
 
     /** Visits at most {@code limit} active stage passages. */
-    public int visitStageTimes(ZoneId raceTimeZone, int limit, Consumer<StageTime> visitor) {
+    public int visitStageTimingRecords(ZoneId raceTimeZone, int limit, Consumer<StageTimingRecord> visitor) {
 
         failIfInvalidArgument(raceTimeZone != null, "raceTimeZone must not be null");
         failIfInvalidArgument(limit >= 0, "limit must not be negative");
         failIfInvalidArgument(visitor != null, "visitor must not be null");
 
-        Supplier<Integer> visitPassages =
-                () -> stageTiming.visit(activeRegistrations, raceTimeZone, limit, visitor);
-        return read(visitPassages);
+        return read(() -> visitResolvedRegistrations(raceTimeZone, limit, visitor));
+    }
+
+    /** Visits active registrations, resolving race data before calculating each stage time. */
+    private int visitResolvedRegistrations(ZoneId raceTimeZone, int limit, Consumer<StageTimingRecord> visitor) {
+
+        int visited = 0;
+        for (TimingData registration : activeRegistrations.values()) {
+            if (visited >= limit) {
+                break;
+            }
+
+            RegistrationId registrationId = ActiveRegistrations.registrationIdOrNull(registration);
+            TeamId teamId = raceData.teamIdFor(registrationId);
+            if (teamId != null) {
+                io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp start = raceData.stageStartTimeFor(teamId);
+                if (start != null) {
+                    visitor.accept(StageTiming.resolve(registration, teamId, start, raceTimeZone));
+                    visited++;
+                }
+            }
+        }
+        return visited;
     }
 
     /** Visits at most {@code limit} ranked teams at one location. */

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Clarify node timing: rename StageTime to StageTimingRecord, isolate stateless stage time calculation, resolve race data through RaceDataState, and name ranking indexes for active registrations rather than candidates. Preserve active-record traversal, bounded top-N and ranking semantics.
+
 - Search active duplicate registrations from the newest storage position first, matching the common case where a duplicate follows shortly after acceptance while preserving the dense-array cleanup design.
 
 - Simplify duplicate-registration state to a short-lived dense primitive list: sizing is independent of observation queue capacity, expired entries are removed on lookup and scheduled cleanup, storage starts with a small allocation batch and grows with ordinary `Arrays.copyOf`, and runtime characterization records capacity/current/peak active-state size rather than hash-table behavior.

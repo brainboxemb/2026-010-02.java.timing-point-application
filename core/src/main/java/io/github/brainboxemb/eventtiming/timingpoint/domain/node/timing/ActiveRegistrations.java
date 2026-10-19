@@ -78,8 +78,8 @@ public final class ActiveRegistrations {
         return teams == null ? 0 : teams.size();
     }
 
-    /** Returns active registration records for same-lane StageTiming reads. */
-    Iterable<TimingData> values() {
+    /** Returns active ADD records in source order for Task Lane timing reads. */
+    public Iterable<TimingData> values() {
 
         return Collections.unmodifiableList(activeRecords);
     }
@@ -175,10 +175,10 @@ public final class ActiveRegistrations {
 
         TimingData matchingRegistration = null;
         for (int index = activeRecords.size() - 1; index >= 0 && matchingRegistration == null; index--) {
-            TimingData candidate = activeRecords.get(index);
-            boolean sameRegistration = registrationId.equals(registrationIdOrNull(candidate));
-            boolean sameLocation = Objects.equals(revoke.locationId(), candidate.locationId());
-            boolean sameTime = revoke.effectiveTime().equals(candidate.effectiveTime());
+            TimingData activeRegistration = activeRecords.get(index);
+            boolean sameRegistration = registrationId.equals(registrationIdOrNull(activeRegistration));
+            boolean sameLocation = Objects.equals(revoke.locationId(), activeRegistration.locationId());
+            boolean sameTime = revoke.effectiveTime().equals(activeRegistration.effectiveTime());
 
             if (sameRegistration && sameLocation && sameTime) {
                 matchingRegistration = activeRecords.remove(index);
@@ -188,7 +188,7 @@ public final class ActiveRegistrations {
     }
 
     /** Returns the RegistrationId for a registration record, otherwise null. */
-    private static RegistrationId registrationIdOrNull(TimingData data) {
+    static RegistrationId registrationIdOrNull(TimingData data) {
 
         RegistrationId registrationId = null;
         if (data instanceof TimingData.AutomaticRegistration) {

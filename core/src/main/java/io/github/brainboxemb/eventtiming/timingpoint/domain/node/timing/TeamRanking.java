@@ -4,6 +4,8 @@ import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 
 import java.time.Duration;
 import java.time.ZoneId;
@@ -22,41 +24,41 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Maintains the active registration candidates used for team ranking.
+ * Maintains the active registration activeRegistrations used for team ranking.
  *
- * <p>Candidate selection is maintained incrementally. Each location/team keeps its active
+ * <p>ActiveRegistration selection is maintained incrementally. Each location/team keeps its active
  * registrations ordered by finish time, so the selected registration is always the first
- * candidate. Ranking queries therefore inspect one selected registration per team instead
+ * activeRegistration. Ranking queries therefore inspect one selected registration per team instead
  * of scanning all active registrations.</p>
  */
 public final class TeamRanking {
-    private static final Comparator<Candidate> CANDIDATE_ORDER =
-            Comparator.comparing((Candidate value) -> value.registration.effectiveTime().instant())
+    private static final Comparator<ActiveRegistration> REGISTRATION_ORDER =
+            Comparator.comparing((ActiveRegistration value) -> value.registration.effectiveTime().instant())
                     .thenComparingLong(value -> value.registration.sequenceNumber());
 
-    private static final Comparator<StageTime> FASTEST_TEAM_FIRST =
-            Comparator.comparing(StageTime::elapsed)
+    private static final Comparator<StageTimingRecord> FASTEST_TEAM_FIRST =
+            Comparator.comparing(StageTimingRecord::elapsed)
                     .thenComparing(value -> value.teamId().value());
 
-    private final StageTiming stageTiming;
-    private final Map<Long, Candidate> candidatesBySequence = new HashMap<>();
-    private final Map<RegistrationId, Map<Long, Candidate>> candidatesByRegistrationId = new HashMap<>();
-    private final Map<LocationId, Map<TeamId, NavigableSet<Candidate>>> candidatesByLocationAndTeam =
+    private final RaceDataState raceData;
+    private final Map<Long, ActiveRegistration> activeRegistrationsBySequence = new HashMap<>();
+    private final Map<RegistrationId, Map<Long, ActiveRegistration>> activeRegistrationsByRegistrationId = new HashMap<>();
+    private final Map<LocationId, Map<TeamId, NavigableSet<ActiveRegistration>>> activeRegistrationsByLocationAndTeam =
             new HashMap<>();
 
     /** Creates the ranking index over the shared StageTiming resolver. */
-    public TeamRanking(StageTiming stageTiming) {
+    public TeamRanking(RaceDataState raceData) {
 
-        failIfInvalidArgument(stageTiming != null, "stageTiming must not be null");
-        this.stageTiming = stageTiming;
+        failIfInvalidArgument(raceData != null, "raceData must not be null");
+        this.raceData = raceData;
     }
 
-    /** Clears all active ranking candidates before LogBook reconstruction. */
+    /** Clears all active ranking activeRegistrations before LogBook reconstruction. */
     public void reset() {
 
-        candidatesBySequence.clear();
-        candidatesByRegistrationId.clear();
-        candidatesByLocationAndTeam.clear();
+        activeRegistrationsBySequence.clear();
+        activeRegistrationsByRegistrationId.clear();
+        activeRegistrationsByLocationAndTeam.clear();
     }
 
     /** Applies one actual active-registration ADD or matched REV. */
@@ -64,25 +66,25 @@ public final class TeamRanking {
 
         if (change != null) {
             if (change.action() == ActiveRegistrations.Change.Action.ADDED) {
-                addCandidate(change.registration(), change.teamId());
+                addActiveRegistration(change.registration(), change.teamId());
             } else {
-                removeCandidate(change.registration().sequenceNumber());
+                removeActiveRegistration(change.registration().sequenceNumber());
             }
         }
     }
 
-    /** Moves only the active candidates for one RegistrationId to its current team. */
+    /** Moves only the active activeRegistrations for one RegistrationId to its current team. */
     public void teamAssignmentChanged(RegistrationId registrationId, TeamId teamId) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
 
-        Map<Long, Candidate> registrations = candidatesByRegistrationId.get(registrationId);
+        Map<Long, ActiveRegistration> registrations = activeRegistrationsByRegistrationId.get(registrationId);
         if (registrations != null) {
-            for (Candidate candidate : registrations.values()) {
-                if (!Objects.equals(candidate.teamId, teamId)) {
-                    removeFromTeam(candidate);
-                    candidate.teamId = teamId;
-                    addToTeam(candidate);
+            for (ActiveRegistration activeRegistration : registrations.values()) {
+                if (!Objects.equals(activeRegistration.teamId, teamId)) {
+                    removeFromTeam(activeRegistration);
+                    activeRegistration.teamId = teamId;
+                    addToTeam(activeRegistration);
                 }
             }
         }
@@ -91,7 +93,7 @@ public final class TeamRanking {
     /**
      * Visits at most {@code limit} fastest teams at one location.
      *
-     * <p>Only the currently selected registration for each team is resolved to StageTime.
+     * <p>Only the currently selected registration for each team is resolved to StageTimingRecord.
      * Temporary ranking storage is bounded by {@code limit}.</p>
      *
      * @return number of visited teams
@@ -111,101 +113,102 @@ public final class TeamRanking {
             return 0;
         }
 
-        Map<TeamId, NavigableSet<Candidate>> teams = candidatesByLocationAndTeam.get(locationId);
+        Map<TeamId, NavigableSet<ActiveRegistration>> teams = activeRegistrationsByLocationAndTeam.get(locationId);
         if (teams == null) {
             return 0;
         }
 
-        PriorityQueue<StageTime> fastest =
-                new PriorityQueue<StageTime>(limit, FASTEST_TEAM_FIRST.reversed());
+        PriorityQueue<StageTimingRecord> fastest =
+                new PriorityQueue<StageTimingRecord>(limit, FASTEST_TEAM_FIRST.reversed());
 
-        for (Map.Entry<TeamId, NavigableSet<Candidate>> entry : teams.entrySet()) {
-            Candidate candidate = entry.getValue().first();
-            StageTime stageTime =
-                    stageTiming.resolve(candidate.registration, entry.getKey(), raceTimeZone);
-            if (stageTime != null) {
-                fastest.offer(stageTime);
+        for (Map.Entry<TeamId, NavigableSet<ActiveRegistration>> entry : teams.entrySet()) {
+            ActiveRegistration activeRegistration = entry.getValue().first();
+            TimingTimestamp start = raceData.stageStartTimeFor(entry.getKey());
+            if (start != null) {
+                StageTimingRecord timingRecord =
+                        StageTiming.resolve(activeRegistration.registration, entry.getKey(), start, raceTimeZone);
+                fastest.offer(timingRecord);
                 if (fastest.size() > limit) {
                     fastest.poll();
                 }
             }
         }
 
-        List<StageTime> ordered = new ArrayList<StageTime>(fastest);
+        List<StageTimingRecord> ordered = new ArrayList<StageTimingRecord>(fastest);
         ordered.sort(FASTEST_TEAM_FIRST);
         return visitRanked(ordered, visitor);
     }
 
-    /** Adds one active registration candidate to all ranking indexes. */
-    private void addCandidate(TimingData registration, TeamId teamId) {
+    /** Adds one active registration activeRegistration to all ranking indexes. */
+    private void addActiveRegistration(TimingData registration, TeamId teamId) {
 
         failIfIllegalState(registration.effectiveTime().isAbsolute(), "active registration time must be absolute");
 
         RegistrationId registrationId = registrationId(registration);
-        Candidate candidate = new Candidate(registration, registrationId, teamId);
-        candidatesBySequence.put(registration.sequenceNumber(), candidate);
-        candidatesByRegistrationId
+        ActiveRegistration activeRegistration = new ActiveRegistration(registration, registrationId, teamId);
+        activeRegistrationsBySequence.put(registration.sequenceNumber(), activeRegistration);
+        activeRegistrationsByRegistrationId
                 .computeIfAbsent(registrationId, ignored -> new HashMap<>())
-                .put(registration.sequenceNumber(), candidate);
-        addToTeam(candidate);
+                .put(registration.sequenceNumber(), activeRegistration);
+        addToTeam(activeRegistration);
     }
 
-    /** Removes one active registration candidate from all ranking indexes. */
-    private void removeCandidate(long sequenceNumber) {
+    /** Removes one active registration activeRegistration from all ranking indexes. */
+    private void removeActiveRegistration(long sequenceNumber) {
 
-        Candidate candidate = candidatesBySequence.remove(sequenceNumber);
-        failIfIllegalState(candidate != null, "missing team-ranking candidate for sequence %s", sequenceNumber);
+        ActiveRegistration activeRegistration = activeRegistrationsBySequence.remove(sequenceNumber);
+        failIfIllegalState(activeRegistration != null, "missing team-ranking activeRegistration for sequence %s", sequenceNumber);
 
-        removeFromTeam(candidate);
+        removeFromTeam(activeRegistration);
 
-        Map<Long, Candidate> registrations = candidatesByRegistrationId.get(candidate.registrationId);
+        Map<Long, ActiveRegistration> registrations = activeRegistrationsByRegistrationId.get(activeRegistration.registrationId);
         registrations.remove(sequenceNumber);
         if (registrations.isEmpty()) {
-            candidatesByRegistrationId.remove(candidate.registrationId);
+            activeRegistrationsByRegistrationId.remove(activeRegistration.registrationId);
         }
     }
 
-    /** Adds one candidate to its current location/team ordered set. */
-    private void addToTeam(Candidate candidate) {
+    /** Adds one activeRegistration to its current location/team ordered set. */
+    private void addToTeam(ActiveRegistration activeRegistration) {
 
-        if (candidate.teamId != null) {
-            candidatesByLocationAndTeam
-                    .computeIfAbsent(candidate.registration.locationId(), ignored -> new HashMap<>())
-                    .computeIfAbsent(candidate.teamId, ignored -> new TreeSet<>(CANDIDATE_ORDER))
-                    .add(candidate);
+        if (activeRegistration.teamId != null) {
+            activeRegistrationsByLocationAndTeam
+                    .computeIfAbsent(activeRegistration.registration.locationId(), ignored -> new HashMap<>())
+                    .computeIfAbsent(activeRegistration.teamId, ignored -> new TreeSet<>(REGISTRATION_ORDER))
+                    .add(activeRegistration);
         }
     }
 
-    /** Removes one candidate from its current location/team ordered set. */
-    private void removeFromTeam(Candidate candidate) {
+    /** Removes one activeRegistration from its current location/team ordered set. */
+    private void removeFromTeam(ActiveRegistration activeRegistration) {
 
-        if (candidate.teamId != null) {
-            LocationId locationId = candidate.registration.locationId();
-            Map<TeamId, NavigableSet<Candidate>> teams = candidatesByLocationAndTeam.get(locationId);
-            NavigableSet<Candidate> registrations = teams.get(candidate.teamId);
-            registrations.remove(candidate);
+        if (activeRegistration.teamId != null) {
+            LocationId locationId = activeRegistration.registration.locationId();
+            Map<TeamId, NavigableSet<ActiveRegistration>> teams = activeRegistrationsByLocationAndTeam.get(locationId);
+            NavigableSet<ActiveRegistration> registrations = teams.get(activeRegistration.teamId);
+            registrations.remove(activeRegistration);
 
             if (registrations.isEmpty()) {
-                teams.remove(candidate.teamId);
+                teams.remove(activeRegistration.teamId);
             }
             if (teams.isEmpty()) {
-                candidatesByLocationAndTeam.remove(locationId);
+                activeRegistrationsByLocationAndTeam.remove(locationId);
             }
         }
     }
 
     /** Visits competition-ranked team rows after bounded sorting. */
-    private static int visitRanked(List<StageTime> ordered, Consumer<TeamRank> visitor) {
+    private static int visitRanked(List<StageTimingRecord> ordered, Consumer<TeamRank> visitor) {
 
         Duration previousElapsed = null;
         int rank = 0;
         for (int index = 0; index < ordered.size(); index++) {
-            StageTime stageTime = ordered.get(index);
-            if (previousElapsed == null || !previousElapsed.equals(stageTime.elapsed())) {
+            StageTimingRecord timingRecord = ordered.get(index);
+            if (previousElapsed == null || !previousElapsed.equals(timingRecord.elapsed())) {
                 rank = index + 1;
-                previousElapsed = stageTime.elapsed();
+                previousElapsed = timingRecord.elapsed();
             }
-            visitor.accept(new TeamRank(rank, stageTime));
+            visitor.accept(new TeamRank(rank, timingRecord));
         }
         return ordered.size();
     }
@@ -213,23 +216,18 @@ public final class TeamRanking {
     /** Extracts RegistrationId from one active registration record. */
     private static RegistrationId registrationId(TimingData data) {
 
-        RegistrationId registrationId = null;
-        if (data instanceof TimingData.AutomaticRegistration) {
-            registrationId = ((TimingData.AutomaticRegistration) data).registrationId();
-        } else if (data instanceof TimingData.ManualRegistration) {
-            registrationId = ((TimingData.ManualRegistration) data).registrationId();
-        }
+        RegistrationId registrationId = ActiveRegistrations.registrationIdOrNull(data);
         failIfIllegalState(registrationId != null, "TimingData is not a registration");
         return registrationId;
     }
 
     /** One active registration indexed for incremental team selection. */
-    private static final class Candidate {
+    private static final class ActiveRegistration {
         private final TimingData registration;
         private final RegistrationId registrationId;
         private TeamId teamId;
 
-        private Candidate(TimingData registration, RegistrationId registrationId, TeamId teamId) {
+        private ActiveRegistration(TimingData registration, RegistrationId registrationId, TeamId teamId) {
 
             this.registration = registration;
             this.registrationId = registrationId;

@@ -9,8 +9,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.StageStartTimes;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.TeamAssignments;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -53,7 +52,7 @@ public class TeamRankingTest {
 
         assertEquals(1, ranking.size());
         assertEquals(1, ranking.get(0).rank());
-        assertEquals(2L, ranking.get(0).stageTime().sequenceNumber());
+        assertEquals(2L, ranking.get(0).timingRecord().sequenceNumber());
         assertEquals(Duration.ofSeconds(10), ranking.get(0).elapsed());
     }
 
@@ -85,7 +84,7 @@ public class TeamRankingTest {
         List<TeamRank> ranking = fixture.ranking();
 
         assertEquals(1, ranking.size());
-        assertEquals(1L, ranking.get(0).stageTime().sequenceNumber());
+        assertEquals(1L, ranking.get(0).timingRecord().sequenceNumber());
         assertEquals(Duration.ofSeconds(20), ranking.get(0).elapsed());
     }
 
@@ -111,7 +110,7 @@ public class TeamRankingTest {
         List<TeamRank> ranking = fixture.ranking();
 
         assertEquals(1, ranking.size());
-        assertEquals(1L, ranking.get(0).stageTime().sequenceNumber());
+        assertEquals(1L, ranking.get(0).timingRecord().sequenceNumber());
     }
 
     /** Equal selected elapsed times share competition rank across teams. */
@@ -162,8 +161,8 @@ public class TeamRankingTest {
                         Instant.parse("2026-10-13T12:00:10Z"),
                         TimingData.RegistrationAction.ADD));
 
-        assertEquals(1L, fixture.ranking(new LocationId(1)).get(0).stageTime().sequenceNumber());
-        assertEquals(2L, fixture.ranking(new LocationId(2)).get(0).stageTime().sequenceNumber());
+        assertEquals(1L, fixture.ranking(new LocationId(1)).get(0).timingRecord().sequenceNumber());
+        assertEquals(2L, fixture.ranking(new LocationId(2)).get(0).timingRecord().sequenceNumber());
     }
 
     /** A reserve registration enters ranking when its live team assignment appears. */
@@ -189,8 +188,8 @@ public class TeamRankingTest {
         List<TeamRank> ranking = fixture.ranking();
 
         assertEquals(1, ranking.size());
-        assertEquals(teamId, ranking.get(0).stageTime().teamId());
-        assertEquals(1L, ranking.get(0).stageTime().sequenceNumber());
+        assertEquals(teamId, ranking.get(0).timingRecord().teamId());
+        assertEquals(1L, ranking.get(0).timingRecord().sequenceNumber());
 
         fixture.activeRegistrations.teamAssignmentChanged(registrationId, null);
         fixture.teamRanking.teamAssignmentChanged(registrationId, null);
@@ -234,16 +233,13 @@ public class TeamRankingTest {
 
     private static final class Fixture {
         private final DefaultEventData eventData = new DefaultEventData();
-        private final TeamAssignments teamAssignments = new TeamAssignments();
-        private final StageStartTimes stageStartTimes = new StageStartTimes();
+        private final RaceDataState raceData = new RaceDataState(eventData);
         private final ActiveRegistrations activeRegistrations = new ActiveRegistrations();
-        private final StageTiming stageTiming =
-                new StageTiming(eventData, teamAssignments, stageStartTimes);
-        private final TeamRanking teamRanking = new TeamRanking(stageTiming);
+        private final TeamRanking teamRanking = new TeamRanking(raceData);
 
         private void setStart(String teamId, LocalTime startTime) {
 
-            stageStartTimes.set(new TeamId(teamId), TimingTimestamp.localTime(startTime));
+            raceData.stageStartTimes().set(new TeamId(teamId), TimingTimestamp.localTime(startTime));
         }
 
         private void add(TimingData data) {

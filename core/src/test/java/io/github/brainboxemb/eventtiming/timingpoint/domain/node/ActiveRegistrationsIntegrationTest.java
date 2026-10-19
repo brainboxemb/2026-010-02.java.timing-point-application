@@ -11,7 +11,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTimingRecord;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.TeamRank;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
@@ -129,8 +129,8 @@ public class ActiveRegistrationsIntegrationTest {
             org.junit.Assert.assertTrue(components.upstreamHandler().inputAvailable());
             stream.takeSent();
 
-            List<StageTime> passages = new ArrayList<StageTime>();
-            components.nodeService().visitStageTimes(ZoneOffset.UTC, 16, passages::add);
+            List<StageTimingRecord> passages = new ArrayList<StageTimingRecord>();
+            components.nodeService().visitStageTimingRecords(ZoneOffset.UTC, 16, passages::add);
 
             List<TeamRank> ranking = new ArrayList<TeamRank>();
             components.nodeService()
@@ -142,7 +142,7 @@ public class ActiveRegistrationsIntegrationTest {
 
             assertEquals(2, passages.size());
             assertEquals(1, ranking.size());
-            assertEquals(2L, ranking.get(0).stageTime().sequenceNumber());
+            assertEquals(2L, ranking.get(0).timingRecord().sequenceNumber());
         } finally {
             deactivate(components.node());
         }
