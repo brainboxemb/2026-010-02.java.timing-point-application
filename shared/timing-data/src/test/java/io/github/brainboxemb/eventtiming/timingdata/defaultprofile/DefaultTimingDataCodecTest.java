@@ -257,7 +257,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"time\":\"2026-09-30T20:01:39.120Z\","
                         + "\"regId\":\"A0042\","
                         + "\"code\":[\"ADD\"],"
-                        + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
+                        + "\"recTime\":\"2026-09-30T20:01:45.450Z\""
                         + "}"));
 
         assertTrue(decoded instanceof TimingData.AutomaticRegistration);
@@ -342,7 +342,7 @@ public class DefaultTimingDataCodecTest {
                         codec.encode(data),
                         StandardCharsets.UTF_8)
                         .contains(
-                                "\"time\":\"2026-09-30T20:01:39.120Z\""));
+                                "\"time\":\"2026-09-30T20:01:39.129Z\""));
     }
 
     @Test
@@ -396,7 +396,7 @@ public class DefaultTimingDataCodecTest {
                             + "\"locId\":7,"
                             + "\"recType\":\"FUTURE_RECORD\","
                             + "\"time\":\"2026-09-30T20:01:39.120Z\","
-                            + "\"recTime\":\"2026-09-30T20:01:45.456Z\""
+                            + "\"recTime\":\"2026-09-30T20:01:45.450Z\""
                             + "}"));
             fail("expected unsupported record type");
         } catch (TimingDataCodec.CodecException expected) {
