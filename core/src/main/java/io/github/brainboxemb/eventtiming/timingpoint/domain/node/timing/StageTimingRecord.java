@@ -10,7 +10,7 @@ import java.time.Duration;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /** One resolved active registration in the stage passage list. */
-public final class StageTime {
+public final class StageTimingRecord {
     private final long sequenceNumber;
     private final LocationId locationId;
     private final TeamId teamId;
@@ -18,7 +18,7 @@ public final class StageTime {
     private final TimingTimestamp startedAt;
     private final TimingTimestamp finishedAt;
 
-    StageTime(
+    StageTimingRecord(
             long sequenceNumber,
             LocationId locationId,
             TeamId teamId,

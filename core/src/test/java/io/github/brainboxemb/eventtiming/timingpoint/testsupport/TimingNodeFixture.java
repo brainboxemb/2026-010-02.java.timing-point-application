@@ -317,7 +317,6 @@ public final class TimingNodeFixture {
                         nodeId,
                         taskLane,
                         logBook,
-                        eventData,
                         raceData,
                         activeRegistrations);
 

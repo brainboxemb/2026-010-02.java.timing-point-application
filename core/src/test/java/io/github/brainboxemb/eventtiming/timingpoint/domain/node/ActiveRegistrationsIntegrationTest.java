@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 
+import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
@@ -11,8 +12,10 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTime;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.TeamRank;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTimingRecord;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.RegistrationRank;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.RegisteredTeams;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
@@ -53,6 +56,9 @@ public class ActiveRegistrationsIntegrationTest {
         TimingNode node =
                 components.node();
 
+        List<RegisteredTeams.Change> teamChanges = Collections.synchronizedList(new ArrayList<>());
+        components.nodeService().REGISTERED_TEAMS_CHANGED.subscribe(teamChanges::add);
+
         activate(node);
         try {
             awaitOperational(node);
@@ -64,6 +70,9 @@ public class ActiveRegistrationsIntegrationTest {
                     components.nodeService(),
                     new LocationId(1),
                     1);
+            List<TeamId> initialTeams = new ArrayList<>();
+            assertEquals(1, components.nodeService().visitRegisteredTeams(new LocationId(1), initialTeams::add));
+            assertEquals(new TeamId("0001"), initialTeams.get(0));
 
             stream.receive(
                     DefaultUpstreamData.raceData(
@@ -84,6 +93,13 @@ public class ActiveRegistrationsIntegrationTest {
                     components.nodeService(),
                     new LocationId(1),
                     2);
+            List<TeamId> synchronizedTeams = new ArrayList<>();
+            assertEquals(2, components.nodeService().visitRegisteredTeams(new LocationId(1), synchronizedTeams::add));
+            assertEquals(new TeamId("0001"), synchronizedTeams.get(0));
+            assertEquals(new TeamId("0042"), synchronizedTeams.get(1));
+            assertEquals(2, teamChanges.size());
+            assertEquals(RegisteredTeams.Change.Action.ADDED, teamChanges.get(1).action());
+            assertEquals(new TeamId("0042"), teamChanges.get(1).teamId());
             assertEquals(
                     Integer.valueOf(2),
                     node.logBook().process(
@@ -94,9 +110,9 @@ public class ActiveRegistrationsIntegrationTest {
     }
 
 
-    /** Duplicate passages stay visible while team ranking selects one maintained candidate. */
+    /** Duplicate passages remain visible and both receive their own ranking positions. */
     @Test
-    public void recoveredPassagesAndTeamRankingRemainSeparate() {
+    public void duplicatePassagesAreRankedIndividually() {
         InMemoryUpstreamStream stream = new InMemoryUpstreamStream();
         TimingNodeFixture.Components components =
                 TimingNodeFixture.createDirectComponents(
@@ -129,20 +145,34 @@ public class ActiveRegistrationsIntegrationTest {
             org.junit.Assert.assertTrue(components.upstreamHandler().inputAvailable());
             stream.takeSent();
 
-            List<StageTime> passages = new ArrayList<StageTime>();
-            components.nodeService().visitStageTimes(ZoneOffset.UTC, 16, passages::add);
+            List<ActiveRegistrations.Registration> firstPage =
+                    new ArrayList<>();
+            components.nodeService().visitRegistrationsAfter(new LocationId(1), 0L, 1, firstPage::add);
+            assertEquals(1L, firstPage.get(0).sequenceNumber());
 
-            List<TeamRank> ranking = new ArrayList<TeamRank>();
+            List<ActiveRegistrations.Registration> secondPage =
+                    new ArrayList<>();
+            components.nodeService().visitRegistrationsAfter(
+                    new LocationId(1), firstPage.get(0).sequenceNumber(), 1, secondPage::add);
+            assertEquals(2L, secondPage.get(0).sequenceNumber());
+
+            List<StageTimingRecord> passages = new ArrayList<StageTimingRecord>();
+            components.nodeService().visitStageTimingRecords(ZoneOffset.UTC, 16, passages::add);
+
+            List<RegistrationRank> ranking = new ArrayList<RegistrationRank>();
             components.nodeService()
-                    .visitTeamRanking(
+                    .visitRegistrationRanking(
                             new LocationId(1),
                             ZoneOffset.UTC,
                             16,
                             ranking::add);
 
             assertEquals(2, passages.size());
-            assertEquals(1, ranking.size());
-            assertEquals(2L, ranking.get(0).stageTime().sequenceNumber());
+            assertEquals(2, ranking.size());
+            assertEquals(2L, ranking.get(0).timingRecord().sequenceNumber());
+            assertEquals(1L, ranking.get(1).timingRecord().sequenceNumber());
+            assertEquals(1, ranking.get(0).rank());
+            assertEquals(2, ranking.get(1).rank());
         } finally {
             deactivate(components.node());
         }

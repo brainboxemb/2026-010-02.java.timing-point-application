@@ -4,18 +4,18 @@ import java.time.Duration;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
-/** One ranked team represented by the active stage passage selected for that team. */
-public final class TeamRank {
+/** One ranked registration represented by the active stage passage selected for that team. */
+public final class RegistrationRank {
     private final int rank;
-    private final StageTime stageTime;
+    private final StageTimingRecord timingRecord;
 
-    TeamRank(int rank, StageTime stageTime) {
+    RegistrationRank(int rank, StageTimingRecord timingRecord) {
 
         failIfInvalidArgument(rank >= 1, "rank must be positive");
-        failIfInvalidArgument(stageTime != null, "stageTime must not be null");
+        failIfInvalidArgument(timingRecord != null, "timingRecord must not be null");
 
         this.rank = rank;
-        this.stageTime = stageTime;
+        this.timingRecord = timingRecord;
     }
 
     /** Returns the competition rank, where equal elapsed times share a rank. */
@@ -25,14 +25,14 @@ public final class TeamRank {
     }
 
     /** Returns the selected stage passage that represents this team. */
-    public StageTime stageTime() {
+    public StageTimingRecord timingRecord() {
 
-        return stageTime;
+        return timingRecord;
     }
 
     /** Returns the selected passage elapsed time. */
     public Duration elapsed() {
 
-        return stageTime.elapsed();
+        return timingRecord.elapsed();
     }
 }

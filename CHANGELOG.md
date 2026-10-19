@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Separate chronological registration history (including invalidated ADDs), unique registered teams per WP (+/- events and full visits), and per-registration provisional ranking. Recompute rankings from the active list rather than maintaining a second index. StageTiming remains stateless, and StageTime is now StageTimingRecord.
+
 - Search active duplicate registrations from the newest storage position first, matching the common case where a duplicate follows shortly after acceptance while preserving the dense-array cleanup design.
 
 - Simplify duplicate-registration state to a short-lived dense primitive list: sizing is independent of observation queue capacity, expired entries are removed on lookup and scheduled cleanup, storage starts with a small allocation batch and grows with ordinary `Arrays.copyOf`, and runtime characterization records capacity/current/peak active-state size rather than hash-table behavior.

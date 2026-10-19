@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -16,170 +15,95 @@ import java.util.List;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
-/** Verifies active registration state and per-location team counts. */
+/** Verifies the ordered registration list retains invalid rows. */
 public class ActiveRegistrationsTest {
     private static final NodeId NODE_ID = new NodeId("A");
-    private static final LocationId LOCATION_ID = new LocationId(1);
     private static final DefaultTimingDataFactory FACTORY = new DefaultTimingDataFactory();
 
-    /** Verifies lifecycle records are ignored and one REV removes only one matching active ADD. */
     @Test
-    public void foldsRecordsIntoOnlyCurrentlyActiveRegistrations() {
-        ActiveRegistrations active = new ActiveRegistrations();
-        TimingData first = registration(1L, TimingData.RegistrationAction.ADD);
-        TimingData second = registration(2L, TimingData.RegistrationAction.ADD);
-        TimingData lifecycle = FACTORY.createNodeOpen(context(3L, Instant.parse("2026-10-13T12:01:00Z")));
-        TimingData revoke = registration(4L, TimingData.RegistrationAction.REV);
+    public void revokeMarksNewestMatchingRegistrationWithoutReorderingDisplay() {
+        ActiveRegistrations registrations = new ActiveRegistrations();
 
-        active.apply(first, id -> null);
-        active.apply(second, id -> null);
-        active.apply(lifecycle, id -> null);
-        active.apply(revoke, id -> null);
+        TimingData first = registration(1L, 1, TimingData.RegistrationAction.ADD);
+        TimingData second = registration(2L, 1, TimingData.RegistrationAction.ADD);
+        TimingData third = registration(3L, 2, TimingData.RegistrationAction.ADD);
+        TimingData revoke = registration(4L, 1, TimingData.RegistrationAction.REV);
+        TimingData lifecycle = FACTORY.createNodeOpen(context(5L, 1));
 
-        List<TimingData> remaining = values(active);
-        assertEquals(1, remaining.size());
-        assertEquals(first.sequenceNumber(), remaining.get(0).sequenceNumber());
+        registrations.apply(first);
+        registrations.apply(second);
+        registrations.apply(third);
+        ActiveRegistrations.Change change = registrations.apply(revoke);
+        assertNull(registrations.apply(lifecycle));
+
+        List<ActiveRegistrations.Registration> wp1 = new ArrayList<>();
+        List<ActiveRegistrations.Registration> wp2 = new ArrayList<>();
+        assertEquals(2, registrations.visit(new LocationId(1), 10, wp1::add));
+        assertEquals(1, registrations.visit(new LocationId(2), 10, wp2::add));
+        assertEquals(1L, wp1.get(0).sequenceNumber());
+        assertEquals(2L, wp1.get(1).sequenceNumber());
+        assertTrue(wp1.get(0).isValid());
+        assertFalse(wp1.get(1).isValid());
+        assertTrue(wp2.get(0).isValid());
+        assertEquals(2L, change.registration().sequenceNumber());
+        assertEquals(1, registrations.visit(new LocationId(1), 1, ignored -> {}));
     }
 
-    /** Counts teams separately by location while counting multiple ADDs only once. */
     @Test
-    public void uniqueTeamCountsAreMaintainedPerLocation() {
-        ActiveRegistrations active = new ActiveRegistrations();
-        TeamId teamId = new TeamId("0001");
+    public void displayCanPageByOriginalSequenceEvenAfterARevoke() {
+        ActiveRegistrations registrations = new ActiveRegistrations();
+        registrations.apply(registration(1L, 1, TimingData.RegistrationAction.ADD));
+        registrations.apply(registration(2L, 2, TimingData.RegistrationAction.ADD));
+        registrations.apply(registration(3L, 1, TimingData.RegistrationAction.ADD));
 
-        active.apply(registration(1L, TimingData.RegistrationAction.ADD),
-                id -> teamId);
-        active.apply(registration(2L, TimingData.RegistrationAction.ADD),
-                id -> teamId);
-        active.apply(registrationAt(3L, 2, TimingData.RegistrationAction.ADD),
-                id -> teamId);
+        List<ActiveRegistrations.Registration> firstPage = new ArrayList<>();
+        assertEquals(1, registrations.visitAfter(new LocationId(1), 0L, 1, firstPage::add));
+        assertEquals(1L, firstPage.get(0).sequenceNumber());
 
-        assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
-        assertEquals(1, active.uniqueTeamCount(new LocationId(2)));
+        List<ActiveRegistrations.Registration> secondPage = new ArrayList<>();
+        assertEquals(1, registrations.visitAfter(new LocationId(1), 1L, 1, secondPage::add));
+        assertEquals(3L, secondPage.get(0).sequenceNumber());
 
-        active.apply(registration(4L, TimingData.RegistrationAction.REV),
-                id -> teamId);
-        assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
-        active.apply(registration(5L, TimingData.RegistrationAction.REV),
-                id -> teamId);
-        assertEquals(0, active.uniqueTeamCount(LOCATION_ID));
-        assertEquals(1, active.uniqueTeamCount(new LocationId(2)));
+        registrations.apply(registration(4L, 1, TimingData.RegistrationAction.REV));
+        assertFalse(secondPage.get(0).isValid());
+
+        List<ActiveRegistrations.Registration> nextPage = new ArrayList<>();
+        assertEquals(0, registrations.visitAfter(new LocationId(1), 3L, 1, nextPage::add));
+
+        List<ActiveRegistrations.Registration> allRows = new ArrayList<>();
+        assertEquals(2, registrations.visit(new LocationId(1), 10, allRows::add));
+        assertTrue(allRows.get(0).isValid());
+        assertFalse(allRows.get(1).isValid());
     }
 
-    /** Different registration IDs for one team count once at the same location. */
     @Test
-    public void multipleRegistrationIdsForOneTeamCountOnce() {
-        ActiveRegistrations active = new ActiveRegistrations();
-        TeamId teamId = new TeamId("0001");
-        active.apply(registration(1L, TimingData.RegistrationAction.ADD), id -> teamId);
-        TimingTimestamp timestamp =
-                new TimingTimestamp(Instant.parse("2026-10-13T12:00:00Z"));
-        TimingData second = FACTORY.createAutomaticRegistration(
-                new TimingDataFactory.Context(
-                        NODE_ID, 2L, LOCATION_ID, timestamp, timestamp),
-                new RegistrationId("X0001"));
-        active.apply(second, id -> teamId);
+    public void unmatchedRevokeDoesNotChangeEarlierEntries() {
+        ActiveRegistrations registrations = new ActiveRegistrations();
+        registrations.apply(registration(1L, 1, TimingData.RegistrationAction.ADD));
 
-        assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
-
-        active.apply(registration(3L, TimingData.RegistrationAction.REV), id -> teamId);
-        assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
-    }
-
-    /** A new ADD may also carry a newer team resolution for existing occurrences. */
-    @Test
-    public void newerTeamResolutionMovesExistingOccurrencesBeforeAddingTheNewOne() {
-        ActiveRegistrations active = new ActiveRegistrations();
-        TeamId firstTeam = new TeamId("0001");
-        TeamId secondTeam = new TeamId("0002");
-
-        active.apply(registration(1L, TimingData.RegistrationAction.ADD), id -> firstTeam);
-        active.apply(registration(2L, TimingData.RegistrationAction.ADD), id -> secondTeam);
-
-        assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
-
-        active.apply(registration(3L, TimingData.RegistrationAction.REV), id -> secondTeam);
-        assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
-
-        active.apply(registration(4L, TimingData.RegistrationAction.REV), id -> secondTeam);
-        assertEquals(0, active.uniqueTeamCount(LOCATION_ID));
-    }
-
-    /** A REV with an unmatched original time must not change any count. */
-    @Test
-    public void unmatchedRevokeDoesNotChangeCounts() {
-        ActiveRegistrations active = new ActiveRegistrations();
-        TeamId teamId = new TeamId("0001");
-        active.apply(registration(1L, TimingData.RegistrationAction.ADD),
-                id -> teamId);
-
-        Instant differentTime = Instant.parse("2026-10-13T12:05:00Z");
+        TimingTimestamp different = new TimingTimestamp(Instant.parse("2026-10-13T12:05:00Z"));
         TimingData unmatched = FACTORY.createAutomaticRegistration(
-                context(2L, differentTime),
-                new RegistrationId("A0001"),
-                TimingData.RegistrationAction.REV);
-        active.apply(unmatched, id -> teamId);
+                new TimingDataFactory.Context(NODE_ID, 2L, new LocationId(1), different, different),
+                new RegistrationId("A0001"), TimingData.RegistrationAction.REV);
 
-        assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
-        assertEquals(1, values(active).size());
+        assertNull(registrations.apply(unmatched));
+        List<ActiveRegistrations.Registration> rows = new ArrayList<>();
+        registrations.visit(new LocationId(1), 10, rows::add);
+        assertEquals(1, rows.size());
+        assertTrue(rows.get(0).isValid());
     }
 
-    /** Updating an assignment moves counts without applying another ADD. */
-    @Test
-    public void assignmentChangesUpdateTheExistingCount() {
-        ActiveRegistrations active = new ActiveRegistrations();
-        RegistrationId registrationId = new RegistrationId("A0001");
-        active.apply(registration(1L, TimingData.RegistrationAction.ADD),
-                id -> null);
-        assertEquals(0, active.uniqueTeamCount(LOCATION_ID));
-
-        active.teamAssignmentChanged(registrationId, new TeamId("0001"));
-        assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
-        active.teamAssignmentChanged(registrationId, new TeamId("0002"));
-        assertEquals(1, active.uniqueTeamCount(LOCATION_ID));
-        active.teamAssignmentChanged(registrationId, null);
-        assertEquals(0, active.uniqueTeamCount(LOCATION_ID));
-    }
-
-    private static TimingData registrationAt(
-            long sequence,
-            int location,
-            TimingData.RegistrationAction action) {
-        TimingTimestamp timestamp =
-                new TimingTimestamp(Instant.parse("2026-10-13T12:00:00Z"));
+    private static TimingData registration(long sequence, int location, TimingData.RegistrationAction action) {
         return FACTORY.createAutomaticRegistration(
-                new TimingDataFactory.Context(
-                        NODE_ID,
-                        sequence,
-                        new LocationId(location),
-                        timestamp,
-                        timestamp),
-                new RegistrationId("A0001"),
-                action);
+                context(sequence, location), new RegistrationId("A0001"), action);
     }
 
-    /** Copies the package-private live view only for assertion isolation in this unit test. */
-    private static List<TimingData> values(ActiveRegistrations active) {
-        List<TimingData> result = new ArrayList<TimingData>();
-        for (TimingData data : active.values()) {
-            result.add(data);
-        }
-        return result;
-    }
-
-    /** Creates one automatic registration with the shared registration identity used by the fold test. */
-    private static TimingData registration(long sequence, TimingData.RegistrationAction action) {
-        Instant effectiveTime = Instant.parse("2026-10-13T12:00:00Z");
-        return FACTORY.createAutomaticRegistration(
-                context(sequence, effectiveTime),
-                new RegistrationId("A0001"),
-                action);
-    }
-
-    /** Creates one committed TimingData context for this test node. */
-    private static TimingDataFactory.Context context(long sequence, Instant effectiveTime) {
-        TimingTimestamp timestamp = new TimingTimestamp(effectiveTime);
-        return new TimingDataFactory.Context(NODE_ID, sequence, LOCATION_ID, timestamp, timestamp);
+    private static TimingDataFactory.Context context(long sequence, int location) {
+        TimingTimestamp time = new TimingTimestamp(Instant.parse("2026-10-13T12:00:00Z"));
+        return new TimingDataFactory.Context(NODE_ID, sequence, new LocationId(location), time, time);
     }
 }

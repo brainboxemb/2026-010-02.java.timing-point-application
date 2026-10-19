@@ -215,7 +215,6 @@ final class RuntimeCharacterizationHarness
                         NODE_ID,
                         taskLane,
                         logBook,
-                        nodeEventData,
                         raceData,
                         activeRegistrations);
 

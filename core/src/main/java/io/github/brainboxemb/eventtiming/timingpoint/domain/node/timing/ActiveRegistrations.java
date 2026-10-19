@@ -1,194 +1,117 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing;
 
-import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.Consumer;
 
-import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Keeps active registrations and unique-team counts per location.
+ * Keeps the registration history in original sequence order, including revoked ADD records.
  *
- * <p>ADD records remain available for StageTiming. REV removes one matching active ADD
- * using registration ID, location and effective time. Team counts are updated only when
- * the active registration state actually changes.</p>
+ * <p>An ADD contributes one display row. A matching REV marks exactly one row invalid
+ * without changing its sequence or position. Unique-team accounting belongs to RegisteredTeams.</p>
  */
 public final class ActiveRegistrations {
-    private final List<TimingData> activeRecords = new ArrayList<>();
-    private final Map<RegistrationId, RegistrationState> registrationsById = new HashMap<>();
-    private final Map<LocationId, Map<TeamId, Integer>> teamsByLocation = new HashMap<>();
+    private final List<Registration> registrations = new ArrayList<>();
 
-    /** Clears active registrations and derived location counts before TimingData recovery. */
+    /** Clears the reconstructed registration list before LogBook replay. */
     public void reset() {
 
-        activeRecords.clear();
-        registrationsById.clear();
-        teamsByLocation.clear();
+        registrations.clear();
     }
 
-    /** Applies one TimingData record and reports an actual active-registration change. */
-    public Change apply(TimingData data, Function<RegistrationId, TeamId> teamResolver) {
+    /** Applies one committed ADD or REV and reports an actual validity change. */
+    public Change apply(TimingData data) {
 
         failIfInvalidArgument(data != null, "data must not be null");
-        failIfInvalidArgument(teamResolver != null, "teamResolver must not be null");
 
         Change change = null;
         RegistrationId registrationId = registrationIdOrNull(data);
         if (registrationId != null) {
             TimingData.RegistrationAction action = registrationAction(data);
             if (action == TimingData.RegistrationAction.ADD) {
-                TeamId teamId = teamResolver.apply(registrationId);
-                addRegistration(data, registrationId, teamId);
-                change = Change.added(data, teamId);
+                registrations.add(new Registration(data, registrationId));
+                change = new Change(Change.Action.ADDED, data, registrationId);
             } else if (action == TimingData.RegistrationAction.REV) {
-                change = revokeRegistration(data, registrationId);
+                change = revoke(data, registrationId);
             }
         }
         return change;
     }
 
-    /** Updates the resolved team for all active occurrences of one registration. */
-    public void teamAssignmentChanged(RegistrationId registrationId, TeamId teamId) {
+    /** Visits at most limit rows of one WP in source order, including invalid rows. */
+    public int visit(LocationId locationId, int limit, Consumer<Registration> visitor) {
 
-        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
-
-        RegistrationState registration = registrationsById.get(registrationId);
-        if (registration != null && !Objects.equals(registration.teamId, teamId)) {
-            moveTeamCounts(registration, registration.teamId, teamId);
-            registration.teamId = teamId;
-        }
+        return visitAfter(locationId, 0L, limit, visitor);
     }
 
-    /** Returns the maintained number of unique teams at one location. */
-    public int uniqueTeamCount(LocationId locationId) {
+    /**
+     * Visits rows after one original ADD sequence, allowing a display to page through its list.
+     *
+     * <p>The display owns the cursor and what it has already shown. A later REV updates an
+     * earlier row, so the display must also revisit older rows when checking validity.</p>
+     */
+    public int visitAfter(
+            LocationId locationId,
+            long afterSequence,
+            int limit,
+            Consumer<Registration> visitor) {
 
         failIfInvalidArgument(locationId != null, "locationId must not be null");
+        failIfInvalidArgument(afterSequence >= 0L, "afterSequence must not be negative");
+        failIfInvalidArgument(limit >= 0, "limit must not be negative");
+        failIfInvalidArgument(visitor != null, "visitor must not be null");
 
-        Map<TeamId, Integer> teams = teamsByLocation.get(locationId);
-        return teams == null ? 0 : teams.size();
-    }
-
-    /** Returns active registration records for same-lane StageTiming reads. */
-    Iterable<TimingData> values() {
-
-        return Collections.unmodifiableList(activeRecords);
-    }
-
-    /** Adds one active registration occurrence and its resolved team reference. */
-    private void addRegistration(TimingData data, RegistrationId registrationId, TeamId teamId) {
-
-        activeRecords.add(data);
-
-        RegistrationState registration =
-                registrationsById.computeIfAbsent(registrationId, ignored -> new RegistrationState());
-
-        if (!Objects.equals(registration.teamId, teamId)) {
-            moveTeamCounts(registration, registration.teamId, teamId);
-            registration.teamId = teamId;
+        int visited = 0;
+        for (Registration registration : registrations) {
+            if (visited >= limit) {
+                break;
+            }
+            if (registration.sequenceNumber() > afterSequence && locationId.equals(registration.locationId())) {
+                visitor.accept(registration);
+                visited++;
+            }
         }
-
-        registration.occurrencesByLocation.merge(data.locationId(), 1, Integer::sum);
-        if (teamId != null) {
-            adjustTeamCount(data.locationId(), teamId, 1);
-        }
+        return visited;
     }
 
-    /** Revokes exactly one active registration occurrence when its ADD identity matches. */
-    private Change revokeRegistration(TimingData revoke, RegistrationId registrationId) {
+    /** Returns the ordered read-only list view for internal same-lane calculations. */
+    public Iterable<Registration> values() {
+
+        return Collections.unmodifiableList(registrations);
+    }
+
+    /** Revokes the newest still-valid ADD matching identity, WP and effective timestamp. */
+    private Change revoke(TimingData data, RegistrationId registrationId) {
+
+        Registration match = null;
+        for (int index = registrations.size() - 1; index >= 0 && match == null; index--) {
+            Registration registration = registrations.get(index);
+            if (registration.isValid()
+                    && registration.registrationId.equals(registrationId)
+                    && Objects.equals(registration.locationId(), data.locationId())
+                    && registration.data.effectiveTime().equals(data.effectiveTime())) {
+                match = registration;
+            }
+        }
 
         Change change = null;
-        TimingData activeRegistration = removeMatchingRegistration(revoke, registrationId);
-        if (activeRegistration != null) {
-            RegistrationState registration = registrationsById.get(registrationId);
-            TeamId teamId = registration.teamId;
-            removeOccurrence(registrationId, activeRegistration.locationId());
-            change = Change.removed(activeRegistration, teamId);
+        if (match != null) {
+            match.valid = false;
+            change = new Change(Change.Action.REMOVED, match.data, match.registrationId);
         }
         return change;
     }
 
-    /** Removes one occurrence from the registration and location-team indexes. */
-    private void removeOccurrence(RegistrationId registrationId, LocationId locationId) {
-
-        RegistrationState registration = registrationsById.get(registrationId);
-        int remaining = registration.occurrencesByLocation.get(locationId) - 1;
-
-        if (remaining == 0) {
-            registration.occurrencesByLocation.remove(locationId);
-        } else {
-            registration.occurrencesByLocation.put(locationId, remaining);
-        }
-
-        if (registration.teamId != null) {
-            adjustTeamCount(locationId, registration.teamId, -1);
-        }
-
-        if (registration.occurrencesByLocation.isEmpty()) {
-            registrationsById.remove(registrationId);
-        }
-    }
-
-    /** Moves all active occurrences from one resolved team to another. */
-    private void moveTeamCounts(RegistrationState registration, TeamId previousTeam, TeamId newTeam) {
-
-        for (Map.Entry<LocationId, Integer> entry : registration.occurrencesByLocation.entrySet()) {
-            if (previousTeam != null) {
-                adjustTeamCount(entry.getKey(), previousTeam, -entry.getValue());
-            }
-            if (newTeam != null) {
-                adjustTeamCount(entry.getKey(), newTeam, entry.getValue());
-            }
-        }
-    }
-
-    /** Adjusts one team's reference count at one location. */
-    private void adjustTeamCount(LocationId locationId, TeamId teamId, int change) {
-
-        Map<TeamId, Integer> teams =
-                teamsByLocation.computeIfAbsent(locationId, ignored -> new HashMap<>());
-        int next = teams.getOrDefault(teamId, 0) + change;
-        failIfIllegalState(next >= 0, "team reference count must not be negative");
-
-        if (next == 0) {
-            teams.remove(teamId);
-        } else {
-            teams.put(teamId, next);
-        }
-
-        if (teams.isEmpty()) {
-            teamsByLocation.remove(locationId);
-        }
-    }
-
-    /** Removes one active ADD matching registration ID, location and effective time. */
-    private TimingData removeMatchingRegistration(TimingData revoke, RegistrationId registrationId) {
-
-        TimingData matchingRegistration = null;
-        for (int index = activeRecords.size() - 1; index >= 0 && matchingRegistration == null; index--) {
-            TimingData candidate = activeRecords.get(index);
-            boolean sameRegistration = registrationId.equals(registrationIdOrNull(candidate));
-            boolean sameLocation = Objects.equals(revoke.locationId(), candidate.locationId());
-            boolean sameTime = revoke.effectiveTime().equals(candidate.effectiveTime());
-
-            if (sameRegistration && sameLocation && sameTime) {
-                matchingRegistration = activeRecords.remove(index);
-            }
-        }
-        return matchingRegistration;
-    }
-
-    /** Returns the RegistrationId for a registration record, otherwise null. */
-    private static RegistrationId registrationIdOrNull(TimingData data) {
+    /** Returns the identity of an automatic or manual registration, otherwise null. */
+    public static RegistrationId registrationIdOrNull(TimingData data) {
 
         RegistrationId registrationId = null;
         if (data instanceof TimingData.AutomaticRegistration) {
@@ -199,7 +122,7 @@ public final class ActiveRegistrations {
         return registrationId;
     }
 
-    /** Returns the ADD/REV action for a registration record, otherwise null. */
+    /** Returns the registration action, or null for other TimingData records. */
     private static TimingData.RegistrationAction registrationAction(TimingData data) {
 
         TimingData.RegistrationAction action = null;
@@ -211,8 +134,40 @@ public final class ActiveRegistrations {
         return action;
     }
 
+    /** One display registration, whose validity may change after a later REV. */
+    public static final class Registration {
+        private final TimingData data;
+        private final RegistrationId registrationId;
+        private boolean valid = true;
 
-    /** One actual ADD or matched REV change to the active-registration set. */
+        private Registration(TimingData data, RegistrationId registrationId) {
+
+            this.data = data;
+            this.registrationId = registrationId;
+        }
+
+        public TimingData data() {
+            return data;
+        }
+
+        public RegistrationId registrationId() {
+            return registrationId;
+        }
+
+        public LocationId locationId() {
+            return data.locationId();
+        }
+
+        public long sequenceNumber() {
+            return data.sequenceNumber();
+        }
+
+        public boolean isValid() {
+            return valid;
+        }
+    }
+
+    /** An actual ADD or matched REV for downstream registered-team accounting. */
     public static final class Change {
         public enum Action {
             ADDED,
@@ -221,47 +176,25 @@ public final class ActiveRegistrations {
 
         private final Action action;
         private final TimingData registration;
-        private final TeamId teamId;
+        private final RegistrationId registrationId;
 
-        private Change(Action action, TimingData registration, TeamId teamId) {
+        private Change(Action action, TimingData registration, RegistrationId registrationId) {
 
             this.action = action;
             this.registration = registration;
-            this.teamId = teamId;
+            this.registrationId = registrationId;
         }
 
-        private static Change added(TimingData registration, TeamId teamId) {
-
-            return new Change(Action.ADDED, registration, teamId);
-        }
-
-        private static Change removed(TimingData registration, TeamId teamId) {
-
-            return new Change(Action.REMOVED, registration, teamId);
-        }
-
-        /** Returns whether the active registration was added or removed. */
         public Action action() {
-
             return action;
         }
 
-        /** Returns the active ADD record affected by this change. */
         public TimingData registration() {
-
             return registration;
         }
 
-        /** Returns the team resolved for the registration when this change occurred. */
-        public TeamId teamId() {
-
-            return teamId;
+        public RegistrationId registrationId() {
+            return registrationId;
         }
-    }
-
-    /** Active occurrences and current team resolution for one RegistrationId. */
-    private static final class RegistrationState {
-        private final Map<LocationId, Integer> occurrencesByLocation = new HashMap<>();
-        private TeamId teamId;
     }
 }

@@ -6,7 +6,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.TeamRanking;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.RegisteredTeams;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
@@ -33,7 +33,7 @@ final class DataTask extends AbstractTask {
     private final LogBookAccessor logBook;
     private final RaceDataState raceData;
     private final ActiveRegistrations activeRegistrations;
-    private final TeamRanking teamRanking;
+    private final RegisteredTeams registeredTeams;
     private final Consumer<Throwable> failureHandler;
 
     private boolean available;
@@ -48,21 +48,21 @@ final class DataTask extends AbstractTask {
             LogBookAccessor logBook,
             RaceDataState raceData,
             ActiveRegistrations activeRegistrations,
-            TeamRanking teamRanking,
+            RegisteredTeams registeredTeams,
             Consumer<Throwable> failureHandler) {
 
         failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
         failIfInvalidArgument(raceData != null, "raceData must not be null");
         failIfInvalidArgument(activeRegistrations != null, "activeRegistrations must not be null");
-        failIfInvalidArgument(teamRanking != null, "teamRanking must not be null");
+        failIfInvalidArgument(registeredTeams != null, "registeredTeams must not be null");
         failIfInvalidArgument(failureHandler != null, "failureHandler must not be null");
 
         this.taskRunner = taskRunner;
         this.logBook = logBook;
         this.raceData = raceData;
         this.activeRegistrations = activeRegistrations;
-        this.teamRanking = teamRanking;
+        this.registeredTeams = registeredTeams;
         this.failureHandler = failureHandler;
     }
 
@@ -124,7 +124,7 @@ final class DataTask extends AbstractTask {
 
         if (takeLoadFromStart()) {
             activeRegistrations.reset();
-            teamRanking.reset();
+            registeredTeams.reset();
             nextSequence = 1L;
         }
 
@@ -187,9 +187,10 @@ final class DataTask extends AbstractTask {
             long sequence = data.sequenceNumber();
             failIfIllegalState(sequence == nextSequence, "Expected sequence %s, got %s", nextSequence, sequence);
 
-            ActiveRegistrations.Change change =
-                    activeRegistrations.apply(data, raceData::teamIdFor);
-            teamRanking.apply(change);
+            ActiveRegistrations.Change change = activeRegistrations.apply(data);
+            if (change != null) {
+                registeredTeams.apply(change, raceData.teamIdFor(change.registrationId()));
+            }
             nextSequence++;
         }
     }
