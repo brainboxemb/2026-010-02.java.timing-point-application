@@ -190,8 +190,9 @@ public final class TerminalSession {
                 case "close":
                     close(arguments, nodeId, output);
                     return false;
+                case "reg":
                 case "auto-reg":
-                    automaticRegistration(arguments, nodeId, output);
+                    registration(arguments, nodeId, output);
                     return false;
                 case "test":
                     test(arguments, nodeId, output);
@@ -273,32 +274,40 @@ public final class TerminalSession {
                                 .name());
     }
 
-    private void automaticRegistration(
+    private void registration(
             String[] arguments,
             NodeId nodeId,
             PrintWriter output) {
-        if (arguments.length != 3) {
-            output.println(
-                    "Usage: auto-reg <registrationId> <time>");
+
+        if (arguments.length < 2 || arguments.length > 3) {
+            output.println("Usage: reg <registrationId> [now|<UTC timestamp>]");
             return;
         }
 
+        TimingNodeProxy timingNode = timingNode(nodeId);
+        TimingTimestamp effectiveTime;
+        AutomaticTimeSource timeSource;
+
+        if (arguments.length == 2 || "now".equalsIgnoreCase(arguments[2])) {
+            effectiveTime = new TimingTimestamp(timingNode.timeSource().now());
+            timeSource = AutomaticTimeSource.NODE;
+        } else {
+            effectiveTime = TimingTimestamp.parseAbsolute(arguments[2]);
+            timeSource = AutomaticTimeSource.API;
+        }
+
         CommandResult result =
-                timingNode(nodeId)
-                        .addTestAutomaticRegistration(
-                                new RegistrationId(arguments[1]),
-                                TimingTimestamp.parse(arguments[2]),
-                                AutomaticTimeSource.API);
+                timingNode.addTestAutomaticRegistration(
+                        new RegistrationId(arguments[1]),
+                        effectiveTime,
+                        timeSource);
 
         if (result.committed()) {
             output.println(
-                    "Automatic registration: COMMITTED seq="
-                            + result.timingData()
-                                    .sequenceNumber());
+                    "Registration: COMMITTED seq="
+                            + result.timingData().sequenceNumber());
         } else {
-            output.println(
-                    "Automatic registration: "
-                            + result.outcome().name());
+            output.println("Registration: " + result.outcome().name());
         }
     }
 
@@ -547,6 +556,7 @@ public final class TerminalSession {
         return "open".equals(command)
                 || "close".equals(command)
                 || "status".equals(command)
+                || "reg".equals(command)
                 || "auto-reg".equals(command)
                 || "test".equals(command)
                 || "config".equals(command);
@@ -558,6 +568,7 @@ public final class TerminalSession {
         if ("open".equals(command)
                 || "close".equals(command)
                 || "status".equals(command)
+                || "reg".equals(command)
                 || "auto-reg".equals(command)
                 || "test".equals(command)) {
             return true;
@@ -747,8 +758,12 @@ public final class TerminalSession {
         output.println("  open <locationId>            Open selected TimingNode at location");
         output.println("  close                        Close selected TimingNode");
         output.println(
-                "  auto-reg <id> <time>         "
-                        + "Create automatic registration");
+                "  reg <id> [now|<UTC time>]    Register one ID; omitted/now uses node clock");
+        output.println("                               Example: reg A0001");
+        output.println("                               Example: reg A0001 now");
+        output.println(
+                "                               Example: reg A0001 2026-10-19T13:00:00Z");
+        output.println("  auto-reg ...                 Compatibility alias for reg");
         output.println(
                 "  test logbook write <fail|timeout>"
                         + "  Fail or delay next LogBook write");

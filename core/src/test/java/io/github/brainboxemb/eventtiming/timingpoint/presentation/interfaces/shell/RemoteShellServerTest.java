@@ -73,8 +73,8 @@ public class RemoteShellServerTest {
                                 + "status:A\n"
                                 + "node\n"
                                 + "open 24\n"
-                                + "auto-reg:A N0002 2026-10-01T12:00:00Z\n"
-                                + "auto-reg N0003 2026-10-01T12:00:00Z\n"
+                                + "reg:A N0002 now\n"
+                                + "reg N0003\n"
                                 + "status:B\n"
                                 + "open: 25\n"
                                 + "quit:A\n"
@@ -93,7 +93,7 @@ public class RemoteShellServerTest {
                 assertTrue(response.contains("Invalid NodeId: "));
                 assertTrue(response.contains("Command does not accept a NodeId: quit"));
                 assertTrue(response.contains(
-                        "Automatic registration: COMMITTED seq=2"));
+                        "Registration: COMMITTED seq=2"));
                 assertTrue(response.contains(
                         "Tag processing update: APPLIED"));
                 assertTrue(response.contains("Close: CLOSED"));
