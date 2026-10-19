@@ -23,7 +23,7 @@ public class TagProcessingMetricsTest {
                 10,
                 3,
                 6);
-        metrics.recordDuplicateTable(
+        metrics.recordDuplicateState(
                 16,
                 32,
                 7,
@@ -42,9 +42,9 @@ public class TagProcessingMetricsTest {
         assertEquals(10, snapshot.passagePoolSize());
         assertEquals(3, snapshot.passagePoolInUse());
         assertEquals(6, snapshot.passagePoolPeakInUse());
-        assertEquals(16, snapshot.duplicateTableInitialCapacity());
-        assertEquals(32, snapshot.duplicateTableCapacity());
-        assertEquals(7, snapshot.duplicateTableSize());
-        assertEquals(9, snapshot.duplicateTablePeakSize());
+        assertEquals(16, snapshot.duplicateStateInitialCapacity());
+        assertEquals(32, snapshot.duplicateStateCapacity());
+        assertEquals(7, snapshot.duplicateStateSize());
+        assertEquals(9, snapshot.duplicateStatePeakSize());
     }
 }
