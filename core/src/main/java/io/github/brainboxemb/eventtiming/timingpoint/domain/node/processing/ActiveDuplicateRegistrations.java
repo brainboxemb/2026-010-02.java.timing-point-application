@@ -120,8 +120,15 @@ final class ActiveDuplicateRegistrations {
         return peakSize;
     }
 
+    /**
+     * Scans newest storage positions first because duplicates commonly follow shortly after acceptance.
+     *
+     * <p>New registrations are appended at the end of the active set. Removal may
+     * move the final entry into an earlier slot, so this is a locality heuristic
+     * rather than a chronological ordering guarantee.</p>
+     */
     private int indexOf(int registrationId) {
-        for (int index = 0; index < size; index++) {
+        for (int index = size - 1; index >= 0; index--) {
             if (registrationIds[index] == registrationId) {
                 return index;
             }
