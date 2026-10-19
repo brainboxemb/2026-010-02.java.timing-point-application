@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Search active duplicate registrations from the newest storage position first, matching the common case where a duplicate follows shortly after acceptance while preserving the dense-array cleanup design.
+
 - Simplify duplicate-registration state to a short-lived dense primitive list: sizing is independent of observation queue capacity, expired entries are removed on lookup and scheduled cleanup, storage starts with a small allocation batch and grows with ordinary `Arrays.copyOf`, and runtime characterization records capacity/current/peak active-state size rather than hash-table behavior.
 
 - Simplify tag-processing time/state: antenna observations now carry epoch-millisecond event time plus monotonic nanoseconds, passage rules use the monotonic time base, default TimingData stores epoch milliseconds with standard `Instant` conversion, the custom compact-time helper is removed, duplicate suppression uses compact primitive active-state storage, and Java comment guidance now requires domain-rule/rationale documentation rather than syntax narration.
