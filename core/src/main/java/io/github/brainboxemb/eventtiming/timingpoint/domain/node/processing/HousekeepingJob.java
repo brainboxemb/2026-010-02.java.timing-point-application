@@ -79,7 +79,12 @@ final class HousekeepingJob {
         }
     }
 
-    /** Reconciles retained duplicate state when the job becomes active. */
+    /**
+     * Reconciles suppression state after activation.
+     *
+     * <p>Policy may have changed while the job was stopped, so expired state is
+     * removed before deciding whether another cleanup timer is needed.</p>
+     */
     private void resume() {
         if (!active) {
             return;
@@ -89,7 +94,12 @@ final class HousekeepingJob {
         scheduleNext();
     }
 
-    /** Removes expired registrations and schedules another cleanup only when needed. */
+    /**
+     * Runs one duplicate-window cleanup.
+     *
+     * <p>The scheduled reference is cleared first so this run can create one
+     * successor only when suppression state still exists.</p>
+     */
     private void run() {
         synchronized (this) {
             scheduled = null;
@@ -102,7 +112,13 @@ final class HousekeepingJob {
         scheduleNext();
     }
 
-    /** Applies the current policy and replans the one pending cleanup. */
+    /**
+     * Re-evaluates retained registrations against a changed duplicate window.
+     *
+     * <p>The existing delayed run was planned with the old cadence/window, so
+     * it is cancelled before state is reconciled and one current-policy run is
+     * scheduled when necessary.</p>
+     */
     private void applyPolicyChange() {
         synchronized (this) {
             if (!active) {
@@ -115,7 +131,12 @@ final class HousekeepingJob {
         scheduleNext();
     }
 
-    /** Schedules one future cleanup when remembered duplicate state exists. */
+    /**
+     * Keeps at most one duplicate cleanup timer outstanding.
+     *
+     * <p>An empty primitive table needs no periodic work. Recording a later
+     * registration restarts housekeeping through this method.</p>
+     */
     private synchronized void scheduleNext() {
         if (!active || scheduled != null || !duplicateFilter.hasPendingState()) {
             return;
