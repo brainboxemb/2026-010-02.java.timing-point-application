@@ -47,12 +47,12 @@ public class ApiClientTest {
                         + "\"nodes\":["
                         + "{"
                         + "\"id\":\"TN-01\","
-                        + "\"locationId\":24,"
+                        + "\"locId\":24,"
                         + "\"state\":\"OPEN\""
                         + "},"
                         + "{"
                         + "\"id\":\"timing-node-02\","
-                        + "\"locationId\":null,"
+                        + "\"locId\":null,"
                         + "\"state\":\"CLOSED\""
                         + "}"
                         + "],"
@@ -105,6 +105,32 @@ public class ApiClientTest {
         assertTrue(capabilities.enabled("DIRECT_REGISTRATION_SIMULATION"));
         assertTrue(capabilities.enabled("TAG_SCENARIO_SIMULATION"));
         assertFalse(capabilities.enabled("UNKNOWN"));
+    }
+
+    /** HTTP and WebSocket status share this minimal server-side IF-03 v1 payload. */
+    @Test
+    void readsCurrentStatusWithoutProblemsAndWithLocId() throws Exception {
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/v1/status", exchange -> respond(exchange, 200,
+                "{\"nodes\":[{\"id\":\"A\",\"locId\":24,\"state\":\"OPEN\"},"
+                        + "{\"id\":\"B\",\"locId\":null,\"state\":\"CLOSED\"}]}"));
+        server.start();
+
+        ApiClient.StatusResult status = client().getStatus();
+
+        assertEquals(2, status.nodes().size());
+        assertEquals("A", status.nodes().get(0).id());
+        assertEquals(24, status.nodes().get(0).locationId());
+        assertEquals("OPEN", status.nodes().get(0).state());
+        assertEquals("B", status.nodes().get(1).id());
+        assertNull(status.nodes().get(1).locationId());
+        assertTrue(status.problems().isEmpty());
+    }
+
+    @Test
+    void rejectsMalformedPresentStatusProblems() {
+        assertThrows(IllegalArgumentException.class,
+                () -> ApiClient.parseStatus("{\"nodes\":[],\"problems\":{}}"));
     }
 
     @Test

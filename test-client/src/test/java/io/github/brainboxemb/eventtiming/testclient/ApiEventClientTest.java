@@ -18,10 +18,9 @@ class ApiEventClientTest {
                 + "\"payload\":{"
                 + "\"nodes\":[{"
                 + "\"id\":\"TN-01\","
-                + "\"locationId\":24,"
+                + "\"locId\":24,"
                 + "\"state\":\"OPEN\""
-                + "}],"
-                + "\"problems\":[]"
+                + "}]"
                 + "}"
                 + "}";
 
@@ -34,6 +33,23 @@ class ApiEventClientTest {
         assertEquals(24, event.status().nodes().get(0).locationId());
         assertEquals("OPEN", event.status().nodes().get(0).state());
         assertEquals(json, event.rawJson());
+    }
+
+    @Test
+    void parsesStatusChangedWithoutProblemsOrLocation() throws Exception {
+        String json = "{"
+                + "\"eventType\":\"STATUS_CHANGED\","
+                + "\"occurredAt\":\"2026-10-01T12:00:03Z\","
+                + "\"payload\":{\"nodes\":[{\"id\":\"A\",\"locId\":null,\"state\":\"CLOSED\"}]}"
+                + "}";
+
+        ApiEventClient.ApiEvent parsed = ApiEventClient.parseEvent(json);
+        ApiEventClient.StatusEvent event =
+                assertInstanceOf(ApiEventClient.StatusEvent.class, parsed);
+
+        assertEquals("A", event.status().nodes().get(0).id());
+        assertEquals(null, event.status().nodes().get(0).locationId());
+        assertEquals(List.of(), event.status().problems());
     }
 
     @Test
