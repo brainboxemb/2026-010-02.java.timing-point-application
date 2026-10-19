@@ -1,5 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.console;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevel;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.logging.LoggingLevelControl;
@@ -7,6 +10,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.testsupport.PresentationGat
 
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.Test;
@@ -32,7 +37,7 @@ public class LocalConsoleTest {
                                     + "node A\n"
                                     + "open 24\n"
                                     + "status\n"
-                                    + "auto-reg N0001 2026-10-01T12:00:00Z\n"
+                                    + "reg N0001 2026-10-01T12:00:00Z\n"
                                     + "config\n"
                                     + "config tag-processing set "
                                     + "quietTimeoutMillis=300 "
@@ -53,7 +58,10 @@ public class LocalConsoleTest {
         assertTrue(text.contains("node [id]                    Show/select default TimingNode"));
         assertTrue(text.contains("open <locationId>            Open selected TimingNode at location"));
         assertTrue(text.contains("close                        Close selected TimingNode"));
-        assertTrue(text.contains("auto-reg <id> <time>"));
+        assertTrue(text.contains("reg <id> [now|<UTC time>]"));
+        assertTrue(text.contains("Example: reg A0001"));
+        assertTrue(text.contains("Example: reg A0001 now"));
+        assertTrue(text.contains("auto-reg ...                 Compatibility alias for reg"));
         assertTrue(text.contains("config                       Show current configuration"));
         assertTrue(text.contains("quit                         Stop the application"));
         assertTrue(text.contains("exit                         Alias for quit"));
@@ -70,7 +78,7 @@ public class LocalConsoleTest {
         assertTrue(text.contains("Available: A"));
         assertTrue(text.contains("Open: OPENED"));
         assertTrue(text.contains("Location  : 24"));
-        assertTrue(text.contains("Automatic registration: COMMITTED seq=2"));
+        assertTrue(text.contains("Registration: COMMITTED seq=2"));
         assertTrue(text.contains("Configuration"));
         assertTrue(text.contains("quietTimeoutMillis : current=250 startup=250 runtimeMutable=true"));
         assertTrue(text.contains("Tag processing update: APPLIED"));
@@ -80,6 +88,60 @@ public class LocalConsoleTest {
         assertTrue(text.contains("Close: CLOSED"));
         assertTrue(text.contains("Location  : -"));
         assertTrue(stopped.get());
+    }
+
+    @Test
+    public void regUsesNodeClockWhenTimeIsOmittedOrNowAndAcceptsExplicitUtcTime() {
+        StringWriter output = new StringWriter();
+
+        try (PresentationGatewayFixture fixture = new PresentationGatewayFixture(identity())) {
+            LocalConsole console = new LocalConsole(
+                    fixture.handler(),
+                    () -> { },
+                    new StringReader(
+                            "open 24\n"
+                                    + "reg A0001\n"
+                                    + "reg A0002 now\n"
+                                    + "reg A0003 2026-10-01T12:34:56Z\n"
+                                    + "auto-reg A0004 now\n"
+                                    + "quit\n"),
+                    output);
+
+            console.run();
+
+            List<TimingData> records = new ArrayList<>();
+            fixture.handler()
+                    .timingNode(new NodeId("A"))
+                    .visitLatestLogBook(10, records::add);
+
+            TimingData.AutomaticRegistration first =
+                    (TimingData.AutomaticRegistration) records.get(1);
+            TimingData.AutomaticRegistration second =
+                    (TimingData.AutomaticRegistration) records.get(2);
+            TimingData.AutomaticRegistration explicit =
+                    (TimingData.AutomaticRegistration) records.get(3);
+            TimingData.AutomaticRegistration alias =
+                    (TimingData.AutomaticRegistration) records.get(4);
+
+            TimingTimestamp nodeTime =
+                    TimingTimestamp.parse("2026-10-01T12:00:01Z");
+            assertEquals(nodeTime, first.effectiveTime());
+            assertEquals(nodeTime, second.effectiveTime());
+            assertEquals(nodeTime, alias.effectiveTime());
+            assertEquals(TimingData.AutomaticTimeSource.NODE, first.timeSource());
+            assertEquals(TimingData.AutomaticTimeSource.NODE, second.timeSource());
+            assertEquals(TimingData.AutomaticTimeSource.NODE, alias.timeSource());
+            assertEquals(
+                    TimingTimestamp.parse("2026-10-01T12:34:56Z"),
+                    explicit.effectiveTime());
+            assertEquals(TimingData.AutomaticTimeSource.API, explicit.timeSource());
+        }
+
+        String text = output.toString();
+        assertTrue(text.contains("Registration: COMMITTED seq=2"));
+        assertTrue(text.contains("Registration: COMMITTED seq=3"));
+        assertTrue(text.contains("Registration: COMMITTED seq=4"));
+        assertTrue(text.contains("Registration: COMMITTED seq=5"));
     }
 
     @Test

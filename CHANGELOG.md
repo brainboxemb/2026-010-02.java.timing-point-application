@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Simplify terminal registration input: `reg <id> [now|<UTC timestamp>]` is the primary command, omitted/`now` uses the selected TimingNode clock, explicit UTC timestamps remain available for replay, and `auto-reg` remains a compatibility alias.
+
 - Fix SI-02 Engineering Client IF-03 status parsing: read the actual `locId` field and accept status payloads without the absent `problems` field; cover HTTP and WebSocket status snapshots with the deployed server shape.
 
 - Separate chronological registration history (including invalidated ADDs), unique registered teams per WP (+/- events and full visits), and per-registration provisional ranking. Recompute rankings from the active list rather than maintaining a second index. StageTiming remains stateless, and StageTime is now StageTimingRecord.
