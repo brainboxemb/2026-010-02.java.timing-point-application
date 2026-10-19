@@ -223,7 +223,7 @@ public class HttpEndpointTest {
             assertTrue(history.body.contains("\"regId\":\"N0001\""));
             assertTrue(history.body.contains("\"code\":[\"ADD\"]"));
             assertTrue(history.body.contains(
-                    "\"time\":\"2026-10-01T12:00:00.000Z\""));
+                    "\"time\":\"2026-10-01T12:00:00.00Z\""));
 
             Response latest = request(
                     server.boundPort(),
@@ -295,7 +295,7 @@ public class HttpEndpointTest {
             Response implicit = request(server.boundPort(), "GET",
                     "/api/v1/node/A/logbook?last=1", null);
             assertEquals(200, implicit.status);
-            assertTrue(implicit.body.contains("\"time\":\"2026-10-01T12:00:01.000Z\""));
+            assertTrue(implicit.body.contains("\"time\":\"2026-10-01T12:00:01.00Z\""));
             assertTrue(implicit.body.contains("\"tagSrc\":\"API\""));
             assertTrue(implicit.body.contains("\"timeSrc\":\"NODE\""));
 
@@ -306,7 +306,7 @@ public class HttpEndpointTest {
             Response history = request(server.boundPort(), "GET",
                     "/api/v1/node/A/logbook?last=1", null);
             assertEquals(200, history.status);
-            assertTrue(history.body.contains("\"time\":\"2026-10-01T12:00:00.987Z\""));
+            assertTrue(history.body.contains("\"time\":\"2026-10-01T12:00:00.98Z\""));
             assertTrue(history.body.contains("\"tagSrc\":\"API\""));
             assertTrue(history.body.contains("\"timeSrc\":\"API\""));
         } finally {
@@ -436,7 +436,7 @@ public class HttpEndpointTest {
             assertTrue(history.body.contains("\"regId\":\"N0002\""));
             assertTrue(history.body.contains("\"code\":[\"ADD\",\"AUTO\"]"));
             assertTrue(history.body.contains(
-                    "\"time\":\"2026-10-01T12:00:01.250Z\""));
+                    "\"time\":\"2026-10-01T12:00:01.25Z\""));
             assertTrue(history.body.contains("\"regId\":\"N0003\""));
             assertTrue(history.body.contains("\"code\":[\"ADD\",\"MAN\"]"));
         } finally {
