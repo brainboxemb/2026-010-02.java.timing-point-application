@@ -41,7 +41,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"seqNr\":1,"
                         + "\"locId\":7,"
                         + "\"recType\":\"AUTO_REG\","
-                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
+                        + "\"time\":\"2026-09-30T20:01:39.12Z\","
                         + "\"regId\":\"A0042\","
                         + "\"code\":[\"ADD\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.450Z\"}",
@@ -138,7 +138,7 @@ public class DefaultTimingDataCodecTest {
                         + "\"seqNr\":3,"
                         + "\"locId\":7,"
                         + "\"recType\":\"NODE_INFO\","
-                        + "\"time\":\"2026-09-30T20:01:39.120Z\","
+                        + "\"time\":\"2026-09-30T20:01:39.12Z\","
                         + "\"code\":[\"OPEN\"],"
                         + "\"recTime\":\"2026-09-30T20:01:45.450Z\"}",
                 json);
@@ -313,14 +313,14 @@ public class DefaultTimingDataCodecTest {
 
         assertTrue(
                 json.contains(
-                        "\"time\":\"2026-09-30T20:01:39.900Z\""));
+                        "\"time\":\"2026-09-30T20:01:39.90Z\""));
         assertTrue(
                 json.contains(
                         "\"recTime\":\"2026-09-30T20:01:45.100Z\""));
     }
 
     @Test
-    public void factoryStoresFinerInputAtMillisecondPrecision() throws Exception {
+    public void factoryStoresFinerInputAtMillisecondPrecisionWithoutChangingV1TextShape() throws Exception {
         TimingData data =
                 factory.createAutomaticRegistration(
                         new TimingDataFactory.Context(
@@ -342,7 +342,7 @@ public class DefaultTimingDataCodecTest {
                         codec.encode(data),
                         StandardCharsets.UTF_8)
                         .contains(
-                                "\"time\":\"2026-09-30T20:01:39.129Z\""));
+                                "\"time\":\"2026-09-30T20:01:39.12Z\""));
     }
 
     @Test
