@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Simplify tag-processing time/state: antenna observations now carry epoch-millisecond event time plus monotonic nanoseconds, passage rules use the monotonic time base, default TimingData stores epoch milliseconds with standard `Instant` conversion, the custom compact-time helper is removed, duplicate suppression uses preallocated primitive arrays, and Java comment guidance now requires domain-rule/rationale documentation rather than syntax narration.
+
 - Use antenna observation timestamps for passage boundaries and preallocate reusable RegistrationPassage state from a generic object pool; retain two fixed per-tag statistic slots and expose pool size/peak-use metrics for characterization.
 
 - Simplify TagObservationFilter hot-path state: document the passage algorithm, remove continuously rebuilt passage snapshots and per-tag diagnostic maps, reuse one expired-burst buffer, and publish only a cheap pending-passage flag for characterization.
