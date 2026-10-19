@@ -317,7 +317,7 @@ public final class TimingNodeFixture {
                         nodeId,
                         taskLane,
                         logBook,
-                                                raceData,
+                        raceData,
                         activeRegistrations);
 
         UpstreamHandler upstreamHandler =

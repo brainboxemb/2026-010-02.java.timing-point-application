@@ -24,11 +24,11 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Maintains the active registration activeRegistrations used for team ranking.
+ * Indexes active registrations for efficient per-team ranking.
  *
- * <p>ActiveRegistration selection is maintained incrementally. Each location/team keeps its active
+ * <p>The index is updated after each active registration change. Each location/team keeps its active
  * registrations ordered by finish time, so the selected registration is always the first
- * activeRegistration. Ranking queries therefore inspect one selected registration per team instead
+ * registration. Ranking queries therefore inspect one selected registration per team instead
  * of scanning all active registrations.</p>
  */
 public final class TeamRanking {
@@ -46,14 +46,14 @@ public final class TeamRanking {
     private final Map<LocationId, Map<TeamId, NavigableSet<ActiveRegistration>>> activeRegistrationsByLocationAndTeam =
             new HashMap<>();
 
-    /** Creates the ranking index over the shared StageTiming resolver. */
+    /** Creates the ranking index over the current race data. */
     public TeamRanking(RaceDataState raceData) {
 
         failIfInvalidArgument(raceData != null, "raceData must not be null");
         this.raceData = raceData;
     }
 
-    /** Clears all active ranking activeRegistrations before LogBook reconstruction. */
+    /** Clears all ranking indexes before LogBook reconstruction. */
     public void reset() {
 
         activeRegistrationsBySequence.clear();
@@ -73,7 +73,7 @@ public final class TeamRanking {
         }
     }
 
-    /** Moves only the active activeRegistrations for one RegistrationId to its current team. */
+    /** Moves only the active registrations for one RegistrationId to its current team. */
     public void teamAssignmentChanged(RegistrationId registrationId, TeamId teamId) {
 
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
@@ -139,7 +139,7 @@ public final class TeamRanking {
         return visitRanked(ordered, visitor);
     }
 
-    /** Adds one active registration activeRegistration to all ranking indexes. */
+    /** Adds one active registration to all ranking indexes. */
     private void addActiveRegistration(TimingData registration, TeamId teamId) {
 
         failIfIllegalState(registration.effectiveTime().isAbsolute(), "active registration time must be absolute");
@@ -157,7 +157,7 @@ public final class TeamRanking {
     private void removeActiveRegistration(long sequenceNumber) {
 
         ActiveRegistration activeRegistration = activeRegistrationsBySequence.remove(sequenceNumber);
-        failIfIllegalState(activeRegistration != null, "missing team-ranking activeRegistration for sequence %s", sequenceNumber);
+        failIfIllegalState(activeRegistration != null, "missing ranked registration for sequence %s", sequenceNumber);
 
         removeFromTeam(activeRegistration);
 
@@ -168,7 +168,7 @@ public final class TeamRanking {
         }
     }
 
-    /** Adds one activeRegistration to its current location/team ordered set. */
+    /** Adds one active registration to its current location/team ordered set. */
     private void addToTeam(ActiveRegistration activeRegistration) {
 
         if (activeRegistration.teamId != null) {

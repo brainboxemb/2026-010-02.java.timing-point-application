@@ -188,7 +188,7 @@ public final class ActiveRegistrations {
     }
 
     /** Returns the RegistrationId for a registration record, otherwise null. */
-    static RegistrationId registrationIdOrNull(TimingData data) {
+    public static RegistrationId registrationIdOrNull(TimingData data) {
 
         RegistrationId registrationId = null;
         if (data instanceof TimingData.AutomaticRegistration) {

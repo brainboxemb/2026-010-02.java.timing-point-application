@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.service;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
@@ -151,7 +152,7 @@ public final class NodeService extends LifecycleComponent {
             RegistrationId registrationId = ActiveRegistrations.registrationIdOrNull(registration);
             TeamId teamId = raceData.teamIdFor(registrationId);
             if (teamId != null) {
-                io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp start = raceData.stageStartTimeFor(teamId);
+                TimingTimestamp start = raceData.stageStartTimeFor(teamId);
                 if (start != null) {
                     visitor.accept(StageTiming.resolve(registration, teamId, start, raceTimeZone));
                     visited++;

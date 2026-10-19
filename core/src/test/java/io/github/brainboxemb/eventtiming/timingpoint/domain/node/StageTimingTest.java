@@ -260,7 +260,7 @@ public class StageTimingTest {
 
         List<StageTimingRecord> result = new ArrayList<StageTimingRecord>();
         for (TimingData registration : activeRegistrations.values()) {
-            RegistrationId registrationId = ((TimingData.AutomaticRegistration) registration).registrationId();
+            RegistrationId registrationId = ActiveRegistrations.registrationIdOrNull(registration);
             TeamId teamId = raceData.teamIdFor(registrationId);
             if (teamId != null && raceData.stageStartTimeFor(teamId) != null) {
                 result.add(StageTiming.resolve(registration, teamId, raceData.stageStartTimeFor(teamId), raceTimeZone));
