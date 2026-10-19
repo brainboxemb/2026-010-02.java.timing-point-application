@@ -340,7 +340,7 @@ public class TimingNodeTest {
 
             assertEquals(
                     2,
-                    awaitTimingDataCount(node));
+                    node.logBook().process(LogBookQueries.timingDataCount()).intValue());
             assertEquals(2, persistence.records.size());
             assertTrue(persistence.records.get(0) instanceof TimingData.NodeOpen);
             assertTrue(persistence.records.get(1) instanceof TimingData.NodeClose);
@@ -596,7 +596,7 @@ public class TimingNodeTest {
                     committed.await(1L, TimeUnit.SECONDS));
             assertEquals(
                     2,
-                    node.logBook().process(LogBookQueries.timingDataCount()).intValue());
+                    awaitTimingDataCount(node));
         } finally {
             persistence.releaseAppend.countDown();
             deactivate(node);
