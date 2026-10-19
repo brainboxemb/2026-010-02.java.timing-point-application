@@ -55,7 +55,6 @@ final class TagObservationFilter {
             new ArrayList<RegistrationPassage>();
     private final ReusableObjectPool<RegistrationPassage> passagePool;
 
-    /** Creates a passage filter with one fixed processing policy. */
     TagObservationFilter(
             TagProcessingPolicy policy,
             MonotonicClock monotonicClock,
@@ -178,7 +177,6 @@ final class TagObservationFilter {
         return true;
     }
 
-    /** Reports whether one or more RegistrationId passages are still open. */
     boolean hasPendingState() {
         return !passages.isEmpty();
     }
@@ -355,7 +353,6 @@ final class TagObservationFilter {
             return selected;
         }
 
-        /** Clears logical ownership before this pooled object is reused for another passage. */
         private void clear() {
             registrationId = 0;
             tagCount = 0;
@@ -382,7 +379,6 @@ final class TagObservationFilter {
         private long strongestObservedAtMonotonicNanos;
         private long observationCount;
 
-        /** Starts this reusable slot from the first observation of one physical tag. */
         private void reset(TagObservation observation) {
             tagId = observation.tagId().packedValue();
             firstObservedAtEpochMillis = observation.observedAtEpochMillis();
