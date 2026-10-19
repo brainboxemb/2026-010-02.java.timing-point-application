@@ -26,7 +26,6 @@ final class HousekeepingJob {
     private volatile boolean active;
     private ScheduledFuture<?> scheduled;
 
-    /** Creates duplicate-window state and stores the scheduler used for delayed cleanup. */
     HousekeepingJob(
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
             MonotonicClock monotonicClock,
@@ -43,7 +42,6 @@ final class HousekeepingJob {
         this.duplicateFilter = new RegistrationDuplicateFilter(policyConfiguration, monotonicClock, metrics);
     }
 
-    /** Enables the job and reconciles retained duplicate state on the scheduler thread. */
     synchronized void start() {
         if (active) {
             return;
@@ -53,24 +51,26 @@ final class HousekeepingJob {
         scheduler.execute(this::resume);
     }
 
-    /** Disables the job and cancels its one pending cleanup. */
     synchronized void stop() {
         active = false;
         cancelScheduled();
     }
 
-    /** Returns whether the registration is still inside its duplicate window. */
     boolean isDuplicate(RegistrationId registrationId) {
         return duplicateFilter.isDuplicate(registrationId);
     }
 
-    /** Starts or refreshes a duplicate window and schedules cleanup when needed. */
     void recordRegistration(RegistrationId registrationId) {
         duplicateFilter.recordRegistration(registrationId);
         scheduleNext();
     }
 
-    /** Queues reconciliation with the current policy and returns immediately. */
+    /**
+     * Applies duplicate-window policy changes on the scheduler thread that owns the table.
+     *
+     * <p>The configuration callback therefore never races with duplicate lookup
+     * or expiry state.</p>
+     */
     void policyChanged(ConfigurationChange<TagProcessingPolicy> change) {
         failIfInvalidArgument(change != null, "change must not be null");
 
@@ -146,7 +146,6 @@ final class HousekeepingJob {
         scheduled = scheduler.schedule(this::run, cadenceNanos, TimeUnit.NANOSECONDS);
     }
 
-    /** Cancels the one pending cleanup when one exists. */
     private void cancelScheduled() {
         ScheduledFuture<?> current = scheduled;
         scheduled = null;
