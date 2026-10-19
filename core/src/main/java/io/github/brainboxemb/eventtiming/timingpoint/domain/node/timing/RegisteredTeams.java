@@ -34,7 +34,7 @@ public final class RegisteredTeams {
         return changes;
     }
 
-    /** Clears reconstructed team counts before LogBook replay. Consumers must resynchronize after reset. */
+    /** Clears reconstructed counts; display consumers must request a new full burst after reset. */
     public void reset() {
 
         registrationsById.clear();
@@ -143,7 +143,8 @@ public final class RegisteredTeams {
             return;
         }
 
-        Map<TeamId, Integer> teams = teamsByLocation.computeIfAbsent(locationId, ignored -> new HashMap<>());
+        Map<TeamId, Integer> teams =
+                teamsByLocation.computeIfAbsent(locationId, ignored -> new HashMap<>());
         int previous = teams.getOrDefault(teamId, 0);
         int next = previous + change;
         failIfIllegalState(next >= 0, "registered-team count must not be negative");

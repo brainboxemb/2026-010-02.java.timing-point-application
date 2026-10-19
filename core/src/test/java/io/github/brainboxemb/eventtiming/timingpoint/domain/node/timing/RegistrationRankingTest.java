@@ -90,7 +90,7 @@ public class RegistrationRankingTest {
         assertEquals(Duration.ofSeconds(20), ranking.get(0).elapsed());
     }
 
-    /** An unmatched REV produces no mutation and leaves the selected passage unchanged. */
+    /** An unmatched REV leaves the current ranking unchanged. */
     @Test
     public void unmatchedRevokeDoesNotChangeRanking() {
         Fixture fixture = fixture();
@@ -117,7 +117,7 @@ public class RegistrationRankingTest {
 
     /** Equal elapsed times share a competition rank across registrations. */
     @Test
-    public void equalTeamTimesShareRank() {
+    public void equalElapsedTimesShareRank() {
         Fixture fixture = fixture();
         fixture.setStart("0001", LocalTime.NOON);
         fixture.setStart("0002", LocalTime.NOON);

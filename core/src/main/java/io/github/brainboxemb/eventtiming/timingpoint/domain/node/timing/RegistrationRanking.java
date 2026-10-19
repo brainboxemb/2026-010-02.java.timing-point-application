@@ -47,6 +47,10 @@ public final class RegistrationRanking {
         failIfInvalidArgument(limit >= 0, "limit must not be negative");
         failIfInvalidArgument(visitor != null, "visitor must not be null");
 
+        if (limit == 0) {
+            return 0;
+        }
+
         List<StageTimingRecord> times = new ArrayList<>();
         for (ActiveRegistrations.Registration registration : registrations.values()) {
             if (registration.isValid() && locationId.equals(registration.locationId())) {

@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 
+import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
@@ -13,6 +14,7 @@ import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTiming
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTimingRecord;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.RegistrationRank;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.RegisteredTeams;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
@@ -53,6 +55,9 @@ public class ActiveRegistrationsIntegrationTest {
         TimingNode node =
                 components.node();
 
+        List<RegisteredTeams.Change> teamChanges = Collections.synchronizedList(new ArrayList<>());
+        components.nodeService().REGISTERED_TEAMS_CHANGED.subscribe(teamChanges::add);
+
         activate(node);
         try {
             awaitOperational(node);
@@ -64,6 +69,9 @@ public class ActiveRegistrationsIntegrationTest {
                     components.nodeService(),
                     new LocationId(1),
                     1);
+            List<TeamId> initialTeams = new ArrayList<>();
+            assertEquals(1, components.nodeService().visitRegisteredTeams(new LocationId(1), initialTeams::add));
+            assertEquals(new TeamId("0001"), initialTeams.get(0));
 
             stream.receive(
                     DefaultUpstreamData.raceData(
@@ -84,6 +92,13 @@ public class ActiveRegistrationsIntegrationTest {
                     components.nodeService(),
                     new LocationId(1),
                     2);
+            List<TeamId> synchronizedTeams = new ArrayList<>();
+            assertEquals(2, components.nodeService().visitRegisteredTeams(new LocationId(1), synchronizedTeams::add));
+            assertEquals(new TeamId("0001"), synchronizedTeams.get(0));
+            assertEquals(new TeamId("0042"), synchronizedTeams.get(1));
+            assertEquals(2, teamChanges.size());
+            assertEquals(RegisteredTeams.Change.Action.ADDED, teamChanges.get(1).action());
+            assertEquals(new TeamId("0042"), teamChanges.get(1).teamId());
             assertEquals(
                     Integer.valueOf(2),
                     node.logBook().process(

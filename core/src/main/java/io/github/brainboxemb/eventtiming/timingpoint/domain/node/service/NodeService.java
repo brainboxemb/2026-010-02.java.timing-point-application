@@ -2,22 +2,22 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.service;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookStatus;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTimingRecord;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.RegistrationRank;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.RegistrationRanking;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.RegisteredTeams;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTimingRecord;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
@@ -58,11 +58,11 @@ public final class NodeService extends LifecycleComponent {
     private final ActiveRegistrations activeRegistrations;
     private final RegisteredTeams registeredTeams = new RegisteredTeams();
     private final RegistrationRanking registrationRanking;
+    private final DataTask dataTask;
+    private final MainTask mainTask = new MainTask();
 
     /** Incremental team membership changes for a smart display's own team list. */
     public final EventSource<RegisteredTeams.Change> REGISTERED_TEAMS_CHANGED = registeredTeams.changes();
-    private final DataTask dataTask;
-    private final MainTask mainTask = new MainTask();
 
     /** Creates the service over one LogBook and the node Task Lane. */
     public NodeService(
@@ -112,7 +112,7 @@ public final class NodeService extends LifecycleComponent {
      * Applies one ordered Central RACE_DATA change set.
      *
      * <p>UpstreamHandler calls this while the node Task Lane is current. Team assignment
-     * changes are then reflected in the unique registered-team list. Rankings resolve the latest race data on read.</p>
+     * changes are reflected in RegisteredTeams. Ranking uses the current race data on read.</p>
      */
     public void applyRaceData(UpstreamData.RaceData changes) {
 
@@ -198,7 +198,8 @@ public final class NodeService extends LifecycleComponent {
         failIfInvalidArgument(limit >= 0, "limit must not be negative");
         failIfInvalidArgument(visitor != null, "visitor must not be null");
 
-        return read(() -> registrationRanking.visit(activeRegistrations, locationId, raceTimeZone, limit, visitor));
+        return read(() ->
+                registrationRanking.visit(activeRegistrations, locationId, raceTimeZone, limit, visitor));
     }
 
     /** Passes LogBook availability changes to MainTask. */
