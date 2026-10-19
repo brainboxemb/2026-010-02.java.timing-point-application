@@ -4,12 +4,12 @@ import java.time.Duration;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
-/** One ranked team represented by the active stage passage selected for that team. */
-public final class TeamRank {
+/** One ranked registration represented by the active stage passage selected for that team. */
+public final class RegistrationRank {
     private final int rank;
     private final StageTimingRecord timingRecord;
 
-    TeamRank(int rank, StageTimingRecord timingRecord) {
+    RegistrationRank(int rank, StageTimingRecord timingRecord) {
 
         failIfInvalidArgument(rank >= 1, "rank must be positive");
         failIfInvalidArgument(timingRecord != null, "timingRecord must not be null");

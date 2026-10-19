@@ -23,15 +23,15 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-/** Verifies incrementally maintained selection of one ranking passage per team. */
-public class TeamRankingTest {
+/** Verifies every valid registration receives a provisional ranking position. */
+public class RegistrationRankingTest {
     private static final NodeId NODE_ID = new NodeId("A");
     private static final LocationId LOCATION_ID = new LocationId(1);
     private static final DefaultTimingDataFactory FACTORY = new DefaultTimingDataFactory();
 
-    /** The earliest active finish is selected without removing duplicate passages. */
+    /** Every valid passage is ranked, including multiple passages of the same team. */
     @Test
-    public void selectsFastestActivePassageForOneTeam() {
+    public void ranksEveryValidPassageForOneTeam() {
         Fixture fixture = fixture();
         fixture.setStart("0001", LocalTime.NOON);
 
@@ -48,17 +48,19 @@ public class TeamRankingTest {
                         Instant.parse("2026-10-13T12:00:10Z"),
                         TimingData.RegistrationAction.ADD));
 
-        List<TeamRank> ranking = fixture.ranking();
+        List<RegistrationRank> ranking = fixture.ranking();
 
-        assertEquals(1, ranking.size());
+        assertEquals(2, ranking.size());
         assertEquals(1, ranking.get(0).rank());
         assertEquals(2L, ranking.get(0).timingRecord().sequenceNumber());
         assertEquals(Duration.ofSeconds(10), ranking.get(0).elapsed());
+        assertEquals(2, ranking.get(1).rank());
+        assertEquals(1L, ranking.get(1).timingRecord().sequenceNumber());
     }
 
-    /** Revoking the selected passage promotes the next active candidate directly. */
+    /** Revoking the fastest passage removes it from the ranking but not the display history. */
     @Test
-    public void revokeSelectedPassagePromotesNextCandidate() {
+    public void revokeRemovesInvalidPassageFromRanking() {
         Fixture fixture = fixture();
         fixture.setStart("0001", LocalTime.NOON);
 
@@ -81,7 +83,7 @@ public class TeamRankingTest {
                         Instant.parse("2026-10-13T12:00:10Z"),
                         TimingData.RegistrationAction.REV));
 
-        List<TeamRank> ranking = fixture.ranking();
+        List<RegistrationRank> ranking = fixture.ranking();
 
         assertEquals(1, ranking.size());
         assertEquals(1L, ranking.get(0).timingRecord().sequenceNumber());
@@ -90,7 +92,7 @@ public class TeamRankingTest {
 
     /** An unmatched REV produces no mutation and leaves the selected passage unchanged. */
     @Test
-    public void unmatchedRevokeDoesNotChangeSelectedCandidate() {
+    public void unmatchedRevokeDoesNotChangeRanking() {
         Fixture fixture = fixture();
         fixture.setStart("0001", LocalTime.NOON);
 
@@ -107,13 +109,13 @@ public class TeamRankingTest {
                         Instant.parse("2026-10-13T12:00:30Z"),
                         TimingData.RegistrationAction.REV));
 
-        List<TeamRank> ranking = fixture.ranking();
+        List<RegistrationRank> ranking = fixture.ranking();
 
         assertEquals(1, ranking.size());
         assertEquals(1L, ranking.get(0).timingRecord().sequenceNumber());
     }
 
-    /** Equal selected elapsed times share competition rank across teams. */
+    /** Equal elapsed times share a competition rank across registrations. */
     @Test
     public void equalTeamTimesShareRank() {
         Fixture fixture = fixture();
@@ -133,14 +135,14 @@ public class TeamRankingTest {
                         Instant.parse("2026-10-13T12:00:10Z"),
                         TimingData.RegistrationAction.ADD));
 
-        List<TeamRank> ranking = fixture.ranking();
+        List<RegistrationRank> ranking = fixture.ranking();
 
         assertEquals(2, ranking.size());
         assertEquals(1, ranking.get(0).rank());
         assertEquals(1, ranking.get(1).rank());
     }
 
-    /** Ranking candidates stay scoped to their TimingData location. */
+    /** Ranking registrations stay scoped to their TimingData location. */
     @Test
     public void rankingIsScopedPerLocation() {
         Fixture fixture = fixture();
@@ -167,7 +169,7 @@ public class TeamRankingTest {
 
     /** A reserve registration enters ranking when its live team assignment appears. */
     @Test
-    public void teamAssignmentMovesExistingCandidateIntoRanking() {
+    public void assignmentChangeChangesRankingWithoutReapplyingRegistrations() {
         Fixture fixture = fixture();
         fixture.setStart("0042", LocalTime.NOON);
 
@@ -182,17 +184,15 @@ public class TeamRankingTest {
 
         RegistrationId registrationId = new RegistrationId("R0001");
         TeamId teamId = new TeamId("0042");
-        fixture.activeRegistrations.teamAssignmentChanged(registrationId, teamId);
-        fixture.teamRanking.teamAssignmentChanged(registrationId, teamId);
+        fixture.raceData.teamAssignments().assign(registrationId, teamId);
 
-        List<TeamRank> ranking = fixture.ranking();
+        List<RegistrationRank> ranking = fixture.ranking();
 
         assertEquals(1, ranking.size());
         assertEquals(teamId, ranking.get(0).timingRecord().teamId());
         assertEquals(1L, ranking.get(0).timingRecord().sequenceNumber());
 
-        fixture.activeRegistrations.teamAssignmentChanged(registrationId, null);
-        fixture.teamRanking.teamAssignmentChanged(registrationId, null);
+        fixture.raceData.teamAssignments().remove(registrationId);
         assertTrue(fixture.ranking().isEmpty());
     }
 
@@ -235,7 +235,7 @@ public class TeamRankingTest {
         private final DefaultEventData eventData = new DefaultEventData();
         private final RaceDataState raceData = new RaceDataState(eventData);
         private final ActiveRegistrations activeRegistrations = new ActiveRegistrations();
-        private final TeamRanking teamRanking = new TeamRanking(raceData);
+        private final RegistrationRanking registrationRanking = new RegistrationRanking(raceData);
 
         private void setStart(String teamId, LocalTime startTime) {
 
@@ -244,20 +244,18 @@ public class TeamRankingTest {
 
         private void add(TimingData data) {
 
-            ActiveRegistrations.Change change =
-                    activeRegistrations.apply(data, eventData::teamIdFor);
-            teamRanking.apply(change);
+            activeRegistrations.apply(data);
         }
 
-        private List<TeamRank> ranking() {
+        private List<RegistrationRank> ranking() {
 
             return ranking(LOCATION_ID);
         }
 
-        private List<TeamRank> ranking(LocationId locationId) {
+        private List<RegistrationRank> ranking(LocationId locationId) {
 
-            List<TeamRank> result = new ArrayList<TeamRank>();
-            teamRanking.visit(locationId, ZoneOffset.UTC, 16, result::add);
+            List<RegistrationRank> result = new ArrayList<RegistrationRank>();
+            registrationRanking.visit(activeRegistrations, locationId, ZoneOffset.UTC, 16, result::add);
             return result;
         }
     }

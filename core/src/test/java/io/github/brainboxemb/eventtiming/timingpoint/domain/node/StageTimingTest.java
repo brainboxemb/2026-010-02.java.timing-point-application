@@ -259,11 +259,11 @@ public class StageTimingTest {
             ZoneId raceTimeZone) {
 
         List<StageTimingRecord> result = new ArrayList<StageTimingRecord>();
-        for (TimingData registration : activeRegistrations.values()) {
-            RegistrationId registrationId = ActiveRegistrations.registrationIdOrNull(registration);
+        for (ActiveRegistrations.Registration registration : activeRegistrations.values()) {
+            RegistrationId registrationId = registration.registrationId();
             TeamId teamId = raceData.teamIdFor(registrationId);
-            if (teamId != null && raceData.stageStartTimeFor(teamId) != null) {
-                result.add(StageTiming.resolve(registration, teamId, raceData.stageStartTimeFor(teamId), raceTimeZone));
+            if (registration.isValid() && teamId != null && raceData.stageStartTimeFor(teamId) != null) {
+                result.add(StageTiming.resolve(registration.data(), teamId, raceData.stageStartTimeFor(teamId), raceTimeZone));
             }
         }
         return result;
@@ -282,7 +282,7 @@ public class StageTimingTest {
 
         ActiveRegistrations active = new ActiveRegistrations();
         for (TimingData record : records) {
-            active.apply(record, id -> null);
+            active.apply(record);
         }
         return active;
     }

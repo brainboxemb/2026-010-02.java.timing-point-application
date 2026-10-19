@@ -12,7 +12,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTimingRecord;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.TeamRank;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.RegistrationRank;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
@@ -94,9 +94,9 @@ public class ActiveRegistrationsIntegrationTest {
     }
 
 
-    /** Duplicate passages stay visible while team ranking selects one maintained candidate. */
+    /** Duplicate passages remain visible and both receive their own ranking positions. */
     @Test
-    public void recoveredPassagesAndTeamRankingRemainSeparate() {
+    public void duplicatePassagesAreRankedIndividually() {
         InMemoryUpstreamStream stream = new InMemoryUpstreamStream();
         TimingNodeFixture.Components components =
                 TimingNodeFixture.createDirectComponents(
@@ -132,17 +132,20 @@ public class ActiveRegistrationsIntegrationTest {
             List<StageTimingRecord> passages = new ArrayList<StageTimingRecord>();
             components.nodeService().visitStageTimingRecords(ZoneOffset.UTC, 16, passages::add);
 
-            List<TeamRank> ranking = new ArrayList<TeamRank>();
+            List<RegistrationRank> ranking = new ArrayList<RegistrationRank>();
             components.nodeService()
-                    .visitTeamRanking(
+                    .visitRegistrationRanking(
                             new LocationId(1),
                             ZoneOffset.UTC,
                             16,
                             ranking::add);
 
             assertEquals(2, passages.size());
-            assertEquals(1, ranking.size());
+            assertEquals(2, ranking.size());
             assertEquals(2L, ranking.get(0).timingRecord().sequenceNumber());
+            assertEquals(1L, ranking.get(1).timingRecord().sequenceNumber());
+            assertEquals(1, ranking.get(0).rank());
+            assertEquals(2, ranking.get(1).rank());
         } finally {
             deactivate(components.node());
         }

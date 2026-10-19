@@ -1,5 +1,7 @@
 # Changelog
 
+- Keep chronological registrations, including invalidated ADDs, separate from per-WP RegisteredTeams. Support full team visits and + / - transitions; rank every valid passage instead of selecting one per team.
+
 ## Unreleased
 
 - Clarify node timing: rename StageTime to StageTimingRecord, isolate stateless stage time calculation, resolve race data through RaceDataState, and name ranking indexes for active registrations rather than candidates. Preserve active-record traversal, bounded top-N and ranking semantics.

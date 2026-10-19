@@ -12,8 +12,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDa
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTimingRecord;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTiming;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.TeamRank;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.TeamRanking;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.RegistrationRank;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.RegistrationRanking;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.RegisteredTeams;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
@@ -54,7 +56,11 @@ public final class NodeService extends LifecycleComponent {
     private final SerialTaskRunner taskRunner;
     private final RaceDataState raceData;
     private final ActiveRegistrations activeRegistrations;
-    private final TeamRanking teamRanking;
+    private final RegisteredTeams registeredTeams = new RegisteredTeams();
+    private final RegistrationRanking registrationRanking;
+
+    /** Incremental team membership changes for a smart display's own team list. */
+    public final EventSource<RegisteredTeams.Change> REGISTERED_TEAMS_CHANGED = registeredTeams.changes();
     private final DataTask dataTask;
     private final MainTask mainTask = new MainTask();
 
@@ -76,14 +82,14 @@ public final class NodeService extends LifecycleComponent {
         this.taskRunner = taskRunner;
         this.raceData = raceData;
         this.activeRegistrations = activeRegistrations;
-        teamRanking = new TeamRanking(raceData);
+        registrationRanking = new RegistrationRanking(raceData);
         dataTask =
                 new DataTask(
                         taskRunner,
                         logBook,
                         raceData,
                         activeRegistrations,
-                        teamRanking,
+                        registeredTeams,
                         this::dataTaskFailed);
     }
 
@@ -106,7 +112,7 @@ public final class NodeService extends LifecycleComponent {
      * Applies one ordered Central RACE_DATA change set.
      *
      * <p>UpstreamHandler calls this while the node Task Lane is current. Team assignment
-     * changes are then reflected immediately in active-registration counts and ranking.</p>
+     * changes are then reflected in the unique registered-team list. Rankings resolve the latest race data on read.</p>
      */
     public void applyRaceData(UpstreamData.RaceData changes) {
 
@@ -116,8 +122,7 @@ public final class NodeService extends LifecycleComponent {
         for (UpstreamData.TeamAssignmentChange change : changes.teamAssignmentChanges()) {
             RegistrationId registrationId = change.registrationId();
             TeamId teamId = raceData.teamIdFor(registrationId);
-            activeRegistrations.teamAssignmentChanged(registrationId, teamId);
-            teamRanking.teamAssignmentChanged(registrationId, teamId);
+            registeredTeams.teamAssignmentChanged(registrationId, teamId);
         }
     }
 
@@ -126,7 +131,7 @@ public final class NodeService extends LifecycleComponent {
 
         failIfInvalidArgument(locationId != null, "locationId must not be null");
 
-        Supplier<Integer> readCount = () -> activeRegistrations.uniqueTeamCount(locationId);
+        Supplier<Integer> readCount = () -> registeredTeams.uniqueTeamCount(locationId);
         return read(readCount);
     }
 
@@ -144,17 +149,16 @@ public final class NodeService extends LifecycleComponent {
     private int visitResolvedRegistrations(ZoneId raceTimeZone, int limit, Consumer<StageTimingRecord> visitor) {
 
         int visited = 0;
-        for (TimingData registration : activeRegistrations.values()) {
+        for (ActiveRegistrations.Registration registration : activeRegistrations.values()) {
             if (visited >= limit) {
                 break;
             }
 
-            RegistrationId registrationId = ActiveRegistrations.registrationIdOrNull(registration);
-            TeamId teamId = raceData.teamIdFor(registrationId);
-            if (teamId != null) {
-                TimingTimestamp start = raceData.stageStartTimeFor(teamId);
+            if (registration.isValid()) {
+                TeamId teamId = raceData.teamIdFor(registration.registrationId());
+                TimingTimestamp start = teamId == null ? null : raceData.stageStartTimeFor(teamId);
                 if (start != null) {
-                    visitor.accept(StageTiming.resolve(registration, teamId, start, raceTimeZone));
+                    visitor.accept(StageTiming.resolve(registration.data(), teamId, start, raceTimeZone));
                     visited++;
                 }
             }
@@ -162,21 +166,39 @@ public final class NodeService extends LifecycleComponent {
         return visited;
     }
 
-    /** Visits at most {@code limit} ranked teams at one location. */
-    public int visitTeamRanking(
+    /** Visits registrations of one WP in original order, including invalidated entries. */
+    public int visitRegistrations(
+            LocationId locationId, int limit, Consumer<ActiveRegistrations.Registration> visitor) {
+
+        failIfInvalidArgument(locationId != null, "locationId must not be null");
+        failIfInvalidArgument(limit >= 0, "limit must not be negative");
+        failIfInvalidArgument(visitor != null, "visitor must not be null");
+
+        return read(() -> activeRegistrations.visit(locationId, limit, visitor));
+    }
+
+    /** Visits the complete current unique-team set for a compact display burst. */
+    public int visitRegisteredTeams(LocationId locationId, Consumer<TeamId> visitor) {
+
+        failIfInvalidArgument(locationId != null, "locationId must not be null");
+        failIfInvalidArgument(visitor != null, "visitor must not be null");
+
+        return read(() -> registeredTeams.visit(locationId, visitor));
+    }
+
+    /** Visits individual valid registrations ranked by elapsed time at one WP. */
+    public int visitRegistrationRanking(
             LocationId locationId,
             ZoneId raceTimeZone,
             int limit,
-            Consumer<TeamRank> visitor) {
+            Consumer<RegistrationRank> visitor) {
 
         failIfInvalidArgument(locationId != null, "locationId must not be null");
         failIfInvalidArgument(raceTimeZone != null, "raceTimeZone must not be null");
         failIfInvalidArgument(limit >= 0, "limit must not be negative");
         failIfInvalidArgument(visitor != null, "visitor must not be null");
 
-        Supplier<Integer> visitRanking =
-                () -> teamRanking.visit(locationId, raceTimeZone, limit, visitor);
-        return read(visitRanking);
+        return read(() -> registrationRanking.visit(activeRegistrations, locationId, raceTimeZone, limit, visitor));
     }
 
     /** Passes LogBook availability changes to MainTask. */
