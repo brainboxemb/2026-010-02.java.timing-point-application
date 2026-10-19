@@ -23,7 +23,7 @@ import static org.junit.Assert.assertTrue;
  * the expected record contents are independent from the YAML parser.</p>
  */
 final class MultiTopologyLogBookVerification {
-    // The A in RT-A-xxxx denotes a normal participant, not TimingNode A.
+    // The A in Axxxx denotes a normal participant type, not TimingNode A.
     // Using different participants makes cross-node LogBook leaks observable.
     private static final String REGISTRATION_A =
             TestParticipantIds.normalRegistration(1);

@@ -108,7 +108,6 @@ public final class TestClientFxApplication extends Application {
         apiPane = new ApiPane(
                 this::client,
                 requests,
-                config.registrationPrefix(),
                 feedback::setText,
                 this::setApiState,
                 clientLog);

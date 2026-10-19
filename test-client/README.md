@@ -188,7 +188,7 @@ config/engineering-client.properties
 
 The default file configures the startup target host, HTTP :8081, Events :8082,
 Remote Shell :8023 and LoggingServer :8030, plus the Engineering Client's own log
-path/level and initial registration prefix. The target host/IP remains editable in the
+path/level. RegistrationId input is a single canonical value such as `A0001`; it is not a client-configuration prefix. The target host/IP remains editable in the
 top target bar at runtime; **Apply target** changes the active host for all external
 boundaries without rewriting the config file. Changing the active host disconnects
 stateful Events/Terminal/Device Log connections so they cannot silently remain attached
@@ -355,7 +355,7 @@ for manual records, the original AUTO/MAN time-source classification to the norm
 node-scoped revoke operation. SI-01 appends the REV record; it does not delete or rewrite
 the ADD record. The immutable LogBook therefore continues to show both ADD and REV.
 
-Registration input uses a compact shared form with RegistrationId (prefix + number),
+Registration input uses a compact shared form with one canonical RegistrationId field,
 local date/time and a Now button. The manual submit button directly shows its
 AUTO/MAN time-source classification; normally supported direct capability no
 longer adds an extra status row. Unsupported capability is explained only while
@@ -368,7 +368,7 @@ the canonical UTC API timestamp when sending. **Now** captures the current clien
 date/time and marks the manual-registration time source as `AUTO`; editing the date or
 time marks it as `MAN`.
 
-**Direct auto-reg** injects an accepted registration at the TimingNode and
+**Direct registration** injects an accepted registration at the TimingNode and
 does not simulate reading an antenna. Its independent **Direct time** choice
 defaults to **TimingNode clock** (omit the `time` field from IF-03), or select
 **Provided time** to send the visible local date/time translated to UTC for

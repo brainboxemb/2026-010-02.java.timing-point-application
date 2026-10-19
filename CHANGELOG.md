@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Align SI-02 registration input with the canonical `A0001`-style RegistrationId: replace legacy configurable prefix + number controls with one validated field, remove `registration.prefix`, and rename visible `Direct auto-reg` wording to direct registration terminology.
+
 - Simplify terminal registration input: `reg <id> [now|<UTC timestamp>]` is the primary command, omitted/`now` uses the selected TimingNode clock, explicit UTC timestamps remain available for replay, and `auto-reg` remains a compatibility alias.
 
 - Fix SI-02 Engineering Client IF-03 status parsing: read the actual `locId` field and accept status payloads without the absent `problems` field; cover HTTP and WebSocket status snapshots with the deployed server shape.

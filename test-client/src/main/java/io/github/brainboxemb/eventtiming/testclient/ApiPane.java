@@ -40,7 +40,6 @@ final class ApiPane {
     ApiPane(
             Supplier<ApiClient> clientSupplier,
             ExecutorService requests,
-            String initialPrefix,
             Consumer<String> feedback,
             Consumer<String> apiState,
             ClientLog clientLog) {
@@ -76,7 +75,6 @@ final class ApiPane {
         timingPane = new TimingPane(
                 clientSupplier,
                 requests,
-                initialPrefix,
                 this::showRaw,
                 feedback,
                 apiState,

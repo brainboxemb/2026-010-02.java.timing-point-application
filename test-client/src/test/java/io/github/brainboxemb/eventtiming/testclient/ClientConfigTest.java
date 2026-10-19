@@ -23,8 +23,7 @@ class ClientConfigTest {
                 "remoteShell.port=8023",
                 "loggingServer.port=8030",
                 "client.log.path=logs/engineering-client",
-                "client.log.level=DEBUG",
-                "registration.prefix=N"));
+                "client.log.level=DEBUG"));
 
         ClientConfig config = ClientConfig.load(file);
 
@@ -35,7 +34,6 @@ class ClientConfigTest {
         assertEquals(8030, config.loggingServerPort());
         assertEquals(Path.of("logs/engineering-client"), config.clientLogPath());
         assertEquals("DEBUG", config.clientLogLevel());
-        assertEquals("N", config.registrationPrefix());
         assertEquals("http://127.0.0.1:8081", config.apiEndpoint().toString());
         assertEquals(
                 "ws://127.0.0.1:8082/api/v1/events",

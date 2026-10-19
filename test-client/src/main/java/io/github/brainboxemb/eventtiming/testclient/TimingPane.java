@@ -80,13 +80,12 @@ final class TimingPane {
 
     private final Label lastOperation = new Label("-");
     private final Label autoRegCapability = new Label("Capability not loaded");
-    private final TextField registrationPrefix = new TextField();
-    private final TextField registrationNumber = new TextField("0001");
+    private final TextField registrationId = new TextField("A0001");
     private final TextField registrationDate = new TextField();
     private final TextField registrationTime = new TextField();
     private final Button now = new Button("Now");
     private final Button manualReg = new Button("Add manual");
-    private final Button autoReg = new Button("Direct auto-reg");
+    private final Button autoReg = new Button("Register direct");
     private static final String NODE_TIME = "TimingNode clock";
     private static final String PROVIDED_TIME = "Provided time";
     private final ComboBox<String> directTimeMode = new ComboBox<>();
@@ -119,7 +118,6 @@ final class TimingPane {
     TimingPane(
             Supplier<ApiClient> clientSupplier,
             ExecutorService requests,
-            String initialPrefix,
             Consumer<String> rawSink,
             Consumer<String> feedback,
             Consumer<String> apiState,
@@ -191,15 +189,15 @@ final class TimingPane {
                 1);
         timingNodePane = nodeGrid;
 
-        registrationPrefix.setText(initialPrefix == null ? "" : initialPrefix);
-        registrationPrefix.setPrefColumnCount(6);
-        registrationNumber.setPrefColumnCount(10);
+        registrationId.setPrefColumnCount(8);
+        registrationId.setTooltip(new Tooltip(
+                "RegistrationId: one letter A-Z followed by four digits, for example A0001."));
         registrationDate.setPrefColumnCount(12);
         registrationTime.setPrefColumnCount(10);
         registrationTime.setTooltip(new Tooltip(
                 "Local civil time in " + INPUT_ZONE.getId()
                         + ". Manual registration time is sent in UTC;"
-                        + " direct auto-reg chooses its own time source below."));
+                        + " direct registration chooses its own time source below."));
         updateNow();
         registrationDate.textProperty().addListener(
                 (ignored, previous, value) ->
@@ -210,13 +208,12 @@ final class TimingPane {
 
         // One compact input form, no status dashboard between editable fields.
         // All fields are shared by manual and accepted direct registrations.
-        registrationPrefix.setPrefWidth(92);
-        registrationNumber.setPrefWidth(94);
+        registrationId.setPrefWidth(118);
         registrationDate.setPrefWidth(112);
         registrationTime.setPrefWidth(102);
 
-        HBox registrationIdRow = new HBox(
-                8, new Label("RegistrationId"), registrationPrefix, registrationNumber);
+        HBox registrationIdRow =
+                new HBox(8, new Label("RegistrationId"), registrationId);
         registrationIdRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         HBox dateTimeRow = new HBox(
                 8, new Label("Local time"), registrationDate, registrationTime, now);
@@ -658,7 +655,7 @@ final class TimingPane {
         final String explicitTime = provided ? input.time() : null;
         final String source = provided ? "API" : "NODE";
         setOperationBusy(true);
-        lastOperation.setText("Submitting direct auto-reg (" + source + ")...");
+        lastOperation.setText("Submitting direct registration (" + source + ")...");
         feedback.accept("Injecting " + input.registrationId()
                 + " on node " + selected + " · timeSrc=" + source);
         CompletableFuture
@@ -684,7 +681,7 @@ final class TimingPane {
                     // superseded this response. Never resurrect old UI state.
                     if (!historyRequests.isCurrent(commandGeneration)) return;
                     if (error != null) {
-                        clientLog.warn("Direct auto-reg rejected/unknown: node="
+                        clientLog.warn("Direct registration rejected/unknown: node="
                                 + selected + ", id=" + input.registrationId()
                                 + ", timeSrc=" + source);
                         handleCommandError(error);
@@ -692,14 +689,14 @@ final class TimingPane {
                     }
                     apiState.accept("READY");
                     rawSink.accept(result.result().rawJson());
-                    clientLog.info("Direct auto-reg accepted: node=" + selected
+                    clientLog.info("Direct registration accepted: node=" + selected
                             + ", id=" + input.registrationId() + ", tagSrc=API"
                             + ", timeSrc=" + source + ", seq=" + result.result().seq());
                     lastOperation.setText("Accepted seq " + result.result().seq()
                             + " · node " + selected + " · " + source);
                     boolean statusChanged = model.applyStatus(result.status());
                     boolean historyChanged = model.mergeLogBookPage(result.page());
-                    feedback.accept("Direct auto-reg accepted: seq "
+                    feedback.accept("Direct registration accepted: seq "
                             + result.result().seq() + " · " + source);
                     refreshAfterCommand(statusChanged, historyChanged);
                 }));
@@ -773,19 +770,13 @@ final class TimingPane {
     }
 
     private RegistrationInput registrationInput(boolean requireTime) {
-        String number =
-                registrationNumber.getText()
-                        .trim();
-        if (!number.matches("[0-9]+")) {
+        String id = registrationId.getText().trim().toUpperCase(Locale.ROOT);
+        if (!id.matches("[A-Z][0-9]{4}")) {
             lastOperation.setText(
-                    "Registration number must contain digits only");
+                    "RegistrationId must be one letter A-Z followed by four digits");
             return null;
         }
-
-        String id =
-                registrationPrefix.getText()
-                        .trim()
-                        + number;
+        registrationId.setText(id);
         if (!requireTime) return new RegistrationInput(id, null);
         try {
             String time =
@@ -1034,7 +1025,7 @@ final class TimingPane {
         // is self-explanatory from the available command buttons.
         autoRegCapability.setVisible(live && !model.autoRegEnabled());
         if (live && !model.autoRegEnabled()) {
-            autoRegCapability.setText("Direct auto-reg unavailable on this system");
+            autoRegCapability.setText("Direct registration unavailable on this system");
         }
         scriptsPane.refresh(live, controls.simulation(), model.selectedNodeId());
         simulationPane.refresh(
@@ -1052,8 +1043,7 @@ final class TimingPane {
                 live
                         && (controls.manualReg()
                                 || controls.autoReg());
-        registrationPrefix.setDisable(operationBusy || !registrationInputEnabled);
-        registrationNumber.setDisable(operationBusy || !registrationInputEnabled);
+        registrationId.setDisable(operationBusy || !registrationInputEnabled);
         registrationDate.setDisable(operationBusy || !registrationInputEnabled);
         registrationTime.setDisable(operationBusy || !registrationInputEnabled);
         now.setDisable(operationBusy || !registrationInputEnabled);
