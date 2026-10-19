@@ -106,6 +106,7 @@ final class TimingApplicationAssembler {
                                     simulatedAntenna,
                                     resolvedSystem.eventData(),
                                     timeSource,
+                                    platform.monotonicClock(),
                                     executors.sharedIoScheduledExecutor());
                 }
             }

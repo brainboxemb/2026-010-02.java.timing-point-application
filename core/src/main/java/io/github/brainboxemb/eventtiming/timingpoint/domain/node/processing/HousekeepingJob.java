@@ -12,10 +12,11 @@ import java.util.concurrent.TimeUnit;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Runs duplicate-window housekeeping while remembered registrations exist.
+ * Schedules duplicate-window cleanup only while suppression state exists.
  *
- * <p>Duplicate checks, registration updates and housekeeping use the same
- * TagProcessor scheduler thread.</p>
+ * <p>Registration checks and cleanup share the TagProcessor scheduler thread.
+ * This job owns only delayed scheduling; RegistrationDuplicateFilter owns the
+ * suppression rule and primitive state.</p>
  */
 final class HousekeepingJob {
     private final ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration;
@@ -29,15 +30,17 @@ final class HousekeepingJob {
     HousekeepingJob(
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
             MonotonicClock monotonicClock,
+            TagProcessingMetrics metrics,
             ScheduledExecutorService scheduler) {
 
         failIfInvalidArgument(policyConfiguration != null, "policyConfiguration must not be null");
         failIfInvalidArgument(monotonicClock != null, "monotonicClock must not be null");
+        failIfInvalidArgument(metrics != null, "metrics must not be null");
         failIfInvalidArgument(scheduler != null, "scheduler must not be null");
 
         this.policyConfiguration = policyConfiguration;
         this.scheduler = scheduler;
-        this.duplicateFilter = new RegistrationDuplicateFilter(policyConfiguration, monotonicClock);
+        this.duplicateFilter = new RegistrationDuplicateFilter(policyConfiguration, monotonicClock, metrics);
     }
 
     /** Enables the job and reconciles retained duplicate state on the scheduler thread. */

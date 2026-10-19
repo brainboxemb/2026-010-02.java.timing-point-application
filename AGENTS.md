@@ -45,6 +45,15 @@ Application composition/startup/shutdown belongs in the executable application.
 Reusable timing/domain rules and application-core contracts belong in the core module
 according to the current README and owning SAD/SDD.
 
+## Java code documentation
+
+- Let names describe **what** code does; use comments/Javadoc to explain the domain rule, rationale, ownership or non-obvious boundary condition that a maintainer cannot read directly from the statements.
+- Do not narrate Java syntax or merely repeat a method/field name. For non-trivial logic, document the rule that determines the result and why that rule exists.
+- Document important thresholds explicitly, including whether equality crosses the boundary and which earlier value is the reference (for example first observation versus previous observation).
+- Keep time semantics explicit in names and documentation. Absolute event time and monotonic elapsed time are different concepts; always state the time base and unit when misuse would change behavior.
+- Document non-trivial private helpers as well as public contracts. Trivial accessors may stay concise when their name and type fully express the contract.
+- Comments should remain close to the rule they explain and should survive implementation refactoring; avoid comments whose only purpose is to paraphrase the next line.
+
 ## Local constraints
 
 - keep Java 8 compatibility until the project architecture/tooling baseline explicitly changes;

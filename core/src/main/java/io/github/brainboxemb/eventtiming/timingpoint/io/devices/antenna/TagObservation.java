@@ -1,29 +1,37 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna;
 
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
-import io.github.brainboxemb.eventtiming.timingdata.CompactTimingTime;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 
-/** One immutable decoded tag observation. */
+import java.time.Instant;
+
+/**
+ * One immutable decoded antenna observation.
+ *
+ * <p>The antenna/I-O boundary supplies two independent time values. The epoch
+ * millisecond value is the absolute event time that can later become TimingData.
+ * The monotonic nanosecond value exists only for elapsed-time decisions such as
+ * passage gaps and must never be persisted as event time.</p>
+ */
 public final class TagObservation {
     private final TagId tagId;
     private final int rssi;
-    private final long observedAt;
+    private final long observedAtEpochMillis;
+    private final long observedAtMonotonicNanos;
 
-    /** Creates one immutable decoded observation from the antenna source. */
+    /** Creates one decoded observation from the two time bases captured at the antenna boundary. */
     public TagObservation(
             TagId tagId,
             int rssi,
-            TimingTimestamp observedAt) {
+            long observedAtEpochMillis,
+            long observedAtMonotonicNanos) {
         if (tagId == null) {
             throw new IllegalArgumentException("tagId must not be null");
         }
-        if (observedAt == null) {
-            throw new IllegalArgumentException("observedAt must not be null");
-        }
         this.tagId = tagId;
         this.rssi = rssi;
-        this.observedAt = CompactTimingTime.fromTimestamp(observedAt);
+        this.observedAtEpochMillis = observedAtEpochMillis;
+        this.observedAtMonotonicNanos = observedAtMonotonicNanos;
     }
 
     /** Returns the observed TagId. */
@@ -36,13 +44,19 @@ public final class TagObservation {
         return rssi;
     }
 
-    /** Returns the compact centisecond observation time used by the processing hot path. */
-    public long observedAtValue() {
-        return observedAt;
+    /** Returns the absolute antenna observation time as UTC epoch milliseconds. */
+    public long observedAtEpochMillis() {
+        return observedAtEpochMillis;
     }
 
-    /** Returns the observation time assigned at the antenna/I-O boundary. */
+    /** Returns the process-local monotonic time captured for this antenna observation. */
+    public long observedAtMonotonicNanos() {
+        return observedAtMonotonicNanos;
+    }
+
+    /** Reconstructs the absolute observation timestamp only at an API/logging boundary. */
     public TimingTimestamp observedAt() {
-        return CompactTimingTime.toTimestamp(observedAt);
+        return new TimingTimestamp(
+                Instant.ofEpochMilli(observedAtEpochMillis));
     }
 }

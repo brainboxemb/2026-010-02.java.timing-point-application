@@ -255,7 +255,7 @@ final class YamlTopologyMapper {
                         values,
                         field,
                         MAX_BURST_DURATION_MILLIS,
-                        defaults.maxBurstDurationNanos(),
+                        defaults.maxPassageDurationNanos(),
                         false),
                 durationOverride(
                         values,

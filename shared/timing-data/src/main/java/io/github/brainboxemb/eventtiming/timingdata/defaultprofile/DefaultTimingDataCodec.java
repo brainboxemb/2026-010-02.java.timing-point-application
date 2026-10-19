@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
-import io.github.brainboxemb.eventtiming.timingdata.CompactTimingTime;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
@@ -23,11 +22,9 @@ import java.util.List;
 /**
  * Canonical IF-05 v1 JSON codec for the built-in default/reference profile.
  *
- * <p>The v1 interchange representation keeps its existing text shapes: effective
- * {@code time} uses two fractional digits and {@code recTime} uses three. Both
- * stored values are centisecond-aligned; the third recTime digit is therefore
- * zero for newly encoded records. Finer input remains readable and is truncated
- * to centisecond precision at the TimingData boundary.</p>
+ * <p>Absolute times are stored internally as epoch milliseconds and written at
+ * millisecond precision. Finer input remains readable and is truncated to the
+ * same millisecond precision by the TimingData factory.</p>
  *
  * <p>The codec owns one JSON object only. It deliberately does not add or remove
  * JSON Lines terminators: file framing, incomplete-tail handling and recovery
@@ -41,7 +38,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
     private static final int VERSION = 1;
 
     private static final DateTimeFormatter EFFECTIVE_TIME_FORMAT =
-            DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SS'Z'")
+            DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'")
                     .withZone(ZoneOffset.UTC);
     private static final DateTimeFormatter RECORDED_TIME_FORMAT =
             DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'")
@@ -259,9 +256,9 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
             throws CodecException {
         requirePrecision(
                 timestamp,
-                10_000_000L,
+                1_000_000L,
                 "time",
-                "centisecond");
+                "millisecond");
         return EFFECTIVE_TIME_FORMAT.format(
                 timestamp.instant());
     }
@@ -271,9 +268,9 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
             throws CodecException {
         requirePrecision(
                 timestamp,
-                10_000_000L,
+                1_000_000L,
                 "recTime",
-                "centisecond");
+                "millisecond");
         return RECORDED_TIME_FORMAT.format(
                 timestamp.instant());
     }
@@ -572,19 +569,11 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                     new NodeId(fields.nodeId),
                     fields.sequenceNumber,
                     new LocationId(fields.locationId),
-                    compactTimestamp(fields.effectiveTimeText),
-                    compactTimestamp(fields.recordedAtText));
+                    TimingTimestamp.parseAbsolute(fields.effectiveTimeText),
+                    TimingTimestamp.parseAbsolute(fields.recordedAtText));
         } catch (RuntimeException ex) {
             throw invalid("common IF-05 TimingData envelope is invalid", ex);
         }
-    }
-
-    /** Parses accepted IF-05 input and applies the stored centisecond precision. */
-    private static TimingTimestamp compactTimestamp(String text) {
-
-        TimingTimestamp parsed = TimingTimestamp.parseAbsolute(text);
-        return CompactTimingTime.toTimestamp(
-                CompactTimingTime.fromTimestamp(parsed));
     }
 
     private static void requireExactCodes(List<String> actual, String... expected)

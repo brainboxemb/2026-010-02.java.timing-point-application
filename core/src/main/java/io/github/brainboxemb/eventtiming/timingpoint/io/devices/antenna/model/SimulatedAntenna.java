@@ -3,7 +3,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaInfo;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -95,12 +94,22 @@ public final class SimulatedAntenna implements Antenna {
         observationEvent.emit(observation);
     }
 
-    /** Convenience overload for deterministic tests and simulation controls. */
+    /**
+     * Emits one decoded simulated observation using explicitly supplied absolute and monotonic time.
+     *
+     * <p>The caller owns both time bases so deterministic simulation never
+     * hides a wall-clock or System.nanoTime() call inside the data object.</p>
+     */
     public void emit(
             TagId tagId,
             int rssi,
-            TimingTimestamp observedAt) {
-        emit(new TagObservation(tagId, rssi, observedAt));
+            long observedAtEpochMillis,
+            long observedAtMonotonicNanos) {
+        emit(new TagObservation(
+                tagId,
+                rssi,
+                observedAtEpochMillis,
+                observedAtMonotonicNanos));
     }
 
     public synchronized void setFailurePoint(FailurePoint failurePoint) {

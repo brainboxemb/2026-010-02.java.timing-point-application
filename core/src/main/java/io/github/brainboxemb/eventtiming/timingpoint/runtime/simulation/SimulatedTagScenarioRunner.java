@@ -3,12 +3,11 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime.simulation;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.application.SimulationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.model.SimulatedAntenna;
+import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
@@ -40,6 +39,7 @@ public final class SimulatedTagScenarioRunner
     private final SimulatedAntenna antenna;
     private final EventData eventData;
     private final TimeSource timeSource;
+    private final MonotonicClock monotonicClock;
     private final ScheduledExecutorService scheduledExecutor;
 
     private boolean active;
@@ -51,6 +51,7 @@ public final class SimulatedTagScenarioRunner
             SimulatedAntenna antenna,
             EventData eventData,
             TimeSource timeSource,
+            MonotonicClock monotonicClock,
             ScheduledExecutorService scheduledExecutor) {
         if (antenna == null) {
             throw new IllegalArgumentException(
@@ -64,6 +65,10 @@ public final class SimulatedTagScenarioRunner
             throw new IllegalArgumentException(
                     "timeSource must not be null");
         }
+        if (monotonicClock == null) {
+            throw new IllegalArgumentException(
+                    "monotonicClock must not be null");
+        }
         if (scheduledExecutor == null) {
             throw new IllegalArgumentException(
                     "scheduledExecutor must not be null");
@@ -71,6 +76,7 @@ public final class SimulatedTagScenarioRunner
         this.antenna = antenna;
         this.eventData = eventData;
         this.timeSource = timeSource;
+        this.monotonicClock = monotonicClock;
         this.scheduledExecutor = scheduledExecutor;
     }
 
@@ -139,12 +145,15 @@ public final class SimulatedTagScenarioRunner
             generation = activationGeneration;
         }
 
-        Instant baseTime =
-                timeSource.now();
+        long baseEpochMillis =
+                timeSource.now().toEpochMilli();
+        long baseMonotonicNanos =
+                monotonicClock.nowNanos();
         if (!scheduleStep(
                 scenario,
                 0,
-                baseTime,
+                baseEpochMillis,
+                baseMonotonicNanos,
                 0L,
                 generation)) {
             finishScenario(generation);
@@ -163,7 +172,8 @@ public final class SimulatedTagScenarioRunner
     private boolean scheduleStep(
             Scenario scenario,
             int index,
-            Instant baseTime,
+            long baseEpochMillis,
+            long baseMonotonicNanos,
             long previousOffsetNanos,
             long generation) {
         ObservationStep step =
@@ -177,7 +187,8 @@ public final class SimulatedTagScenarioRunner
                 () -> runStep(
                         scenario,
                         index,
-                        baseTime,
+                        baseEpochMillis,
+                        baseMonotonicNanos,
                         generation);
 
         try {
@@ -199,7 +210,8 @@ public final class SimulatedTagScenarioRunner
     private void runStep(
             Scenario scenario,
             int index,
-            Instant baseTime,
+            long baseEpochMillis,
+            long baseMonotonicNanos,
             long generation) {
         if (!isActive(generation)) {
             return;
@@ -212,9 +224,10 @@ public final class SimulatedTagScenarioRunner
             antenna.emit(
                     step.tagId,
                     step.rssi,
-                    new TimingTimestamp(
-                            baseTime.plusNanos(
-                                    step.offsetNanos)));
+                    baseEpochMillis
+                            + TimeUnit.NANOSECONDS.toMillis(step.offsetNanos),
+                    baseMonotonicNanos
+                            + step.offsetNanos);
         } catch (RuntimeException ex) {
             LOG.debug(
                     "Simulated tag scenario stopped while emitting {}",
@@ -232,7 +245,8 @@ public final class SimulatedTagScenarioRunner
         } else if (!scheduleStep(
                 scenario,
                 nextIndex,
-                baseTime,
+                baseEpochMillis,
+                baseMonotonicNanos,
                 step.offsetNanos,
                 generation)) {
             finishScenario(generation);

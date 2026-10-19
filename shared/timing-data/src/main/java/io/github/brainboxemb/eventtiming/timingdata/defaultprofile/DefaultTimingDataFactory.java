@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingdata.defaultprofile;
 
-import io.github.brainboxemb.eventtiming.timingdata.CompactTimingTime;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
@@ -8,12 +7,14 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 
+import java.time.Instant;
+
 /**
  * Default/reference profile TimingData factory.
  *
- * <p>Concrete default records retain scalar values only. Public value objects
- * are reconstructed at the TimingData API boundary instead of being retained
- * once per committed record.</p>
+ * <p>Concrete default records retain scalar values only. Absolute times are
+ * stored as UTC epoch milliseconds in primitive longs and reconstructed with
+ * standard Instant conversion only at the TimingData API boundary.</p>
  */
 public final class DefaultTimingDataFactory implements TimingDataFactory {
     private static final TimingData.RegistrationAction[] ACTIONS =
@@ -100,8 +101,8 @@ public final class DefaultTimingDataFactory implements TimingDataFactory {
             timingNodeId = value.timingNodeId().value().charAt(0);
             sequenceNumber = value.sequenceNumber();
             locationId = value.locationId().value();
-            effectiveTime = CompactTimingTime.fromTimestamp(value.effectiveTime());
-            recordedAt = CompactTimingTime.fromTimestamp(value.recordedAt());
+            effectiveTime = value.effectiveTime().instant().toEpochMilli();
+            recordedAt = value.recordedAt().instant().toEpochMilli();
         }
 
         @Override
@@ -125,13 +126,13 @@ public final class DefaultTimingDataFactory implements TimingDataFactory {
         @Override
         public final TimingTimestamp effectiveTime() {
 
-            return CompactTimingTime.toTimestamp(effectiveTime);
+            return new TimingTimestamp(Instant.ofEpochMilli(effectiveTime));
         }
 
         @Override
         public final TimingTimestamp recordedAt() {
 
-            return CompactTimingTime.toTimestamp(recordedAt);
+            return new TimingTimestamp(Instant.ofEpochMilli(recordedAt));
         }
     }
 
