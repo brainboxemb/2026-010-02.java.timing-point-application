@@ -61,6 +61,32 @@ public class TimingNodeTest {
         assertEquals(TimingNodeTypes.OperationalState.OK, node.operationalState());
     }
 
+    /**
+     * Waits until an ordered LogBook count query can enter the deliberately tiny Data Lane.
+     *
+     * <p>The full-lane test controls command admission, not the exact scheduler
+     * instruction on which the lane becomes empty again. A transient queue-full
+     * rejection after the accepted commands publish is therefore retried within
+     * the same one-second test bound.</p>
+     */
+    private static int awaitTimingDataCount(TimingNode node) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1L);
+        while (System.nanoTime() < deadline) {
+            try {
+                return node.logBook()
+                        .process(LogBookQueries.timingDataCount())
+                        .intValue();
+            } catch (IllegalStateException ex) {
+                String message = ex.getMessage();
+                if (message == null || !message.contains("Data Lane is full")) {
+                    throw ex;
+                }
+                Thread.sleep(1L);
+            }
+        }
+        throw new AssertionError("timingDataCount query did not enter the LogBook Data Lane");
+    }
+
     private ExecutorService newDataLaneExecutor(String threadName) {
         ExecutorService worker =
                 Executors.newSingleThreadExecutor(
@@ -570,7 +596,7 @@ public class TimingNodeTest {
                     committed.await(1L, TimeUnit.SECONDS));
             assertEquals(
                     2,
-                    node.logBook().process(LogBookQueries.timingDataCount()).intValue());
+                    awaitTimingDataCount(node));
         } finally {
             persistence.releaseAppend.countDown();
             deactivate(node);

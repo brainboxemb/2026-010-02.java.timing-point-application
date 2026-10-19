@@ -16,7 +16,7 @@ import java.util.List;
 
 /** Writes one compact machine-readable characterization summary. */
 final class CharacterizationEvidenceWriter {
-    private static final int SCHEMA_VERSION = 3;
+    private static final int SCHEMA_VERSION = 4;
 
     /** Prevents instantiation of this stateless evidence writer. */
     private CharacterizationEvidenceWriter() {
@@ -469,21 +469,21 @@ final class CharacterizationEvidenceWriter {
                 "passagePoolPeakInUseAfter",
                 after.passagePoolPeakInUse());
         json.writeNumberField(
-                "duplicateTableInitialCapacity",
-                after.duplicateTableInitialCapacity());
+                "duplicateStateInitialCapacity",
+                after.duplicateStateInitialCapacity());
         json.writeNumberField(
-                "duplicateTableCapacityAfter",
-                after.duplicateTableCapacity());
+                "duplicateStateCapacityAfter",
+                after.duplicateStateCapacity());
         json.writeNumberField(
-                "duplicateTableGrowth",
-                after.duplicateTableCapacity()
-                        - after.duplicateTableInitialCapacity());
+                "duplicateStateGrowth",
+                after.duplicateStateCapacity()
+                        - after.duplicateStateInitialCapacity());
         json.writeNumberField(
-                "duplicateTableSizeAfter",
-                after.duplicateTableSize());
+                "duplicateStateSizeAfter",
+                after.duplicateStateSize());
         json.writeNumberField(
-                "duplicateTablePeakSizeAfter",
-                after.duplicateTablePeakSize());
+                "duplicateStatePeakSizeAfter",
+                after.duplicateStatePeakSize());
         json.writeEndObject();
     }
 
