@@ -42,7 +42,8 @@ public class SimulatedAntennaTest {
                 new TagObservation(
                         new TagId("X0001A"),
                         -42,
-                        OBSERVED_AT);
+                        OBSERVED_AT.instant().toEpochMilli(),
+                        123L);
         antenna.emit(observation);
         assertSame(observation, received.get());
 

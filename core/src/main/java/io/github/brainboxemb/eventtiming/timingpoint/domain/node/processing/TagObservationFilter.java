@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing;
 
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
-import io.github.brainboxemb.eventtiming.timingdata.CompactTimingTime;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
@@ -9,6 +8,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObser
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.memory.ReusableObjectPool;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -24,34 +24,30 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Groups mapped antenna observations into one passage per RegistrationId.
  *
- * <p>Passage membership is based on the antenna observation time. A new
- * observation starts a new passage when its measured gap from the previous
- * observation reaches the quiet timeout, or when its measured distance from
- * the first observation reaches the maximum passage duration. Queue or
- * scheduler delay therefore does not define passage boundaries.</p>
+ * <p>Every observation carries two time bases. Monotonic nanoseconds decide
+ * whether observations belong to the same passage; epoch milliseconds are
+ * retained only as the absolute event times that may later be persisted.</p>
  *
- * <p>Monotonic runtime time has a separate role. It is retained only to flush
- * an open passage after no further observation has been processed for the
- * configured quiet timeout. It never supplies the selected registration time.</p>
+ * <p>A new passage starts when the gap from the previous observation reaches
+ * the quiet timeout or when the span from the first observation reaches the
+ * maximum passage duration. Both boundaries are inclusive. Scheduler or queue
+ * delay after the antenna observation therefore cannot change passage grouping.</p>
  *
- * <p>One passage may contain one or two physical tags. RegistrationPassage
- * retains fixed TagState[2] storage so first/last observation and strongest
- * signal information for both tags remains available for later completed
- * passage persistence. Passage and TagState objects are created once in a
- * reusable pool instead of per passage.</p>
+ * <p>One passage contains observations for one RegistrationId and at most two
+ * physical tags. Each pooled RegistrationPassage owns two reusable TagState
+ * slots that retain first/last absolute observation time plus strongest-signal
+ * information for later registration detail persistence.</p>
  *
- * <p>All methods run on the TagProcessor scheduler thread. No filter or pool
- * locking is required.</p>
+ * <p>All calls are owned by the TagProcessor scheduler thread. The filter and
+ * its reusable passage pool therefore need no locking.</p>
  */
 final class TagObservationFilter {
-    private static final Logger LOG =
-            LoggerFactory.getLogger(TagObservationFilter.class);
+    private static final Logger LOG = LoggerFactory.getLogger(TagObservationFilter.class);
 
     private final ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration;
     private final MonotonicClock monotonicClock;
     private final TagProcessingMetrics metrics;
-    private final BiConsumer<RegistrationId, TimingTimestamp>
-            validObservationCallback;
+    private final BiConsumer<RegistrationId, TimingTimestamp> validObservationCallback;
 
     private final Map<RegistrationId, RegistrationPassage> passages =
             new HashMap<RegistrationId, RegistrationPassage>();
@@ -59,13 +55,11 @@ final class TagObservationFilter {
             new ArrayList<RegistrationPassage>();
     private final ReusableObjectPool<RegistrationPassage> passagePool;
 
-    /** Creates a passage filter with a fixed processing policy. */
     TagObservationFilter(
             TagProcessingPolicy policy,
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
-            BiConsumer<RegistrationId, TimingTimestamp>
-                    validObservationCallback) {
+            BiConsumer<RegistrationId, TimingTimestamp> validObservationCallback) {
         this(
                 ReadOnlyConfiguration.fixed(policy),
                 monotonicClock,
@@ -73,39 +67,43 @@ final class TagObservationFilter {
                 validObservationCallback);
     }
 
-    /** Creates a passage filter that follows the live TagProcessor policy configuration. */
+    /**
+     * Creates a filter whose thresholds follow live configuration.
+     *
+     * <p>The initial observation queue capacity also sizes the pre-created
+     * passage pool so normal passage creation does not allocate.</p>
+     */
     TagObservationFilter(
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
             MonotonicClock monotonicClock,
             TagProcessingMetrics metrics,
-            BiConsumer<RegistrationId, TimingTimestamp>
-                    validObservationCallback) {
+            BiConsumer<RegistrationId, TimingTimestamp> validObservationCallback) {
         failIfInvalidArgument(policyConfiguration != null, "policyConfiguration must not be null");
         failIfInvalidArgument(monotonicClock != null, "monotonicClock must not be null");
         failIfInvalidArgument(metrics != null, "metrics must not be null");
         failIfInvalidArgument(validObservationCallback != null, "validObservationCallback must not be null");
 
-        TagProcessingPolicy startupPolicy =
-                policyConfiguration.startupValue();
+        TagProcessingPolicy startupPolicy = policyConfiguration.startupValue();
         failIfInvalidArgument(startupPolicy != null, "policyConfiguration.startupValue must not be null");
 
         this.policyConfiguration = policyConfiguration;
         this.monotonicClock = monotonicClock;
         this.metrics = metrics;
         this.validObservationCallback = validObservationCallback;
-        passagePool =
-                new ReusableObjectPool<RegistrationPassage>(
-                        startupPolicy.observationQueueCapacity(),
-                        RegistrationPassage::new);
+        passagePool = new ReusableObjectPool<RegistrationPassage>(
+                startupPolicy.observationQueueCapacity(),
+                RegistrationPassage::new);
         recordPoolMetrics();
     }
 
     /**
      * Adds one mapped antenna observation to its RegistrationId passage.
      *
-     * <p>An expired previous passage is removed first. The incoming observation
-     * then starts its new passage before the previous passage is published,
-     * preserving duplicate-suppression behavior from the existing flow.</p>
+     * <p>If the observation crosses a measured passage boundary, the old
+     * passage is detached and the incoming observation starts the next passage
+     * before the old passage is published. This ordering is required because
+     * publication starts duplicate suppression, which may discard that
+     * just-started next passage.</p>
      */
     void add(
             RegistrationId registrationId,
@@ -113,144 +111,112 @@ final class TagObservationFilter {
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
         failIfInvalidArgument(observation != null, "observation must not be null");
 
-        long receivedAtNanos =
-                monotonicClock.nowNanos();
-        TagProcessingPolicy policy =
-                policyConfiguration.currentValue();
-        RegistrationPassage passage =
-                passages.get(registrationId);
+        TagProcessingPolicy policy = policyConfiguration.currentValue();
+        RegistrationPassage passage = passages.get(registrationId);
         RegistrationPassage completedPassage = null;
 
-        if (passage != null
-                && passage.startsNewPassage(
-                        observation.observedAtValue(),
-                        policy)) {
+        if (passage != null && passage.startsNewPassage(observation, policy)) {
             passages.remove(registrationId);
             completedPassage = passage;
-            metrics.recordClosedBurst();
+            metrics.recordClosedPassage();
             passage = null;
         }
 
         if (passage == null) {
             passage = passagePool.acquire();
-            passage.reset(
-                    registrationId,
-                    observation,
-                    receivedAtNanos);
-            passages.put(
-                    registrationId,
-                    passage);
+            passage.reset(registrationId, observation);
+            passages.put(registrationId, passage);
             recordPoolMetrics();
         } else {
-            passage.add(
-                    observation,
-                    receivedAtNanos);
+            passage.add(observation);
         }
 
-        publishAndRelease(
-                completedPassage);
+        publishAndRelease(completedPassage);
     }
 
     /**
-     * Flushes passages for which no later observation arrived.
+     * Flushes passages for which no later antenna observation arrived.
      *
-     * <p>The monotonic clock is intentionally used only here. It answers
-     * whether an otherwise open passage has been locally quiet long enough to
-     * publish; it does not determine whether two antenna observations belong to
-     * the same measured passage.</p>
+     * <p>The current monotonic clock is compared with the monotonic timestamp
+     * captured on the last observation. This is only an idle-publication rule;
+     * it does not redefine the absolute event time selected for the registration.</p>
      */
     void periodic() {
         expiredPassages.clear();
 
-        long nowNanos =
-                monotonicClock.nowNanos();
-        long quietTimeoutNanos =
-                policyConfiguration.currentValue()
-                        .quietTimeoutNanos();
+        long nowNanos = monotonicClock.nowNanos();
+        long quietTimeoutNanos = policyConfiguration.currentValue().quietTimeoutNanos();
         Iterator<Map.Entry<RegistrationId, RegistrationPassage>> iterator =
                 passages.entrySet().iterator();
 
         while (iterator.hasNext()) {
-            RegistrationPassage passage =
-                    iterator.next().getValue();
-            if (passage.flushDue(
-                    nowNanos,
-                    quietTimeoutNanos)) {
+            RegistrationPassage passage = iterator.next().getValue();
+            if (passage.flushDue(nowNanos, quietTimeoutNanos)) {
                 iterator.remove();
                 expiredPassages.add(passage);
-                metrics.recordClosedBurst();
+                metrics.recordClosedPassage();
             }
         }
 
         for (int index = 0; index < expiredPassages.size(); index++) {
-            publishAndRelease(
-                    expiredPassages.get(index));
+            publishAndRelease(expiredPassages.get(index));
         }
         expiredPassages.clear();
     }
 
-    /** Discards one open passage and immediately returns its state to the pool. */
+    /** Discards one open passage when duplicate suppression makes it irrelevant. */
     boolean discard(RegistrationId registrationId) {
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
 
-        RegistrationPassage passage =
-                passages.remove(registrationId);
+        RegistrationPassage passage = passages.remove(registrationId);
         if (passage == null) {
             return false;
         }
 
-        release(
-                passage);
+        release(passage);
         return true;
     }
 
-    /** Reports whether one or more passages are still open. */
     boolean hasPendingState() {
         return !passages.isEmpty();
     }
 
-    /** Publishes the selected observation and then returns passage state to the pool. */
-    private void publishAndRelease(
-            RegistrationPassage passage) {
+    /**
+     * Publishes the strongest observation selected from a completed passage.
+     *
+     * <p>Only this boundary reconstructs TimingTimestamp and TagId objects from
+     * primitive passage state. The passage is always returned to the pool, even
+     * when a subscriber throws.</p>
+     */
+    private void publishAndRelease(RegistrationPassage passage) {
         if (passage == null) {
             return;
         }
 
-        RegistrationId registrationId =
-                RegistrationId.fromPackedValue(
-                        passage.registrationId);
-        TagState selectedTag =
-                passage.selectedTag();
-        TimingTimestamp observedAt =
-                CompactTimingTime.toTimestamp(
-                        selectedTag.strongestObservedAt);
+        RegistrationId registrationId = RegistrationId.fromPackedValue(passage.registrationId);
+        TagState selectedTag = passage.selectedTag();
+        TimingTimestamp observedAt = new TimingTimestamp(
+                Instant.ofEpochMilli(selectedTag.strongestObservedAtEpochMillis));
 
         try {
             if (LOG.isInfoEnabled()) {
                 LOG.info(
                         "Tag passage selected: registrationId={}, tagId={}, rssi={}, observedAt={}",
                         registrationId,
-                        TagId.fromPackedValue(
-                                selectedTag.tagId),
+                        TagId.fromPackedValue(selectedTag.tagId),
                         selectedTag.strongestRssi,
                         observedAt);
             }
-
-            validObservationCallback.accept(
-                    registrationId,
-                    observedAt);
+            validObservationCallback.accept(registrationId, observedAt);
         } finally {
-            release(
-                    passage);
+            release(passage);
         }
     }
 
-    /** Returns one completed/discarded passage to the pool and updates pool metrics. */
-    private void release(
-            RegistrationPassage passage) {
+    /** Clears logical state, returns one passage to the pool and updates pool occupancy metrics. */
+    private void release(RegistrationPassage passage) {
         passage.clear();
-        passagePool.release(
-                passage);
+        passagePool.release(passage);
         recordPoolMetrics();
     }
 
@@ -264,10 +230,11 @@ final class TagObservationFilter {
     }
 
     /**
-     * Mutable pooled state for one RegistrationId passage.
+     * Mutable pooled state for one currently observed registration passage.
      *
-     * <p>The two TagState objects and their array are created once with this
-     * object. reset() only overwrites primitive fields for the next passage.</p>
+     * <p>The object retains both absolute first/last event time and monotonic
+     * first/last observation time. Absolute values describe what happened;
+     * monotonic values are used only for elapsed passage rules.</p>
      */
     private static final class RegistrationPassage {
         private final TagState[] tags = {
@@ -277,78 +244,78 @@ final class TagObservationFilter {
 
         private int registrationId;
         private int tagCount;
-        private long firstObservedAt;
-        private long lastObservedAt;
-        private long lastReceivedAtNanos;
+        private long firstObservedAtEpochMillis;
+        private long lastObservedAtEpochMillis;
+        private long firstObservedAtMonotonicNanos;
+        private long lastObservedAtMonotonicNanos;
 
-        /** Prepares this pooled passage for a new RegistrationId. */
+        /** Reinitializes this pooled object from the first observation of a new passage. */
         private void reset(
                 RegistrationId registrationId,
-                TagObservation observation,
-                long receivedAtNanos) {
-            this.registrationId =
-                    registrationId.packedValue();
+                TagObservation observation) {
+            this.registrationId = registrationId.packedValue();
             tagCount = 0;
-            firstObservedAt =
-                    observation.observedAtValue();
-            lastObservedAt =
-                    firstObservedAt;
-            lastReceivedAtNanos =
-                    receivedAtNanos;
-            record(
-                    observation);
+            firstObservedAtEpochMillis = observation.observedAtEpochMillis();
+            lastObservedAtEpochMillis = firstObservedAtEpochMillis;
+            firstObservedAtMonotonicNanos = observation.observedAtMonotonicNanos();
+            lastObservedAtMonotonicNanos = firstObservedAtMonotonicNanos;
+            record(observation);
         }
 
-        /** Adds one observation to this passage and its physical-tag statistics. */
-        private void add(
-                TagObservation observation,
-                long receivedAtNanos) {
-            long observedAt =
-                    observation.observedAtValue();
-            if (observedAt < firstObservedAt) {
-                firstObservedAt = observedAt;
-            }
-            if (observedAt > lastObservedAt) {
-                lastObservedAt = observedAt;
-            }
-            lastReceivedAtNanos =
-                    receivedAtNanos;
-            record(
-                    observation);
+        /** Appends one observation in antenna-observation order and updates its physical-tag state. */
+        private void add(TagObservation observation) {
+            lastObservedAtEpochMillis = observation.observedAtEpochMillis();
+            lastObservedAtMonotonicNanos = observation.observedAtMonotonicNanos();
+            record(observation);
         }
 
-        /** Reports whether this measured observation belongs to a later passage. */
+        /**
+         * Determines whether the incoming observation starts a later passage.
+         *
+         * <p>Two independent elapsed-time rules close the current passage:</p>
+         * <ul>
+         *   <li>the gap from the previous observation is greater than or equal
+         *       to the configured quiet timeout; or</li>
+         *   <li>the span from the first observation is greater than or equal
+         *       to the configured maximum passage duration.</li>
+         * </ul>
+         *
+         * <p>Both differences use antenna-captured monotonic nanoseconds. Wall
+         * clock corrections and later queue/scheduler delay cannot affect the
+         * decision.</p>
+         */
         private boolean startsNewPassage(
-                long observedAt,
+                TagObservation observation,
                 TagProcessingPolicy policy) {
-            long quietGap =
-                    CompactTimingTime.elapsedCentiseconds(
-                            lastObservedAt,
-                            observedAt);
-            long passageDuration =
-                    CompactTimingTime.elapsedCentiseconds(
-                            firstObservedAt,
-                            observedAt);
+            long observedAtNanos = observation.observedAtMonotonicNanos();
+            long quietGapNanos = observedAtNanos - lastObservedAtMonotonicNanos;
+            long passageDurationNanos = observedAtNanos - firstObservedAtMonotonicNanos;
 
-            return quietGap >= policy.quietTimeoutCentiseconds()
-                    || passageDuration
-                            >= policy.maxPassageDurationCentiseconds();
+            return quietGapNanos >= policy.quietTimeoutNanos()
+                    || passageDurationNanos >= policy.maxPassageDurationNanos();
         }
 
-        /** Reports whether local quiet time allows this open passage to be flushed. */
+        /**
+         * Reports whether an open passage has received no observation for the quiet timeout.
+         *
+         * <p>The same monotonic time base is used for the captured observation
+         * and current runtime clock, so absolute clock changes are irrelevant.</p>
+         */
         private boolean flushDue(
                 long nowNanos,
                 long quietTimeoutNanos) {
-            return nowNanos - lastReceivedAtNanos
-                    >= quietTimeoutNanos;
+            return nowNanos - lastObservedAtMonotonicNanos >= quietTimeoutNanos;
         }
 
-        /** Records one physical tag in one of the two fixed reusable tag slots. */
-        private void record(
-                TagObservation observation) {
-            int tagId =
-                    observation.tagId()
-                            .packedValue();
+        /**
+         * Records the observation in one of the two fixed physical-tag slots.
+         *
+         * <p>The first distinct TagId takes slot 0 and an optional second TagId
+         * takes slot 1. A third distinct TagId for one RegistrationId violates
+         * the supported passage model and is rejected.</p>
+         */
+        private void record(TagObservation observation) {
+            int tagId = observation.tagId().packedValue();
             TagState tag = null;
 
             for (int index = 0; index < tagCount; index++) {
@@ -359,22 +326,21 @@ final class TagObservationFilter {
             }
 
             if (tag == null) {
-                failIfIllegalState(
-                        tagCount < tags.length,
-                        "RegistrationPassage supports at most two TagIds");
+                failIfIllegalState(tagCount < tags.length, "RegistrationPassage supports at most two TagIds");
                 tag = tags[tagCount++];
-                tag.reset(
-                        tagId,
-                        observation.rssi(),
-                        observation.observedAtValue());
+                tag.reset(observation);
             } else {
-                tag.record(
-                        observation.rssi(),
-                        observation.observedAtValue());
+                tag.record(observation);
             }
         }
 
-        /** Selects the strongest physical-tag observation retained by this passage. */
+        /**
+         * Selects the physical tag that supplied the strongest observation.
+         *
+         * <p>Higher RSSI wins. If both tags reached the same strongest RSSI,
+         * the tag that reached it first on the monotonic observation timeline
+         * wins, preserving the earlier measurement.</p>
+         */
         private TagState selectedTag() {
             failIfIllegalState(tagCount > 0, "RegistrationPassage has no TagId state");
 
@@ -387,61 +353,63 @@ final class TagObservationFilter {
             return selected;
         }
 
-        /** Clears logical ownership before this object returns to the pool. */
         private void clear() {
             registrationId = 0;
             tagCount = 0;
-            firstObservedAt = 0L;
-            lastObservedAt = 0L;
-            lastReceivedAtNanos = 0L;
+            firstObservedAtEpochMillis = 0L;
+            lastObservedAtEpochMillis = 0L;
+            firstObservedAtMonotonicNanos = 0L;
+            lastObservedAtMonotonicNanos = 0L;
         }
     }
 
-    /** Reusable primitive statistics for one physical A/B tag in a passage. */
+    /**
+     * Reusable statistics for one physical tag observed in a passage.
+     *
+     * <p>First/last and strongest absolute times remain available for a future
+     * persisted passage-detail record. The strongest monotonic time is retained
+     * only to resolve equal-RSSI observations in observation order.</p>
+     */
     private static final class TagState {
         private int tagId;
-        private long firstObservedAt;
-        private long lastObservedAt;
+        private long firstObservedAtEpochMillis;
+        private long lastObservedAtEpochMillis;
         private int strongestRssi;
-        private long strongestObservedAt;
+        private long strongestObservedAtEpochMillis;
+        private long strongestObservedAtMonotonicNanos;
         private long observationCount;
 
-        /** Starts this reusable slot from the first observation of one physical tag. */
-        private void reset(
-                int tagId,
-                int rssi,
-                long observedAt) {
-            this.tagId = tagId;
-            firstObservedAt = observedAt;
-            lastObservedAt = observedAt;
-            strongestRssi = rssi;
-            strongestObservedAt = observedAt;
+        private void reset(TagObservation observation) {
+            tagId = observation.tagId().packedValue();
+            firstObservedAtEpochMillis = observation.observedAtEpochMillis();
+            lastObservedAtEpochMillis = firstObservedAtEpochMillis;
+            strongestRssi = observation.rssi();
+            strongestObservedAtEpochMillis = firstObservedAtEpochMillis;
+            strongestObservedAtMonotonicNanos = observation.observedAtMonotonicNanos();
             observationCount = 1L;
         }
 
-        /** Updates first/last timing and strongest RSSI information. */
-        private void record(
-                int rssi,
-                long observedAt) {
+        /**
+         * Updates first/last history and replaces the selected observation only for stronger RSSI.
+         *
+         * <p>Equal RSSI deliberately keeps the earlier strongest observation.</p>
+         */
+        private void record(TagObservation observation) {
             observationCount++;
-            if (observedAt < firstObservedAt) {
-                firstObservedAt = observedAt;
-            }
-            if (observedAt > lastObservedAt) {
-                lastObservedAt = observedAt;
-            }
-            if (rssi > strongestRssi) {
-                strongestRssi = rssi;
-                strongestObservedAt = observedAt;
+            lastObservedAtEpochMillis = observation.observedAtEpochMillis();
+
+            if (observation.rssi() > strongestRssi) {
+                strongestRssi = observation.rssi();
+                strongestObservedAtEpochMillis = observation.observedAtEpochMillis();
+                strongestObservedAtMonotonicNanos = observation.observedAtMonotonicNanos();
             }
         }
 
-        /** Orders tag candidates by RSSI and then by earliest strongest observation. */
-        private boolean strongerThan(
-                TagState other) {
+        /** Orders two tag slots by strongest RSSI and then earliest strongest monotonic observation. */
+        private boolean strongerThan(TagState other) {
             return strongestRssi > other.strongestRssi
                     || strongestRssi == other.strongestRssi
-                            && strongestObservedAt < other.strongestObservedAt;
+                            && strongestObservedAtMonotonicNanos < other.strongestObservedAtMonotonicNanos;
         }
     }
 }

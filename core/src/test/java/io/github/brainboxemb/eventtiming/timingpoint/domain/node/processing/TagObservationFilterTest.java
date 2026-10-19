@@ -21,11 +21,11 @@ public class TagObservationFilterTest {
     private static final RegistrationId REGISTRATION_ID =
             new RegistrationId("N0001");
     private static final TimingTimestamp OBSERVED_1 =
-            TimingTimestamp.parse("2026-10-01T12:00:00.00Z");
+            TimingTimestamp.parse("2026-10-01T12:00:00.000Z");
     private static final TimingTimestamp OBSERVED_2 =
-            TimingTimestamp.parse("2026-10-01T12:00:00.10Z");
+            TimingTimestamp.parse("2026-10-01T12:00:00.100Z");
     private static final TimingTimestamp OBSERVED_3 =
-            TimingTimestamp.parse("2026-10-01T12:00:00.20Z");
+            TimingTimestamp.parse("2026-10-01T12:00:00.200Z");
 
     @Test
     public void selectsStrongestRssiAcrossDifferentTagsForOneRegistration() {
@@ -42,15 +42,15 @@ public class TagObservationFilterTest {
         assertEquals(8, metrics.snapshot().passagePoolInitialSize());
         assertEquals(8, metrics.snapshot().passagePoolSize());
 
-        filter.add(REGISTRATION_ID, observation("N0001A", -60, OBSERVED_1));
-        filter.add(REGISTRATION_ID, observation("N0001B", -40, OBSERVED_2));
-        filter.add(REGISTRATION_ID, observation("N0001A", -40, OBSERVED_3));
+        filter.add(REGISTRATION_ID, observation("N0001A", -60, OBSERVED_1, 0L));
+        filter.add(REGISTRATION_ID, observation("N0001B", -40, OBSERVED_2, 100L));
+        filter.add(REGISTRATION_ID, observation("N0001A", -40, OBSERVED_3, 200L));
 
         assertTrue(filter.hasPendingState());
         assertEquals(1, metrics.snapshot().passagePoolInUse());
         assertEquals(1, metrics.snapshot().passagePoolPeakInUse());
 
-        clock.advanceMillis(250L);
+        clock.setMillis(450L);
         filter.periodic();
 
         assertEquals(1, valid.size());
@@ -61,7 +61,7 @@ public class TagObservationFilterTest {
     }
 
     @Test
-    public void processingDelayDoesNotSplitObservedPassage() {
+    public void processingDelayDoesNotSplitAlreadyObservedPassage() {
         FakeMonotonicClock clock = new FakeMonotonicClock();
         List<SelectedObservation> valid = new ArrayList<SelectedObservation>();
         TagObservationFilter filter = new TagObservationFilter(
@@ -71,16 +71,22 @@ public class TagObservationFilterTest {
                 (registrationId, observedAt) -> valid.add(
                         new SelectedObservation(registrationId, observedAt)));
 
-        filter.add(REGISTRATION_ID, observation("N0001A", -60, OBSERVED_1));
-        clock.advanceMillis(5000L);
-        filter.add(REGISTRATION_ID, observation("N0001B", -40, OBSERVED_2));
+        filter.add(REGISTRATION_ID, observation("N0001A", -60, OBSERVED_1, 0L));
+
+        /*
+         * Five seconds pass locally before the already-captured second read is
+         * processed. Its antenna monotonic time is still only 100 ms later, so
+         * processing delay must not create another passage.
+         */
+        clock.setMillis(5000L);
+        filter.add(REGISTRATION_ID, observation("N0001B", -40, OBSERVED_2, 100L));
 
         assertTrue(valid.isEmpty());
         assertTrue(filter.hasPendingState());
     }
 
     @Test
-    public void observationGapStartsNewPassageWithoutProcessingDelay() {
+    public void quietTimeoutBoundaryStartsNewPassage() {
         FakeMonotonicClock clock = new FakeMonotonicClock();
         List<SelectedObservation> valid = new ArrayList<SelectedObservation>();
         TagObservationFilter filter = new TagObservationFilter(
@@ -90,20 +96,21 @@ public class TagObservationFilterTest {
                 (registrationId, observedAt) -> valid.add(
                         new SelectedObservation(registrationId, observedAt)));
 
-        filter.add(REGISTRATION_ID, observation("N0001A", -60, OBSERVED_1));
+        filter.add(REGISTRATION_ID, observation("N0001A", -60, OBSERVED_1, 0L));
         filter.add(
                 REGISTRATION_ID,
                 observation(
                         "N0001B",
                         -40,
-                        TimingTimestamp.parse("2026-10-01T12:00:00.30Z")));
+                        TimingTimestamp.parse("2026-10-01T12:00:00.250Z"),
+                        250L));
 
         assertEquals(1, valid.size());
         assertEquals(OBSERVED_1, valid.get(0).observedAt);
     }
 
     @Test
-    public void maximumObservedDurationStartsNewPassage() {
+    public void maximumPassageDurationBoundaryStartsNewPassage() {
         FakeMonotonicClock clock = new FakeMonotonicClock();
         List<SelectedObservation> valid = new ArrayList<SelectedObservation>();
         TagObservationFilter filter = new TagObservationFilter(
@@ -118,14 +125,15 @@ public class TagObservationFilterTest {
                 (registrationId, observedAt) -> valid.add(
                         new SelectedObservation(registrationId, observedAt)));
 
-        filter.add(REGISTRATION_ID, observation("N0001A", -60, OBSERVED_1));
-        filter.add(REGISTRATION_ID, observation("N0001B", -40, OBSERVED_2));
+        filter.add(REGISTRATION_ID, observation("N0001A", -60, OBSERVED_1, 0L));
+        filter.add(REGISTRATION_ID, observation("N0001B", -40, OBSERVED_2, 100L));
         filter.add(
                 REGISTRATION_ID,
                 observation(
                         "N0001A",
                         -30,
-                        TimingTimestamp.parse("2026-10-01T12:00:00.16Z")));
+                        TimingTimestamp.parse("2026-10-01T12:00:00.150Z"),
+                        150L));
 
         assertEquals(1, valid.size());
         assertEquals(OBSERVED_2, valid.get(0).observedAt);
@@ -143,7 +151,7 @@ public class TagObservationFilterTest {
                     throw new AssertionError("discarded passage must not close");
                 });
 
-        filter.add(REGISTRATION_ID, observation("N0001A", -60, OBSERVED_1));
+        filter.add(REGISTRATION_ID, observation("N0001A", -60, OBSERVED_1, 0L));
 
         assertEquals(1, metrics.snapshot().passagePoolInUse());
         assertTrue(filter.discard(REGISTRATION_ID));
@@ -164,11 +172,13 @@ public class TagObservationFilterTest {
     private static TagObservation observation(
             String tagId,
             int rssi,
-            TimingTimestamp observedAt) {
+            TimingTimestamp observedAt,
+            long monotonicMillis) {
         return new TagObservation(
                 new TagId(tagId),
                 rssi,
-                observedAt);
+                observedAt.instant().toEpochMilli(),
+                TimeUnit.MILLISECONDS.toNanos(monotonicMillis));
     }
 
     private static final class SelectedObservation {
@@ -191,8 +201,8 @@ public class TagObservationFilterTest {
             return now;
         }
 
-        private void advanceMillis(long millis) {
-            now += TimeUnit.MILLISECONDS.toNanos(millis);
+        private void setMillis(long millis) {
+            now = TimeUnit.MILLISECONDS.toNanos(millis);
         }
     }
 }

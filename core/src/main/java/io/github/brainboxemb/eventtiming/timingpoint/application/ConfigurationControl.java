@@ -90,7 +90,7 @@ public final class ConfigurationControl {
                             policy.quietTimeoutNanos());
             maxBurstDurationMillis =
                     TimeUnit.NANOSECONDS.toMillis(
-                            policy.maxBurstDurationNanos());
+                            policy.maxPassageDurationNanos());
             duplicateWindowMillis =
                     TimeUnit.NANOSECONDS.toMillis(
                             policy.duplicateWindowNanos());
@@ -378,7 +378,7 @@ public final class ConfigurationControl {
                         current.quietTimeoutNanos(),
                         patch.quietTimeoutMillis()),
                 duration(
-                        current.maxBurstDurationNanos(),
+                        current.maxPassageDurationNanos(),
                         patch.maxBurstDurationMillis()),
                 duration(
                         current.duplicateWindowNanos(),

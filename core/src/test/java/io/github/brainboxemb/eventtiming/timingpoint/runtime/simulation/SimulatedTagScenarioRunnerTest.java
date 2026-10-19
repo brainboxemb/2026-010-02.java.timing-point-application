@@ -31,6 +31,7 @@ public class SimulatedTagScenarioRunnerTest {
             new TagId("N0042B");
     private static final Instant BASE_TIME =
             Instant.parse("2026-10-07T12:00:00Z");
+    private static final long BASE_MONOTONIC_NANOS = 1_000_000_000L;
 
     @Test
     public void normalProfileEmitsTwoMappedTagsThroughSimulatedAntenna()
@@ -45,6 +46,7 @@ public class SimulatedTagScenarioRunnerTest {
                         antenna,
                         eventData(),
                         () -> BASE_TIME,
+                        () -> BASE_MONOTONIC_NANOS,
                         worker);
 
         List<TagObservation> observations =
@@ -101,6 +103,10 @@ public class SimulatedTagScenarioRunnerTest {
                     observations.get(2)
                             .observedAt()
                             .instant());
+            assertEquals(
+                    BASE_MONOTONIC_NANOS + TimeUnit.MILLISECONDS.toNanos(80L),
+                    observations.get(2)
+                            .observedAtMonotonicNanos());
         } finally {
             runner.deactivate();
             antenna.shutdown();
@@ -121,6 +127,7 @@ public class SimulatedTagScenarioRunnerTest {
                         antenna,
                         eventData(),
                         () -> BASE_TIME,
+                        () -> BASE_MONOTONIC_NANOS,
                         worker);
 
         AtomicObservation single =
@@ -193,6 +200,7 @@ public class SimulatedTagScenarioRunnerTest {
                         antenna,
                         new EventData(mapping),
                         () -> BASE_TIME,
+                        () -> BASE_MONOTONIC_NANOS,
                         worker);
 
         List<TagObservation> longObservations =
@@ -297,6 +305,7 @@ public class SimulatedTagScenarioRunnerTest {
                         antenna,
                         eventData(),
                         () -> BASE_TIME,
+                        () -> BASE_MONOTONIC_NANOS,
                         worker);
 
         List<TagObservation> observations =
@@ -364,6 +373,7 @@ public class SimulatedTagScenarioRunnerTest {
                         antenna,
                         eventData(),
                         () -> BASE_TIME,
+                        () -> BASE_MONOTONIC_NANOS,
                         worker);
 
         runner.activate();

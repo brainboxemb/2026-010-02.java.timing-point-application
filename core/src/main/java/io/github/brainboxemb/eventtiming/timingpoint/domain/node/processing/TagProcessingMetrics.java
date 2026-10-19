@@ -5,16 +5,14 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Component-owned runtime metrics for the tag-processing path.
  *
- * <p>Hot-path record methods update only primitive atomic counters. Snapshot
- * creation is explicit and may allocate; callers use it for pull-based
- * engineering/diagnostic reads rather than continuously mirroring these values
- * into another status model.</p>
+ * <p>Hot-path record methods update only primitive counters. Snapshot creation
+ * is explicit and may allocate; recording never creates diagnostic objects.</p>
  */
 public final class TagProcessingMetrics {
     private final AtomicLong observationCount = new AtomicLong();
     private final AtomicLong observationQueueFullCount = new AtomicLong();
     private final AtomicLong processorNotRunningCount = new AtomicLong();
-    private final AtomicLong closedBurstCount = new AtomicLong();
+    private final AtomicLong closedPassageCount = new AtomicLong();
     private final AtomicLong mappedCount = new AtomicLong();
     private final AtomicLong unmappedCount = new AtomicLong();
     private final AtomicLong duplicateCount = new AtomicLong();
@@ -23,6 +21,11 @@ public final class TagProcessingMetrics {
     private volatile int passagePoolSize;
     private volatile int passagePoolInUse;
     private volatile int passagePoolPeakInUse;
+
+    private volatile int duplicateTableInitialCapacity;
+    private volatile int duplicateTableCapacity;
+    private volatile int duplicateTableSize;
+    private volatile int duplicateTablePeakSize;
 
     /** Records one observation accepted by TagProcessor ingress. */
     void recordObservation() {
@@ -39,9 +42,9 @@ public final class TagProcessingMetrics {
         processorNotRunningCount.incrementAndGet();
     }
 
-    /** Records one passage closed by filter policy. */
-    void recordClosedBurst() {
-        closedBurstCount.incrementAndGet();
+    /** Records one passage closed because a passage boundary or idle flush was reached. */
+    void recordClosedPassage() {
+        closedPassageCount.incrementAndGet();
     }
 
     /** Records one observation mapped to a RegistrationId. */
@@ -59,7 +62,7 @@ public final class TagProcessingMetrics {
         duplicateCount.incrementAndGet();
     }
 
-    /** Publishes the current reusable RegistrationPassage pool state. */
+    /** Publishes current reusable RegistrationPassage-pool occupancy without allocating a snapshot. */
     void recordPassagePool(
             int initialSize,
             int size,
@@ -71,25 +74,36 @@ public final class TagProcessingMetrics {
         passagePoolPeakInUse = peakInUse;
     }
 
-    /**
-     * Returns an immutable pull-based view of the current processing metrics.
-     *
-     * <p>The snapshot is diagnostic and may allocate. Recording itself remains
-     * allocation-free apart from the AtomicLong instances owned by this component.</p>
-     */
+    /** Publishes the primitive duplicate table's current capacity and occupancy. */
+    void recordDuplicateTable(
+            int initialCapacity,
+            int capacity,
+            int size,
+            int peakSize) {
+        duplicateTableInitialCapacity = initialCapacity;
+        duplicateTableCapacity = capacity;
+        duplicateTableSize = size;
+        duplicateTablePeakSize = peakSize;
+    }
+
+    /** Returns one immutable pull-based view of current processing metrics. */
     public Snapshot snapshot() {
         return new Snapshot(
                 observationCount.get(),
                 observationQueueFullCount.get(),
                 processorNotRunningCount.get(),
-                closedBurstCount.get(),
+                closedPassageCount.get(),
                 mappedCount.get(),
                 unmappedCount.get(),
                 duplicateCount.get(),
                 passagePoolInitialSize,
                 passagePoolSize,
                 passagePoolInUse,
-                passagePoolPeakInUse);
+                passagePoolPeakInUse,
+                duplicateTableInitialCapacity,
+                duplicateTableCapacity,
+                duplicateTableSize,
+                duplicateTablePeakSize);
     }
 
     /** Immutable pull-based view of the current TagProcessor counters. */
@@ -97,7 +111,7 @@ public final class TagProcessingMetrics {
         private final long observations;
         private final long observationQueueFull;
         private final long processorNotRunning;
-        private final long closedBursts;
+        private final long closedPassages;
         private final long mapped;
         private final long unmapped;
         private final long duplicates;
@@ -105,24 +119,31 @@ public final class TagProcessingMetrics {
         private final int passagePoolSize;
         private final int passagePoolInUse;
         private final int passagePoolPeakInUse;
+        private final int duplicateTableInitialCapacity;
+        private final int duplicateTableCapacity;
+        private final int duplicateTableSize;
+        private final int duplicateTablePeakSize;
 
-        /** Creates one immutable metric snapshot from current counters. */
         private Snapshot(
                 long observations,
                 long observationQueueFull,
                 long processorNotRunning,
-                long closedBursts,
+                long closedPassages,
                 long mapped,
                 long unmapped,
                 long duplicates,
                 int passagePoolInitialSize,
                 int passagePoolSize,
                 int passagePoolInUse,
-                int passagePoolPeakInUse) {
+                int passagePoolPeakInUse,
+                int duplicateTableInitialCapacity,
+                int duplicateTableCapacity,
+                int duplicateTableSize,
+                int duplicateTablePeakSize) {
             this.observations = observations;
             this.observationQueueFull = observationQueueFull;
             this.processorNotRunning = processorNotRunning;
-            this.closedBursts = closedBursts;
+            this.closedPassages = closedPassages;
             this.mapped = mapped;
             this.unmapped = unmapped;
             this.duplicates = duplicates;
@@ -130,6 +151,10 @@ public final class TagProcessingMetrics {
             this.passagePoolSize = passagePoolSize;
             this.passagePoolInUse = passagePoolInUse;
             this.passagePoolPeakInUse = passagePoolPeakInUse;
+            this.duplicateTableInitialCapacity = duplicateTableInitialCapacity;
+            this.duplicateTableCapacity = duplicateTableCapacity;
+            this.duplicateTableSize = duplicateTableSize;
+            this.duplicateTablePeakSize = duplicateTablePeakSize;
         }
 
         public long observations() {
@@ -144,8 +169,8 @@ public final class TagProcessingMetrics {
             return processorNotRunning;
         }
 
-        public long closedBursts() {
-            return closedBursts;
+        public long closedPassages() {
+            return closedPassages;
         }
 
         public long mapped() {
@@ -160,24 +185,36 @@ public final class TagProcessingMetrics {
             return duplicates;
         }
 
-        /** Returns the RegistrationPassage objects created during pool initialization. */
         public int passagePoolInitialSize() {
             return passagePoolInitialSize;
         }
 
-        /** Returns the total RegistrationPassage objects created so far. */
         public int passagePoolSize() {
             return passagePoolSize;
         }
 
-        /** Returns RegistrationPassage objects currently checked out of the pool. */
         public int passagePoolInUse() {
             return passagePoolInUse;
         }
 
-        /** Returns the highest simultaneous RegistrationPassage usage observed. */
         public int passagePoolPeakInUse() {
             return passagePoolPeakInUse;
+        }
+
+        public int duplicateTableInitialCapacity() {
+            return duplicateTableInitialCapacity;
+        }
+
+        public int duplicateTableCapacity() {
+            return duplicateTableCapacity;
+        }
+
+        public int duplicateTableSize() {
+            return duplicateTableSize;
+        }
+
+        public int duplicateTablePeakSize() {
+            return duplicateTablePeakSize;
         }
     }
 }

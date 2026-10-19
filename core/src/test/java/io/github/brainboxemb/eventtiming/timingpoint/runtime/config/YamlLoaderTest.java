@@ -246,8 +246,8 @@ public class YamlLoaderTest {
                 TimeUnit.MILLISECONDS.toNanos(300L),
                 policy.quietTimeoutNanos());
         assertEquals(
-                defaults.maxBurstDurationNanos(),
-                policy.maxBurstDurationNanos());
+                defaults.maxPassageDurationNanos(),
+                policy.maxPassageDurationNanos());
         assertEquals(
                 0L,
                 policy.duplicateWindowNanos());
@@ -279,7 +279,7 @@ public class YamlLoaderTest {
                 policy.quietTimeoutNanos());
         assertEquals(
                 TimeUnit.MILLISECONDS.toNanos(900L),
-                policy.maxBurstDurationNanos());
+                policy.maxPassageDurationNanos());
         assertEquals(
                 TimeUnit.MILLISECONDS.toNanos(12000L),
                 policy.duplicateWindowNanos());

@@ -143,7 +143,7 @@ public class TagProcessorTest {
             assertTrue(
                     processor.hasPendingPassages());
 
-            clock.advanceMillis(100L);
+            clock.advanceMillis(150L);
 
             assertTrue(committed.await(1, TimeUnit.SECONDS));
             awaitExecutor(execution.executor);
@@ -162,7 +162,7 @@ public class TagProcessorTest {
             TagProcessingMetrics.Snapshot snapshot = metrics.snapshot();
             assertEquals(2L, snapshot.observations());
             assertEquals(2L, snapshot.mapped());
-            assertEquals(1L, snapshot.closedBursts());
+            assertEquals(1L, snapshot.closedPassages());
         } finally {
             deactivate(processor);
             deactivate(node);
@@ -221,7 +221,7 @@ public class TagProcessorTest {
             TagProcessingMetrics.Snapshot snapshot = metrics.snapshot();
             assertEquals(3L, snapshot.observations());
             assertEquals(3L, snapshot.mapped());
-            assertEquals(1L, snapshot.closedBursts());
+            assertEquals(1L, snapshot.closedPassages());
             assertEquals(1L, snapshot.duplicates());
             assertEquals(2, store.appended.size());
         } finally {
@@ -273,7 +273,7 @@ public class TagProcessorTest {
             TagProcessingMetrics.Snapshot snapshot = metrics.snapshot();
             assertEquals(3L, snapshot.mapped());
             assertEquals(1L, snapshot.duplicates());
-            assertEquals(1L, snapshot.closedBursts());
+            assertEquals(1L, snapshot.closedPassages());
         } finally {
             deactivate(processor);
         }
@@ -543,10 +543,14 @@ public class TagProcessorTest {
             String tagId,
             int rssi,
             TimingTimestamp observedAt) {
+        long observedAtEpochMillis = observedAt.instant().toEpochMilli();
+        long baseEpochMillis = OBSERVED_AT.instant().toEpochMilli();
         return new TagObservation(
                 new TagId(tagId),
                 rssi,
-                observedAt);
+                observedAtEpochMillis,
+                TimeUnit.MILLISECONDS.toNanos(
+                        observedAtEpochMillis - baseEpochMillis));
     }
 
     private static EventData referenceEventData() {

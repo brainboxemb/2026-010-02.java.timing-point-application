@@ -542,6 +542,8 @@ public class TimingNodeTest {
 
         activate(node);
         try {
+            awaitOperational(node);
+
             node.logBook().execute(
                     LogBookCommands.commitNodeOpen(new LocationId(99)));
             assertTrue(

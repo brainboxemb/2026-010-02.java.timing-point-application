@@ -2,7 +2,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
-import io.github.brainboxemb.eventtiming.timingdata.CompactTimingTime;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
@@ -45,7 +44,6 @@ public final class TagProcessor extends LifecycleComponent {
     /** Selected-registration source published after passage filtering. */
     public final EventSource<NewRegistration> NEW_REGISTRATION = newRegistration;
 
-    /** Creates a TagProcessor with one fixed startup policy. */
     public TagProcessor(
             EventData eventData,
             TagProcessingPolicy policy,
@@ -61,7 +59,6 @@ public final class TagProcessor extends LifecycleComponent {
                 scheduler);
     }
 
-    /** Creates a TagProcessor backed by the supplied live read-only policy configuration. */
     public TagProcessor(
             EventData eventData,
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
@@ -90,6 +87,7 @@ public final class TagProcessor extends LifecycleComponent {
         housekeepingJob = new HousekeepingJob(
                 policyConfiguration,
                 monotonicClock,
+                metrics,
                 scheduler);
         observations =
                 new SerialLane<TagObservation>(
@@ -145,12 +143,17 @@ public final class TagProcessor extends LifecycleComponent {
         }
     }
 
-    /** Reports whether passage filtering still owns one or more open passages. */
     public boolean hasPendingPassages() {
         return filterJob.hasPendingPassages();
     }
 
-    /** Maps and filters one queued antenna observation. */
+    /**
+     * Applies the processing order for one queued antenna observation.
+     *
+     * <p>Mapping happens first. Only mapped observations are checked for
+     * duplicate suppression, and only mapped non-duplicates may enter passage
+     * selection.</p>
+     */
     private void processObservation(TagObservation observation) {
         TagId tagId = observation.tagId();
         if (LOG.isTraceEnabled()) {
@@ -158,8 +161,7 @@ public final class TagProcessor extends LifecycleComponent {
                     "Tag observation: tagId={}, rssi={}, observedAt={}",
                     tagId,
                     observation.rssi(),
-                    CompactTimingTime.toTimestamp(
-                            observation.observedAtValue()));
+                    observation.observedAt());
         }
 
         RegistrationId registrationId =
@@ -183,17 +185,17 @@ public final class TagProcessor extends LifecycleComponent {
         }
     }
 
-    /** Converts one filter-approved observation into a registration event. */
+    /**
+     * Publishes one completed passage as a registration and starts duplicate suppression.
+     *
+     * <p>The filter may already have opened the next passage for the same
+     * RegistrationId before this callback runs. Starting duplicate suppression
+     * makes that just-opened passage irrelevant, so it is discarded before the
+     * registration event is emitted.</p>
+     */
     private void processValidObservation(RegistrationId registrationId, TimingTimestamp observedAt) {
-
         housekeepingJob.recordRegistration(registrationId);
-
-        /*
-         * Closing the previous passage may already have started a next passage.
-         * Once duplicate suppression starts, that next passage is no longer useful.
-         */
         filterJob.discard(registrationId);
-
         newRegistration.emit(new NewRegistration(registrationId, observedAt));
     }
 
@@ -202,7 +204,6 @@ public final class TagProcessor extends LifecycleComponent {
         private final RegistrationId registrationId;
         private final TimingTimestamp observedAt;
 
-        /** Creates the immutable registration fact emitted after passage selection. */
         public NewRegistration(RegistrationId registrationId, TimingTimestamp observedAt) {
 
             failIfInvalidArgument(registrationId != null, "registrationId must not be null");
@@ -211,12 +212,10 @@ public final class TagProcessor extends LifecycleComponent {
             this.observedAt = observedAt;
         }
 
-        /** Returns the selected registration. */
         public RegistrationId registrationId() {
             return registrationId;
         }
 
-        /** Returns the selected observation time. */
         public TimingTimestamp observedAt() {
             return observedAt;
         }

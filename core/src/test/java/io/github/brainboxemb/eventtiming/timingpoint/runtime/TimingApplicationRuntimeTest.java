@@ -661,7 +661,8 @@ public class TimingApplicationRuntimeTest {
             antenna.emit(
                     new TagId("R1001A"),
                     -42,
-                    observedAt);
+                    observedAt.instant().toEpochMilli(),
+                    System.nanoTime());
 
             assertTrue(
                     "quiet-timeout housekeeping did not commit the passage",
@@ -682,7 +683,10 @@ public class TimingApplicationRuntimeTest {
             antenna.emit(
                     new TagId("R1002A"),
                     -40,
-                    TimingTimestamp.parse("2026-10-05T08:30:01.000000000Z"));
+                    TimingTimestamp.parse("2026-10-05T08:30:01.000000000Z")
+                            .instant()
+                            .toEpochMilli(),
+                    System.nanoTime());
             fail("expected shut-down antenna after application shutdown");
         } catch (IllegalStateException expected) {
             assertTrue(expected.getMessage().contains("inventory is not running"));

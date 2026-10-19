@@ -421,9 +421,10 @@ final class RuntimeCharacterizationHarness
                             tagId(
                                     inputIndex)),
                     -50,
-                    new TimingTimestamp(
-                            INPUT_TIME_BASE.plusNanos(
-                                    intervalNanos * inputIndex)));
+                    INPUT_TIME_BASE.plusNanos(
+                                    intervalNanos * inputIndex)
+                            .toEpochMilli(),
+                    System.nanoTime());
         }
     }
 

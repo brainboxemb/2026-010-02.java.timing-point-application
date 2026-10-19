@@ -10,20 +10,26 @@ import static org.junit.Assert.assertEquals;
 public class TagObservationTest {
 
     @Test
-    public void retainsObservationTimeAsCompactCentisecondValue() {
+    public void retainsAbsoluteAndMonotonicObservationTimeAsPrimitiveLongs() {
+        TimingTimestamp absolute =
+                TimingTimestamp.parse("2026-10-18T12:30:15.251Z");
+        long monotonicNanos = 123_456_789L;
+
         TagObservation observation =
                 new TagObservation(
                         new TagId("N0042A"),
                         -42,
-                        TimingTimestamp.parse(
-                                "2026-10-18T12:30:15.251Z"));
+                        absolute.instant().toEpochMilli(),
+                        monotonicNanos);
 
         assertEquals(
-                2026101812301525L,
-                observation.observedAtValue());
+                absolute.instant().toEpochMilli(),
+                observation.observedAtEpochMillis());
         assertEquals(
-                TimingTimestamp.parse(
-                        "2026-10-18T12:30:15.25Z"),
+                monotonicNanos,
+                observation.observedAtMonotonicNanos());
+        assertEquals(
+                absolute,
                 observation.observedAt());
     }
 }
