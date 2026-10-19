@@ -64,8 +64,7 @@ class EngineeringSystemContextTest {
                         + "remoteShell.port=8023" + System.lineSeparator()
                         + "loggingServer.port=8030" + System.lineSeparator()
                         + "client.log.path=" + temp.resolve("client.log") + System.lineSeparator()
-                        + "client.log.level=INFO" + System.lineSeparator()
-                        + "registration.prefix=RT-A-" + System.lineSeparator());
+                        + "client.log.level=INFO" + System.lineSeparator());
         return ClientConfig.load(file);
     }
 }

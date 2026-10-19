@@ -19,7 +19,6 @@ final class ClientConfig {
     private final int loggingServerPort;
     private final Path clientLogPath;
     private final String clientLogLevel;
-    private final String registrationPrefix;
 
     private ClientConfig(
             String host,
@@ -28,8 +27,7 @@ final class ClientConfig {
             int shellPort,
             int loggingServerPort,
             Path clientLogPath,
-            String clientLogLevel,
-            String registrationPrefix) {
+            String clientLogLevel) {
         this.host = host;
         this.apiHttpPort = apiHttpPort;
         this.eventPort = eventPort;
@@ -37,7 +35,6 @@ final class ClientConfig {
         this.loggingServerPort = loggingServerPort;
         this.clientLogPath = clientLogPath;
         this.clientLogLevel = clientLogLevel;
-        this.registrationPrefix = registrationPrefix;
     }
 
     static Path defaultPath() {
@@ -95,8 +92,7 @@ final class ClientConfig {
                 port(properties, "remoteShell.port"),
                 port(properties, "loggingServer.port"),
                 Path.of(required(properties, "client.log.path")),
-                level,
-                properties.getProperty("registration.prefix", "").trim());
+                level);
     }
 
     String host() {
@@ -125,10 +121,6 @@ final class ClientConfig {
 
     String clientLogLevel() {
         return clientLogLevel;
-    }
-
-    String registrationPrefix() {
-        return registrationPrefix;
     }
 
     URI apiEndpoint() {
