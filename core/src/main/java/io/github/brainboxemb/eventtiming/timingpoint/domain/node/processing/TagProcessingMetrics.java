@@ -22,10 +22,10 @@ public final class TagProcessingMetrics {
     private volatile int passagePoolInUse;
     private volatile int passagePoolPeakInUse;
 
-    private volatile int duplicateTableInitialCapacity;
-    private volatile int duplicateTableCapacity;
-    private volatile int duplicateTableSize;
-    private volatile int duplicateTablePeakSize;
+    private volatile int duplicateStateInitialCapacity;
+    private volatile int duplicateStateCapacity;
+    private volatile int duplicateStateSize;
+    private volatile int duplicateStatePeakSize;
 
     /** Records one observation accepted by TagProcessor ingress. */
     void recordObservation() {
@@ -75,15 +75,15 @@ public final class TagProcessingMetrics {
     }
 
     /** Publishes the primitive duplicate table's current capacity and occupancy. */
-    void recordDuplicateTable(
+    void recordDuplicateState(
             int initialCapacity,
             int capacity,
             int size,
             int peakSize) {
-        duplicateTableInitialCapacity = initialCapacity;
-        duplicateTableCapacity = capacity;
-        duplicateTableSize = size;
-        duplicateTablePeakSize = peakSize;
+        duplicateStateInitialCapacity = initialCapacity;
+        duplicateStateCapacity = capacity;
+        duplicateStateSize = size;
+        duplicateStatePeakSize = peakSize;
     }
 
     /** Returns one immutable pull-based view of current processing metrics. */
@@ -100,10 +100,10 @@ public final class TagProcessingMetrics {
                 passagePoolSize,
                 passagePoolInUse,
                 passagePoolPeakInUse,
-                duplicateTableInitialCapacity,
-                duplicateTableCapacity,
-                duplicateTableSize,
-                duplicateTablePeakSize);
+                duplicateStateInitialCapacity,
+                duplicateStateCapacity,
+                duplicateStateSize,
+                duplicateStatePeakSize);
     }
 
     /** Immutable pull-based view of the current TagProcessor counters. */
@@ -119,10 +119,10 @@ public final class TagProcessingMetrics {
         private final int passagePoolSize;
         private final int passagePoolInUse;
         private final int passagePoolPeakInUse;
-        private final int duplicateTableInitialCapacity;
-        private final int duplicateTableCapacity;
-        private final int duplicateTableSize;
-        private final int duplicateTablePeakSize;
+        private final int duplicateStateInitialCapacity;
+        private final int duplicateStateCapacity;
+        private final int duplicateStateSize;
+        private final int duplicateStatePeakSize;
 
         private Snapshot(
                 long observations,
@@ -136,10 +136,10 @@ public final class TagProcessingMetrics {
                 int passagePoolSize,
                 int passagePoolInUse,
                 int passagePoolPeakInUse,
-                int duplicateTableInitialCapacity,
-                int duplicateTableCapacity,
-                int duplicateTableSize,
-                int duplicateTablePeakSize) {
+                int duplicateStateInitialCapacity,
+                int duplicateStateCapacity,
+                int duplicateStateSize,
+                int duplicateStatePeakSize) {
             this.observations = observations;
             this.observationQueueFull = observationQueueFull;
             this.processorNotRunning = processorNotRunning;
@@ -151,10 +151,10 @@ public final class TagProcessingMetrics {
             this.passagePoolSize = passagePoolSize;
             this.passagePoolInUse = passagePoolInUse;
             this.passagePoolPeakInUse = passagePoolPeakInUse;
-            this.duplicateTableInitialCapacity = duplicateTableInitialCapacity;
-            this.duplicateTableCapacity = duplicateTableCapacity;
-            this.duplicateTableSize = duplicateTableSize;
-            this.duplicateTablePeakSize = duplicateTablePeakSize;
+            this.duplicateStateInitialCapacity = duplicateStateInitialCapacity;
+            this.duplicateStateCapacity = duplicateStateCapacity;
+            this.duplicateStateSize = duplicateStateSize;
+            this.duplicateStatePeakSize = duplicateStatePeakSize;
         }
 
         public long observations() {
@@ -201,20 +201,20 @@ public final class TagProcessingMetrics {
             return passagePoolPeakInUse;
         }
 
-        public int duplicateTableInitialCapacity() {
-            return duplicateTableInitialCapacity;
+        public int duplicateStateInitialCapacity() {
+            return duplicateStateInitialCapacity;
         }
 
-        public int duplicateTableCapacity() {
-            return duplicateTableCapacity;
+        public int duplicateStateCapacity() {
+            return duplicateStateCapacity;
         }
 
-        public int duplicateTableSize() {
-            return duplicateTableSize;
+        public int duplicateStateSize() {
+            return duplicateStateSize;
         }
 
-        public int duplicateTablePeakSize() {
-            return duplicateTablePeakSize;
+        public int duplicateStatePeakSize() {
+            return duplicateStatePeakSize;
         }
     }
 }
