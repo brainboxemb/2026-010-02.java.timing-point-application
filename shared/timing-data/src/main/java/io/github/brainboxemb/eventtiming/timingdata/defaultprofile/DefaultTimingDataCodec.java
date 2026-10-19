@@ -22,9 +22,12 @@ import java.util.List;
 /**
  * Canonical IF-05 v1 JSON codec for the built-in default/reference profile.
  *
- * <p>Absolute times are stored internally as epoch milliseconds and written at
- * millisecond precision. Finer input remains readable and is truncated to the
- * same millisecond precision by the TimingData factory.</p>
+ * <p>IF-05 v1 retains its existing interchange format: {@code time} has two
+ * fractional digits and {@code recTime} has three, with its last digit zero.
+ * This is independent of the epoch-millisecond representation in TimingData.
+ * Writing v1 truncates sub-centisecond precision, so this format cannot
+ * round-trip millisecond details that are not centisecond-aligned. Changing
+ * that external contract requires an explicit format-version decision.</p>
  *
  * <p>The codec owns one JSON object only. It deliberately does not add or remove
  * JSON Lines terminators: file framing, incomplete-tail handling and recovery
@@ -38,7 +41,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
     private static final int VERSION = 1;
 
     private static final DateTimeFormatter EFFECTIVE_TIME_FORMAT =
-            DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'")
+            DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SS'Z'")
                     .withZone(ZoneOffset.UTC);
     private static final DateTimeFormatter RECORDED_TIME_FORMAT =
             DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'")
@@ -251,45 +254,22 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         generator.writeEndArray();
     }
 
-    private static String formatEffectiveTime(
-            TimingTimestamp timestamp)
-            throws CodecException {
-        requirePrecision(
-                timestamp,
-                1_000_000L,
-                "time",
-                "millisecond");
-        return EFFECTIVE_TIME_FORMAT.format(
-                timestamp.instant());
+    /** Writes the unchanged IF-05 v1 effective-time text shape (.SS). */
+    private static String formatEffectiveTime(TimingTimestamp timestamp) {
+        return EFFECTIVE_TIME_FORMAT.format(timestamp.instant());
     }
 
-    private static String formatRecordedTime(
-            TimingTimestamp timestamp)
-            throws CodecException {
-        requirePrecision(
-                timestamp,
-                1_000_000L,
-                "recTime",
-                "millisecond");
-        return RECORDED_TIME_FORMAT.format(
-                timestamp.instant());
-    }
-
-    private static void requirePrecision(
-            TimingTimestamp timestamp,
-            long quantumNanos,
-            String field,
-            String precision)
-            throws CodecException {
-        if (timestamp.instant().getNano()
-                % quantumNanos != 0L) {
-            throw new CodecException(
-                    CodecException.Reason.ENCODE_FAILURE,
-                    field
-                            + " must be aligned to "
-                            + precision
-                            + " precision for IF-05 v1");
-        }
+    /**
+     * Writes the unchanged IF-05 v1 recorded-time text shape (.SS0).
+     *
+     * <p>Although the external field has three digits, v1 has always retained
+     * only centiseconds. Truncation is confined to serialization; the default
+     * TimingData object keeps the original epoch-millisecond value.</p>
+     */
+    private static String formatRecordedTime(TimingTimestamp timestamp) {
+        java.time.Instant instant = timestamp.instant();
+        long subCentisecondNanos = instant.getNano() % 10_000_000L;
+        return RECORDED_TIME_FORMAT.format(instant.minusNanos(subCentisecondNanos));
     }
 
     private static RegistrationId requireRegistrationId(RegistrationId registrationId)
