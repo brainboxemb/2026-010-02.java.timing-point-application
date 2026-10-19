@@ -57,7 +57,6 @@ public final class NodeService extends LifecycleComponent {
     private final RaceDataState raceData;
     private final ActiveRegistrations activeRegistrations;
     private final RegisteredTeams registeredTeams = new RegisteredTeams();
-    private final RegistrationRanking registrationRanking;
     private final DataTask dataTask;
     private final MainTask mainTask = new MainTask();
 
@@ -82,7 +81,6 @@ public final class NodeService extends LifecycleComponent {
         this.taskRunner = taskRunner;
         this.raceData = raceData;
         this.activeRegistrations = activeRegistrations;
-        registrationRanking = new RegistrationRanking(raceData);
         dataTask =
                 new DataTask(
                         taskRunner,
@@ -219,7 +217,7 @@ public final class NodeService extends LifecycleComponent {
         failIfInvalidArgument(visitor != null, "visitor must not be null");
 
         return read(() ->
-                registrationRanking.visit(activeRegistrations, locationId, raceTimeZone, limit, visitor));
+                RegistrationRanking.visit(activeRegistrations, raceData, locationId, raceTimeZone, limit, visitor));
     }
 
     /** Passes LogBook availability changes to MainTask. */

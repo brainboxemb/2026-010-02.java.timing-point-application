@@ -17,31 +17,28 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Ranks every valid registration of one WP by elapsed time, including repeated teams.
  *
- * <p>For the intended few hundred entries, calculating this view on demand avoids
- * another mutable registration index and keeps assignments and start times current.</p>
+ * <p>For the intended few hundred entries, this stateless calculation avoids a
+ * second mutable registration index and uses the current team assignments and start times.</p>
  */
 public final class RegistrationRanking {
     private static final Comparator<StageTimingRecord> FASTEST_FIRST =
             Comparator.comparing(StageTimingRecord::elapsed)
                     .thenComparingLong(StageTimingRecord::sequenceNumber);
 
-    private final RaceDataState raceData;
-
-    public RegistrationRanking(RaceDataState raceData) {
-
-        failIfInvalidArgument(raceData != null, "raceData must not be null");
-        this.raceData = raceData;
+    private RegistrationRanking() {
     }
 
     /** Visits at most limit individual registrations, with competition ranks for equal elapsed times. */
-    public int visit(
+    public static int visit(
             ActiveRegistrations registrations,
+            RaceDataState raceData,
             LocationId locationId,
             ZoneId raceTimeZone,
             int limit,
             Consumer<RegistrationRank> visitor) {
 
         failIfInvalidArgument(registrations != null, "registrations must not be null");
+        failIfInvalidArgument(raceData != null, "raceData must not be null");
         failIfInvalidArgument(locationId != null, "locationId must not be null");
         failIfInvalidArgument(raceTimeZone != null, "raceTimeZone must not be null");
         failIfInvalidArgument(limit >= 0, "limit must not be negative");

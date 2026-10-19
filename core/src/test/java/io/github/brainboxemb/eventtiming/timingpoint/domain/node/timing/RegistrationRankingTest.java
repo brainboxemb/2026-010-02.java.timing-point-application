@@ -218,7 +218,7 @@ public class RegistrationRankingTest {
         }
 
         List<RegistrationRank> ranking = new ArrayList<>();
-        fixture.registrationRanking.visit(fixture.activeRegistrations, LOCATION_ID, ZoneOffset.UTC, 400, ranking::add);
+        RegistrationRanking.visit(fixture.activeRegistrations, fixture.raceData, LOCATION_ID, ZoneOffset.UTC, 400, ranking::add);
 
         assertEquals(400, ranking.size());
         assertEquals(350, registeredTeams.uniqueTeamCount(LOCATION_ID));
@@ -265,7 +265,6 @@ public class RegistrationRankingTest {
         private final DefaultEventData eventData = new DefaultEventData();
         private final RaceDataState raceData = new RaceDataState(eventData);
         private final ActiveRegistrations activeRegistrations = new ActiveRegistrations();
-        private final RegistrationRanking registrationRanking = new RegistrationRanking(raceData);
 
         private void setStart(String teamId, LocalTime startTime) {
 
@@ -285,7 +284,7 @@ public class RegistrationRankingTest {
         private List<RegistrationRank> ranking(LocationId locationId) {
 
             List<RegistrationRank> result = new ArrayList<RegistrationRank>();
-            registrationRanking.visit(activeRegistrations, locationId, ZoneOffset.UTC, 16, result::add);
+            RegistrationRanking.visit(activeRegistrations, raceData, locationId, ZoneOffset.UTC, 16, result::add);
             return result;
         }
     }
