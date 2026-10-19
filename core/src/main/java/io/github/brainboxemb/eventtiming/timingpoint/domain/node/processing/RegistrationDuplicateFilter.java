@@ -169,7 +169,6 @@ final class RegistrationDuplicateFilter {
         recordTableMetrics();
     }
 
-    /** Removes one packed RegistrationId when present. */
     private void remove(int registrationId) {
         int index = find(registrationId);
         if (index >= 0) {
@@ -200,7 +199,6 @@ final class RegistrationDuplicateFilter {
         }
     }
 
-    /** Returns the table index for one packed id or -1 when it is absent. */
     private int find(int registrationId) {
         int mask = registrationIds.length - 1;
         int index = hash(registrationId) & mask;
