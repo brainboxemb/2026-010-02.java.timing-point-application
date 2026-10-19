@@ -128,13 +128,13 @@ public class LocalConsoleTest {
             assertEquals(nodeTime, first.effectiveTime());
             assertEquals(nodeTime, second.effectiveTime());
             assertEquals(nodeTime, alias.effectiveTime());
-            assertEquals(TimingData.AutomaticTimeSource.NODE, first.timeSource());
-            assertEquals(TimingData.AutomaticTimeSource.NODE, second.timeSource());
-            assertEquals(TimingData.AutomaticTimeSource.NODE, alias.timeSource());
+            assertEquals(TimingData.AutomaticTimeSource.NODE, first.registrationTimeSource());
+            assertEquals(TimingData.AutomaticTimeSource.NODE, second.registrationTimeSource());
+            assertEquals(TimingData.AutomaticTimeSource.NODE, alias.registrationTimeSource());
             assertEquals(
                     TimingTimestamp.parse("2026-10-01T12:34:56Z"),
                     explicit.effectiveTime());
-            assertEquals(TimingData.AutomaticTimeSource.API, explicit.timeSource());
+            assertEquals(TimingData.AutomaticTimeSource.API, explicit.registrationTimeSource());
         }
 
         String text = output.toString();
