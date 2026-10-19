@@ -32,7 +32,6 @@ final class FilterJob {
     private volatile boolean active;
     private ScheduledFuture<?> scheduled;
 
-    /** Creates the filter and stores the scheduler used for delayed sweeps. */
     FilterJob(
             ReadOnlyConfiguration<TagProcessingPolicy> policyConfiguration,
             MonotonicClock monotonicClock,
@@ -55,7 +54,6 @@ final class FilterJob {
                 validObservationCallback);
     }
 
-    /** Enables the job and resumes retained passage scheduling. */
     synchronized void start() {
         if (active) {
             return;
@@ -65,13 +63,11 @@ final class FilterJob {
         scheduler.execute(this::resume);
     }
 
-    /** Disables the job and cancels its one pending delayed sweep. */
     synchronized void stop() {
         active = false;
         cancelScheduled();
     }
 
-    /** Adds one mapped observation and schedules a sweep when passage state exists. */
     void add(
             RegistrationId registrationId,
             TagObservation observation) {
@@ -88,12 +84,16 @@ final class FilterJob {
         updatePendingState();
     }
 
-    /** Reports pending passage state without copying the filter contents. */
     boolean hasPendingPassages() {
         return pendingPassages;
     }
 
-    /** Queues reconciliation with the current policy and returns immediately. */
+    /**
+     * Applies policy changes on the scheduler thread that owns filter state.
+     *
+     * <p>The configuration callback may run elsewhere, so it never mutates an
+     * open passage directly.</p>
+     */
     void policyChanged(ConfigurationChange<TagProcessingPolicy> change) {
         failIfInvalidArgument(change != null, "change must not be null");
 
@@ -172,7 +172,6 @@ final class FilterJob {
         scheduled = scheduler.schedule(this::run, cadenceNanos, TimeUnit.NANOSECONDS);
     }
 
-    /** Cancels the one pending sweep when one exists. */
     private void cancelScheduled() {
         ScheduledFuture<?> current = scheduled;
         scheduled = null;
