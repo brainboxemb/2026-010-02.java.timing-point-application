@@ -12,6 +12,7 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTimingRecord;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.RegistrationRank;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.RegisteredTeams;
@@ -143,6 +144,17 @@ public class ActiveRegistrationsIntegrationTest {
                                     DefaultUpstreamData.stageStartSet("0001", LocalTime.NOON))));
             org.junit.Assert.assertTrue(components.upstreamHandler().inputAvailable());
             stream.takeSent();
+
+            List<ActiveRegistrations.Registration> firstPage =
+                    new ArrayList<>();
+            components.nodeService().visitRegistrationsAfter(new LocationId(1), 0L, 1, firstPage::add);
+            assertEquals(1L, firstPage.get(0).sequenceNumber());
+
+            List<ActiveRegistrations.Registration> secondPage =
+                    new ArrayList<>();
+            components.nodeService().visitRegistrationsAfter(
+                    new LocationId(1), firstPage.get(0).sequenceNumber(), 1, secondPage::add);
+            assertEquals(2L, secondPage.get(0).sequenceNumber());
 
             List<StageTimingRecord> passages = new ArrayList<StageTimingRecord>();
             components.nodeService().visitStageTimingRecords(ZoneOffset.UTC, 16, passages::add);

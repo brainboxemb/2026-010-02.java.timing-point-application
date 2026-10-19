@@ -54,6 +54,33 @@ public class ActiveRegistrationsTest {
     }
 
     @Test
+    public void displayCanPageByOriginalSequenceEvenAfterARevoke() {
+        ActiveRegistrations registrations = new ActiveRegistrations();
+        registrations.apply(registration(1L, 1, TimingData.RegistrationAction.ADD));
+        registrations.apply(registration(2L, 2, TimingData.RegistrationAction.ADD));
+        registrations.apply(registration(3L, 1, TimingData.RegistrationAction.ADD));
+
+        List<ActiveRegistrations.Registration> firstPage = new ArrayList<>();
+        assertEquals(1, registrations.visitAfter(new LocationId(1), 0L, 1, firstPage::add));
+        assertEquals(1L, firstPage.get(0).sequenceNumber());
+
+        List<ActiveRegistrations.Registration> secondPage = new ArrayList<>();
+        assertEquals(1, registrations.visitAfter(new LocationId(1), 1L, 1, secondPage::add));
+        assertEquals(3L, secondPage.get(0).sequenceNumber());
+
+        registrations.apply(registration(4L, 1, TimingData.RegistrationAction.REV));
+        assertFalse(secondPage.get(0).isValid());
+
+        List<ActiveRegistrations.Registration> nextPage = new ArrayList<>();
+        assertEquals(0, registrations.visitAfter(new LocationId(1), 3L, 1, nextPage::add));
+
+        List<ActiveRegistrations.Registration> allRows = new ArrayList<>();
+        assertEquals(2, registrations.visit(new LocationId(1), 10, allRows::add));
+        assertTrue(allRows.get(0).isValid());
+        assertFalse(allRows.get(1).isValid());
+    }
+
+    @Test
     public void unmatchedRevokeDoesNotChangeEarlierEntries() {
         ActiveRegistrations registrations = new ActiveRegistrations();
         registrations.apply(registration(1L, 1, TimingData.RegistrationAction.ADD));

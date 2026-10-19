@@ -46,10 +46,26 @@ public final class ActiveRegistrations {
         return change;
     }
 
-    /** Visits up to limit registrations of one WP in source order, including invalid rows. */
+    /** Visits at most limit rows of one WP in source order, including invalid rows. */
     public int visit(LocationId locationId, int limit, Consumer<Registration> visitor) {
 
+        return visitAfter(locationId, 0L, limit, visitor);
+    }
+
+    /**
+     * Visits rows after one original ADD sequence, allowing a display to page through its list.
+     *
+     * <p>The display owns the cursor and what it has already shown. A later REV updates an
+     * earlier row, so the display must also revisit older rows when checking validity.</p>
+     */
+    public int visitAfter(
+            LocationId locationId,
+            long afterSequence,
+            int limit,
+            Consumer<Registration> visitor) {
+
         failIfInvalidArgument(locationId != null, "locationId must not be null");
+        failIfInvalidArgument(afterSequence >= 0L, "afterSequence must not be negative");
         failIfInvalidArgument(limit >= 0, "limit must not be negative");
         failIfInvalidArgument(visitor != null, "visitor must not be null");
 
@@ -58,7 +74,7 @@ public final class ActiveRegistrations {
             if (visited >= limit) {
                 break;
             }
-            if (locationId.equals(registration.locationId())) {
+            if (registration.sequenceNumber() > afterSequence && locationId.equals(registration.locationId())) {
                 visitor.accept(registration);
                 visited++;
             }

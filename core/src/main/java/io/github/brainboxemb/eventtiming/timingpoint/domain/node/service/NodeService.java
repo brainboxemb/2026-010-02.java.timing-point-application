@@ -177,6 +177,26 @@ public final class NodeService extends LifecycleComponent {
         return read(() -> activeRegistrations.visit(locationId, limit, visitor));
     }
 
+    /**
+     * Visits later registration rows without restarting at the first displayed sequence.
+     *
+     * <p>A later REV can change an earlier row. Use visitRegistrations when checking
+     * those earlier rows for invalidation; this cursor only pages newly added rows.</p>
+     */
+    public int visitRegistrationsAfter(
+            LocationId locationId,
+            long afterSequence,
+            int limit,
+            Consumer<ActiveRegistrations.Registration> visitor) {
+
+        failIfInvalidArgument(locationId != null, "locationId must not be null");
+        failIfInvalidArgument(afterSequence >= 0L, "afterSequence must not be negative");
+        failIfInvalidArgument(limit >= 0, "limit must not be negative");
+        failIfInvalidArgument(visitor != null, "visitor must not be null");
+
+        return read(() -> activeRegistrations.visitAfter(locationId, afterSequence, limit, visitor));
+    }
+
     /** Visits the complete current unique-team set for a compact display burst. */
     public int visitRegisteredTeams(LocationId locationId, Consumer<TeamId> visitor) {
 
