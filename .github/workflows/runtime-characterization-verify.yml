@@ -7,7 +7,7 @@ on:
       - 'core/src/main/java/**/runtime/measurement/**'
       - 'core/src/main/java/**/TimingNodeMetrics.java'
       - 'core/src/main/java/**/TagProcessingMetrics.java'
-      - 'core/src/main/java/**/domain/node/processing/TagProcessor.java'
+      - 'core/src/main/java/**/domain/node/processing/**'
       - 'pom.xml'
       - '.github/workflows/runtime-characterization-verify.yml'
       - 'tools/run_runtime_characterization_baseline.sh'
