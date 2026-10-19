@@ -29,7 +29,6 @@ public final class TagProcessingPolicy {
     private final long sweepCadenceNanos;
     private final int observationQueueCapacity;
 
-    /** Creates an immutable passage/duplicate processing policy. */
     public TagProcessingPolicy(
             Duration quietTimeout,
             Duration maxPassageDuration,
@@ -79,7 +78,6 @@ public final class TagProcessingPolicy {
         return observationQueueCapacity;
     }
 
-    /** Compares all configured processing-policy values. */
     @Override
     public boolean equals(Object other) {
         if (this == other) {
@@ -96,7 +94,6 @@ public final class TagProcessingPolicy {
                 && observationQueueCapacity == that.observationQueueCapacity;
     }
 
-    /** Returns a hash consistent with policy value equality. */
     @Override
     public int hashCode() {
         int result = (int) (quietTimeoutNanos ^ (quietTimeoutNanos >>> 32));
