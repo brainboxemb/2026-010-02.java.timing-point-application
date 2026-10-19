@@ -17,6 +17,7 @@ import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import org.junit.Test;
 
@@ -194,6 +195,35 @@ public class RegistrationRankingTest {
 
         fixture.raceData.teamAssignments().remove(registrationId);
         assertTrue(fixture.ranking().isEmpty());
+    }
+
+    /** 400 passages by 350 teams must produce 400 ranked rows but only 350 unique registered teams. */
+    @Test
+    public void ranksFourHundredRegistrationsFromThreeHundredFiftyTeams() {
+        Fixture fixture = fixture();
+        RegisteredTeams registeredTeams = new RegisteredTeams();
+
+        for (int team = 1; team <= 350; team++) {
+            fixture.setStart(String.format(Locale.ROOT, "%04d", team), LocalTime.NOON);
+        }
+
+        for (int sequence = 1; sequence <= 400; sequence++) {
+            int team = (sequence - 1) % 350 + 1;
+            String registrationId = String.format(Locale.ROOT, "A%04d", team);
+            TimingData registration = automatic(
+                    sequence, registrationId, Instant.parse("2026-10-13T12:00:00Z").plusMillis(sequence),
+                    TimingData.RegistrationAction.ADD);
+            ActiveRegistrations.Change change = fixture.activeRegistrations.apply(registration);
+            registeredTeams.apply(change, fixture.raceData.teamIdFor(change.registrationId()));
+        }
+
+        List<RegistrationRank> ranking = new ArrayList<>();
+        fixture.registrationRanking.visit(fixture.activeRegistrations, LOCATION_ID, ZoneOffset.UTC, 400, ranking::add);
+
+        assertEquals(400, ranking.size());
+        assertEquals(350, registeredTeams.uniqueTeamCount(LOCATION_ID));
+        assertEquals(1, ranking.get(0).rank());
+        assertEquals(400, ranking.get(399).rank());
     }
 
     private static Fixture fixture() {
