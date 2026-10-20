@@ -50,7 +50,7 @@ public class ActiveRegistrationsTest {
         assertTrue(wp1.get(0).isValid());
         assertFalse(wp1.get(1).isValid());
         assertTrue(wp2.get(0).isValid());
-        assertEquals(2L, change.registration().sequenceNumber());
+        assertEquals(new RegistrationId("A0001"), change.registrationId());
         assertEquals(1, registrations.visit(new LocationId(1), 1, ignored -> {}));
     }
 
