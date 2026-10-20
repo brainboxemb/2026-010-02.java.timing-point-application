@@ -27,8 +27,6 @@ import java.util.concurrent.TimeUnit;
 final class RuntimeExecutors implements AutoCloseable {
     static final int LOGBOOK_DATA_LANE_QUEUE_CAPACITY = 32;
     static final int LOGBOOK_DATA_LANE_MAX_ITEMS_PER_RUN = 32;
-    static final int TIMING_NODE_TASK_LANE_QUEUE_CAPACITY = 32;
-    static final int TIMING_NODE_TASK_LANE_MAX_ITEMS_PER_RUN = 32;
     static final int ANTENNA_CONTROL_LANE_QUEUE_CAPACITY = 8;
     static final int ANTENNA_CONTROL_LANE_MAX_ITEMS_PER_RUN = 8;
     static final int TIMING_SYSTEM_CONDUCTOR_LANE_QUEUE_CAPACITY = 8;
@@ -45,16 +43,16 @@ final class RuntimeExecutors implements AutoCloseable {
     /** Node-local logical lanes resolved for one TimingNode. */
     static final class TimingNodeExecutionResources {
         private final Executor logBookDataLaneExecutor;
-        private final SerialTaskRunner taskRunner;
+        private final ScheduledExecutorService nodeScheduler;
         private final ScheduledExecutorService tagProcessorScheduler;
 
         private TimingNodeExecutionResources(
                 Executor logBookDataLaneExecutor,
-                SerialTaskRunner taskRunner,
+                ScheduledExecutorService nodeScheduler,
                 ScheduledExecutorService tagProcessorScheduler) {
 
             this.logBookDataLaneExecutor = logBookDataLaneExecutor;
-            this.taskRunner = taskRunner;
+            this.nodeScheduler = nodeScheduler;
             this.tagProcessorScheduler = tagProcessorScheduler;
         }
 
@@ -63,9 +61,9 @@ final class RuntimeExecutors implements AutoCloseable {
             return logBookDataLaneExecutor;
         }
 
-        SerialTaskRunner taskRunner() {
+        ScheduledExecutorService nodeScheduler() {
 
-            return taskRunner;
+            return nodeScheduler;
         }
 
         ScheduledExecutorService tagProcessorScheduler() {
@@ -152,25 +150,17 @@ final class RuntimeExecutors implements AutoCloseable {
     /**
      * Creates one node-local execution-resource set on shared Runtime executors.
      *
-     * <p>The LogBook Data Lane and TimingNode Task Lane keep independent bounded queues and FIFO
-     * ordering, but they deliberately share the same TimingNode executor.
-     * TagProcessor receives the Runtime-owned single-thread scheduled executor
-     * directly; its bounded observation SerialLane and scheduled work share that
-     * physical thread. Logical responsibility therefore does not imply another
-     * Java thread.</p>
+     * <p>Runtime supplies the shared physical schedulers only. TimingNode and
+     * NodeService each create and own their own logical SerialTaskRunner on the
+     * same TimingNode scheduler; LogBook uses that scheduler for its Data Lane.
+     * TagProcessor receives the separate Runtime-owned tag scheduler directly.
+     * Logical component ownership therefore does not imply another Java thread.</p>
      */
     synchronized TimingNodeExecutionResources createTimingNodeExecutionResources() {
-        SerialTaskRunner taskRunner =
-                new SerialTaskRunner(
-                        TIMING_NODE_TASK_LANE_QUEUE_CAPACITY,
-                        TIMING_NODE_TASK_LANE_MAX_ITEMS_PER_RUN,
-                        "TimingNodeTask",
-                        timingNodeExecutor);
 
-        serialLanes.add(taskRunner);
         return new TimingNodeExecutionResources(
                 timingNodeExecutor,
-                taskRunner,
+                timingNodeExecutor,
                 tagProcessorScheduledExecutor);
     }
 
