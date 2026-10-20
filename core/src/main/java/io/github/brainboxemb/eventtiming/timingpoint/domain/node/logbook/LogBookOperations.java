@@ -9,6 +9,8 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.Monoto
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +25,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  */
 final class LogBookOperations {
     private static final Logger LOG = LoggerFactory.getLogger(LogBookOperations.class);
+    private static final DateTimeFormatter LOG_TIME_FORMAT =
+            DateTimeFormatter.ofPattern("HHmmssSS")
+                    .withZone(ZoneOffset.UTC);
 
     private final LogBookState state;
     private final TimingDataPersistence timingDataPersistence;
@@ -256,7 +261,7 @@ final class LogBookOperations {
                     "Timing record persistence failed: node={}, sequence={}, type={}, location={}",
                     record.nodeId(),
                     record.sequenceNumber(),
-                    record.kind(),
+                    logType(record.kind()),
                     record.locationId(),
                     ex);
             throw ex;
@@ -272,7 +277,7 @@ final class LogBookOperations {
                             + "node={}, sequence={}, type={}, location={}",
                     record.nodeId(),
                     record.sequenceNumber(),
-                    record.kind(),
+                    logType(record.kind()),
                     record.locationId(),
                     ex);
             throw ex;
@@ -282,40 +287,61 @@ final class LogBookOperations {
         logCommittedRecord(record);
     }
 
+    /** Formats an absolute timing value as compact UTC HHMMSShh for operator logs. */
+    private static String logTime(long epochMillis) {
+        return LOG_TIME_FORMAT.format(Instant.ofEpochMilli(epochMillis));
+    }
+
+    /** Returns the compact IF-05-style record type used in operator logs. */
+    private static String logType(TimingRecord.Kind kind) {
+        switch (kind) {
+            case AUTOMATIC_REGISTRATION:
+                return "AUTO_REG";
+            case MANUAL_REGISTRATION:
+                return "MAN_REG";
+            case NODE_OPEN:
+                return "OPEN";
+            case NODE_CLOSE:
+                return "CLOSE";
+            default:
+                throw new IllegalArgumentException("Unsupported TimingRecord kind " + kind);
+        }
+    }
+
     private static void logCommittedRecord(TimingRecord record) {
         if (record.kind() == TimingRecord.Kind.AUTOMATIC_REGISTRATION) {
             LOG.info(
                     "Timing record committed: node={}, sequence={}, type={}, registrationId={}, "
-                            + "action={}, location={}, effectiveTimeMillis={}, tagSource={}, timeSource={}",
+                            + "action={}, location={}, effectiveTime={}, tagSource={}, timeSource={}",
                     record.nodeId(),
                     record.sequenceNumber(),
-                    record.kind(),
+                    logType(record.kind()),
                     RegistrationId.fromPackedValue(record.registrationId()).value(),
                     record.action(),
                     record.locationId(),
-                    record.effectiveTimeMillis(),
+                    logTime(record.effectiveTimeMillis()),
                     record.tagSource(),
                     record.automaticTimeSource());
         } else if (record.kind() == TimingRecord.Kind.MANUAL_REGISTRATION) {
             LOG.info(
                     "Timing record committed: node={}, sequence={}, type={}, registrationId={}, "
-                            + "action={}, location={}, effectiveTimeMillis={}, timeSource={}",
+                            + "action={}, location={}, effectiveTime={}, timeSource={}",
                     record.nodeId(),
                     record.sequenceNumber(),
-                    record.kind(),
+                    logType(record.kind()),
                     RegistrationId.fromPackedValue(record.registrationId()).value(),
                     record.action(),
                     record.locationId(),
-                    record.effectiveTimeMillis(),
+                    logTime(record.effectiveTimeMillis()),
                     record.manualTimeSource());
         } else {
             LOG.info(
-                    "Timing record committed: node={}, sequence={}, type={}, location={}, effectiveTimeMillis={}",
+                    "Timing record committed: node={}, sequence={}, type={}, location={}, effectiveTime={}",
                     record.nodeId(),
                     record.sequenceNumber(),
-                    record.kind(),
+                    logType(record.kind()),
                     record.locationId(),
-                    record.effectiveTimeMillis());
+                    logTime(record.effectiveTimeMillis()));
         }
     }
 }
