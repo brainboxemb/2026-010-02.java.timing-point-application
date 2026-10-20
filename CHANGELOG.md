@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Scope registration-derived state to the currently OPEN WP: OPEN(locationId) rebuilds that WP from the complete LogBook so registrations from earlier OPEN periods return, CLOSE deactivates the projection, other WPs are excluded, rows no longer retain LocationId, NodeService reads are implicitly current-WP, and historical rebuild suppresses incremental team +/- events until catch-up completes.
+
 - Make registration-derived state explicit: replace the mixed `domain.node.timing` package with `domain.node.registration`, document ownership/replay/REV/team-membership/display invariants in detail, remove test-only StageTiming/ranking production APIs and result types, and keep RaceData assignment/start helpers internal to RaceDataState.
 
 - Align `RegisteredTeams` with the typed event-port convention: private `changedEvent` backing state plus explicit `CHANGED` EventSource port, removing the legacy `changes()` accessor.

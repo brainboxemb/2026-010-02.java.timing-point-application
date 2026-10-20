@@ -1,21 +1,24 @@
 /**
- * Task Lane-owned registration projections derived from committed LogBook TimingData.
+ * Active-WP registration projections derived from committed LogBook TimingData.
  *
- * <p>This package contains retained node state, not persistence records and not presentation
- * result models. DataTask replays committed TimingData in sequence order into
- * {@link io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.ActiveRegistrations}.
- * Each actual registration validity change is then reflected in
- * {@link io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.RegisteredTeams}
- * using the current RaceData team assignment.</p>
+ * <p>The LogBook is the full historical authority across every LocationId and every OPEN/CLOSE
+ * period. These objects deliberately are not global history. They exist as usable state only
+ * while a TimingNode has one WP open.</p>
  *
- * <p>ActiveRegistrations preserves chronological ADD rows, including rows later invalidated by
- * REV. RegisteredTeams maintains the separate current unique-team membership needed by the smart
- * display. Their read APIs expose only those maintained facts: bounded chronological visits,
- * unique-team counts/full visits and membership transition events.</p>
+ * <p>OPEN(locationId) clears the previous projection and DataTask replays the complete LogBook
+ * from sequence one. ActiveRegistrations accepts only ADD/REV records for that LocationId, so
+ * registrations from earlier OPEN periods of the same WP return while records from other WPs are
+ * ignored. CLOSE deactivates and clears both projections. Reopening the same WP reconstructs it
+ * again from LogBook rather than preserving a separate in-memory history.</p>
  *
- * <p>Elapsed-time calculations, ranking result models, CAN encoding and per-display
- * synchronization state do not belong here. A production query/result type is added only when an
- * application or I/O consumer actually requires that behavior; tests verify the retained state
- * rather than defining extra production interfaces.</p>
+ * <p>ActiveRegistrations keeps chronological ADD rows, including rows later invalidated by REV.
+ * RegisteredTeams derives the current unique-team set from those valid occurrences and current
+ * RaceData assignments. Historical reconstruction is silent; after catch-up, only real live
+ * membership transitions publish +/- events. A smart display uses a full burst after rebuild and
+ * incremental events afterwards.</p>
+ *
+ * <p>Rows and read methods carry no LocationId because the active projection itself already has
+ * exactly one WP scope. CAN encoding, per-display synchronization state, persistence and calculated
+ * presentation/query models remain outside this package.</p>
  */
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration;

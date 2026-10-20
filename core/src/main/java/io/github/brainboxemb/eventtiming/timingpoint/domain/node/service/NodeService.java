@@ -32,16 +32,14 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Coordinates node-local state that must remain ordered on the TimingNode Task Lane.
  *
- * <p>MainTask reacts only to LogBook availability. DataTask owns the LogBook sequence cursor and
- * reconstructs the registration projections from committed TimingData in bounded batches.
- * RaceDataState owns live Central RACE_DATA. ActiveRegistrations and RegisteredTeams own the
- * derived registration state; NodeService coordinates changes between those owners but does not
- * duplicate their collections.</p>
+ * <p>MainTask reacts only to LogBook availability. DataTask owns the active-WP LogBook cursor:
+ * while CLOSED there is no registration projection; OPEN(locationId) rebuilds that WP from the
+ * complete LogBook in bounded batches and then keeps it caught up. RaceDataState owns live Central
+ * RACE_DATA. ActiveRegistrations and RegisteredTeams own the two active-WP projections.</p>
  *
- * <p>The public read boundary exposes maintained production facts needed by node/display
- * integration: chronological registration rows and current unique-team membership. It does not
- * manufacture ranking or other presentation result models merely for tests. Reads first wait for
- * DataTask catch-up and then execute on the Task Lane so callers observe one ordered state.</p>
+ * <p>The public registration reads are relative to the one currently open WP, so they take no
+ * LocationId argument. Reads first wait for DataTask reconstruction/catch-up and then execute on
+ * the Task Lane. Calling them while CLOSED is an illegal state.</p>
  */
 public final class NodeService extends LifecycleComponent {
     private static final Logger LOG = LoggerFactory.getLogger(NodeService.class);
@@ -128,17 +126,27 @@ public final class NodeService extends LifecycleComponent {
         for (UpstreamData.TeamAssignmentChange change : changes.teamAssignmentChanges()) {
             RegistrationId registrationId = change.registrationId();
             TeamId teamId = raceData.teamIdFor(registrationId);
-            registeredTeams.teamAssignmentChanged(registrationId, teamId);
+            dataTask.teamAssignmentChanged(registrationId, teamId);
         }
     }
 
-    /** Returns the number of uniquely registered teams at one location. */
-    public int uniqueTeamRegistrationCount(LocationId locationId) {
+    /** Requests a complete registration-state rebuild when TimingNode opens one WP. */
+    public void locationOpened(LocationId locationId) {
 
         failIfInvalidArgument(locationId != null, "locationId must not be null");
+        dataTask.locationOpened(locationId);
+    }
 
-        Supplier<Integer> readCount = () -> registeredTeams.uniqueTeamCount(locationId);
-        return read(readCount);
+    /** Deactivates registration state when TimingNode closes its WP. */
+    public void locationClosed() {
+
+        dataTask.locationClosed();
+    }
+
+    /** Returns the number of uniquely registered teams in the currently open WP. */
+    public int uniqueTeamRegistrationCount() {
+
+        return readActive(registeredTeams::uniqueTeamCount);
     }
 
     /**
@@ -148,13 +156,12 @@ public final class NodeService extends LifecycleComponent {
      * boundary; it is not a calculated presentation list.</p>
      */
     public int visitRegistrations(
-            LocationId locationId, int limit, Consumer<ActiveRegistrations.Registration> visitor) {
+            int limit, Consumer<ActiveRegistrations.Registration> visitor) {
 
-        failIfInvalidArgument(locationId != null, "locationId must not be null");
         failIfInvalidArgument(limit >= 0, "limit must not be negative");
         failIfInvalidArgument(visitor != null, "visitor must not be null");
 
-        return read(() -> activeRegistrations.visit(locationId, limit, visitor));
+        return readActive(() -> activeRegistrations.visit(limit, visitor));
     }
 
     /**
@@ -164,26 +171,23 @@ public final class NodeService extends LifecycleComponent {
      * those earlier rows for invalidation; this cursor only pages newly added rows.</p>
      */
     public int visitRegistrationsAfter(
-            LocationId locationId,
             long afterSequence,
             int limit,
             Consumer<ActiveRegistrations.Registration> visitor) {
 
-        failIfInvalidArgument(locationId != null, "locationId must not be null");
         failIfInvalidArgument(afterSequence >= 0L, "afterSequence must not be negative");
         failIfInvalidArgument(limit >= 0, "limit must not be negative");
         failIfInvalidArgument(visitor != null, "visitor must not be null");
 
-        return read(() -> activeRegistrations.visitAfter(locationId, afterSequence, limit, visitor));
+        return readActive(() -> activeRegistrations.visitAfter(afterSequence, limit, visitor));
     }
 
     /** Visits the complete current unique-team set for an order-independent compact display burst. */
-    public int visitRegisteredTeams(LocationId locationId, Consumer<TeamId> visitor) {
+    public int visitRegisteredTeams(Consumer<TeamId> visitor) {
 
-        failIfInvalidArgument(locationId != null, "locationId must not be null");
         failIfInvalidArgument(visitor != null, "visitor must not be null");
 
-        return read(() -> registeredTeams.visit(locationId, visitor));
+        return readActive(() -> registeredTeams.visit(visitor));
     }
 
     /** Passes LogBook availability changes to MainTask. */
@@ -198,6 +202,16 @@ public final class NodeService extends LifecycleComponent {
 
         failIfInvalidArgument(data != null, "TimingData must not be null");
         dataTask.dataChanged();
+    }
+
+    /** Runs one ordered active-WP read after DataTask has reconstructed/caught up. */
+    private <T> T readActive(Supplier<T> operation) {
+
+        return read(
+                () -> {
+                    dataTask.requireActive();
+                    return operation.get();
+                });
     }
 
     /** Runs one ordered service read after DataTask has caught up. */
@@ -246,7 +260,7 @@ public final class NodeService extends LifecycleComponent {
 
             switch (currentStatus()) {
                 case LOADED:
-                    dataTask.loadAll();
+                    dataTask.logBookAvailable();
                     break;
                 case ERROR:
                     dataTask.unavailable();
