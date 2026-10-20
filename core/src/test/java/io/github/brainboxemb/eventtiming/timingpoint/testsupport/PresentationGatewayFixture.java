@@ -1,10 +1,9 @@
 package io.github.brainboxemb.eventtiming.timingpoint.testsupport;
 
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
@@ -114,12 +113,12 @@ public final class PresentationGatewayFixture implements AutoCloseable {
         @Override
         public LoadResult load() {
             return new LoadResult(
-                    Collections.<TimingData>emptyList(),
+                    Collections.<TimingRecord>emptyList(),
                     false);
         }
 
         @Override
-        public void append(TimingData data) {
+        public void append(TimingRecord record) {
             // Presentation tests do not exercise durable persistence.
         }
     }

@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -23,10 +22,8 @@ import java.util.List;
 /**
  * Canonical IF-05 v1 JSON codec.
  *
- * <p>The codec reads and writes {@link TimingRecord} directly. Legacy
- * {@link TimingData} callers are adapted by the default methods on
- * {@link TimingDataCodec}; the persistence and LogBook path does not construct
- * TimingData objects.</p>
+ * <p>The codec reads and writes {@link TimingRecord} directly. No secondary
+ * Java object model is constructed on the persistence or API path.</p>
  */
 public final class DefaultTimingDataCodec implements TimingDataCodec {
     private static final int VERSION = 1;
@@ -182,7 +179,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
     }
 
     @Override
-    public TimingRecord decodeRecord(byte[] encodedRecord) throws CodecException {
+    public TimingRecord decode(byte[] encodedRecord) throws CodecException {
         if (encodedRecord == null || encodedRecord.length == 0) {
             throw invalid("encoded record must not be empty");
         }
@@ -317,7 +314,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         if (!AUTO_REG.equals(fields.recordType) && !MAN_REG.equals(fields.recordType)) {
             throw CodecException.unsupportedRecordType(
                     VERSION,
-                    new TimingData.RecordKey(new NodeId(String.valueOf(common.nodeId)), common.sequence),
+                    new TimingRecord.RecordKey(common.nodeId, common.sequence),
                     new LocationId(common.locationId),
                     fields.recordType,
                     new TimingTimestamp(Instant.ofEpochMilli(common.effectiveTimeMillis)),
@@ -382,7 +379,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         try {
             NodeId nodeId = new NodeId(fields.nodeId);
             LocationId locationId = new LocationId(fields.locationId);
-            if (fields.sequence < 1L || fields.sequence > TimingData.MAX_SEQUENCE_NUMBER) {
+            if (fields.sequence < 1L || fields.sequence > TimingRecord.MAX_SEQUENCE_NUMBER) {
                 throw new IllegalArgumentException("sequence out of range");
             }
             long effective = Instant.parse(fields.effectiveTime).toEpochMilli();

@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
@@ -119,37 +118,6 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
                         monotonicClock,
                         metrics.timingDataEventMetrics());
         this.NEW_DATA_ENTRY = newDataEntryEvent;
-    }
-
-    /**
-     * Legacy construction overload retained while callers migrate away from
-     * TimingDataFactory. The factory is deliberately not part of LogBook state.
-     */
-    public LogBook(
-            NodeId timingNodeId,
-            TimingDataPersistence timingDataPersistence,
-            TimingDataFactory timingDataFactory,
-            TimeSource timeSource,
-            MonotonicClock monotonicClock,
-            LogBookMetrics metrics,
-            Executor dataLaneExecutor,
-            int dataLaneCapacity,
-            int dataLaneMaxItemsPerRun,
-            long commitWaitTimeoutMillis,
-            long orderedQueryWaitTimeoutMillis) {
-
-        this(
-                timingNodeId,
-                timingDataPersistence,
-                timeSource,
-                monotonicClock,
-                metrics,
-                dataLaneExecutor,
-                dataLaneCapacity,
-                dataLaneMaxItemsPerRun,
-                commitWaitTimeoutMillis,
-                orderedQueryWaitTimeoutMillis);
-        failIfInvalidArgument(timingDataFactory != null, "timingDataFactory must not be null");
     }
 
     /** Returns immutable node identity without entering the Data Lane. */

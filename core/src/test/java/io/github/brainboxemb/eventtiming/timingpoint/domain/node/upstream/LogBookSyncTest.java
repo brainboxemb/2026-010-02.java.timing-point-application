@@ -1,8 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
@@ -45,16 +44,15 @@ public class LogBookSyncTest {
                     @Override
                     public LoadResult load() {
                         return new LoadResult(
-                                Collections.<TimingData>emptyList(),
+                                Collections.<TimingRecord>emptyList(),
                                 false);
                     }
 
                     @Override
-                    public void append(TimingData data) {
+                    public void append(TimingRecord record) {
                         // Not used by this protocol-direction test.
                     }
                 },
-                new DefaultTimingDataFactory(),
                 () -> Instant.EPOCH,
                 SystemMonotonicClock.INSTANCE,
                 new LogBookMetrics(),

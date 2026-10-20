@@ -1,12 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 
 import java.lang.reflect.Field;
 import java.time.Instant;
@@ -22,18 +18,16 @@ import static org.junit.Assert.assertTrue;
 
 /** Verifies the compact chronological projection of one active WP. */
 public class ActiveRegistrationsTest {
-    private static final NodeId NODE_ID = new NodeId("A");
-    private static final DefaultTimingDataFactory FACTORY = new DefaultTimingDataFactory();
 
     @Test
     public void activeWpIgnoresOtherLocationsAndRevokeKeepsRowOrder() {
         ActiveRegistrations registrations = activeAt(1);
 
-        registrations.apply(registration(1L, 1, TimingData.RegistrationAction.ADD));
-        registrations.apply(registration(2L, 1, TimingData.RegistrationAction.ADD));
-        assertNull(registrations.apply(registration(3L, 2, TimingData.RegistrationAction.ADD)));
+        registrations.apply(registration(1L, 1, TimingRecord.Action.ADD));
+        registrations.apply(registration(2L, 1, TimingRecord.Action.ADD));
+        assertNull(registrations.apply(registration(3L, 2, TimingRecord.Action.ADD)));
         ActiveRegistrations.Change change =
-                registrations.apply(registration(4L, 1, TimingData.RegistrationAction.REV));
+                registrations.apply(registration(4L, 1, TimingRecord.Action.REV));
 
         List<ActiveRegistrations.Registration> rows = new ArrayList<>();
         assertEquals(2, registrations.visit(10, rows::add));
@@ -47,9 +41,9 @@ public class ActiveRegistrationsTest {
     @Test
     public void displayCanPageByOriginalSequenceAfterRevoke() {
         ActiveRegistrations registrations = activeAt(1);
-        registrations.apply(registration(1L, 1, TimingData.RegistrationAction.ADD));
-        registrations.apply(registration(2L, 2, TimingData.RegistrationAction.ADD));
-        registrations.apply(registration(3L, 1, TimingData.RegistrationAction.ADD));
+        registrations.apply(registration(1L, 1, TimingRecord.Action.ADD));
+        registrations.apply(registration(2L, 2, TimingRecord.Action.ADD));
+        registrations.apply(registration(3L, 1, TimingRecord.Action.ADD));
 
         List<ActiveRegistrations.Registration> firstPage = new ArrayList<>();
         assertEquals(1, registrations.visitAfter(0L, 1, firstPage::add));
@@ -59,7 +53,7 @@ public class ActiveRegistrationsTest {
         assertEquals(1, registrations.visitAfter(1L, 1, secondPage::add));
         assertEquals(3L, secondPage.get(0).sequenceNumber());
 
-        registrations.apply(registration(4L, 1, TimingData.RegistrationAction.REV));
+        registrations.apply(registration(4L, 1, TimingRecord.Action.REV));
         assertFalse(secondPage.get(0).isValid());
         assertEquals(0, registrations.visitAfter(3L, 1, ignored -> {}));
     }
@@ -67,14 +61,14 @@ public class ActiveRegistrationsTest {
     @Test
     public void activatingAnotherWpStartsWithEmptyRows() {
         ActiveRegistrations registrations = activeAt(1);
-        registrations.apply(registration(1L, 1, TimingData.RegistrationAction.ADD));
+        registrations.apply(registration(1L, 1, TimingRecord.Action.ADD));
         assertEquals(1, registrations.visit(10, ignored -> {}));
 
         registrations.activate(new LocationId(2));
         assertEquals(0, registrations.visit(10, ignored -> {}));
-        registrations.apply(registration(2L, 1, TimingData.RegistrationAction.ADD));
+        registrations.apply(registration(2L, 1, TimingRecord.Action.ADD));
         assertEquals(0, registrations.visit(10, ignored -> {}));
-        registrations.apply(registration(3L, 2, TimingData.RegistrationAction.ADD));
+        registrations.apply(registration(3L, 2, TimingRecord.Action.ADD));
         assertEquals(1, registrations.visit(10, ignored -> {}));
     }
 
@@ -90,7 +84,7 @@ public class ActiveRegistrationsTest {
     @Test
     public void semanticValuesAreReconstructedAtReadBoundary() {
         ActiveRegistrations registrations = activeAt(1);
-        registrations.apply(registration(1L, 1, TimingData.RegistrationAction.ADD));
+        registrations.apply(registration(1L, 1, TimingRecord.Action.ADD));
 
         List<ActiveRegistrations.Registration> rows = new ArrayList<>();
         registrations.visit(1, rows::add);
@@ -107,12 +101,19 @@ public class ActiveRegistrationsTest {
     @Test
     public void unmatchedRevokeDoesNotChangeEarlierEntry() {
         ActiveRegistrations registrations = activeAt(1);
-        registrations.apply(registration(1L, 1, TimingData.RegistrationAction.ADD));
+        registrations.apply(registration(1L, 1, TimingRecord.Action.ADD));
 
-        TimingTimestamp different = new TimingTimestamp(Instant.parse("2026-10-13T12:05:00Z"));
-        TimingData unmatched = FACTORY.createAutomaticRegistration(
-                new TimingDataFactory.Context(NODE_ID, 2L, new LocationId(1), different, different),
-                new RegistrationId("A0001"), TimingData.RegistrationAction.REV);
+        long different = Instant.parse("2026-10-13T12:05:00Z").toEpochMilli();
+        TimingRecord unmatched = TimingRecord.automatic(
+                'A',
+                2L,
+                1,
+                different,
+                different,
+                new RegistrationId("A0001").packedValue(),
+                TimingRecord.Action.REV,
+                null,
+                null);
 
         assertNull(registrations.apply(unmatched));
         List<ActiveRegistrations.Registration> rows = new ArrayList<>();
@@ -122,19 +123,25 @@ public class ActiveRegistrationsTest {
     }
 
     private static ActiveRegistrations activeAt(int location) {
-
         ActiveRegistrations registrations = new ActiveRegistrations();
         registrations.activate(new LocationId(location));
         return registrations;
     }
 
-    private static TimingData registration(long sequence, int location, TimingData.RegistrationAction action) {
-        return FACTORY.createAutomaticRegistration(
-                context(sequence, location), new RegistrationId("A0001"), action);
-    }
-
-    private static TimingDataFactory.Context context(long sequence, int location) {
-        TimingTimestamp time = new TimingTimestamp(Instant.parse("2026-10-13T12:00:00Z"));
-        return new TimingDataFactory.Context(NODE_ID, sequence, new LocationId(location), time, time);
+    private static TimingRecord registration(
+            long sequence,
+            int location,
+            TimingRecord.Action action) {
+        long time = Instant.parse("2026-10-13T12:00:00Z").toEpochMilli();
+        return TimingRecord.automatic(
+                'A',
+                sequence,
+                location,
+                time,
+                time,
+                new RegistrationId("A0001").packedValue(),
+                action,
+                null,
+                null);
     }
 }

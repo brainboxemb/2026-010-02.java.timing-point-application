@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
@@ -51,7 +51,7 @@ final class UpstreamDataSync {
         failIfInvalidArgument(raceData != null, "raceData must not be null");
 
         long receivedSequence = raceData.sequence();
-        failIfInvalidArgument(receivedSequence >= 1L && receivedSequence <= TimingData.MAX_SEQUENCE_NUMBER,
+        failIfInvalidArgument(receivedSequence >= 1L && receivedSequence <= TimingRecord.MAX_SEQUENCE_NUMBER,
                 "RACE_DATA sequence is outside the supported range");
 
         long expectedSequence = appliedSequence + 1L;
@@ -81,7 +81,7 @@ final class UpstreamDataSync {
         }
 
         long sourceHead = sync.sequence();
-        failIfInvalidArgument(sourceHead >= 0L && sourceHead <= TimingData.MAX_SEQUENCE_NUMBER,
+        failIfInvalidArgument(sourceHead >= 0L && sourceHead <= TimingRecord.MAX_SEQUENCE_NUMBER,
                 "SYNC sequence is outside the supported range");
 
         if (sourceHead > appliedSequence) {

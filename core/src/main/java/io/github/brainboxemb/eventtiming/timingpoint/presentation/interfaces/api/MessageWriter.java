@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl.TagProcessingConfiguration;
@@ -104,8 +104,8 @@ public final class MessageWriter {
         return "{\"result\":" + quote(result) + "}";
     }
 
-    public static String committedRegistration(TimingData data) {
-        return "{\"seq\":" + data.sequenceNumber() + "}";
+    public static String committedRegistration(TimingRecord record) {
+        return "{\"seq\":" + record.sequenceNumber() + "}";
     }
 
     public static String logBookInfo(int count) {
@@ -134,13 +134,13 @@ public final class MessageWriter {
      */
     static void appendLogBookRecord(
             StringBuilder records,
-            TimingData data,
+            TimingRecord record,
             TimingDataCodec codec) {
         if (records.length() > 0) {
             records.append(',');
         }
         try {
-            records.append(timingDataJson(data, codec));
+            records.append(timingDataJson(record, codec));
         } catch (TimingDataCodec.CodecException ex) {
             throw new IllegalStateException(
                     "Could not encode LogBook record",
@@ -186,7 +186,7 @@ public final class MessageWriter {
 
     public static String timingDataEvent(
             Instant occurredAt,
-            TimingData data,
+            TimingRecord record,
             TimingDataCodec codec)
             throws TimingDataCodec.CodecException {
         if (occurredAt == null) {
@@ -195,7 +195,7 @@ public final class MessageWriter {
         return "{"
                 + "\"eventType\":\"TIMING_DATA_COMMITTED\","
                 + "\"occurredAt\":" + quote(occurredAt.toString()) + ","
-                + "\"payload\":" + timingDataJson(data, codec)
+                + "\"payload\":" + timingDataJson(record, codec)
                 + "}";
     }
 
@@ -300,10 +300,10 @@ public final class MessageWriter {
     }
 
     private static String timingDataJson(
-            TimingData data,
+            TimingRecord record,
             TimingDataCodec codec)
             throws TimingDataCodec.CodecException {
-        return new String(codec.encode(data), StandardCharsets.UTF_8);
+        return new String(codec.encode(record), StandardCharsets.UTF_8);
     }
 
     private static String quote(String value) {

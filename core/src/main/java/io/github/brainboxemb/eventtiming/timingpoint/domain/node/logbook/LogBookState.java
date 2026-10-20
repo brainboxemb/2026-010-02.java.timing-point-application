@@ -1,9 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
-import io.github.brainboxemb.eventtiming.timingdata.TimingRecords;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -58,7 +56,6 @@ final class LogBookState {
         return logBookData.size();
     }
 
-    /** Internal bounded scalar-record read. */
     List<TimingRecord> timingRecordRange(long fromSequence, int limit) {
         ensureOperational();
         List<TimingRecord> records = new ArrayList<TimingRecord>();
@@ -66,34 +63,20 @@ final class LogBookState {
         return Collections.unmodifiableList(records);
     }
 
-    /** Compatibility boundary for Java callers that still consume TimingData. */
-    List<TimingData> timingDataRange(long fromSequence, int limit) {
-        ensureOperational();
-        List<TimingData> records = new ArrayList<TimingData>();
-        logBookData.visitRange(
-                fromSequence,
-                limit,
-                record -> records.add(TimingRecords.asTimingData(record)));
-        return Collections.unmodifiableList(records);
-    }
-
-    int visitTimingDataRange(
+    int visitTimingRecordRange(
             long fromSequence,
             int limit,
-            Consumer<TimingData> visitor) {
+            Consumer<TimingRecord> visitor) {
         ensureOperational();
-        logBookData.visitRange(
-                fromSequence,
-                limit,
-                record -> visitor.accept(TimingRecords.asTimingData(record)));
+        logBookData.visitRange(fromSequence, limit, visitor);
         return logBookData.size();
     }
 
-    int visitLatestTimingData(int limit, Consumer<TimingData> visitor) {
+    int visitLatestTimingRecords(
+            int limit,
+            Consumer<TimingRecord> visitor) {
         ensureOperational();
-        logBookData.visitLatest(
-                limit,
-                record -> visitor.accept(TimingRecords.asTimingData(record)));
+        logBookData.visitLatest(limit, visitor);
         return logBookData.size();
     }
 

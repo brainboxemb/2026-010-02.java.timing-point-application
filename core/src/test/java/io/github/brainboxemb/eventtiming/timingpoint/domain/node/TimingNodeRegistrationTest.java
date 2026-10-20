@@ -6,17 +6,12 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookStatus;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData.AutomaticRegistration;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualRegistration;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingRecords;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory.Context;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 
@@ -47,7 +42,7 @@ public class TimingNodeRegistrationTest {
     public void commitsAcceptedRegistrationAsAutomaticTimingData() {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
-        List<TimingData> delivered = new ArrayList<>();
+        List<TimingRecord> delivered = new ArrayList<>();
         node.NEW_DATA_ENTRY.subscribe(delivered::add);
 
         activate(node);
@@ -59,23 +54,22 @@ public class TimingNodeRegistrationTest {
                     addTestAutomaticRegistration(node,
                             registrationId,
                             EFFECTIVE_TIME,
-                            TimingData.AutomaticTimeSource.API);
+                            TimingRecord.AutomaticTimeSource.API);
 
             assertTrue(result.committed());
-            assertTrue(result.timingData() instanceof AutomaticRegistration);
-            AutomaticRegistration data =
-                    (AutomaticRegistration) result.timingData();
-            assertEquals(new NodeId("A"), data.timingNodeId());
+            TimingRecord data = result.timingRecord();
+            assertEquals(TimingRecord.Kind.AUTOMATIC_REGISTRATION, data.kind());
+            assertEquals('A', data.nodeId());
             assertEquals(2L, data.sequenceNumber());
-            assertEquals(new LocationId(24), data.locationId());
-            assertEquals(EFFECTIVE_TIME, data.effectiveTime());
-            assertEquals(RECORDED_AT, data.recordedAt());
-            assertEquals(registrationId, data.registrationId());
+            assertEquals(24, data.locationId());
+            assertEquals(EFFECTIVE_TIME.instant().toEpochMilli(), data.effectiveTimeMillis());
+            assertEquals(RECORDED_AT.instant().toEpochMilli(), data.recordedAtMillis());
+            assertEquals(registrationId.packedValue(), data.registrationId());
 
             assertEquals(2, store.appended.size());
-            assertEquals(TimingRecords.fromTimingData(data), TimingRecords.fromTimingData(store.appended.get(1)));
+            assertEquals(data, store.appended.get(1));
             assertEquals(2, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
-            assertEquals(TimingRecords.fromTimingData(data), TimingRecords.fromTimingData(delivered.get(1)));
+            assertEquals(data, delivered.get(1));
         } finally {
             deactivate(node);
         }
@@ -91,30 +85,28 @@ public class TimingNodeRegistrationTest {
 
             TimingTimestamp nodeTime =
                     new TimingTimestamp(node.timeSource().now());
-            AutomaticRegistration fromNodeClock =
-                    (AutomaticRegistration) addTestAutomaticRegistration(node,
+            TimingRecord fromNodeClock = addTestAutomaticRegistration(node,
                             new RegistrationId("A0001"),
                             nodeTime,
-                            TimingData.AutomaticTimeSource.NODE)
-                            .timingData();
-            assertEquals(RECORDED_AT, fromNodeClock.effectiveTime());
-            assertEquals(RECORDED_AT, fromNodeClock.recordedAt());
-            assertEquals(TimingData.TagSource.API, fromNodeClock.tagSource());
+                            TimingRecord.AutomaticTimeSource.NODE)
+                            .timingRecord();
+            assertEquals(RECORDED_AT.instant().toEpochMilli(), fromNodeClock.effectiveTimeMillis());
+            assertEquals(RECORDED_AT.instant().toEpochMilli(), fromNodeClock.recordedAtMillis());
+            assertEquals(TimingRecord.TagSource.API, fromNodeClock.tagSource());
             assertEquals(
-                    TimingData.AutomaticTimeSource.NODE,
-                    fromNodeClock.registrationTimeSource());
+                    TimingRecord.AutomaticTimeSource.NODE,
+                    fromNodeClock.automaticTimeSource());
 
-            AutomaticRegistration explicit =
-                    (AutomaticRegistration) addTestAutomaticRegistration(node,
+            TimingRecord explicit = addTestAutomaticRegistration(node,
                             new RegistrationId("A0002"),
                             EFFECTIVE_TIME,
-                            TimingData.AutomaticTimeSource.API)
-                            .timingData();
-            assertEquals(EFFECTIVE_TIME, explicit.effectiveTime());
-            assertEquals(TimingData.TagSource.API, explicit.tagSource());
+                            TimingRecord.AutomaticTimeSource.API)
+                            .timingRecord();
+            assertEquals(EFFECTIVE_TIME.instant().toEpochMilli(), explicit.effectiveTimeMillis());
+            assertEquals(TimingRecord.TagSource.API, explicit.tagSource());
             assertEquals(
-                    TimingData.AutomaticTimeSource.API,
-                    explicit.registrationTimeSource());
+                    TimingRecord.AutomaticTimeSource.API,
+                    explicit.automaticTimeSource());
         } finally {
             deactivate(node);
         }
@@ -133,7 +125,7 @@ public class TimingNodeRegistrationTest {
                 addTestAutomaticRegistration(node,
                         new RegistrationId("A0003"),
                         EFFECTIVE_TIME,
-                        TimingData.AutomaticTimeSource.OBS);
+                        TimingRecord.AutomaticTimeSource.OBS);
                 fail("custom registration must reject OBS time source");
             } catch (IllegalArgumentException expected) {
                 assertTrue(expected.getMessage().contains("API or NODE"));
@@ -157,7 +149,7 @@ public class TimingNodeRegistrationTest {
                             new RegistrationId("N1001"),
                             TimingTimestamp.parse(
                                     "2026-10-01T12:00:00.129876543Z"),
-                            TimingData.AutomaticTimeSource.API);
+                            TimingRecord.AutomaticTimeSource.API);
             CommandResult manual =
                     addManualRegistration(node,
                             new RegistrationId("N1002"),
@@ -167,12 +159,12 @@ public class TimingNodeRegistrationTest {
 
             assertEquals(
                     TimingTimestamp.parse(
-                            "2026-10-01T12:00:00.12Z"),
-                    automatic.timingData().effectiveTime());
+                            "2026-10-01T12:00:00.12Z").instant().toEpochMilli(),
+                    automatic.timingRecord().effectiveTimeMillis());
             assertEquals(
                     TimingTimestamp.parse(
-                            "2026-10-01T12:00:01.98Z"),
-                    manual.timingData().effectiveTime());
+                            "2026-10-01T12:00:01.98Z").instant().toEpochMilli(),
+                    manual.timingRecord().effectiveTimeMillis());
         } finally {
             deactivate(node);
         }
@@ -190,7 +182,7 @@ public class TimingNodeRegistrationTest {
                     addTestAutomaticRegistration(node,
                             new RegistrationId("N1001"),
                             EFFECTIVE_TIME,
-                            TimingData.AutomaticTimeSource.API);
+                            TimingRecord.AutomaticTimeSource.API);
 
             assertEquals(
                     CommandResult.Outcome.NODE_NOT_OPEN,
@@ -203,8 +195,8 @@ public class TimingNodeRegistrationTest {
                     addTestAutomaticRegistration(node,
                             new RegistrationId("N1002"),
                             EFFECTIVE_TIME,
-                            TimingData.AutomaticTimeSource.API);
-            assertEquals(2L, committed.timingData().sequenceNumber());
+                            TimingRecord.AutomaticTimeSource.API);
+            assertEquals(2L, committed.timingRecord().sequenceNumber());
         } finally {
             deactivate(node);
         }
@@ -229,28 +221,28 @@ public class TimingNodeRegistrationTest {
                     CommandResult.Outcome.COMMITTED,
                     result.outcome());
             assertEquals(2, store.appended.size());
-            assertEquals(TimingRecords.fromTimingData(result.timingData()), TimingRecords.fromTimingData(store.appended.get(1)));
+            assertEquals(result.timingRecord(), store.appended.get(1));
 
-            TimingData[] visited = new TimingData[1];
+            TimingRecord[] visited = new TimingRecord[1];
             int totalCount = node.logBook().process(
-                    LogBookQueries.visitTimingDataRange(
+                    LogBookQueries.visitTimingRecordRange(
                             2L,
                             1,
                             data -> visited[0] = data));
             assertEquals(2, totalCount);
-            assertEquals(TimingRecords.fromTimingData(result.timingData()), TimingRecords.fromTimingData(visited[0]));
+            assertEquals(result.timingRecord(), visited[0]);
 
-            ManualRegistration data =
-                    (ManualRegistration) result.timingData();
-            assertEquals(new NodeId("A"), data.timingNodeId());
+            TimingRecord data = result.timingRecord();
+            assertEquals(TimingRecord.Kind.MANUAL_REGISTRATION, data.kind());
+            assertEquals('A', data.nodeId());
             assertEquals(2L, data.sequenceNumber());
-            assertEquals(new LocationId(24), data.locationId());
-            assertEquals(EFFECTIVE_TIME, data.effectiveTime());
-            assertEquals(RECORDED_AT, data.recordedAt());
-            assertEquals(new RegistrationId("N1001"), data.registrationId());
+            assertEquals(24, data.locationId());
+            assertEquals(EFFECTIVE_TIME.instant().toEpochMilli(), data.effectiveTimeMillis());
+            assertEquals(RECORDED_AT.instant().toEpochMilli(), data.recordedAtMillis());
+            assertEquals(new RegistrationId("N1001").packedValue(), data.registrationId());
             assertEquals(
                     ManualTimeSource.OPERATOR_ENTERED,
-                    data.timeSource());
+                    data.manualTimeSource());
         } finally {
             deactivate(node);
         }
@@ -268,14 +260,14 @@ public class TimingNodeRegistrationTest {
             CommandResult first = addTestAutomaticRegistration(node,
                             new RegistrationId("N1001"),
                             EFFECTIVE_TIME,
-                            TimingData.AutomaticTimeSource.API);
+                            TimingRecord.AutomaticTimeSource.API);
             CommandResult second = addManualRegistration(node,
                     new RegistrationId("N1002"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.AUTOMATIC);
 
-            assertEquals(2L, first.timingData().sequenceNumber());
-            assertEquals(3L, second.timingData().sequenceNumber());
+            assertEquals(2L, first.timingRecord().sequenceNumber());
+            assertEquals(3L, second.timingRecord().sequenceNumber());
             assertEquals(3, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
         } finally {
             deactivate(node);
@@ -306,7 +298,7 @@ public class TimingNodeRegistrationTest {
                     new RegistrationId("N1002"),
                     EFFECTIVE_TIME,
                     ManualTimeSource.OPERATOR_ENTERED);
-            assertEquals(2L, committed.timingData().sequenceNumber());
+            assertEquals(2L, committed.timingRecord().sequenceNumber());
         } finally {
             deactivate(node);
         }
@@ -359,8 +351,8 @@ public class TimingNodeRegistrationTest {
     public void emitsOnlyAfterSuccessfulCommit() {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
-        List<TimingData> delivered = new ArrayList<>();
-        Consumer<TimingData> listener = delivered::add;
+        List<TimingRecord> delivered = new ArrayList<>();
+        Consumer<TimingRecord> listener = delivered::add;
 
         assertTrue(node.NEW_DATA_ENTRY.subscribe(listener));
 
@@ -385,7 +377,7 @@ public class TimingNodeRegistrationTest {
             assertEquals(2, store.appended.size());
             assertEquals(2, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
             assertEquals(2, delivered.size());
-            assertEquals(TimingRecords.fromTimingData(committed.timingData()), TimingRecords.fromTimingData(delivered.get(1)));
+            assertEquals(committed.timingRecord(), delivered.get(1));
 
         } finally {
             deactivate(node);
@@ -396,7 +388,7 @@ public class TimingNodeRegistrationTest {
     public void appendFailureDoesNotEmitTimingData() {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
-        List<TimingData> delivered = new ArrayList<>();
+        List<TimingRecord> delivered = new ArrayList<>();
         node.NEW_DATA_ENTRY.subscribe(delivered::add);
 
         activate(node);
@@ -429,7 +421,7 @@ public class TimingNodeRegistrationTest {
     public void listenerRuntimeFailureDoesNotRollbackCommitOrBlockLaterListener() {
         RecordingStore store = new RecordingStore();
         TimingNode node = node(store);
-        List<TimingData> delivered = new ArrayList<>();
+        List<TimingRecord> delivered = new ArrayList<>();
 
         node.NEW_DATA_ENTRY.subscribe(data -> {
             throw new IllegalStateException("expected listener failure");
@@ -453,7 +445,7 @@ public class TimingNodeRegistrationTest {
             assertEquals(2, store.appended.size());
             assertEquals(2, node.logBook().process(LogBookQueries.timingDataCount()).intValue());
             assertEquals(1, delivered.size());
-            assertEquals(TimingRecords.fromTimingData(committed.timingData()), TimingRecords.fromTimingData(delivered.get(0)));
+            assertEquals(committed.timingRecord(), delivered.get(0));
         } finally {
             deactivate(node);
         }
@@ -466,21 +458,19 @@ public class TimingNodeRegistrationTest {
 
         activate(node);
         try {
-            AutomaticRegistration data =
-                    (AutomaticRegistration)
-                            node.logBook().process(
+            TimingRecord data = node.logBook().process(
                                     LogBookCommands.revokeAutomaticRegistration(
                                             new LocationId(24),
                                             new RegistrationId("N1001"),
                                             EFFECTIVE_TIME));
             assertEquals(1L, data.sequenceNumber());
-            assertEquals(new LocationId(24), data.locationId());
-            assertEquals(EFFECTIVE_TIME, data.effectiveTime());
+            assertEquals(24, data.locationId());
+            assertEquals(EFFECTIVE_TIME.instant().toEpochMilli(), data.effectiveTimeMillis());
             assertEquals(
-                    TimingData.RegistrationAction.REV,
+                    TimingRecord.Action.REV,
                     data.action());
             assertEquals(1, store.appended.size());
-            assertEquals(TimingRecords.fromTimingData(data), TimingRecords.fromTimingData(store.appended.get(0)));
+            assertEquals(data, store.appended.get(0));
         } finally {
             deactivate(node);
         }
@@ -493,22 +483,20 @@ public class TimingNodeRegistrationTest {
 
         activate(node);
         try {
-            ManualRegistration data =
-                    (ManualRegistration)
-                            node.logBook().process(
+            TimingRecord data = node.logBook().process(
                                     LogBookCommands.revokeManualRegistration(
                                             new LocationId(24),
                                             new RegistrationId("N1001"),
                                             EFFECTIVE_TIME,
                                             ManualTimeSource.OPERATOR_ENTERED));
             assertEquals(
-                    TimingData.RegistrationAction.REV,
+                    TimingRecord.Action.REV,
                     data.action());
             assertEquals(
                     ManualTimeSource.OPERATOR_ENTERED,
-                    data.timeSource());
-            assertEquals(EFFECTIVE_TIME, data.effectiveTime());
-            assertEquals(new LocationId(24), data.locationId());
+                    data.manualTimeSource());
+            assertEquals(EFFECTIVE_TIME.instant().toEpochMilli(), data.effectiveTimeMillis());
+            assertEquals(24, data.locationId());
         } finally {
             deactivate(node);
         }
@@ -519,7 +507,7 @@ public class TimingNodeRegistrationTest {
         RecordingStore store = new RecordingStore();
         store.loaded.add(loadedData(1L, 11));
         TimingNode node = node(store);
-        List<TimingData> delivered = new ArrayList<>();
+        List<TimingRecord> delivered = new ArrayList<>();
         node.NEW_DATA_ENTRY.subscribe(delivered::add);
 
         activate(node);
@@ -558,7 +546,7 @@ public class TimingNodeRegistrationTest {
                     EFFECTIVE_TIME,
                     ManualTimeSource.AUTOMATIC);
 
-            assertEquals(4L, committed.timingData().sequenceNumber());
+            assertEquals(4L, committed.timingRecord().sequenceNumber());
         } finally {
             deactivate(node);
         }
@@ -630,11 +618,11 @@ public class TimingNodeRegistrationTest {
             TimingNode node,
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
-            TimingData.AutomaticTimeSource registrationTimeSource) {
+            TimingRecord.AutomaticTimeSource registrationTimeSource) {
 
         failIfInvalidArgument(
-                registrationTimeSource == TimingData.AutomaticTimeSource.API
-                        || registrationTimeSource == TimingData.AutomaticTimeSource.NODE,
+                registrationTimeSource == TimingRecord.AutomaticTimeSource.API
+                        || registrationTimeSource == TimingRecord.AutomaticTimeSource.NODE,
                 "test automatic registration time source must be API or NODE");
 
         Supplier<CommandResult> addRegistration = () -> {
@@ -642,15 +630,15 @@ public class TimingNodeRegistrationTest {
             if (node.functionalState() != TimingNodeTypes.FunctionalState.OPEN) {
                 result = CommandResult.nodeNotOpen();
             } else {
-                TimingData timingData =
+                TimingRecord timingRecord =
                         node.logBook().process(
                                 LogBookCommands.commitAutomaticRegistration(
                                         node.locationId(),
                                         registrationId,
                                         effectiveTime,
-                                        TimingData.TagSource.API,
+                                        TimingRecord.TagSource.API,
                                         registrationTimeSource));
-                result = CommandResult.committed(timingData);
+                result = CommandResult.committed(timingRecord);
             }
             return result;
         };
@@ -668,29 +656,29 @@ public class TimingNodeRegistrationTest {
             if (node.functionalState() != TimingNodeTypes.FunctionalState.OPEN) {
                 result = CommandResult.nodeNotOpen();
             } else {
-                TimingData timingData =
+                TimingRecord timingRecord =
                         node.logBook().process(
                                 LogBookCommands.commitManualRegistration(
                                         node.locationId(),
                                         registrationId,
                                         effectiveTime,
                                         registrationTimeSource));
-                result = CommandResult.committed(timingData);
+                result = CommandResult.committed(timingRecord);
             }
             return result;
         };
         return node.processLocked(addRegistration);
     }
 
-    private static TimingData loadedData(long sequence, int locationId) {
-        return new DefaultTimingDataFactory().createManualRegistration(
-                new Context(
-                        new NodeId("A"),
-                        sequence,
-                        new LocationId(locationId),
-                        EFFECTIVE_TIME,
-                        RECORDED_AT),
-                new RegistrationId('L', (int) sequence),
+    private static TimingRecord loadedData(long sequence, int locationId) {
+        return TimingRecord.manual(
+                'A',
+                sequence,
+                locationId,
+                EFFECTIVE_TIME.instant().toEpochMilli(),
+                RECORDED_AT.instant().toEpochMilli(),
+                new RegistrationId('L', (int) sequence).packedValue(),
+                TimingRecord.Action.ADD,
                 ManualTimeSource.AUTOMATIC);
     }
 
@@ -719,13 +707,12 @@ public class TimingNodeRegistrationTest {
         return TimingNodeFixture.createDirect(
                 new NodeId("A"),
                 store,
-                new DefaultTimingDataFactory(),
                 timeSource);
     }
 
     private static final class RecordingStore implements TimingDataPersistence {
-        private final List<TimingData> appended = new ArrayList<>();
-        private final List<TimingData> loaded = new ArrayList<>();
+        private final List<TimingRecord> appended = new ArrayList<>();
+        private final List<TimingRecord> loaded = new ArrayList<>();
         private int attempts;
         private boolean failNext;
         private boolean failLoad;
@@ -740,13 +727,13 @@ public class TimingNodeRegistrationTest {
         }
 
         @Override
-        public void append(TimingData data) throws PersistenceException {
+        public void append(TimingRecord record) throws PersistenceException {
             attempts++;
             if (failNext) {
                 failNext = false;
                 throw new PersistenceException("expected test failure");
             }
-            appended.add(data);
+            appended.add(record);
         }
     }
 }

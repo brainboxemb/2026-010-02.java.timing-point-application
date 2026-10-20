@@ -8,14 +8,10 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQuery;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingRecords;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandlerTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
@@ -184,7 +180,6 @@ public class UpstreamHandlerTest {
                 new LogBook(
                         new NodeId("A"),
                         persistence,
-                        new DefaultTimingDataFactory(),
                         timeSource,
                         SystemMonotonicClock.INSTANCE,
                         new LogBookMetrics(),
@@ -371,7 +366,7 @@ public class UpstreamHandlerTest {
                 node(
                         "A",
                         emptyStream,
-                        Collections.<TimingData>emptyList());
+                        Collections.<TimingRecord>emptyList());
         TimingNodeFixture.Components populated =
                 node(
                         "B",
@@ -418,7 +413,7 @@ public class UpstreamHandlerTest {
 
     @Test
     public void timingDataReqSendsOriginalRecordsFromInclusiveSequence() {
-        List<TimingData> records =
+        List<TimingRecord> records =
                 timingData("A", 5);
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
@@ -444,11 +439,11 @@ public class UpstreamHandlerTest {
                             stream.takeSent();
             assertEquals(3, transfer.records().size());
             assertEquals(
-                    TimingRecords.fromTimingData(records.get(2)),
-                    TimingRecords.fromTimingData(transfer.records().get(0)));
+                    records.get(2),
+                    transfer.records().get(0));
             assertEquals(
-                    TimingRecords.fromTimingData(records.get(4)),
-                    TimingRecords.fromTimingData(transfer.records().get(2)));
+                    records.get(4),
+                    transfer.records().get(2));
             assertEquals(
                     0,
                     stream.sentCount());
@@ -459,7 +454,7 @@ public class UpstreamHandlerTest {
 
     @Test
     public void timingDataReqSendsAtMost256RecordsPerBatch() {
-        List<TimingData> records =
+        List<TimingRecord> records =
                 timingData("A", 257);
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
@@ -506,7 +501,7 @@ public class UpstreamHandlerTest {
 
     @Test
     public void timingDataSynchronizationStopsAtCapturedHeadWhenLogBookGrowsBetweenBatches() {
-        List<TimingData> records =
+        List<TimingRecord> records =
                 timingData("A", 257);
         InMemoryUpstreamStream stream =
                 new InMemoryUpstreamStream();
@@ -641,9 +636,9 @@ public class UpstreamHandlerTest {
                 new InMemoryUpstreamStream();
         InMemoryUpstreamStream streamB =
                 new InMemoryUpstreamStream();
-        List<TimingData> recordsA =
+        List<TimingRecord> recordsA =
                 timingData("A", 2);
-        List<TimingData> recordsB =
+        List<TimingRecord> recordsB =
                 timingData("B", 3);
         TimingNodeFixture.Components nodeA =
                 node("A", streamA, recordsA);
@@ -713,29 +708,26 @@ public class UpstreamHandlerTest {
         return node(
                 nodeId,
                 stream,
-                Collections.<TimingData>emptyList());
+                Collections.<TimingRecord>emptyList());
     }
 
     private static TimingNodeFixture.Components node(
             String nodeId,
             UpstreamStream stream,
-            List<TimingData> initialTimingData) {
+            List<TimingRecord> initialTimingData) {
         return TimingNodeFixture.createDirectComponents(
                 new NodeId(nodeId),
                 new MemoryPersistence(initialTimingData),
-                new DefaultTimingDataFactory(),
                 () -> Instant.parse("2026-10-13T12:00:00Z"),
                 EventData.empty(),
                 stream);
     }
 
-    private static List<TimingData> timingData(
+    private static List<TimingRecord> timingData(
             String nodeId,
             int count) {
-        DefaultTimingDataFactory factory =
-                new DefaultTimingDataFactory();
-        List<TimingData> records =
-                new ArrayList<TimingData>(
+        List<TimingRecord> records =
+                new ArrayList<TimingRecord>(
                         count);
         Instant base =
                 Instant.parse(
@@ -744,19 +736,20 @@ public class UpstreamHandlerTest {
         for (int index = 1;
                 index <= count;
                 index++) {
-            TimingTimestamp timestamp =
-                    new TimingTimestamp(
-                            base.plusMillis(index));
+            long timestamp =
+                    base.plusMillis(index)
+                            .toEpochMilli();
             records.add(
-                    factory.createAutomaticRegistration(
-                            new TimingDataFactory.Context(
-                                    new NodeId(nodeId),
-                                    index,
-                                    new LocationId(1),
-                                    timestamp,
-                                    timestamp),
-                            new RegistrationId(
-                                    "A0001")));
+                    TimingRecord.automatic(
+                            nodeId.charAt(0),
+                            index,
+                            1,
+                            timestamp,
+                            timestamp,
+                            new RegistrationId("A0001").packedValue(),
+                            TimingRecord.Action.ADD,
+                            null,
+                            null));
         }
         return records;
     }
@@ -769,12 +762,12 @@ public class UpstreamHandlerTest {
         @Override
         public LoadResult load() {
             return new LoadResult(
-                    Collections.<TimingData>emptyList(),
+                    Collections.<TimingRecord>emptyList(),
                     false);
         }
 
         @Override
-        public void append(TimingData data) {
+        public void append(TimingRecord record) {
             appendStarted.countDown();
             try {
                 releaseAppend.await();
@@ -789,11 +782,11 @@ public class UpstreamHandlerTest {
 
     private static final class MemoryPersistence
             implements TimingDataPersistence {
-        private final List<TimingData> records =
-                new ArrayList<TimingData>();
+        private final List<TimingRecord> records =
+                new ArrayList<TimingRecord>();
 
         private MemoryPersistence(
-                List<TimingData> initialTimingData) {
+                List<TimingRecord> initialTimingData) {
             records.addAll(
                     initialTimingData);
         }
@@ -801,15 +794,15 @@ public class UpstreamHandlerTest {
         @Override
         public synchronized LoadResult load() {
             return new LoadResult(
-                    new ArrayList<TimingData>(
+                    new ArrayList<TimingRecord>(
                             records),
                     false);
         }
 
         @Override
         public synchronized void append(
-                TimingData data) {
-            records.add(data);
+                TimingRecord record) {
+            records.add(record);
         }
     }
 }

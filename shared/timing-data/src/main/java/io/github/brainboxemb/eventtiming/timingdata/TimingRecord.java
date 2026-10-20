@@ -15,6 +15,9 @@ import java.util.Objects;
  * enforce the valid combinations instead of exposing invalid mutable state.</p>
  */
 public final class TimingRecord {
+    /** Largest JSON-safe IF-05 sequence value: 2^53 - 1. */
+    public static final long MAX_SEQUENCE_NUMBER = 9007199254740991L;
+
     public enum Kind {
         AUTOMATIC_REGISTRATION,
         MANUAL_REGISTRATION,
@@ -74,7 +77,7 @@ public final class TimingRecord {
         if (!isNodeId(nodeId)) {
             throw new IllegalArgumentException("nodeId must be A-Z or 1-9");
         }
-        if (sequenceNumber < 1L || sequenceNumber > TimingData.MAX_SEQUENCE_NUMBER) {
+        if (sequenceNumber < 1L || sequenceNumber > MAX_SEQUENCE_NUMBER) {
             throw new IllegalArgumentException("sequenceNumber is outside IF-05 range");
         }
         if (locationId < 1) {
@@ -246,6 +249,54 @@ public final class TimingRecord {
         char type = (char) (value >>> 16);
         int number = value & 0xffff;
         return type >= 'A' && type <= 'Z' && number <= 9999;
+    }
+
+    /** Stable IF-05 record identity without retaining semantic wrapper objects. */
+    public static final class RecordKey {
+        private final char nodeId;
+        private final long sequenceNumber;
+
+        public RecordKey(char nodeId, long sequenceNumber) {
+            if (!isNodeId(nodeId)) {
+                throw new IllegalArgumentException("nodeId must be A-Z or 1-9");
+            }
+            if (sequenceNumber < 1L || sequenceNumber > MAX_SEQUENCE_NUMBER) {
+                throw new IllegalArgumentException(
+                        "sequenceNumber must be in range 1.." + MAX_SEQUENCE_NUMBER);
+            }
+            this.nodeId = nodeId;
+            this.sequenceNumber = sequenceNumber;
+        }
+
+        public char nodeId() {
+            return nodeId;
+        }
+
+        public long sequenceNumber() {
+            return sequenceNumber;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof RecordKey)) {
+                return false;
+            }
+            RecordKey that = (RecordKey) other;
+            return nodeId == that.nodeId && sequenceNumber == that.sequenceNumber;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(nodeId, sequenceNumber);
+        }
+
+        @Override
+        public String toString() {
+            return nodeId + ":" + sequenceNumber;
+        }
     }
 
     @Override

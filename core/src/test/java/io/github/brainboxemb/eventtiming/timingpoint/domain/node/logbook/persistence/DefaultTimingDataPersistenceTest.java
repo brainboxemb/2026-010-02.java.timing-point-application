@@ -1,13 +1,10 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.FileAppendOnlyRecordStore;
 
 import java.nio.charset.StandardCharsets;
@@ -33,25 +30,19 @@ public class DefaultTimingDataPersistenceTest {
     @Rule
     public final TemporaryFolder temporaryFolder = new TemporaryFolder();
 
-    private final DefaultTimingDataFactory factory = new DefaultTimingDataFactory();
     private final DefaultTimingDataCodec codec = new DefaultTimingDataCodec();
 
     @Test
-    public void appendAndLoadRoundTripsTimingData() throws Exception {
+    public void appendAndLoadRoundTripsTimingRecord() throws Exception {
         TimingDataPersistence persistence = persistence(file());
-        TimingData first = data(NODE_ID, 1L);
+        TimingRecord first = data(NODE_ID, 1L);
 
         persistence.append(first);
 
         TimingDataPersistence.LoadResult load = persistence.load();
         assertFalse(load.repairedIncompleteTail());
         assertEquals(1, load.records().size());
-        TimingData loaded = load.records().get(0);
-        assertEquals(first.timingNodeId(), loaded.timingNodeId());
-        assertEquals(first.sequenceNumber(), loaded.sequenceNumber());
-        assertEquals(first.locationId(), loaded.locationId());
-        assertEquals(first.effectiveTime(), loaded.effectiveTime());
-        assertEquals(first.recordedAt(), loaded.recordedAt());
+        assertEquals(first, load.records().get(0));
     }
 
     @Test
@@ -159,16 +150,16 @@ public class DefaultTimingDataPersistenceTest {
         return temporaryFolder.getRoot().toPath().resolve("timing-data.jsonl");
     }
 
-    private TimingData data(NodeId nodeId, long sequence) {
-        return factory.createManualRegistration(
-                new TimingDataFactory.Context(
-                        nodeId,
-                        sequence,
-                        new LocationId(24),
-                        EFFECTIVE,
-                        RECORDED),
-                new RegistrationId('N', (int) sequence),
-                TimingData.ManualTimeSource.AUTOMATIC);
+    private static TimingRecord data(NodeId nodeId, long sequence) {
+        return TimingRecord.manual(
+                nodeId.value().charAt(0),
+                sequence,
+                24,
+                EFFECTIVE.instant().toEpochMilli(),
+                RECORDED.instant().toEpochMilli(),
+                new RegistrationId('N', (int) sequence).packedValue(),
+                TimingRecord.Action.ADD,
+                TimingRecord.ManualTimeSource.AUTOMATIC);
     }
 
     private void assertLoadFails(Path file, String expectedMessage) throws Exception {

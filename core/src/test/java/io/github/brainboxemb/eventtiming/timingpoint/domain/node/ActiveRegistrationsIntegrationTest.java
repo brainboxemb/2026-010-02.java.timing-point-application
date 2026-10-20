@@ -2,14 +2,10 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.RegisteredTeams;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
@@ -34,7 +30,6 @@ import static org.junit.Assert.assertEquals;
 /** Verifies active-WP registration reconstruction and live team projection behavior. */
 public class ActiveRegistrationsIntegrationTest {
 
-    /** Historical rebuild is silent; a later assignment change produces one live team event. */
     @Test
     public void recoveredAndLaterAssignedRegistrationsUseCurrentTeamResolution() {
         InMemoryUpstreamStream stream = new InMemoryUpstreamStream();
@@ -44,13 +39,13 @@ public class ActiveRegistrationsIntegrationTest {
                         new StaticPersistence(
                                 registration(1L, 1, "A0001"),
                                 registration(2L, 1, "R0001")),
-                        new DefaultTimingDataFactory(),
                         () -> Instant.parse("2026-10-13T12:05:00Z"),
                         new DefaultEventData(),
                         stream);
         TimingNode node = components.node();
 
-        List<RegisteredTeams.Change> teamChanges = Collections.synchronizedList(new ArrayList<>());
+        List<RegisteredTeams.Change> teamChanges =
+                Collections.synchronizedList(new ArrayList<RegisteredTeams.Change>());
         components.nodeService().REGISTERED_TEAMS_CHANGED.subscribe(teamChanges::add);
 
         activate(node);
@@ -91,24 +86,21 @@ public class ActiveRegistrationsIntegrationTest {
         }
     }
 
-    /** Only the open WP is projected, and reopening an older WP rebuilds its old rows. */
     @Test
     public void openingWpRebuildsOnlyThatLocationAcrossEarlierOpenPeriods() {
-        DefaultTimingDataFactory factory = new DefaultTimingDataFactory();
-        TimingData[] history =
-                new TimingData[] {
-                    factory.createNodeOpen(context(1L, 1)),
+        TimingRecord[] history =
+                new TimingRecord[] {
+                    opened(1L, 1),
                     registration(2L, 1, "A0001"),
-                    factory.createNodeClose(context(3L, 1)),
-                    factory.createNodeOpen(context(4L, 2)),
+                    closed(3L, 1),
+                    opened(4L, 2),
                     registration(5L, 2, "A0002"),
-                    factory.createNodeClose(context(6L, 2))
+                    closed(6L, 2)
                 };
         TimingNodeFixture.Components components =
                 TimingNodeFixture.createDirectComponents(
                         new NodeId("A"),
                         new StaticPersistence(history),
-                        factory,
                         () -> Instant.parse("2026-10-13T12:05:00Z"),
                         new DefaultEventData(),
                         new InMemoryUpstreamStream());
@@ -133,7 +125,6 @@ public class ActiveRegistrationsIntegrationTest {
         }
     }
 
-    /** Duplicate passages of the active WP remain separate chronological rows. */
     @Test
     public void duplicatePassagesRemainSeparateRegistrationRows() {
         TimingNodeFixture.Components components =
@@ -150,7 +141,6 @@ public class ActiveRegistrationsIntegrationTest {
                                         1,
                                         "A0001",
                                         Instant.parse("2026-10-13T12:00:10Z"))),
-                        new DefaultTimingDataFactory(),
                         () -> Instant.parse("2026-10-13T12:05:00Z"),
                         new DefaultEventData(),
                         new InMemoryUpstreamStream());
@@ -169,10 +159,9 @@ public class ActiveRegistrationsIntegrationTest {
         }
     }
 
-    /** Historical reconstruction remains bounded while filtering to the active WP. */
     @Test
     public void recoveredTimingDataLargerThanOneBatchIsReadCompletely() {
-        TimingData[] records = new TimingData[1000];
+        TimingRecord[] records = new TimingRecord[1000];
         for (int index = 0; index < records.length - 1; index++) {
             records[index] = registration(index + 1L, 1, "A0001");
         }
@@ -182,7 +171,6 @@ public class ActiveRegistrationsIntegrationTest {
                 TimingNodeFixture.createDirectComponents(
                         new NodeId("A"),
                         new StaticPersistence(records),
-                        new DefaultTimingDataFactory(),
                         () -> Instant.parse("2026-10-13T12:05:00Z"),
                         new DefaultEventData(),
                         new InMemoryUpstreamStream());
@@ -197,9 +185,7 @@ public class ActiveRegistrationsIntegrationTest {
         }
     }
 
-    /** Waits until recovered LogBook data is available to the node. */
     private static void awaitOperational(TimingNode node) {
-
         long deadline =
                 System.nanoTime()
                         + java.util.concurrent.TimeUnit.SECONDS.toNanos(1L);
@@ -210,15 +196,11 @@ public class ActiveRegistrationsIntegrationTest {
         assertEquals(TimingNodeTypes.OperationalState.OK, node.operationalState());
     }
 
-    /** Reads through NodeService, which blocks until the active WP projection is caught up. */
     private static void awaitUniqueTeamCount(NodeService service, int expected) {
-
         assertEquals(expected, service.uniqueTeamRegistrationCount());
     }
 
-    /** Verifies the active chronological projection contains exactly the expected sequences. */
     private static void assertSequences(NodeService service, long... expected) {
-
         List<ActiveRegistrations.Registration> rows = new ArrayList<>();
         assertEquals(expected.length, service.visitRegistrations(expected.length + 1, rows::add));
         for (int index = 0; index < expected.length; index++) {
@@ -226,59 +208,60 @@ public class ActiveRegistrationsIntegrationTest {
         }
     }
 
-    private static TimingData registration(long sequence, int location, String registrationId) {
-
+    private static TimingRecord registration(long sequence, int location, String registrationId) {
         Instant effectiveTime = Instant.parse("2026-10-13T12:00:00Z").plusMillis(sequence);
         return registrationAt(sequence, location, registrationId, effectiveTime);
     }
 
-    private static TimingData registrationAt(
+    private static TimingRecord registrationAt(
             long sequence,
             int location,
             String registrationId,
             Instant effectiveTime) {
-
-        TimingTimestamp time = new TimingTimestamp(effectiveTime);
-        return new DefaultTimingDataFactory()
-                .createAutomaticRegistration(
-                        new TimingDataFactory.Context(
-                                new NodeId("A"),
-                                sequence,
-                                new LocationId(location),
-                                time,
-                                time),
-                        new RegistrationId(registrationId));
+        long millis = effectiveTime.toEpochMilli();
+        return TimingRecord.automatic(
+                'A',
+                sequence,
+                location,
+                millis,
+                millis,
+                new RegistrationId(registrationId).packedValue(),
+                TimingRecord.Action.ADD,
+                null,
+                null);
     }
 
-    private static TimingDataFactory.Context context(long sequence, int location) {
+    private static TimingRecord opened(long sequence, int location) {
+        long millis =
+                Instant.parse("2026-10-13T12:00:00Z")
+                        .plusMillis(sequence)
+                        .toEpochMilli();
+        return TimingRecord.opened('A', sequence, location, millis, millis);
+    }
 
-        TimingTimestamp time =
-                new TimingTimestamp(Instant.parse("2026-10-13T12:00:00Z").plusMillis(sequence));
-        return new TimingDataFactory.Context(
-                new NodeId("A"),
-                sequence,
-                new LocationId(location),
-                time,
-                time);
+    private static TimingRecord closed(long sequence, int location) {
+        long millis =
+                Instant.parse("2026-10-13T12:00:00Z")
+                        .plusMillis(sequence)
+                        .toEpochMilli();
+        return TimingRecord.closed('A', sequence, location, millis, millis);
     }
 
     private static final class StaticPersistence implements TimingDataPersistence {
-        private final List<TimingData> records;
+        private final List<TimingRecord> records;
 
-        private StaticPersistence(TimingData... records) {
-
+        private StaticPersistence(TimingRecord... records) {
             this.records = Arrays.asList(records);
         }
 
         @Override
         public LoadResult load() {
-
             return new LoadResult(records, false);
         }
 
         @Override
-        public void append(TimingData data) {
-            // Runtime OPEN/CLOSE records are accepted; this fixture verifies in-memory reconstruction.
+        public void append(TimingRecord record) {
+            // Runtime OPEN/CLOSE records are accepted; this fixture verifies reconstruction.
         }
     }
 }

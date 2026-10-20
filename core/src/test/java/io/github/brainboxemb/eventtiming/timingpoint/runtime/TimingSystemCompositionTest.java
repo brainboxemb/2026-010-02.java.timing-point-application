@@ -106,7 +106,6 @@ public class TimingSystemCompositionTest {
                                 Config.REFERENCE_PROVIDER_ID),
                         false,
                         EventData.empty(),
-                        timingData.createFactory(),
                         timingData.createCodec()));
 
         try {
@@ -119,7 +118,6 @@ public class TimingSystemCompositionTest {
                                     Config.REFERENCE_PROVIDER_ID),
                             false,
                             EventData.empty(),
-                            timingData.createFactory(),
                             timingData.createCodec()));
             fail("Expected duplicate TimingSystem id to be rejected");
         } catch (IllegalArgumentException expected) {

@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.console;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
@@ -109,32 +109,28 @@ public class LocalConsoleTest {
 
             console.run();
 
-            List<TimingData> records = new ArrayList<>();
+            List<TimingRecord> records = new ArrayList<>();
             fixture.handler()
                     .timingNode(new NodeId("A"))
                     .visitLatestLogBook(10, records::add);
 
-            TimingData.AutomaticRegistration first =
-                    (TimingData.AutomaticRegistration) records.get(1);
-            TimingData.AutomaticRegistration second =
-                    (TimingData.AutomaticRegistration) records.get(2);
-            TimingData.AutomaticRegistration explicit =
-                    (TimingData.AutomaticRegistration) records.get(3);
-            TimingData.AutomaticRegistration alias =
-                    (TimingData.AutomaticRegistration) records.get(4);
+            TimingRecord first = records.get(1);
+            TimingRecord second = records.get(2);
+            TimingRecord explicit = records.get(3);
+            TimingRecord alias = records.get(4);
 
             TimingTimestamp nodeTime =
                     TimingTimestamp.parse("2026-10-01T12:00:01Z");
-            assertEquals(nodeTime, first.effectiveTime());
-            assertEquals(nodeTime, second.effectiveTime());
-            assertEquals(nodeTime, alias.effectiveTime());
-            assertEquals(TimingData.AutomaticTimeSource.NODE, first.registrationTimeSource());
-            assertEquals(TimingData.AutomaticTimeSource.NODE, second.registrationTimeSource());
-            assertEquals(TimingData.AutomaticTimeSource.NODE, alias.registrationTimeSource());
+            assertEquals(nodeTime.instant().toEpochMilli(), first.effectiveTimeMillis());
+            assertEquals(nodeTime.instant().toEpochMilli(), second.effectiveTimeMillis());
+            assertEquals(nodeTime.instant().toEpochMilli(), alias.effectiveTimeMillis());
+            assertEquals(TimingRecord.AutomaticTimeSource.NODE, first.automaticTimeSource());
+            assertEquals(TimingRecord.AutomaticTimeSource.NODE, second.automaticTimeSource());
+            assertEquals(TimingRecord.AutomaticTimeSource.NODE, alias.automaticTimeSource());
             assertEquals(
-                    TimingTimestamp.parse("2026-10-01T12:34:56Z"),
-                    explicit.effectiveTime());
-            assertEquals(TimingData.AutomaticTimeSource.API, explicit.registrationTimeSource());
+                    TimingTimestamp.parse("2026-10-01T12:34:56Z").instant().toEpochMilli(),
+                    explicit.effectiveTimeMillis());
+            assertEquals(TimingRecord.AutomaticTimeSource.API, explicit.automaticTimeSource());
         }
 
         String text = output.toString();

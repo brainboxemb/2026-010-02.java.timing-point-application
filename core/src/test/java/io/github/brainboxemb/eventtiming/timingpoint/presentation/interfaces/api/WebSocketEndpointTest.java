@@ -3,10 +3,9 @@ package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.ap
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
@@ -55,7 +54,7 @@ public class WebSocketEndpointTest {
         fixture.handler.timingNode(new NodeId("A")).addTestAutomaticRegistration(
                 new RegistrationId("N0000"),
                 TIME,
-                TimingData.AutomaticTimeSource.API);
+                TimingRecord.AutomaticTimeSource.API);
 
         WebSocketEndpoint server = new WebSocketEndpoint(
                 "127.0.0.1",
@@ -133,7 +132,7 @@ public class WebSocketEndpointTest {
             fixture.handler.timingNode(new NodeId("A")).addTestAutomaticRegistration(
                     new RegistrationId("N0001"),
                     TIME,
-                    TimingData.AutomaticTimeSource.API);
+                    TimingRecord.AutomaticTimeSource.API);
             String committed = client.awaitMessage();
             assertTrue(committed.contains(
                     "\"eventType\":\"TIMING_DATA_COMMITTED\""));
@@ -433,7 +432,7 @@ public class WebSocketEndpointTest {
         }
 
         @Override
-        public void append(TimingData data) {
+        public void append(TimingRecord record) {
             throw new AssertionError("ERROR TimingNode must not append TimingData");
         }
     }
@@ -441,11 +440,11 @@ public class WebSocketEndpointTest {
     private static final class MemoryStore implements TimingDataPersistence {
         @Override
         public LoadResult load() {
-            return new LoadResult(Collections.<TimingData>emptyList(), false);
+            return new LoadResult(Collections.<TimingRecord>emptyList(), false);
         }
 
         @Override
-        public void append(TimingData data) {
+        public void append(TimingRecord record) {
         }
     }
 

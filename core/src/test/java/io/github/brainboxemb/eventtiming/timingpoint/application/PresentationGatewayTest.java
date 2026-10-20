@@ -2,11 +2,9 @@ package io.github.brainboxemb.eventtiming.timingpoint.application;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingRecords;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeList;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
@@ -69,7 +67,7 @@ public class PresentationGatewayTest {
         PresentationGateway gateway = new PresentationGateway(identity(), nodes(node), configuration());
         TimingNodeProxy proxy = gateway.timingNode(new NodeId("A"));
         List<TimingNodeStatus> statusChanges = new ArrayList<>();
-        List<TimingData> committed = new ArrayList<>();
+        List<TimingRecord> committed = new ArrayList<>();
 
         activate(node);
         try {
@@ -98,21 +96,21 @@ public class PresentationGatewayTest {
             // Ordered LogBook read waits behind the asynchronous NODE_OPEN history write.
             assertEquals(1, proxy.logBookCount());
             assertEquals(1, committed.size());
-            assertTrue(committed.get(0) instanceof TimingData.NodeOpen);
+            assertEquals(TimingRecord.Kind.NODE_OPEN, committed.get(0).kind());
 
             CommandResult registration =
                     proxy.addTestAutomaticRegistration(
                             new RegistrationId("N0001"),
                             TIME,
-                            TimingData.AutomaticTimeSource.API);
+                            TimingRecord.AutomaticTimeSource.API);
             assertTrue(registration.committed());
             assertEquals(2, committed.size());
             assertEquals(
-                    TimingRecords.fromTimingData(registration.timingData()),
-                    TimingRecords.fromTimingData(committed.get(1)));
+                    registration.timingRecord(),
+                    committed.get(1));
             assertEquals(2, proxy.logBookCount());
 
-            List<TimingData> visited = new ArrayList<>();
+            List<TimingRecord> visited = new ArrayList<>();
             assertEquals(
                     2,
                     proxy.visitLogBookFrom(
@@ -120,10 +118,10 @@ public class PresentationGatewayTest {
                             10,
                             visited::add));
             assertEquals(2, visited.size());
-            assertTrue(visited.get(0) instanceof TimingData.NodeOpen);
+            assertEquals(TimingRecord.Kind.NODE_OPEN, visited.get(0).kind());
             assertEquals(
-                    TimingRecords.fromTimingData(registration.timingData()),
-                    TimingRecords.fromTimingData(visited.get(1)));
+                    registration.timingRecord(),
+                    visited.get(1));
 
             visited.clear();
             assertEquals(
@@ -133,8 +131,8 @@ public class PresentationGatewayTest {
                             visited::add));
             assertEquals(2, visited.size());
             assertEquals(
-                    TimingRecords.fromTimingData(registration.timingData()),
-                    TimingRecords.fromTimingData(visited.get(1)));
+                    registration.timingRecord(),
+                    visited.get(1));
 
             assertEquals(TimingNodeTypes.CloseResult.CLOSED, proxy.close());
             assertEquals(2, statusChanges.size());
@@ -305,7 +303,7 @@ public class PresentationGatewayTest {
     }
 
     private static final class RecordingStore implements TimingDataPersistence {
-        private final List<TimingData> appended = new ArrayList<>();
+        private final List<TimingRecord> appended = new ArrayList<>();
         private boolean failLoad;
 
         @Override
@@ -313,12 +311,12 @@ public class PresentationGatewayTest {
             if (failLoad) {
                 throw new PersistenceException("expected persisted-data load failure");
             }
-            return new LoadResult(Collections.<TimingData>emptyList(), false);
+            return new LoadResult(Collections.<TimingRecord>emptyList(), false);
         }
 
         @Override
-        public void append(TimingData data) {
-            appended.add(data);
+        public void append(TimingRecord record) {
+            appended.add(record);
         }
     }
 }

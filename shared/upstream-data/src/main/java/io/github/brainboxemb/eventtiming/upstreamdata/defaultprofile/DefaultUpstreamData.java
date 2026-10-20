@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
@@ -22,7 +22,7 @@ public final class DefaultUpstreamData {
 
     public static UpstreamData.TimingDataTransfer timingData(
             NodeId nodeId,
-            List<? extends TimingData> records) {
+            List<TimingRecord> records) {
         return new TimingDataValue(
                 requireNodeId(nodeId),
                 copyTimingData(nodeId, records));
@@ -182,38 +182,38 @@ public final class DefaultUpstreamData {
     private static long requirePositiveSequence(
             long sequence,
             String name) {
-        if (sequence < 1L || sequence > TimingData.MAX_SEQUENCE_NUMBER) {
+        if (sequence < 1L || sequence > TimingRecord.MAX_SEQUENCE_NUMBER) {
             throw new IllegalArgumentException(
                     name + " must be in range 1.."
-                            + TimingData.MAX_SEQUENCE_NUMBER);
+                            + TimingRecord.MAX_SEQUENCE_NUMBER);
         }
         return sequence;
     }
 
     private static long requireSyncSequence(long sequence) {
-        if (sequence < 0L || sequence > TimingData.MAX_SEQUENCE_NUMBER) {
+        if (sequence < 0L || sequence > TimingRecord.MAX_SEQUENCE_NUMBER) {
             throw new IllegalArgumentException(
                     "SYNC sequence must be in range 0.."
-                            + TimingData.MAX_SEQUENCE_NUMBER);
+                            + TimingRecord.MAX_SEQUENCE_NUMBER);
         }
         return sequence;
     }
 
-    private static List<TimingData> copyTimingData(
+    private static List<TimingRecord> copyTimingData(
             NodeId nodeId,
-            List<? extends TimingData> records) {
+            List<TimingRecord> records) {
         if (records == null || records.isEmpty()) {
             throw new IllegalArgumentException(
                     "TIMING_DATA requires at least one record");
         }
-        List<TimingData> copy =
-                new ArrayList<TimingData>(records.size());
-        for (TimingData record : records) {
+        List<TimingRecord> copy =
+                new ArrayList<TimingRecord>(records.size());
+        for (TimingRecord record : records) {
             if (record == null) {
                 throw new IllegalArgumentException(
                         "TIMING_DATA records must not contain null");
             }
-            if (!nodeId.equals(record.timingNodeId())) {
+            if (record.nodeId() != nodeId.value().charAt(0)) {
                 throw new IllegalArgumentException(
                         "TIMING_DATA record nodeId does not match envelope nodeId");
             }
@@ -286,9 +286,9 @@ public final class DefaultUpstreamData {
     private static final class TimingDataValue
             extends NodeValue
             implements UpstreamData.TimingDataTransfer {
-        private final List<TimingData> records;
+        private final List<TimingRecord> records;
 
-        private TimingDataValue(NodeId nodeId, List<TimingData> records) {
+        private TimingDataValue(NodeId nodeId, List<TimingRecord> records) {
             super(nodeId);
             this.records = records;
         }
@@ -299,7 +299,7 @@ public final class DefaultUpstreamData {
         }
 
         @Override
-        public List<TimingData> records() {
+        public List<TimingRecord> records() {
             return records;
         }
     }

@@ -1,11 +1,10 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api;
 
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.application.PresentationGateway;
 import io.github.brainboxemb.eventtiming.timingpoint.application.SimulationControl;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
@@ -773,7 +772,7 @@ public class HttpEndpointTest {
         }
 
         @Override
-        public void append(TimingData data) {
+        public void append(TimingRecord record) {
             throw new AssertionError("ERROR TimingNode must not append TimingData");
         }
     }
@@ -781,11 +780,11 @@ public class HttpEndpointTest {
     private static final class MemoryStore implements TimingDataPersistence {
         @Override
         public LoadResult load() {
-            return new LoadResult(Collections.<TimingData>emptyList(), false);
+            return new LoadResult(Collections.<TimingRecord>emptyList(), false);
         }
 
         @Override
-        public void append(TimingData data) {
+        public void append(TimingRecord record) {
         }
     }
 

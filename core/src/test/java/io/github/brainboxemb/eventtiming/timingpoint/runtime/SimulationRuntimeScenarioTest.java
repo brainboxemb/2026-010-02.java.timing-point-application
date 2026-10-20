@@ -3,8 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventDataProvider;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData.AutomaticRegistration;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
@@ -73,8 +72,8 @@ public class SimulationRuntimeScenarioTest {
                             fourObservations.countDown();
                         });
 
-        AtomicReference<AutomaticRegistration> committed =
-                new AtomicReference<AutomaticRegistration>();
+        AtomicReference<TimingRecord> committed =
+                new AtomicReference<TimingRecord>();
         CountDownLatch registrationCommitted =
                 new CountDownLatch(1);
         application
@@ -83,9 +82,9 @@ public class SimulationRuntimeScenarioTest {
                 .NEW_DATA_ENTRY
                 .subscribe(
                         data -> {
-                            if (data instanceof AutomaticRegistration) {
-                                committed.set(
-                                        (AutomaticRegistration) data);
+                            if (data.kind()
+                                    == TimingRecord.Kind.AUTOMATIC_REGISTRATION) {
+                                committed.set(data);
                                 registrationCommitted.countDown();
                             }
                         });
@@ -130,10 +129,9 @@ public class SimulationRuntimeScenarioTest {
                             2L,
                             TimeUnit.SECONDS));
 
-            AutomaticRegistration registration =
-                    committed.get();
+            TimingRecord registration = committed.get();
             assertEquals(
-                    REGISTRATION,
+                    REGISTRATION.packedValue(),
                     registration.registrationId());
             assertEquals(
                     4,
@@ -157,10 +155,11 @@ public class SimulationRuntimeScenarioTest {
                     Instant.ofEpochSecond(
                             strongestInstant.getEpochSecond(),
                             expectedNanos),
-                    registration.effectiveTime().instant());
+                    Instant.ofEpochMilli(
+                            registration.effectiveTimeMillis()));
 
-            List<TimingData> history =
-                    new ArrayList<TimingData>();
+            List<TimingRecord> history =
+                    new ArrayList<TimingRecord>();
             assertEquals(
                     2,
                     node.visitLogBookFrom(
@@ -170,9 +169,9 @@ public class SimulationRuntimeScenarioTest {
             assertEquals(
                     2,
                     history.size());
-            assertTrue(
-                    history.get(1)
-                            instanceof AutomaticRegistration);
+            assertEquals(
+                    TimingRecord.Kind.AUTOMATIC_REGISTRATION,
+                    history.get(1).kind());
         } finally {
             application.deactivate();
         }
@@ -216,11 +215,11 @@ public class SimulationRuntimeScenarioTest {
                 .NEW_DATA_ENTRY
                 .subscribe(
                         data -> {
-                            if (data instanceof AutomaticRegistration) {
-                                AutomaticRegistration registration =
-                                        (AutomaticRegistration) data;
+                            if (data.kind()
+                                    == TimingRecord.Kind.AUTOMATIC_REGISTRATION) {
                                 committedRegistrations.add(
-                                        registration.registrationId());
+                                        RegistrationId.fromPackedValue(
+                                                data.registrationId()));
                                 threeCommitted.countDown();
                             }
                         });
@@ -303,8 +302,8 @@ public class SimulationRuntimeScenarioTest {
                     "A0003 edge variant must remain a single-tag scenario",
                     edgeTagBObserved);
 
-            List<TimingData> history =
-                    new ArrayList<TimingData>();
+            List<TimingRecord> history =
+                    new ArrayList<TimingRecord>();
             assertEquals(
                     4,
                     node.visitLogBookFrom(

@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData.AutomaticRegistration;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
@@ -433,9 +432,9 @@ public class TimingApplicationRuntimeTest {
                     .timingNode(new NodeId("A"))
                     .NEW_DATA_ENTRY
                     .subscribe(data -> {
-                        if (data instanceof AutomaticRegistration
-                                && new RegistrationId("A0042")
-                                        .equals(((AutomaticRegistration) data).registrationId())) {
+                        if (data.kind() == TimingRecord.Kind.AUTOMATIC_REGISTRATION
+                                && new RegistrationId("A0042").packedValue()
+                                        == data.registrationId()) {
                             simulatedCommit.countDown();
                         }
                     });
@@ -647,11 +646,11 @@ public class TimingApplicationRuntimeTest {
             await(antenna::inventoryRunning, 1000L);
 
             CountDownLatch committed = new CountDownLatch(1);
-            AtomicReference<AutomaticRegistration> automatic =
+            AtomicReference<TimingRecord> automatic =
                     new AtomicReference<>();
             application.timingNode().NEW_DATA_ENTRY.subscribe(data -> {
-                if (data instanceof AutomaticRegistration) {
-                    automatic.set((AutomaticRegistration) data);
+                if (data.kind() == TimingRecord.Kind.AUTOMATIC_REGISTRATION) {
+                    automatic.set(data);
                     committed.countDown();
                 }
             });
@@ -668,9 +667,11 @@ public class TimingApplicationRuntimeTest {
                     "quiet-timeout housekeeping did not commit the passage",
                     committed.await(2L, TimeUnit.SECONDS));
             assertEquals(
-                    new RegistrationId("R1001"),
+                    new RegistrationId("R1001").packedValue(),
                     automatic.get().registrationId());
-            assertEquals(observedAt, automatic.get().effectiveTime());
+            assertEquals(
+                    observedAt.instant().toEpochMilli(),
+                    automatic.get().effectiveTimeMillis());
 
             application.timingNode().close();
             await(() -> !antenna.inventoryRunning(), 1000L);

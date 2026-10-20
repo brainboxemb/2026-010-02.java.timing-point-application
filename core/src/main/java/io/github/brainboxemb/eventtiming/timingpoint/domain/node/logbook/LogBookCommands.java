@@ -2,8 +2,8 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
@@ -44,7 +44,7 @@ public final class LogBookCommands {
     }
 
     /** Commits one automatic registration selected from an antenna observation. */
-    public static LogBookCommand<TimingData>
+    public static LogBookCommand<TimingRecord>
             commitAntennaRegistration(
                     LocationId locationId,
                     RegistrationId registrationId,
@@ -54,18 +54,18 @@ public final class LogBookCommands {
                 locationId,
                 registrationId,
                 effectiveTime,
-                TimingData.TagSource.ANT,
-                TimingData.AutomaticTimeSource.OBS);
+                TimingRecord.TagSource.ANT,
+                TimingRecord.AutomaticTimeSource.OBS);
     }
 
     /** Commits one automatic registration with explicit tag and time sources. */
-    public static LogBookCommand<TimingData>
+    public static LogBookCommand<TimingRecord>
             commitAutomaticRegistration(
                     LocationId locationId,
                     RegistrationId registrationId,
                     TimingTimestamp effectiveTime,
-                    TimingData.TagSource tagSource,
-                    TimingData.AutomaticTimeSource registrationTimeSource) {
+                    TimingRecord.TagSource tagSource,
+                    TimingRecord.AutomaticTimeSource registrationTimeSource) {
 
         failIfInvalidArgument(locationId != null, "locationId must not be null");
         failIfInvalidArgument(registrationId != null, "registrationId must not be null");
@@ -86,7 +86,7 @@ public final class LogBookCommands {
     /**
      * Commits one operator/manual registration with its explicit time source.
      */
-    public static LogBookCommand<TimingData>
+    public static LogBookCommand<TimingRecord>
             commitManualRegistration(
                     LocationId locationId,
                     RegistrationId registrationId,
@@ -112,7 +112,7 @@ public final class LogBookCommands {
     /**
      * Appends a REV for the identified previously committed automatic registration.
      */
-    public static LogBookCommand<TimingData>
+    public static LogBookCommand<TimingRecord>
             revokeAutomaticRegistration(
                     LocationId originalLocationId,
                     RegistrationId registrationId,
@@ -133,7 +133,7 @@ public final class LogBookCommands {
     /**
      * Appends a REV for the identified previously committed manual registration.
      */
-    public static LogBookCommand<TimingData>
+    public static LogBookCommand<TimingRecord>
             revokeManualRegistration(
                     LocationId originalLocationId,
                     RegistrationId registrationId,

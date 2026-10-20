@@ -1,11 +1,9 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingRecords;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
@@ -271,7 +269,6 @@ public class TimingNodeTest {
         TimingNode node = TimingNodeFixture.createDirect(
                 new NodeId("A"),
                 new FailingLoadPersistence(),
-                new DefaultTimingDataFactory(),
                 TimingNodeTest::now);
 
         activate(node);
@@ -325,9 +322,8 @@ public class TimingNodeTest {
         TimingNode node = TimingNodeFixture.createDirect(
                 id,
                 persistence,
-                new DefaultTimingDataFactory(),
                 TimingNodeTest::now);
-        List<TimingData> committedEvents = new ArrayList<TimingData>();
+        List<TimingRecord> committedEvents = new ArrayList<TimingRecord>();
         node.NEW_DATA_ENTRY.subscribe(committedEvents::add);
 
         activate(node);
@@ -343,15 +339,15 @@ public class TimingNodeTest {
                     2,
                     node.logBook().process(LogBookQueries.timingDataCount()).intValue());
             assertEquals(2, persistence.records.size());
-            assertTrue(persistence.records.get(0) instanceof TimingData.NodeOpen);
-            assertTrue(persistence.records.get(1) instanceof TimingData.NodeClose);
+            assertEquals(TimingRecord.Kind.NODE_OPEN, persistence.records.get(0).kind());
+            assertEquals(TimingRecord.Kind.NODE_CLOSE, persistence.records.get(1).kind());
             assertEquals(1L, persistence.records.get(0).sequenceNumber());
             assertEquals(2L, persistence.records.get(1).sequenceNumber());
-            assertEquals(new LocationId(24), persistence.records.get(0).locationId());
-            assertEquals(new LocationId(24), persistence.records.get(1).locationId());
+            assertEquals(24, persistence.records.get(0).locationId());
+            assertEquals(24, persistence.records.get(1).locationId());
             assertEquals(2, committedEvents.size());
-            assertEquals(TimingRecords.fromTimingData(persistence.records.get(0)), TimingRecords.fromTimingData(committedEvents.get(0)));
-            assertEquals(TimingRecords.fromTimingData(persistence.records.get(1)), TimingRecords.fromTimingData(committedEvents.get(1)));
+            assertEquals(persistence.records.get(0), committedEvents.get(0));
+            assertEquals(persistence.records.get(1), committedEvents.get(1));
         } finally {
             deactivate(node);
         }
@@ -368,7 +364,6 @@ public class TimingNodeTest {
         TimingNode node = TimingNodeFixture.createDirect(
                 new NodeId("A"),
                 persistence,
-                new DefaultTimingDataFactory(),
                 () -> times[Math.min(call[0]++, times.length - 1)]);
 
         activate(node);
@@ -378,15 +373,15 @@ public class TimingNodeTest {
                     1,
                     node.logBook().process(LogBookQueries.timingDataCount()).intValue());
 
-            TimingData open = persistence.records.get(0);
+            TimingRecord open = persistence.records.get(0);
             assertEquals(
                     TimingTimestamp.parse(
-                            "2026-10-02T08:00:00.12Z"),
-                    open.effectiveTime());
+                            "2026-10-02T08:00:00.12Z").instant().toEpochMilli(),
+                    open.effectiveTimeMillis());
             assertEquals(
                     TimingTimestamp.parse(
-                            "2026-10-02T08:00:00.13Z"),
-                    open.recordedAt());
+                            "2026-10-02T08:00:00.13Z").instant().toEpochMilli(),
+                    open.recordedAtMillis());
         } finally {
             deactivate(node);
         }
@@ -398,7 +393,6 @@ public class TimingNodeTest {
         TimingNode node = TimingNodeFixture.createDirect(
                 new NodeId("A"),
                 persistence,
-                new DefaultTimingDataFactory(),
                 TimingNodeTest::now);
 
         activate(node);
@@ -431,9 +425,8 @@ public class TimingNodeTest {
         TimingNode node = TimingNodeFixture.createDirect(
                 new NodeId("A"),
                 persistence,
-                new DefaultTimingDataFactory(),
                 TimingNodeTest::now);
-        List<TimingData> committedEvents = new ArrayList<TimingData>();
+        List<TimingRecord> committedEvents = new ArrayList<TimingRecord>();
         node.NEW_DATA_ENTRY.subscribe(committedEvents::add);
 
         activate(node);
@@ -540,11 +533,11 @@ public class TimingNodeTest {
 
             persistence.releaseAppend.countDown();
 
-            List<TimingData> committed =
+            List<TimingRecord> committed =
                     node.logBook().process(
-                            LogBookQueries.timingDataRange(1L, 1));
+                            LogBookQueries.timingRecordRange(1L, 1));
             assertEquals(1, committed.size());
-            assertTrue(committed.get(0) instanceof TimingData.NodeOpen);
+            assertEquals(TimingRecord.Kind.NODE_OPEN, committed.get(0).kind());
         } finally {
             persistence.releaseAppend.countDown();
             deactivate(node);
@@ -610,7 +603,6 @@ public class TimingNodeTest {
         TimingNode node = TimingNodeFixture.createWithLogBookExecution(
                 new NodeId("A"),
                 new NoOpPersistence(),
-                new DefaultTimingDataFactory(),
                 TimingNodeTest::now,
                 newDataLaneExecutor("timing-node-test-hook"),
                 4,
@@ -631,11 +623,11 @@ public class TimingNodeTest {
                     node.functionalState());
             assertEquals(new LocationId(24), node.locationId());
 
-            List<TimingData> committed =
+            List<TimingRecord> committed =
                     node.logBook().process(
-                            LogBookQueries.timingDataRange(1L, 1));
+                            LogBookQueries.timingRecordRange(1L, 1));
             assertEquals(1, committed.size());
-            assertTrue(committed.get(0) instanceof TimingData.NodeOpen);
+            assertEquals(TimingRecord.Kind.NODE_OPEN, committed.get(0).kind());
         } finally {
             deactivate(node);
         }
@@ -674,12 +666,12 @@ public class TimingNodeTest {
 
             persistence.releaseAppend.countDown();
 
-            List<TimingData> committed =
+            List<TimingRecord> committed =
                     node.logBook().process(
-                            LogBookQueries.timingDataRange(1L, 2));
+                            LogBookQueries.timingRecordRange(1L, 2));
             assertEquals(2, committed.size());
-            assertTrue(committed.get(0) instanceof TimingData.NodeOpen);
-            assertTrue(committed.get(1) instanceof TimingData.NodeClose);
+            assertEquals(TimingRecord.Kind.NODE_OPEN, committed.get(0).kind());
+            assertEquals(TimingRecord.Kind.NODE_CLOSE, committed.get(1).kind());
         } finally {
             persistence.releaseAppend.countDown();
             deactivate(node);
@@ -879,7 +871,6 @@ public class TimingNodeTest {
         TimingNode node = TimingNodeFixture.createDirect(
                 new NodeId("A"),
                 new FailingLoadPersistence(),
-                new DefaultTimingDataFactory(),
                 TimingNodeTest::now);
 
         activate(node);
@@ -915,7 +906,6 @@ public class TimingNodeTest {
         TimingNodeFixture.createDirect(
                 null,
                 new NoOpPersistence(),
-                new DefaultTimingDataFactory(),
                 TimingNodeTest::now);
     }
 
@@ -943,7 +933,6 @@ public class TimingNodeTest {
         return TimingNodeFixture.createDirect(
                 id,
                 new NoOpPersistence(),
-                new DefaultTimingDataFactory(),
                 TimingNodeTest::now);
     }
 
@@ -973,7 +962,6 @@ public class TimingNodeTest {
         return TimingNodeFixture.createWithLogBookExecution(
                 id,
                 persistence,
-                new DefaultTimingDataFactory(),
                 TimingNodeTest::now,
                 newDataLaneExecutor(threadName),
                 capacity,
@@ -1011,12 +999,12 @@ public class TimingNodeTest {
             }
             loadReturned.countDown();
             return new LoadResult(
-                    Collections.<TimingData>emptyList(),
+                    Collections.<TimingRecord>emptyList(),
                     false);
         }
 
         @Override
-        public void append(TimingData data) {
+        public void append(TimingRecord record) {
             // MainTask deactivation test only.
         }
     }
@@ -1039,12 +1027,12 @@ public class TimingNodeTest {
                         ex);
             }
             return new LoadResult(
-                    Collections.<TimingData>emptyList(),
+                    Collections.<TimingRecord>emptyList(),
                     false);
         }
 
         @Override
-        public void append(TimingData data) {
+        public void append(TimingRecord record) {
             // Lifecycle-recovery test only.
         }
     }
@@ -1059,12 +1047,12 @@ public class TimingNodeTest {
         @Override
         public LoadResult load() {
             return new LoadResult(
-                    Collections.<TimingData>emptyList(),
+                    Collections.<TimingRecord>emptyList(),
                     false);
         }
 
         @Override
-        public void append(TimingData data) {
+        public void append(TimingRecord record) {
             appendStarted.countDown();
             try {
                 releaseAppend.await();
@@ -1078,19 +1066,19 @@ public class TimingNodeTest {
     }
 
     private static final class RecordingPersistence implements TimingDataPersistence {
-        private final List<TimingData> records =
-                new ArrayList<TimingData>();
+        private final List<TimingRecord> records =
+                new ArrayList<TimingRecord>();
 
         @Override
         public LoadResult load() {
             return new LoadResult(
-                    Collections.<TimingData>emptyList(),
+                    Collections.<TimingRecord>emptyList(),
                     false);
         }
 
         @Override
-        public void append(TimingData data) {
-            records.add(data);
+        public void append(TimingRecord record) {
+            records.add(record);
         }
     }
 
@@ -1102,7 +1090,7 @@ public class TimingNodeTest {
         }
 
         @Override
-        public void append(TimingData data) {
+        public void append(TimingRecord record) {
             // Failed startup-load test only.
         }
     }
@@ -1111,12 +1099,12 @@ public class TimingNodeTest {
         @Override
         public LoadResult load() {
             return new LoadResult(
-                    Collections.<TimingData>emptyList(),
+                    Collections.<TimingRecord>emptyList(),
                     false);
         }
 
         @Override
-        public void append(TimingData data)
+        public void append(TimingRecord record)
                 throws PersistenceException {
             throw new PersistenceException("test append failure");
         }
@@ -1126,12 +1114,12 @@ public class TimingNodeTest {
         @Override
         public LoadResult load() {
             return new LoadResult(
-                    Collections.<TimingData>emptyList(),
+                    Collections.<TimingRecord>emptyList(),
                     false);
         }
 
         @Override
-        public void append(TimingData data) {
+        public void append(TimingRecord record) {
             // TimingNodeTest exercises execution/state behaviour, not persistence.
         }
     }

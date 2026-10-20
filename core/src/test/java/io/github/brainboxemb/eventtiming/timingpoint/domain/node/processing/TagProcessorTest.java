@@ -1,12 +1,10 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData.AutomaticRegistration;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.configuration.ApplicationConfiguration;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ConfigurationUpdateResult;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;
@@ -125,7 +123,7 @@ public class TagProcessorTest {
         connectToNode(processor, node);
         CountDownLatch committed = new CountDownLatch(1);
         node.NEW_DATA_ENTRY.subscribe(data -> {
-            if (data instanceof AutomaticRegistration) {
+            if (data.kind() == TimingRecord.Kind.AUTOMATIC_REGISTRATION) {
                 committed.countDown();
             }
         });
@@ -150,14 +148,13 @@ public class TagProcessorTest {
             assertFalse(
                     processor.hasPendingPassages());
             assertEquals(2, store.appended.size());
-            AutomaticRegistration registration =
-                    (AutomaticRegistration) store.appended.get(1);
+            TimingRecord registration = store.appended.get(1);
             assertEquals(
-                    new RegistrationId("N0001"),
+                    new RegistrationId("N0001").packedValue(),
                     registration.registrationId());
             assertEquals(
-                    STRONGER_OBSERVED_AT,
-                    registration.effectiveTime());
+                    STRONGER_OBSERVED_AT.instant().toEpochMilli(),
+                    registration.effectiveTimeMillis());
 
             TagProcessingMetrics.Snapshot snapshot = metrics.snapshot();
             assertEquals(2L, snapshot.observations());
@@ -190,7 +187,7 @@ public class TagProcessorTest {
         connectToNode(processor, node);
         CountDownLatch committed = new CountDownLatch(1);
         node.NEW_DATA_ENTRY.subscribe(data -> {
-            if (data instanceof AutomaticRegistration) {
+            if (data.kind() == TimingRecord.Kind.AUTOMATIC_REGISTRATION) {
                 committed.countDown();
             }
         });
@@ -304,7 +301,7 @@ public class TagProcessorTest {
         connectToNode(processor, node);
         CountDownLatch committed = new CountDownLatch(1);
         node.NEW_DATA_ENTRY.subscribe(data -> {
-            if (data instanceof AutomaticRegistration) {
+            if (data.kind() == TimingRecord.Kind.AUTOMATIC_REGISTRATION) {
                 committed.countDown();
             }
         });
@@ -615,7 +612,6 @@ public class TagProcessorTest {
         return TimingNodeFixture.create(
                 new NodeId("A"),
                 store,
-                new DefaultTimingDataFactory(),
                 timeSource);
     }
 
@@ -677,16 +673,16 @@ public class TagProcessorTest {
     }
 
     private static final class RecordingStore implements TimingDataPersistence {
-        private final List<TimingData> appended = new ArrayList<>();
+        private final List<TimingRecord> appended = new ArrayList<>();
 
         @Override
         public LoadResult load() {
-            return new LoadResult(new ArrayList<TimingData>(), false);
+            return new LoadResult(new ArrayList<TimingRecord>(), false);
         }
 
         @Override
-        public void append(TimingData data) {
-            appended.add(data);
+        public void append(TimingRecord record) {
+            appended.add(record);
         }
     }
 }

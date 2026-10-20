@@ -1,9 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.testsupport;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookMetrics;
@@ -134,19 +132,6 @@ public final class TimingNodeFixture {
             NodeId nodeId,
             TimingDataPersistence persistence,
             TimeSource timeSource) {
-        return create(
-                nodeId,
-                persistence,
-                new DefaultTimingDataFactory(),
-                timeSource);
-    }
-
-    /** Creates one test TimingNode with an explicit TimingDataFactory. */
-    public static TimingNode create(
-            NodeId nodeId,
-            TimingDataPersistence persistence,
-            TimingDataFactory timingDataFactory,
-            TimeSource timeSource) {
         String suffix =
                 nodeId == null
                         ? "missing"
@@ -155,7 +140,6 @@ public final class TimingNodeFixture {
         return compose(
                 nodeId,
                 persistence,
-                timingDataFactory,
                 timeSource,
                 EventData.empty(),
                 UpstreamStream.unavailable(),
@@ -177,12 +161,10 @@ public final class TimingNodeFixture {
     public static TimingNode createDirect(
             NodeId nodeId,
             TimingDataPersistence persistence,
-            TimingDataFactory timingDataFactory,
             TimeSource timeSource) {
         return createDirect(
                 nodeId,
                 persistence,
-                timingDataFactory,
                 timeSource,
                 EventData.empty(),
                 UpstreamStream.unavailable());
@@ -192,14 +174,12 @@ public final class TimingNodeFixture {
     public static TimingNode createDirect(
             NodeId nodeId,
             TimingDataPersistence persistence,
-            TimingDataFactory timingDataFactory,
             TimeSource timeSource,
             EventData eventData,
             UpstreamStream upstreamStream) {
         return createDirectComponents(
                 nodeId,
                 persistence,
-                timingDataFactory,
                 timeSource,
                 eventData,
                 upstreamStream)
@@ -210,7 +190,6 @@ public final class TimingNodeFixture {
     public static Components createDirectComponents(
             NodeId nodeId,
             TimingDataPersistence persistence,
-            TimingDataFactory timingDataFactory,
             TimeSource timeSource,
             EventData eventData,
             UpstreamStream upstreamStream) {
@@ -222,7 +201,6 @@ public final class TimingNodeFixture {
         return compose(
                 nodeId,
                 persistence,
-                timingDataFactory,
                 timeSource,
                 eventData,
                 upstreamStream,
@@ -243,7 +221,6 @@ public final class TimingNodeFixture {
     public static TimingNode createWithLogBookExecution(
             NodeId nodeId,
             TimingDataPersistence persistence,
-            TimingDataFactory timingDataFactory,
             TimeSource timeSource,
             Executor dataLaneExecutor,
             int dataLaneCapacity,
@@ -258,7 +235,6 @@ public final class TimingNodeFixture {
         return compose(
                 nodeId,
                 persistence,
-                timingDataFactory,
                 timeSource,
                 EventData.empty(),
                 UpstreamStream.unavailable(),
@@ -280,7 +256,6 @@ public final class TimingNodeFixture {
     private static Components compose(
             NodeId nodeId,
             TimingDataPersistence persistence,
-            TimingDataFactory timingDataFactory,
             TimeSource timeSource,
             EventData eventData,
             UpstreamStream upstreamStream,
@@ -299,7 +274,6 @@ public final class TimingNodeFixture {
                 new LogBook(
                         nodeId,
                         persistence,
-                        timingDataFactory,
                         timeSource,
                         SystemMonotonicClock.INSTANCE,
                         new LogBookMetrics(),
