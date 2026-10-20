@@ -201,7 +201,7 @@ public class NodeUpstreamTest {
                         nodeWorker,
                         stream,
                         logBook,
-                        tasks::applyRaceData);
+                        tasks);
         TagProcessor tags =
                 new TagProcessor(
                         eventData,

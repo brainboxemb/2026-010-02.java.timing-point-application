@@ -302,7 +302,7 @@ public final class TimingNodeFixture {
                         nodeWorker,
                         upstreamStream,
                         logBook,
-                        nodeService::applyRaceData);
+                        nodeService);
 
         TagProcessor tagProcessor =
                 new TagProcessor(

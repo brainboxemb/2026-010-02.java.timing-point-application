@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.system.upstream.nod
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.SafeExecute;
@@ -17,7 +18,6 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,12 +53,12 @@ public final class NodeUpstream extends LifecycleComponent {
             ScheduledExecutorService scheduler,
             UpstreamStream stream,
             LogBookAccessor logBook,
-            Function<UpstreamData.RaceData, CompletionStage<Void>> raceDataConsumer) {
+            NodeService nodeService) {
         failIfInvalidArgument(nodeId != null, "nodeId must not be null");
         failIfInvalidArgument(scheduler != null, "scheduler must not be null");
         failIfInvalidArgument(stream != null, "stream must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
-        failIfInvalidArgument(raceDataConsumer != null, "raceDataConsumer must not be null");
+        failIfInvalidArgument(nodeService != null, "nodeService must not be null");
 
         this.nodeId = nodeId;
         this.taskRunner =
@@ -69,7 +69,7 @@ public final class NodeUpstream extends LifecycleComponent {
                         scheduler);
         this.stream = stream;
         this.heartbeat = new UpstreamHeartbeat(nodeId, stream);
-        this.upstreamDataSync = new UpstreamDataSync(nodeId, stream, raceDataConsumer);
+        this.upstreamDataSync = new UpstreamDataSync(nodeId, stream, nodeService::applyRaceData);
         this.logBookSync = new LogBookSync(nodeId, stream, logBook);
     }
 

@@ -151,7 +151,7 @@ final class TimingSystemComposer {
                                     gateway,
                                     node.nodeId()),
                             composition.logBook(),
-                            composition.nodeService()::applyRaceData));
+                            composition.nodeService()));
         }
         return new Upstream(
                 gateway,
