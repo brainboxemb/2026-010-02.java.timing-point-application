@@ -12,10 +12,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.Registration
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.StageTimingRecord;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.RegistrationRank;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.RegisteredTeams;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.ActiveRegistrations;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.RegisteredTeams;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream.UpstreamHandler;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
@@ -23,7 +21,6 @@ import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import java.time.Instant;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -109,10 +106,9 @@ public class ActiveRegistrationsIntegrationTest {
     }
 
 
-    /** Duplicate passages remain visible and both receive their own ranking positions. */
+    /** Duplicate passages remain separate chronological display rows. */
     @Test
-    public void duplicatePassagesAreRankedIndividually() {
-        InMemoryUpstreamStream stream = new InMemoryUpstreamStream();
+    public void duplicatePassagesRemainSeparateRegistrationRows() {
         TimingNodeFixture.Components components =
                 TimingNodeFixture.createDirectComponents(
                         new NodeId("A"),
@@ -128,46 +124,19 @@ public class ActiveRegistrationsIntegrationTest {
                         new DefaultTimingDataFactory(),
                         () -> Instant.parse("2026-10-13T12:05:00Z"),
                         new DefaultEventData(),
-                        stream);
+                        new InMemoryUpstreamStream());
 
         activate(components.node());
         try {
             awaitOperational(components.node());
 
-            stream.receive(
-                    DefaultUpstreamData.raceData(
-                            new NodeId("A"),
-                            1L,
-                            Collections.<UpstreamData.TeamAssignmentChange>emptyList(),
-                            Collections.singletonList(
-                                    DefaultUpstreamData.stageStartSet("0001", LocalTime.NOON))));
-            org.junit.Assert.assertTrue(components.upstreamHandler().inputAvailable());
-            stream.takeSent();
-
-            List<ActiveRegistrations.Registration> firstPage =
-                    new ArrayList<>();
-            components.nodeService().visitRegistrationsAfter(new LocationId(1), 0L, 1, firstPage::add);
-            assertEquals(1L, firstPage.get(0).sequenceNumber());
-
-            List<ActiveRegistrations.Registration> secondPage =
-                    new ArrayList<>();
-            components.nodeService().visitRegistrationsAfter(
-                    new LocationId(1), firstPage.get(0).sequenceNumber(), 1, secondPage::add);
-            assertEquals(2L, secondPage.get(0).sequenceNumber());
-
-            List<StageTimingRecord> passages = new ArrayList<StageTimingRecord>();
-            components.nodeService().visitStageTimingRecords(16, passages::add);
-
-            RegistrationRank firstRank =
-                    components.nodeService().registrationRank(firstPage.get(0));
-            RegistrationRank secondRank =
-                    components.nodeService().registrationRank(secondPage.get(0));
-
-            assertEquals(2, passages.size());
-            assertEquals(2, firstRank.rank());
-            assertEquals(1L, firstRank.timingRecord().sequenceNumber());
-            assertEquals(1, secondRank.rank());
-            assertEquals(2L, secondRank.timingRecord().sequenceNumber());
+            List<ActiveRegistrations.Registration> rows = new ArrayList<>();
+            assertEquals(
+                    2,
+                    components.nodeService()
+                            .visitRegistrations(new LocationId(1), 2, rows::add));
+            assertEquals(1L, rows.get(0).sequenceNumber());
+            assertEquals(2L, rows.get(1).sequenceNumber());
         } finally {
             deactivate(components.node());
         }

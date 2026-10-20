@@ -18,7 +18,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagP
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessingPolicy;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.racedata.RaceDataState;
-import io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing.ActiveRegistrations;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.DefaultTimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnlyConfiguration;

@@ -2,13 +2,15 @@
 
 ## Unreleased
 
+- Make registration-derived state explicit: replace the mixed `domain.node.timing` package with `domain.node.registration`, document ownership/replay/REV/team-membership/display invariants in detail, remove test-only StageTiming/ranking production APIs and result types, and keep RaceData assignment/start helpers internal to RaceDataState.
+
 - Align `RegisteredTeams` with the typed event-port convention: private `changedEvent` backing state plus explicit `CHANGED` EventSource port, removing the legacy `changes()` accessor.
 
-- Normalize IF-06 stage starts to absolute UTC at RACE_DATA ingress using the node's shared TimeSource for the current UTC date of time-only values; retain stage starts as epoch milliseconds, remove raceTimeZone from derived timing, and calculate one registration's provisional rank with a single O(n) scan instead of building and sorting a complete ranking list.
+- Normalize IF-06 stage starts to absolute UTC at RACE_DATA ingress using the node's shared TimeSource for the current UTC date of time-only values; retain stage starts as epoch milliseconds so no later consumer needs civil-time or time-zone interpretation.
 
 - Stream `RegisteredTeams.visit(...)` directly over the retained unique-team set for CAN/display burst synchronization; remove the temporary sorted list because team order has no domain/protocol meaning.
 
-- Make `ActiveRegistrations` retained state compact and consistent: committed `TimingData` is copied once into primitive scalar fields and no longer retained; `StageTiming` and ranking consume that compact record, while semantic `RegistrationId`, `LocationId`, and `TimingTimestamp` values are reconstructed only at read/output boundaries.
+- Make `ActiveRegistrations` retained state compact and consistent: committed `TimingData` is copied once into primitive scalar fields and no longer retained; semantic `RegistrationId`, `LocationId`, and `TimingTimestamp` values are reconstructed only at read/output boundaries.
 
 - Align SI-02 registration input with the canonical `A0001`-style RegistrationId: replace legacy configurable prefix + number controls with one validated field, remove `registration.prefix`, and rename visible `Direct auto-reg` wording to direct registration terminology.
 
@@ -16,7 +18,7 @@
 
 - Fix SI-02 Engineering Client IF-03 status parsing: read the actual `locId` field and accept status payloads without the absent `problems` field; cover HTTP and WebSocket status snapshots with the deployed server shape.
 
-- Separate chronological registration history (including invalidated ADDs), unique registered teams per WP (+/- events and full visits), and per-registration provisional ranking. Recompute rankings from the active list rather than maintaining a second index. StageTiming remains stateless, and StageTime is now StageTimingRecord.
+- Separate chronological registration rows (including invalidated ADDs) from unique registered teams per WP (+/- events and full visits), so the smart display can synchronize each maintained projection without a second full TimingData history.
 
 - Search active duplicate registrations from the newest storage position first, matching the common case where a duplicate follows shortly after acceptance while preserving the dense-array cleanup design.
 

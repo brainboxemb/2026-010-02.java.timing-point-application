@@ -1,4 +1,4 @@
-package io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing;
+package io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;

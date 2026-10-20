@@ -8,16 +8,17 @@ import java.util.Map;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Active TeamId-to-stage-start data for one TimingNode.
+ * Package-private TeamId-to-stage-start state owned by RaceDataState.
  *
- * <p>RACE_DATA ingress resolves protocol time values before they enter this state.
- * Every retained start is therefore one absolute UTC epoch-millisecond value.</p>
+ * <p>Only normalized absolute UTC epoch milliseconds are retained. Copies participate in the
+ * same all-or-nothing RACE_DATA update as team assignments; external code never receives the
+ * mutable map or a partial civil-time value.</p>
  */
-public final class StageStartTimes {
+final class StageStartTimes {
     private final Map<TeamId, Long> starts;
 
     /** Creates empty live stage-start state. */
-    public StageStartTimes() {
+    StageStartTimes() {
 
         this.starts = new LinkedHashMap<TeamId, Long>();
     }
@@ -29,34 +30,27 @@ public final class StageStartTimes {
     }
 
     /** Returns an independent mutable copy for transactional validation. */
-    public StageStartTimes copy() {
+    StageStartTimes copy() {
 
         return new StageStartTimes(starts);
     }
 
-    /** Returns the absolute UTC epoch-millisecond stage start, or null when none is configured. */
-    public Long startMillisFor(TeamId teamId) {
-
-        failIfInvalidArgument(teamId != null, "teamId must not be null");
-        return starts.get(teamId);
-    }
-
     /** Sets one already-normalized absolute UTC stage start. */
-    public void set(TeamId teamId, long startMillis) {
+    void set(TeamId teamId, long startMillis) {
 
         failIfInvalidArgument(teamId != null, "teamId must not be null");
         starts.put(teamId, startMillis);
     }
 
     /** Removes any current stage start for the TeamId. */
-    public void remove(TeamId teamId) {
+    void remove(TeamId teamId) {
 
         failIfInvalidArgument(teamId != null, "teamId must not be null");
         starts.remove(teamId);
     }
 
     /** Replaces live state with a transactional stage-start copy. */
-    public void replaceWith(StageStartTimes updatedStartTimes) {
+    void replaceWith(StageStartTimes updatedStartTimes) {
 
         failIfInvalidArgument(updatedStartTimes != null, "updatedStartTimes must not be null");
         starts.clear();
