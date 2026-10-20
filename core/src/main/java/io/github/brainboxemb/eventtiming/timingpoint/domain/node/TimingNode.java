@@ -176,6 +176,18 @@ public final class TimingNode extends LifecycleComponent {
         return nodeService.registrationProjectionInfo();
     }
 
+    /** Visits one registration page and returns metadata from the same ordered read. */
+    public NodeService.RegistrationProjectionInfo visitRegistrationPage(
+            long afterSequence,
+            int limit,
+            Consumer<ActiveRegistrations.Registration> visitor) {
+
+        return nodeService.visitRegistrationPage(
+                afterSequence,
+                limit,
+                visitor);
+    }
+
     /** Visits chronological registration rows after one original ADD sequence. */
     public int visitRegistrationsAfter(
             long afterSequence,
