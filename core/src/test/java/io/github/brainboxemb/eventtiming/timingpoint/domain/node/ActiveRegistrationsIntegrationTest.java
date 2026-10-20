@@ -49,6 +49,7 @@ public class ActiveRegistrationsIntegrationTest {
         components.nodeService().REGISTERED_TEAMS_CHANGED.subscribe(teamChanges::add);
 
         activate(node);
+        activate(components.upstreamHandler());
         try {
             awaitOperational(node);
             assertEquals(TimingNodeTypes.OpenResult.OPENED, node.open(new LocationId(1)));
@@ -82,6 +83,7 @@ public class ActiveRegistrationsIntegrationTest {
             assertEquals(RegisteredTeams.Change.Action.ADDED, teamChanges.get(0).action());
             assertEquals(new TeamId("0042"), teamChanges.get(0).teamId());
         } finally {
+            deactivate(components.upstreamHandler());
             deactivate(node);
         }
     }
