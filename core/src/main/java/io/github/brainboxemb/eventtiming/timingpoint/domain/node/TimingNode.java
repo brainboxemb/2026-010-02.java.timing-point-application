@@ -1,7 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingRecords;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
@@ -16,7 +15,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyCont
 import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyKey;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.TagObservation;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventInput;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.AbstractTask;
@@ -90,15 +88,8 @@ public final class TimingNode extends LifecycleComponent {
     /** Current properties and their change subscriptions for this TimingNode. */
     public final PropertyContainer PROPERTIES = properties;
 
-    private final Event<TimingData> newDataEntryEvent = new Event<TimingData>();
-
-    /**
-     * Compatibility event for application/presentation Java consumers.
-     *
-     * <p>The LogBook publishes TimingRecord internally; this boundary materializes
-     * a TimingData view only for legacy subscribers.</p>
-     */
-    public final EventSource<TimingData> NEW_DATA_ENTRY = newDataEntryEvent;
+    /** Post-commit scalar timing records produced by this node's LogBook. */
+    public final EventSource<TimingRecord> NEW_DATA_ENTRY;
 
     /** Creates one TimingNode with its clock and child components. */
     public TimingNode(
@@ -125,6 +116,7 @@ public final class TimingNode extends LifecycleComponent {
         this.timeSource = timeSource;
         this.logBook = logBook;
         this.nodeService = nodeService;
+        this.NEW_DATA_ENTRY = logBook.NEW_DATA_ENTRY;
         this.tagProcessor = tagProcessor;
         this.taskRunner = taskRunner;
         lifecycle.register(nodeService);
@@ -141,8 +133,6 @@ public final class TimingNode extends LifecycleComponent {
         NodeService.TIMING_DATA_CHANGED.bind(
                 nodeService,
                 logBook.NEW_DATA_ENTRY);
-        logBook.NEW_DATA_ENTRY.subscribe(
-                record -> newDataEntryEvent.emit(TimingRecords.asTimingData(record)));
 
         // Listener runs synchronously on the TagProcessor lane; it must not block.
         NEW_REGISTRATION.bind(this, tagProcessor.NEW_REGISTRATION);
