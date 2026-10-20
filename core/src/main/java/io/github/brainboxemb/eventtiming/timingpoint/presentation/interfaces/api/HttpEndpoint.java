@@ -3,8 +3,8 @@ package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.ap
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData.AutomaticTimeSource;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord.AutomaticTimeSource;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
@@ -427,7 +427,7 @@ public final class HttpEndpoint implements AutoCloseable {
                 exchange,
                 200,
                 MessageWriter.committedRegistration(
-                        result.timingData()));
+                        result.timingRecord()));
     }
 
     private void handleManualRegistration(
@@ -476,7 +476,7 @@ public final class HttpEndpoint implements AutoCloseable {
                 exchange,
                 200,
                 MessageWriter.committedRegistration(
-                        result.timingData()));
+                        result.timingRecord()));
     }
 
     private void handleRegistrationRevoke(
@@ -533,7 +533,7 @@ public final class HttpEndpoint implements AutoCloseable {
                 exchange,
                 200,
                 MessageWriter.committedRegistration(
-                        result.timingData()));
+                        result.timingRecord()));
     }
 
     private void handleTagProcessingConfiguration(
