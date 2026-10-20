@@ -138,7 +138,7 @@ final class LogBookOperations {
                 currentCentisecondMillis(),
                 registrationId.packedValue(),
                 TimingRecord.Action.ADD,
-                TimingRecord.registrationTimeSource);
+                registrationTimeSource);
         commitRecord(record);
         return record;
     }
@@ -191,7 +191,7 @@ final class LogBookOperations {
                 currentCentisecondMillis(),
                 registrationId.packedValue(),
                 TimingRecord.Action.REV,
-                TimingRecord.originalTimeSource);
+                originalTimeSource);
         commitRecord(record);
         return record;
     }
