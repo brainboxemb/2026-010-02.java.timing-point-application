@@ -183,7 +183,7 @@ public final class NodeUpstream extends LifecycleComponent {
             if (activeMessageRun != null) {
                 run.cancel(true);
                 throw new IllegalStateException(
-                        "NodeUpstream already has an active input operation");
+                        "NodeUpstream already has an active message task");
             }
             activeMessageRun = run;
         }
@@ -204,10 +204,10 @@ public final class NodeUpstream extends LifecycleComponent {
         }
 
         if (failure != null) {
-            timingDataSync.cancelSync();
-            raceDataSync.cancelPending();
+            timingDataSync.cancelReplay();
+            raceDataSync.cancelApply();
             LOG.warn(
-                    "Upstream input operation failed for node {}",
+                    "Upstream message task failed for node {}",
                     nodeId.value(),
                     failure);
         }
