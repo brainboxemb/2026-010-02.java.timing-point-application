@@ -133,7 +133,8 @@ public final class DefaultUpstreamDataCodec
         generator.writeStartArray();
         for (TimingRecord record : transfer.records()) {
             if (record == null
-                    || !transfer.timingNodeId().equals(record.timingNodeId())) {
+                    || record.nodeId()
+                            != transfer.timingNodeId().value().charAt(0)) {
                 throw encodeFailure(
                         "TIMING_DATA contains a null or wrong-node record",
                         null);
