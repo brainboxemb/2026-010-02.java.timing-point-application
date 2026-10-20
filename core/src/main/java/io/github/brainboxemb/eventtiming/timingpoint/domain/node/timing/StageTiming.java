@@ -3,64 +3,39 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.timing;
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.time.Instant;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Calculates a stage timing record from one active registration and its resolved race data.
+ * Calculates one stage timing record from absolute internal timing state.
  *
- * <p>Team assignment, stage-start lookup, active registration traversal and ranking belong
- * to the callers. This calculation owns no mutable state or reference-data indexes.</p>
+ * <p>RACE_DATA ingress has already normalized the stage start to UTC. This calculation
+ * therefore owns no civil-date or time-zone interpretation; it only combines the
+ * requested registration with its resolved absolute start.</p>
  */
 public final class StageTiming {
 
     private StageTiming() {
     }
 
-    /**
-     * Calculates the passage time for an already resolved team and start.
-     *
-     * <p>Missing team or start data is handled by the caller: this method only accepts
-     * a complete input. Time-only starts use the latest occurrence not after the finish.</p>
-     */
+    /** Calculates the passage time for an already resolved team and absolute stage start. */
     public static StageTimingRecord resolve(
             ActiveRegistrations.Registration registration,
             TeamId teamId,
-            TimingTimestamp startTime,
-            ZoneId raceTimeZone) {
+            long startTimeMillis) {
 
         failIfInvalidArgument(registration != null, "registration must not be null");
         failIfInvalidArgument(teamId != null, "teamId must not be null");
-        failIfInvalidArgument(startTime != null, "startTime must not be null");
-        failIfInvalidArgument(raceTimeZone != null, "raceTimeZone must not be null");
 
-        TimingTimestamp finishTime = registration.effectiveTime();
-
-        TimingTimestamp resolvedStart = resolveStart(startTime, finishTime, raceTimeZone);
+        TimingTimestamp startTime =
+                new TimingTimestamp(Instant.ofEpochMilli(startTimeMillis));
         return new StageTimingRecord(
-                registration.sequenceNumber(), registration.locationId(), teamId,
-                registration.registrationId(), resolvedStart, finishTime);
-    }
-
-    /** Resolves a partial stage start to an absolute timestamp. */
-    private static TimingTimestamp resolveStart(
-            TimingTimestamp start, TimingTimestamp finish, ZoneId raceTimeZone) {
-
-        if (start.isAbsolute()) {
-            return start;
-        }
-        if (start.hasDate()) {
-            return new TimingTimestamp(ZonedDateTime.of(start.date(), start.time(), raceTimeZone).toInstant());
-        }
-
-        LocalDate finishDate = finish.instant().atZone(raceTimeZone).toLocalDate();
-        ZonedDateTime resolved = ZonedDateTime.of(finishDate, start.time(), raceTimeZone);
-        if (resolved.toInstant().isAfter(finish.instant())) {
-            resolved = ZonedDateTime.of(finishDate.minusDays(1L), start.time(), raceTimeZone);
-        }
-        return new TimingTimestamp(resolved.toInstant());
+                registration.sequenceNumber(),
+                registration.locationId(),
+                teamId,
+                registration.registrationId(),
+                startTime,
+                registration.effectiveTime());
     }
 }

@@ -162,9 +162,10 @@ public interface UpstreamData {
     /**
      * One incremental TeamId-to-stage-start change.
      *
-     * <p>The wire profile may represent a SET as separate startTime/startDate
-     * fields. Internally those fields are one TimingTimestamp so callers do not
-     * have to reconstruct what temporal information is known.</p>
+     * <p>The wire profile may carry an absolute timestamp, date+time or time-only
+     * value. UpstreamData preserves that boundary information. A TimingNode normalizes
+     * the SET to its absolute UTC time basis when the ordered RACE_DATA message is
+     * applied; partial civil time is not retained in live RaceDataState.</p>
      */
     final class StageStartTimeChange {
         private final ChangeOperation operation;

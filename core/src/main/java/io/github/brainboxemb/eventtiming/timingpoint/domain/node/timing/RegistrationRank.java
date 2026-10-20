@@ -4,7 +4,7 @@ import java.time.Duration;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
-/** One ranked registration represented by the active stage passage selected for that team. */
+/** One active registration passage with its current provisional competition rank. */
 public final class RegistrationRank {
     private final int rank;
     private final StageTimingRecord timingRecord;
@@ -24,13 +24,13 @@ public final class RegistrationRank {
         return rank;
     }
 
-    /** Returns the selected stage passage that represents this team. */
+    /** Returns the stage passage being ranked. */
     public StageTimingRecord timingRecord() {
 
         return timingRecord;
     }
 
-    /** Returns the selected passage elapsed time. */
+    /** Returns the ranked passage elapsed time. */
     public Duration elapsed() {
 
         return timingRecord.elapsed();

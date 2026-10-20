@@ -207,6 +207,11 @@ public final class ActiveRegistrations {
             return valid;
         }
 
+        long effectiveTimeMillis() {
+
+            return effectiveTimeMillis;
+        }
+
         int locationIdValue() {
 
             return locationId;
