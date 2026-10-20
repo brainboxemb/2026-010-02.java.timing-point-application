@@ -1,16 +1,10 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
-import io.github.brainboxemb.eventtiming.timingdata.TimingRecords;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory.Context;
-import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,7 +14,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 public class LogBookDataTest {
-    private final DefaultTimingDataFactory factory = new DefaultTimingDataFactory();
 
     @Test
     public void nextSequenceFollowsCommittedStateWithoutConsumingIt() {
@@ -96,18 +89,17 @@ public class LogBookDataTest {
         assertEquals(third, visited.get(1));
     }
 
-    private TimingRecord record(String nodeId, long sequence, String registrationId) {
-        TimingTimestamp effective =
-                TimingTimestamp.parse("2026-10-01T12:00:00.000000000Z");
-        TimingTimestamp recorded =
-                TimingTimestamp.parse("2026-10-01T12:00:01.000000000Z");
-        Context context =
-                new Context(new NodeId(nodeId), sequence, new LocationId(24), effective, recorded);
-        TimingData data =
-                factory.createManualRegistration(
-                        context,
-                        new RegistrationId(registrationId),
-                        ManualTimeSource.OPERATOR_ENTERED);
-        return TimingRecords.fromTimingData(data);
+    private static TimingRecord record(String nodeId, long sequence, String registrationId) {
+        long effective = Instant.parse("2026-10-01T12:00:00Z").toEpochMilli();
+        long recorded = Instant.parse("2026-10-01T12:00:01Z").toEpochMilli();
+        return TimingRecord.manual(
+                nodeId.charAt(0),
+                sequence,
+                24,
+                effective,
+                recorded,
+                new RegistrationId(registrationId).packedValue(),
+                TimingRecord.Action.ADD,
+                TimingRecord.ManualTimeSource.OPERATOR_ENTERED);
     }
 }
