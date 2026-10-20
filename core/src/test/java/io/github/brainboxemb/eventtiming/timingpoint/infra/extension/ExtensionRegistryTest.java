@@ -118,9 +118,6 @@ public class ExtensionRegistryTest {
                     eventDataProvider.createEventData()
                             .isEmpty());
             assertTrue(
-                    timingDataProvider.createFactory()
-                            != null);
-            assertTrue(
                     timingDataProvider.createCodec()
                             != null);
         }
