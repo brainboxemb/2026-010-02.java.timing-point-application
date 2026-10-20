@@ -155,10 +155,8 @@ final class TimingSystemComposer {
             upstreamConnector.bindNode(
                     node.nodeId(),
                     nodeUpstream::inputAvailable,
-                    () -> {
-                        nodeUpstream.sendTimingDataSync();
-                        nodeUpstream.heartbeatTick();
-                    });
+                    nodeUpstream::sendTimingDataSync,
+                    nodeUpstream::heartbeatTick);
             nodeUpstreams.add(nodeUpstream);
         }
         return new Upstream(

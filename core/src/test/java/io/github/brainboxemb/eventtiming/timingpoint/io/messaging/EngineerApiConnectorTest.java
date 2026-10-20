@@ -12,12 +12,16 @@ import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpst
 
 import java.util.ArrayList;
 import java.util.List;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.After;
 import org.junit.Test;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.activate;
@@ -28,11 +32,75 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class EngineerApiConnectorTest {
+    private final ScheduledThreadPoolExecutor scheduler =
+            new ScheduledThreadPoolExecutor(1);
+
+    @After
+    public void closeScheduler() {
+        scheduler.shutdownNow();
+    }
+
+    @Test
+    public void heartbeatRunsOnlyWhileConnectorIsConnected()
+            throws Exception {
+        EngineerApiConnector connector =
+                new EngineerApiConnector(
+                        scheduler,
+                        8,
+                        8,
+                        Duration.ofMillis(20L));
+        CountDownLatch firstConnectionTicks =
+                new CountDownLatch(2);
+        AtomicInteger ticks =
+                new AtomicInteger();
+
+        connector.bindNode(
+                new NodeId("A"),
+                () -> true,
+                () -> {
+                },
+                () -> {
+                    ticks.incrementAndGet();
+                    firstConnectionTicks.countDown();
+                });
+
+        EngineerApiConnector.Output firstPeer =
+                message -> true;
+        assertTrue(connector.connect(firstPeer));
+        assertTrue(
+                firstConnectionTicks.await(
+                        1L,
+                        TimeUnit.SECONDS));
+
+        connector.disconnect(firstPeer);
+        int afterDisconnect =
+                ticks.get();
+        Thread.sleep(80L);
+        assertEquals(
+                afterDisconnect,
+                ticks.get());
+
+        EngineerApiConnector.Output secondPeer =
+                message -> true;
+        assertTrue(connector.connect(secondPeer));
+
+        long deadline =
+                System.nanoTime()
+                        + TimeUnit.SECONDS.toNanos(1L);
+        while (ticks.get() == afterDisconnect
+                && System.nanoTime() < deadline) {
+            Thread.yield();
+        }
+        assertTrue(
+                ticks.get() > afterDisconnect);
+
+        connector.disconnect(secondPeer);
+    }
 
     @Test
     public void keepsIndependentNodeInputsAndOneSharedOutputOrder() {
         EngineerApiConnector connector =
-                new EngineerApiConnector();
+                new EngineerApiConnector(scheduler);
         AtomicInteger wakeA = new AtomicInteger();
         AtomicInteger wakeB = new AtomicInteger();
         AtomicInteger connected = new AtomicInteger();
@@ -43,14 +111,18 @@ public class EngineerApiConnectorTest {
                     wakeA.incrementAndGet();
                     return true;
                 },
-                connected::incrementAndGet);
+                connected::incrementAndGet,
+                () -> {
+                });
         connector.bindNode(
                 new NodeId("B"),
                 () -> {
                     wakeB.incrementAndGet();
                     return true;
                 },
-                connected::incrementAndGet);
+                connected::incrementAndGet,
+                () -> {
+                });
 
         List<UpstreamData> output =
                 new ArrayList<UpstreamData>();
@@ -112,7 +184,7 @@ public class EngineerApiConnectorTest {
         NodeId nodeId =
                 new NodeId("A");
         EngineerApiConnector connector =
-                new EngineerApiConnector();
+                new EngineerApiConnector(scheduler);
         TimingNodeFixture.Components components =
                 TimingNodeFixture.createDirectComponents(
                         nodeId,
@@ -129,6 +201,8 @@ public class EngineerApiConnectorTest {
                 components.nodeUpstream()::inputAvailable,
                 () -> {
                     // This test exercises one inbound message only.
+                },
+                () -> {
                 });
 
         LinkedBlockingQueue<UpstreamData> outbound =
@@ -184,10 +258,12 @@ public class EngineerApiConnectorTest {
     @Test
     public void requiresOneConnectedPeerForInboundAndOutbound() {
         EngineerApiConnector connector =
-                new EngineerApiConnector();
+                new EngineerApiConnector(scheduler);
         connector.bindNode(
                 new NodeId("A"),
                 () -> true,
+                () -> {
+                },
                 () -> {
                 });
 
@@ -215,10 +291,12 @@ public class EngineerApiConnectorTest {
     @Test
     public void removesMessageWhenNodeCannotRetainWakeRequest() {
         EngineerApiConnector connector =
-                new EngineerApiConnector();
+                new EngineerApiConnector(scheduler);
         connector.bindNode(
                 new NodeId("A"),
                 () -> false,
+                () -> {
+                },
                 () -> {
                 });
         EngineerApiConnector.Output peer =

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Tie Engineer API heartbeat cadence to connector connection lifecycle: use the existing Runtime timing-node scheduler, tick immediately and every 30 seconds while connected, cancel on disconnect, and keep heartbeat protocol state in `NodeUpstream`.
+
 - Add the first concrete upstream transport boundary with `EngineerApiConnector`: one inbound queue per bound NodeId, one shared outbound queue, explicit Engineering-peer connect/disconnect state, and direct composition callbacks into the matching `NodeUpstream` without protocol work in the connector.
 
 - Split `NodeUpstream` inbound processing into focused message tasks: `RaceDataTask` waits on the existing `CompletableFuture` from `NodeService`, `TimingDataReplayTask` owns LogBook batch waits, later messages remain queued in `UpstreamStream`, and protocol state is named explicitly as `RaceDataSync`, `TimingDataSync`, and `Heartbeat`.
