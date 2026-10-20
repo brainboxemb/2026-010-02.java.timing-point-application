@@ -1,8 +1,10 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
+import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
@@ -154,6 +156,12 @@ public final class TimingNode extends LifecycleComponent {
     public TimeSource timeSource() {
 
         return timeSource;
+    }
+
+    /** Resolves one current TeamId to its RegistrationId. */
+    public RegistrationId registrationIdFor(TeamId teamId) {
+
+        return nodeService.registrationIdFor(teamId);
     }
 
     /** Returns the current functional OPEN/CLOSED state. */
