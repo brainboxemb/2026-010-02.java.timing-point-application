@@ -32,6 +32,12 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * later messages remain in the stream queue; they are not discarded. When the
  * active message task completes, the next queued message is admitted.</p>
  *
+ * <p>This admission rule is intentional. {@link TaskStep#await} releases the
+ * runner so unrelated node-upstream tasks such as heartbeat work may proceed.
+ * A later inbound message is therefore not pre-admitted as another task,
+ * because it could otherwise run while the earlier message is still awaiting
+ * NodeService or LogBook completion and overtake protocol order.</p>
+ *
  * <p>Protocol duplicates are different from queued duplicates. For example,
  * a repeated RACE_DATA sequence is read normally and RaceDataSync decides
  * whether to ACK it again or request a missing sequence. Transport notification
