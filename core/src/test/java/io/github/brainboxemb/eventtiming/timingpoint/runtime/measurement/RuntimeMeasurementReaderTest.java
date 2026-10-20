@@ -93,6 +93,7 @@ public class RuntimeMeasurementReaderTest {
                         taskLane,
                         logBook,
                         timeSource,
+                        eventData,
                         new RaceDataState(eventData),
                         new ActiveRegistrations());
         TagProcessor tags =
