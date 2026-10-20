@@ -84,7 +84,7 @@ public class TimingNodeRegistrationTest {
             node.open(new LocationId(24));
 
             TimingTimestamp nodeTime =
-                    new TimingTimestamp(node.manualTimeSource().now());
+                    new TimingTimestamp(node.timeSource().now());
             TimingRecord fromNodeClock = addTestAutomaticRegistration(node,
                             new RegistrationId("A0001"),
                             nodeTime,
