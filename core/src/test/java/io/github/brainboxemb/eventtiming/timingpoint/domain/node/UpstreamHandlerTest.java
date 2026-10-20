@@ -369,6 +369,8 @@ public class UpstreamHandlerTest {
                         timingData("B", 3));
         activate(empty.node());
         activate(populated.node());
+        activate(empty.upstreamHandler());
+        activate(populated.upstreamHandler());
         try {
             // Ordered reads are the startup barrier for the published LogBook heads.
             assertEquals(
@@ -401,6 +403,8 @@ public class UpstreamHandlerTest {
                     populatedSync.timingNodeId());
             assertEquals(3L, populatedSync.sequence());
         } finally {
+            deactivate(empty.upstreamHandler());
+            deactivate(populated.upstreamHandler());
             deactivate(empty.node());
             deactivate(populated.node());
         }
@@ -651,6 +655,8 @@ public class UpstreamHandlerTest {
                 node("B", streamB, recordsB);
         activate(nodeA.node());
         activate(nodeB.node());
+        activate(nodeA.upstreamHandler());
+        activate(nodeB.upstreamHandler());
         try {
             streamA.receive(
                     DefaultUpstreamData.req(
@@ -687,6 +693,8 @@ public class UpstreamHandlerTest {
                     new NodeId("B"),
                     transferB.timingNodeId());
         } finally {
+            deactivate(nodeA.upstreamHandler());
+            deactivate(nodeB.upstreamHandler());
             deactivate(nodeA.node());
             deactivate(nodeB.node());
         }
