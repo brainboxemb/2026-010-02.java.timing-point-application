@@ -194,6 +194,11 @@ final class RuntimeExecutors implements AutoCloseable {
         return antennaControlLane;
     }
 
+    ScheduledExecutorService timingNodeScheduler() {
+
+        return timingNodeExecutor;
+    }
+
     ScheduledExecutorService sharedIoScheduledExecutor() {
 
         return sharedIoScheduledExecutor;
