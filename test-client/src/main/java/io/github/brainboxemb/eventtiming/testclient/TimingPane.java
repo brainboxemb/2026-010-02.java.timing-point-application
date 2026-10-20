@@ -105,6 +105,7 @@ final class TimingPane {
     private final javafx.scene.Node registrationsPane;
     private final javafx.scene.Node logBookPane;
 
+    private final Label registrationProjectionState = new Label("-");
     private final TableView<TimingViewModel.InterpretedRegistration> registrations =
             new TableView<>();
 
@@ -274,7 +275,12 @@ final class TimingPane {
         configureRegistrationView();
         // No redundant API identity or filter toolbar. Scope is exposed in
         // BentoFX's standard ≡ area menu; the table uses all available space.
-        VBox interpretedBox = new VBox(registrations);
+        registrationProjectionState.getStyleClass().add("sync-state");
+        VBox interpretedBox =
+                new VBox(
+                        4,
+                        registrationProjectionState,
+                        registrations);
         VBox.setVgrow(registrations, Priority.ALWAYS);
         registrationsPane = interpretedBox;
 
@@ -1223,6 +1229,7 @@ final class TimingPane {
             lastReportedRegistrationScope = scope;
             registrationScopeListener.accept(scope);
         }
+        refreshRegistrationProjectionState();
         registrationFollow.update(model.interpretedRegistrations(
                 INPUT_ZONE, showAllRegistrations));
         long count = model.logBookCount();
@@ -1231,6 +1238,37 @@ final class TimingPane {
             logBookCountListener.accept(count);
         }
         logBookFollow.update(model.records());
+    }
+
+    private void refreshRegistrationProjectionState() {
+
+        if (showAllRegistrations) {
+            registrationProjectionState.setText(
+                    "Historical LogBook projection");
+            return;
+        }
+
+        ApiClient.RegistrationProjectionInfo info =
+                model.registrationProjectionInfo();
+        if (info == null) {
+            registrationProjectionState.setText(
+                    model.viewState() == TimingViewModel.ViewState.LIVE
+                            ? "Projection not available"
+                            : "-");
+            return;
+        }
+
+        String text =
+                info.count()
+                        + " rows · "
+                        + info.uniqueCount()
+                        + " unique";
+        if (info.lastRevokeSequence() > 0L) {
+            text +=
+                    " · last REV "
+                            + info.lastRevokeSequence();
+        }
+        registrationProjectionState.setText(text);
     }
 
     private void syncNodeChoice() {
