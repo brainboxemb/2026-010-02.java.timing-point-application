@@ -1,6 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecords;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.AppendOnlyRecordStore;
@@ -48,6 +50,13 @@ public final class DefaultTimingDataPersistence implements TimingDataPersistence
             recordNumber++;
         }
         return new LoadResult(records, raw.repairedIncompleteTail());
+    }
+
+    /** Legacy Java append adapter; production calls the scalar overload. */
+    @Override
+    public void append(TimingData data) throws PersistenceException {
+        failIfInvalidArgument(data != null, "data must not be null");
+        append(TimingRecords.fromTimingData(data));
     }
 
     @Override
