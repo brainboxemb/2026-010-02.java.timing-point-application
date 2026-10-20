@@ -15,7 +15,9 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * Serves one queued TIMING_DATA replay request from the retained LogBook.
  *
  * <p>Each batch read yields while the LogBook Data Lane completes. Replay state
- * stays in TimingDataSync; this task owns only the asynchronous batch continuation.</p>
+ * stays in TimingDataSync; this task owns only the asynchronous batch continuation.
+ * A later upstream message remains in UpstreamStream until this replay task is
+ * completely finished.</p>
  */
 final class TimingDataReplayTask implements YieldingTask {
     private final UpstreamStream stream;
