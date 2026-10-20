@@ -99,6 +99,30 @@ public class ActiveRegistrationsTest {
     }
 
     @Test
+    public void metadataDistinguishesAppendFromRevoke() {
+        ActiveRegistrations registrations = activeAt(7);
+
+        assertEquals(new LocationId(7), registrations.locationId());
+        assertEquals(0, registrations.size());
+        assertEquals(0L, registrations.lastMutationSequence());
+        assertEquals(0L, registrations.lastRevokeSequence());
+
+        registrations.apply(registration(5L, 7, TimingRecord.Action.ADD));
+        assertEquals(1, registrations.size());
+        assertEquals(5L, registrations.lastMutationSequence());
+        assertEquals(0L, registrations.lastRevokeSequence());
+
+        registrations.apply(registration(9L, 7, TimingRecord.Action.REV));
+        assertEquals(1, registrations.size());
+        assertEquals(9L, registrations.lastMutationSequence());
+        assertEquals(9L, registrations.lastRevokeSequence());
+
+        List<ActiveRegistrations.Registration> rows = new ArrayList<>();
+        registrations.visit(1, rows::add);
+        assertFalse(rows.get(0).isValid());
+    }
+
+    @Test
     public void unmatchedRevokeDoesNotChangeEarlierEntry() {
         ActiveRegistrations registrations = activeAt(1);
         registrations.apply(registration(1L, 1, TimingRecord.Action.ADD));
