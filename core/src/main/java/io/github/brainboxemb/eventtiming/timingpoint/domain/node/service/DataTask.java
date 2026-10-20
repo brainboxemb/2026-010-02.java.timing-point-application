@@ -1,6 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.service;
 
+import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
@@ -45,6 +47,7 @@ final class DataTask extends AbstractTask {
     private final Consumer<Throwable> failureHandler;
 
     private boolean available;
+    private boolean unavailable;
     private boolean reloadRequested;
     private int requestedLocationId;
     private long signalVersion;
@@ -83,6 +86,7 @@ final class DataTask extends AbstractTask {
     synchronized void logBookAvailable() {
 
         available = true;
+        unavailable = false;
         if (requestedLocationId != 0) {
             reloadRequested = true;
             signalVersion++;
@@ -100,6 +104,9 @@ final class DataTask extends AbstractTask {
         reloadRequested = true;
         signalVersion++;
         beginCatchUp();
+        if (unavailable) {
+            caughtUp.completeExceptionally(new IllegalStateException("LogBook is in ERROR state"));
+        }
         wake(taskRunner);
     }
 
@@ -111,6 +118,18 @@ final class DataTask extends AbstractTask {
         signalVersion++;
         beginCatchUp();
         wake(taskRunner);
+    }
+
+    /**
+     * Applies one live RaceData assignment change only when the current WP projection request
+     * has not already been superseded by CLOSE or another OPEN.
+     */
+    void teamAssignmentChanged(RegistrationId registrationId, TeamId teamId) {
+
+        failIfInvalidArgument(registrationId != null, "registrationId must not be null");
+        if (isCurrentProjection()) {
+            registeredTeams.teamAssignmentChanged(registrationId, teamId);
+        }
     }
 
     /** Wakes incremental catch-up after a new committed TimingData record. */
@@ -127,6 +146,7 @@ final class DataTask extends AbstractTask {
     synchronized void unavailable() {
 
         available = false;
+        unavailable = true;
         if (requestedLocationId != 0) {
             beginCatchUp();
             caughtUp.completeExceptionally(new IllegalStateException("LogBook is in ERROR state"));
@@ -152,6 +172,7 @@ final class DataTask extends AbstractTask {
 
         cancel();
         available = false;
+        unavailable = false;
         reloadRequested = false;
         requestedLocationId = 0;
         signalVersion++;
@@ -278,6 +299,14 @@ final class DataTask extends AbstractTask {
             }
             nextSequence++;
         }
+    }
+
+    /** Returns whether the active Task Lane projection still matches the newest OPEN request. */
+    private synchronized boolean isCurrentProjection() {
+
+        return activeLocationId != 0
+                && !reloadRequested
+                && requestedLocationId == activeLocationId;
     }
 
     /** Returns whether LogBook can currently serve reconstruction reads. */

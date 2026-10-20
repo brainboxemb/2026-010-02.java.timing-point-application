@@ -126,7 +126,7 @@ public final class NodeService extends LifecycleComponent {
         for (UpstreamData.TeamAssignmentChange change : changes.teamAssignmentChanges()) {
             RegistrationId registrationId = change.registrationId();
             TeamId teamId = raceData.teamIdFor(registrationId);
-            registeredTeams.teamAssignmentChanged(registrationId, teamId);
+            dataTask.teamAssignmentChanged(registrationId, teamId);
         }
     }
 
