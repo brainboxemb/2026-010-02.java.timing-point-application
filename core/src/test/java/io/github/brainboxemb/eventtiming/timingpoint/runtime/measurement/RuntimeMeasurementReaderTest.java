@@ -2,12 +2,11 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime.measurement;
 
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNode;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
@@ -80,7 +79,6 @@ public class RuntimeMeasurementReaderTest {
                 new LogBook(
                         new NodeId("A"),
                         persistence,
-                        new DefaultTimingDataFactory(),
                         timeSource,
                         SystemMonotonicClock.INSTANCE,
                         logBookMetrics,
@@ -129,14 +127,14 @@ public class RuntimeMeasurementReaderTest {
         try {
             awaitOperational(node);
             node.open(new LocationId(24));
-            Supplier<TimingData> addRegistration = () -> {
+            Supplier<TimingRecord> addRegistration = () -> {
                 return node.logBook().process(
                         LogBookCommands.commitAutomaticRegistration(
                                 node.locationId(),
                                 new RegistrationId("N0001"),
                                 EVENT_TIME,
-                                TimingData.TagSource.API,
-                                TimingData.AutomaticTimeSource.API));
+                                TimingRecord.TagSource.API,
+                                TimingRecord.AutomaticTimeSource.API));
             };
             assertEquals(
                     2L,
@@ -208,8 +206,8 @@ public class RuntimeMeasurementReaderTest {
 
     private static final class RecordingPersistence
             implements TimingDataPersistence {
-        private final java.util.List<TimingData> records =
-                new ArrayList<TimingData>();
+        private final java.util.List<TimingRecord> records =
+                new ArrayList<TimingRecord>();
 
         /** Returns all in-memory TimingData records as an unrepaired persistence load. */
         @Override
@@ -222,9 +220,9 @@ public class RuntimeMeasurementReaderTest {
         /** Appends one TimingData record to the in-memory persistence fixture. */
         @Override
         public void append(
-                TimingData data) {
+                TimingRecord record) {
             records.add(
-                    data);
+                    record);
         }
     }
 }
