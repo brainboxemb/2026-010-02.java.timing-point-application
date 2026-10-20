@@ -16,6 +16,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookTestControl;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.property.PropertyUpdate;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.Event;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.events.EventSource;
@@ -33,6 +34,84 @@ public final class TimingNodeProxy {
         AUTO_REG,
         MAN_REG
     }
+
+    /** Immutable metadata for the active NodeService registration projection. */
+    public static final class RegistrationProjectionInfo {
+        private final LocationId locationId;
+        private final int count;
+        private final int uniqueCount;
+        private final long lastMutationSequence;
+        private final long lastRevokeSequence;
+
+        private RegistrationProjectionInfo(
+                LocationId locationId,
+                int count,
+                int uniqueCount,
+                long lastMutationSequence,
+                long lastRevokeSequence) {
+            this.locationId = locationId;
+            this.count = count;
+            this.uniqueCount = uniqueCount;
+            this.lastMutationSequence = lastMutationSequence;
+            this.lastRevokeSequence = lastRevokeSequence;
+        }
+
+        public LocationId locationId() {
+            return locationId;
+        }
+
+        public int count() {
+            return count;
+        }
+
+        public int uniqueCount() {
+            return uniqueCount;
+        }
+
+        public long lastMutationSequence() {
+            return lastMutationSequence;
+        }
+
+        public long lastRevokeSequence() {
+            return lastRevokeSequence;
+        }
+    }
+
+    /** One chronological registration ADD row from the active projection. */
+    public static final class RegistrationEntry {
+        private final long sequenceNumber;
+        private final RegistrationId registrationId;
+        private final TimingTimestamp effectiveTime;
+        private final boolean valid;
+
+        private RegistrationEntry(
+                long sequenceNumber,
+                RegistrationId registrationId,
+                TimingTimestamp effectiveTime,
+                boolean valid) {
+            this.sequenceNumber = sequenceNumber;
+            this.registrationId = registrationId;
+            this.effectiveTime = effectiveTime;
+            this.valid = valid;
+        }
+
+        public long sequenceNumber() {
+            return sequenceNumber;
+        }
+
+        public RegistrationId registrationId() {
+            return registrationId;
+        }
+
+        public TimingTimestamp effectiveTime() {
+            return effectiveTime;
+        }
+
+        public boolean valid() {
+            return valid;
+        }
+    }
+
 
     private final NodeId timingNodeId;
     private final TimingNode timingNode;
@@ -68,6 +147,40 @@ public final class TimingNodeProxy {
     public RegistrationId registrationIdFor(TeamId teamId) {
         failIfInvalidArgument(teamId != null, "teamId must not be null");
         return timingNode.registrationIdFor(teamId);
+    }
+
+    /** Returns one stable metadata snapshot of the active registration projection. */
+    public RegistrationProjectionInfo registrationProjectionInfo() {
+
+        NodeService.RegistrationProjectionInfo info =
+                timingNode.registrationProjectionInfo();
+        return new RegistrationProjectionInfo(
+                info.locationId(),
+                info.count(),
+                info.uniqueCount(),
+                info.lastMutationSequence(),
+                info.lastRevokeSequence());
+    }
+
+    /** Visits chronological registration rows after one original ADD sequence. */
+    public int visitRegistrationsAfter(
+            long afterSequence,
+            int limit,
+            Consumer<RegistrationEntry> visitor) {
+
+        failIfInvalidArgument(afterSequence >= 0L, "afterSequence must not be negative");
+        failIfInvalidArgument(limit >= 0, "limit must not be negative");
+        failIfInvalidArgument(visitor != null, "visitor must not be null");
+
+        return timingNode.visitRegistrationsAfter(
+                afterSequence,
+                limit,
+                registration -> visitor.accept(
+                        new RegistrationEntry(
+                                registration.sequenceNumber(),
+                                registration.registrationId(),
+                                registration.effectiveTime(),
+                                registration.isValid())));
     }
 
     public TimingNodeStatus status() {
