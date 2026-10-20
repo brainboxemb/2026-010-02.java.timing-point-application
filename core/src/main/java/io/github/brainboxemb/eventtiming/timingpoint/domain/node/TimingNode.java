@@ -9,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.processing.TagProcessor;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.registration.ActiveRegistrations;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.service.NodeService;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLifecycleManager;
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
@@ -24,6 +25,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.Se
 import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.TaskStep;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
@@ -166,6 +168,36 @@ public final class TimingNode extends LifecycleComponent {
         LocationId locationId = locationId();
         failIfIllegalState(locationId != null, "TimingNode is not open");
         return nodeService.registrationIdFor(locationId, teamId);
+    }
+
+    /** Returns synchronization metadata for the currently open registration projection. */
+    public NodeService.RegistrationProjectionInfo registrationProjectionInfo() {
+
+        return nodeService.registrationProjectionInfo();
+    }
+
+    /** Visits one registration page and returns metadata from the same ordered read. */
+    public NodeService.RegistrationProjectionInfo visitRegistrationPage(
+            long afterSequence,
+            int limit,
+            Consumer<ActiveRegistrations.Registration> visitor) {
+
+        return nodeService.visitRegistrationPage(
+                afterSequence,
+                limit,
+                visitor);
+    }
+
+    /** Visits chronological registration rows after one original ADD sequence. */
+    public int visitRegistrationsAfter(
+            long afterSequence,
+            int limit,
+            Consumer<ActiveRegistrations.Registration> visitor) {
+
+        return nodeService.visitRegistrationsAfter(
+                afterSequence,
+                limit,
+                visitor);
     }
 
     /** Returns the current functional OPEN/CLOSED state. */

@@ -18,6 +18,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.application.SimulationContr
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy;
 import io.github.brainboxemb.eventtiming.timingpoint.application.TimingNodeProxy.RegistrationRecordType;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.FunctionalState;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.OpenResult;
 import io.github.brainboxemb.eventtiming.timingpoint.application.CommandResult;
 
@@ -205,6 +206,11 @@ public final class HttpEndpoint implements AutoCloseable {
         if ("/logbook".equals(route.resource)) {
             requireMethod(exchange, "GET");
             handleLogBook(exchange, timingNode);
+            return;
+        }
+        if ("/registrations".equals(route.resource)) {
+            requireMethod(exchange, "GET");
+            handleRegistrations(exchange, timingNode);
             return;
         }
         if ("/configuration/tag-processing".equals(
@@ -590,6 +596,64 @@ public final class HttpEndpoint implements AutoCloseable {
                 exchange,
                 status,
                 MessageWriter.configurationUpdate(update));
+    }
+
+    private void handleRegistrations(
+            HttpExchange exchange,
+            TimingNodeProxy timingNode)
+            throws IOException {
+
+        if (timingNode.status().state() != FunctionalState.OPEN) {
+            sendJson(
+                    exchange,
+                    409,
+                    MessageWriter.error(
+                            "NODE_NOT_OPEN",
+                            "Registration projection requires an OPEN TimingNode"));
+            return;
+        }
+
+        String query = exchange.getRequestURI().getRawQuery();
+        if (query == null || query.isEmpty()) {
+            sendJson(
+                    exchange,
+                    200,
+                    MessageWriter.registrationInfo(
+                            timingNode.registrationProjectionInfo()));
+            return;
+        }
+
+        HttpRequestReader.RegistrationQuery request =
+                requestReader.readRegistrationQuery(query);
+        StringBuilder rows = new StringBuilder();
+        int[] returned = new int[] {0};
+        long[] lastReturned = new long[] {0L};
+
+        TimingNodeProxy.RegistrationProjectionInfo info =
+                timingNode.visitRegistrationPage(
+                        request.after,
+                        request.limit,
+                        entry -> {
+                            MessageWriter.appendRegistration(
+                                    rows,
+                                    entry);
+                            returned[0]++;
+                            lastReturned[0] =
+                                    entry.sequenceNumber();
+                        });
+
+        Long nextAfter =
+                returned[0] == request.limit
+                        ? Long.valueOf(lastReturned[0])
+                        : null;
+
+        sendJson(
+                exchange,
+                200,
+                MessageWriter.registrationPage(
+                        info,
+                        nextAfter,
+                        rows));
     }
 
     private void handleLogBook(

@@ -35,6 +35,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 public final class ActiveRegistrations {
     private final List<Registration> registrations = new ArrayList<>();
     private int locationId;
+    private long lastMutationSequence;
+    private long lastRevokeSequence;
 
     /** Activates a fresh projection for one open WP before LogBook reconstruction starts. */
     public void activate(LocationId locationId) {
@@ -42,6 +44,8 @@ public final class ActiveRegistrations {
         failIfInvalidArgument(locationId != null, "locationId must not be null");
         this.locationId = locationId.value();
         registrations.clear();
+        lastMutationSequence = 0L;
+        lastRevokeSequence = 0L;
     }
 
     /** Deactivates the projection and discards all derived rows. */
@@ -49,6 +53,8 @@ public final class ActiveRegistrations {
 
         locationId = 0;
         registrations.clear();
+        lastMutationSequence = 0L;
+        lastRevokeSequence = 0L;
     }
 
     /**
@@ -74,12 +80,45 @@ public final class ActiveRegistrations {
                                 effectiveTimeMillis,
                                 packedRegistrationId);
                 registrations.add(registration);
+                lastMutationSequence = record.sequenceNumber();
                 change = new Change(Change.Action.ADDED, registration);
             } else if (record.action() == TimingRecord.Action.REV) {
                 change = revoke(packedRegistrationId, effectiveTimeMillis);
+                if (change != null) {
+                    lastMutationSequence = record.sequenceNumber();
+                    lastRevokeSequence = record.sequenceNumber();
+                }
             }
         }
         return change;
+    }
+
+    /** Returns the active LocationId. */
+    public LocationId locationId() {
+
+        failIfIllegalState(locationId != 0, "registration projection is not active");
+        return new LocationId(locationId);
+    }
+
+    /** Returns the number of chronological ADD rows retained for the active WP. */
+    public int size() {
+
+        failIfIllegalState(locationId != 0, "registration projection is not active");
+        return registrations.size();
+    }
+
+    /** Returns the last LogBook sequence that changed this projection, or zero when empty. */
+    public long lastMutationSequence() {
+
+        failIfIllegalState(locationId != 0, "registration projection is not active");
+        return lastMutationSequence;
+    }
+
+    /** Returns the last successful REV sequence, or zero when no row was invalidated. */
+    public long lastRevokeSequence() {
+
+        failIfIllegalState(locationId != 0, "registration projection is not active");
+        return lastRevokeSequence;
     }
 
     /**

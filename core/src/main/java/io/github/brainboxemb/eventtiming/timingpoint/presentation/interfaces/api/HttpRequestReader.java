@@ -20,6 +20,7 @@ import java.util.Set;
 final class HttpRequestReader {
     private static final int MAX_REQUEST_BODY_BYTES = 64 * 1024;
     private static final int MAX_LOGBOOK_LIMIT = 1000;
+    private static final int MAX_REGISTRATION_LIMIT = 1000;
 
     private final JsonFactory jsonFactory = new JsonFactory();
 
@@ -573,6 +574,51 @@ final class HttpRequestReader {
                 observationQueueCapacity);
     }
 
+    RegistrationQuery readRegistrationQuery(String query) {
+        Long after = null;
+        Integer limit = null;
+
+        String[] pairs = query.split("&");
+        for (String pair : pairs) {
+            int equals = pair.indexOf('=');
+            if (equals <= 0
+                    || equals == pair.length() - 1) {
+                throw invalidValue(
+                        "Registration query parameters require a value");
+            }
+            String name = pair.substring(0, equals);
+            String value = pair.substring(equals + 1);
+
+            if ("after".equals(name)) {
+                if (after != null) {
+                    throw invalidValue(
+                            "Duplicate registration query field: after");
+                }
+                after = Long.valueOf(
+                        parseNonNegativeLong("after", value));
+            } else if ("limit".equals(name)) {
+                if (limit != null) {
+                    throw invalidValue(
+                            "Duplicate registration query field: limit");
+                }
+                limit = Integer.valueOf(
+                        parseRegistrationLimit("limit", value));
+            } else {
+                throw invalidValue(
+                        "Unsupported registration query field: "
+                                + name);
+            }
+        }
+
+        if (after == null || limit == null) {
+            throw invalidValue(
+                    "Registration range requires both after and limit");
+        }
+        return new RegistrationQuery(
+                after.longValue(),
+                limit.intValue());
+    }
+
     LogBookQuery readLogBookQuery(String query) {
         Long from = null;
         Integer limit = null;
@@ -629,6 +675,34 @@ final class HttpRequestReader {
                     "LogBook range requires both from and limit");
         }
         return new LogBookQuery(from, limit, null);
+    }
+
+    private static long parseNonNegativeLong(
+            String name,
+            String value) {
+        try {
+            long parsed = Long.parseLong(value);
+            if (parsed < 0L) {
+                throw invalidValue(
+                        name + " must be >= 0");
+            }
+            return parsed;
+        } catch (NumberFormatException ex) {
+            throw invalidValue(
+                    name + " must be a non-negative integer");
+        }
+    }
+
+    private static int parseRegistrationLimit(
+            String name,
+            String value) {
+        long parsed = parsePositiveLong(name, value);
+        if (parsed > MAX_REGISTRATION_LIMIT) {
+            throw invalidValue(
+                    name + " must be <= "
+                            + MAX_REGISTRATION_LIMIT);
+        }
+        return (int) parsed;
     }
 
     private static long parsePositiveLong(
@@ -711,6 +785,18 @@ final class HttpRequestReader {
                 String resource) {
             this.nodeId = nodeId;
             this.resource = resource;
+        }
+    }
+
+    static final class RegistrationQuery {
+        final long after;
+        final int limit;
+
+        RegistrationQuery(
+                long after,
+                int limit) {
+            this.after = after;
+            this.limit = limit;
         }
     }
 
