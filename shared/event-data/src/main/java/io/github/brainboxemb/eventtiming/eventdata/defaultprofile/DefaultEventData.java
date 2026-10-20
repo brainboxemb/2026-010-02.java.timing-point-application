@@ -3,6 +3,7 @@ package io.github.brainboxemb.eventtiming.eventdata.defaultprofile;
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 
 import java.util.Arrays;
@@ -129,6 +130,24 @@ public final class DefaultEventData extends EventData {
         return new TeamId(
                 fourDigits(
                         registrationId.number()));
+    }
+
+    /**
+     * Default/reference mapping: team N always resolves to normal RegistrationId A-NNNN.
+     *
+     * <p>LocationId is part of the EventData contract because event-specific profiles may
+     * use a different normal RegistrationId for the same team at another WP. The default
+     * profile deliberately uses the same A-registration at every location.</p>
+     */
+    @Override
+    public RegistrationId registrationIdFor(
+            LocationId locationId,
+            TeamId teamId) {
+        if (locationId == null) {
+            throw new IllegalArgumentException(
+                    "locationId must not be null");
+        }
+        return registrationIdFor(teamId);
     }
 
     @Override

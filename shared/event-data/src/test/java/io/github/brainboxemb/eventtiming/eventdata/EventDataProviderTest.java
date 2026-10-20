@@ -2,6 +2,7 @@ package io.github.brainboxemb.eventtiming.eventdata;
 
 import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventDataProvider;
 import io.github.brainboxemb.eventtiming.eventdata.defaultprofile.DefaultEventData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 
 import org.junit.Test;
@@ -45,6 +46,16 @@ public class EventDataProviderTest {
         assertEquals(
                 normal,
                 eventData.registrationIdFor(
+                        new TeamId("0001")));
+        assertEquals(
+                normal,
+                eventData.registrationIdFor(
+                        new LocationId(1),
+                        new TeamId("0001")));
+        assertEquals(
+                normal,
+                eventData.registrationIdFor(
+                        new LocationId(99),
                         new TeamId("0001")));
 
         RegistrationId upperNormal =

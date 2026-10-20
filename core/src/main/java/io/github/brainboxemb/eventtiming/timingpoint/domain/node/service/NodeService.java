@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.service;
 
+import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
@@ -56,6 +57,7 @@ public final class NodeService extends LifecycleComponent {
     private final NodeId nodeId;
     private final SerialTaskRunner taskRunner;
     private final TimeSource timeSource;
+    private final EventData eventData;
     private final RaceDataState raceData;
     private final ActiveRegistrations activeRegistrations;
     private final RegisteredTeams registeredTeams = new RegisteredTeams();
@@ -71,6 +73,7 @@ public final class NodeService extends LifecycleComponent {
             SerialTaskRunner taskRunner,
             LogBookAccessor logBook,
             TimeSource timeSource,
+            EventData eventData,
             RaceDataState raceData,
             ActiveRegistrations activeRegistrations) {
 
@@ -78,12 +81,14 @@ public final class NodeService extends LifecycleComponent {
         failIfInvalidArgument(taskRunner != null, "taskRunner must not be null");
         failIfInvalidArgument(logBook != null, "logBook must not be null");
         failIfInvalidArgument(timeSource != null, "timeSource must not be null");
+        failIfInvalidArgument(eventData != null, "eventData must not be null");
         failIfInvalidArgument(raceData != null, "raceData must not be null");
         failIfInvalidArgument(activeRegistrations != null, "activeRegistrations must not be null");
 
         this.nodeId = nodeId;
         this.taskRunner = taskRunner;
         this.timeSource = timeSource;
+        this.eventData = eventData;
         this.raceData = raceData;
         this.activeRegistrations = activeRegistrations;
         dataTask =
@@ -142,6 +147,16 @@ public final class NodeService extends LifecycleComponent {
     public void locationClosed() {
 
         dataTask.locationClosed();
+    }
+
+    /** Resolves fixed event reference data for one location/team pair. */
+    public RegistrationId registrationIdFor(
+            LocationId locationId,
+            TeamId teamId) {
+
+        failIfInvalidArgument(locationId != null, "locationId must not be null");
+        failIfInvalidArgument(teamId != null, "teamId must not be null");
+        return eventData.registrationIdFor(locationId, teamId);
     }
 
     /** Returns the number of uniquely registered teams in the currently open WP. */

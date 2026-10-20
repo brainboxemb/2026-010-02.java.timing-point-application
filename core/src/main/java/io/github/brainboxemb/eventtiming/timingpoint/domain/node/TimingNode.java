@@ -1,8 +1,10 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
+import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookCommands;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook;
@@ -24,6 +26,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.function.Supplier;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfIllegalState;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.TimingNodeTypes.CloseResult;
@@ -154,6 +157,15 @@ public final class TimingNode extends LifecycleComponent {
     public TimeSource timeSource() {
 
         return timeSource;
+    }
+
+    /** Resolves one TeamId using the currently open LocationId. */
+    public RegistrationId registrationIdFor(TeamId teamId) {
+
+        failIfInvalidArgument(teamId != null, "teamId must not be null");
+        LocationId locationId = locationId();
+        failIfIllegalState(locationId != null, "TimingNode is not open");
+        return nodeService.registrationIdFor(locationId, teamId);
     }
 
     /** Returns the current functional OPEN/CLOSED state. */

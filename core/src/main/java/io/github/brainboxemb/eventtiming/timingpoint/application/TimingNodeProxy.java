@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.application;
 
+import io.github.brainboxemb.eventtiming.eventdata.TeamId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
@@ -62,6 +63,11 @@ public final class TimingNodeProxy {
 
     public TimeSource timeSource() {
         return timingNode.timeSource();
+    }
+
+    public RegistrationId registrationIdFor(TeamId teamId) {
+        failIfInvalidArgument(teamId != null, "teamId must not be null");
+        return timingNode.registrationIdFor(teamId);
     }
 
     public TimingNodeStatus status() {
