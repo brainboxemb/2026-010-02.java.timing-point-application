@@ -1,11 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
-import io.github.brainboxemb.eventtiming.timingdata.TimingRecords;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.MonotonicClock;
@@ -21,9 +18,8 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 /**
  * Scalar timing-record persistence/state operations owned by LogBook.
  *
- * <p>TimingData is materialized only for the still-compatible result-bearing
- * command API. Creation, persistence, retained history and reconstruction all
- * use {@link TimingRecord} directly.</p>
+ * <p>Creation, persistence, retained history, reconstruction and command
+ * results all use {@link TimingRecord} directly.</p>
  */
 final class LogBookOperations {
     private static final Logger LOG = LoggerFactory.getLogger(LogBookOperations.class);
@@ -90,12 +86,12 @@ final class LogBookOperations {
                         currentCentisecondMillis()));
     }
 
-    TimingData commitAutomaticRegistration(
+    TimingRecord commitAutomaticRegistration(
             LocationId locationId,
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
-            TimingData.TagSource tagSource,
-            TimingData.AutomaticTimeSource registrationTimeSource)
+            TimingRecord.TagSource tagSource,
+            TimingRecord.AutomaticTimeSource registrationTimeSource)
             throws TimingDataPersistence.PersistenceException {
 
         failIfInvalidArgument(locationId != null, "locationId must not be null");
@@ -114,17 +110,17 @@ final class LogBookOperations {
                 currentCentisecondMillis(),
                 registrationId.packedValue(),
                 TimingRecord.Action.ADD,
-                TimingRecord.TagSource.valueOf(tagSource.name()),
-                TimingRecord.AutomaticTimeSource.valueOf(registrationTimeSource.name()));
+                tagSource,
+                registrationTimeSource);
         commitRecord(record);
-        return TimingRecords.asTimingData(record);
+        return record;
     }
 
-    TimingData commitManualRegistration(
+    TimingRecord commitManualRegistration(
             LocationId locationId,
             RegistrationId registrationId,
             TimingTimestamp effectiveTime,
-            ManualTimeSource registrationTimeSource)
+            TimingRecord.ManualTimeSource registrationTimeSource)
             throws TimingDataPersistence.PersistenceException {
 
         failIfInvalidArgument(locationId != null, "locationId must not be null");
@@ -142,12 +138,12 @@ final class LogBookOperations {
                 currentCentisecondMillis(),
                 registrationId.packedValue(),
                 TimingRecord.Action.ADD,
-                TimingRecord.ManualTimeSource.valueOf(registrationTimeSource.name()));
+                TimingRecord.registrationTimeSource);
         commitRecord(record);
-        return TimingRecords.asTimingData(record);
+        return record;
     }
 
-    TimingData revokeAutomaticRegistration(
+    TimingRecord revokeAutomaticRegistration(
             LocationId originalLocationId,
             RegistrationId registrationId,
             TimingTimestamp originalTime)
@@ -170,14 +166,14 @@ final class LogBookOperations {
                 TimingRecord.TagSource.API,
                 TimingRecord.AutomaticTimeSource.API);
         commitRecord(record);
-        return TimingRecords.asTimingData(record);
+        return record;
     }
 
-    TimingData revokeManualRegistration(
+    TimingRecord revokeManualRegistration(
             LocationId originalLocationId,
             RegistrationId registrationId,
             TimingTimestamp originalTime,
-            ManualTimeSource originalTimeSource)
+            TimingRecord.ManualTimeSource originalTimeSource)
             throws TimingDataPersistence.PersistenceException {
 
         failIfInvalidArgument(originalLocationId != null, "originalLocationId must not be null");
@@ -195,9 +191,9 @@ final class LogBookOperations {
                 currentCentisecondMillis(),
                 registrationId.packedValue(),
                 TimingRecord.Action.REV,
-                TimingRecord.ManualTimeSource.valueOf(originalTimeSource.name()));
+                TimingRecord.originalTimeSource);
         commitRecord(record);
-        return TimingRecords.asTimingData(record);
+        return record;
     }
 
     TimingDataPersistence.LoadResult loadPersistedTimingData()
