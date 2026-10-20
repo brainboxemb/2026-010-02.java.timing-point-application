@@ -1,15 +1,27 @@
 package io.github.brainboxemb.eventtiming.timingpoint.io.messaging;
 
+import io.github.brainboxemb.eventtiming.eventdata.EventData;
+import io.github.brainboxemb.eventtiming.eventdata.TeamId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
+import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.time.Instant;
+import java.util.Collections;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.Test;
 
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.activate;
+import static io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport.deactivate;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
@@ -95,6 +107,81 @@ public class EngineerApiConnectorTest {
     }
 
     @Test
+    public void raceDataTravelsThroughNodeServiceBeforeAckReturns()
+            throws Exception {
+        NodeId nodeId =
+                new NodeId("A");
+        EngineerApiConnector connector =
+                new EngineerApiConnector();
+        TimingNodeFixture.Components components =
+                TimingNodeFixture.createDirectComponents(
+                        nodeId,
+                        new EmptyPersistence(),
+                        () -> Instant.parse(
+                                "2026-10-20T12:00:00Z"),
+                        EventData.empty(),
+                        UpstreamStream.forNode(
+                                connector,
+                                nodeId));
+
+        connector.bindNode(
+                nodeId,
+                components.nodeUpstream()::inputAvailable,
+                () -> {
+                    // This test exercises one inbound message only.
+                });
+
+        LinkedBlockingQueue<UpstreamData> outbound =
+                new LinkedBlockingQueue<UpstreamData>();
+        EngineerApiConnector.Output peer =
+                message -> outbound.offer(message);
+
+        activate(components.node());
+        activate(components.nodeUpstream());
+        try {
+            assertTrue(
+                    connector.connect(peer));
+
+            UpstreamData.RaceData raceData =
+                    DefaultUpstreamData.raceData(
+                            nodeId,
+                            1L,
+                            Collections.singletonList(
+                                    DefaultUpstreamData.teamAssignmentSet(
+                                            "R0001",
+                                            "0042")),
+                            Collections.<UpstreamData.StageStartTimeChange>emptyList());
+
+            assertSame(
+                    EngineerApiConnector.ReceiveResult.ACCEPTED,
+                    connector.receive(raceData));
+
+            UpstreamData message =
+                    outbound.poll(
+                            1L,
+                            TimeUnit.SECONDS);
+            assertTrue(
+                    message instanceof UpstreamData.Ack);
+
+            UpstreamData.Ack ack =
+                    (UpstreamData.Ack) message;
+            assertEquals(1L, ack.sequence());
+            assertSame(
+                    UpstreamData.Stream.RACE_DATA,
+                    ack.stream());
+
+            assertEquals(
+                    new TeamId("0042"),
+                    components.raceData().teamIdFor(
+                            new RegistrationId("R0001")));
+        } finally {
+            connector.disconnect(peer);
+            deactivate(components.nodeUpstream());
+            deactivate(components.node());
+        }
+    }
+
+    @Test
     public void requiresOneConnectedPeerForInboundAndOutbound() {
         EngineerApiConnector connector =
                 new EngineerApiConnector();
@@ -147,4 +234,20 @@ public class EngineerApiConnectorTest {
                                 0L)));
         assertFalse(connector.hasMessage(new NodeId("A")));
     }
+    private static final class EmptyPersistence
+            implements TimingDataPersistence {
+        @Override
+        public LoadResult load() {
+            return new LoadResult(
+                    Collections.<TimingRecord>emptyList(),
+                    false);
+        }
+
+        @Override
+        public void append(
+                TimingRecord record) {
+            // This upstream test does not commit TimingData.
+        }
+    }
+
 }
