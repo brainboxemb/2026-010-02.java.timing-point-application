@@ -29,7 +29,7 @@ public class TagIdTest {
     public void aVariantUsesExplicitTwoBitState() {
         TagId tagId = new TagId("N0042A");
 
-        assertEquals('N' << 16 | 42, tagId.packedValue());
+        assertEquals('N' << 16 | 0x4000 | 42, tagId.packedValue());
         assertTrue(tagId.hasVariant());
         assertEquals('A', tagId.variant());
         assertEquals("N0042A", tagId.value());
@@ -37,10 +37,10 @@ public class TagIdTest {
     }
 
     @Test
-    public void tagWithoutVariantUsesThirdTwoBitState() {
+    public void tagWithoutVariantUsesZeroVariantBits() {
         TagId tagId = new TagId("N0042");
 
-        assertEquals('N' << 16 | 0x4000 | 42, tagId.packedValue());
+        assertEquals('N' << 16 | 42, tagId.packedValue());
         assertEquals('N', tagId.type());
         assertEquals(42, tagId.number());
         assertFalse(tagId.hasVariant());
