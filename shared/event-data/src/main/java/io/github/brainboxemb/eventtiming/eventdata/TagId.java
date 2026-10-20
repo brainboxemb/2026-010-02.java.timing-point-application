@@ -7,16 +7,16 @@ package io.github.brainboxemb.eventtiming.eventdata;
  * Some tag families additionally use an A/B physical-tag variant. The lower
  * sixteen packed bits contain the 14-bit number plus a two-bit variant code.</p>
  *
- * <p>The historical A/B encodings stay stable: 00 means A and 10 means B.
- * Code 01 represents a tag without a variant; 11 remains reserved.</p>
+ * <p>The variant code is explicit: 00 means no variant, 01 means A,
+ * 10 means B and 11 remains reserved.</p>
  */
 public final class TagId {
     private static final int TYPE_SHIFT = 16;
 
     private static final int VARIANT_SHIFT = 14;
     private static final int VARIANT_MASK = 0x3 << VARIANT_SHIFT;
-    private static final int VARIANT_A = 0x0 << VARIANT_SHIFT;
-    private static final int VARIANT_NONE = 0x1 << VARIANT_SHIFT;
+    private static final int VARIANT_NONE = 0x0 << VARIANT_SHIFT;
+    private static final int VARIANT_A = 0x1 << VARIANT_SHIFT;
     private static final int VARIANT_B = 0x2 << VARIANT_SHIFT;
 
     private static final int NUMBER_MASK = 0x3FFF;
