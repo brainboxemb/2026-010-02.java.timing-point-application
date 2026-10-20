@@ -143,6 +143,13 @@ public final class NodeService extends LifecycleComponent {
         dataTask.locationClosed();
     }
 
+    /** Resolves one current TeamId to its RegistrationId on the ordered Task Lane. */
+    public RegistrationId registrationIdFor(TeamId teamId) {
+
+        failIfInvalidArgument(teamId != null, "teamId must not be null");
+        return read(() -> raceData.registrationIdFor(teamId));
+    }
+
     /** Returns the number of uniquely registered teams in the currently open WP. */
     public int uniqueTeamRegistrationCount() {
 
