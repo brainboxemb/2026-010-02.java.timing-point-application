@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
@@ -52,7 +52,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     private final AtomicReference<WriteFailure> nextWriteFailure =
             new AtomicReference<WriteFailure>();
 
-    private final EventWithMetrics<TimingData> newDataEntryEvent;
+    private final EventWithMetrics<TimingRecord> newDataEntryEvent;
     private final Event<LogBookStatus> statusEvent = new Event<LogBookStatus>();
     private final Event<LogBookFailure> commandFailedEvent = new Event<LogBookFailure>();
     private volatile LogBookStatus status = LogBookStatus.INIT;
@@ -60,8 +60,8 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     /** LogBook availability status source. */
     public final EventSource<LogBookStatus> STATUS = statusEvent;
 
-    /** Post-commit TimingData source. */
-    public final EventSource<TimingData> NEW_DATA_ENTRY;
+    /** Post-commit scalar timing-record source. */
+    public final EventSource<TimingRecord> NEW_DATA_ENTRY;
 
     /** Failed LogBook command source. */
     public final EventSource<LogBookFailure> COMMAND_FAILED = commandFailedEvent;
@@ -103,7 +103,6 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         this.logBookOperations = new LogBookOperations(
                 logBookState,
                 timingDataPersistence,
-                timingDataFactory,
                 timeSource,
                 monotonicClock,
                 metrics);
@@ -118,7 +117,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         this.commitWaitTimeoutMillis = commitWaitTimeoutMillis;
         this.orderedQueryWaitTimeoutMillis = orderedQueryWaitTimeoutMillis;
         this.newDataEntryEvent =
-                new EventWithMetrics<TimingData>(
+                new EventWithMetrics<TimingRecord>(
                         monotonicClock,
                         metrics.timingDataEventMetrics());
         this.NEW_DATA_ENTRY = newDataEntryEvent;
@@ -540,7 +539,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
             R result = command.apply(logBookOperations);
 
             if (logBookState.timingDataHead() > headBefore) {
-                newDataEntryEvent.emit(logBookState.latestCommittedTimingData());
+                newDataEntryEvent.emit(logBookState.latestCommittedRecord());
             }
             return result;
         } catch (Exception ex) {
