@@ -10,10 +10,14 @@ package io.github.brainboxemb.eventtiming.timingdata;
 public interface TimingDataCodec {
 
     /** Encodes the shared scalar timing record directly. */
-    byte[] encode(TimingRecord record) throws CodecException;
+    default byte[] encode(TimingRecord record) throws CodecException {
+        return encode(TimingRecords.asTimingData(record));
+    }
 
     /** Decodes one payload directly into the shared scalar timing record. */
-    TimingRecord decodeRecord(byte[] encodedRecord) throws CodecException;
+    default TimingRecord decodeRecord(byte[] encodedRecord) throws CodecException {
+        return TimingRecords.fromTimingData(decode(encodedRecord));
+    }
 
     /**
      * Legacy Java semantic view retained only for compatibility at API boundaries.
