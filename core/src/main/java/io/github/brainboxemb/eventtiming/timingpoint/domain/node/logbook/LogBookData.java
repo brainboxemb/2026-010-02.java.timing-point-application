@@ -1,6 +1,5 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 
@@ -31,7 +30,7 @@ public final class LogBookData {
         if (head == 0L) {
             return 1L;
         }
-        failIfIllegalState(head < TimingData.MAX_SEQUENCE_NUMBER, "TimingData sequence space is exhausted");
+        failIfIllegalState(head < TimingRecord.MAX_SEQUENCE_NUMBER, "TimingData sequence space is exhausted");
         return head + 1L;
     }
 
