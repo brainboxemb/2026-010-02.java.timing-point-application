@@ -162,13 +162,37 @@ public final class NodeService extends LifecycleComponent {
     /** Returns one stable metadata snapshot of the active registration projection. */
     public RegistrationProjectionInfo registrationProjectionInfo() {
 
+        return readActive(this::currentRegistrationProjectionInfo);
+    }
+
+    /** Visits one bounded page and returns metadata from the same ordered read turn. */
+    public RegistrationProjectionInfo visitRegistrationPage(
+            long afterSequence,
+            int limit,
+            Consumer<ActiveRegistrations.Registration> visitor) {
+
+        failIfInvalidArgument(afterSequence >= 0L, "afterSequence must not be negative");
+        failIfInvalidArgument(limit >= 0, "limit must not be negative");
+        failIfInvalidArgument(visitor != null, "visitor must not be null");
+
         return readActive(
-                () -> new RegistrationProjectionInfo(
-                        activeRegistrations.locationId(),
-                        activeRegistrations.size(),
-                        registeredTeams.uniqueTeamCount(),
-                        activeRegistrations.lastMutationSequence(),
-                        activeRegistrations.lastRevokeSequence()));
+                () -> {
+                    activeRegistrations.visitAfter(
+                            afterSequence,
+                            limit,
+                            visitor);
+                    return currentRegistrationProjectionInfo();
+                });
+    }
+
+    private RegistrationProjectionInfo currentRegistrationProjectionInfo() {
+
+        return new RegistrationProjectionInfo(
+                activeRegistrations.locationId(),
+                activeRegistrations.size(),
+                registeredTeams.uniqueTeamCount(),
+                activeRegistrations.lastMutationSequence(),
+                activeRegistrations.lastRevokeSequence());
     }
 
     /** Returns the number of uniquely registered teams in the currently open WP. */
