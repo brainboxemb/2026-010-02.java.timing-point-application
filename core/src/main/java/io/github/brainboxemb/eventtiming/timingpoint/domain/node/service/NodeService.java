@@ -159,6 +159,18 @@ public final class NodeService extends LifecycleComponent {
         return eventData.registrationIdFor(locationId, teamId);
     }
 
+    /** Returns one stable metadata snapshot of the active registration projection. */
+    public RegistrationProjectionInfo registrationProjectionInfo() {
+
+        return readActive(
+                () -> new RegistrationProjectionInfo(
+                        activeRegistrations.locationId(),
+                        activeRegistrations.size(),
+                        registeredTeams.uniqueTeamCount(),
+                        activeRegistrations.lastMutationSequence(),
+                        activeRegistrations.lastRevokeSequence()));
+    }
+
     /** Returns the number of uniquely registered teams in the currently open WP. */
     public int uniqueTeamRegistrationCount() {
 
@@ -254,6 +266,48 @@ public final class NodeService extends LifecycleComponent {
     private void dataTaskFailed(Throwable failure) {
 
         LOG.error("NodeService DataTask failed for node {}", nodeId.value(), failure);
+    }
+
+    /** Immutable synchronization metadata for the active registration projection. */
+    public static final class RegistrationProjectionInfo {
+        private final LocationId locationId;
+        private final int count;
+        private final int uniqueCount;
+        private final long lastMutationSequence;
+        private final long lastRevokeSequence;
+
+        private RegistrationProjectionInfo(
+                LocationId locationId,
+                int count,
+                int uniqueCount,
+                long lastMutationSequence,
+                long lastRevokeSequence) {
+            this.locationId = locationId;
+            this.count = count;
+            this.uniqueCount = uniqueCount;
+            this.lastMutationSequence = lastMutationSequence;
+            this.lastRevokeSequence = lastRevokeSequence;
+        }
+
+        public LocationId locationId() {
+            return locationId;
+        }
+
+        public int count() {
+            return count;
+        }
+
+        public int uniqueCount() {
+            return uniqueCount;
+        }
+
+        public long lastMutationSequence() {
+            return lastMutationSequence;
+        }
+
+        public long lastRevokeSequence() {
+            return lastRevokeSequence;
+        }
     }
 
     /** Handles only LogBook availability transitions. */
