@@ -16,7 +16,7 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
  * TimingSystem-owned upstream protocol component.
  *
  * <p>One node-scoped NodeUpstream is retained for every TimingNode. Each
- * handler therefore owns independent TIMING_DATA, RACE_DATA and heartbeat
+ * NodeUpstream therefore owns independent TIMING_DATA, RACE_DATA and heartbeat
  * protocol state. The physical connection and queue implementation belongs to
  * the shared UpstreamGateway.</p>
  *
@@ -53,8 +53,7 @@ public final class Upstream extends LifecycleComponent {
      * Initial transport reconciliation.
      *
      * <p>If the gateway is already connected when TimingSystem activation
-     * reaches Upstream, publish the node source heads. Reconnect notification
-     * can call sendTimingDataSync again without changing protocol state.</p>
+     * reaches Upstream, publish every node's committed TIMING_DATA source head.</p>
      */
     @Override
     protected void onActivate() {
