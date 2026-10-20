@@ -214,6 +214,70 @@ public final class ApiClient {
                 rawJson);
     }
 
+    public RegistrationProjectionInfo getRegistrationProjectionInfo(
+            String nodeId)
+            throws IOException, InterruptedException {
+
+        String rawJson =
+                request(
+                        "GET",
+                        nodePath(nodeId, "/registrations"),
+                        null);
+        JsonNode root = JSON.readTree(rawJson);
+        return parseRegistrationProjectionInfo(
+                root,
+                rawJson);
+    }
+
+    public RegistrationProjectionPage getRegistrationProjectionPage(
+            String nodeId,
+            long after,
+            int limit)
+            throws IOException, InterruptedException {
+
+        if (after < 0L) {
+            throw new IllegalArgumentException(
+                    "after must be >= 0");
+        }
+        requireLimit(limit);
+
+        String rawJson =
+                request(
+                        "GET",
+                        nodePath(nodeId, "/registrations")
+                                + "?after="
+                                + after
+                                + "&limit="
+                                + limit,
+                        null);
+        JsonNode root = JSON.readTree(rawJson);
+        JsonNode values =
+                required(root, "registrations");
+        if (!values.isArray()) {
+            throw new IllegalArgumentException(
+                    "IF-03 field is not an array: registrations");
+        }
+
+        List<RegistrationProjectionRow> rows =
+                new ArrayList<>();
+        for (JsonNode value : values) {
+            rows.add(
+                    new RegistrationProjectionRow(
+                            requiredLong(value, "seqNr"),
+                            requiredText(value, "regId"),
+                            requiredText(value, "time"),
+                            requiredBoolean(value, "valid")));
+        }
+
+        return new RegistrationProjectionPage(
+                parseRegistrationProjectionInfo(
+                        root,
+                        rawJson),
+                optionalLong(root, "nextAfter"),
+                List.copyOf(rows),
+                rawJson);
+    }
+
     public LogBookInfo getLogBookInfo(String nodeId)
             throws IOException, InterruptedException {
         String rawJson = request("GET", nodePath(nodeId, "/logbook"), null);
@@ -299,6 +363,19 @@ public final class ApiClient {
                 requiredTextArray(root, "code"),
                 requiredText(root, "recTime"),
                 root.toString());
+    }
+
+    private static RegistrationProjectionInfo parseRegistrationProjectionInfo(
+            JsonNode root,
+            String rawJson) {
+
+        return new RegistrationProjectionInfo(
+                requiredInt(root, "locId"),
+                requiredInt(root, "count"),
+                requiredInt(root, "uniqueCount"),
+                requiredLong(root, "lastMutationSeq"),
+                requiredLong(root, "lastRevokeSeq"),
+                rawJson);
     }
 
     private static CapabilitiesResult parseCapabilities(String rawJson) throws IOException {
@@ -554,6 +631,29 @@ public final class ApiClient {
     }
 
     public record LogBookInfo(long count, Long first, Long last, String rawJson) {
+    }
+
+    public record RegistrationProjectionInfo(
+            int locationId,
+            int count,
+            int uniqueCount,
+            long lastMutationSequence,
+            long lastRevokeSequence,
+            String rawJson) {
+    }
+
+    public record RegistrationProjectionRow(
+            long sequenceNumber,
+            String registrationId,
+            String effectiveTime,
+            boolean valid) {
+    }
+
+    public record RegistrationProjectionPage(
+            RegistrationProjectionInfo info,
+            Long nextAfter,
+            List<RegistrationProjectionRow> rows,
+            String rawJson) {
     }
 
     public record TimingDataKey(String timingNodeId, long sequenceNumber) {
