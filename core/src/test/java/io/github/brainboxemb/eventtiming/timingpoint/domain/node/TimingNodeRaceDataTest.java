@@ -193,10 +193,9 @@ public class TimingNodeRaceDataTest {
                             fixture.stream.takeSent())
                             .sequence());
             assertEquals(
-                    LocalTime.of(12, 30),
-                    fixture.raceData.stageStartTimeFor(
-                            new TeamId("0042"))
-                            .time());
+                    Long.valueOf(Instant.parse("2026-10-13T12:30:00Z").toEpochMilli()),
+                    fixture.raceData.stageStartTimeMillisFor(
+                            new TeamId("0042")));
 
             fixture.receive(
                     DefaultUpstreamData.raceData(
@@ -212,7 +211,7 @@ public class TimingNodeRaceDataTest {
                             fixture.stream.takeSent())
                             .sequence());
             assertNull(
-                    fixture.raceData.stageStartTimeFor(
+                    fixture.raceData.stageStartTimeMillisFor(
                             new TeamId("0042")));
         } finally {
             deactivate(fixture.node);
