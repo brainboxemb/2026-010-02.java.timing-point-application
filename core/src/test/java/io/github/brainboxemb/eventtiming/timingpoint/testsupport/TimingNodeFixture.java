@@ -127,11 +127,24 @@ public final class TimingNodeFixture {
         }
     }
 
-    /** Creates one test TimingNode with default profile data and shared test workers. */
+    /** Creates one test TimingNode with empty EventData and shared test workers. */
     public static TimingNode create(
             NodeId nodeId,
             TimingDataPersistence persistence,
             TimeSource timeSource) {
+        return create(
+                nodeId,
+                persistence,
+                timeSource,
+                EventData.empty());
+    }
+
+    /** Creates one test TimingNode with explicit EventData and shared test workers. */
+    public static TimingNode create(
+            NodeId nodeId,
+            TimingDataPersistence persistence,
+            TimeSource timeSource,
+            EventData eventData) {
         String suffix =
                 nodeId == null
                         ? "missing"
@@ -141,7 +154,7 @@ public final class TimingNodeFixture {
                 nodeId,
                 persistence,
                 timeSource,
-                EventData.empty(),
+                eventData,
                 UpstreamStream.unavailable(),
                 NODE_WORKER,
                 32,
