@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataCodec;
 import io.github.brainboxemb.eventtiming.timingpoint.application.ConfigurationControl;
@@ -165,7 +165,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
      * Composition-wired application event callback.
      */
     private void onTimingDataCommitted(
-            TimingData data) {
+            TimingRecord record) {
         Server current = currentServer();
         if (current == null) {
             return;
@@ -174,7 +174,7 @@ public final class WebSocketEndpoint implements AutoCloseable {
             current.broadcastEvent(
                     MessageWriter.timingDataEvent(
                             clock.instant(),
-                            data,
+                            record,
                             timingDataCodec));
         } catch (TimingDataCodec.CodecException ex) {
             // Turn codec failure into an ordinary listener RuntimeException.
