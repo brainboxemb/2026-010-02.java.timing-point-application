@@ -198,7 +198,6 @@ final class RuntimeCharacterizationHarness
                                                         "timing-data.jsonl")),
                                 NODE_ID,
                                 timingDataProvider.createCodec()),
-                        timingDataProvider.createFactory(),
                         timeSource,
                         SystemMonotonicClock.INSTANCE,
                         logBookMetrics,
