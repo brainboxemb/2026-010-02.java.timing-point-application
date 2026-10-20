@@ -7,6 +7,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.ComponentLi
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleComponent;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamGateway;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -32,6 +33,13 @@ public final class Upstream extends LifecycleComponent {
             new ComponentLifecycleManager();
     private final Map<NodeId, UpstreamHandler> nodes =
             new LinkedHashMap<NodeId, UpstreamHandler>();
+
+    /** Returns an inactive transport-neutral component for composition-only tests. */
+    public static Upstream unavailable() {
+        return new Upstream(
+                UpstreamGateway.unavailable(),
+                Collections.<UpstreamHandler>emptyList());
+    }
 
     public Upstream(
             UpstreamGateway gateway,
