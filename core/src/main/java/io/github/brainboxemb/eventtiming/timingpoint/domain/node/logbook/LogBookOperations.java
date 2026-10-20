@@ -261,7 +261,7 @@ final class LogBookOperations {
                     "Timing record persistence failed: node={}, sequence={}, type={}, location={}",
                     record.nodeId(),
                     record.sequenceNumber(),
-                    record.kind(),
+                    logType(record.kind()),
                     record.locationId(),
                     ex);
             throw ex;
@@ -277,7 +277,7 @@ final class LogBookOperations {
                             + "node={}, sequence={}, type={}, location={}",
                     record.nodeId(),
                     record.sequenceNumber(),
-                    record.kind(),
+                    logType(record.kind()),
                     record.locationId(),
                     ex);
             throw ex;
@@ -292,6 +292,22 @@ final class LogBookOperations {
         return LOG_TIME_FORMAT.format(Instant.ofEpochMilli(epochMillis));
     }
 
+    /** Returns the compact IF-05-style record type used in operator logs. */
+    private static String logType(TimingRecord.Kind kind) {
+        switch (kind) {
+            case AUTOMATIC_REGISTRATION:
+                return "AUTO_REG";
+            case MANUAL_REGISTRATION:
+                return "MAN_REG";
+            case NODE_OPEN:
+                return "OPEN";
+            case NODE_CLOSE:
+                return "CLOSE";
+            default:
+                throw new IllegalArgumentException("Unsupported TimingRecord kind " + kind);
+        }
+    }
+
     private static void logCommittedRecord(TimingRecord record) {
         if (record.kind() == TimingRecord.Kind.AUTOMATIC_REGISTRATION) {
             LOG.info(
@@ -299,7 +315,7 @@ final class LogBookOperations {
                             + "action={}, location={}, effectiveTime={}, tagSource={}, timeSource={}",
                     record.nodeId(),
                     record.sequenceNumber(),
-                    record.kind(),
+                    logType(record.kind()),
                     RegistrationId.fromPackedValue(record.registrationId()).value(),
                     record.action(),
                     record.locationId(),
@@ -312,7 +328,7 @@ final class LogBookOperations {
                             + "action={}, location={}, effectiveTime={}, timeSource={}",
                     record.nodeId(),
                     record.sequenceNumber(),
-                    record.kind(),
+                    logType(record.kind()),
                     RegistrationId.fromPackedValue(record.registrationId()).value(),
                     record.action(),
                     record.locationId(),
@@ -323,7 +339,7 @@ final class LogBookOperations {
                     "Timing record committed: node={}, sequence={}, type={}, location={}, effectiveTime={}",
                     record.nodeId(),
                     record.sequenceNumber(),
-                    record.kind(),
+                    logType(record.kind()),
                     record.locationId(),
                     logTime(record.effectiveTimeMillis()));
         }
