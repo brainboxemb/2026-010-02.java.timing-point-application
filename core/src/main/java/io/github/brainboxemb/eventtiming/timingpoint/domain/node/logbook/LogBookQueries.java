@@ -1,6 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -39,6 +40,20 @@ public final class LogBookQueries {
      */
     public static LogBookQuery<Long> timingDataHead() {
         return TIMING_DATA_HEAD;
+    }
+
+    /**
+     * Returns at most {@code limit} scalar records starting at the inclusive
+     * source sequence. Internal reconstruction should prefer this query.
+     */
+    public static LogBookQuery<List<TimingRecord>> timingRecordRange(
+            long fromSequence,
+            int limit) {
+        return new LogBookQuery<>(
+                "timingRecordRange",
+                logBookState -> logBookState.timingRecordRange(
+                        fromSequence,
+                        limit));
     }
 
     /**
