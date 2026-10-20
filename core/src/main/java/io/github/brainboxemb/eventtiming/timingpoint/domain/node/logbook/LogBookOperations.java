@@ -207,7 +207,7 @@ final class LogBookOperations {
 
     void restorePersistedTimingData(TimingDataPersistence.LoadResult loadResult) {
         failIfInvalidArgument(loadResult != null, "loadResult must not be null");
-        for (TimingRecord record : loadResult.records()) {
+        for (TimingRecord record : loadResult.timingRecords()) {
             state.addCommittedRecord(record);
         }
     }
