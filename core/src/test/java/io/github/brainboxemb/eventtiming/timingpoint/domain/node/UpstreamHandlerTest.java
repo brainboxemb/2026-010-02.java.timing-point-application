@@ -9,6 +9,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBook
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecords;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -442,12 +443,12 @@ public class UpstreamHandlerTest {
                     (UpstreamData.TimingDataTransfer)
                             stream.takeSent();
             assertEquals(3, transfer.records().size());
-            assertSame(
-                    records.get(2),
-                    transfer.records().get(0));
-            assertSame(
-                    records.get(4),
-                    transfer.records().get(2));
+            assertEquals(
+                    TimingRecords.fromTimingData(records.get(2)),
+                    TimingRecords.fromTimingData(transfer.records().get(0)));
+            assertEquals(
+                    TimingRecords.fromTimingData(records.get(4)),
+                    TimingRecords.fromTimingData(transfer.records().get(2)));
             assertEquals(
                     0,
                     stream.sentCount());
