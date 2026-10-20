@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.presentation.interfaces.api;
 
 import io.github.brainboxemb.eventtiming.timingpoint.infra.lifecycle.LifecycleTestSupport;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
@@ -157,14 +157,14 @@ public class WebSocketOutboundDeliveryTest {
                                         "2026-10-07T10:00:%02dZ",
                                         index));
 
-                Supplier<TimingData> addRegistration = () -> {
+                Supplier<TimingRecord> addRegistration = () -> {
                     return node.logBook().process(
                             LogBookCommands.commitAutomaticRegistration(
                                     node.locationId(),
                                     registrationId,
                                     effectiveTime,
-                                    TimingData.TagSource.API,
-                                    TimingData.AutomaticTimeSource.API));
+                                    TimingRecord.TagSource.API,
+                                    TimingRecord.AutomaticTimeSource.API));
                 };
                 node.processLocked(addRegistration);
             }
@@ -196,13 +196,13 @@ public class WebSocketOutboundDeliveryTest {
         @Override
         public LoadResult load() {
             return new LoadResult(
-                    Collections.<TimingData>emptyList(),
+                    Collections.<TimingRecord>emptyList(),
                     false);
         }
 
         @Override
         public void append(
-                TimingData data) {
+                TimingRecord record) {
         }
     }
 
