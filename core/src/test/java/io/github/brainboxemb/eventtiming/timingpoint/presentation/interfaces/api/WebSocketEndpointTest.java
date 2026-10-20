@@ -41,7 +41,7 @@ public class WebSocketEndpointTest {
     private static final TimingTimestamp RECORDED_AT =
             TimingTimestamp.parse("2026-10-01T12:00:01.000000000Z");
     private static final Clock EVENT_CLOCK =
-            Clock.fixed(Instant.parse("2026-10-01T12:00:02Z"), ZoneOffset.UTC);
+            Clock.fixed(Instant.parse("2026-10-01T12:00:02.000Z"), ZoneOffset.UTC);
 
     @Test
     public void sendsCompleteSnapshotOnConnectAndReconnectWithoutHistoryReplay()
@@ -143,7 +143,7 @@ public class WebSocketEndpointTest {
                     "\"regId\":\"N0001\""));
             assertTrue(committed.contains("\"code\":[\"ADD\"]"));
             assertTrue(committed.contains(
-                    "\"occurredAt\":\"2026-10-01T12:00:02Z\""));
+                    "\"occurredAt\":\"2026-10-01T12:00:02.000Z\""));
         } finally {
             client.closeBlocking();
             server.close();
@@ -193,7 +193,7 @@ public class WebSocketEndpointTest {
             assertTrue(changed.contains(
                     "\"eventType\":\"CONFIGURATION_CHANGED\""));
             assertTrue(changed.contains(
-                    "\"occurredAt\":\"2026-10-01T12:00:02Z\""));
+                    "\"occurredAt\":\"2026-10-01T12:00:02.000Z\""));
             assertTrue(changed.contains(
                     "\"nodeId\":\"A\""));
             assertTrue(changed.contains(
@@ -374,7 +374,7 @@ public class WebSocketEndpointTest {
             String locationJson) {
         assertNotNull(json);
         assertTrue(json.contains("\"eventType\":\"STATUS_SNAPSHOT\""));
-        assertTrue(json.contains("\"occurredAt\":\"2026-10-01T12:00:02Z\""));
+        assertTrue(json.contains("\"occurredAt\":\"2026-10-01T12:00:02.000Z\""));
         assertTrue(json.contains("\"id\":\"" + timingNodeId + "\""));
         assertTrue(json.contains("\"locId\":" + locationJson));
         assertTrue(json.contains(

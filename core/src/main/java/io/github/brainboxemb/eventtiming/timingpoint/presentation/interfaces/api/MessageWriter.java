@@ -13,11 +13,18 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.BuildIdentity;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.util.ArrayList;
 import java.util.List;
 
 /** Explicit JSON mapping for the IF-03 v1 contract. */
 public final class MessageWriter {
+    private static final DateTimeFormatter EVENT_TIME_FORMAT =
+            new DateTimeFormatterBuilder()
+                    .appendInstant(3)
+                    .toFormatter();
+
     private MessageWriter() {
     }
 
@@ -217,7 +224,7 @@ public final class MessageWriter {
         }
         return "{"
                 + "\"eventType\":" + quote(eventType) + ","
-                + "\"occurredAt\":" + quote(occurredAt.toString()) + ","
+                + "\"occurredAt\":" + quote(eventTime(occurredAt)) + ","
                 + "\"payload\":" + status(timingNodes)
                 + "}";
     }
@@ -245,7 +252,7 @@ public final class MessageWriter {
         }
         return "{"
                 + "\"eventType\":\"TIMING_DATA_COMMITTED\","
-                + "\"occurredAt\":" + quote(occurredAt.toString()) + ","
+                + "\"occurredAt\":" + quote(eventTime(occurredAt)) + ","
                 + "\"payload\":" + timingDataJson(record, codec)
                 + "}";
     }
@@ -294,7 +301,7 @@ public final class MessageWriter {
         }
         return "{"
                 + "\"eventType\":\"CONFIGURATION_CHANGED\","
-                + "\"occurredAt\":" + quote(occurredAt.toString()) + ","
+                + "\"occurredAt\":" + quote(eventTime(occurredAt)) + ","
                 + "\"payload\":{"
                 + "\"nodeId\":" + quote(change.nodeId().value()) + ","
                 + "\"section\":\"tagProcessing\","
@@ -348,6 +355,11 @@ public final class MessageWriter {
                 + "\"code\":" + quote(code) + ","
                 + "\"message\":" + quote(message)
                 + "}}";
+    }
+
+    /** Formats IF-03 event-envelope timestamps with fixed millisecond precision. */
+    private static String eventTime(Instant occurredAt) {
+        return EVENT_TIME_FORMAT.format(occurredAt);
     }
 
     private static String timingDataJson(
