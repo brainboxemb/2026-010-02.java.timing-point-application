@@ -23,13 +23,10 @@ import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Che
 public final class RegisteredTeams {
     private final Map<RegistrationId, RegistrationState> registrationsById = new HashMap<>();
     private final Map<LocationId, Map<TeamId, Integer>> teamsByLocation = new HashMap<>();
-    private final Event<Change> changes = new Event<>();
+    private final Event<Change> changedEvent = new Event<>();
 
-    /** Exposes ordered + and - membership changes on the calling Task Lane. */
-    public EventSource<Change> changes() {
-
-        return changes;
-    }
+    /** Ordered + and - membership changes emitted synchronously on the calling Task Lane. */
+    public final EventSource<Change> CHANGED = changedEvent;
 
     /** Clears reconstructed counts; display consumers must request a new full burst after reset. */
     public void reset() {
@@ -159,9 +156,9 @@ public final class RegisteredTeams {
         }
 
         if (previous == 0 && next > 0) {
-            changes.emit(new Change(Change.Action.ADDED, locationId, teamId));
+            changedEvent.emit(new Change(Change.Action.ADDED, locationId, teamId));
         } else if (previous > 0 && next == 0) {
-            changes.emit(new Change(Change.Action.REMOVED, locationId, teamId));
+            changedEvent.emit(new Change(Change.Action.REMOVED, locationId, teamId));
         }
     }
 

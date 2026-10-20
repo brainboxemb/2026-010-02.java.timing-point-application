@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Align `RegisteredTeams` with the typed event-port convention: private `changedEvent` backing state plus explicit `CHANGED` EventSource port, removing the legacy `changes()` accessor.
+
 - Normalize IF-06 stage starts to absolute UTC at RACE_DATA ingress using the node's shared TimeSource for the current UTC date of time-only values; retain stage starts as epoch milliseconds, remove raceTimeZone from derived timing, and calculate one registration's provisional rank with a single O(n) scan instead of building and sorting a complete ranking list.
 
 - Stream `RegisteredTeams.visit(...)` directly over the retained unique-team set for CAN/display burst synchronization; remove the temporary sorted list because team order has no domain/protocol meaning.
