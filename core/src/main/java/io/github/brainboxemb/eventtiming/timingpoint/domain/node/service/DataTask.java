@@ -1,7 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.service;
 
 import io.github.brainboxemb.eventtiming.eventdata.TeamId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
@@ -55,7 +55,7 @@ final class DataTask extends AbstractTask {
     private int activeLocationId;
     private boolean rebuilding;
     private long nextSequence = 1L;
-    private CompletableFuture<List<TimingData>> pendingRead;
+    private CompletableFuture<List<TimingRecord>> pendingRead;
     private volatile CompletableFuture<Void> caughtUp =
             CompletableFuture.completedFuture(null);
 
@@ -278,22 +278,22 @@ final class DataTask extends AbstractTask {
 
         long remaining = head - nextSequence + 1L;
         int limit = (int) Math.min((long) TIMING_DATA_BATCH_SIZE, remaining);
-        pendingRead = logBook.submit(LogBookQueries.timingDataRange(nextSequence, limit));
+        pendingRead = logBook.submit(LogBookQueries.timingRecordRange(nextSequence, limit));
     }
 
     /** Applies one completed LogBook batch in source order to the selected WP only. */
     private void applyCompletedRead() {
 
-        List<TimingData> records = pendingRead.join();
+        List<TimingRecord> records = pendingRead.join();
         pendingRead = null;
 
         failIfIllegalState(!records.isEmpty(), "No TimingData returned for sequence %s", nextSequence);
 
-        for (TimingData data : records) {
-            long sequence = data.sequenceNumber();
+        for (TimingRecord record : records) {
+            long sequence = record.sequenceNumber();
             failIfIllegalState(sequence == nextSequence, "Expected sequence %s, got %s", nextSequence, sequence);
 
-            ActiveRegistrations.Change change = activeRegistrations.apply(data);
+            ActiveRegistrations.Change change = activeRegistrations.apply(record);
             if (change != null) {
                 registeredTeams.apply(change, raceData.teamIdFor(change.registrationId()));
             }
