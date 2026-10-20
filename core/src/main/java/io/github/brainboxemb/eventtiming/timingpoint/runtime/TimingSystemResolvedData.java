@@ -2,7 +2,6 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.runtime.config.Config;
 
 /**
@@ -37,26 +36,6 @@ final class TimingSystemResolvedData {
         this.tagScenarioSimulationEnabled = tagScenarioSimulationEnabled;
         this.eventData = eventData;
         this.timingDataCodec = timingDataCodec;
-    }
-
-    /**
-     * Legacy construction overload. TimingDataFactory is no longer runtime data;
-     * the argument is accepted only while tests/extensions migrate.
-     */
-    TimingSystemResolvedData(
-            Config.TimingSystemConfig configuration,
-            boolean tagScenarioSimulationEnabled,
-            EventData eventData,
-            TimingDataFactory timingDataFactory,
-            TimingDataCodec timingDataCodec) {
-        this(
-                configuration,
-                tagScenarioSimulationEnabled,
-                eventData,
-                timingDataCodec);
-        if (timingDataFactory == null) {
-            throw new IllegalArgumentException("timingDataFactory must not be null");
-        }
     }
 
     String id() {
