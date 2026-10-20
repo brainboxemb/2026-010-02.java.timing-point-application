@@ -2,7 +2,9 @@ package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persis
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecords;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingpoint.io.storage.AppendOnlyRecordStore;
 
 import java.util.ArrayList;
@@ -11,18 +13,13 @@ import java.util.List;
 import static io.github.brainboxemb.eventtiming.timingpoint.infra.validation.Checks.failIfInvalidArgument;
 
 /**
- * Default TimingData persistence mapping over a generic append-only record store.
- *
- * <p>This class owns TimingData-specific validation: codec mapping, TimingNode
- * identity and contiguous sequence. The lower I/O store remains unaware of all
- * three.</p>
+ * Scalar timing-record persistence over a generic append-only record store.
  */
 public final class DefaultTimingDataPersistence implements TimingDataPersistence {
     private final AppendOnlyRecordStore recordStore;
-    private final NodeId timingNodeId;
+    private final char timingNodeId;
     private final TimingDataCodec codec;
 
-    /** Creates TimingData persistence over one node-scoped append-only record store. */
     public DefaultTimingDataPersistence(
             AppendOnlyRecordStore recordStore,
             NodeId timingNodeId,
@@ -31,89 +28,83 @@ public final class DefaultTimingDataPersistence implements TimingDataPersistence
         failIfInvalidArgument(timingNodeId != null, "timingNodeId must not be null");
         failIfInvalidArgument(codec != null, "codec must not be null");
         this.recordStore = recordStore;
-        this.timingNodeId = timingNodeId;
+        this.timingNodeId = timingNodeId.value().charAt(0);
         this.codec = codec;
     }
 
-    /** Loads, decodes and validates the complete node-owned TimingData stream. */
     @Override
     public LoadResult load() throws PersistenceException {
         final AppendOnlyRecordStore.LoadResult raw;
         try {
             raw = recordStore.load();
         } catch (AppendOnlyRecordStore.StoreException ex) {
-            throw new PersistenceException("could not load TimingData records", ex);
+            throw new PersistenceException("could not load timing records", ex);
         }
 
-        List<TimingData> records = new ArrayList<>(raw.records().size());
+        List<TimingRecord> records = new ArrayList<TimingRecord>(raw.records().size());
         int recordNumber = 1;
-        for (AppendOnlyRecordStore.Record record : raw.records()) {
-            TimingData data = decode(record.payload(), recordNumber);
-            validateStreamRecord(data, records.size() + 1L, recordNumber);
-            records.add(data);
+        for (AppendOnlyRecordStore.Record rawRecord : raw.records()) {
+            TimingRecord record = decode(rawRecord.payload(), recordNumber);
+            validateStreamRecord(record, records.size() + 1L, recordNumber);
+            records.add(record);
             recordNumber++;
         }
-
         return new LoadResult(records, raw.repairedIncompleteTail());
     }
 
-    /** Encodes and durably appends one TimingData record owned by this TimingNode. */
+    /** Legacy Java append adapter; production calls the scalar overload. */
     @Override
     public void append(TimingData data) throws PersistenceException {
         failIfInvalidArgument(data != null, "data must not be null");
-        if (!timingNodeId.equals(data.timingNodeId())) {
+        append(TimingRecords.fromTimingData(data));
+    }
+
+    @Override
+    public void append(TimingRecord record) throws PersistenceException {
+        failIfInvalidArgument(record != null, "record must not be null");
+        if (record.nodeId() != timingNodeId) {
             throw new PersistenceException(
-                    "TimingData belongs to " + data.timingNodeId()
+                    "TimingRecord belongs to " + record.nodeId()
                             + " but persistence owns " + timingNodeId);
         }
 
         final byte[] payload;
         try {
-            payload = codec.encode(data);
+            payload = codec.encode(record);
         } catch (TimingDataCodec.CodecException ex) {
-            throw new PersistenceException(
-                    "could not encode TimingData for append",
-                    ex);
+            throw new PersistenceException("could not encode timing record for append", ex);
         }
 
         try {
             recordStore.append(payload);
         } catch (AppendOnlyRecordStore.StoreException ex) {
-            throw new PersistenceException(
-                    "could not append TimingData record",
-                    ex);
+            throw new PersistenceException("could not append timing record", ex);
         }
     }
 
-    /** Decodes one physical record and adds its source record number to failures. */
-    private TimingData decode(byte[] payload, int recordNumber)
+    private TimingRecord decode(byte[] payload, int recordNumber)
             throws PersistenceException {
         try {
-            return codec.decode(payload);
+            return codec.decodeRecord(payload);
         } catch (TimingDataCodec.CodecException ex) {
-            throw new PersistenceException(
-                    "invalid TimingData record " + recordNumber,
-                    ex);
+            throw new PersistenceException("invalid timing record " + recordNumber, ex);
         }
     }
 
-    /** Validates TimingNode identity and contiguous source sequence for one loaded record. */
     private void validateStreamRecord(
-            TimingData data,
+            TimingRecord record,
             long expectedSequence,
             int recordNumber)
             throws PersistenceException {
-        if (!timingNodeId.equals(data.timingNodeId())) {
+        if (record.nodeId() != timingNodeId) {
             throw new PersistenceException(
-                    "TimingData record " + recordNumber + " belongs to "
-                            + data.timingNodeId()
-                            + " but persistence owns " + timingNodeId);
+                    "Timing record " + recordNumber + " belongs to "
+                            + record.nodeId() + " but persistence owns " + timingNodeId);
         }
-        if (data.sequenceNumber() != expectedSequence) {
+        if (record.sequenceNumber() != expectedSequence) {
             throw new PersistenceException(
-                    "TimingData record " + recordNumber + " sequence must be "
-                            + expectedSequence + " but was "
-                            + data.sequenceNumber());
+                    "Timing record " + recordNumber + " sequence must be "
+                            + expectedSequence + " but was " + record.sequenceNumber());
         }
     }
 }

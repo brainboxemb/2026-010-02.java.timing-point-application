@@ -1,6 +1,6 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
@@ -52,7 +52,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     private final AtomicReference<WriteFailure> nextWriteFailure =
             new AtomicReference<WriteFailure>();
 
-    private final EventWithMetrics<TimingData> newDataEntryEvent;
+    private final EventWithMetrics<TimingRecord> newDataEntryEvent;
     private final Event<LogBookStatus> statusEvent = new Event<LogBookStatus>();
     private final Event<LogBookFailure> commandFailedEvent = new Event<LogBookFailure>();
     private volatile LogBookStatus status = LogBookStatus.INIT;
@@ -60,8 +60,8 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     /** LogBook availability status source. */
     public final EventSource<LogBookStatus> STATUS = statusEvent;
 
-    /** Post-commit TimingData source. */
-    public final EventSource<TimingData> NEW_DATA_ENTRY;
+    /** Post-commit scalar timing-record source. */
+    public final EventSource<TimingRecord> NEW_DATA_ENTRY;
 
     /** Failed LogBook command source. */
     public final EventSource<LogBookFailure> COMMAND_FAILED = commandFailedEvent;
@@ -77,7 +77,6 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
     public LogBook(
             NodeId timingNodeId,
             TimingDataPersistence timingDataPersistence,
-            TimingDataFactory timingDataFactory,
             TimeSource timeSource,
             MonotonicClock monotonicClock,
             LogBookMetrics metrics,
@@ -89,7 +88,6 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
 
         failIfInvalidArgument(timingNodeId != null, "timingNodeId must not be null");
         failIfInvalidArgument(timingDataPersistence != null, "timingDataPersistence must not be null");
-        failIfInvalidArgument(timingDataFactory != null, "timingDataFactory must not be null");
         failIfInvalidArgument(timeSource != null, "timeSource must not be null");
         failIfInvalidArgument(monotonicClock != null, "monotonicClock must not be null");
         failIfInvalidArgument(metrics != null, "metrics must not be null");
@@ -103,7 +101,6 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         this.logBookOperations = new LogBookOperations(
                 logBookState,
                 timingDataPersistence,
-                timingDataFactory,
                 timeSource,
                 monotonicClock,
                 metrics);
@@ -118,10 +115,41 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
         this.commitWaitTimeoutMillis = commitWaitTimeoutMillis;
         this.orderedQueryWaitTimeoutMillis = orderedQueryWaitTimeoutMillis;
         this.newDataEntryEvent =
-                new EventWithMetrics<TimingData>(
+                new EventWithMetrics<TimingRecord>(
                         monotonicClock,
                         metrics.timingDataEventMetrics());
         this.NEW_DATA_ENTRY = newDataEntryEvent;
+    }
+
+    /**
+     * Legacy construction overload retained while callers migrate away from
+     * TimingDataFactory. The factory is deliberately not part of LogBook state.
+     */
+    public LogBook(
+            NodeId timingNodeId,
+            TimingDataPersistence timingDataPersistence,
+            TimingDataFactory timingDataFactory,
+            TimeSource timeSource,
+            MonotonicClock monotonicClock,
+            LogBookMetrics metrics,
+            Executor dataLaneExecutor,
+            int dataLaneCapacity,
+            int dataLaneMaxItemsPerRun,
+            long commitWaitTimeoutMillis,
+            long orderedQueryWaitTimeoutMillis) {
+
+        this(
+                timingNodeId,
+                timingDataPersistence,
+                timeSource,
+                monotonicClock,
+                metrics,
+                dataLaneExecutor,
+                dataLaneCapacity,
+                dataLaneMaxItemsPerRun,
+                commitWaitTimeoutMillis,
+                orderedQueryWaitTimeoutMillis);
+        failIfInvalidArgument(timingDataFactory != null, "timingDataFactory must not be null");
     }
 
     /** Returns immutable node identity without entering the Data Lane. */
@@ -540,7 +568,7 @@ public final class LogBook extends LifecycleComponent implements LogBookAccessor
             R result = command.apply(logBookOperations);
 
             if (logBookState.timingDataHead() > headBefore) {
-                newDataEntryEvent.emit(logBookState.latestCommittedTimingData());
+                newDataEntryEvent.emit(logBookState.latestCommittedRecord());
             }
             return result;
         } catch (Exception ex) {

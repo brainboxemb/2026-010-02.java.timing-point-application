@@ -1,6 +1,8 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node.upstream;
 
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecords;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookAccessor;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.LogBookQueries;
@@ -9,6 +11,7 @@ import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream
 import io.github.brainboxemb.eventtiming.upstreamdata.UpstreamData;
 import io.github.brainboxemb.eventtiming.upstreamdata.defaultprofile.DefaultUpstreamData;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -93,7 +96,7 @@ final class LogBookSync {
     }
 
     /** Submits the next ordered LogBook batch read without blocking the Task Lane. */
-    CompletableFuture<List<TimingData>> submitNextBatch() {
+    CompletableFuture<List<TimingRecord>> submitNextBatch() {
         failIfIllegalState(syncActive, "No TIMING_DATA synchronization is active");
 
         int limit = (int) Math.min(
@@ -101,13 +104,13 @@ final class LogBookSync {
                 syncHead - nextSequence + 1L);
 
         return logBook.submit(
-                LogBookQueries.timingDataRange(
+                LogBookQueries.timingRecordRange(
                         nextSequence,
                         limit));
     }
 
     /** Validates and sends one completed ordered LogBook batch. */
-    void sendNextBatch(List<TimingData> records) {
+    void sendNextBatch(List<TimingRecord> records) {
         failIfInvalidArgument(records != null, "records must not be null");
 
         if (records.isEmpty()) {
@@ -117,7 +120,7 @@ final class LogBookSync {
                 "LogBook head %s advertised record %s but synchronization returned no data",
                 syncHead, nextSequence);
 
-        TimingData first = records.get(0);
+        TimingRecord first = records.get(0);
         if (first.sequenceNumber() != nextSequence) {
             syncActive = false;
         }
@@ -125,14 +128,18 @@ final class LogBookSync {
                 "TimingData synchronization expected sequence %s but got %s",
                 nextSequence, first.sequenceNumber());
 
-        TimingData last = records.get(records.size() - 1);
+        TimingRecord last = records.get(records.size() - 1);
         if (last.sequenceNumber() > syncHead) {
             syncActive = false;
         }
         failIfIllegalState(last.sequenceNumber() <= syncHead,
                 "TimingData synchronization crossed captured head %s", syncHead);
 
-        stream.send(DefaultUpstreamData.timingData(nodeId, records));
+        List<TimingData> transferRecords = new ArrayList<TimingData>(records.size());
+        for (TimingRecord record : records) {
+            transferRecords.add(TimingRecords.asTimingData(record));
+        }
+        stream.send(DefaultUpstreamData.timingData(nodeId, transferRecords));
 
         if (last.sequenceNumber() >= syncHead) {
             syncActive = false;

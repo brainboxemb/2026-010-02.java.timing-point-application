@@ -4,38 +4,29 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataCodec;
-import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Canonical IF-05 v1 JSON codec for the built-in default/reference profile.
+ * Canonical IF-05 v1 JSON codec.
  *
- * <p>IF-05 v1 retains its existing interchange format: {@code time} has two
- * fractional digits and {@code recTime} has three, with its last digit zero.
- * This is independent of the epoch-millisecond representation in TimingData.
- * Writing v1 truncates sub-centisecond precision, so this format cannot
- * round-trip millisecond details that are not centisecond-aligned. Changing
- * that external contract requires an explicit format-version decision.</p>
- *
- * <p>The codec owns one JSON object only. It deliberately does not add or remove
- * JSON Lines terminators: file framing, incomplete-tail handling and recovery
- * belong to the TimingData store.</p>
- *
- * <p>The canonical writer uses compact member names and deterministic member/code
- * order. The reader does not depend on object member order and ignores additional
- * members after safely skipping their JSON value.</p>
+ * <p>The codec reads and writes {@link TimingRecord} directly. Legacy
+ * {@link TimingData} callers are adapted by the default methods on
+ * {@link TimingDataCodec}; the persistence and LogBook path does not construct
+ * TimingData objects.</p>
  */
 public final class DefaultTimingDataCodec implements TimingDataCodec {
     private static final int VERSION = 1;
@@ -47,42 +38,23 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
             DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss.SSS'Z'")
                     .withZone(ZoneOffset.UTC);
 
-    private static final String RECORD_TYPE_AUTO_REG = "AUTO_REG";
-    private static final String RECORD_TYPE_MAN_REG = "MAN_REG";
-    private static final String RECORD_TYPE_NODE_INFO = "NODE_INFO";
+    private static final String AUTO_REG = "AUTO_REG";
+    private static final String MAN_REG = "MAN_REG";
+    private static final String NODE_INFO = "NODE_INFO";
+    private static final String ADD = "ADD";
+    private static final String REV = "REV";
+    private static final String AUTO = "AUTO";
+    private static final String MAN = "MAN";
+    private static final String OPEN = "OPEN";
+    private static final String CLOSE = "CLOSE";
 
-    private static final String CODE_OPEN = "OPEN";
-    private static final String CODE_CLOSE = "CLOSE";
+    private final JsonFactory jsonFactory = new JsonFactory();
 
-    private static final String CODE_ADD = "ADD";
-    private static final String CODE_REV = "REV";
-    private static final String CODE_AUTO = "AUTO";
-    private static final String CODE_MAN = "MAN";
-
-    private final JsonFactory jsonFactory;
-    private final TimingDataFactory timingDataFactory;
-
-    /** Creates the canonical codec backed by the built-in default TimingData factory. */
-    public DefaultTimingDataCodec() {
-        this.jsonFactory = new JsonFactory();
-        this.timingDataFactory = new DefaultTimingDataFactory();
-    }
-
-    /**
-     * Encodes one semantic TimingData value as canonical compact UTF-8 JSON.
-     *
-     * <p>No line terminator is emitted. The caller that owns JSON Lines framing
-     * appends LF after the complete encoded record has been accepted for append.</p>
-     */
     @Override
-    public byte[] encode(TimingData data) throws CodecException {
-        if (data == null) {
-            throw new CodecException(
-                    CodecException.Reason.ENCODE_FAILURE,
-                    "TimingData must not be null");
+    public byte[] encode(TimingRecord record) throws CodecException {
+        if (record == null) {
+            throw encodeFailure("TimingRecord must not be null");
         }
-
-        validateCommonForEncode(data);
 
         try {
             ByteArrayOutputStream output = new ByteArrayOutputStream(192);
@@ -90,38 +62,30 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
             try {
                 generator.writeStartObject();
                 generator.writeNumberField("v", VERSION);
-                generator.writeStringField("nodeId", data.timingNodeId().value());
-                generator.writeNumberField("seqNr", data.sequenceNumber());
-                generator.writeNumberField("locId", data.locationId().value());
+                generator.writeStringField("nodeId", String.valueOf(record.nodeId()));
+                generator.writeNumberField("seqNr", record.sequenceNumber());
+                generator.writeNumberField("locId", record.locationId());
 
-                if (data instanceof TimingData.AutomaticRegistration) {
-                    writeAutomatic(
-                            generator,
-                            (TimingData.AutomaticRegistration) data);
-                } else if (data instanceof TimingData.ManualRegistration) {
-                    writeManual(
-                            generator,
-                            (TimingData.ManualRegistration) data);
-                } else if (data instanceof TimingData.NodeOpen) {
-                    writeLifecycle(
-                            generator,
-                            data,
-                            CODE_OPEN);
-                } else if (data instanceof TimingData.NodeClose) {
-                    writeLifecycle(
-                            generator,
-                            data,
-                            CODE_CLOSE);
-                } else {
-                    throw new CodecException(
-                            CodecException.Reason.ENCODE_FAILURE,
-                            "Default profile cannot encode TimingData type "
-                                    + data.getClass().getName());
+                switch (record.kind()) {
+                    case AUTOMATIC_REGISTRATION:
+                        writeAutomatic(generator, record);
+                        break;
+                    case MANUAL_REGISTRATION:
+                        writeManual(generator, record);
+                        break;
+                    case NODE_OPEN:
+                        writeLifecycle(generator, record, OPEN);
+                        break;
+                    case NODE_CLOSE:
+                        writeLifecycle(generator, record, CLOSE);
+                        break;
+                    default:
+                        throw encodeFailure("unsupported TimingRecord kind " + record.kind());
                 }
 
                 generator.writeStringField(
                         "recTime",
-                        formatRecordedTime(data.recordedAt()));
+                        formatRecordedTime(record.recordedAtMillis()));
                 generator.writeEndObject();
             } finally {
                 generator.close();
@@ -132,116 +96,59 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         } catch (IOException | RuntimeException ex) {
             throw new CodecException(
                     CodecException.Reason.ENCODE_FAILURE,
-                    "Could not encode TimingData as IF-05 v1 JSON",
-                    ex);
-        }
-    }
-
-    private static void validateCommonForEncode(TimingData data) throws CodecException {
-        try {
-            new TimingDataFactory.Context(
-                    data.timingNodeId(),
-                    data.sequenceNumber(),
-                    data.locationId(),
-                    data.effectiveTime(),
-                    data.recordedAt());
-        } catch (RuntimeException ex) {
-            throw new CodecException(
-                    CodecException.Reason.ENCODE_FAILURE,
-                    "TimingData contains invalid common IF-05 values",
+                    "Could not encode TimingRecord as IF-05 v1 JSON",
                     ex);
         }
     }
 
     private static void writeAutomatic(
             JsonGenerator generator,
-            TimingData.AutomaticRegistration data)
+            TimingRecord record)
             throws IOException, CodecException {
-        RegistrationId registrationId = requireRegistrationId(data.registrationId());
-        generator.writeStringField("recType", RECORD_TYPE_AUTO_REG);
+        generator.writeStringField("recType", AUTO_REG);
+        generator.writeStringField("time", formatEffectiveTime(record.effectiveTimeMillis()));
         generator.writeStringField(
-                "time",
-                formatEffectiveTime(data.effectiveTime()));
-        generator.writeStringField("regId", registrationId.value());
-        writeCodes(
-                generator,
-                actionCode(data.action()));
-        if (data.tagSource() != null && data.registrationTimeSource() != null) {
-            generator.writeStringField("tagSrc", data.tagSource().name());
-            generator.writeStringField("timeSrc", data.registrationTimeSource().name());
-        } else if (data.tagSource() != null || data.registrationTimeSource() != null) {
-            throw new CodecException(
-                    CodecException.Reason.ENCODE_FAILURE,
-                    "automatic tagSrc and timeSrc must appear together");
+                "regId",
+                RegistrationId.fromPackedValue(record.registrationId()).value());
+        writeCodes(generator, actionCode(record.action()));
+
+        TimingRecord.TagSource tagSource = record.tagSource();
+        TimingRecord.AutomaticTimeSource timeSource = record.automaticTimeSource();
+        if (tagSource != null && timeSource != null) {
+            generator.writeStringField("tagSrc", tagSource.name());
+            generator.writeStringField("timeSrc", timeSource.name());
+        } else if (tagSource != null || timeSource != null) {
+            throw encodeFailure("automatic tagSrc and timeSrc must appear together");
         }
     }
 
     private static void writeManual(
             JsonGenerator generator,
-            TimingData.ManualRegistration data)
+            TimingRecord record)
             throws IOException, CodecException {
-        RegistrationId registrationId = requireRegistrationId(data.registrationId());
-        TimingData.ManualTimeSource timeSource = data.timeSource();
+        TimingRecord.ManualTimeSource timeSource = record.manualTimeSource();
         if (timeSource == null) {
-            throw new CodecException(
-                    CodecException.Reason.ENCODE_FAILURE,
-                    "manual timeSource must not be null");
+            throw encodeFailure("manual timeSource must not be null");
         }
 
-        final String timeCode;
-        switch (timeSource) {
-            case AUTOMATIC:
-                timeCode = CODE_AUTO;
-                break;
-            case OPERATOR_ENTERED:
-                timeCode = CODE_MAN;
-                break;
-            default:
-                throw new CodecException(
-                        CodecException.Reason.ENCODE_FAILURE,
-                        "unsupported manual timeSource " + timeSource);
-        }
-
-        generator.writeStringField("recType", RECORD_TYPE_MAN_REG);
+        generator.writeStringField("recType", MAN_REG);
+        generator.writeStringField("time", formatEffectiveTime(record.effectiveTimeMillis()));
         generator.writeStringField(
-                "time",
-                formatEffectiveTime(data.effectiveTime()));
-        generator.writeStringField("regId", registrationId.value());
+                "regId",
+                RegistrationId.fromPackedValue(record.registrationId()).value());
         writeCodes(
                 generator,
-                actionCode(data.action()),
-                timeCode);
-    }
-
-    private static String actionCode(
-            TimingData.RegistrationAction action)
-            throws CodecException {
-        if (action == null) {
-            throw new CodecException(
-                    CodecException.Reason.ENCODE_FAILURE,
-                    "registration action must not be null");
-        }
-        switch (action) {
-            case ADD:
-                return CODE_ADD;
-            case REV:
-                return CODE_REV;
-            default:
-                throw new CodecException(
-                        CodecException.Reason.ENCODE_FAILURE,
-                        "unsupported registration action " + action);
-        }
+                actionCode(record.action()),
+                timeSource == TimingRecord.ManualTimeSource.AUTOMATIC ? AUTO : MAN);
     }
 
     private static void writeLifecycle(
             JsonGenerator generator,
-            TimingData data,
+            TimingRecord record,
             String code)
-            throws IOException, CodecException {
-        generator.writeStringField("recType", RECORD_TYPE_NODE_INFO);
-        generator.writeStringField(
-                "time",
-                formatEffectiveTime(data.effectiveTime()));
+            throws IOException {
+        generator.writeStringField("recType", NODE_INFO);
+        generator.writeStringField("time", formatEffectiveTime(record.effectiveTimeMillis()));
         writeCodes(generator, code);
     }
 
@@ -254,36 +161,28 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         generator.writeEndArray();
     }
 
-    /** Writes the unchanged IF-05 v1 effective-time text shape (.SS). */
-    private static String formatEffectiveTime(TimingTimestamp timestamp) {
-        return EFFECTIVE_TIME_FORMAT.format(timestamp.instant());
+    private static String actionCode(TimingRecord.Action action) throws CodecException {
+        if (action == TimingRecord.Action.ADD) {
+            return ADD;
+        }
+        if (action == TimingRecord.Action.REV) {
+            return REV;
+        }
+        throw encodeFailure("registration action must be ADD or REV");
     }
 
-    /**
-     * Writes the unchanged IF-05 v1 recorded-time text shape (.SS0).
-     *
-     * <p>Although the external field has three digits, v1 has always retained
-     * only centiseconds. Truncation is confined to serialization; the default
-     * TimingData object keeps the original epoch-millisecond value.</p>
-     */
-    private static String formatRecordedTime(TimingTimestamp timestamp) {
-        java.time.Instant instant = timestamp.instant();
+    private static String formatEffectiveTime(long epochMillis) {
+        return EFFECTIVE_TIME_FORMAT.format(Instant.ofEpochMilli(epochMillis));
+    }
+
+    private static String formatRecordedTime(long epochMillis) {
+        Instant instant = Instant.ofEpochMilli(epochMillis);
         long subCentisecondNanos = instant.getNano() % 10_000_000L;
         return RECORDED_TIME_FORMAT.format(instant.minusNanos(subCentisecondNanos));
     }
 
-    private static RegistrationId requireRegistrationId(RegistrationId registrationId)
-            throws CodecException {
-        if (registrationId == null) {
-            throw new CodecException(
-                    CodecException.Reason.ENCODE_FAILURE,
-                    "registrationId must not be null");
-        }
-        return registrationId;
-    }
-
     @Override
-    public TimingData decode(byte[] encodedRecord) throws CodecException {
+    public TimingRecord decodeRecord(byte[] encodedRecord) throws CodecException {
         if (encodedRecord == null || encodedRecord.length == 0) {
             throw invalid("encoded record must not be empty");
         }
@@ -292,8 +191,8 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         }
 
         try {
-            DecodedFields fields = readFields(encodedRecord);
-            return toTimingData(fields);
+            Fields fields = readFields(encodedRecord);
+            return toRecord(fields);
         } catch (CodecException ex) {
             throw ex;
         } catch (IOException | RuntimeException ex) {
@@ -304,10 +203,9 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         }
     }
 
-    private DecodedFields readFields(byte[] encodedRecord)
+    private Fields readFields(byte[] encodedRecord)
             throws IOException, CodecException {
-        DecodedFields fields = new DecodedFields();
-
+        Fields fields = new Fields();
         JsonParser parser = jsonFactory.createParser(encodedRecord);
         try {
             if (parser.nextToken() != JsonToken.START_OBJECT) {
@@ -320,66 +218,56 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                 }
 
                 String name = parser.currentName();
-                JsonToken valueToken = parser.nextToken();
-                if (valueToken == null) {
+                JsonToken token = parser.nextToken();
+                if (token == null) {
                     throw invalid("missing value for JSON member " + name);
                 }
 
                 switch (name) {
                     case "v":
-                        fields.version =
-                                readInt(parser, valueToken, name, fields.versionSeen);
+                        fields.version = readInt(parser, token, name, fields.versionSeen);
                         fields.versionSeen = true;
                         break;
                     case "nodeId":
-                        fields.nodeId =
-                                readString(parser, valueToken, name, fields.nodeIdSeen);
+                        fields.nodeId = readString(parser, token, name, fields.nodeIdSeen);
                         fields.nodeIdSeen = true;
                         break;
                     case "seqNr":
-                        fields.sequenceNumber =
-                                readLong(parser, valueToken, name, fields.sequenceNumberSeen);
-                        fields.sequenceNumberSeen = true;
+                        fields.sequence = readLong(parser, token, name, fields.sequenceSeen);
+                        fields.sequenceSeen = true;
                         break;
                     case "locId":
-                        fields.locationId =
-                                readInt(parser, valueToken, name, fields.locationIdSeen);
-                        fields.locationIdSeen = true;
+                        fields.locationId = readInt(parser, token, name, fields.locationSeen);
+                        fields.locationSeen = true;
                         break;
                     case "recType":
-                        fields.recordType =
-                                readString(parser, valueToken, name, fields.recordTypeSeen);
+                        fields.recordType = readString(parser, token, name, fields.recordTypeSeen);
                         fields.recordTypeSeen = true;
                         break;
                     case "time":
-                        fields.effectiveTimeText =
-                                readString(parser, valueToken, name, fields.effectiveTimeSeen);
-                        fields.effectiveTimeSeen = true;
+                        fields.effectiveTime = readString(parser, token, name, fields.effectiveSeen);
+                        fields.effectiveSeen = true;
                         break;
                     case "regId":
                         fields.registrationId =
-                                readString(parser, valueToken, name, fields.registrationIdSeen);
-                        fields.registrationIdSeen = true;
+                                readString(parser, token, name, fields.registrationSeen);
+                        fields.registrationSeen = true;
                         break;
                     case "code":
-                        fields.codes =
-                                readStringArray(parser, valueToken, name, fields.codesSeen);
+                        fields.codes = readStringArray(parser, token, name, fields.codesSeen);
                         fields.codesSeen = true;
                         break;
                     case "tagSrc":
-                        fields.tagSourceText =
-                                readString(parser, valueToken, name, fields.tagSourceSeen);
+                        fields.tagSource = readString(parser, token, name, fields.tagSourceSeen);
                         fields.tagSourceSeen = true;
                         break;
                     case "timeSrc":
-                        fields.timeSourceText =
-                                readString(parser, valueToken, name, fields.timeSourceSeen);
+                        fields.timeSource = readString(parser, token, name, fields.timeSourceSeen);
                         fields.timeSourceSeen = true;
                         break;
                     case "recTime":
-                        fields.recordedAtText =
-                                readString(parser, valueToken, name, fields.recordedAtSeen);
-                        fields.recordedAtSeen = true;
+                        fields.recordedAt = readString(parser, token, name, fields.recordedSeen);
+                        fields.recordedSeen = true;
                         break;
                     default:
                         parser.skipChildren();
@@ -390,14 +278,13 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
             if (parser.nextToken() != null) {
                 throw invalid("unexpected data after TimingData JSON object");
             }
+            return fields;
         } finally {
             parser.close();
         }
-
-        return fields;
     }
 
-    private TimingData toTimingData(DecodedFields fields) throws CodecException {
+    private static TimingRecord toRecord(Fields fields) throws CodecException {
         require(fields.versionSeen, "v");
         if (fields.version != VERSION) {
             throw CodecException.unsupportedVersion(
@@ -405,184 +292,156 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
                     "unsupported IF-05 TimingData version " + fields.version);
         }
 
-        TimingDataFactory.Context context = commonContext(fields);
-        TimingData.RecordKey key = new TimingData.RecordKey(
-                context.timingNodeId(),
-                context.sequenceNumber());
-
+        Common common = common(fields);
         require(fields.recordTypeSeen, "recType");
-        if (!RECORD_TYPE_AUTO_REG.equals(fields.recordType)
-                && !RECORD_TYPE_MAN_REG.equals(fields.recordType)
-                && !RECORD_TYPE_NODE_INFO.equals(fields.recordType)) {
+
+        if (NODE_INFO.equals(fields.recordType)) {
+            rejectProvenance(fields);
+            if (fields.registrationSeen) {
+                throw invalid("NODE_INFO must not contain regId");
+            }
+            require(fields.codesSeen, "code");
+            if (exact(fields.codes, OPEN)) {
+                return TimingRecord.opened(
+                        common.nodeId, common.sequence, common.locationId,
+                        common.effectiveTimeMillis, common.recordedAtMillis);
+            }
+            if (exact(fields.codes, CLOSE)) {
+                return TimingRecord.closed(
+                        common.nodeId, common.sequence, common.locationId,
+                        common.effectiveTimeMillis, common.recordedAtMillis);
+            }
+            throw invalid("NODE_INFO code must be exactly OPEN or CLOSE");
+        }
+
+        if (!AUTO_REG.equals(fields.recordType) && !MAN_REG.equals(fields.recordType)) {
             throw CodecException.unsupportedRecordType(
                     VERSION,
-                    key,
-                    context.locationId(),
+                    new TimingData.RecordKey(new NodeId(String.valueOf(common.nodeId)), common.sequence),
+                    new LocationId(common.locationId),
                     fields.recordType,
-                    context.effectiveTime(),
-                    context.recordedAt(),
+                    new TimingTimestamp(Instant.ofEpochMilli(common.effectiveTimeMillis)),
+                    new TimingTimestamp(Instant.ofEpochMilli(common.recordedAtMillis)),
                     "unsupported IF-05 development-v1 recType " + fields.recordType);
         }
 
-        if (RECORD_TYPE_NODE_INFO.equals(fields.recordType)) {
-            rejectNonAutomaticProvenance(fields);
-            rejectLifecycleRegistrationFields(fields);
-            require(fields.codesSeen, "code");
-            if (hasExactCodes(fields.codes, CODE_OPEN)) {
-                return timingDataFactory.createNodeOpen(context);
-            }
-            if (hasExactCodes(fields.codes, CODE_CLOSE)) {
-                return timingDataFactory.createNodeClose(context);
-            }
-            throw invalid(
-                    "NODE_INFO code must be exactly OPEN or CLOSE");
-        }
-
-        require(fields.registrationIdSeen, "regId");
+        require(fields.registrationSeen, "regId");
         require(fields.codesSeen, "code");
-        RegistrationId registrationId = registrationId(fields.registrationId);
+        int registrationId = registrationId(fields.registrationId);
 
-        if (RECORD_TYPE_AUTO_REG.equals(fields.recordType)) {
+        if (AUTO_REG.equals(fields.recordType)) {
             if (fields.tagSourceSeen != fields.timeSourceSeen) {
                 throw invalid("tagSrc and timeSrc must appear together");
             }
+
+            TimingRecord.TagSource tagSource = null;
+            TimingRecord.AutomaticTimeSource timeSource = null;
             if (fields.tagSourceSeen) {
                 try {
-                    context = new TimingDataFactory.Context(
-                            context.timingNodeId(), context.sequenceNumber(),
-                            context.locationId(), context.effectiveTime(), context.recordedAt(),
-                            TimingData.TagSource.valueOf(fields.tagSourceText),
-                            TimingData.AutomaticTimeSource.valueOf(fields.timeSourceText));
+                    tagSource = TimingRecord.TagSource.valueOf(fields.tagSource);
+                    timeSource = TimingRecord.AutomaticTimeSource.valueOf(fields.timeSource);
                 } catch (IllegalArgumentException ex) {
                     throw invalid("unsupported tagSrc/timeSrc value", ex);
                 }
             }
-            if (hasExactCodes(fields.codes, CODE_ADD)) {
-                return timingDataFactory.createAutomaticRegistration(
-                        context,
-                        registrationId,
-                        TimingData.RegistrationAction.ADD);
+
+            TimingRecord.Action action;
+            if (exact(fields.codes, ADD)) {
+                action = TimingRecord.Action.ADD;
+            } else if (exact(fields.codes, REV)) {
+                action = TimingRecord.Action.REV;
+            } else {
+                throw invalid("AUTO_REG code must be exactly ADD or REV");
             }
-            if (hasExactCodes(fields.codes, CODE_REV)) {
-                return timingDataFactory.createAutomaticRegistration(
-                        context,
-                        registrationId,
-                        TimingData.RegistrationAction.REV);
-            }
-            throw invalid(
-                    "AUTO_REG code must be exactly ADD or REV");
+
+            return TimingRecord.automatic(
+                    common.nodeId, common.sequence, common.locationId,
+                    common.effectiveTimeMillis, common.recordedAtMillis,
+                    registrationId, action, tagSource, timeSource);
         }
 
-        rejectNonAutomaticProvenance(fields);
-        TimingData.RegistrationAction action =
-                registrationAction(fields.codes);
-        TimingData.ManualTimeSource timeSource =
-                manualTimeSource(fields.codes);
-        return timingDataFactory.createManualRegistration(
-                context,
-                registrationId,
-                timeSource,
-                action);
-    }
-
-    private static TimingData.RegistrationAction registrationAction(
-            List<String> codes)
-            throws CodecException {
-        boolean add = codes != null && codes.contains(CODE_ADD);
-        boolean rev = codes != null && codes.contains(CODE_REV);
-        if (add == rev) {
-            throw invalid(
-                    "MAN_REG code must contain exactly one of ADD or REV");
+        rejectProvenance(fields);
+        if (fields.codes.size() != 2) {
+            throw invalid("MAN_REG code must contain exactly one action and one time source");
         }
-        return add
-                ? TimingData.RegistrationAction.ADD
-                : TimingData.RegistrationAction.REV;
+        TimingRecord.Action action = oneOfAction(fields.codes);
+        TimingRecord.ManualTimeSource timeSource = oneOfManualTimeSource(fields.codes);
+        return TimingRecord.manual(
+                common.nodeId, common.sequence, common.locationId,
+                common.effectiveTimeMillis, common.recordedAtMillis,
+                registrationId, action, timeSource);
     }
 
-    private static TimingData.ManualTimeSource manualTimeSource(
-            List<String> codes)
-            throws CodecException {
-        boolean auto = codes != null && codes.contains(CODE_AUTO);
-        boolean man = codes != null && codes.contains(CODE_MAN);
-        if (auto == man || codes.size() != 2) {
-            throw invalid(
-                    "MAN_REG code must contain exactly one action and exactly one of AUTO or MAN");
-        }
-        return auto
-                ? TimingData.ManualTimeSource.AUTOMATIC
-                : TimingData.ManualTimeSource.OPERATOR_ENTERED;
-    }
-
-    private static void rejectNonAutomaticProvenance(DecodedFields fields)
-            throws CodecException {
-        if (fields.tagSourceSeen || fields.timeSourceSeen) {
-            throw invalid("tagSrc/timeSrc are only valid on AUTO_REG");
-        }
-    }
-
-    private static void rejectLifecycleRegistrationFields(DecodedFields fields)
-            throws CodecException {
-        if (fields.registrationIdSeen) {
-            throw invalid(fields.recordType + " must not contain regId");
-        }
-
-    }
-
-    private static RegistrationId registrationId(String value) throws CodecException {
-        try {
-            return new RegistrationId(value);
-        } catch (RuntimeException ex) {
-            throw invalid("regId is invalid", ex);
-        }
-    }
-
-    private static TimingDataFactory.Context commonContext(DecodedFields fields)
-            throws CodecException {
+    private static Common common(Fields fields) throws CodecException {
         require(fields.nodeIdSeen, "nodeId");
-        require(fields.sequenceNumberSeen, "seqNr");
-        require(fields.locationIdSeen, "locId");
-        require(fields.effectiveTimeSeen, "time");
-        require(fields.recordedAtSeen, "recTime");
+        require(fields.sequenceSeen, "seqNr");
+        require(fields.locationSeen, "locId");
+        require(fields.effectiveSeen, "time");
+        require(fields.recordedSeen, "recTime");
 
         try {
-            return new TimingDataFactory.Context(
-                    new NodeId(fields.nodeId),
-                    fields.sequenceNumber,
-                    new LocationId(fields.locationId),
-                    TimingTimestamp.parseAbsolute(fields.effectiveTimeText),
-                    TimingTimestamp.parseAbsolute(fields.recordedAtText));
+            NodeId nodeId = new NodeId(fields.nodeId);
+            LocationId locationId = new LocationId(fields.locationId);
+            if (fields.sequence < 1L || fields.sequence > TimingData.MAX_SEQUENCE_NUMBER) {
+                throw new IllegalArgumentException("sequence out of range");
+            }
+            long effective = Instant.parse(fields.effectiveTime).toEpochMilli();
+            long recorded = Instant.parse(fields.recordedAt).toEpochMilli();
+            return new Common(
+                    nodeId.value().charAt(0),
+                    fields.sequence,
+                    locationId.value(),
+                    effective,
+                    recorded);
         } catch (RuntimeException ex) {
             throw invalid("common IF-05 TimingData envelope is invalid", ex);
         }
     }
 
-    private static void requireExactCodes(List<String> actual, String... expected)
+    private static TimingRecord.Action oneOfAction(List<String> codes)
             throws CodecException {
-        if (!hasExactCodes(actual, expected)) {
-            throw invalid(
-                    "code must be exactly " + java.util.Arrays.toString(expected));
+        boolean add = codes.contains(ADD);
+        boolean rev = codes.contains(REV);
+        if (add == rev) {
+            throw invalid("MAN_REG code must contain exactly one of ADD or REV");
+        }
+        return add ? TimingRecord.Action.ADD : TimingRecord.Action.REV;
+    }
+
+    private static TimingRecord.ManualTimeSource oneOfManualTimeSource(List<String> codes)
+            throws CodecException {
+        boolean auto = codes.contains(AUTO);
+        boolean man = codes.contains(MAN);
+        if (auto == man) {
+            throw invalid("MAN_REG code must contain exactly one of AUTO or MAN");
+        }
+        return auto
+                ? TimingRecord.ManualTimeSource.AUTOMATIC
+                : TimingRecord.ManualTimeSource.OPERATOR_ENTERED;
+    }
+
+    private static void rejectProvenance(Fields fields) throws CodecException {
+        if (fields.tagSourceSeen || fields.timeSourceSeen) {
+            throw invalid("tagSrc/timeSrc are only valid on AUTO_REG");
         }
     }
 
-    private static boolean hasExactCodes(List<String> actual, String... expected) {
-        if (actual == null || actual.size() != expected.length) {
-            return false;
+    private static int registrationId(String value) throws CodecException {
+        try {
+            return new RegistrationId(value).packedValue();
+        } catch (RuntimeException ex) {
+            throw invalid("regId is invalid", ex);
         }
-        for (String code : expected) {
-            if (!actual.contains(code)) {
-                return false;
-            }
-        }
-        return true;
+    }
+
+    private static boolean exact(List<String> actual, String expected) {
+        return actual != null && actual.size() == 1 && expected.equals(actual.get(0));
     }
 
     private static String readString(
-            JsonParser parser,
-            JsonToken token,
-            String name,
-            boolean alreadySeen)
+            JsonParser parser, JsonToken token, String name, boolean seen)
             throws IOException, CodecException {
-        rejectDuplicate(name, alreadySeen);
+        duplicate(name, seen);
         if (token != JsonToken.VALUE_STRING) {
             throw invalid(name + " must be a JSON string");
         }
@@ -590,12 +449,9 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
     }
 
     private static List<String> readStringArray(
-            JsonParser parser,
-            JsonToken token,
-            String name,
-            boolean alreadySeen)
+            JsonParser parser, JsonToken token, String name, boolean seen)
             throws IOException, CodecException {
-        rejectDuplicate(name, alreadySeen);
+        duplicate(name, seen);
         if (token != JsonToken.START_ARRAY) {
             throw invalid(name + " must be a JSON string array");
         }
@@ -603,7 +459,7 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         List<String> values = new ArrayList<String>();
         JsonToken item;
         while ((item = parser.nextToken()) != JsonToken.END_ARRAY) {
-            if (item == null || item != JsonToken.VALUE_STRING) {
+            if (item != JsonToken.VALUE_STRING) {
                 throw invalid(name + " must contain only JSON strings");
             }
             String value = parser.getText();
@@ -622,42 +478,27 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
     }
 
     private static int readInt(
-            JsonParser parser,
-            JsonToken token,
-            String name,
-            boolean alreadySeen)
+            JsonParser parser, JsonToken token, String name, boolean seen)
             throws IOException, CodecException {
-        rejectDuplicate(name, alreadySeen);
+        duplicate(name, seen);
         if (token != JsonToken.VALUE_NUMBER_INT) {
             throw invalid(name + " must be a JSON integer");
         }
-        try {
-            return parser.getIntValue();
-        } catch (RuntimeException ex) {
-            throw invalid(name + " is outside the supported integer range", ex);
-        }
+        return parser.getIntValue();
     }
 
     private static long readLong(
-            JsonParser parser,
-            JsonToken token,
-            String name,
-            boolean alreadySeen)
+            JsonParser parser, JsonToken token, String name, boolean seen)
             throws IOException, CodecException {
-        rejectDuplicate(name, alreadySeen);
+        duplicate(name, seen);
         if (token != JsonToken.VALUE_NUMBER_INT) {
             throw invalid(name + " must be a JSON integer");
         }
-        try {
-            return parser.getLongValue();
-        } catch (RuntimeException ex) {
-            throw invalid(name + " is outside the supported integer range", ex);
-        }
+        return parser.getLongValue();
     }
 
-    private static void rejectDuplicate(String name, boolean alreadySeen)
-            throws CodecException {
-        if (alreadySeen) {
+    private static void duplicate(String name, boolean seen) throws CodecException {
+        if (seen) {
             throw invalid("duplicate JSON member " + name);
         }
     }
@@ -668,11 +509,15 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
         }
     }
 
-    private static boolean hasUtf8Bom(byte[] encodedRecord) {
-        return encodedRecord.length >= 3
-                && (encodedRecord[0] & 0xff) == 0xef
-                && (encodedRecord[1] & 0xff) == 0xbb
-                && (encodedRecord[2] & 0xff) == 0xbf;
+    private static boolean hasUtf8Bom(byte[] data) {
+        return data.length >= 3
+                && (data[0] & 0xff) == 0xef
+                && (data[1] & 0xff) == 0xbb
+                && (data[2] & 0xff) == 0xbf;
+    }
+
+    private static CodecException encodeFailure(String message) {
+        return new CodecException(CodecException.Reason.ENCODE_FAILURE, message);
     }
 
     private static CodecException invalid(String message) {
@@ -680,35 +525,52 @@ public final class DefaultTimingDataCodec implements TimingDataCodec {
     }
 
     private static CodecException invalid(String message, Throwable cause) {
-        return new CodecException(
-                CodecException.Reason.INVALID_DATA,
-                message,
-                cause);
+        return new CodecException(CodecException.Reason.INVALID_DATA, message, cause);
     }
 
-    /** Parsed known members before semantic construction; unknown members are skipped. */
-    private static final class DecodedFields {
+    private static final class Common {
+        private final char nodeId;
+        private final long sequence;
+        private final int locationId;
+        private final long effectiveTimeMillis;
+        private final long recordedAtMillis;
+
+        private Common(
+                char nodeId,
+                long sequence,
+                int locationId,
+                long effectiveTimeMillis,
+                long recordedAtMillis) {
+            this.nodeId = nodeId;
+            this.sequence = sequence;
+            this.locationId = locationId;
+            this.effectiveTimeMillis = effectiveTimeMillis;
+            this.recordedAtMillis = recordedAtMillis;
+        }
+    }
+
+    private static final class Fields {
         private int version;
         private boolean versionSeen;
         private String nodeId;
         private boolean nodeIdSeen;
-        private long sequenceNumber;
-        private boolean sequenceNumberSeen;
+        private long sequence;
+        private boolean sequenceSeen;
         private int locationId;
-        private boolean locationIdSeen;
+        private boolean locationSeen;
         private String recordType;
         private boolean recordTypeSeen;
-        private String effectiveTimeText;
-        private boolean effectiveTimeSeen;
+        private String effectiveTime;
+        private boolean effectiveSeen;
         private String registrationId;
-        private boolean registrationIdSeen;
+        private boolean registrationSeen;
         private List<String> codes;
         private boolean codesSeen;
-        private String recordedAtText;
-        private boolean recordedAtSeen;
-        private String tagSourceText;
+        private String tagSource;
         private boolean tagSourceSeen;
-        private String timeSourceText;
+        private String timeSource;
         private boolean timeSourceSeen;
+        private String recordedAt;
+        private boolean recordedSeen;
     }
 }

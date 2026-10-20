@@ -65,7 +65,6 @@ final class TimingSystemDataResolver {
                             timingSystem,
                             true,
                             eventDataProvider.createEventData(),
-                            timingDataProvider.createFactory(),
                             timingDataProvider.createCodec()));
         }
 
@@ -102,8 +101,7 @@ final class TimingSystemDataResolver {
                         config.timingSystems().get(0),
                         tagScenarioSimulationEnabled,
                         eventData,
-                        timingDataProvider.createFactory(),
-                        timingDataProvider.createCodec()));
+                            timingDataProvider.createCodec()));
         return result;
     }
 }

@@ -4,6 +4,8 @@ import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData.ManualTimeSource;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecords;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataFactory.Context;
 import io.github.brainboxemb.eventtiming.timingdata.TimingTimestamp;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
@@ -27,7 +29,7 @@ public class LogBookDataTest {
         assertEquals(1L, logBookData.nextSequence());
         assertEquals(1L, logBookData.nextSequence());
 
-        logBookData.add(data("A", 1L, "N1001"));
+        logBookData.add(record("A", 1L, "N1001"));
 
         assertEquals(2L, logBookData.nextSequence());
         assertEquals(1, logBookData.size());
@@ -36,8 +38,8 @@ public class LogBookDataTest {
     @Test
     public void latestReturnsNewestCommittedRecord() {
         LogBookData logBookData = new LogBookData(new NodeId("A"));
-        TimingData first = data("A", 1L, "N1001");
-        TimingData second = data("A", 2L, "N1002");
+        TimingRecord first = record("A", 1L, "N1001");
+        TimingRecord second = record("A", 2L, "N1002");
 
         logBookData.add(first);
         logBookData.add(second);
@@ -50,7 +52,7 @@ public class LogBookDataTest {
         LogBookData logBookData = new LogBookData(new NodeId("A"));
 
         try {
-            logBookData.add(data("A", 2L, "N1002"));
+            logBookData.add(record("A", 2L, "N1002"));
             fail("expected sequence validation");
         } catch (IllegalArgumentException expected) {
             assertEquals(0, logBookData.size());
@@ -63,7 +65,7 @@ public class LogBookDataTest {
         LogBookData logBookData = new LogBookData(new NodeId("A"));
 
         try {
-            logBookData.add(data("B", 1L, "N1001"));
+            logBookData.add(record("B", 1L, "N1001"));
             fail("expected TimingNode validation");
         } catch (IllegalArgumentException expected) {
             assertEquals(0, logBookData.size());
@@ -73,14 +75,14 @@ public class LogBookDataTest {
     @Test
     public void visitsBoundedRangesWithoutCreatingAReadList() {
         LogBookData logBookData = new LogBookData(new NodeId("A"));
-        TimingData first = data("A", 1L, "N1001");
-        TimingData second = data("A", 2L, "N1002");
-        TimingData third = data("A", 3L, "N1003");
+        TimingRecord first = record("A", 1L, "N1001");
+        TimingRecord second = record("A", 2L, "N1002");
+        TimingRecord third = record("A", 3L, "N1003");
         logBookData.add(first);
         logBookData.add(second);
         logBookData.add(third);
 
-        List<TimingData> visited = new ArrayList<>();
+        List<TimingRecord> visited = new ArrayList<>();
         logBookData.visitRange(2L, 1, visited::add);
 
         assertEquals(1, visited.size());
@@ -94,16 +96,18 @@ public class LogBookDataTest {
         assertEquals(third, visited.get(1));
     }
 
-    private TimingData data(String nodeId, long sequence, String registrationId) {
+    private TimingRecord record(String nodeId, long sequence, String registrationId) {
         TimingTimestamp effective =
                 TimingTimestamp.parse("2026-10-01T12:00:00.000000000Z");
         TimingTimestamp recorded =
                 TimingTimestamp.parse("2026-10-01T12:00:01.000000000Z");
         Context context =
                 new Context(new NodeId(nodeId), sequence, new LocationId(24), effective, recorded);
-        return factory.createManualRegistration(
-                context,
-                new RegistrationId(registrationId),
-                ManualTimeSource.OPERATOR_ENTERED);
+        TimingData data =
+                factory.createManualRegistration(
+                        context,
+                        new RegistrationId(registrationId),
+                        ManualTimeSource.OPERATOR_ENTERED);
+        return TimingRecords.fromTimingData(data);
     }
 }
