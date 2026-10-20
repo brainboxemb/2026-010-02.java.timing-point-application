@@ -10,7 +10,7 @@ import static org.junit.Assert.assertTrue;
 public class TagIdTest {
 
     @Test
-    public void storesBVariantInHistoricalPackedForm() {
+    public void storesBVariantInExplicitTwoBitState() {
         TagId tagId = new TagId("N0042B");
 
         assertEquals('N' << 16 | 0x8000 | 42, tagId.packedValue());
@@ -26,7 +26,7 @@ public class TagIdTest {
     }
 
     @Test
-    public void aVariantKeepsHistoricalZeroVariantBits() {
+    public void aVariantUsesExplicitTwoBitState() {
         TagId tagId = new TagId("N0042A");
 
         assertEquals('N' << 16 | 42, tagId.packedValue());
