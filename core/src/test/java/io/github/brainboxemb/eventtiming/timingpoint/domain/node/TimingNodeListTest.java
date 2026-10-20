@@ -1,8 +1,7 @@
 package io.github.brainboxemb.eventtiming.timingpoint.domain.node;
 
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
-import io.github.brainboxemb.eventtiming.timingdata.defaultprofile.DefaultTimingDataFactory;
 import io.github.brainboxemb.eventtiming.timingpoint.domain.node.logbook.persistence.TimingDataPersistence;
 import io.github.brainboxemb.eventtiming.timingpoint.testsupport.TimingNodeFixture;
 
@@ -47,7 +46,6 @@ public class TimingNodeListTest {
         return TimingNodeFixture.createDirect(
                 new NodeId(id),
                 new NoOpPersistence(),
-                new DefaultTimingDataFactory(),
                 () -> Instant.parse("2026-10-15T12:00:00Z"));
     }
 
@@ -57,11 +55,11 @@ public class TimingNodeListTest {
         @Override
         public LoadResult load() {
 
-            return new LoadResult(Collections.<TimingData>emptyList(), false);
+            return new LoadResult(Collections.<TimingRecord>emptyList(), false);
         }
 
         @Override
-        public void append(TimingData data) {
+        public void append(TimingRecord record) {
             // TimingNodeList tests do not activate or persist node data.
         }
     }
