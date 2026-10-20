@@ -2,10 +2,7 @@ package io.github.brainboxemb.eventtiming.timingpoint.runtime;
 
 import io.github.brainboxemb.eventtiming.eventdata.EventData;
 import io.github.brainboxemb.eventtiming.eventdata.TagId;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData.AutomaticRegistration;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData.NodeOpen;
-import io.github.brainboxemb.eventtiming.timingdata.TimingData.RegistrationAction;
+import io.github.brainboxemb.eventtiming.timingdata.TimingRecord;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.NodeId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
@@ -99,7 +96,7 @@ public class SimulationRuntimeRecoveryTest {
                     firstAntenna,
                     24);
 
-            AutomaticRegistration firstRegistration =
+            TimingRecord firstRegistration =
                     emitAndAwaitRegistration(
                             node,
                             firstAntenna,
@@ -110,14 +107,10 @@ public class SimulationRuntimeRecoveryTest {
                     2L,
                     firstRegistration.sequenceNumber());
             assertEquals(
-                    RegistrationAction.ADD,
+                    TimingRecord.Action.ADD,
                     firstRegistration.action());
-            assertEquals(
-                    FIRST_REGISTRATION,
-                    firstRegistration.registrationId());
-            assertEquals(
-                    FIRST_TIME,
-                    firstRegistration.effectiveTime());
+            assertEquals(FIRST_REGISTRATION.packedValue(), firstRegistration.registrationId());
+            assertEquals(FIRST_TIME.instant().toEpochMilli(), firstRegistration.effectiveTimeMillis());
             assertEquals(
                     2,
                     node.logBookCount());
@@ -160,7 +153,7 @@ public class SimulationRuntimeRecoveryTest {
                     2,
                     recoveredNode.logBookCount());
 
-            List<TimingData> recoveredHistory =
+            List<TimingRecord> recoveredHistory =
                     history(recoveredNode);
             assertEquals(
                     2,
@@ -181,7 +174,7 @@ public class SimulationRuntimeRecoveryTest {
                     secondAntenna,
                     25);
 
-            AutomaticRegistration secondRegistration =
+            TimingRecord secondRegistration =
                     emitAndAwaitRegistration(
                             recoveredNode,
                             secondAntenna,
@@ -192,14 +185,10 @@ public class SimulationRuntimeRecoveryTest {
                     "the first post-recovery registration must continue the recovered sequence",
                     4L,
                     secondRegistration.sequenceNumber());
-            assertEquals(
-                    SECOND_REGISTRATION,
-                    secondRegistration.registrationId());
-            assertEquals(
-                    SECOND_TIME,
-                    secondRegistration.effectiveTime());
+            assertEquals(SECOND_REGISTRATION.packedValue(), secondRegistration.registrationId());
+            assertEquals(SECOND_TIME.instant().toEpochMilli(), secondRegistration.effectiveTimeMillis());
 
-            List<TimingData> finalHistory =
+            List<TimingRecord> finalHistory =
                     history(recoveredNode);
             assertEquals(
                     4,
@@ -265,7 +254,7 @@ public class SimulationRuntimeRecoveryTest {
                 1000L);
     }
 
-    private static AutomaticRegistration emitAndAwaitRegistration(
+    private static TimingRecord emitAndAwaitRegistration(
             TimingNodeProxy node,
             SimulatedAntenna antenna,
             TagId tagId,
@@ -273,15 +262,15 @@ public class SimulationRuntimeRecoveryTest {
             throws Exception {
         CountDownLatch committed =
                 new CountDownLatch(1);
-        AtomicReference<AutomaticRegistration> registration =
-                new AtomicReference<AutomaticRegistration>();
+        AtomicReference<TimingRecord> registration =
+                new AtomicReference<TimingRecord>();
 
         node.NEW_DATA_ENTRY
                 .subscribe(
                         data -> {
-                            if (data instanceof AutomaticRegistration) {
-                                registration.set(
-                                        (AutomaticRegistration) data);
+                            if (data.kind()
+                                    == TimingRecord.Kind.AUTOMATIC_REGISTRATION) {
+                                registration.set(data);
                                 committed.countDown();
                             }
                         });
@@ -301,10 +290,10 @@ public class SimulationRuntimeRecoveryTest {
         return registration.get();
     }
 
-    private static List<TimingData> history(
+    private static List<TimingRecord> history(
             TimingNodeProxy node) {
-        List<TimingData> records =
-                new ArrayList<TimingData>();
+        List<TimingRecord> records =
+                new ArrayList<TimingRecord>();
 
         int total =
                 node.visitLogBookFrom(
@@ -319,44 +308,44 @@ public class SimulationRuntimeRecoveryTest {
     }
 
     private static void assertOpen(
-            TimingData data,
+            TimingRecord data,
             long sequence,
             int locationId) {
-        assertTrue(
+        assertEquals(
                 "expected lifecycle OPEN at sequence " + sequence,
-                data instanceof NodeOpen);
+                TimingRecord.Kind.NODE_OPEN,
+                data.kind());
         assertEquals(
                 sequence,
                 data.sequenceNumber());
         assertEquals(
-                new LocationId(
-                        locationId),
+                locationId,
                 data.locationId());
     }
 
     private static void assertAutomaticRegistration(
-            TimingData data,
+            TimingRecord data,
             long sequence,
             RegistrationId registrationId,
             TimingTimestamp effectiveTime) {
-        assertTrue(
+        assertEquals(
                 "expected automatic registration at sequence " + sequence,
-                data instanceof AutomaticRegistration);
+                TimingRecord.Kind.AUTOMATIC_REGISTRATION,
+                data.kind());
 
-        AutomaticRegistration registration =
-                (AutomaticRegistration) data;
+        TimingRecord registration = data;
         assertEquals(
                 sequence,
                 registration.sequenceNumber());
         assertEquals(
-                RegistrationAction.ADD,
+                TimingRecord.Action.ADD,
                 registration.action());
         assertEquals(
-                registrationId,
+                registrationId.packedValue(),
                 registration.registrationId());
         assertEquals(
-                effectiveTime,
-                registration.effectiveTime());
+                effectiveTime.instant().toEpochMilli(),
+                registration.effectiveTimeMillis());
     }
 
     private static EventData eventData() {
