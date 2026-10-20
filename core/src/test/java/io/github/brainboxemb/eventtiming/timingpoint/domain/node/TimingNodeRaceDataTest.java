@@ -32,6 +32,7 @@ public class TimingNodeRaceDataTest {
     public void firstRaceDataSequenceAppliesAndSendsAck() {
         Fixture fixture = fixture();
         activate(fixture.node);
+        activate(fixture.port);
         try {
             fixture.receive(
                     raceDataSet(
@@ -52,6 +53,7 @@ public class TimingNodeRaceDataTest {
                             new RegistrationId(
                                     "R0001")));
         } finally {
+            deactivate(fixture.port);
             deactivate(fixture.node);
         }
     }
@@ -61,6 +63,7 @@ public class TimingNodeRaceDataTest {
     public void gapDoesNotApplyAndSendsReqForFirstMissingSequence() {
         Fixture fixture = fixture();
         activate(fixture.node);
+        activate(fixture.port);
         try {
             fixture.receive(
                     raceDataSet(
@@ -80,6 +83,7 @@ public class TimingNodeRaceDataTest {
                             new RegistrationId(
                                     "R0001")));
         } finally {
+            deactivate(fixture.port);
             deactivate(fixture.node);
         }
     }
@@ -89,6 +93,7 @@ public class TimingNodeRaceDataTest {
     public void duplicateSequenceSendsCumulativeAckWithoutApplyingAgain() {
         Fixture fixture = fixture();
         activate(fixture.node);
+        activate(fixture.port);
         try {
             fixture.receive(
                     raceDataSet(
@@ -116,6 +121,7 @@ public class TimingNodeRaceDataTest {
                             new RegistrationId(
                                     "R0001")));
         } finally {
+            deactivate(fixture.port);
             deactivate(fixture.node);
         }
     }
@@ -125,6 +131,7 @@ public class TimingNodeRaceDataTest {
     public void invalidFixedTeamOverrideDoesNotAdvanceOrRespond() {
         Fixture fixture = fixture();
         activate(fixture.node);
+        activate(fixture.port);
         try {
             fixture.receive(
                     raceDataSet(
@@ -139,6 +146,7 @@ public class TimingNodeRaceDataTest {
                             new RegistrationId(
                                     "A0001")));
         } finally {
+            deactivate(fixture.port);
             deactivate(fixture.node);
         }
     }
@@ -148,6 +156,7 @@ public class TimingNodeRaceDataTest {
     public void invalidRaceDataIsAtomicAcrossSections() {
         Fixture fixture = fixture();
         activate(fixture.node);
+        activate(fixture.port);
         try {
             fixture.receive(
                     DefaultUpstreamData.raceData(
@@ -168,6 +177,7 @@ public class TimingNodeRaceDataTest {
                     fixture.raceData.teamIdFor(
                             new RegistrationId("A0001")));
         } finally {
+            deactivate(fixture.port);
             deactivate(fixture.node);
         }
     }
