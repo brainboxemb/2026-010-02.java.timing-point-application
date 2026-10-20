@@ -17,7 +17,6 @@ import io.github.brainboxemb.eventtiming.timingpoint.infra.configuration.ReadOnl
 import io.github.brainboxemb.eventtiming.timingpoint.io.devices.antenna.AntennaId;
 import io.github.brainboxemb.eventtiming.timingpoint.io.messaging.UpstreamStream;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.environment.SystemMonotonicClock;
-import io.github.brainboxemb.eventtiming.timingpoint.platform.execution.tasks.SerialTaskRunner;
 import io.github.brainboxemb.eventtiming.timingpoint.platform.time.TimeSource;
 
 import java.util.concurrent.Executor;
@@ -161,11 +160,7 @@ public final class TimingNodeFixture {
                 32,
                 DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
                 DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS,
-                new SerialTaskRunner(
-                        32,
-                        32,
-                        "test-node-task-" + suffix,
-                        NODE_WORKER),
+                NODE_WORKER,
                 TAG_WORKER)
                 .node();
     }
@@ -222,11 +217,6 @@ public final class TimingNodeFixture {
                 32,
                 DEFAULT_COMMIT_WAIT_TIMEOUT_MILLIS,
                 DEFAULT_ORDERED_QUERY_WAIT_TIMEOUT_MILLIS,
-                new SerialTaskRunner(
-                        32,
-                        32,
-                        "test-node-task-direct-" + suffix,
-                        NODE_WORKER),
                 TAG_WORKER);
     }
 
@@ -256,11 +246,7 @@ public final class TimingNodeFixture {
                 dataLaneMaxItemsPerRun,
                 commitWaitTimeoutMillis,
                 orderedQueryWaitTimeoutMillis,
-                new SerialTaskRunner(
-                        32,
-                        32,
-                        "test-node-task-direct-" + suffix,
-                        NODE_WORKER),
+                NODE_WORKER,
                 TAG_WORKER)
                 .node();
     }
@@ -277,7 +263,7 @@ public final class TimingNodeFixture {
             int dataLaneMaxItemsPerRun,
             long commitWaitTimeoutMillis,
             long orderedQueryWaitTimeoutMillis,
-            SerialTaskRunner taskLane,
+            ScheduledThreadPoolExecutor nodeWorker,
             ScheduledThreadPoolExecutor tagWorker) {
         ReadOnlyConfiguration<TagProcessingPolicy> tagConfiguration =
                 ReadOnlyConfiguration.fixed(
@@ -302,7 +288,7 @@ public final class TimingNodeFixture {
         NodeService nodeService =
                 new NodeService(
                         nodeId,
-                        taskLane,
+                        nodeWorker,
                         logBook,
                         timeSource,
                         eventData,
@@ -312,7 +298,7 @@ public final class TimingNodeFixture {
         UpstreamHandler upstreamHandler =
                 new UpstreamHandler(
                         nodeId,
-                        taskLane,
+                        nodeWorker,
                         upstreamStream,
                         logBook,
                         nodeService::applyRaceData);
@@ -332,7 +318,7 @@ public final class TimingNodeFixture {
                         logBook,
                         nodeService,
                         tagProcessor,
-                        taskLane);
+                        nodeWorker);
 
         return new Components(
                 node,
