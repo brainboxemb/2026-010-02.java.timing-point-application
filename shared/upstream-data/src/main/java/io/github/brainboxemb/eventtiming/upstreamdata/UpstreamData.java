@@ -12,7 +12,7 @@ import java.util.Objects;
 /**
  * Transport-independent IF-06 semantic message contract.
  *
- * <p>TimingData keeps its existing IF-05/LogBook source sequence. RaceData is
+ * <p>TIMING_DATA records keep their existing IF-05/LogBook source sequence. RaceData is
  * the independently ordered Central-System-to-TimingNode stream. All v1
  * messages that describe or probe node state, including PING, are node-scoped.</p>
  */
