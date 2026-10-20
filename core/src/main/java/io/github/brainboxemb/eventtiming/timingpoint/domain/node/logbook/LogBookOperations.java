@@ -212,7 +212,7 @@ final class LogBookOperations {
         failIfInvalidArgument(failure != null, "failure must not be null");
 
         String detail = failure.getMessage();
-        String message = "Persisted TimingData load failed for " + state.timingNodeId().value();
+        String message = "Persisted timing-record load failed for " + state.timingNodeId().value();
         if (detail != null && !detail.trim().isEmpty()) {
             message += ": " + detail.trim();
         }
@@ -236,7 +236,7 @@ final class LogBookOperations {
     private void ensureTimingDataCommitAvailable() {
         if (timingDataCommitFailure != null) {
             throw new IllegalStateException(
-                    "TimingData commit is blocked after an earlier persistence failure",
+                    "Timing-record commit is blocked after an earlier persistence failure",
                     timingDataCommitFailure);
         }
     }
