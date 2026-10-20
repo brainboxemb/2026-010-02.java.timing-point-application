@@ -1,5 +1,6 @@
 package io.github.brainboxemb.eventtiming.eventdata;
 
+import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.LocationId;
 import io.github.brainboxemb.eventtiming.timingdata.TimingDataTypes.RegistrationId;
 
 import java.util.ArrayList;
@@ -203,7 +204,28 @@ public class EventData {
     }
 
     /**
-     * Resolves a stable TeamId-to-RegistrationId relationship.
+     * Resolves a stable TeamId-to-RegistrationId relationship for one location.
+     *
+     * <p>The base map-backed EventData has no location-specific distinction and
+     * therefore delegates to the location-independent relationship. Profiles
+     * whose normal registration identity differs per WP may override this
+     * method without involving live race-data assignments.</p>
+     *
+     * @return the RegistrationId, or {@code null} when stable EventData has no
+     *         mapping for this location/team pair
+     */
+    public RegistrationId registrationIdFor(
+            LocationId locationId,
+            TeamId teamId) {
+        if (locationId == null) {
+            throw new IllegalArgumentException(
+                    "locationId must not be null");
+        }
+        return registrationIdFor(teamId);
+    }
+
+    /**
+     * Resolves the location-independent stable TeamId-to-RegistrationId relationship.
      *
      * @return the RegistrationId, or {@code null} when stable EventData has no
      *         mapping
